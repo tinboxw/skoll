@@ -109,6 +109,9 @@ type RBACRepository interface {
 	GetRolePolicies(roleID int64) []rbac.PolicyRule
 	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
 	GetRoleDataScope(roleID int64) rbac.DataScope
+	SetRoleRoutePermissions(roleID int64, version string, items []rbac.RoutePermissionItem) rbac.RoutePermissionContract
+	GetRoleRoutePermissions(roleID int64) rbac.RoutePermissionContract
+	CheckRoleRoutePermissionConsistency(roleID int64) rbac.RoutePermissionConsistency
 }
 
 type APIRegistryRepository interface {

@@ -122,7 +122,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 47. Completed: M22-step2 dashboard JWT provenance governance scorecard sample and review sign-off example.
 48. Completed: startup orchestration refactor moved bootstrap wiring out of `cmd/skoll/main.go` into `internal/bootstrap`.
 49. Completed: E1-step1 policy engine and data-scope authorization baseline.
-50. Next: E2-step1 dynamic route/menu/button permission contract versioning baseline.
+50. Completed: E2-step1 dynamic route/menu/button permission contract versioning baseline.
+51. Next: E3-step1 account/session security hardening baseline.
 
 ## Risks and Mitigation
 

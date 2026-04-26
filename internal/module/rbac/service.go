@@ -13,6 +13,7 @@ type Service struct {
 	roleAPI  map[int64][]string
 	policies map[int64][]PolicyRule
 	data     map[int64]DataScope
+	route    map[int64]RoutePermissionContract
 }
 
 type PolicyRule struct {
@@ -27,12 +28,29 @@ type DataScope struct {
 	RequireOwnerMatch bool
 }
 
+type RoutePermissionItem struct {
+	MenuID  int64
+	Route   string
+	Buttons []string
+}
+
+type RoutePermissionContract struct {
+	Version string
+	Items   []RoutePermissionItem
+}
+
+type RoutePermissionConsistency struct {
+	Passed   bool
+	Problems []string
+}
+
 func NewService() *Service {
 	return &Service{
 		roleMenu: make(map[int64][]int64),
 		roleAPI:  make(map[int64][]string),
 		policies: make(map[int64][]PolicyRule),
 		data:     make(map[int64]DataScope),
+		route:    make(map[int64]RoutePermissionContract),
 	}
 }
 
@@ -94,6 +112,47 @@ func (s *Service) GetRoleDataScope(roleID int64) DataScope {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return cloneDataScope(s.data[roleID])
+}
+
+func (s *Service) SetRoleRoutePermissions(roleID int64, version string, items []RoutePermissionItem) RoutePermissionContract {
+	normalized := normalizeRouteContract(version, items)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.route[roleID] = normalized
+	return cloneRouteContract(normalized)
+}
+
+func (s *Service) GetRoleRoutePermissions(roleID int64) RoutePermissionContract {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return cloneRouteContract(s.route[roleID])
+}
+
+func (s *Service) CheckRoleRoutePermissionConsistency(roleID int64) RoutePermissionConsistency {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	contract := s.route[roleID]
+	menus := s.roleMenu[roleID]
+	menuSet := make(map[int64]struct{}, len(menus))
+	for _, id := range menus {
+		menuSet[id] = struct{}{}
+	}
+
+	problems := make([]string, 0)
+	for _, item := range contract.Items {
+		if item.MenuID > 0 {
+			if _, ok := menuSet[item.MenuID]; !ok {
+				problems = append(problems, "menu_id "+strconv.FormatInt(item.MenuID, 10)+" is not bound to role")
+			}
+		}
+		if item.Route == "" {
+			problems = append(problems, "route cannot be empty")
+		}
+	}
+
+	return RoutePermissionConsistency{Passed: len(problems) == 0, Problems: problems}
 }
 
 func normalizeInt64List(raw []int64) []int64 {
@@ -194,4 +253,54 @@ func cloneDataScope(scope DataScope) DataScope {
 		TenantIDs:         append([]string(nil), scope.TenantIDs...),
 		RequireOwnerMatch: scope.RequireOwnerMatch,
 	}
+}
+
+func normalizeRouteContract(version string, items []RoutePermissionItem) RoutePermissionContract {
+	version = strings.ToLower(strings.TrimSpace(version))
+	if version == "" {
+		version = "v1"
+	}
+	if version != "v1" && version != "v2" {
+		version = "v1"
+	}
+
+	seen := make(map[string]struct{}, len(items))
+	out := make([]RoutePermissionItem, 0, len(items))
+	for _, item := range items {
+		route := strings.TrimSpace(item.Route)
+		if route == "" {
+			continue
+		}
+		buttons := normalizeStringList(item.Buttons)
+		key := strconv.FormatInt(item.MenuID, 10) + "|" + route + "|" + strings.Join(buttons, ",")
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, RoutePermissionItem{MenuID: item.MenuID, Route: route, Buttons: buttons})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].MenuID == out[j].MenuID {
+			return out[i].Route < out[j].Route
+		}
+		return out[i].MenuID < out[j].MenuID
+	})
+
+	return RoutePermissionContract{Version: version, Items: out}
+}
+
+func cloneRouteContract(contract RoutePermissionContract) RoutePermissionContract {
+	out := RoutePermissionContract{Version: contract.Version}
+	if len(contract.Items) == 0 {
+		return out
+	}
+	out.Items = make([]RoutePermissionItem, len(contract.Items))
+	for i, item := range contract.Items {
+		out.Items[i] = RoutePermissionItem{
+			MenuID:  item.MenuID,
+			Route:   item.Route,
+			Buttons: append([]string(nil), item.Buttons...),
+		}
+	}
+	return out
 }

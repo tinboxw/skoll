@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), M18-step2 (JWT provenance monthly archive sample and review checklist execution example), M19-step1 (JWT provenance monthly review automation checklist and ownership rotation guidance), M19-step2 (JWT provenance quarterly rotation roster sample and escalation handoff template), M20-step1 (JWT provenance exception governance matrix and expiry revalidation workflow), M20-step2 (JWT provenance sample exception records and revalidation decision log template), M21-step1 (JWT provenance exception governance observability metrics and monthly trend dashboard fields), M21-step2 (JWT provenance governance metric alert profiles and escalation thresholds), M22-step1 (JWT provenance governance scorecard template and decision readiness indicators), M22-step2 (JWT provenance governance scorecard sample and review sign-off example), and E1-step1 (policy-engine and data-scope authorization baseline), plus enhancement-phase planning and startup encapsulation refactor.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), M18-step2 (JWT provenance monthly archive sample and review checklist execution example), M19-step1 (JWT provenance monthly review automation checklist and ownership rotation guidance), M19-step2 (JWT provenance quarterly rotation roster sample and escalation handoff template), M20-step1 (JWT provenance exception governance matrix and expiry revalidation workflow), M20-step2 (JWT provenance sample exception records and revalidation decision log template), M21-step1 (JWT provenance exception governance observability metrics and monthly trend dashboard fields), M21-step2 (JWT provenance governance metric alert profiles and escalation thresholds), M22-step1 (JWT provenance governance scorecard template and decision readiness indicators), M22-step2 (JWT provenance governance scorecard sample and review sign-off example), E1-step1 (policy-engine and data-scope authorization baseline), and E2-step1 (dynamic route/menu/button permission contract versioning baseline), plus enhancement-phase planning and startup encapsulation refactor.
 
 ## Structure
 
@@ -65,6 +65,9 @@ curl -X PUT http://localhost:8080/admin/v1/roles/1/menus -H "Content-Type: appli
 curl http://localhost:8080/admin/v1/roles/1/menus
 curl -X PUT http://localhost:8080/admin/v1/roles/1/apis -H "Content-Type: application/json" -d '{"apis":["GET:/admin/v1/users","POST:/admin/v1/users"]}'
 curl http://localhost:8080/admin/v1/roles/1/apis
+curl -X PUT http://localhost:8080/admin/v1/roles/1/permission-contract -H "Content-Type: application/json" -d '{"version":"v2","items":[{"menu_id":1,"route":"/dashboard","buttons":["view"]}]}'
+curl http://localhost:8080/admin/v1/roles/1/permission-contract
+curl -X POST http://localhost:8080/admin/v1/roles/1/permission-contract/consistency-check
 curl http://localhost:8080/admin/v1/apis
 curl -X POST http://localhost:8080/admin/v1/menus -H "Content-Type: application/json" -d '{"title":"Dashboard","path":"/dashboard","order":1}'
 curl -X POST http://localhost:8080/admin/v1/audit-logs -H "Content-Type: application/json" -d '{"actor":"system","action":"create","target":"user"}'
@@ -156,6 +159,7 @@ go test -bench=. -benchmem ./...
 - Dashboard JWT provenance governance scorecard template: `docs/community/DASHBOARD_JWT_PROVENANCE_GOVERNANCE_SCORECARD_TEMPLATE.md`
 - Dashboard JWT provenance governance scorecard sample: `docs/milestones/JWT_PROVENANCE_GOVERNANCE_SCORECARD_2026-06.md`
 - Admin RBAC policy and data-scope authorization baseline: `docs/community/ADMIN_RBAC_POLICY_DATA_SCOPE_BASELINE.md`
+- Admin dynamic route/menu/button permission contract: `docs/community/ADMIN_DYNAMIC_PERMISSION_CONTRACT.md`
 - Dashboard JWT provenance sample exception records: `docs/milestones/JWT_PROVENANCE_EXCEPTION_RECORDS_2026-05.md`
 - Dashboard JWT provenance monthly archive sample: `docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md`
 - Dashboard JWT provenance quarterly rotation sample: `docs/milestones/JWT_PROVENANCE_REVIEW_ROTATION_2026-Q2.md`
@@ -230,6 +234,7 @@ go test -bench=. -benchmem ./...
 - M22 dashboard JWT provenance governance scorecard template and decision readiness indicators record: `docs/milestones/M22-dashboard-jwt-session-provenance-governance-scorecard-template.md`
 - M22 dashboard JWT provenance governance scorecard sample and review sign-off example record: `docs/milestones/M22-dashboard-jwt-session-provenance-governance-scorecard-sample.md`
 - E1 policy-engine and data-scope authorization baseline record: `docs/milestones/E1-policy-engine-and-data-scope.md`
+- E2 dynamic route/menu/button permission contract record: `docs/milestones/E2-dynamic-route-menu-button-permission.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

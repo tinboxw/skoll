@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/tinboxw/skoll/internal/module/audit"
+	"github.com/tinboxw/skoll/internal/module/rbac"
 )
 
 func TestInMemoryAdapterContract(t *testing.T) {
@@ -47,6 +48,18 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	roleMenus := a.RBAC().GetRoleMenus(r1.ID)
 	if len(roleMenus) != 2 {
 		t.Fatalf("expected 2 role menus, got %d", len(roleMenus))
+	}
+
+	routeContract := a.RBAC().SetRoleRoutePermissions(r1.ID, "v2", []rbac.RoutePermissionItem{
+		{MenuID: m1.ID, Route: "/admin/users", Buttons: []string{"create", "delete"}},
+		{MenuID: m2.ID, Route: "/admin/roles", Buttons: []string{"assign"}},
+	})
+	if routeContract.Version != "v2" || len(routeContract.Items) != 2 {
+		t.Fatalf("unexpected route permission contract: %+v", routeContract)
+	}
+	consistency := a.RBAC().CheckRoleRoutePermissionConsistency(r1.ID)
+	if !consistency.Passed {
+		t.Fatalf("expected route/menu consistency to pass, got %+v", consistency)
 	}
 
 	a.APIs().RegisterMany([]string{"GET /admin/v1/users", "POST:/admin/v1/users"})

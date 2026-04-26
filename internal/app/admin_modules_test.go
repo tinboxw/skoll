@@ -329,6 +329,37 @@ func TestRoleBindingRoutes_MenuAndAPI(t *testing.T) {
 		t.Fatalf("expected normalized tenant scope in response, got %s", getDataScopeRR.Body.String())
 	}
 
+	setContractReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/permission-contract", strings.NewReader(`{"version":"v2","items":[{"menu_id":1,"route":"/dashboard","buttons":["view"]},{"menu_id":2,"route":"/system","buttons":["create","delete","create"]}]}`))
+	setContractReq.Header.Set("Content-Type", "application/json")
+	setContractRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setContractRR, setContractReq)
+	if setContractRR.Code != http.StatusOK {
+		t.Fatalf("expected set permission contract status 200, got %d", setContractRR.Code)
+	}
+	if !strings.Contains(setContractRR.Body.String(), `"version":"v2"`) {
+		t.Fatalf("expected permission contract version in response, got %s", setContractRR.Body.String())
+	}
+
+	getContractReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1/permission-contract", nil)
+	getContractRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(getContractRR, getContractReq)
+	if getContractRR.Code != http.StatusOK {
+		t.Fatalf("expected get permission contract status 200, got %d", getContractRR.Code)
+	}
+	if !strings.Contains(getContractRR.Body.String(), `"buttons":["create","delete"]`) {
+		t.Fatalf("expected normalized button list in contract, got %s", getContractRR.Body.String())
+	}
+
+	checkContractReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/permission-contract/consistency-check", nil)
+	checkContractRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(checkContractRR, checkContractReq)
+	if checkContractRR.Code != http.StatusOK {
+		t.Fatalf("expected permission contract consistency status 200, got %d", checkContractRR.Code)
+	}
+	if !strings.Contains(checkContractRR.Body.String(), `"passed":true`) {
+		t.Fatalf("expected consistency check passed, got %s", checkContractRR.Body.String())
+	}
+
 	listRegistryReq := httptest.NewRequest(http.MethodGet, "/admin/v1/apis", nil)
 	listRegistryRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(listRegistryRR, listRegistryReq)

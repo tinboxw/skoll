@@ -125,6 +125,9 @@ type RBACService interface {
 	GetRolePolicies(roleID int64) []rbac.PolicyRule
 	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
 	GetRoleDataScope(roleID int64) rbac.DataScope
+	SetRoleRoutePermissions(roleID int64, version string, items []rbac.RoutePermissionItem) rbac.RoutePermissionContract
+	GetRoleRoutePermissions(roleID int64) rbac.RoutePermissionContract
+	CheckRoleRoutePermissionConsistency(roleID int64) rbac.RoutePermissionConsistency
 }
 
 type APIRegistryService interface {
@@ -165,6 +168,9 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/roles/{id}/policies", getRolePoliciesHandler(services.Roles, services.RBAC))
 	handle("PUT /admin/v1/roles/{id}/data-scope", setRoleDataScopeHandler(services.Roles, services.RBAC))
 	handle("GET /admin/v1/roles/{id}/data-scope", getRoleDataScopeHandler(services.Roles, services.RBAC))
+	handle("PUT /admin/v1/roles/{id}/permission-contract", setRolePermissionContractHandler(services.Roles, services.RBAC, services.Menus))
+	handle("GET /admin/v1/roles/{id}/permission-contract", getRolePermissionContractHandler(services.Roles, services.RBAC))
+	handle("POST /admin/v1/roles/{id}/permission-contract/consistency-check", checkRolePermissionContractConsistencyHandler(services.Roles, services.RBAC))
 
 	handle("POST /admin/v1/menus", createMenuHandler(services.Menus))
 	handle("GET /admin/v1/menus", listMenusHandler(services.Menus))
@@ -307,6 +313,29 @@ type roleDataScopeResponse struct {
 	RoleID            int64    `json:"role_id"`
 	TenantIDs         []string `json:"tenant_ids"`
 	RequireOwnerMatch bool     `json:"require_owner_match"`
+}
+
+type rolePermissionContractItem struct {
+	MenuID  int64    `json:"menu_id"`
+	Route   string   `json:"route"`
+	Buttons []string `json:"buttons"`
+}
+
+type setRolePermissionContractRequest struct {
+	Version string                       `json:"version"`
+	Items   []rolePermissionContractItem `json:"items"`
+}
+
+type rolePermissionContractResponse struct {
+	RoleID  int64                        `json:"role_id"`
+	Version string                       `json:"version"`
+	Items   []rolePermissionContractItem `json:"items"`
+}
+
+type rolePermissionContractConsistencyResponse struct {
+	RoleID   int64    `json:"role_id"`
+	Passed   bool     `json:"passed"`
+	Problems []string `json:"problems,omitempty"`
 }
 
 type listAPIsResponse struct {
@@ -802,6 +831,108 @@ func getRoleDataScopeHandler(roleSvc RoleService, rbacSvc RBACService) http.Hand
 		out := rbacSvc.GetRoleDataScope(roleID)
 		respondJSON(w, http.StatusOK, roleDataScopeResponse{RoleID: roleID, TenantIDs: out.TenantIDs, RequireOwnerMatch: out.RequireOwnerMatch})
 	}
+}
+
+func setRolePermissionContractHandler(roleSvc RoleService, rbacSvc RBACService, menuSvc MenuService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req setRolePermissionContractRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		items := make([]rbac.RoutePermissionItem, 0, len(req.Items))
+		for _, item := range req.Items {
+			if item.MenuID > 0 {
+				if _, err := menuSvc.Get(item.MenuID); err != nil {
+					respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("menu id %d not found", item.MenuID)})
+					return
+				}
+			}
+			buttons := make([]string, 0, len(item.Buttons))
+			for _, button := range item.Buttons {
+				button = strings.TrimSpace(button)
+				if button == "" {
+					continue
+				}
+				buttons = append(buttons, button)
+			}
+			items = append(items, rbac.RoutePermissionItem{MenuID: item.MenuID, Route: strings.TrimSpace(item.Route), Buttons: buttons})
+		}
+
+		out := rbacSvc.SetRoleRoutePermissions(roleID, req.Version, items)
+		respondJSON(w, http.StatusOK, rolePermissionContractResponse{RoleID: roleID, Version: out.Version, Items: toRolePermissionContractItems(out.Items)})
+	}
+}
+
+func getRolePermissionContractHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		out := rbacSvc.GetRoleRoutePermissions(roleID)
+		respondJSON(w, http.StatusOK, rolePermissionContractResponse{RoleID: roleID, Version: out.Version, Items: toRolePermissionContractItems(out.Items)})
+	}
+}
+
+func checkRolePermissionContractConsistencyHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		out := rbacSvc.CheckRoleRoutePermissionConsistency(roleID)
+		respondJSON(w, http.StatusOK, rolePermissionContractConsistencyResponse{RoleID: roleID, Passed: out.Passed, Problems: out.Problems})
+	}
+}
+
+func toRolePermissionContractItems(items []rbac.RoutePermissionItem) []rolePermissionContractItem {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]rolePermissionContractItem, len(items))
+	for i, item := range items {
+		out[i] = rolePermissionContractItem{MenuID: item.MenuID, Route: item.Route, Buttons: append([]string(nil), item.Buttons...)}
+	}
+	return out
 }
 
 func toRolePolicyRuleItems(rules []rbac.PolicyRule) []rolePolicyRuleItem {

@@ -76,6 +76,47 @@ func TestServiceRoleDataScope(t *testing.T) {
 	}
 }
 
+func TestServiceRoleRoutePermissions(t *testing.T) {
+	svc := NewService()
+	svc.SetRoleMenus(9, []int64{1, 2})
+
+	contract := svc.SetRoleRoutePermissions(9, "V2", []RoutePermissionItem{
+		{MenuID: 2, Route: "/system/users", Buttons: []string{"create", "delete", "create"}},
+		{MenuID: 2, Route: "/system/users", Buttons: []string{"create", "delete"}},
+		{MenuID: 3, Route: "/system/roles", Buttons: []string{"assign"}},
+	})
+
+	if contract.Version != "v2" {
+		t.Fatalf("expected normalized contract version v2, got %s", contract.Version)
+	}
+	if len(contract.Items) != 2 {
+		t.Fatalf("expected deduplicated route permission items, got %d", len(contract.Items))
+	}
+
+	read := svc.GetRoleRoutePermissions(9)
+	if !reflect.DeepEqual(read, contract) {
+		t.Fatalf("unexpected route permission contract: got %+v want %+v", read, contract)
+	}
+
+	consistency := svc.CheckRoleRoutePermissionConsistency(9)
+	if consistency.Passed {
+		t.Fatalf("expected consistency check to fail because menu 3 is not role-bound")
+	}
+	if len(consistency.Problems) == 0 {
+		t.Fatalf("expected consistency problems")
+	}
+
+	fixed := svc.SetRoleRoutePermissions(9, "", []RoutePermissionItem{{MenuID: 1, Route: "/system/dashboard", Buttons: []string{"view"}}})
+	if fixed.Version != "v1" {
+		t.Fatalf("expected default contract version v1, got %s", fixed.Version)
+	}
+
+	consistency = svc.CheckRoleRoutePermissionConsistency(9)
+	if !consistency.Passed {
+		t.Fatalf("expected consistency check passed, got %+v", consistency)
+	}
+}
+
 func BenchmarkSetRoleMenus(b *testing.B) {
 	svc := NewService()
 	menuIDs := make([]int64, 100)
