@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), and M14-step1 (JWT provenance audit export fields) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), and M14-step2 (JWT provenance audit export docs and SIEM mapping guidance) baseline.
 
 ## Structure
 
@@ -138,6 +138,7 @@ go test -bench=. -benchmem ./...
 - Dashboard auth/session policy: `docs/community/DASHBOARD_AUTH_SESSION_POLICY.md`
 - Dashboard JWT middleware bridge contract: `docs/community/DASHBOARD_JWT_MIDDLEWARE_BRIDGE_CONTRACT.md`
 - Dashboard JWT claims normalization policy: `docs/community/DASHBOARD_JWT_CLAIMS_NORMALIZATION_POLICY.md`
+- Dashboard JWT provenance audit export guide: `docs/community/DASHBOARD_JWT_PROVENANCE_AUDIT_EXPORT_GUIDE.md`
 - Contribution guide: `CONTRIBUTING.md`
 - M0 baseline record: `docs/milestones/M0-project-baseline.md`
 - M1 core-domain record: `docs/milestones/M1-core-domain.md`
@@ -191,6 +192,7 @@ go test -bench=. -benchmem ./...
 - M13 dashboard JWT claims normalization policy record: `docs/milestones/M13-dashboard-jwt-session-claims-normalization.md`
 - M13 dashboard JWT claim source provenance record: `docs/milestones/M13-dashboard-jwt-session-source-provenance.md`
 - M14 dashboard JWT provenance audit export fields record: `docs/milestones/M14-dashboard-jwt-session-provenance-audit-export.md`
+- M14 dashboard JWT provenance audit export docs and SIEM mapping record: `docs/milestones/M14-dashboard-jwt-session-provenance-audit-docs.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

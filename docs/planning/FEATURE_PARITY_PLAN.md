@@ -103,7 +103,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 28. Completed: M13-step2 dashboard JWT claims normalization policy.
 29. Completed: M13-step3 dashboard JWT claim source provenance fields.
 30. Completed: M14-step1 dashboard JWT provenance audit export fields.
-31. Next: M14-step2 dashboard JWT provenance audit export docs and SIEM mapping guidance.
+31. Completed: M14-step2 dashboard JWT provenance audit export docs and SIEM mapping guidance.
+32. Next: M15-step1 dashboard JWT provenance export operational metrics and alerting hints.
 
 ## Risks and Mitigation
 

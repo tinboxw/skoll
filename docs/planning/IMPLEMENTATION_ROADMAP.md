@@ -104,4 +104,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 52. [x] M13-dashboard-jwt-session-claims-normalization: Add shared claim normalization policy for role/subject extraction.
 53. [x] M13-dashboard-jwt-session-source-provenance: Add claim source provenance fields for multi-middleware tracing.
 54. [x] M14-dashboard-jwt-session-provenance-audit-export: Add provenance audit export fields for security operations.
-55. [ ] M14-dashboard-jwt-session-provenance-audit-docs: Publish provenance audit export compatibility and SIEM mapping guidance.
+55. [x] M14-dashboard-jwt-session-provenance-audit-docs: Publish provenance audit export compatibility and SIEM mapping guidance.
+56. [ ] M15-dashboard-jwt-session-provenance-ops-metrics: Add provenance export operational metrics and alerting hints.

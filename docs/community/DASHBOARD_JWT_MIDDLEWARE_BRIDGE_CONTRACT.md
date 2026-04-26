@@ -115,3 +115,7 @@ See detailed policy:
 - Add non-header bridge source types (for example context-injected metadata).
 - Align bridge subject normalization with planned JWT verified-claims adapter.
 - Add explicit provenance markers when multiple middleware layers contribute claims.
+
+For provenance audit export compatibility and SIEM field mapping, see:
+
+- `docs/community/DASHBOARD_JWT_PROVENANCE_AUDIT_EXPORT_GUIDE.md`
