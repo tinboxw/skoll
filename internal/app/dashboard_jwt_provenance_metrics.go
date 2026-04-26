@@ -24,6 +24,30 @@ type dashboardJWTProvenanceOperationalMetrics struct {
 	AlertHintsTotal uint64 `json:"alert_hints_total"`
 }
 
+type dashboardJWTProvenanceSLODashboard struct {
+	Window              string  `json:"window"`
+	TargetReliability   float64 `json:"target_reliability"`
+	ObservedReliability float64 `json:"observed_reliability"`
+	ErrorRate           float64 `json:"error_rate"`
+	BurnRate            float64 `json:"burn_rate"`
+	Status              string  `json:"status"`
+}
+
+type dashboardJWTProvenanceErrorBudgetPolicy struct {
+	Window              string  `json:"window"`
+	BudgetRatio         float64 `json:"budget_ratio"`
+	ConsumedRatio       float64 `json:"consumed_ratio"`
+	RemainingRatio      float64 `json:"remaining_ratio"`
+	Action              string  `json:"action"`
+	FreezeRecommended   bool    `json:"freeze_recommended"`
+	EscalateRecommended bool    `json:"escalate_recommended"`
+}
+
+const (
+	provenanceSLOWindow            = "30d"
+	provenanceSLOTargetReliability = 0.99
+)
+
 var dashboardJWTProvenanceMetrics = struct {
 	exportsTotal    atomic.Uint64
 	enabledTotal    atomic.Uint64
@@ -157,4 +181,76 @@ func resetDashboardJWTProvenanceMetricsForTest() {
 		hintClaimsVersionMissing   atomic.Uint64
 		hintChainDepthHigh         atomic.Uint64
 	}{}
+}
+
+func buildDashboardJWTProvenanceSLODashboard(metrics dashboardJWTProvenanceOperationalMetrics) dashboardJWTProvenanceSLODashboard {
+	total := float64(metrics.EnabledTotal)
+	errorCount := float64(metrics.InvalidTotal + metrics.UnverifiedTotal)
+	observedReliability := 1.0
+	errorRate := 0.0
+	if total > 0 {
+		errorRate = errorCount / total
+		observedReliability = 1.0 - errorRate
+	}
+	if observedReliability < 0 {
+		observedReliability = 0
+	}
+
+	errorBudget := 1.0 - provenanceSLOTargetReliability
+	burnRate := 0.0
+	if errorBudget > 0 {
+		burnRate = errorRate / errorBudget
+	}
+
+	status := "healthy"
+	switch {
+	case burnRate >= 2:
+		status = "critical"
+	case burnRate >= 1:
+		status = "at_risk"
+	}
+
+	return dashboardJWTProvenanceSLODashboard{
+		Window:              provenanceSLOWindow,
+		TargetReliability:   provenanceSLOTargetReliability,
+		ObservedReliability: observedReliability,
+		ErrorRate:           errorRate,
+		BurnRate:            burnRate,
+		Status:              status,
+	}
+}
+
+func buildDashboardJWTProvenanceErrorBudgetPolicy(slo dashboardJWTProvenanceSLODashboard) dashboardJWTProvenanceErrorBudgetPolicy {
+	budgetRatio := 1.0 - slo.TargetReliability
+	consumedRatio := 0.0
+	if budgetRatio > 0 {
+		consumedRatio = slo.ErrorRate / budgetRatio
+	}
+	remainingRatio := 1.0 - consumedRatio
+	if remainingRatio < 0 {
+		remainingRatio = 0
+	}
+
+	action := "monitor"
+	freeze := false
+	escalate := false
+	switch {
+	case consumedRatio >= 2:
+		action = "mitigate_immediately"
+		freeze = true
+		escalate = true
+	case consumedRatio >= 1:
+		action = "stabilize_and_reduce_risk"
+		escalate = true
+	}
+
+	return dashboardJWTProvenanceErrorBudgetPolicy{
+		Window:              slo.Window,
+		BudgetRatio:         budgetRatio,
+		ConsumedRatio:       consumedRatio,
+		RemainingRatio:      remainingRatio,
+		Action:              action,
+		FreezeRecommended:   freeze,
+		EscalateRecommended: escalate,
+	}
 }

@@ -88,3 +88,43 @@ func TestMetricsPrometheusIncludesDashboardJWTProvenanceMetrics(t *testing.T) {
 		t.Fatalf("expected provenance alert hint metric, got %q", out)
 	}
 }
+
+func TestBuildDashboardJWTProvenanceSLODashboard_AtRiskAndCritical(t *testing.T) {
+	atRisk := buildDashboardJWTProvenanceSLODashboard(dashboardJWTProvenanceOperationalMetrics{
+		EnabledTotal:    100,
+		InvalidTotal:    1,
+	})
+	if atRisk.Status != "at_risk" {
+		t.Fatalf("expected at_risk status, got %s", atRisk.Status)
+	}
+
+	critical := buildDashboardJWTProvenanceSLODashboard(dashboardJWTProvenanceOperationalMetrics{
+		EnabledTotal:    100,
+		InvalidTotal:    2,
+		UnverifiedTotal: 1,
+	})
+	if critical.Status != "critical" {
+		t.Fatalf("expected critical status, got %s", critical.Status)
+	}
+}
+
+func TestBuildDashboardJWTProvenanceErrorBudgetPolicy_Critical(t *testing.T) {
+	policy := buildDashboardJWTProvenanceErrorBudgetPolicy(dashboardJWTProvenanceSLODashboard{
+		Window:              "30d",
+		TargetReliability:   0.99,
+		ObservedReliability: 0.96,
+		ErrorRate:           0.03,
+		BurnRate:            3,
+		Status:              "critical",
+	})
+
+	if policy.Action != "mitigate_immediately" {
+		t.Fatalf("expected mitigate_immediately action, got %s", policy.Action)
+	}
+	if !policy.FreezeRecommended {
+		t.Fatalf("expected freeze_recommended=true")
+	}
+	if !policy.EscalateRecommended {
+		t.Fatalf("expected escalate_recommended=true")
+	}
+}

@@ -31,6 +31,8 @@ This contract governs bridge metadata only. It does not define JWT signing algor
 - `source_provenance` (string[])
 - `source_path` (optional string, `>` joined chain)
 - `operational_metrics` (object)
+- `slo_dashboard` (object)
+- `error_budget_policy` (object)
 - `alerting_hints` (optional string[])
 - `source` (optional string)
 - `verified` (bool)
@@ -121,3 +123,7 @@ See detailed policy:
 For provenance audit export compatibility and SIEM field mapping, see:
 
 - `docs/community/DASHBOARD_JWT_PROVENANCE_AUDIT_EXPORT_GUIDE.md`
+
+For SLO and error-budget semantics, see:
+
+- `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_POLICY.md`

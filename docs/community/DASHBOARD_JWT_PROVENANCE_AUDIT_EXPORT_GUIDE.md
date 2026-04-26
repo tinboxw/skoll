@@ -111,3 +111,9 @@ Recommended mapping:
 For incident triage and mitigation workflow, see:
 
 - `docs/community/DASHBOARD_JWT_PROVENANCE_OPS_RUNBOOK.md`
+
+## SLO Policy
+
+For SLO dashboard fields and error budget policy semantics, see:
+
+- `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_POLICY.md`

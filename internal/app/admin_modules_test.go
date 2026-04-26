@@ -717,6 +717,23 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	if got, ok := opsMetrics["disabled_total"].(float64); !ok || got < 1 {
 		t.Fatalf("expected operational_metrics.disabled_total >= 1, got %v", opsMetrics["disabled_total"])
 	}
+	slo, ok := auditExport["slo_dashboard"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance_audit_export.slo_dashboard object, got %v", auditExport["slo_dashboard"])
+	}
+	if got, ok := slo["window"].(string); !ok || got != "30d" {
+		t.Fatalf("expected slo_dashboard.window=30d, got %v", slo["window"])
+	}
+	if got, ok := slo["target_reliability"].(float64); !ok || got != 0.99 {
+		t.Fatalf("expected slo_dashboard.target_reliability=0.99, got %v", slo["target_reliability"])
+	}
+	budget, ok := auditExport["error_budget_policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance_audit_export.error_budget_policy object, got %v", auditExport["error_budget_policy"])
+	}
+	if got, ok := budget["window"].(string); !ok || got != "30d" {
+		t.Fatalf("expected error_budget_policy.window=30d, got %v", budget["window"])
+	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected status object, got %v", payload["status"])
@@ -924,6 +941,20 @@ func TestDashboardAggregateRoute_JWTMiddlewareBridgePromotesVerifiedTrust(t *tes
 	}
 	if got, ok := opsMetrics["verified_total"].(float64); !ok || got < 1 {
 		t.Fatalf("expected operational_metrics.verified_total >= 1, got %v", opsMetrics["verified_total"])
+	}
+	slo, ok := auditExport["slo_dashboard"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance_audit_export.slo_dashboard object, got %v", auditExport["slo_dashboard"])
+	}
+	if got, ok := slo["status"].(string); !ok || got == "" {
+		t.Fatalf("expected slo_dashboard.status, got %v", slo["status"])
+	}
+	budget, ok := auditExport["error_budget_policy"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance_audit_export.error_budget_policy object, got %v", auditExport["error_budget_policy"])
+	}
+	if _, ok := budget["action"].(string); !ok {
+		t.Fatalf("expected error_budget_policy.action string, got %v", budget["action"])
 	}
 }
 

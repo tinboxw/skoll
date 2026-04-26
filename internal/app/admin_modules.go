@@ -408,6 +408,8 @@ type dashboardJWTProvenanceAuditExport struct {
 	SourceProvenance    []string                                 `json:"source_provenance"`
 	SourcePath          string                                   `json:"source_path,omitempty"`
 	OperationalMetrics  dashboardJWTProvenanceOperationalMetrics `json:"operational_metrics"`
+	SLODashboard        dashboardJWTProvenanceSLODashboard       `json:"slo_dashboard"`
+	ErrorBudgetPolicy   dashboardJWTProvenanceErrorBudgetPolicy  `json:"error_budget_policy"`
 	AlertingHints       []string                                 `json:"alerting_hints,omitempty"`
 	Source              string                                   `json:"source,omitempty"`
 	Verified            bool                                     `json:"verified"`
@@ -1356,7 +1358,10 @@ func collectDashboardJWTProvenanceAuditExport(bridge dashboardJWTMiddlewareBridg
 
 	hints := deriveDashboardJWTProvenanceAlertingHints(export)
 	observeDashboardJWTProvenanceAuditExport(export, hints)
-	export.OperationalMetrics = snapshotDashboardJWTProvenanceOperationalMetrics()
+	opsMetrics := snapshotDashboardJWTProvenanceOperationalMetrics()
+	export.OperationalMetrics = opsMetrics
+	export.SLODashboard = buildDashboardJWTProvenanceSLODashboard(opsMetrics)
+	export.ErrorBudgetPolicy = buildDashboardJWTProvenanceErrorBudgetPolicy(export.SLODashboard)
 	export.AlertingHints = hints
 	return export
 }
