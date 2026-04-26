@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), and M18-step2 (JWT provenance monthly archive sample and review checklist execution example) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), M18-step2 (JWT provenance monthly archive sample and review checklist execution example), and M19-step1 (JWT provenance monthly review automation checklist and ownership rotation guidance) baseline.
 
 ## Structure
 
@@ -145,6 +145,7 @@ go test -bench=. -benchmem ./...
 - Dashboard JWT provenance baseline recalibration workflow: `docs/community/DASHBOARD_JWT_PROVENANCE_BASELINE_RECALIBRATION.md`
 - Dashboard JWT provenance recalibration evidence template: `docs/community/DASHBOARD_JWT_PROVENANCE_RECALIBRATION_EVIDENCE_TEMPLATE.md`
 - Dashboard JWT provenance threshold-change log: `docs/community/DASHBOARD_JWT_PROVENANCE_THRESHOLD_CHANGE_LOG.md`
+- Dashboard JWT provenance monthly review automation: `docs/community/DASHBOARD_JWT_PROVENANCE_REVIEW_AUTOMATION.md`
 - Dashboard JWT provenance monthly archive sample: `docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md`
 - Contribution guide: `CONTRIBUTING.md`
 - M0 baseline record: `docs/milestones/M0-project-baseline.md`
@@ -208,6 +209,7 @@ go test -bench=. -benchmem ./...
 - M17 dashboard JWT provenance recalibration evidence template and approval checklist record: `docs/milestones/M17-dashboard-jwt-session-provenance-recalibration-evidence-template.md`
 - M18 dashboard JWT provenance threshold-change log and monthly archive workflow record: `docs/milestones/M18-dashboard-jwt-session-provenance-threshold-change-log.md`
 - M18 dashboard JWT provenance monthly archive sample and review checklist execution example record: `docs/milestones/M18-dashboard-jwt-session-provenance-archive-sample.md`
+- M19 dashboard JWT provenance monthly review automation checklist and ownership rotation guidance record: `docs/milestones/M19-dashboard-jwt-session-provenance-review-automation.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution
