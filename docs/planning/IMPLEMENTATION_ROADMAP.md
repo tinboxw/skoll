@@ -108,4 +108,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 56. [x] M15-dashboard-jwt-session-provenance-ops-metrics: Add provenance export operational metrics and alerting hints.
 57. [x] M15-dashboard-jwt-session-provenance-ops-runbook: Add provenance ops runbook and alert triage guidance.
 58. [x] M16-dashboard-jwt-session-provenance-slo-dashboards: Add provenance SLO dashboards and error-budget policy.
-59. [ ] M16-dashboard-jwt-session-provenance-slo-alert-rules: Add provenance SLO alert rule templates and rollout guardrails.
+59. [x] M16-dashboard-jwt-session-provenance-slo-alert-rules: Add provenance SLO alert rule templates and rollout guardrails.
+60. [ ] M17-dashboard-jwt-session-provenance-baseline-recalibration: Add periodic baseline recalibration workflow and review cadence.

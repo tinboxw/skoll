@@ -107,7 +107,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 32. Completed: M15-step1 dashboard JWT provenance export operational metrics and alerting hints.
 33. Completed: M15-step2 dashboard JWT provenance ops runbook and alert triage guidance.
 34. Completed: M16-step1 dashboard JWT provenance SLO dashboards and error-budget policy.
-35. Next: M16-step2 dashboard JWT provenance SLO alert rule templates and rollout guardrails.
+35. Completed: M16-step2 dashboard JWT provenance SLO alert rule templates and rollout guardrails.
+36. Next: M17-step1 dashboard JWT provenance baseline recalibration workflow and review cadence.
 
 ## Risks and Mitigation
 

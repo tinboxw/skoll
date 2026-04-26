@@ -91,8 +91,8 @@ func TestMetricsPrometheusIncludesDashboardJWTProvenanceMetrics(t *testing.T) {
 
 func TestBuildDashboardJWTProvenanceSLODashboard_AtRiskAndCritical(t *testing.T) {
 	atRisk := buildDashboardJWTProvenanceSLODashboard(dashboardJWTProvenanceOperationalMetrics{
-		EnabledTotal:    100,
-		InvalidTotal:    1,
+		EnabledTotal: 100,
+		InvalidTotal: 1,
 	})
 	if atRisk.Status != "at_risk" {
 		t.Fatalf("expected at_risk status, got %s", atRisk.Status)

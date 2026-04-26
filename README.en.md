@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), and M16-step1 (JWT provenance SLO dashboards and error-budget policy) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), and M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails) baseline.
 
 ## Structure
 
@@ -141,6 +141,7 @@ go test -bench=. -benchmem ./...
 - Dashboard JWT provenance audit export guide: `docs/community/DASHBOARD_JWT_PROVENANCE_AUDIT_EXPORT_GUIDE.md`
 - Dashboard JWT provenance ops runbook: `docs/community/DASHBOARD_JWT_PROVENANCE_OPS_RUNBOOK.md`
 - Dashboard JWT provenance SLO policy: `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_POLICY.md`
+- Dashboard JWT provenance SLO alert rules: `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_ALERT_RULES.md`
 - Contribution guide: `CONTRIBUTING.md`
 - M0 baseline record: `docs/milestones/M0-project-baseline.md`
 - M1 core-domain record: `docs/milestones/M1-core-domain.md`
@@ -198,6 +199,7 @@ go test -bench=. -benchmem ./...
 - M15 dashboard JWT provenance operational metrics and alerting hints record: `docs/milestones/M15-dashboard-jwt-session-provenance-ops-metrics.md`
 - M15 dashboard JWT provenance ops runbook and alert triage record: `docs/milestones/M15-dashboard-jwt-session-provenance-ops-runbook.md`
 - M16 dashboard JWT provenance SLO dashboards and error-budget policy record: `docs/milestones/M16-dashboard-jwt-session-provenance-slo-dashboards.md`
+- M16 dashboard JWT provenance SLO alert rule templates and rollout guardrails record: `docs/milestones/M16-dashboard-jwt-session-provenance-slo-alert-rules.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution
