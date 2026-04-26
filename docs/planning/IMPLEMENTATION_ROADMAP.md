@@ -94,4 +94,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 42. [x] M11-dashboard-auth-session-alignment: Align dashboard bootstrap with auth/session capability plan.
 43. [x] M11-dashboard-auth-session-policy-docs: Publish auth/session compatibility and rollout guidance.
 44. [x] M11-dashboard-auth-session-observability: Add auth/session observability fields and failure counters to dashboard payload.
-45. [ ] M11-dashboard-auth-session-actionability: Add actionable auth/session guidance fields for dashboard UX.
+45. [x] M11-dashboard-auth-session-actionability: Add actionable auth/session guidance fields for dashboard UX.
+46. [ ] M12-dashboard-jwt-session-bootstrap: Introduce JWT session bootstrap fields for dashboard identity context.

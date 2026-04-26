@@ -16,6 +16,9 @@ Top-level fields:
 
 - `contract`: contract descriptor
 - `generated_at_unix_sec`: response generation timestamp
+- `auth_session`: request auth/session context snapshot
+- `auth_observability`: auth verification counters and failure reasons summary
+- `auth_actionability`: actionable guidance for auth/session operation and UX handling
 - `status`: module/resource counters
 - `runtime_metrics`: process runtime snapshot
 - `node_health`: service dependency health summary
@@ -27,6 +30,9 @@ Top-level fields:
 1. `status`
 2. `runtime_metrics`
 3. `node_health`
+4. `auth_session`
+5. `auth_observability`
+6. `auth_actionability`
 
 Consumers should treat unknown additive fields as forward-compatible.
 

@@ -644,8 +644,8 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 		t.Fatalf("expected contract.version=v1, got %v", contract["version"])
 	}
 	sections, ok := contract["required_sections"].([]any)
-	if !ok || len(sections) < 5 {
-		t.Fatalf("expected contract.required_sections with 5 entries, got %v", contract["required_sections"])
+	if !ok || len(sections) < 6 {
+		t.Fatalf("expected contract.required_sections with 6 entries, got %v", contract["required_sections"])
 	}
 	authSession, ok := payload["auth_session"].(map[string]any)
 	if !ok {
@@ -660,6 +660,16 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	}
 	if _, ok := authObs["total_failure"].(float64); !ok {
 		t.Fatalf("expected auth_observability.total_failure field, got %v", authObs["total_failure"])
+	}
+	authActionability, ok := payload["auth_actionability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth_actionability object, got %v", payload["auth_actionability"])
+	}
+	if got, ok := authActionability["recommended_auth_mode"].(string); !ok || got != "hmac-sha256" {
+		t.Fatalf("expected auth_actionability.recommended_auth_mode=hmac-sha256, got %v", authActionability["recommended_auth_mode"])
+	}
+	if _, ok := authActionability["next_actions"].([]any); !ok {
+		t.Fatalf("expected auth_actionability.next_actions array, got %v", authActionability["next_actions"])
 	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
@@ -720,5 +730,55 @@ func TestDashboardAggregateRoute_AuthSessionAlignmentWithHeaders(t *testing.T) {
 	}
 	if got, ok := authObs["total_failure"].(float64); !ok || got < 0 {
 		t.Fatalf("expected auth_observability.total_failure >= 0, got %v", authObs["total_failure"])
+	}
+	authActionability, ok := payload["auth_actionability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth_actionability object, got %v", payload["auth_actionability"])
+	}
+	if got, ok := authActionability["severity"].(string); !ok || got == "" {
+		t.Fatalf("expected auth_actionability.severity, got %v", authActionability["severity"])
+	}
+	if got, ok := authActionability["docs"].([]any); !ok || len(got) == 0 {
+		t.Fatalf("expected auth_actionability.docs list, got %v", authActionability["docs"])
+	}
+}
+
+func TestCollectDashboardAuthActionability_NoneModeSuggestsEnablement(t *testing.T) {
+	actionability := collectDashboardAuthActionability(
+		dashboardAuthSessionContext{AuthModeHint: "none"},
+		dashboardAuthObservability{},
+	)
+
+	if actionability.Severity != "warning" {
+		t.Fatalf("expected severity=warning for none mode, got %s", actionability.Severity)
+	}
+	if actionability.RecommendedAuthMode != "hmac-sha256" {
+		t.Fatalf("expected recommended_auth_mode=hmac-sha256, got %s", actionability.RecommendedAuthMode)
+	}
+	if len(actionability.NextActions) == 0 {
+		t.Fatalf("expected next_actions for none mode")
+	}
+	if !strings.Contains(strings.Join(actionability.NextActions, " "), "Enable admin auth") {
+		t.Fatalf("expected enable admin auth guidance, got %v", actionability.NextActions)
+	}
+}
+
+func TestCollectDashboardAuthActionability_HighFailurePromotesCritical(t *testing.T) {
+	actionability := collectDashboardAuthActionability(
+		dashboardAuthSessionContext{AuthModeHint: "hmac-sha256", Authenticated: true, HasRoleBinding: true},
+		dashboardAuthObservability{
+			HMACSHA256:   dashboardAuthModeCounters{Success: 5, Failure: 15, Reasons: map[string]uint64{"invalid_signature": 10}},
+			TotalFailure: 15,
+		},
+	)
+
+	if actionability.Severity != "critical" {
+		t.Fatalf("expected severity=critical for high failure rate, got %s", actionability.Severity)
+	}
+	if actionability.FailureRate <= 0 {
+		t.Fatalf("expected failure_rate > 0, got %f", actionability.FailureRate)
+	}
+	if len(actionability.TopFailureReasons) == 0 {
+		t.Fatalf("expected non-empty top_failure_reasons")
 	}
 }

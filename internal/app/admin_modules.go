@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -316,6 +318,7 @@ type dashboardAggregateResponse struct {
 	GeneratedAtUnixSec int64                       `json:"generated_at_unix_sec"`
 	AuthSession        dashboardAuthSessionContext `json:"auth_session"`
 	AuthObservability  dashboardAuthObservability  `json:"auth_observability"`
+	AuthActionability  dashboardAuthActionability  `json:"auth_actionability"`
 	Status             systemStatusResponse        `json:"status"`
 	RuntimeMetrics     runtimeMetricsResponse      `json:"runtime_metrics"`
 	NodeHealth         nodeHealthResponse          `json:"node_health"`
@@ -347,6 +350,15 @@ type dashboardAuthObservability struct {
 	StaticToken  dashboardAuthModeCounters `json:"static_token"`
 	HMACSHA256   dashboardAuthModeCounters `json:"hmac_sha256"`
 	TotalFailure uint64                    `json:"total_failure"`
+}
+
+type dashboardAuthActionability struct {
+	Severity            string   `json:"severity"`
+	RecommendedAuthMode string   `json:"recommended_auth_mode"`
+	FailureRate         float64  `json:"failure_rate"`
+	TopFailureReasons   []string `json:"top_failure_reasons"`
+	NextActions         []string `json:"next_actions"`
+	Docs                []string `json:"docs"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1065,11 +1077,14 @@ func nodeHealthHandler(services AdminModuleServices) http.HandlerFunc {
 
 func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		authSession := collectDashboardAuthSessionContext(r)
+		authObservability := collectDashboardAuthObservability()
 		respondJSON(w, http.StatusOK, dashboardAggregateResponse{
 			Contract:           collectDashboardContractDescriptor(),
 			GeneratedAtUnixSec: time.Now().UTC().Unix(),
-			AuthSession:        collectDashboardAuthSessionContext(r),
-			AuthObservability:  collectDashboardAuthObservability(),
+			AuthSession:        authSession,
+			AuthObservability:  authObservability,
+			AuthActionability:  collectDashboardAuthActionability(authSession, authObservability),
 			Status:             collectSystemStatus(services),
 			RuntimeMetrics:     collectRuntimeMetrics(),
 			NodeHealth:         collectNodeHealth(services),
@@ -1085,6 +1100,7 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 		RequiredSections: []string{
 			"auth_session",
 			"auth_observability",
+			"auth_actionability",
 			"status",
 			"runtime_metrics",
 			"node_health",
@@ -1133,6 +1149,101 @@ func collectDashboardAuthObservability() dashboardAuthObservability {
 		},
 		TotalFailure: snapshot.StaticToken.Failure + snapshot.HMACSHA256.Failure,
 	}
+}
+
+func collectDashboardAuthActionability(authSession dashboardAuthSessionContext, authObs dashboardAuthObservability) dashboardAuthActionability {
+	totalSuccess := authObs.StaticToken.Success + authObs.HMACSHA256.Success
+	totalAttempts := totalSuccess + authObs.TotalFailure
+	failureRate := 0.0
+	if totalAttempts > 0 {
+		failureRate = float64(authObs.TotalFailure) / float64(totalAttempts)
+		failureRate = math.Round(failureRate*10000) / 10000
+	}
+
+	severity := "info"
+	switch {
+	case authObs.TotalFailure >= 20 || failureRate >= 0.30:
+		severity = "critical"
+	case authObs.TotalFailure > 0 || failureRate >= 0.10:
+		severity = "warning"
+	}
+
+	nextActions := make([]string, 0, 4)
+	switch authSession.AuthModeHint {
+	case "none":
+		nextActions = append(nextActions,
+			"Enable admin auth for dashboard entry traffic before external exposure.",
+			"Use hmac-sha256 as the preferred auth mode for production environments.",
+		)
+		if severity == "info" {
+			severity = "warning"
+		}
+	case "static-token":
+		nextActions = append(nextActions,
+			"Plan migration from static-token to hmac-sha256 for stronger replay-resistant protection.",
+			"Rotate static token on a fixed cadence and after any suspicious access pattern.",
+		)
+		if severity == "info" {
+			severity = "warning"
+		}
+	case "hmac-sha256":
+		nextActions = append(nextActions,
+			"Keep SKOLL_ADMIN_AUTH_HMAC_SECRET rotation on the defined runbook cadence.",
+		)
+	}
+
+	if authSession.Authenticated && !authSession.HasRoleBinding {
+		nextActions = append(nextActions,
+			"Attach role binding context for authenticated dashboard requests to unlock RBAC-aware UX decisions.",
+		)
+		if severity == "info" {
+			severity = "warning"
+		}
+	}
+
+	if authObs.TotalFailure > 0 {
+		nextActions = append(nextActions,
+			"Review top auth failure reasons and tune alerts for replay_nonce/missing_headers spikes.",
+		)
+	}
+
+	if len(nextActions) == 0 {
+		nextActions = append(nextActions, "No immediate auth/session action required.")
+	}
+
+	return dashboardAuthActionability{
+		Severity:            severity,
+		RecommendedAuthMode: "hmac-sha256",
+		FailureRate:         failureRate,
+		TopFailureReasons:   topDashboardFailureReasons(authObs),
+		NextActions:         nextActions,
+		Docs: []string{
+			"docs/community/DASHBOARD_AUTH_SESSION_POLICY.md",
+			"docs/planning/ADMIN_AUTH_SECURITY_RUNBOOK.md",
+		},
+	}
+}
+
+func topDashboardFailureReasons(authObs dashboardAuthObservability) []string {
+	reasons := make([]string, 0, len(authObs.StaticToken.Reasons)+len(authObs.HMACSHA256.Reasons))
+	for reason, count := range authObs.StaticToken.Reasons {
+		if count > 0 {
+			reasons = append(reasons, fmt.Sprintf("static-token:%s=%d", reason, count))
+		}
+	}
+	for reason, count := range authObs.HMACSHA256.Reasons {
+		if count > 0 {
+			reasons = append(reasons, fmt.Sprintf("hmac-sha256:%s=%d", reason, count))
+		}
+	}
+	if len(reasons) == 0 {
+		return []string{}
+	}
+	sort.Strings(reasons)
+	if len(reasons) > 5 {
+		return reasons[:5]
+	}
+	return reasons
 }
 
 func collectSystemStatus(services AdminModuleServices) systemStatusResponse {
