@@ -91,7 +91,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 16. Completed: M10-step4 dashboard aggregation API for UI bootstrap.
 17. Completed: M10-step5 dashboard UI bootstrap contract definition.
 18. Completed: M11-step1 dashboard auth/session alignment plan.
-19. Next: M11-step2 dashboard auth/session policy docs.
+19. Completed: M11-step2 dashboard auth/session policy docs.
+20. Next: M11-step3 dashboard auth/session observability fields.
 
 ## Risks and Mitigation
 

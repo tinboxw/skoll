@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）以及 M11-step1（仪表盘鉴权会话对齐）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）以及 M11-step2（仪表盘鉴权会话策略文档）基线。
 
 ## 目录结构
 
@@ -135,6 +135,7 @@ go test -bench=. -benchmem ./...
 - 扩展开发指南：`docs/community/EXTENSION_DEVELOPER_GUIDE.md`
 - 扩展兼容性策略：`docs/community/EXTENSION_COMPATIBILITY_POLICY.md`
 - 仪表盘 UI 启动契约：`docs/community/DASHBOARD_UI_BOOTSTRAP_CONTRACT.md`
+- 仪表盘鉴权会话策略：`docs/community/DASHBOARD_AUTH_SESSION_POLICY.md`
 - 贡献指南：`CONTRIBUTING.md`
 - M0 基线记录：`docs/milestones/M0-project-baseline.md`
 - M1 核心域记录：`docs/milestones/M1-core-domain.md`
@@ -176,6 +177,7 @@ go test -bench=. -benchmem ./...
 - M10 仪表盘聚合 API 记录：`docs/milestones/M10-dashboard-aggregation.md`
 - M10 仪表盘 UI 启动契约记录：`docs/milestones/M10-dashboard-ui-bootstrap-contract.md`
 - M11 仪表盘鉴权会话对齐记录：`docs/milestones/M11-dashboard-auth-session-alignment.md`
+- M11 仪表盘鉴权会话策略文档记录：`docs/milestones/M11-dashboard-auth-session-policy-docs.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
