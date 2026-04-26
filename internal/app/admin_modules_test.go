@@ -696,6 +696,16 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	if got, ok := bridge["source_provenance"].([]any); !ok || len(got) != 0 {
 		t.Fatalf("expected empty middleware_bridge.source_provenance, got %v", bridge["source_provenance"])
 	}
+	auditExport, ok := jwtBootstrap["provenance_audit_export"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected jwt_session_bootstrap.provenance_audit_export object, got %v", jwtBootstrap["provenance_audit_export"])
+	}
+	if got, ok := auditExport["enabled"].(bool); !ok || got {
+		t.Fatalf("expected provenance_audit_export.enabled=false, got %v", auditExport["enabled"])
+	}
+	if got, ok := auditExport["verification_state"].(string); !ok || got != "not_present" {
+		t.Fatalf("expected provenance_audit_export.verification_state=not_present, got %v", auditExport["verification_state"])
+	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected status object, got %v", payload["status"])
@@ -879,6 +889,19 @@ func TestDashboardAggregateRoute_JWTMiddlewareBridgePromotesVerifiedTrust(t *tes
 	}
 	if got, ok := bridge["role_source"].(string); !ok || got != "x-admin-role-id" {
 		t.Fatalf("expected middleware_bridge.role_source=x-admin-role-id, got %v", bridge["role_source"])
+	}
+	auditExport, ok := jwtBootstrap["provenance_audit_export"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance_audit_export object, got %v", jwtBootstrap["provenance_audit_export"])
+	}
+	if got, ok := auditExport["enabled"].(bool); !ok || !got {
+		t.Fatalf("expected provenance_audit_export.enabled=true, got %v", auditExport["enabled"])
+	}
+	if got, ok := auditExport["source_path"].(string); !ok || got != "edge-auth>gateway" {
+		t.Fatalf("expected provenance_audit_export.source_path=edge-auth>gateway, got %v", auditExport["source_path"])
+	}
+	if got, ok := auditExport["verification_state"].(string); !ok || got != "verified" {
+		t.Fatalf("expected provenance_audit_export.verification_state=verified, got %v", auditExport["verification_state"])
 	}
 }
 

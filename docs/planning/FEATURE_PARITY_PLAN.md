@@ -102,7 +102,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 27. Completed: M13-step1 dashboard JWT verified-claims adapter alignment.
 28. Completed: M13-step2 dashboard JWT claims normalization policy.
 29. Completed: M13-step3 dashboard JWT claim source provenance fields.
-30. Next: M14-step1 dashboard JWT provenance audit export fields.
+30. Completed: M14-step1 dashboard JWT provenance audit export fields.
+31. Next: M14-step2 dashboard JWT provenance audit export docs and SIEM mapping guidance.
 
 ## Risks and Mitigation
 

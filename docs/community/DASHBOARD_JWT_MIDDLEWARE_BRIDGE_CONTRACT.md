@@ -25,6 +25,23 @@ This contract governs bridge metadata only. It does not define JWT signing algor
 - `middleware_bridge.claims_version_source` (optional string)
 - `middleware_bridge.verified_source` (optional string)
 
+`jwt_session_bootstrap.provenance_audit_export` includes:
+
+- `enabled` (bool)
+- `source_provenance` (string[])
+- `source_path` (optional string, `>` joined chain)
+- `source` (optional string)
+- `verified` (bool)
+- `claims_trusted` (bool)
+- `verification_state` (string)
+- `subject` (optional string)
+- `role_id` (optional string)
+- `claims_version` (optional string)
+- `role_source` (optional string)
+- `subject_source` (optional string)
+- `claims_version_source` (optional string)
+- `verified_source` (optional string)
+
 Current source modes:
 
 - `none`: no bridge metadata found
@@ -69,6 +86,8 @@ See detailed policy:
 
 - `X-Admin-JWT-Source-Provenance` (comma-separated chain, deduplicated)
 - fallback to `[source]` when no chain is provided and source is not `none`
+
+`provenance_audit_export` is derived from `middleware_bridge` plus `verification_state` and is intended for security operations export pipelines.
 
 ## Compatibility Rules
 

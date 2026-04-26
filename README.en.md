@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), and M13-step3 (JWT claim source provenance fields) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), and M14-step1 (JWT provenance audit export fields) baseline.
 
 ## Structure
 
@@ -190,6 +190,7 @@ go test -bench=. -benchmem ./...
 - M13 dashboard verified JWT claims adapter alignment record: `docs/milestones/M13-dashboard-jwt-session-verified-claims-adapter.md`
 - M13 dashboard JWT claims normalization policy record: `docs/milestones/M13-dashboard-jwt-session-claims-normalization.md`
 - M13 dashboard JWT claim source provenance record: `docs/milestones/M13-dashboard-jwt-session-source-provenance.md`
+- M14 dashboard JWT provenance audit export fields record: `docs/milestones/M14-dashboard-jwt-session-provenance-audit-export.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution
