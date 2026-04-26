@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), and M10-step3 (system status/runtime metrics/node health APIs) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), and M10-step4 (observability dashboard aggregation API) baseline.
 
 ## Structure
 
@@ -93,6 +93,7 @@ curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/version-check -H "
 curl http://localhost:8080/admin/v1/system/status
 curl http://localhost:8080/admin/v1/system/runtime-metrics
 curl http://localhost:8080/admin/v1/system/node-health
+curl http://localhost:8080/admin/v1/system/dashboard
 # Available only when minimal go-admin integration is enabled
 curl http://localhost:8080/admin/ping
 # If admin auth skeleton is enabled, include the auth header
@@ -170,6 +171,7 @@ go test -bench=. -benchmem ./...
 - M10 system status API record: `docs/milestones/M10-system-status-api.md`
 - M10 runtime metrics snapshot API record: `docs/milestones/M10-dashboard-runtime-metrics.md`
 - M10 node and dependency health summary API record: `docs/milestones/M10-dashboard-node-health.md`
+- M10 dashboard aggregation API record: `docs/milestones/M10-dashboard-aggregation.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

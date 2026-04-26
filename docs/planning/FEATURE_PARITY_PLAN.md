@@ -88,7 +88,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 13. Completed: M10-step1 system status API baseline.
 14. Completed: M10-step2 runtime metrics snapshot API.
 15. Completed: M10-step3 node and dependency health summary API.
-16. Next: M10-step4 dashboard aggregation API for UI bootstrap.
+16. Completed: M10-step4 dashboard aggregation API for UI bootstrap.
+17. Next: M10-step5 dashboard UI bootstrap contract definition.
 
 ## Risks and Mitigation
 

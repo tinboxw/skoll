@@ -614,3 +614,44 @@ func TestNodeHealthRoute_ReturnsDependencyStatus(t *testing.T) {
 		t.Fatalf("expected non-empty dependencies list, got %v", payload["dependencies"])
 	}
 }
+
+func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/dashboard", nil)
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected dashboard aggregate status 200, got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal dashboard aggregate response failed: %v", err)
+	}
+	if got, ok := payload["generated_at_unix_sec"].(float64); !ok || got <= 0 {
+		t.Fatalf("expected generated_at_unix_sec > 0, got %v", payload["generated_at_unix_sec"])
+	}
+	status, ok := payload["status"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected status object, got %v", payload["status"])
+	}
+	if _, ok := status["user_count"].(float64); !ok {
+		t.Fatalf("expected status.user_count field, got %v", status["user_count"])
+	}
+	runtimeMetrics, ok := payload["runtime_metrics"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected runtime_metrics object, got %v", payload["runtime_metrics"])
+	}
+	if got, ok := runtimeMetrics["goroutines"].(float64); !ok || got < 1 {
+		t.Fatalf("expected runtime_metrics.goroutines >= 1, got %v", runtimeMetrics["goroutines"])
+	}
+	nodeHealth, ok := payload["node_health"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected node_health object, got %v", payload["node_health"])
+	}
+	if got, ok := nodeHealth["node_status"].(string); !ok || got == "" {
+		t.Fatalf("expected node_health.node_status, got %v", nodeHealth["node_status"])
+	}
+}

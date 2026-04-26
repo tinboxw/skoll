@@ -180,6 +180,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/system/status", systemStatusHandler(services))
 	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
 	handle("GET /admin/v1/system/node-health", nodeHealthHandler(services))
+	handle("GET /admin/v1/system/dashboard", dashboardAggregateHandler(services))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -305,6 +306,13 @@ type nodeHealthResponse struct {
 	NodeStatus   string            `json:"node_status"`
 	CheckedAt    int64             `json:"checked_at_unix_sec"`
 	Dependencies []healthCheckItem `json:"dependencies"`
+}
+
+type dashboardAggregateResponse struct {
+	GeneratedAtUnixSec int64                  `json:"generated_at_unix_sec"`
+	Status             systemStatusResponse   `json:"status"`
+	RuntimeMetrics     runtimeMetricsResponse `json:"runtime_metrics"`
+	NodeHealth         nodeHealthResponse     `json:"node_health"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1005,75 +1013,98 @@ func listRegisteredAPIsHandler(svc APIRegistryService) http.HandlerFunc {
 
 func systemStatusHandler(services AdminModuleServices) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		respondJSON(w, http.StatusOK, systemStatusResponse{
-			Version:       "v1",
-			UserCount:     len(services.Users.List()),
-			RoleCount:     len(services.Roles.List()),
-			MenuCount:     len(services.Menus.List()),
-			ConfigCount:   len(services.Configs.List()),
-			DictCount:     len(services.Dictionaries.List()),
-			FileCount:     len(services.Files.List()),
-			JobCount:      len(services.Jobs.List()),
-			PluginCount:   len(services.Plugins.List()),
-			APIEntryCount: len(services.APIs.List()),
-		})
+		respondJSON(w, http.StatusOK, collectSystemStatus(services))
 	}
 }
 
 func runtimeMetricsHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		var mem runtime.MemStats
-		runtime.ReadMemStats(&mem)
-		lastPause := uint64(0)
-		if mem.NumGC > 0 {
-			lastPause = mem.PauseNs[(mem.NumGC-1)%uint32(len(mem.PauseNs))]
-		}
-		now := time.Now().UTC()
-		uptime := now.Sub(adminModuleStartTime)
-		if uptime < 0 {
-			uptime = 0
-		}
-		respondJSON(w, http.StatusOK, runtimeMetricsResponse{
-			UptimeSeconds:   int64(uptime / time.Second),
-			Goroutines:      runtime.NumGoroutine(),
-			MemoryAlloc:     mem.Alloc,
-			MemorySys:       mem.Sys,
-			HeapAlloc:       mem.HeapAlloc,
-			HeapSys:         mem.HeapSys,
-			TotalAlloc:      mem.TotalAlloc,
-			GCCount:         mem.NumGC,
-			LastGCPauseNs:   lastPause,
-			SnapshotUnixSec: now.Unix(),
-		})
+		respondJSON(w, http.StatusOK, collectRuntimeMetrics())
 	}
 }
 
 func nodeHealthHandler(services AdminModuleServices) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		now := time.Now().UTC().Unix()
-		deps := []healthCheckItem{
-			{Name: "users", Status: healthStatus(services.Users != nil), Detail: "admin user service", CheckedAt: now},
-			{Name: "roles", Status: healthStatus(services.Roles != nil), Detail: "admin role service", CheckedAt: now},
-			{Name: "menus", Status: healthStatus(services.Menus != nil), Detail: "admin menu service", CheckedAt: now},
-			{Name: "audit", Status: healthStatus(services.Audit != nil), Detail: "admin audit service", CheckedAt: now},
-			{Name: "configs", Status: healthStatus(services.Configs != nil), Detail: "admin config service", CheckedAt: now},
-			{Name: "dictionaries", Status: healthStatus(services.Dictionaries != nil), Detail: "admin dictionary service", CheckedAt: now},
-			{Name: "files", Status: healthStatus(services.Files != nil), Detail: "admin file service", CheckedAt: now},
-			{Name: "jobs", Status: healthStatus(services.Jobs != nil), Detail: "admin job service", CheckedAt: now},
-			{Name: "generator", Status: healthStatus(services.Generator != nil), Detail: "admin generator service", CheckedAt: now},
-			{Name: "plugins", Status: healthStatus(services.Plugins != nil), Detail: "admin plugin service", CheckedAt: now},
-			{Name: "rbac", Status: healthStatus(services.RBAC != nil), Detail: "admin rbac service", CheckedAt: now},
-			{Name: "api_registry", Status: healthStatus(services.APIs != nil), Detail: "admin api registry service", CheckedAt: now},
-		}
-		nodeStatus := "up"
-		for _, item := range deps {
-			if item.Status != "up" {
-				nodeStatus = "degraded"
-				break
-			}
-		}
-		respondJSON(w, http.StatusOK, nodeHealthResponse{NodeStatus: nodeStatus, CheckedAt: now, Dependencies: deps})
+		respondJSON(w, http.StatusOK, collectNodeHealth(services))
 	}
+}
+
+func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, dashboardAggregateResponse{
+			GeneratedAtUnixSec: time.Now().UTC().Unix(),
+			Status:             collectSystemStatus(services),
+			RuntimeMetrics:     collectRuntimeMetrics(),
+			NodeHealth:         collectNodeHealth(services),
+		})
+	}
+}
+
+func collectSystemStatus(services AdminModuleServices) systemStatusResponse {
+	return systemStatusResponse{
+		Version:       "v1",
+		UserCount:     len(services.Users.List()),
+		RoleCount:     len(services.Roles.List()),
+		MenuCount:     len(services.Menus.List()),
+		ConfigCount:   len(services.Configs.List()),
+		DictCount:     len(services.Dictionaries.List()),
+		FileCount:     len(services.Files.List()),
+		JobCount:      len(services.Jobs.List()),
+		PluginCount:   len(services.Plugins.List()),
+		APIEntryCount: len(services.APIs.List()),
+	}
+}
+
+func collectRuntimeMetrics() runtimeMetricsResponse {
+	var mem runtime.MemStats
+	runtime.ReadMemStats(&mem)
+	lastPause := uint64(0)
+	if mem.NumGC > 0 {
+		lastPause = mem.PauseNs[(mem.NumGC-1)%uint32(len(mem.PauseNs))]
+	}
+	now := time.Now().UTC()
+	uptime := now.Sub(adminModuleStartTime)
+	if uptime < 0 {
+		uptime = 0
+	}
+	return runtimeMetricsResponse{
+		UptimeSeconds:   int64(uptime / time.Second),
+		Goroutines:      runtime.NumGoroutine(),
+		MemoryAlloc:     mem.Alloc,
+		MemorySys:       mem.Sys,
+		HeapAlloc:       mem.HeapAlloc,
+		HeapSys:         mem.HeapSys,
+		TotalAlloc:      mem.TotalAlloc,
+		GCCount:         mem.NumGC,
+		LastGCPauseNs:   lastPause,
+		SnapshotUnixSec: now.Unix(),
+	}
+}
+
+func collectNodeHealth(services AdminModuleServices) nodeHealthResponse {
+	now := time.Now().UTC().Unix()
+	deps := []healthCheckItem{
+		{Name: "users", Status: healthStatus(services.Users != nil), Detail: "admin user service", CheckedAt: now},
+		{Name: "roles", Status: healthStatus(services.Roles != nil), Detail: "admin role service", CheckedAt: now},
+		{Name: "menus", Status: healthStatus(services.Menus != nil), Detail: "admin menu service", CheckedAt: now},
+		{Name: "audit", Status: healthStatus(services.Audit != nil), Detail: "admin audit service", CheckedAt: now},
+		{Name: "configs", Status: healthStatus(services.Configs != nil), Detail: "admin config service", CheckedAt: now},
+		{Name: "dictionaries", Status: healthStatus(services.Dictionaries != nil), Detail: "admin dictionary service", CheckedAt: now},
+		{Name: "files", Status: healthStatus(services.Files != nil), Detail: "admin file service", CheckedAt: now},
+		{Name: "jobs", Status: healthStatus(services.Jobs != nil), Detail: "admin job service", CheckedAt: now},
+		{Name: "generator", Status: healthStatus(services.Generator != nil), Detail: "admin generator service", CheckedAt: now},
+		{Name: "plugins", Status: healthStatus(services.Plugins != nil), Detail: "admin plugin service", CheckedAt: now},
+		{Name: "rbac", Status: healthStatus(services.RBAC != nil), Detail: "admin rbac service", CheckedAt: now},
+		{Name: "api_registry", Status: healthStatus(services.APIs != nil), Detail: "admin api registry service", CheckedAt: now},
+	}
+	nodeStatus := "up"
+	for _, item := range deps {
+		if item.Status != "up" {
+			nodeStatus = "degraded"
+			break
+		}
+	}
+	return nodeHealthResponse{NodeStatus: nodeStatus, CheckedAt: now, Dependencies: deps}
 }
 
 func healthStatus(ok bool) string {
