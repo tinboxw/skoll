@@ -82,6 +82,7 @@ curl -X POST http://localhost:8080/admin/v1/jobs -H "Content-Type: application/j
 curl http://localhost:8080/admin/v1/jobs
 curl -X POST http://localhost:8080/admin/v1/jobs/1/run
 curl http://localhost:8080/admin/v1/jobs/1/history?limit=20
+curl -X POST http://localhost:8080/admin/v1/generator/modules -H "Content-Type: application/json" -d '{"module":"billing"}'
 # 仅在启用 go-admin 最小接入时可用
 curl http://localhost:8080/admin/ping
 # 若启用 admin 鉴权骨架，需要传入头
@@ -150,6 +151,7 @@ go test -bench=. -benchmem ./...
 - M7 审计日志分页过滤记录：`docs/milestones/M7-durable-audit-log.md`
 - M8 文件服务基线记录：`docs/milestones/M8-file-service-baseline.md`
 - M8 调度任务基线记录：`docs/milestones/M8-job-scheduler-baseline.md`
+- M8 模块生成器记录：`docs/milestones/M8-module-generator.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

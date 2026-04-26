@@ -17,6 +17,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/fileservice"
 	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
+	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
@@ -53,6 +54,7 @@ func testAdminModuleServices() AdminModuleServices {
 		Dictionaries: dictionary.NewService(),
 		Files:        fileservice.NewService(&memoryFileBackend{}),
 		Jobs:         jobscheduler.NewService(),
+		Generator:    modgenerator.NewService(),
 		RBAC:         rbac.NewService(),
 		APIs:         apiregistry.NewService(),
 	}
@@ -431,5 +433,24 @@ func TestJobRoutes_CreateRunHistory(t *testing.T) {
 	}
 	if !strings.Contains(historyRR.Body.String(), `"Status":"success"`) {
 		t.Fatalf("expected successful run in history, got %s", historyRR.Body.String())
+	}
+}
+
+func TestGeneratorRoutes_ModuleScaffoldPreview(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/v1/generator/modules", strings.NewReader(`{"module":"billing"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected generator status 200, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), `"module":"billing"`) {
+		t.Fatalf("expected module name in generator result, got %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"internal/module/billing/service.go"`) {
+		t.Fatalf("expected generated service artifact path, got %s", rr.Body.String())
 	}
 }

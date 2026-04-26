@@ -116,4 +116,12 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if len(history) != 1 {
 		t.Fatalf("expected 1 job history item, got %d", len(history))
 	}
+
+	generated, err := a.Generators().Generate("contractmodule")
+	if err != nil {
+		t.Fatalf("generate module failed: %v", err)
+	}
+	if generated.Module != "contractmodule" || len(generated.Artifacts) == 0 {
+		t.Fatalf("unexpected generator output: %+v", generated)
+	}
 }

@@ -110,6 +110,7 @@ func main() {
 		Dictionaries: storage.Dictionaries(),
 		Files:        storage.Files(),
 		Jobs:         storage.Jobs(),
+		Generator:    storage.Generators(),
 		RBAC:         storage.RBAC(),
 		APIs:         storage.APIs(),
 	}, adminWrapper)

@@ -16,6 +16,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/fileservice"
 	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
+	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
@@ -29,6 +30,7 @@ type AdminModuleServices struct {
 	Dictionaries DictionaryService
 	Files        FileService
 	Jobs         JobService
+	Generator    GeneratorService
 	RBAC         RBACService
 	APIs         APIRegistryService
 }
@@ -85,6 +87,10 @@ type JobService interface {
 	History(jobID int64, limit int) []jobscheduler.Execution
 }
 
+type GeneratorService interface {
+	Generate(module string) (modgenerator.Result, error)
+}
+
 type RBACService interface {
 	SetRoleMenus(roleID int64, menuIDs []int64) []int64
 	GetRoleMenus(roleID int64) []int64
@@ -102,7 +108,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	if mux == nil {
 		return
 	}
-	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.Files == nil || services.Jobs == nil || services.RBAC == nil || services.APIs == nil {
+	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.Files == nil || services.Jobs == nil || services.Generator == nil || services.RBAC == nil || services.APIs == nil {
 		return
 	}
 
@@ -147,6 +153,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/jobs", listJobsHandler(services.Jobs))
 	handle("POST /admin/v1/jobs/{id}/run", runJobHandler(services.Jobs))
 	handle("GET /admin/v1/jobs/{id}/history", listJobHistoryHandler(services.Jobs))
+	handle("POST /admin/v1/generator/modules", generateModuleHandler(services.Generator))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -189,6 +196,10 @@ type createDictionaryRequest struct {
 type createJobRequest struct {
 	Name     string `json:"name"`
 	Schedule string `json:"schedule"`
+}
+
+type generateModuleRequest struct {
+	Module string `json:"module"`
 }
 
 type setRoleMenusRequest struct {
@@ -752,6 +763,22 @@ func listJobHistoryHandler(svc JobService) http.HandlerFunc {
 			limit = parsed
 		}
 		respondJSON(w, http.StatusOK, svc.History(id, limit))
+	}
+}
+
+func generateModuleHandler(svc GeneratorService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req generateModuleRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		result, err := svc.Generate(strings.TrimSpace(req.Module))
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusOK, result)
 	}
 }
 

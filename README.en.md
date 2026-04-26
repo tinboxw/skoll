@@ -82,6 +82,7 @@ curl -X POST http://localhost:8080/admin/v1/jobs -H "Content-Type: application/j
 curl http://localhost:8080/admin/v1/jobs
 curl -X POST http://localhost:8080/admin/v1/jobs/1/run
 curl http://localhost:8080/admin/v1/jobs/1/history?limit=20
+curl -X POST http://localhost:8080/admin/v1/generator/modules -H "Content-Type: application/json" -d '{"module":"billing"}'
 # Available only when minimal go-admin integration is enabled
 curl http://localhost:8080/admin/ping
 # If admin auth skeleton is enabled, include the auth header
@@ -150,6 +151,7 @@ go test -bench=. -benchmem ./...
 - M7 durable audit log query record: `docs/milestones/M7-durable-audit-log.md`
 - M8 file service baseline record: `docs/milestones/M8-file-service-baseline.md`
 - M8 job scheduler baseline record: `docs/milestones/M8-job-scheduler-baseline.md`
+- M8 module generator record: `docs/milestones/M8-module-generator.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

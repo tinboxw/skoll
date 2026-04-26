@@ -81,7 +81,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 6. Completed: M7-step3 durable audit log query/filter/paging baseline.
 7. Completed: M8-step1 file service baseline with pluggable backend.
 8. Completed: M8-step2 job scheduler baseline with execution history.
-9. Next: M8-step3 module generator baseline.
+9. Completed: M8-step3 module generator baseline.
+10. Next: M9-step1 plugin manifest lifecycle baseline.
 
 ## Risks and Mitigation
 
