@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), M18-step2 (JWT provenance monthly archive sample and review checklist execution example), M19-step1 (JWT provenance monthly review automation checklist and ownership rotation guidance), M19-step2 (JWT provenance quarterly rotation roster sample and escalation handoff template), M20-step1 (JWT provenance exception governance matrix and expiry revalidation workflow), M20-step2 (JWT provenance sample exception records and revalidation decision log template), M21-step1 (JWT provenance exception governance observability metrics and monthly trend dashboard fields), M21-step2 (JWT provenance governance metric alert profiles and escalation thresholds), M22-step1 (JWT provenance governance scorecard template and decision readiness indicators), and M22-step2 (JWT provenance governance scorecard sample and review sign-off example) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), M18-step2 (JWT provenance monthly archive sample and review checklist execution example), M19-step1 (JWT provenance monthly review automation checklist and ownership rotation guidance), M19-step2 (JWT provenance quarterly rotation roster sample and escalation handoff template), M20-step1 (JWT provenance exception governance matrix and expiry revalidation workflow), M20-step2 (JWT provenance sample exception records and revalidation decision log template), M21-step1 (JWT provenance exception governance observability metrics and monthly trend dashboard fields), M21-step2 (JWT provenance governance metric alert profiles and escalation thresholds), M22-step1 (JWT provenance governance scorecard template and decision readiness indicators), and M22-step2 (JWT provenance governance scorecard sample and review sign-off example) baseline, plus enhancement-phase planning and startup encapsulation refactor.
 
 ## Structure
 
@@ -12,10 +12,12 @@ Skoll has completed M4 release readiness, started M5 initial generic module scaf
 .
 ├── cmd/skoll/                 # Executable entrypoint
 ├── internal/app/              # HTTP transport and bootstrap orchestration
+├── internal/bootstrap/        # startup config parsing, wiring, and graceful-shutdown orchestration
 ├── internal/domain/           # Core domain models
 ├── internal/service/          # Core service layer
 ├── pkg/version/               # Public version utilities
 ├── docs/planning/             # Planning documents
+├── examples/                  # usage and integration examples
 └── docs/milestones/           # Milestone records
 ```
 
@@ -125,6 +127,8 @@ go test -bench=. -benchmem ./...
 
 - Implementation roadmap: `docs/planning/IMPLEMENTATION_ROADMAP.md`
 - Feature parity plan: `docs/planning/FEATURE_PARITY_PLAN.md`
+- Parity enhancement phase plan: `docs/planning/PARITY_ENHANCEMENT_PHASE_PLAN.md`
+- Code structure framework: `docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - Production deployment env template: `docs/planning/PRODUCTION_ENV_TEMPLATE.md`
 - Benchmark toolchain policy: `docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`
 - Admin HMAC signature contract: `docs/planning/ADMIN_AUTH_SIGNATURE_CONTRACT.md`

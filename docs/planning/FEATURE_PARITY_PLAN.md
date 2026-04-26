@@ -120,7 +120,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 45. Completed: M21-step2 dashboard JWT provenance governance metric alert profiles and escalation thresholds.
 46. Completed: M22-step1 dashboard JWT provenance governance scorecard template and decision readiness indicators.
 47. Completed: M22-step2 dashboard JWT provenance governance scorecard sample and review sign-off example.
-48. Current sequence status: planned JWT provenance governance documentation steps are completed.
+48. Completed: startup orchestration refactor moved bootstrap wiring out of `cmd/skoll/main.go` into `internal/bootstrap`.
+49. Next: E1-step1 policy engine and data-scope authorization baseline.
 
 ## Risks and Mitigation
 

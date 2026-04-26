@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）、M18-step2（JWT 溯源月度归档样例与审查清单执行示例）、M19-step1（JWT 溯源月度审查自动化清单与轮值负责人指引）、M19-step2（JWT 溯源季度轮值样例与升级交接模板）、M20-step1（JWT 溯源例外治理矩阵与到期复核流程）、M20-step2（JWT 溯源例外样例记录与复核决策日志模板）、M21-step1（JWT 溯源例外治理指标与月度趋势看板字段）、M21-step2（JWT 溯源治理指标告警画像与升级阈值）、M22-step1（JWT 溯源治理评分卡模板与决策就绪度指标）以及 M22-step2（JWT 溯源治理评分卡样例与评审签收示例）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）、M18-step2（JWT 溯源月度归档样例与审查清单执行示例）、M19-step1（JWT 溯源月度审查自动化清单与轮值负责人指引）、M19-step2（JWT 溯源季度轮值样例与升级交接模板）、M20-step1（JWT 溯源例外治理矩阵与到期复核流程）、M20-step2（JWT 溯源例外样例记录与复核决策日志模板）、M21-step1（JWT 溯源例外治理指标与月度趋势看板字段）、M21-step2（JWT 溯源治理指标告警画像与升级阈值）、M22-step1（JWT 溯源治理评分卡模板与决策就绪度指标）以及 M22-step2（JWT 溯源治理评分卡样例与评审签收示例）基线，并已完成后续增强阶段计划与启动封装重构。
 
 ## 目录结构
 
@@ -12,10 +12,12 @@ Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（
 .
 ├── cmd/skoll/                 # 可执行入口
 ├── internal/app/              # HTTP 传输与启动编排
+├── internal/bootstrap/        # 启动配置解析、依赖装配与优雅关停编排
 ├── internal/domain/           # 核心领域模型
 ├── internal/service/          # 核心服务层
 ├── pkg/version/               # 公共版本信息
 ├── docs/planning/             # 规划文档
+├── examples/                  # 用法与集成示例
 └── docs/milestones/           # 里程碑记录
 ```
 
@@ -125,6 +127,8 @@ go test -bench=. -benchmem ./...
 
 - 规划路线：`docs/planning/IMPLEMENTATION_ROADMAP.md`
 - 对标功能规划：`docs/planning/FEATURE_PARITY_PLAN.md`
+- 完全对等增强阶段计划：`docs/planning/PARITY_ENHANCEMENT_PHASE_PLAN.md`
+- 代码结构框架：`docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
 - 基准工具链策略：`docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`
 - Admin HMAC 签名规范：`docs/planning/ADMIN_AUTH_SIGNATURE_CONTRACT.md`
