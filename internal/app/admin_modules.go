@@ -179,6 +179,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
 	handle("GET /admin/v1/system/status", systemStatusHandler(services))
 	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
+	handle("GET /admin/v1/system/node-health", nodeHealthHandler(services))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -291,6 +292,19 @@ type runtimeMetricsResponse struct {
 	GCCount         uint32 `json:"gc_count"`
 	LastGCPauseNs   uint64 `json:"last_gc_pause_ns"`
 	SnapshotUnixSec int64  `json:"snapshot_unix_sec"`
+}
+
+type healthCheckItem struct {
+	Name      string `json:"name"`
+	Status    string `json:"status"`
+	Detail    string `json:"detail"`
+	CheckedAt int64  `json:"checked_at_unix_sec"`
+}
+
+type nodeHealthResponse struct {
+	NodeStatus   string            `json:"node_status"`
+	CheckedAt    int64             `json:"checked_at_unix_sec"`
+	Dependencies []healthCheckItem `json:"dependencies"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1032,6 +1046,41 @@ func runtimeMetricsHandler() http.HandlerFunc {
 			SnapshotUnixSec: now.Unix(),
 		})
 	}
+}
+
+func nodeHealthHandler(services AdminModuleServices) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		now := time.Now().UTC().Unix()
+		deps := []healthCheckItem{
+			{Name: "users", Status: healthStatus(services.Users != nil), Detail: "admin user service", CheckedAt: now},
+			{Name: "roles", Status: healthStatus(services.Roles != nil), Detail: "admin role service", CheckedAt: now},
+			{Name: "menus", Status: healthStatus(services.Menus != nil), Detail: "admin menu service", CheckedAt: now},
+			{Name: "audit", Status: healthStatus(services.Audit != nil), Detail: "admin audit service", CheckedAt: now},
+			{Name: "configs", Status: healthStatus(services.Configs != nil), Detail: "admin config service", CheckedAt: now},
+			{Name: "dictionaries", Status: healthStatus(services.Dictionaries != nil), Detail: "admin dictionary service", CheckedAt: now},
+			{Name: "files", Status: healthStatus(services.Files != nil), Detail: "admin file service", CheckedAt: now},
+			{Name: "jobs", Status: healthStatus(services.Jobs != nil), Detail: "admin job service", CheckedAt: now},
+			{Name: "generator", Status: healthStatus(services.Generator != nil), Detail: "admin generator service", CheckedAt: now},
+			{Name: "plugins", Status: healthStatus(services.Plugins != nil), Detail: "admin plugin service", CheckedAt: now},
+			{Name: "rbac", Status: healthStatus(services.RBAC != nil), Detail: "admin rbac service", CheckedAt: now},
+			{Name: "api_registry", Status: healthStatus(services.APIs != nil), Detail: "admin api registry service", CheckedAt: now},
+		}
+		nodeStatus := "up"
+		for _, item := range deps {
+			if item.Status != "up" {
+				nodeStatus = "degraded"
+				break
+			}
+		}
+		respondJSON(w, http.StatusOK, nodeHealthResponse{NodeStatus: nodeStatus, CheckedAt: now, Dependencies: deps})
+	}
+}
+
+func healthStatus(ok bool) string {
+	if ok {
+		return "up"
+	}
+	return "down"
 }
 
 func parsePathInt64(r *http.Request, key string) (int64, error) {

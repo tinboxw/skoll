@@ -590,3 +590,27 @@ func TestRuntimeMetricsRoute_ReturnsSnapshot(t *testing.T) {
 		t.Fatalf("expected snapshot_unix_sec > 0, got %v", payload["snapshot_unix_sec"])
 	}
 }
+
+func TestNodeHealthRoute_ReturnsDependencyStatus(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/node-health", nil)
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected node health status 200, got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal node health response failed: %v", err)
+	}
+	if got, ok := payload["node_status"].(string); !ok || got != "up" {
+		t.Fatalf("expected node_status=up, got %v", payload["node_status"])
+	}
+	deps, ok := payload["dependencies"].([]any)
+	if !ok || len(deps) == 0 {
+		t.Fatalf("expected non-empty dependencies list, got %v", payload["dependencies"])
+	}
+}
