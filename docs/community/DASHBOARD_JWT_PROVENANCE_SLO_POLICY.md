@@ -57,3 +57,4 @@ Action mapping (current policy):
 - `docs/community/DASHBOARD_JWT_PROVENANCE_AUDIT_EXPORT_GUIDE.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_OPS_RUNBOOK.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_ALERT_RULES.md`
+- `docs/community/DASHBOARD_JWT_PROVENANCE_BASELINE_RECALIBRATION.md`
