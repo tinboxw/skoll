@@ -100,6 +100,16 @@ Each monthly scorecard should link:
 - threshold-change records
 - review publication note
 
+## First Scorecard Sample
+
+- `docs/milestones/JWT_PROVENANCE_GOVERNANCE_SCORECARD_2026-06.md`
+
+## Review Sign-Off Example
+
+Reference implementation:
+
+- `docs/milestones/JWT_PROVENANCE_GOVERNANCE_SCORECARD_2026-06.md` (`Review Sign-Off Example` section)
+
 ## Governance
 
 - Scorecards are decision-support artifacts and do not replace human approvals.

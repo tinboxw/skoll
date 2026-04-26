@@ -107,3 +107,9 @@ Rotation policy:
 Reference implementation:
 
 - `docs/milestones/JWT_PROVENANCE_REVIEW_ROTATION_2026-Q2.md` (`Escalation Handoff Template` section)
+
+## Governance Scorecard Sample
+
+Reference implementation:
+
+- `docs/milestones/JWT_PROVENANCE_GOVERNANCE_SCORECARD_2026-06.md`

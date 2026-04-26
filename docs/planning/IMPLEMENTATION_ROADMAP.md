@@ -120,4 +120,4 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 68. [x] M21-dashboard-jwt-session-provenance-exception-metrics: Add exception governance observability metrics and monthly trend dashboard fields.
 69. [x] M21-dashboard-jwt-session-provenance-exception-alert-profiles: Add governance metric alert profiles and escalation thresholds.
 70. [x] M22-dashboard-jwt-session-provenance-governance-scorecard-template: Add monthly governance scorecard template and decision readiness indicators.
-71. [ ] M22-dashboard-jwt-session-provenance-governance-scorecard-sample: Add first monthly governance scorecard sample and review sign-off example.
+71. [x] M22-dashboard-jwt-session-provenance-governance-scorecard-sample: Add first monthly governance scorecard sample and review sign-off example.
