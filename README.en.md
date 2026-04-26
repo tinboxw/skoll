@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), and M13-step1 (verified JWT claims adapter alignment) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), and M13-step2 (JWT claims normalization policy) baseline.
 
 ## Structure
 
@@ -137,6 +137,7 @@ go test -bench=. -benchmem ./...
 - Dashboard UI bootstrap contract: `docs/community/DASHBOARD_UI_BOOTSTRAP_CONTRACT.md`
 - Dashboard auth/session policy: `docs/community/DASHBOARD_AUTH_SESSION_POLICY.md`
 - Dashboard JWT middleware bridge contract: `docs/community/DASHBOARD_JWT_MIDDLEWARE_BRIDGE_CONTRACT.md`
+- Dashboard JWT claims normalization policy: `docs/community/DASHBOARD_JWT_CLAIMS_NORMALIZATION_POLICY.md`
 - Contribution guide: `CONTRIBUTING.md`
 - M0 baseline record: `docs/milestones/M0-project-baseline.md`
 - M1 core-domain record: `docs/milestones/M1-core-domain.md`
@@ -187,6 +188,7 @@ go test -bench=. -benchmem ./...
 - M12 dashboard JWT middleware bridge record: `docs/milestones/M12-dashboard-jwt-session-middleware-bridge.md`
 - M12 dashboard JWT middleware bridge contract docs record: `docs/milestones/M12-dashboard-jwt-session-bridge-contract-docs.md`
 - M13 dashboard verified JWT claims adapter alignment record: `docs/milestones/M13-dashboard-jwt-session-verified-claims-adapter.md`
+- M13 dashboard JWT claims normalization policy record: `docs/milestones/M13-dashboard-jwt-session-claims-normalization.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

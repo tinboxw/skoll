@@ -101,4 +101,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 49. [x] M12-dashboard-jwt-session-middleware-bridge: Expose verified-claims bridge fields for middleware integration.
 50. [x] M12-dashboard-jwt-session-bridge-contract-docs: Publish middleware bridge rollout and compatibility docs.
 51. [x] M13-dashboard-jwt-session-verified-claims-adapter: Align verified claims adapter interfaces for dashboard and RBAC bridge.
-52. [ ] M13-dashboard-jwt-session-claims-normalization: Add shared claim normalization policy for role/subject extraction.
+52. [x] M13-dashboard-jwt-session-claims-normalization: Add shared claim normalization policy for role/subject extraction.
+53. [ ] M13-dashboard-jwt-session-source-provenance: Add claim source provenance fields for multi-middleware tracing.

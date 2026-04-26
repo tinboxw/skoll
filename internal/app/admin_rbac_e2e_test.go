@@ -162,7 +162,7 @@ func TestRBACE2ESmoke_RoleAuthorizationViaJWTBridgeRoleID(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	req.Header.Set(adminauth.HeaderToken, "secret")
-	req.Header.Set(HeaderAdminJWTRoleID, "1")
+	req.Header.Set(HeaderAdminJWTRoleID, "001")
 	rr := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {

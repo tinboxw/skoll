@@ -40,6 +40,20 @@ Role ID precedence in current implementation:
 1. `X-Admin-JWT-Role-ID`
 2. `X-Admin-Role-ID`
 
+## Normalization Rules
+
+Current adapter normalization policy:
+
+1. `role_id` accepts positive integer strings only and is normalized to canonical decimal form.
+2. Invalid JWT-specific role IDs fall back to legacy role header when valid.
+3. `subject` is trim-normalized.
+4. `claims_version` is normalized to lowercase.
+5. `verified` accepts aliases: `true/1/yes/y/on`.
+
+See detailed policy:
+
+- `docs/community/DASHBOARD_JWT_CLAIMS_NORMALIZATION_POLICY.md`
+
 `middleware_bridge.present` is true when any mapped bridge header is provided.
 
 `claims_trusted` is aligned with `middleware_bridge.verified` in current milestone scope.
