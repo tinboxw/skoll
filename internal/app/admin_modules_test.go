@@ -293,6 +293,42 @@ func TestRoleBindingRoutes_MenuAndAPI(t *testing.T) {
 		t.Fatalf("expected sorted deduplicated api bindings, got %s", getAPIsRR.Body.String())
 	}
 
+	setPoliciesReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/policies", strings.NewReader(`{"rules":[{"api":"GET:/admin/v1/users","effect":"allow","require_verified":true,"require_claims_version":"v2"},{"api":"POST:/admin/v1/users","effect":"deny"}]}`))
+	setPoliciesReq.Header.Set("Content-Type", "application/json")
+	setPoliciesRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setPoliciesRR, setPoliciesReq)
+	if setPoliciesRR.Code != http.StatusOK {
+		t.Fatalf("expected set role policies status 200, got %d", setPoliciesRR.Code)
+	}
+
+	getPoliciesReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1/policies", nil)
+	getPoliciesRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(getPoliciesRR, getPoliciesReq)
+	if getPoliciesRR.Code != http.StatusOK {
+		t.Fatalf("expected get role policies status 200, got %d", getPoliciesRR.Code)
+	}
+	if !strings.Contains(getPoliciesRR.Body.String(), `"effect":"allow"`) {
+		t.Fatalf("expected role policy bindings in response, got %s", getPoliciesRR.Body.String())
+	}
+
+	setDataScopeReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/data-scope", strings.NewReader(`{"tenant_ids":["tenant-b","tenant-a","tenant-a"],"require_owner_match":true}`))
+	setDataScopeReq.Header.Set("Content-Type", "application/json")
+	setDataScopeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setDataScopeRR, setDataScopeReq)
+	if setDataScopeRR.Code != http.StatusOK {
+		t.Fatalf("expected set role data scope status 200, got %d", setDataScopeRR.Code)
+	}
+
+	getDataScopeReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1/data-scope", nil)
+	getDataScopeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(getDataScopeRR, getDataScopeReq)
+	if getDataScopeRR.Code != http.StatusOK {
+		t.Fatalf("expected get role data scope status 200, got %d", getDataScopeRR.Code)
+	}
+	if !strings.Contains(getDataScopeRR.Body.String(), `"tenant_ids":["tenant-a","tenant-b"]`) {
+		t.Fatalf("expected normalized tenant scope in response, got %s", getDataScopeRR.Body.String())
+	}
+
 	listRegistryReq := httptest.NewRequest(http.MethodGet, "/admin/v1/apis", nil)
 	listRegistryRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(listRegistryRR, listRegistryReq)

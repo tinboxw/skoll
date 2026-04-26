@@ -33,6 +33,49 @@ func TestServiceRoleAPIs(t *testing.T) {
 	}
 }
 
+func TestServiceRolePolicies(t *testing.T) {
+	svc := NewService()
+	rules := svc.SetRolePolicies(3, []PolicyRule{
+		{API: "GET:/admin/v1/users", Effect: "ALLOW", RequireVerified: true, RequireClaimsVersion: "V2"},
+		{API: "GET:/admin/v1/users", Effect: "allow", RequireVerified: true, RequireClaimsVersion: "v2"},
+		{API: "POST:/admin/v1/users", Effect: "deny"},
+		{API: "", Effect: "allow"},
+		{API: "GET:/admin/v1/users", Effect: "unknown"},
+	})
+
+	if len(rules) != 2 {
+		t.Fatalf("expected 2 normalized policy rules, got %d", len(rules))
+	}
+	if rules[0].Effect != "allow" || rules[0].RequireClaimsVersion != "v2" {
+		t.Fatalf("expected normalized allow rule, got %+v", rules[0])
+	}
+	if rules[1].Effect != "deny" {
+		t.Fatalf("expected deny rule, got %+v", rules[1])
+	}
+
+	read := svc.GetRolePolicies(3)
+	if !reflect.DeepEqual(read, rules) {
+		t.Fatalf("unexpected role policies: got %v want %v", read, rules)
+	}
+}
+
+func TestServiceRoleDataScope(t *testing.T) {
+	svc := NewService()
+	scope := svc.SetRoleDataScope(4, DataScope{TenantIDs: []string{"tenant-b", "tenant-a", "tenant-a", ""}, RequireOwnerMatch: true})
+
+	if !reflect.DeepEqual(scope.TenantIDs, []string{"tenant-a", "tenant-b"}) {
+		t.Fatalf("unexpected normalized tenant ids: got %v", scope.TenantIDs)
+	}
+	if !scope.RequireOwnerMatch {
+		t.Fatalf("expected require owner match true")
+	}
+
+	read := svc.GetRoleDataScope(4)
+	if !reflect.DeepEqual(read, scope) {
+		t.Fatalf("unexpected role data scope: got %v want %v", read, scope)
+	}
+}
+
 func BenchmarkSetRoleMenus(b *testing.B) {
 	svc := NewService()
 	menuIDs := make([]int64, 100)

@@ -24,6 +24,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/pluginmgr"
+	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
@@ -120,6 +121,10 @@ type RBACService interface {
 	GetRoleMenus(roleID int64) []int64
 	SetRoleAPIs(roleID int64, apis []string) []string
 	GetRoleAPIs(roleID int64) []string
+	SetRolePolicies(roleID int64, rules []rbac.PolicyRule) []rbac.PolicyRule
+	GetRolePolicies(roleID int64) []rbac.PolicyRule
+	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
+	GetRoleDataScope(roleID int64) rbac.DataScope
 }
 
 type APIRegistryService interface {
@@ -156,6 +161,10 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/roles/{id}/menus", getRoleMenusHandler(services.Roles, services.RBAC))
 	handle("PUT /admin/v1/roles/{id}/apis", setRoleAPIsHandler(services.Roles, services.RBAC, services.APIs))
 	handle("GET /admin/v1/roles/{id}/apis", getRoleAPIsHandler(services.Roles, services.RBAC))
+	handle("PUT /admin/v1/roles/{id}/policies", setRolePoliciesHandler(services.Roles, services.RBAC, services.APIs))
+	handle("GET /admin/v1/roles/{id}/policies", getRolePoliciesHandler(services.Roles, services.RBAC))
+	handle("PUT /admin/v1/roles/{id}/data-scope", setRoleDataScopeHandler(services.Roles, services.RBAC))
+	handle("GET /admin/v1/roles/{id}/data-scope", getRoleDataScopeHandler(services.Roles, services.RBAC))
 
 	handle("POST /admin/v1/menus", createMenuHandler(services.Menus))
 	handle("GET /admin/v1/menus", listMenusHandler(services.Menus))
@@ -271,6 +280,33 @@ type setRoleAPIsRequest struct {
 type roleAPIsResponse struct {
 	RoleID int64    `json:"role_id"`
 	APIs   []string `json:"apis"`
+}
+
+type rolePolicyRuleItem struct {
+	API                  string `json:"api"`
+	Effect               string `json:"effect"`
+	RequireVerified      bool   `json:"require_verified"`
+	RequireClaimsVersion string `json:"require_claims_version,omitempty"`
+}
+
+type setRolePoliciesRequest struct {
+	Rules []rolePolicyRuleItem `json:"rules"`
+}
+
+type rolePoliciesResponse struct {
+	RoleID int64                `json:"role_id"`
+	Rules  []rolePolicyRuleItem `json:"rules"`
+}
+
+type setRoleDataScopeRequest struct {
+	TenantIDs         []string `json:"tenant_ids"`
+	RequireOwnerMatch bool     `json:"require_owner_match"`
+}
+
+type roleDataScopeResponse struct {
+	RoleID            int64    `json:"role_id"`
+	TenantIDs         []string `json:"tenant_ids"`
+	RequireOwnerMatch bool     `json:"require_owner_match"`
 }
 
 type listAPIsResponse struct {
@@ -633,6 +669,155 @@ func getRoleAPIsHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFu
 
 		respondJSON(w, http.StatusOK, roleAPIsResponse{RoleID: roleID, APIs: rbacSvc.GetRoleAPIs(roleID)})
 	}
+}
+
+func setRolePoliciesHandler(roleSvc RoleService, rbacSvc RBACService, apiSvc APIRegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req setRolePoliciesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		rules := make([]rbac.PolicyRule, 0, len(req.Rules))
+		for _, item := range req.Rules {
+			n := apiregistry.Normalize(item.API)
+			if n == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid api format: %q", item.API)})
+				return
+			}
+			if !apiSvc.Exists(n) {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("api not registered: %s", n)})
+				return
+			}
+			effect := strings.ToLower(strings.TrimSpace(item.Effect))
+			if effect != "allow" && effect != "deny" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid policy effect: %q", item.Effect)})
+				return
+			}
+			rules = append(rules, rbac.PolicyRule{
+				API:                  n,
+				Effect:               effect,
+				RequireVerified:      item.RequireVerified,
+				RequireClaimsVersion: strings.ToLower(strings.TrimSpace(item.RequireClaimsVersion)),
+			})
+		}
+
+		out := rbacSvc.SetRolePolicies(roleID, rules)
+		respondJSON(w, http.StatusOK, rolePoliciesResponse{RoleID: roleID, Rules: toRolePolicyRuleItems(out)})
+	}
+}
+
+func getRolePoliciesHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		out := rbacSvc.GetRolePolicies(roleID)
+		respondJSON(w, http.StatusOK, rolePoliciesResponse{RoleID: roleID, Rules: toRolePolicyRuleItems(out)})
+	}
+}
+
+func setRoleDataScopeHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req setRoleDataScopeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		tenantIDs := make([]string, 0, len(req.TenantIDs))
+		for _, tenantID := range req.TenantIDs {
+			tenantID = strings.TrimSpace(tenantID)
+			if tenantID == "" {
+				continue
+			}
+			tenantIDs = append(tenantIDs, tenantID)
+		}
+
+		out := rbacSvc.SetRoleDataScope(roleID, rbac.DataScope{TenantIDs: tenantIDs, RequireOwnerMatch: req.RequireOwnerMatch})
+		respondJSON(w, http.StatusOK, roleDataScopeResponse{RoleID: roleID, TenantIDs: out.TenantIDs, RequireOwnerMatch: out.RequireOwnerMatch})
+	}
+}
+
+func getRoleDataScopeHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		out := rbacSvc.GetRoleDataScope(roleID)
+		respondJSON(w, http.StatusOK, roleDataScopeResponse{RoleID: roleID, TenantIDs: out.TenantIDs, RequireOwnerMatch: out.RequireOwnerMatch})
+	}
+}
+
+func toRolePolicyRuleItems(rules []rbac.PolicyRule) []rolePolicyRuleItem {
+	if len(rules) == 0 {
+		return nil
+	}
+	out := make([]rolePolicyRuleItem, len(rules))
+	for i, rule := range rules {
+		out[i] = rolePolicyRuleItem{
+			API:                  rule.API,
+			Effect:               rule.Effect,
+			RequireVerified:      rule.RequireVerified,
+			RequireClaimsVersion: rule.RequireClaimsVersion,
+		}
+	}
+	return out
 }
 
 func createMenuHandler(svc MenuService) http.HandlerFunc {

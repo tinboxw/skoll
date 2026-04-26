@@ -92,14 +92,14 @@ func Run() error {
 	srv := app.New(*addr, version.String())
 	srv.AddMetricsCollector(adminauth.MetricsPrometheus)
 	srv.SetReady(true)
+	storage := storageadapter.NewInMemoryAdapter()
 
 	var adminWrapper func(http.Handler) http.Handler
 	if adminAuthEnabled {
 		adminWrapper = func(next http.Handler) http.Handler {
-			return adminauth.WithVerifier(next, adminVerifier)
+			return adminauth.WithVerifier(app.WithRoleAPIAuthorizer(next, storage.Roles(), storage.RBAC()), adminVerifier)
 		}
 	}
-	storage := storageadapter.NewInMemoryAdapter()
 
 	srv.MountAdminModuleRoutes(app.AdminModuleServices{
 		Users:        storage.Users(),

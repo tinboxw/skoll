@@ -66,6 +66,8 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 	}, wrapper)
 
 	rbacSvc.SetRoleAPIs(adminRole.ID, []string{"GET:/admin/v1/users", "GET:/admin/v1/users/{id}"})
+	rbacSvc.SetRolePolicies(adminRole.ID, []rbac.PolicyRule{{API: "GET:/admin/v1/users", Effect: "allow", RequireVerified: true, RequireClaimsVersion: "v2"}})
+	rbacSvc.SetRoleDataScope(adminRole.ID, rbac.DataScope{TenantIDs: []string{"tenant-a"}, RequireOwnerMatch: true})
 
 	unauthReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	unauthRR := httptest.NewRecorder()
@@ -85,6 +87,11 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 	allowedReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	allowedReq.Header.Set(adminauth.HeaderToken, "secret")
 	allowedReq.Header.Set(HeaderAdminRoleID, "1")
+	allowedReq.Header.Set(HeaderAdminJWTVerified, "true")
+	allowedReq.Header.Set(HeaderAdminJWTClaimsVersion, "v2")
+	allowedReq.Header.Set(HeaderAdminJWTSubject, "alice")
+	allowedReq.Header.Set(HeaderAdminDataTenantID, "tenant-a")
+	allowedReq.Header.Set(HeaderAdminResourceOwner, "alice")
 	allowedRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(allowedRR, allowedReq)
 	if allowedRR.Code != http.StatusOK {
@@ -97,10 +104,40 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 	allowedGetReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users/1", nil)
 	allowedGetReq.Header.Set(adminauth.HeaderToken, "secret")
 	allowedGetReq.Header.Set(HeaderAdminRoleID, "1")
+	allowedGetReq.Header.Set(HeaderAdminJWTSubject, "alice")
+	allowedGetReq.Header.Set(HeaderAdminDataTenantID, "tenant-a")
+	allowedGetReq.Header.Set(HeaderAdminResourceOwner, "alice")
 	allowedGetRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(allowedGetRR, allowedGetReq)
 	if allowedGetRR.Code != http.StatusOK {
 		t.Fatalf("expected authorized get user status 200, got %d", allowedGetRR.Code)
+	}
+
+	policyDeniedReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	policyDeniedReq.Header.Set(adminauth.HeaderToken, "secret")
+	policyDeniedReq.Header.Set(HeaderAdminRoleID, "1")
+	policyDeniedReq.Header.Set(HeaderAdminJWTClaimsVersion, "v2")
+	policyDeniedReq.Header.Set(HeaderAdminJWTSubject, "alice")
+	policyDeniedReq.Header.Set(HeaderAdminDataTenantID, "tenant-a")
+	policyDeniedReq.Header.Set(HeaderAdminResourceOwner, "alice")
+	policyDeniedRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(policyDeniedRR, policyDeniedReq)
+	if policyDeniedRR.Code != http.StatusForbidden {
+		t.Fatalf("expected forbidden when policy verified condition not met, got %d", policyDeniedRR.Code)
+	}
+
+	tenantDeniedReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	tenantDeniedReq.Header.Set(adminauth.HeaderToken, "secret")
+	tenantDeniedReq.Header.Set(HeaderAdminRoleID, "1")
+	tenantDeniedReq.Header.Set(HeaderAdminJWTVerified, "true")
+	tenantDeniedReq.Header.Set(HeaderAdminJWTClaimsVersion, "v2")
+	tenantDeniedReq.Header.Set(HeaderAdminJWTSubject, "alice")
+	tenantDeniedReq.Header.Set(HeaderAdminDataTenantID, "tenant-z")
+	tenantDeniedReq.Header.Set(HeaderAdminResourceOwner, "alice")
+	tenantDeniedRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(tenantDeniedRR, tenantDeniedReq)
+	if tenantDeniedRR.Code != http.StatusForbidden {
+		t.Fatalf("expected forbidden for out-of-scope tenant, got %d", tenantDeniedRR.Code)
 	}
 
 	forbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users", strings.NewReader(`{"name":"bob","email":"bob@example.com"}`))

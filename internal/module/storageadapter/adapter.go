@@ -105,6 +105,10 @@ type RBACRepository interface {
 	GetRoleMenus(roleID int64) []int64
 	SetRoleAPIs(roleID int64, apis []string) []string
 	GetRoleAPIs(roleID int64) []string
+	SetRolePolicies(roleID int64, rules []rbac.PolicyRule) []rbac.PolicyRule
+	GetRolePolicies(roleID int64) []rbac.PolicyRule
+	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
+	GetRoleDataScope(roleID int64) rbac.DataScope
 }
 
 type APIRegistryRepository interface {

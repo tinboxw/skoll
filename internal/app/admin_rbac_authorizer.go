@@ -8,12 +8,16 @@ import (
 
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/rbac"
-	"github.com/tinboxw/skoll/internal/module/role"
 )
 
 const HeaderAdminRoleID = "X-Admin-Role-ID"
 
-func WithRoleAPIAuthorizer(next http.Handler, roleSvc *role.Service, rbacSvc *rbac.Service) http.Handler {
+const (
+	HeaderAdminDataTenantID  = "X-Data-Tenant-ID"
+	HeaderAdminResourceOwner = "X-Resource-Owner"
+)
+
+func WithRoleAPIAuthorizer(next http.Handler, roleSvc RoleService, rbacSvc RBACService) http.Handler {
 	if next == nil || roleSvc == nil || rbacSvc == nil {
 		return next
 	}
@@ -50,8 +54,67 @@ func WithRoleAPIAuthorizer(next http.Handler, roleSvc *role.Service, rbacSvc *rb
 			return
 		}
 
+		claims := resolveAdminVerifiedClaims(r)
+		if !authorizeByPolicy(rbacSvc.GetRolePolicies(roleID), apiKey, claims) {
+			writeRBACError(w, http.StatusForbidden, "policy permission denied")
+			return
+		}
+
+		if !authorizeByDataScope(rbacSvc.GetRoleDataScope(roleID), claims, r) {
+			writeRBACError(w, http.StatusForbidden, "data scope denied")
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
+}
+
+func authorizeByPolicy(rules []rbac.PolicyRule, apiKey string, claims adminVerifiedClaims) bool {
+	if len(rules) == 0 {
+		return true
+	}
+
+	matched := false
+	allowed := false
+	for _, rule := range rules {
+		if rule.API != apiKey {
+			continue
+		}
+		matched = true
+		if rule.Effect == "deny" {
+			return false
+		}
+		if rule.RequireVerified && !claims.Verified {
+			continue
+		}
+		if rule.RequireClaimsVersion != "" && claims.ClaimsVersion != rule.RequireClaimsVersion {
+			continue
+		}
+		allowed = true
+	}
+
+	if !matched {
+		return true
+	}
+	return allowed
+}
+
+func authorizeByDataScope(scope rbac.DataScope, claims adminVerifiedClaims, r *http.Request) bool {
+	if len(scope.TenantIDs) > 0 {
+		tenantID := strings.TrimSpace(r.Header.Get(HeaderAdminDataTenantID))
+		if tenantID == "" || !containsString(scope.TenantIDs, tenantID) {
+			return false
+		}
+	}
+
+	if scope.RequireOwnerMatch {
+		owner := strings.TrimSpace(r.Header.Get(HeaderAdminResourceOwner))
+		if owner == "" || claims.Subject == "" || owner != claims.Subject {
+			return false
+		}
+	}
+
+	return true
 }
 
 func writeRBACError(w http.ResponseWriter, code int, message string) {
