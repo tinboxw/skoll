@@ -129,6 +129,20 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if !plugin.Enabled {
 		t.Fatalf("expected plugin enabled on install")
 	}
+	packaged, err := a.Plugins().InstallPackage("contract-plugin", "1.0.1", "https://example.com/plugins/contract-plugin-1.0.1.tgz", "sha256:abc", []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("install package failed: %v", err)
+	}
+	if packaged.PackageURL == "" || packaged.PackageHash == "" {
+		t.Fatalf("expected package metadata in installed plugin: %+v", packaged)
+	}
+	versionCheck, err := a.Plugins().CheckVersion("contract-plugin", "1.1.0")
+	if err != nil {
+		t.Fatalf("check version failed: %v", err)
+	}
+	if !versionCheck.UpdateAvailable {
+		t.Fatalf("expected update available for plugin: %+v", versionCheck)
+	}
 	disabled, err := a.Plugins().Disable("contract-plugin")
 	if err != nil {
 		t.Fatalf("disable plugin failed: %v", err)

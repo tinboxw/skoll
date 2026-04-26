@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）以及 M9-step1 插件清单生命周期基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）以及 M9-step2 插件打包与生命周期操作基线。
 
 ## 目录结构
 
@@ -86,8 +86,10 @@ curl -X POST http://localhost:8080/admin/v1/generator/modules -H "Content-Type: 
 curl -X POST http://localhost:8080/admin/v1/plugins/manifests -H "Content-Type: application/json" -d '{"name":"audit-ext","version":"1.0.0","hooks":["on_boot"]}'
 curl http://localhost:8080/admin/v1/plugins
 curl http://localhost:8080/admin/v1/plugins/audit-ext
+curl -X POST http://localhost:8080/admin/v1/plugins/packages/install -H "Content-Type: application/json" -d '{"name":"audit-ext","version":"1.1.0","package_url":"https://example.com/plugins/audit-ext-1.1.0.tgz","package_hash":"sha256:abcd","hooks":["on_boot"]}'
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/disable
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/enable
+curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/version-check -H "Content-Type: application/json" -d '{"latest_version":"1.2.0"}'
 # 仅在启用 go-admin 最小接入时可用
 curl http://localhost:8080/admin/ping
 # 若启用 admin 鉴权骨架，需要传入头
@@ -158,6 +160,7 @@ go test -bench=. -benchmem ./...
 - M8 调度任务基线记录：`docs/milestones/M8-job-scheduler-baseline.md`
 - M8 模块生成器记录：`docs/milestones/M8-module-generator.md`
 - M9 插件清单生命周期记录：`docs/milestones/M9-plugin-manifest-lifecycle.md`
+- M9 扩展打包与版本检查记录：`docs/milestones/M9-extension-packaging.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

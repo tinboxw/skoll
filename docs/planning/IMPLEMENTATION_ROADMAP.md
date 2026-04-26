@@ -84,5 +84,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 32. [x] M8-job-scheduler-baseline: Add scheduler APIs with execution history and observability.
 33. [x] M8-module-generator: Add CRUD module generator with template governance.
 34. [x] M9-plugin-manifest-lifecycle: Define plugin manifest and lifecycle hooks.
-35. [ ] M9-extension-packaging: Add install/enable/disable/version-check flow for extension packages.
+35. [x] M9-extension-packaging: Add install/enable/disable/version-check flow for extension packages.
 36. [ ] M9-ecosystem-docs: Publish extension developer guide and compatibility policy.

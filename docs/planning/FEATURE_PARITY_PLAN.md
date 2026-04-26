@@ -83,7 +83,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 8. Completed: M8-step2 job scheduler baseline with execution history.
 9. Completed: M8-step3 module generator baseline.
 10. Completed: M9-step1 plugin manifest lifecycle baseline.
-11. Next: M9-step2 extension packaging and lifecycle operations.
+11. Completed: M9-step2 extension packaging and lifecycle operations.
+12. Next: M9-step3 ecosystem docs and compatibility strategy.
 
 ## Risks and Mitigation
 

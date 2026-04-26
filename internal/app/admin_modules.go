@@ -95,10 +95,12 @@ type GeneratorService interface {
 
 type PluginService interface {
 	Install(name, version string, hooks []string) pluginmgr.Manifest
+	InstallPackage(name, version, packageURL, packageHash string, hooks []string) (pluginmgr.Manifest, error)
 	Get(name string) (pluginmgr.Manifest, error)
 	List() []pluginmgr.Manifest
 	Enable(name string) (pluginmgr.Manifest, error)
 	Disable(name string) (pluginmgr.Manifest, error)
+	CheckVersion(name, latestVersion string) (pluginmgr.VersionCheckResult, error)
 }
 
 type RBACService interface {
@@ -165,10 +167,12 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/jobs/{id}/history", listJobHistoryHandler(services.Jobs))
 	handle("POST /admin/v1/generator/modules", generateModuleHandler(services.Generator))
 	handle("POST /admin/v1/plugins/manifests", installPluginHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/packages/install", installPluginPackageHandler(services.Plugins))
 	handle("GET /admin/v1/plugins", listPluginsHandler(services.Plugins))
 	handle("GET /admin/v1/plugins/{name}", getPluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/enable", enablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -221,6 +225,18 @@ type installPluginRequest struct {
 	Name    string   `json:"name"`
 	Version string   `json:"version"`
 	Hooks   []string `json:"hooks"`
+}
+
+type installPluginPackageRequest struct {
+	Name        string   `json:"name"`
+	Version     string   `json:"version"`
+	PackageURL  string   `json:"package_url"`
+	PackageHash string   `json:"package_hash"`
+	Hooks       []string `json:"hooks"`
+}
+
+type pluginVersionCheckRequest struct {
+	LatestVersion string `json:"latest_version"`
 }
 
 type setRoleMenusRequest struct {
@@ -820,6 +836,30 @@ func installPluginHandler(svc PluginService) http.HandlerFunc {
 	}
 }
 
+func installPluginPackageHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req installPluginPackageRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.Version = strings.TrimSpace(req.Version)
+		req.PackageURL = strings.TrimSpace(req.PackageURL)
+		req.PackageHash = strings.TrimSpace(req.PackageHash)
+		if req.Name == "" || req.Version == "" || req.PackageURL == "" || req.PackageHash == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "name, version, package_url and package_hash are required"})
+			return
+		}
+		item, err := svc.InstallPackage(req.Name, req.Version, req.PackageURL, req.PackageHash, req.Hooks)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusCreated, item)
+	}
+}
+
 func listPluginsHandler(svc PluginService) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, svc.List())
@@ -883,6 +923,31 @@ func disablePluginHandler(svc PluginService) http.HandlerFunc {
 			return
 		}
 		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func checkPluginVersionHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req pluginVersionCheckRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		result, err := svc.CheckVersion(name, strings.TrimSpace(req.LatestVersion))
+		if err != nil {
+			if err == pluginmgr.ErrPluginNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusOK, result)
 	}
 }
 

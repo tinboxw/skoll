@@ -488,4 +488,26 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 	if !strings.Contains(enableRR.Body.String(), `"enabled":true`) {
 		t.Fatalf("expected plugin enabled, got %s", enableRR.Body.String())
 	}
+
+	packageReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/packages/install", strings.NewReader(`{"name":"audit-ext","version":"1.1.0","package_url":"https://example.com/plugins/audit-ext-1.1.0.tgz","package_hash":"sha256:abcd","hooks":["on_boot"]}`))
+	packageReq.Header.Set("Content-Type", "application/json")
+	packageRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(packageRR, packageReq)
+	if packageRR.Code != http.StatusCreated {
+		t.Fatalf("expected package install status 201, got %d", packageRR.Code)
+	}
+	if !strings.Contains(packageRR.Body.String(), `"package_url":"https://example.com/plugins/audit-ext-1.1.0.tgz"`) {
+		t.Fatalf("expected package metadata in response, got %s", packageRR.Body.String())
+	}
+
+	versionReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/version-check", strings.NewReader(`{"latest_version":"1.2.0"}`))
+	versionReq.Header.Set("Content-Type", "application/json")
+	versionRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(versionRR, versionReq)
+	if versionRR.Code != http.StatusOK {
+		t.Fatalf("expected version check status 200, got %d", versionRR.Code)
+	}
+	if !strings.Contains(versionRR.Body.String(), `"update_available":true`) {
+		t.Fatalf("expected update availability in response, got %s", versionRR.Body.String())
+	}
 }
