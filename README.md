@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，并已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志）。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6 基础能力与 M7 第二步配置中心/字典 API。
 
 ## 目录结构
 
@@ -54,6 +54,26 @@ curl http://localhost:8080/health
 curl http://localhost:8080/ready
 curl http://localhost:8080/metrics
 # 若启用 admin 鉴权，/metrics 额外包含 skoll_admin_auth_verifications_total 与 skoll_admin_auth_failures_total
+# M6: admin 模块 API（支持 user/role/menu/audit 的最小可用读写）
+curl -X POST http://localhost:8080/admin/v1/users -H "Content-Type: application/json" -d '{"name":"alice","email":"alice@example.com"}'
+curl http://localhost:8080/admin/v1/users
+curl http://localhost:8080/admin/v1/users/1
+curl -X POST http://localhost:8080/admin/v1/roles -H "Content-Type: application/json" -d '{"name":"ops","permissions":["user.read"]}'
+curl -X PUT http://localhost:8080/admin/v1/roles/1/menus -H "Content-Type: application/json" -d '{"menu_ids":[1,2]}'
+curl http://localhost:8080/admin/v1/roles/1/menus
+curl -X PUT http://localhost:8080/admin/v1/roles/1/apis -H "Content-Type: application/json" -d '{"apis":["GET:/admin/v1/users","POST:/admin/v1/users"]}'
+curl http://localhost:8080/admin/v1/roles/1/apis
+curl http://localhost:8080/admin/v1/apis
+curl -X POST http://localhost:8080/admin/v1/menus -H "Content-Type: application/json" -d '{"title":"Dashboard","path":"/dashboard","order":1}'
+curl -X POST http://localhost:8080/admin/v1/audit-logs -H "Content-Type: application/json" -d '{"actor":"system","action":"create","target":"user"}'
+curl http://localhost:8080/admin/v1/audit-logs?limit=20
+curl "http://localhost:8080/admin/v1/audit-logs?page=1&size=20&actor=system&action=create&q=user"
+curl -X POST http://localhost:8080/admin/v1/configs -H "Content-Type: application/json" -d '{"key":"system.theme","value":"aurora","description":"ui theme"}'
+curl http://localhost:8080/admin/v1/configs
+curl http://localhost:8080/admin/v1/configs/system.theme
+curl -X POST http://localhost:8080/admin/v1/dictionaries -H "Content-Type: application/json" -d '{"type":"status","label":"Enabled","value":"1","sort":10}'
+curl http://localhost:8080/admin/v1/dictionaries
+curl http://localhost:8080/admin/v1/dictionaries?type=status
 # 仅在启用 go-admin 最小接入时可用
 curl http://localhost:8080/admin/ping
 # 若启用 admin 鉴权骨架，需要传入头
@@ -83,6 +103,7 @@ go test -bench=. -benchmem ./...
 ## 文档
 
 - 规划路线：`docs/planning/IMPLEMENTATION_ROADMAP.md`
+- 对标功能规划：`docs/planning/FEATURE_PARITY_PLAN.md`
 - 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
 - 基准工具链策略：`docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`
 - Admin HMAC 签名规范：`docs/planning/ADMIN_AUTH_SIGNATURE_CONTRACT.md`
@@ -112,6 +133,13 @@ go test -bench=. -benchmem ./...
 - M4 admin prod static-token 守卫记录：`docs/milestones/M4-admin-auth-prod-static-token-guard.md`
 - M4 发布清单记录：`docs/milestones/M4-release-checklist.md`
 - M5 首批模块脚手架记录：`docs/milestones/M5-initial-module-scaffolds.md`
+- M6 admin 模块 API 基线记录：`docs/milestones/M6-admin-module-api-baseline.md`
+- M6 角色绑定能力记录：`docs/milestones/M6-role-bindings.md`
+- M6 API 注册表与权限分配记录：`docs/milestones/M6-api-registry-and-permission-assignment.md`
+- M6 RBAC 端到端冒烟记录：`docs/milestones/M6-rbac-e2e-smoke.md`
+- M7 存储适配器契约记录：`docs/milestones/M7-storage-adapter-contract.md`
+- M7 配置中心与字典记录：`docs/milestones/M7-config-and-dictionary.md`
+- M7 审计日志分页过滤记录：`docs/milestones/M7-durable-audit-log.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

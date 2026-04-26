@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness and has started M5 initial generic module scaffolds (user/role/menu/audit).
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6 foundation plus M7 step-2 config/dictionary APIs.
 
 ## Structure
 
@@ -54,6 +54,26 @@ curl http://localhost:8080/health
 curl http://localhost:8080/ready
 curl http://localhost:8080/metrics
 # If admin auth is enabled, /metrics additionally includes skoll_admin_auth_verifications_total and skoll_admin_auth_failures_total
+# M6: admin module API baseline (minimal user/role/menu/audit read/write)
+curl -X POST http://localhost:8080/admin/v1/users -H "Content-Type: application/json" -d '{"name":"alice","email":"alice@example.com"}'
+curl http://localhost:8080/admin/v1/users
+curl http://localhost:8080/admin/v1/users/1
+curl -X POST http://localhost:8080/admin/v1/roles -H "Content-Type: application/json" -d '{"name":"ops","permissions":["user.read"]}'
+curl -X PUT http://localhost:8080/admin/v1/roles/1/menus -H "Content-Type: application/json" -d '{"menu_ids":[1,2]}'
+curl http://localhost:8080/admin/v1/roles/1/menus
+curl -X PUT http://localhost:8080/admin/v1/roles/1/apis -H "Content-Type: application/json" -d '{"apis":["GET:/admin/v1/users","POST:/admin/v1/users"]}'
+curl http://localhost:8080/admin/v1/roles/1/apis
+curl http://localhost:8080/admin/v1/apis
+curl -X POST http://localhost:8080/admin/v1/menus -H "Content-Type: application/json" -d '{"title":"Dashboard","path":"/dashboard","order":1}'
+curl -X POST http://localhost:8080/admin/v1/audit-logs -H "Content-Type: application/json" -d '{"actor":"system","action":"create","target":"user"}'
+curl http://localhost:8080/admin/v1/audit-logs?limit=20
+curl "http://localhost:8080/admin/v1/audit-logs?page=1&size=20&actor=system&action=create&q=user"
+curl -X POST http://localhost:8080/admin/v1/configs -H "Content-Type: application/json" -d '{"key":"system.theme","value":"aurora","description":"ui theme"}'
+curl http://localhost:8080/admin/v1/configs
+curl http://localhost:8080/admin/v1/configs/system.theme
+curl -X POST http://localhost:8080/admin/v1/dictionaries -H "Content-Type: application/json" -d '{"type":"status","label":"Enabled","value":"1","sort":10}'
+curl http://localhost:8080/admin/v1/dictionaries
+curl http://localhost:8080/admin/v1/dictionaries?type=status
 # Available only when minimal go-admin integration is enabled
 curl http://localhost:8080/admin/ping
 # If admin auth skeleton is enabled, include the auth header
@@ -83,6 +103,7 @@ go test -bench=. -benchmem ./...
 ## Documentation
 
 - Implementation roadmap: `docs/planning/IMPLEMENTATION_ROADMAP.md`
+- Feature parity plan: `docs/planning/FEATURE_PARITY_PLAN.md`
 - Production deployment env template: `docs/planning/PRODUCTION_ENV_TEMPLATE.md`
 - Benchmark toolchain policy: `docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`
 - Admin HMAC signature contract: `docs/planning/ADMIN_AUTH_SIGNATURE_CONTRACT.md`
@@ -112,6 +133,13 @@ go test -bench=. -benchmem ./...
 - M4 admin prod static-token guard record: `docs/milestones/M4-admin-auth-prod-static-token-guard.md`
 - M4 release checklist record: `docs/milestones/M4-release-checklist.md`
 - M5 initial module scaffold record: `docs/milestones/M5-initial-module-scaffolds.md`
+- M6 admin module API baseline record: `docs/milestones/M6-admin-module-api-baseline.md`
+- M6 role binding capability record: `docs/milestones/M6-role-bindings.md`
+- M6 API registry and permission assignment record: `docs/milestones/M6-api-registry-and-permission-assignment.md`
+- M6 RBAC end-to-end smoke record: `docs/milestones/M6-rbac-e2e-smoke.md`
+- M7 storage adapter contract record: `docs/milestones/M7-storage-adapter-contract.md`
+- M7 config center and dictionary record: `docs/milestones/M7-config-and-dictionary.md`
+- M7 durable audit log query record: `docs/milestones/M7-durable-audit-log.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

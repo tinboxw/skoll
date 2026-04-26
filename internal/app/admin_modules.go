@@ -48,6 +48,7 @@ type MenuService interface {
 type AuditService interface {
 	Append(actor, action, target string) audit.Record
 	Recent(limit int) []audit.Record
+	Query(q audit.Query) audit.QueryResult
 }
 
 type ConfigService interface {
@@ -456,20 +457,12 @@ func appendAuditLogHandler(svc AuditService) http.HandlerFunc {
 
 func recentAuditLogsHandler(svc AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		limit := 20
-		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
-			parsed, err := strconv.Atoi(raw)
-			if err != nil || parsed <= 0 {
-				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
-				return
-			}
-			if parsed > 500 {
-				parsed = 500
-			}
-			limit = parsed
+		query, err := parseAuditQuery(r)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
 		}
-
-		respondJSON(w, http.StatusOK, svc.Recent(limit))
+		respondJSON(w, http.StatusOK, svc.Query(query))
 	}
 }
 
@@ -601,4 +594,42 @@ func parsePathString(r *http.Request, key string) (string, error) {
 		return "", fmt.Errorf("%s is required", key)
 	}
 	return raw, nil
+}
+
+func parseAuditQuery(r *http.Request) (audit.Query, error) {
+	q := audit.Query{
+		Page:   audit.DefaultPage,
+		Size:   audit.DefaultSize,
+		Actor:  strings.TrimSpace(r.URL.Query().Get("actor")),
+		Action: strings.TrimSpace(r.URL.Query().Get("action")),
+		Target: strings.TrimSpace(r.URL.Query().Get("target")),
+		Q:      strings.TrimSpace(r.URL.Query().Get("q")),
+	}
+
+	if rawPage := strings.TrimSpace(r.URL.Query().Get("page")); rawPage != "" {
+		parsed, err := strconv.Atoi(rawPage)
+		if err != nil || parsed <= 0 {
+			return audit.Query{}, fmt.Errorf("page must be a positive integer")
+		}
+		q.Page = parsed
+	}
+
+	if rawSize := strings.TrimSpace(r.URL.Query().Get("size")); rawSize != "" {
+		parsed, err := strconv.Atoi(rawSize)
+		if err != nil || parsed <= 0 {
+			return audit.Query{}, fmt.Errorf("size must be a positive integer")
+		}
+		q.Size = parsed
+	}
+
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed <= 0 {
+			return audit.Query{}, fmt.Errorf("limit must be a positive integer")
+		}
+		q.Page = 1
+		q.Size = parsed
+	}
+
+	return q, nil
 }

@@ -126,12 +126,26 @@ func TestAdminAuditRoutes_RecentWithLimit(t *testing.T) {
 		t.Fatalf("expected recent status 200, got %d", recentRR.Code)
 	}
 
-	var records []map[string]any
-	if err := json.Unmarshal(recentRR.Body.Bytes(), &records); err != nil {
+	var payload map[string]any
+	if err := json.Unmarshal(recentRR.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("unmarshal recent response failed: %v", err)
 	}
-	if len(records) != 2 {
-		t.Fatalf("expected 2 recent records, got %d", len(records))
+	items, ok := payload["items"].([]any)
+	if !ok {
+		t.Fatalf("expected items array payload, got %v", payload)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 recent records, got %d", len(items))
+	}
+
+	filteredReq := httptest.NewRequest(http.MethodGet, "/admin/v1/audit-logs?page=1&size=10&actor=system&action=create&q=user", nil)
+	filteredRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(filteredRR, filteredReq)
+	if filteredRR.Code != http.StatusOK {
+		t.Fatalf("expected filtered status 200, got %d", filteredRR.Code)
+	}
+	if !strings.Contains(filteredRR.Body.String(), `"total":3`) {
+		t.Fatalf("expected filtered total field in response, got %s", filteredRR.Body.String())
 	}
 }
 

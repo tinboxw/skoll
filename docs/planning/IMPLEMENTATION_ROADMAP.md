@@ -6,6 +6,10 @@
 - M1-core-domain: Introduce core domain modules and service boundaries.
 - M2-concurrency-and-performance: Add concurrency primitives and benchmark-driven tuning.
 - M3-observability-and-hardening: Add logging/metrics/tracing and production hardening.
+- M6-admin-api-and-rbac-foundation: Align baseline admin capabilities with HisiPHP/Gin-Vue-Admin common set.
+- M7-persistence-config-and-audit: Move admin modules from scaffold state to persistent operational baseline.
+- M8-assets-jobs-and-generator: Add file capabilities, scheduler, and module generation support.
+- M9-plugin-ecosystem-readiness: Build extension lifecycle and marketplace-facing compatibility surface.
 
 ## M0 Scope
 
@@ -68,3 +72,17 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 20. [x] M5-benchmark-baseline: Capture initial module benchmark snapshots for future regression comparison.
 21. [x] Community-contribution-kit: Add CONTRIBUTING and issue templates.
 22. [x] Community-versioning-changelog-flow: Add version policy and changelog process documentation.
+23. [x] M6-admin-module-api-baseline: Expose `/admin/v1` APIs for user/role/menu/audit scaffolds and wire optional admin auth wrapper.
+24. [x] M6-role-menu-binding: Add role-menu binding APIs and DTO contract tests.
+25. [x] M6-role-api-binding: Add API resource registry and role-api permission binding APIs.
+26. [x] M6-api-registry-and-permission-assignment: Add API registry listing endpoint and enforce registered-api binding policy.
+27. [x] M6-rbac-e2e-smoke: Add end-to-end tests for `identity -> role -> route/api authorization` baseline flow.
+28. [x] M7-storage-adapter-contract: Introduce storage adapter interfaces and shared contract tests.
+29. [x] M7-config-and-dictionary: Implement config center and dictionary APIs with persistence.
+30. [x] M7-durable-audit-log: Add paginated/filterable persistent audit logs.
+31. [ ] M8-file-service-baseline: Add file upload/download module with pluggable backend.
+32. [ ] M8-job-scheduler-baseline: Add scheduler APIs with execution history and observability.
+33. [ ] M8-module-generator: Add CRUD module generator with template governance.
+34. [ ] M9-plugin-manifest-lifecycle: Define plugin manifest and lifecycle hooks.
+35. [ ] M9-extension-packaging: Add install/enable/disable/version-check flow for extension packages.
+36. [ ] M9-ecosystem-docs: Publish extension developer guide and compatibility policy.

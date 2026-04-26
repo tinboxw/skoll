@@ -17,6 +17,7 @@ import (
 	"github.com/tinboxw/skoll/internal/app"
 	"github.com/tinboxw/skoll/internal/integration/adminauth"
 	"github.com/tinboxw/skoll/internal/integration/goadmin"
+	"github.com/tinboxw/skoll/internal/module/storageadapter"
 	"github.com/tinboxw/skoll/pkg/version"
 )
 
@@ -91,10 +92,30 @@ func main() {
 	srv := app.New(*addr, version.String())
 	srv.AddMetricsCollector(adminauth.MetricsPrometheus)
 	srv.SetReady(true)
+
+	var adminWrapper func(http.Handler) http.Handler
+	if adminAuthEnabled {
+		adminWrapper = func(next http.Handler) http.Handler {
+			return adminauth.WithVerifier(next, adminVerifier)
+		}
+	}
+	storage := storageadapter.NewInMemoryAdapter()
+
+	srv.MountAdminModuleRoutes(app.AdminModuleServices{
+		Users:        storage.Users(),
+		Roles:        storage.Roles(),
+		Menus:        storage.Menus(),
+		Audit:        storage.Audit(),
+		Configs:      storage.Configs(),
+		Dictionaries: storage.Dictionaries(),
+		RBAC:         storage.RBAC(),
+		APIs:         storage.APIs(),
+	}, adminWrapper)
+
 	if bootstrap.Enabled() {
 		adminPingHandler := http.Handler(http.HandlerFunc(bootstrap.AdminPingHandler()))
-		if adminAuthEnabled {
-			adminPingHandler = adminauth.WithVerifier(adminPingHandler, adminVerifier)
+		if adminWrapper != nil {
+			adminPingHandler = adminWrapper(adminPingHandler)
 		}
 		srv.HandleFunc(goadmin.AdminPingPath, func(w http.ResponseWriter, r *http.Request) {
 			adminPingHandler.ServeHTTP(w, r)

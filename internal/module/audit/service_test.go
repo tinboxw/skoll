@@ -32,3 +32,35 @@ func BenchmarkServiceRecent(b *testing.B) {
 		_ = svc.Recent(100)
 	}
 }
+
+func TestServiceQuery_FilterAndPaging(t *testing.T) {
+	svc := NewService()
+	svc.Append("alice", "create", "user:1")
+	svc.Append("alice", "update", "user:2")
+	svc.Append("bob", "create", "role:1")
+	svc.Append("alice", "create", "user:3")
+
+	filtered := svc.Query(Query{Actor: "alice", Action: "create"})
+	if filtered.Total != 2 {
+		t.Fatalf("expected 2 filtered records, got %d", filtered.Total)
+	}
+
+	paged := svc.Query(Query{Page: 2, Size: 1, Actor: "alice"})
+	if paged.Total != 3 {
+		t.Fatalf("expected total 3 records for alice, got %d", paged.Total)
+	}
+	if len(paged.Items) != 1 {
+		t.Fatalf("expected page size 1, got %d", len(paged.Items))
+	}
+	if paged.Items[0].Action != "update" || paged.Items[0].Target != "user:2" {
+		t.Fatalf("unexpected paged item: %+v", paged.Items[0])
+	}
+
+	keyword := svc.Query(Query{Q: "role"})
+	if keyword.Total != 1 {
+		t.Fatalf("expected 1 keyword match, got %d", keyword.Total)
+	}
+	if keyword.Items[0].Target != "role:1" {
+		t.Fatalf("unexpected keyword match item: %+v", keyword.Items[0])
+	}
+}
