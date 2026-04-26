@@ -105,3 +105,9 @@ Recommended mapping:
 2. Treat `subject` and `role_id` as operational hints; enforce access decisions with backend authorization outcomes.
 3. Alert on abrupt source-chain shifts (for example, missing expected upstream hop) as potential middleware regression.
 4. Track `claims_version` transitions during middleware rollouts to detect mixed deployment states.
+
+## Operations Runbook
+
+For incident triage and mitigation workflow, see:
+
+- `docs/community/DASHBOARD_JWT_PROVENANCE_OPS_RUNBOOK.md`

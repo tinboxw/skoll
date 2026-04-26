@@ -106,4 +106,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 54. [x] M14-dashboard-jwt-session-provenance-audit-export: Add provenance audit export fields for security operations.
 55. [x] M14-dashboard-jwt-session-provenance-audit-docs: Publish provenance audit export compatibility and SIEM mapping guidance.
 56. [x] M15-dashboard-jwt-session-provenance-ops-metrics: Add provenance export operational metrics and alerting hints.
-57. [ ] M15-dashboard-jwt-session-provenance-ops-runbook: Add provenance ops runbook and alert triage guidance.
+57. [x] M15-dashboard-jwt-session-provenance-ops-runbook: Add provenance ops runbook and alert triage guidance.
+58. [ ] M16-dashboard-jwt-session-provenance-slo-dashboards: Add provenance SLO dashboards and error-budget policy.
