@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）以及 M14-step2（JWT 溯源审计导出文档与 SIEM 映射）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）以及 M15-step1（JWT 溯源导出运维指标与告警提示）基线。
 
 ## 目录结构
 
@@ -193,6 +193,7 @@ go test -bench=. -benchmem ./...
 - M13 仪表盘 JWT 声明来源溯源记录：`docs/milestones/M13-dashboard-jwt-session-source-provenance.md`
 - M14 仪表盘 JWT 溯源审计导出字段记录：`docs/milestones/M14-dashboard-jwt-session-provenance-audit-export.md`
 - M14 仪表盘 JWT 溯源审计导出文档与 SIEM 映射记录：`docs/milestones/M14-dashboard-jwt-session-provenance-audit-docs.md`
+- M15 仪表盘 JWT 溯源运维指标与告警提示记录：`docs/milestones/M15-dashboard-jwt-session-provenance-ops-metrics.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

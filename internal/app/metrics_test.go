@@ -1,6 +1,9 @@
 package app
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizePathLabelWhitelistAndFallback(t *testing.T) {
 	if got := normalizePathLabel("/health"); got != "/health" {
@@ -39,5 +42,49 @@ func TestObserveRequestUsesNormalizedPath(t *testing.T) {
 	}
 	if got := m.pathAdminT.Load(); got != 1 {
 		t.Fatalf("expected /admin/:path count 1, got %d", got)
+	}
+}
+
+func TestDeriveDashboardJWTProvenanceAlertingHints(t *testing.T) {
+	hints := deriveDashboardJWTProvenanceAlertingHints(dashboardJWTProvenanceAuditExport{
+		Enabled:           true,
+		Verified:          false,
+		VerificationState: "unverified",
+		SourceProvenance:  []string{"edge", "gateway", "admin"},
+	})
+
+	joined := strings.Join(hints, ",")
+	if !strings.Contains(joined, provenanceHintVerificationUnverified) {
+		t.Fatalf("expected unverified hint, got %v", hints)
+	}
+	if !strings.Contains(joined, provenanceHintClaimsNotVerified) {
+		t.Fatalf("expected claims_not_verified hint, got %v", hints)
+	}
+	if !strings.Contains(joined, provenanceHintClaimsVersionMissing) {
+		t.Fatalf("expected claims_version_missing hint, got %v", hints)
+	}
+	if !strings.Contains(joined, provenanceHintChainDepthHigh) {
+		t.Fatalf("expected chain depth high hint, got %v", hints)
+	}
+}
+
+func TestMetricsPrometheusIncludesDashboardJWTProvenanceMetrics(t *testing.T) {
+	resetDashboardJWTProvenanceMetricsForTest()
+	m := NewMetrics()
+
+	observeDashboardJWTProvenanceAuditExport(
+		dashboardJWTProvenanceAuditExport{Enabled: true, Verified: false, VerificationState: "invalid"},
+		[]string{provenanceHintVerificationInvalid},
+	)
+
+	out := m.Prometheus()
+	if !strings.Contains(out, "skoll_dashboard_jwt_provenance_exports_total{enabled=\"true\"} 1") {
+		t.Fatalf("expected enabled provenance export metric, got %q", out)
+	}
+	if !strings.Contains(out, "skoll_dashboard_jwt_provenance_verification_states_total{state=\"invalid\"} 1") {
+		t.Fatalf("expected invalid verification state metric, got %q", out)
+	}
+	if !strings.Contains(out, "skoll_dashboard_jwt_provenance_alert_hints_total{hint=\"verification_state_invalid\"} 1") {
+		t.Fatalf("expected provenance alert hint metric, got %q", out)
 	}
 }

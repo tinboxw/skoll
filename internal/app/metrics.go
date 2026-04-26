@@ -106,6 +106,13 @@ func (m *Metrics) Prometheus() string {
 		b.WriteString(fmt.Sprintf("skoll_http_responses_status_total{code=%q} %d\n", fmt.Sprintf("%d", code), statusMap[code]))
 	}
 
+	provenance := strings.TrimSpace(dashboardJWTProvenanceMetricsPrometheus())
+	if provenance != "" {
+		b.WriteString("\n")
+		b.WriteString(provenance)
+		b.WriteString("\n")
+	}
+
 	return b.String()
 }
 

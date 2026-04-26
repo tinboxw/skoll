@@ -618,6 +618,7 @@ func TestNodeHealthRoute_ReturnsDependencyStatus(t *testing.T) {
 }
 
 func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
+	resetDashboardJWTProvenanceMetricsForTest()
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
 
@@ -705,6 +706,16 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	}
 	if got, ok := auditExport["verification_state"].(string); !ok || got != "not_present" {
 		t.Fatalf("expected provenance_audit_export.verification_state=not_present, got %v", auditExport["verification_state"])
+	}
+	opsMetrics, ok := auditExport["operational_metrics"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance_audit_export.operational_metrics object, got %v", auditExport["operational_metrics"])
+	}
+	if got, ok := opsMetrics["exports_total"].(float64); !ok || got < 1 {
+		t.Fatalf("expected operational_metrics.exports_total >= 1, got %v", opsMetrics["exports_total"])
+	}
+	if got, ok := opsMetrics["disabled_total"].(float64); !ok || got < 1 {
+		t.Fatalf("expected operational_metrics.disabled_total >= 1, got %v", opsMetrics["disabled_total"])
 	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
@@ -841,6 +852,7 @@ func TestDashboardAggregateRoute_JWTSessionBootstrapFromBearerToken(t *testing.T
 }
 
 func TestDashboardAggregateRoute_JWTMiddlewareBridgePromotesVerifiedTrust(t *testing.T) {
+	resetDashboardJWTProvenanceMetricsForTest()
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
 
@@ -902,6 +914,16 @@ func TestDashboardAggregateRoute_JWTMiddlewareBridgePromotesVerifiedTrust(t *tes
 	}
 	if got, ok := auditExport["verification_state"].(string); !ok || got != "verified" {
 		t.Fatalf("expected provenance_audit_export.verification_state=verified, got %v", auditExport["verification_state"])
+	}
+	opsMetrics, ok := auditExport["operational_metrics"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected provenance_audit_export.operational_metrics object, got %v", auditExport["operational_metrics"])
+	}
+	if got, ok := opsMetrics["enabled_total"].(float64); !ok || got < 1 {
+		t.Fatalf("expected operational_metrics.enabled_total >= 1, got %v", opsMetrics["enabled_total"])
+	}
+	if got, ok := opsMetrics["verified_total"].(float64); !ok || got < 1 {
+		t.Fatalf("expected operational_metrics.verified_total >= 1, got %v", opsMetrics["verified_total"])
 	}
 }
 

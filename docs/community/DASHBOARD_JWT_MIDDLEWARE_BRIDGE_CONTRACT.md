@@ -30,6 +30,8 @@ This contract governs bridge metadata only. It does not define JWT signing algor
 - `enabled` (bool)
 - `source_provenance` (string[])
 - `source_path` (optional string, `>` joined chain)
+- `operational_metrics` (object)
+- `alerting_hints` (optional string[])
 - `source` (optional string)
 - `verified` (bool)
 - `claims_trusted` (bool)

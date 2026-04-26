@@ -404,20 +404,22 @@ type dashboardJWTMiddlewareBridge struct {
 }
 
 type dashboardJWTProvenanceAuditExport struct {
-	Enabled             bool     `json:"enabled"`
-	SourceProvenance    []string `json:"source_provenance"`
-	SourcePath          string   `json:"source_path,omitempty"`
-	Source              string   `json:"source,omitempty"`
-	Verified            bool     `json:"verified"`
-	ClaimsTrusted       bool     `json:"claims_trusted"`
-	VerificationState   string   `json:"verification_state"`
-	Subject             string   `json:"subject,omitempty"`
-	RoleID              string   `json:"role_id,omitempty"`
-	ClaimsVersion       string   `json:"claims_version,omitempty"`
-	RoleSource          string   `json:"role_source,omitempty"`
-	SubjectSource       string   `json:"subject_source,omitempty"`
-	ClaimsVersionSource string   `json:"claims_version_source,omitempty"`
-	VerifiedSource      string   `json:"verified_source,omitempty"`
+	Enabled             bool                                     `json:"enabled"`
+	SourceProvenance    []string                                 `json:"source_provenance"`
+	SourcePath          string                                   `json:"source_path,omitempty"`
+	OperationalMetrics  dashboardJWTProvenanceOperationalMetrics `json:"operational_metrics"`
+	AlertingHints       []string                                 `json:"alerting_hints,omitempty"`
+	Source              string                                   `json:"source,omitempty"`
+	Verified            bool                                     `json:"verified"`
+	ClaimsTrusted       bool                                     `json:"claims_trusted"`
+	VerificationState   string                                   `json:"verification_state"`
+	Subject             string                                   `json:"subject,omitempty"`
+	RoleID              string                                   `json:"role_id,omitempty"`
+	ClaimsVersion       string                                   `json:"claims_version,omitempty"`
+	RoleSource          string                                   `json:"role_source,omitempty"`
+	SubjectSource       string                                   `json:"subject_source,omitempty"`
+	ClaimsVersionSource string                                   `json:"claims_version_source,omitempty"`
+	VerifiedSource      string                                   `json:"verified_source,omitempty"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1335,7 +1337,7 @@ func collectDashboardJWTProvenanceAuditExport(bridge dashboardJWTMiddlewareBridg
 	}
 	enabled := bridge.Present || len(bridge.SourceProvenance) > 0
 
-	return dashboardJWTProvenanceAuditExport{
+	export := dashboardJWTProvenanceAuditExport{
 		Enabled:             enabled,
 		SourceProvenance:    append([]string(nil), bridge.SourceProvenance...),
 		SourcePath:          sourcePath,
@@ -1351,6 +1353,12 @@ func collectDashboardJWTProvenanceAuditExport(bridge dashboardJWTMiddlewareBridg
 		ClaimsVersionSource: bridge.ClaimsVersionSource,
 		VerifiedSource:      bridge.VerifiedSource,
 	}
+
+	hints := deriveDashboardJWTProvenanceAlertingHints(export)
+	observeDashboardJWTProvenanceAuditExport(export, hints)
+	export.OperationalMetrics = snapshotDashboardJWTProvenanceOperationalMetrics()
+	export.AlertingHints = hints
+	return export
 }
 
 func deriveJWTVerificationHints(tokenFormat, sessionState string, claimsTrusted bool, parseError string) (string, string, string, string) {

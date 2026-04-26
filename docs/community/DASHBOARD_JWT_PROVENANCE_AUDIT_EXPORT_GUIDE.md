@@ -13,6 +13,8 @@ This guide focuses on security operations export. It does not change authorizati
 - `enabled`
 - `source_provenance`
 - `source_path`
+- `operational_metrics`
+- `alerting_hints`
 - `source`
 - `verified`
 - `claims_trusted`
@@ -24,6 +26,24 @@ This guide focuses on security operations export. It does not change authorizati
 - `subject_source`
 - `claims_version_source`
 - `verified_source`
+
+`operational_metrics` currently includes:
+
+- `exports_total`
+- `enabled_total`
+- `disabled_total`
+- `verified_total`
+- `unverified_total`
+- `invalid_total`
+- `alert_hints_total`
+
+`alerting_hints` values currently include:
+
+- `verification_state_invalid`
+- `verification_state_unverified`
+- `claims_not_verified`
+- `claims_version_missing`
+- `provenance_chain_depth_high`
 
 ## Compatibility Rules
 
