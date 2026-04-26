@@ -14,6 +14,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/config"
 	"github.com/tinboxw/skoll/internal/module/dictionary"
 	"github.com/tinboxw/skoll/internal/module/fileservice"
+	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
@@ -27,6 +28,7 @@ type AdminModuleServices struct {
 	Configs      ConfigService
 	Dictionaries DictionaryService
 	Files        FileService
+	Jobs         JobService
 	RBAC         RBACService
 	APIs         APIRegistryService
 }
@@ -75,6 +77,14 @@ type FileService interface {
 	Download(id int64) (fileservice.File, []byte, error)
 }
 
+type JobService interface {
+	Create(name, schedule string) jobscheduler.Job
+	Get(id int64) (jobscheduler.Job, error)
+	List() []jobscheduler.Job
+	Run(jobID int64) (jobscheduler.Execution, error)
+	History(jobID int64, limit int) []jobscheduler.Execution
+}
+
 type RBACService interface {
 	SetRoleMenus(roleID int64, menuIDs []int64) []int64
 	GetRoleMenus(roleID int64) []int64
@@ -92,7 +102,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	if mux == nil {
 		return
 	}
-	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.Files == nil || services.RBAC == nil || services.APIs == nil {
+	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.Files == nil || services.Jobs == nil || services.RBAC == nil || services.APIs == nil {
 		return
 	}
 
@@ -133,6 +143,10 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/files", listFilesHandler(services.Files))
 	handle("GET /admin/v1/files/{id}", getFileHandler(services.Files))
 	handle("GET /admin/v1/files/{id}/download", downloadFileHandler(services.Files))
+	handle("POST /admin/v1/jobs", createJobHandler(services.Jobs))
+	handle("GET /admin/v1/jobs", listJobsHandler(services.Jobs))
+	handle("POST /admin/v1/jobs/{id}/run", runJobHandler(services.Jobs))
+	handle("GET /admin/v1/jobs/{id}/history", listJobHistoryHandler(services.Jobs))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -170,6 +184,11 @@ type createDictionaryRequest struct {
 	Value   string `json:"value"`
 	Sort    int    `json:"sort"`
 	Enabled *bool  `json:"enabled"`
+}
+
+type createJobRequest struct {
+	Name     string `json:"name"`
+	Schedule string `json:"schedule"`
 }
 
 type setRoleMenusRequest struct {
@@ -659,6 +678,80 @@ func downloadFileHandler(svc FileService) http.HandlerFunc {
 		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(item.Name)))
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(content)
+	}
+}
+
+func createJobHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createJobRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.Schedule = strings.TrimSpace(req.Schedule)
+		if req.Name == "" || req.Schedule == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "name and schedule are required"})
+			return
+		}
+		respondJSON(w, http.StatusCreated, svc.Create(req.Name, req.Schedule))
+	}
+}
+
+func listJobsHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func runJobHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		exec, err := svc.Run(id)
+		if err != nil {
+			if err == jobscheduler.ErrJobNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		respondJSON(w, http.StatusOK, exec)
+	}
+}
+
+func listJobHistoryHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if _, err := svc.Get(id); err != nil {
+			if err == jobscheduler.ErrJobNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		limit := 20
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+				return
+			}
+			if parsed > 200 {
+				parsed = 200
+			}
+			limit = parsed
+		}
+		respondJSON(w, http.StatusOK, svc.History(id, limit))
 	}
 }
 

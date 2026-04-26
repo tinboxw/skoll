@@ -100,4 +100,20 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if string(content) != "contract" {
 		t.Fatalf("unexpected downloaded content: %s", string(content))
 	}
+
+	job := a.Jobs().Create("daily-sync", "0 0 * * *")
+	if job.ID <= 0 {
+		t.Fatalf("expected generated job id")
+	}
+	run, err := a.Jobs().Run(job.ID)
+	if err != nil {
+		t.Fatalf("run job failed: %v", err)
+	}
+	if run.Status != "success" {
+		t.Fatalf("unexpected run status: %s", run.Status)
+	}
+	history := a.Jobs().History(job.ID, 10)
+	if len(history) != 1 {
+		t.Fatalf("expected 1 job history item, got %d", len(history))
+	}
 }

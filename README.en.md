@@ -78,6 +78,10 @@ curl -X POST http://localhost:8080/admin/v1/files -F "file=@./README.md"
 curl http://localhost:8080/admin/v1/files
 curl http://localhost:8080/admin/v1/files/1
 curl -L http://localhost:8080/admin/v1/files/1/download -o downloaded.bin
+curl -X POST http://localhost:8080/admin/v1/jobs -H "Content-Type: application/json" -d '{"name":"daily-sync","schedule":"0 0 * * *"}'
+curl http://localhost:8080/admin/v1/jobs
+curl -X POST http://localhost:8080/admin/v1/jobs/1/run
+curl http://localhost:8080/admin/v1/jobs/1/history?limit=20
 # Available only when minimal go-admin integration is enabled
 curl http://localhost:8080/admin/ping
 # If admin auth skeleton is enabled, include the auth header
@@ -145,6 +149,7 @@ go test -bench=. -benchmem ./...
 - M7 config center and dictionary record: `docs/milestones/M7-config-and-dictionary.md`
 - M7 durable audit log query record: `docs/milestones/M7-durable-audit-log.md`
 - M8 file service baseline record: `docs/milestones/M8-file-service-baseline.md`
+- M8 job scheduler baseline record: `docs/milestones/M8-job-scheduler-baseline.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

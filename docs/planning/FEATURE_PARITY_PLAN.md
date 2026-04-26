@@ -80,7 +80,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 5. Completed: M7-step2 config center and dictionary APIs with persistence-ready boundaries.
 6. Completed: M7-step3 durable audit log query/filter/paging baseline.
 7. Completed: M8-step1 file service baseline with pluggable backend.
-8. Next: M8-step2 job scheduler baseline with execution history.
+8. Completed: M8-step2 job scheduler baseline with execution history.
+9. Next: M8-step3 module generator baseline.
 
 ## Risks and Mitigation
 

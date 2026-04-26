@@ -15,6 +15,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/config"
 	"github.com/tinboxw/skoll/internal/module/dictionary"
 	"github.com/tinboxw/skoll/internal/module/fileservice"
+	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
@@ -51,6 +52,7 @@ func testAdminModuleServices() AdminModuleServices {
 		Configs:      config.NewService(),
 		Dictionaries: dictionary.NewService(),
 		Files:        fileservice.NewService(&memoryFileBackend{}),
+		Jobs:         jobscheduler.NewService(),
 		RBAC:         rbac.NewService(),
 		APIs:         apiregistry.NewService(),
 	}
@@ -399,5 +401,35 @@ func TestFileRoutes_UploadListGetDownload(t *testing.T) {
 	}
 	if downloadRR.Body.String() != "hello skoll" {
 		t.Fatalf("unexpected downloaded body: %s", downloadRR.Body.String())
+	}
+}
+
+func TestJobRoutes_CreateRunHistory(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs", strings.NewReader(`{"name":"daily-sync","schedule":"0 0 * * *"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRR, createReq)
+	if createRR.Code != http.StatusCreated {
+		t.Fatalf("expected create job status 201, got %d", createRR.Code)
+	}
+
+	runReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs/1/run", nil)
+	runRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(runRR, runReq)
+	if runRR.Code != http.StatusOK {
+		t.Fatalf("expected run job status 200, got %d", runRR.Code)
+	}
+
+	historyReq := httptest.NewRequest(http.MethodGet, "/admin/v1/jobs/1/history?limit=10", nil)
+	historyRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(historyRR, historyReq)
+	if historyRR.Code != http.StatusOK {
+		t.Fatalf("expected job history status 200, got %d", historyRR.Code)
+	}
+	if !strings.Contains(historyRR.Body.String(), `"Status":"success"`) {
+		t.Fatalf("expected successful run in history, got %s", historyRR.Body.String())
 	}
 }

@@ -78,6 +78,10 @@ curl -X POST http://localhost:8080/admin/v1/files -F "file=@./README.md"
 curl http://localhost:8080/admin/v1/files
 curl http://localhost:8080/admin/v1/files/1
 curl -L http://localhost:8080/admin/v1/files/1/download -o downloaded.bin
+curl -X POST http://localhost:8080/admin/v1/jobs -H "Content-Type: application/json" -d '{"name":"daily-sync","schedule":"0 0 * * *"}'
+curl http://localhost:8080/admin/v1/jobs
+curl -X POST http://localhost:8080/admin/v1/jobs/1/run
+curl http://localhost:8080/admin/v1/jobs/1/history?limit=20
 # 仅在启用 go-admin 最小接入时可用
 curl http://localhost:8080/admin/ping
 # 若启用 admin 鉴权骨架，需要传入头
@@ -145,6 +149,7 @@ go test -bench=. -benchmem ./...
 - M7 配置中心与字典记录：`docs/milestones/M7-config-and-dictionary.md`
 - M7 审计日志分页过滤记录：`docs/milestones/M7-durable-audit-log.md`
 - M8 文件服务基线记录：`docs/milestones/M8-file-service-baseline.md`
+- M8 调度任务基线记录：`docs/milestones/M8-job-scheduler-baseline.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
