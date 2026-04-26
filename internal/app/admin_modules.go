@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/audit"
@@ -21,6 +23,8 @@ import (
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
+
+var adminModuleStartTime = time.Now().UTC()
 
 type AdminModuleServices struct {
 	Users        UserService
@@ -174,6 +178,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
 	handle("GET /admin/v1/system/status", systemStatusHandler(services))
+	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -273,6 +278,19 @@ type systemStatusResponse struct {
 	JobCount      int    `json:"job_count"`
 	PluginCount   int    `json:"plugin_count"`
 	APIEntryCount int    `json:"api_entry_count"`
+}
+
+type runtimeMetricsResponse struct {
+	UptimeSeconds   int64  `json:"uptime_seconds"`
+	Goroutines      int    `json:"goroutines"`
+	MemoryAlloc     uint64 `json:"memory_alloc_bytes"`
+	MemorySys       uint64 `json:"memory_sys_bytes"`
+	HeapAlloc       uint64 `json:"heap_alloc_bytes"`
+	HeapSys         uint64 `json:"heap_sys_bytes"`
+	TotalAlloc      uint64 `json:"total_alloc_bytes"`
+	GCCount         uint32 `json:"gc_count"`
+	LastGCPauseNs   uint64 `json:"last_gc_pause_ns"`
+	SnapshotUnixSec int64  `json:"snapshot_unix_sec"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -984,6 +1002,34 @@ func systemStatusHandler(services AdminModuleServices) http.HandlerFunc {
 			JobCount:      len(services.Jobs.List()),
 			PluginCount:   len(services.Plugins.List()),
 			APIEntryCount: len(services.APIs.List()),
+		})
+	}
+}
+
+func runtimeMetricsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+		lastPause := uint64(0)
+		if mem.NumGC > 0 {
+			lastPause = mem.PauseNs[(mem.NumGC-1)%uint32(len(mem.PauseNs))]
+		}
+		now := time.Now().UTC()
+		uptime := now.Sub(adminModuleStartTime)
+		if uptime < 0 {
+			uptime = 0
+		}
+		respondJSON(w, http.StatusOK, runtimeMetricsResponse{
+			UptimeSeconds:   int64(uptime / time.Second),
+			Goroutines:      runtime.NumGoroutine(),
+			MemoryAlloc:     mem.Alloc,
+			MemorySys:       mem.Sys,
+			HeapAlloc:       mem.HeapAlloc,
+			HeapSys:         mem.HeapSys,
+			TotalAlloc:      mem.TotalAlloc,
+			GCCount:         mem.NumGC,
+			LastGCPauseNs:   lastPause,
+			SnapshotUnixSec: now.Unix(),
 		})
 	}
 }

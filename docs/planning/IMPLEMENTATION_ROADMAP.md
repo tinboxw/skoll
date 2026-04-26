@@ -87,5 +87,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 35. [x] M9-extension-packaging: Add install/enable/disable/version-check flow for extension packages.
 36. [x] M9-ecosystem-docs: Publish extension developer guide and compatibility policy.
 37. [x] M10-system-status-api: Add `/admin/v1/system/status` observability baseline endpoint.
-38. [ ] M10-dashboard-runtime-metrics: Add admin dashboard runtime metric snapshot endpoint.
+38. [x] M10-dashboard-runtime-metrics: Add admin dashboard runtime metric snapshot endpoint.
 39. [ ] M10-dashboard-node-health: Add admin node/dependency health summary endpoint.

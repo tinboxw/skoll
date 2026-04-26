@@ -564,3 +564,29 @@ func TestSystemStatusRoute_AggregatesModuleCounts(t *testing.T) {
 		t.Fatalf("expected api_entry_count > 0, got %v", payload["api_entry_count"])
 	}
 }
+
+func TestRuntimeMetricsRoute_ReturnsSnapshot(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/runtime-metrics", nil)
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected runtime metrics status 200, got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal runtime metrics response failed: %v", err)
+	}
+	if got, ok := payload["goroutines"].(float64); !ok || got < 1 {
+		t.Fatalf("expected goroutines >= 1, got %v", payload["goroutines"])
+	}
+	if _, ok := payload["memory_alloc_bytes"].(float64); !ok {
+		t.Fatalf("expected memory_alloc_bytes field, got %v", payload["memory_alloc_bytes"])
+	}
+	if got, ok := payload["snapshot_unix_sec"].(float64); !ok || got <= 0 {
+		t.Fatalf("expected snapshot_unix_sec > 0, got %v", payload["snapshot_unix_sec"])
+	}
+}
