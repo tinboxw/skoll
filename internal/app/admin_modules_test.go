@@ -683,6 +683,9 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	if got, ok := jwtBootstrap["session_state"].(string); !ok || got != "none" {
 		t.Fatalf("expected jwt_session_bootstrap.session_state=none, got %v", jwtBootstrap["session_state"])
 	}
+	if got, ok := jwtBootstrap["verification_state"].(string); !ok || got != "not_present" {
+		t.Fatalf("expected jwt_session_bootstrap.verification_state=not_present, got %v", jwtBootstrap["verification_state"])
+	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected status object, got %v", payload["status"])
@@ -799,6 +802,12 @@ func TestDashboardAggregateRoute_JWTSessionBootstrapFromBearerToken(t *testing.T
 	if got, ok := jwtBootstrap["session_state"].(string); !ok || got != "active" {
 		t.Fatalf("expected jwt_session_bootstrap.session_state=active, got %v", jwtBootstrap["session_state"])
 	}
+	if got, ok := jwtBootstrap["verification_state"].(string); !ok || got != "unverified" {
+		t.Fatalf("expected jwt_session_bootstrap.verification_state=unverified, got %v", jwtBootstrap["verification_state"])
+	}
+	if got, ok := jwtBootstrap["trust_level"].(string); !ok || got != "low" {
+		t.Fatalf("expected jwt_session_bootstrap.trust_level=low, got %v", jwtBootstrap["trust_level"])
+	}
 	if got, ok := jwtBootstrap["refresh_recommended"].(bool); !ok || got {
 		t.Fatalf("expected jwt_session_bootstrap.refresh_recommended=false, got %v", jwtBootstrap["refresh_recommended"])
 	}
@@ -814,6 +823,9 @@ func TestCollectDashboardJWTSessionBootstrap_InvalidBearer(t *testing.T) {
 	}
 	if jwtBootstrap.ParseError == "" {
 		t.Fatalf("expected parse_error for invalid bearer token")
+	}
+	if jwtBootstrap.VerificationState != "invalid" {
+		t.Fatalf("expected verification_state=invalid, got %s", jwtBootstrap.VerificationState)
 	}
 	if !jwtBootstrap.RefreshRecommended {
 		t.Fatalf("expected refresh_recommended=true for invalid bearer token")
@@ -840,6 +852,9 @@ func TestCollectDashboardJWTSessionBootstrap_ExpiringTokenNeedsRefresh(t *testin
 	if jwtBootstrap.RefreshReason != "token_expiring_soon" {
 		t.Fatalf("expected refresh_reason=token_expiring_soon, got %s", jwtBootstrap.RefreshReason)
 	}
+	if jwtBootstrap.VerificationState != "unverified" {
+		t.Fatalf("expected verification_state=unverified, got %s", jwtBootstrap.VerificationState)
+	}
 }
 
 func TestCollectDashboardJWTSessionBootstrap_ExpiredTokenNeedsRefresh(t *testing.T) {
@@ -861,6 +876,32 @@ func TestCollectDashboardJWTSessionBootstrap_ExpiredTokenNeedsRefresh(t *testing
 	}
 	if !jwtBootstrap.RefreshRecommended {
 		t.Fatalf("expected refresh_recommended=true for expired token")
+	}
+	if jwtBootstrap.VerificationState != "unverified" {
+		t.Fatalf("expected verification_state=unverified, got %s", jwtBootstrap.VerificationState)
+	}
+}
+
+func TestDeriveJWTVerificationHints_UnverifiedBearerJWT(t *testing.T) {
+	state, hint, trustLevel, message := deriveJWTVerificationHints("bearer-jwt", "active", false, "")
+	if state != "unverified" {
+		t.Fatalf("expected verification state unverified, got %s", state)
+	}
+	if trustLevel != "low" {
+		t.Fatalf("expected trust level low, got %s", trustLevel)
+	}
+	if hint == "" || message == "" {
+		t.Fatalf("expected non-empty hint and message")
+	}
+}
+
+func TestDeriveJWTVerificationHints_InvalidToken(t *testing.T) {
+	state, _, trustLevel, _ := deriveJWTVerificationHints("unsupported", "invalid", false, "bad auth header")
+	if state != "invalid" {
+		t.Fatalf("expected verification state invalid, got %s", state)
+	}
+	if trustLevel != "untrusted" {
+		t.Fatalf("expected trust level untrusted, got %s", trustLevel)
 	}
 }
 

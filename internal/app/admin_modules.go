@@ -370,6 +370,10 @@ type dashboardJWTSessionBootstrap struct {
 	TokenFormat         string   `json:"token_format"`
 	ClaimsTrusted       bool     `json:"claims_trusted"`
 	SessionState        string   `json:"session_state"`
+	VerificationState   string   `json:"verification_state"`
+	VerificationHint    string   `json:"verification_hint,omitempty"`
+	TrustLevel          string   `json:"trust_level"`
+	TrustMessage        string   `json:"trust_message"`
 	Subject             string   `json:"subject,omitempty"`
 	Issuer              string   `json:"issuer,omitempty"`
 	Audience            []string `json:"audience,omitempty"`
@@ -1136,16 +1140,33 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboardJWTSessionBootstrap {
 	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
 	if authorization == "" {
-		return dashboardJWTSessionBootstrap{TokenPresent: false, TokenFormat: "none", ClaimsTrusted: false, SessionState: "none", Expired: false, RefreshRecommended: false}
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("none", "none", false, "")
+		return dashboardJWTSessionBootstrap{
+			TokenPresent:       false,
+			TokenFormat:        "none",
+			ClaimsTrusted:      false,
+			SessionState:       "none",
+			VerificationState:  verificationState,
+			VerificationHint:   verificationHint,
+			TrustLevel:         trustLevel,
+			TrustMessage:       trustMessage,
+			Expired:            false,
+			RefreshRecommended: false,
+		}
 	}
 
 	parts := strings.Fields(authorization)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("unsupported", "invalid", false, "authorization header must use bearer scheme")
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "unsupported",
 			ClaimsTrusted:      false,
 			SessionState:       "invalid",
+			VerificationState:  verificationState,
+			VerificationHint:   verificationHint,
+			TrustLevel:         trustLevel,
+			TrustMessage:       trustMessage,
 			RefreshRecommended: true,
 			RefreshReason:      "authorization_header_invalid",
 			ParseError:         "authorization header must use bearer scheme",
@@ -1154,11 +1175,16 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 
 	token := strings.TrimSpace(parts[1])
 	if token == "" {
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("unsupported", "invalid", false, "bearer token is empty")
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "unsupported",
 			ClaimsTrusted:      false,
 			SessionState:       "invalid",
+			VerificationState:  verificationState,
+			VerificationHint:   verificationHint,
+			TrustLevel:         trustLevel,
+			TrustMessage:       trustMessage,
 			RefreshRecommended: true,
 			RefreshReason:      "authorization_header_invalid",
 			ParseError:         "bearer token is empty",
@@ -1166,11 +1192,16 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 	}
 
 	if strings.Count(token, ".") != 2 {
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-non-jwt", "invalid", false, "token does not match jwt compact format")
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "bearer-non-jwt",
 			ClaimsTrusted:      false,
 			SessionState:       "invalid",
+			VerificationState:  verificationState,
+			VerificationHint:   verificationHint,
+			TrustLevel:         trustLevel,
+			TrustMessage:       trustMessage,
 			RefreshRecommended: true,
 			RefreshReason:      "token_not_jwt",
 			ParseError:         "token does not match jwt compact format",
@@ -1179,11 +1210,16 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 
 	claims, err := decodeJWTClaims(token)
 	if err != nil {
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-jwt", "invalid", false, err.Error())
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "bearer-jwt",
 			ClaimsTrusted:      false,
 			SessionState:       "invalid",
+			VerificationState:  verificationState,
+			VerificationHint:   verificationHint,
+			TrustLevel:         trustLevel,
+			TrustMessage:       trustMessage,
 			RefreshRecommended: true,
 			RefreshReason:      "jwt_parse_error",
 			ParseError:         err.Error(),
@@ -1217,11 +1253,17 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 		}
 	}
 
+	verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-jwt", sessionState, false, "")
+
 	return dashboardJWTSessionBootstrap{
 		TokenPresent:        true,
 		TokenFormat:         "bearer-jwt",
 		ClaimsTrusted:       false,
 		SessionState:        sessionState,
+		VerificationState:   verificationState,
+		VerificationHint:    verificationHint,
+		TrustLevel:          trustLevel,
+		TrustMessage:        trustMessage,
 		Subject:             claimString(claims, "sub"),
 		Issuer:              claimString(claims, "iss"),
 		Audience:            claimAudience(claims, "aud"),
@@ -1233,6 +1275,22 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 		RefreshReason:       refreshReason,
 		Expired:             expiresAt > 0 && now.Unix() >= expiresAt,
 	}
+}
+
+func deriveJWTVerificationHints(tokenFormat, sessionState string, claimsTrusted bool, parseError string) (string, string, string, string) {
+	if claimsTrusted {
+		return "verified", "Claims are verified by trusted middleware.", "trusted", "JWT claims verified; safe for authorization-adjacent UX hints."
+	}
+
+	if parseError != "" || sessionState == "invalid" || tokenFormat == "unsupported" || tokenFormat == "bearer-non-jwt" {
+		return "invalid", "Token cannot be verified from dashboard bootstrap context.", "untrusted", "Treat token payload as untrusted input and request re-authentication."
+	}
+
+	if tokenFormat == "none" || sessionState == "none" {
+		return "not_present", "No bearer token provided for JWT bootstrap context.", "none", "No JWT trust context available."
+	}
+
+	return "unverified", "JWT payload is parsed without signature validation in bootstrap mode.", "low", "Display identity hints only; defer privileged actions until backend-verified session checks succeed."
 }
 
 func decodeJWTClaims(token string) (map[string]any, error) {

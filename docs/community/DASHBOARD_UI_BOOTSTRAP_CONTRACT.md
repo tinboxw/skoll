@@ -21,6 +21,7 @@ Top-level fields:
 - `auth_actionability`: actionable guidance for auth/session operation and UX handling
 - `jwt_session_bootstrap`: unverified JWT bootstrap metadata from bearer token context
 	- includes refresh/expiry hints: `session_state`, `expires_in_sec`, `refresh_recommended`, `refresh_reason`, `refresh_after_unix_sec`
+	- includes verification-state hints: `verification_state`, `verification_hint`, `trust_level`, `trust_message`
 - `status`: module/resource counters
 - `runtime_metrics`: process runtime snapshot
 - `node_health`: service dependency health summary

@@ -96,7 +96,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 21. Completed: M11-step4 dashboard auth/session actionability fields.
 22. Completed: M12-step1 dashboard JWT session bootstrap fields.
 23. Completed: M12-step2 dashboard JWT refresh/expiry hints.
-24. Next: M12-step3 dashboard JWT verification-state hints.
+24. Completed: M12-step3 dashboard JWT verification-state hints.
+25. Next: M12-step4 dashboard JWT middleware bridge fields.
 
 ## Risks and Mitigation
 

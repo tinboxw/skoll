@@ -97,4 +97,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 45. [x] M11-dashboard-auth-session-actionability: Add actionable auth/session guidance fields for dashboard UX.
 46. [x] M12-dashboard-jwt-session-bootstrap: Introduce JWT session bootstrap fields for dashboard identity context.
 47. [x] M12-dashboard-jwt-session-refresh-hints: Add JWT refresh and expiry hint fields for dashboard UX.
-48. [ ] M12-dashboard-jwt-session-verification-state: Add JWT verification-state hints for dashboard trust messaging.
+48. [x] M12-dashboard-jwt-session-verification-state: Add JWT verification-state hints for dashboard trust messaging.
+49. [ ] M12-dashboard-jwt-session-middleware-bridge: Expose verified-claims bridge fields for middleware integration.
