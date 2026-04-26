@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6 基础能力与 M7 第二步配置中心/字典 API。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力与 M8 第一步文件服务基线。
 
 ## 目录结构
 
@@ -74,6 +74,10 @@ curl http://localhost:8080/admin/v1/configs/system.theme
 curl -X POST http://localhost:8080/admin/v1/dictionaries -H "Content-Type: application/json" -d '{"type":"status","label":"Enabled","value":"1","sort":10}'
 curl http://localhost:8080/admin/v1/dictionaries
 curl http://localhost:8080/admin/v1/dictionaries?type=status
+curl -X POST http://localhost:8080/admin/v1/files -F "file=@./README.md"
+curl http://localhost:8080/admin/v1/files
+curl http://localhost:8080/admin/v1/files/1
+curl -L http://localhost:8080/admin/v1/files/1/download -o downloaded.bin
 # 仅在启用 go-admin 最小接入时可用
 curl http://localhost:8080/admin/ping
 # 若启用 admin 鉴权骨架，需要传入头
@@ -140,6 +144,7 @@ go test -bench=. -benchmem ./...
 - M7 存储适配器契约记录：`docs/milestones/M7-storage-adapter-contract.md`
 - M7 配置中心与字典记录：`docs/milestones/M7-config-and-dictionary.md`
 - M7 审计日志分页过滤记录：`docs/milestones/M7-durable-audit-log.md`
+- M8 文件服务基线记录：`docs/milestones/M8-file-service-baseline.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

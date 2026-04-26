@@ -80,7 +80,7 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 28. [x] M7-storage-adapter-contract: Introduce storage adapter interfaces and shared contract tests.
 29. [x] M7-config-and-dictionary: Implement config center and dictionary APIs with persistence.
 30. [x] M7-durable-audit-log: Add paginated/filterable persistent audit logs.
-31. [ ] M8-file-service-baseline: Add file upload/download module with pluggable backend.
+31. [x] M8-file-service-baseline: Add file upload/download module with pluggable backend.
 32. [ ] M8-job-scheduler-baseline: Add scheduler APIs with execution history and observability.
 33. [ ] M8-module-generator: Add CRUD module generator with template governance.
 34. [ ] M9-plugin-manifest-lifecycle: Define plugin manifest and lifecycle hooks.

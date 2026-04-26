@@ -85,4 +85,19 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if len(statusItems) != 2 {
 		t.Fatalf("expected 2 dictionary items, got %d", len(statusItems))
 	}
+
+	uploaded, err := a.Files().Upload("contract.txt", []byte("contract"))
+	if err != nil {
+		t.Fatalf("file upload failed: %v", err)
+	}
+	if uploaded.ID <= 0 {
+		t.Fatalf("expected generated file id")
+	}
+	_, content, err := a.Files().Download(uploaded.ID)
+	if err != nil {
+		t.Fatalf("file download failed: %v", err)
+	}
+	if string(content) != "contract" {
+		t.Fatalf("unexpected downloaded content: %s", string(content))
+	}
 }

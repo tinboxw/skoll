@@ -11,6 +11,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/audit"
 	"github.com/tinboxw/skoll/internal/module/config"
 	"github.com/tinboxw/skoll/internal/module/dictionary"
+	"github.com/tinboxw/skoll/internal/module/fileservice"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
@@ -24,6 +25,7 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 	auditSvc := audit.NewService()
 	configSvc := config.NewService()
 	dictionarySvc := dictionary.NewService()
+	fileSvc := fileservice.NewService(&memoryFileBackend{})
 	rbacSvc := rbac.NewService()
 	apiSvc := apiregistry.NewService()
 
@@ -49,6 +51,7 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 		Audit:        auditSvc,
 		Configs:      configSvc,
 		Dictionaries: dictionarySvc,
+		Files:        fileSvc,
 		RBAC:         rbacSvc,
 		APIs:         apiSvc,
 	}, wrapper)

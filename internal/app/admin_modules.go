@@ -3,7 +3,9 @@ package app
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/audit"
 	"github.com/tinboxw/skoll/internal/module/config"
 	"github.com/tinboxw/skoll/internal/module/dictionary"
+	"github.com/tinboxw/skoll/internal/module/fileservice"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
@@ -23,6 +26,7 @@ type AdminModuleServices struct {
 	Audit        AuditService
 	Configs      ConfigService
 	Dictionaries DictionaryService
+	Files        FileService
 	RBAC         RBACService
 	APIs         APIRegistryService
 }
@@ -64,6 +68,13 @@ type DictionaryService interface {
 	ListByType(itemType string) []dictionary.Item
 }
 
+type FileService interface {
+	Upload(name string, content []byte) (fileservice.File, error)
+	Get(id int64) (fileservice.File, error)
+	List() []fileservice.File
+	Download(id int64) (fileservice.File, []byte, error)
+}
+
 type RBACService interface {
 	SetRoleMenus(roleID int64, menuIDs []int64) []int64
 	GetRoleMenus(roleID int64) []int64
@@ -81,7 +92,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	if mux == nil {
 		return
 	}
-	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.RBAC == nil || services.APIs == nil {
+	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.Files == nil || services.RBAC == nil || services.APIs == nil {
 		return
 	}
 
@@ -118,6 +129,10 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/dictionaries", createDictionaryHandler(services.Dictionaries))
 	handle("GET /admin/v1/dictionaries", listDictionariesHandler(services.Dictionaries))
 	handle("GET /admin/v1/dictionaries/{id}", getDictionaryHandler(services.Dictionaries))
+	handle("POST /admin/v1/files", uploadFileHandler(services.Files))
+	handle("GET /admin/v1/files", listFilesHandler(services.Files))
+	handle("GET /admin/v1/files/{id}", getFileHandler(services.Files))
+	handle("GET /admin/v1/files/{id}/download", downloadFileHandler(services.Files))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -567,6 +582,83 @@ func getDictionaryHandler(svc DictionaryService) http.HandlerFunc {
 		}
 
 		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func uploadFileHandler(svc FileService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseMultipartForm(16 << 20); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid multipart form"})
+			return
+		}
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "file is required"})
+			return
+		}
+		defer file.Close()
+
+		content, err := io.ReadAll(file)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "failed to read file content"})
+			return
+		}
+
+		uploaded, err := svc.Upload(header.Filename, content)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusCreated, uploaded)
+	}
+}
+
+func listFilesHandler(svc FileService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func getFileHandler(svc FileService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		item, err := svc.Get(id)
+		if err != nil {
+			if err == fileservice.ErrFileNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func downloadFileHandler(svc FileService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		item, content, err := svc.Download(id)
+		if err != nil {
+			if err == fileservice.ErrFileNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filepath.Base(item.Name)))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(content)
 	}
 }
 

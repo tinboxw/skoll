@@ -5,10 +5,13 @@ import (
 	"github.com/tinboxw/skoll/internal/module/audit"
 	"github.com/tinboxw/skoll/internal/module/config"
 	"github.com/tinboxw/skoll/internal/module/dictionary"
+	"github.com/tinboxw/skoll/internal/module/fileservice"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
+	"os"
+	"path/filepath"
 )
 
 // Adapter groups module repositories behind a single storage boundary.
@@ -19,6 +22,7 @@ type Adapter interface {
 	Audit() AuditRepository
 	Configs() ConfigRepository
 	Dictionaries() DictionaryRepository
+	Files() FileRepository
 	RBAC() RBACRepository
 	APIs() APIRegistryRepository
 }
@@ -60,6 +64,13 @@ type DictionaryRepository interface {
 	ListByType(itemType string) []dictionary.Item
 }
 
+type FileRepository interface {
+	Upload(name string, content []byte) (fileservice.File, error)
+	Get(id int64) (fileservice.File, error)
+	List() []fileservice.File
+	Download(id int64) (fileservice.File, []byte, error)
+}
+
 type RBACRepository interface {
 	SetRoleMenus(roleID int64, menuIDs []int64) []int64
 	GetRoleMenus(roleID int64) []int64
@@ -80,11 +91,16 @@ type InMemoryAdapter struct {
 	audit   AuditRepository
 	configs ConfigRepository
 	dicts   DictionaryRepository
+	files   FileRepository
 	rbac    RBACRepository
 	apis    APIRegistryRepository
 }
 
 func NewInMemoryAdapter() *InMemoryAdapter {
+	backend, err := fileservice.NewLocalBackend(filepath.Join(os.TempDir(), "skoll-uploads"))
+	if err != nil {
+		panic(err)
+	}
 	return &InMemoryAdapter{
 		users:   user.NewService(),
 		roles:   role.NewService(),
@@ -92,6 +108,7 @@ func NewInMemoryAdapter() *InMemoryAdapter {
 		audit:   audit.NewService(),
 		configs: config.NewService(),
 		dicts:   dictionary.NewService(),
+		files:   fileservice.NewService(backend),
 		rbac:    rbac.NewService(),
 		apis:    apiregistry.NewService(),
 	}
@@ -119,6 +136,10 @@ func (a *InMemoryAdapter) Configs() ConfigRepository {
 
 func (a *InMemoryAdapter) Dictionaries() DictionaryRepository {
 	return a.dicts
+}
+
+func (a *InMemoryAdapter) Files() FileRepository {
+	return a.files
 }
 
 func (a *InMemoryAdapter) RBAC() RBACRepository {

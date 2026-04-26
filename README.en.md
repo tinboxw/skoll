@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6 foundation plus M7 step-2 config/dictionary APIs.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations plus M8 step-1 file service baseline.
 
 ## Structure
 
@@ -74,6 +74,10 @@ curl http://localhost:8080/admin/v1/configs/system.theme
 curl -X POST http://localhost:8080/admin/v1/dictionaries -H "Content-Type: application/json" -d '{"type":"status","label":"Enabled","value":"1","sort":10}'
 curl http://localhost:8080/admin/v1/dictionaries
 curl http://localhost:8080/admin/v1/dictionaries?type=status
+curl -X POST http://localhost:8080/admin/v1/files -F "file=@./README.md"
+curl http://localhost:8080/admin/v1/files
+curl http://localhost:8080/admin/v1/files/1
+curl -L http://localhost:8080/admin/v1/files/1/download -o downloaded.bin
 # Available only when minimal go-admin integration is enabled
 curl http://localhost:8080/admin/ping
 # If admin auth skeleton is enabled, include the auth header
@@ -140,6 +144,7 @@ go test -bench=. -benchmem ./...
 - M7 storage adapter contract record: `docs/milestones/M7-storage-adapter-contract.md`
 - M7 config center and dictionary record: `docs/milestones/M7-config-and-dictionary.md`
 - M7 durable audit log query record: `docs/milestones/M7-durable-audit-log.md`
+- M8 file service baseline record: `docs/milestones/M8-file-service-baseline.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

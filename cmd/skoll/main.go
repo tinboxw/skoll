@@ -108,6 +108,7 @@ func main() {
 		Audit:        storage.Audit(),
 		Configs:      storage.Configs(),
 		Dictionaries: storage.Dictionaries(),
+		Files:        storage.Files(),
 		RBAC:         storage.RBAC(),
 		APIs:         storage.APIs(),
 	}, adminWrapper)
