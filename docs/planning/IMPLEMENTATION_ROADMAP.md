@@ -95,4 +95,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 43. [x] M11-dashboard-auth-session-policy-docs: Publish auth/session compatibility and rollout guidance.
 44. [x] M11-dashboard-auth-session-observability: Add auth/session observability fields and failure counters to dashboard payload.
 45. [x] M11-dashboard-auth-session-actionability: Add actionable auth/session guidance fields for dashboard UX.
-46. [ ] M12-dashboard-jwt-session-bootstrap: Introduce JWT session bootstrap fields for dashboard identity context.
+46. [x] M12-dashboard-jwt-session-bootstrap: Introduce JWT session bootstrap fields for dashboard identity context.
+47. [ ] M12-dashboard-jwt-session-refresh-hints: Add JWT refresh and expiry hint fields for dashboard UX.

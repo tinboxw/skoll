@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -314,14 +315,15 @@ type nodeHealthResponse struct {
 }
 
 type dashboardAggregateResponse struct {
-	Contract           dashboardContractDescriptor `json:"contract"`
-	GeneratedAtUnixSec int64                       `json:"generated_at_unix_sec"`
-	AuthSession        dashboardAuthSessionContext `json:"auth_session"`
-	AuthObservability  dashboardAuthObservability  `json:"auth_observability"`
-	AuthActionability  dashboardAuthActionability  `json:"auth_actionability"`
-	Status             systemStatusResponse        `json:"status"`
-	RuntimeMetrics     runtimeMetricsResponse      `json:"runtime_metrics"`
-	NodeHealth         nodeHealthResponse          `json:"node_health"`
+	Contract            dashboardContractDescriptor  `json:"contract"`
+	GeneratedAtUnixSec  int64                        `json:"generated_at_unix_sec"`
+	AuthSession         dashboardAuthSessionContext  `json:"auth_session"`
+	AuthObservability   dashboardAuthObservability   `json:"auth_observability"`
+	AuthActionability   dashboardAuthActionability   `json:"auth_actionability"`
+	JWTSessionBootstrap dashboardJWTSessionBootstrap `json:"jwt_session_bootstrap"`
+	Status              systemStatusResponse         `json:"status"`
+	RuntimeMetrics      runtimeMetricsResponse       `json:"runtime_metrics"`
+	NodeHealth          nodeHealthResponse           `json:"node_health"`
 }
 
 type dashboardContractDescriptor struct {
@@ -359,6 +361,19 @@ type dashboardAuthActionability struct {
 	TopFailureReasons   []string `json:"top_failure_reasons"`
 	NextActions         []string `json:"next_actions"`
 	Docs                []string `json:"docs"`
+}
+
+type dashboardJWTSessionBootstrap struct {
+	TokenPresent     bool     `json:"token_present"`
+	TokenFormat      string   `json:"token_format"`
+	ClaimsTrusted    bool     `json:"claims_trusted"`
+	Subject          string   `json:"subject,omitempty"`
+	Issuer           string   `json:"issuer,omitempty"`
+	Audience         []string `json:"audience,omitempty"`
+	IssuedAtUnixSec  int64    `json:"issued_at_unix_sec,omitempty"`
+	ExpiresAtUnixSec int64    `json:"expires_at_unix_sec,omitempty"`
+	Expired          bool     `json:"expired"`
+	ParseError       string   `json:"parse_error,omitempty"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1079,15 +1094,17 @@ func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		authSession := collectDashboardAuthSessionContext(r)
 		authObservability := collectDashboardAuthObservability()
+		jwtSession := collectDashboardJWTSessionBootstrap(r, time.Now().UTC())
 		respondJSON(w, http.StatusOK, dashboardAggregateResponse{
-			Contract:           collectDashboardContractDescriptor(),
-			GeneratedAtUnixSec: time.Now().UTC().Unix(),
-			AuthSession:        authSession,
-			AuthObservability:  authObservability,
-			AuthActionability:  collectDashboardAuthActionability(authSession, authObservability),
-			Status:             collectSystemStatus(services),
-			RuntimeMetrics:     collectRuntimeMetrics(),
-			NodeHealth:         collectNodeHealth(services),
+			Contract:            collectDashboardContractDescriptor(),
+			GeneratedAtUnixSec:  time.Now().UTC().Unix(),
+			AuthSession:         authSession,
+			AuthObservability:   authObservability,
+			AuthActionability:   collectDashboardAuthActionability(authSession, authObservability),
+			JWTSessionBootstrap: jwtSession,
+			Status:              collectSystemStatus(services),
+			RuntimeMetrics:      collectRuntimeMetrics(),
+			NodeHealth:          collectNodeHealth(services),
 		})
 	}
 }
@@ -1101,11 +1118,142 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 			"auth_session",
 			"auth_observability",
 			"auth_actionability",
+			"jwt_session_bootstrap",
 			"status",
 			"runtime_metrics",
 			"node_health",
 		},
 	}
+}
+
+func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboardJWTSessionBootstrap {
+	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
+	if authorization == "" {
+		return dashboardJWTSessionBootstrap{TokenPresent: false, TokenFormat: "none", ClaimsTrusted: false, Expired: false}
+	}
+
+	parts := strings.Fields(authorization)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return dashboardJWTSessionBootstrap{
+			TokenPresent:  true,
+			TokenFormat:   "unsupported",
+			ClaimsTrusted: false,
+			ParseError:    "authorization header must use bearer scheme",
+		}
+	}
+
+	token := strings.TrimSpace(parts[1])
+	if token == "" {
+		return dashboardJWTSessionBootstrap{
+			TokenPresent:  true,
+			TokenFormat:   "unsupported",
+			ClaimsTrusted: false,
+			ParseError:    "bearer token is empty",
+		}
+	}
+
+	if strings.Count(token, ".") != 2 {
+		return dashboardJWTSessionBootstrap{
+			TokenPresent:  true,
+			TokenFormat:   "bearer-non-jwt",
+			ClaimsTrusted: false,
+			ParseError:    "token does not match jwt compact format",
+		}
+	}
+
+	claims, err := decodeJWTClaims(token)
+	if err != nil {
+		return dashboardJWTSessionBootstrap{
+			TokenPresent:  true,
+			TokenFormat:   "bearer-jwt",
+			ClaimsTrusted: false,
+			ParseError:    err.Error(),
+		}
+	}
+
+	expiresAt := claimInt64(claims, "exp")
+	return dashboardJWTSessionBootstrap{
+		TokenPresent:     true,
+		TokenFormat:      "bearer-jwt",
+		ClaimsTrusted:    false,
+		Subject:          claimString(claims, "sub"),
+		Issuer:           claimString(claims, "iss"),
+		Audience:         claimAudience(claims, "aud"),
+		IssuedAtUnixSec:  claimInt64(claims, "iat"),
+		ExpiresAtUnixSec: expiresAt,
+		Expired:          expiresAt > 0 && now.Unix() >= expiresAt,
+	}
+}
+
+func decodeJWTClaims(token string) (map[string]any, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid jwt segments")
+	}
+	payloadBytes, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid jwt payload encoding")
+	}
+	claims := make(map[string]any)
+	if err := json.Unmarshal(payloadBytes, &claims); err != nil {
+		return nil, fmt.Errorf("invalid jwt payload json")
+	}
+	return claims, nil
+}
+
+func claimString(claims map[string]any, key string) string {
+	if claims == nil {
+		return ""
+	}
+	if value, ok := claims[key].(string); ok {
+		return value
+	}
+	return ""
+}
+
+func claimInt64(claims map[string]any, key string) int64 {
+	if claims == nil {
+		return 0
+	}
+	switch value := claims[key].(type) {
+	case float64:
+		return int64(value)
+	case json.Number:
+		n, err := value.Int64()
+		if err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+func claimAudience(claims map[string]any, key string) []string {
+	if claims == nil {
+		return nil
+	}
+	value, ok := claims[key]
+	if !ok {
+		return nil
+	}
+	switch typed := value.(type) {
+	case string:
+		if typed == "" {
+			return nil
+		}
+		return []string{typed}
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if s, ok := item.(string); ok && s != "" {
+				out = append(out, s)
+			}
+		}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	}
+	return nil
 }
 
 func collectDashboardAuthSessionContext(r *http.Request) dashboardAuthSessionContext {

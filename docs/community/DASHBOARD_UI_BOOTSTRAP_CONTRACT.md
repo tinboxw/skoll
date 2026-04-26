@@ -19,6 +19,7 @@ Top-level fields:
 - `auth_session`: request auth/session context snapshot
 - `auth_observability`: auth verification counters and failure reasons summary
 - `auth_actionability`: actionable guidance for auth/session operation and UX handling
+- `jwt_session_bootstrap`: unverified JWT bootstrap metadata from bearer token context
 - `status`: module/resource counters
 - `runtime_metrics`: process runtime snapshot
 - `node_health`: service dependency health summary
@@ -33,6 +34,7 @@ Top-level fields:
 4. `auth_session`
 5. `auth_observability`
 6. `auth_actionability`
+7. `jwt_session_bootstrap`
 
 Consumers should treat unknown additive fields as forward-compatible.
 

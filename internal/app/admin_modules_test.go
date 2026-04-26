@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -9,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/audit"
@@ -644,8 +646,8 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 		t.Fatalf("expected contract.version=v1, got %v", contract["version"])
 	}
 	sections, ok := contract["required_sections"].([]any)
-	if !ok || len(sections) < 6 {
-		t.Fatalf("expected contract.required_sections with 6 entries, got %v", contract["required_sections"])
+	if !ok || len(sections) < 7 {
+		t.Fatalf("expected contract.required_sections with 7 entries, got %v", contract["required_sections"])
 	}
 	authSession, ok := payload["auth_session"].(map[string]any)
 	if !ok {
@@ -670,6 +672,13 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	}
 	if _, ok := authActionability["next_actions"].([]any); !ok {
 		t.Fatalf("expected auth_actionability.next_actions array, got %v", authActionability["next_actions"])
+	}
+	jwtBootstrap, ok := payload["jwt_session_bootstrap"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected jwt_session_bootstrap object, got %v", payload["jwt_session_bootstrap"])
+	}
+	if got, ok := jwtBootstrap["token_format"].(string); !ok || got != "none" {
+		t.Fatalf("expected jwt_session_bootstrap.token_format=none, got %v", jwtBootstrap["token_format"])
 	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
@@ -741,6 +750,69 @@ func TestDashboardAggregateRoute_AuthSessionAlignmentWithHeaders(t *testing.T) {
 	if got, ok := authActionability["docs"].([]any); !ok || len(got) == 0 {
 		t.Fatalf("expected auth_actionability.docs list, got %v", authActionability["docs"])
 	}
+}
+
+func TestDashboardAggregateRoute_JWTSessionBootstrapFromBearerToken(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	expiresAt := time.Now().UTC().Add(15 * time.Minute).Unix()
+	token := testUnsignedJWT(map[string]any{
+		"sub": "user-42",
+		"iss": "skoll-test",
+		"aud": []string{"admin-ui", "ops"},
+		"iat": time.Now().UTC().Unix(),
+		"exp": expiresAt,
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/dashboard", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected dashboard aggregate status 200, got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal dashboard aggregate response failed: %v", err)
+	}
+	jwtBootstrap, ok := payload["jwt_session_bootstrap"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected jwt_session_bootstrap object, got %v", payload["jwt_session_bootstrap"])
+	}
+	if got, ok := jwtBootstrap["token_format"].(string); !ok || got != "bearer-jwt" {
+		t.Fatalf("expected jwt_session_bootstrap.token_format=bearer-jwt, got %v", jwtBootstrap["token_format"])
+	}
+	if got, ok := jwtBootstrap["subject"].(string); !ok || got != "user-42" {
+		t.Fatalf("expected jwt_session_bootstrap.subject=user-42, got %v", jwtBootstrap["subject"])
+	}
+	if got, ok := jwtBootstrap["issuer"].(string); !ok || got != "skoll-test" {
+		t.Fatalf("expected jwt_session_bootstrap.issuer=skoll-test, got %v", jwtBootstrap["issuer"])
+	}
+	if got, ok := jwtBootstrap["expires_at_unix_sec"].(float64); !ok || int64(got) != expiresAt {
+		t.Fatalf("expected jwt_session_bootstrap.expires_at_unix_sec=%d, got %v", expiresAt, jwtBootstrap["expires_at_unix_sec"])
+	}
+}
+
+func TestCollectDashboardJWTSessionBootstrap_InvalidBearer(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/dashboard", nil)
+	req.Header.Set("Authorization", "Bearer not-a-jwt")
+
+	jwtBootstrap := collectDashboardJWTSessionBootstrap(req, time.Now().UTC())
+	if jwtBootstrap.TokenFormat != "bearer-non-jwt" {
+		t.Fatalf("expected token_format=bearer-non-jwt, got %s", jwtBootstrap.TokenFormat)
+	}
+	if jwtBootstrap.ParseError == "" {
+		t.Fatalf("expected parse_error for invalid bearer token")
+	}
+}
+
+func testUnsignedJWT(claims map[string]any) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`))
+	payloadBytes, _ := json.Marshal(claims)
+	payload := base64.RawURLEncoding.EncodeToString(payloadBytes)
+	return header + "." + payload + "."
 }
 
 func TestCollectDashboardAuthActionability_NoneModeSuggestsEnablement(t *testing.T) {

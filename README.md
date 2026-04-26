@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）以及 M11-step4（仪表盘鉴权会话可执行指引）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）以及 M12-step1（仪表盘 JWT 会话启动字段）基线。
 
 ## 目录结构
 
@@ -180,6 +180,7 @@ go test -bench=. -benchmem ./...
 - M11 仪表盘鉴权会话策略文档记录：`docs/milestones/M11-dashboard-auth-session-policy-docs.md`
 - M11 仪表盘鉴权会话可观测性记录：`docs/milestones/M11-dashboard-auth-session-observability.md`
 - M11 仪表盘鉴权会话可执行指引记录：`docs/milestones/M11-dashboard-auth-session-actionability.md`
+- M12 仪表盘 JWT 会话启动字段记录：`docs/milestones/M12-dashboard-jwt-session-bootstrap.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
