@@ -1,36 +1,122 @@
 # Skoll
 
-#### Description
-Skoll 北欧・巨狼｜Go 高性能、高并发
+Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
-#### Software Architecture
-Software architecture description
+## Project Status
 
-#### Installation
+Skoll has completed M4 release readiness and has started M5 initial generic module scaffolds (user/role/menu/audit).
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Structure
 
-#### Instructions
+```text
+.
+├── cmd/skoll/                 # Executable entrypoint
+├── internal/app/              # HTTP transport and bootstrap orchestration
+├── internal/domain/           # Core domain models
+├── internal/service/          # Core service layer
+├── pkg/version/               # Public version utilities
+├── docs/planning/             # Planning documents
+└── docs/milestones/           # Milestone records
+```
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+## Quick Start
 
-#### Contribution
+### Run the service
 
-1.  Fork the repository
-2.  Create Feat_xxx branch
-3.  Commit your code
-4.  Create Pull Request
+```bash
+go run ./cmd/skoll -addr :8080
+# Optional: enable minimal go-admin bootstrap
+go run ./cmd/skoll -addr :8080 -go-admin-enabled -go-admin-mode dev
+# Optional: switch to not_ready and drain for 3 seconds before shutdown
+go run ./cmd/skoll -addr :8080 -drain-time 3s
+# Optional: provide default drain/shutdown values via environment variables
+SKOLL_DRAIN_TIME=3s SKOLL_SHUTDOWN_TIMEOUT=12s go run ./cmd/skoll -addr :8080
+# Optional: enable pluggable admin auth skeleton for admin routes (current implementation: static-token)
+SKOLL_ADMIN_AUTH_MODE=static-token SKOLL_ADMIN_AUTH_TOKEN=secret go run ./cmd/skoll -addr :8080 -go-admin-enabled
+# Optional: enable HMAC signature auth mode
+SKOLL_ADMIN_AUTH_MODE=hmac-sha256 SKOLL_ADMIN_AUTH_HMAC_SECRET=secret go run ./cmd/skoll -addr :8080 -go-admin-enabled
+# Optional: if static-token must be used in prod mode, explicitly allow it (blocked by default)
+SKOLL_ADMIN_AUTH_MODE=static-token SKOLL_ADMIN_AUTH_TOKEN=secret SKOLL_ADMIN_AUTH_ALLOW_STATIC_TOKEN_IN_PROD=true go run ./cmd/skoll -addr :8080 -go-admin-enabled -go-admin-mode prod
+# Optional: switch nonce replay protection to Redis shared store for multi-instance deployments
+SKOLL_ADMIN_AUTH_MODE=hmac-sha256 SKOLL_ADMIN_AUTH_HMAC_SECRET=secret SKOLL_ADMIN_AUTH_NONCE_STORE=redis SKOLL_ADMIN_AUTH_NONCE_REDIS_ADDR=127.0.0.1:6379 go run ./cmd/skoll -addr :8080 -go-admin-enabled
+# Recommended: use the production environment template as deployment baseline
+# Template file: .env.production.example
+# Constraints: shutdown-timeout must be > 0, drain-time must be in [0s, 30s]
+# Behavior: first termination signal starts graceful sequence; second signal can interrupt drain wait and enter shutdown immediately
+# Behavior: in go-admin prod mode, static-token is denied by default unless admin-auth-allow-static-token-in-prod is explicitly enabled
+# Observability: runtime config snapshot is printed on startup
+```
 
+### Probe endpoints
 
-#### Gitee Feature
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/ready
+curl http://localhost:8080/metrics
+# If admin auth is enabled, /metrics additionally includes skoll_admin_auth_verifications_total and skoll_admin_auth_failures_total
+# Available only when minimal go-admin integration is enabled
+curl http://localhost:8080/admin/ping
+# If admin auth skeleton is enabled, include the auth header
+curl -H "X-Admin-Token: secret" http://localhost:8080/admin/ping
+# If hmac-sha256 is enabled, include X-Admin-Timestamp (Unix seconds), X-Admin-Nonce, and X-Admin-Signature (HMAC-SHA256 hex)
+# Optional: X-Admin-Body-SHA256 (sha256 hex of request body)
+```
 
-1.  You can use Readme\_XXX.md to support different languages, such as Readme\_en.md, Readme\_zh.md
-2.  Gitee blog [blog.gitee.com](https://blog.gitee.com)
-3.  Explore open source project [https://gitee.com/explore](https://gitee.com/explore)
-4.  The most valuable open source project [GVP](https://gitee.com/gvp)
-5.  The manual of Gitee [https://gitee.com/help](https://gitee.com/help)
-6.  The most popular members  [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+## Quality Gates and Milestone Rules
+
+1. Milestone labels must use `M0/M1/M2/M3-short-topic` (example: `M1-auth-rbac`).
+2. Every PR must include performance comparison data (baseline, current, delta, command).
+3. Baseline validation command: `go test ./...`.
+4. For concurrency-related changes, additionally run: `go test -race ./...`.
+5. Performance snapshot command: `go test -bench=. -benchmem ./...`.
+6. CI workflow is defined in `.github/workflows/ci.yml` and enforces checks after module initialization.
+
+## Local Development Commands
+
+```bash
+go fmt ./...
+go test ./...
+go test -race ./...
+go test -bench=. -benchmem ./...
+```
+
+## Documentation
+
+- Implementation roadmap: `docs/planning/IMPLEMENTATION_ROADMAP.md`
+- Production deployment env template: `docs/planning/PRODUCTION_ENV_TEMPLATE.md`
+- Benchmark toolchain policy: `docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`
+- Admin HMAC signature contract: `docs/planning/ADMIN_AUTH_SIGNATURE_CONTRACT.md`
+- Admin auth security runbook: `docs/planning/ADMIN_AUTH_SECURITY_RUNBOOK.md`
+- Open source release note (M4): `docs/releases/M4_OPEN_SOURCE_RELEASE_NOTE.md`
+- Versioning policy: `docs/community/VERSIONING_POLICY.md`
+- Changelog process: `docs/community/CHANGELOG_PROCESS.md`
+- Contribution guide: `CONTRIBUTING.md`
+- M0 baseline record: `docs/milestones/M0-project-baseline.md`
+- M1 core-domain record: `docs/milestones/M1-core-domain.md`
+- M2 concurrency/performance record: `docs/milestones/M2-concurrency-and-performance.md`
+- M3 observability/hardening record: `docs/milestones/M3-observability-and-hardening.md`
+- M3 go-admin minimal integration record: `docs/milestones/M3-go-admin-minimal-integration.md`
+- M3 go-admin probe hook record: `docs/milestones/M3-go-admin-probe-hook.md`
+- M3 graceful drain readiness record: `docs/milestones/M3-graceful-drain-readiness.md`
+- M3 drain config guard record: `docs/milestones/M3-drain-config-guard.md`
+- M3 runtime env overrides record: `docs/milestones/M3-runtime-env-overrides.md`
+- M3 signal-aware drain and shutdown sequence record: `docs/milestones/M3-shutdown-sequence-and-signal-aware-drain.md`
+- M3 metrics route template record: `docs/milestones/M3-metrics-route-template.md`
+- M4 admin auth skeleton record: `docs/milestones/M4-admin-auth-skeleton.md`
+- M4 admin pluggable auth interface record: `docs/milestones/M4-admin-auth-pluggable-interface.md`
+- M4 admin HMAC auth record: `docs/milestones/M4-admin-auth-hmac-sha256.md`
+- M4 admin nonce-store interface record: `docs/milestones/M4-admin-auth-nonce-store-interface.md`
+- M4 admin shared nonce-store wiring record: `docs/milestones/M4-admin-auth-shared-nonce-store-wiring.md`
+- M4 admin auth observability record: `docs/milestones/M4-admin-auth-observability.md`
+- M4 admin auth security runbook record: `docs/milestones/M4-admin-auth-security-runbook.md`
+- M4 admin prod static-token guard record: `docs/milestones/M4-admin-auth-prod-static-token-guard.md`
+- M4 release checklist record: `docs/milestones/M4-release-checklist.md`
+- M5 initial module scaffold record: `docs/milestones/M5-initial-module-scaffolds.md`
+- Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
+
+## Contribution
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit code with validation evidence
+4. Open a Pull Request
