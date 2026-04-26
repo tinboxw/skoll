@@ -111,6 +111,7 @@ func main() {
 		Files:        storage.Files(),
 		Jobs:         storage.Jobs(),
 		Generator:    storage.Generators(),
+		Plugins:      storage.Plugins(),
 		RBAC:         storage.RBAC(),
 		APIs:         storage.APIs(),
 	}, adminWrapper)

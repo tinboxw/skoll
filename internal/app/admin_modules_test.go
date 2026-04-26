@@ -18,6 +18,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
+	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
@@ -55,6 +56,7 @@ func testAdminModuleServices() AdminModuleServices {
 		Files:        fileservice.NewService(&memoryFileBackend{}),
 		Jobs:         jobscheduler.NewService(),
 		Generator:    modgenerator.NewService(),
+		Plugins:      pluginmgr.NewService(),
 		RBAC:         rbac.NewService(),
 		APIs:         apiregistry.NewService(),
 	}
@@ -452,5 +454,38 @@ func TestGeneratorRoutes_ModuleScaffoldPreview(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), `"internal/module/billing/service.go"`) {
 		t.Fatalf("expected generated service artifact path, got %s", rr.Body.String())
+	}
+}
+
+func TestPluginRoutes_InstallAndToggle(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	installReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/manifests", strings.NewReader(`{"name":"audit-ext","version":"1.0.0","hooks":["on_boot"]}`))
+	installReq.Header.Set("Content-Type", "application/json")
+	installRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(installRR, installReq)
+	if installRR.Code != http.StatusCreated {
+		t.Fatalf("expected install status 201, got %d", installRR.Code)
+	}
+
+	disableReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/disable", nil)
+	disableRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(disableRR, disableReq)
+	if disableRR.Code != http.StatusOK {
+		t.Fatalf("expected disable status 200, got %d", disableRR.Code)
+	}
+	if !strings.Contains(disableRR.Body.String(), `"enabled":false`) {
+		t.Fatalf("expected plugin disabled, got %s", disableRR.Body.String())
+	}
+
+	enableReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/enable", nil)
+	enableRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(enableRR, enableReq)
+	if enableRR.Code != http.StatusOK {
+		t.Fatalf("expected enable status 200, got %d", enableRR.Code)
+	}
+	if !strings.Contains(enableRR.Body.String(), `"enabled":true`) {
+		t.Fatalf("expected plugin enabled, got %s", enableRR.Body.String())
 	}
 }

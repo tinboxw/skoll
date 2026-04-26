@@ -17,6 +17,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
+	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
@@ -31,6 +32,7 @@ type AdminModuleServices struct {
 	Files        FileService
 	Jobs         JobService
 	Generator    GeneratorService
+	Plugins      PluginService
 	RBAC         RBACService
 	APIs         APIRegistryService
 }
@@ -91,6 +93,14 @@ type GeneratorService interface {
 	Generate(module string) (modgenerator.Result, error)
 }
 
+type PluginService interface {
+	Install(name, version string, hooks []string) pluginmgr.Manifest
+	Get(name string) (pluginmgr.Manifest, error)
+	List() []pluginmgr.Manifest
+	Enable(name string) (pluginmgr.Manifest, error)
+	Disable(name string) (pluginmgr.Manifest, error)
+}
+
 type RBACService interface {
 	SetRoleMenus(roleID int64, menuIDs []int64) []int64
 	GetRoleMenus(roleID int64) []int64
@@ -108,7 +118,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	if mux == nil {
 		return
 	}
-	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.Files == nil || services.Jobs == nil || services.Generator == nil || services.RBAC == nil || services.APIs == nil {
+	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.Files == nil || services.Jobs == nil || services.Generator == nil || services.Plugins == nil || services.RBAC == nil || services.APIs == nil {
 		return
 	}
 
@@ -154,6 +164,11 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/jobs/{id}/run", runJobHandler(services.Jobs))
 	handle("GET /admin/v1/jobs/{id}/history", listJobHistoryHandler(services.Jobs))
 	handle("POST /admin/v1/generator/modules", generateModuleHandler(services.Generator))
+	handle("POST /admin/v1/plugins/manifests", installPluginHandler(services.Plugins))
+	handle("GET /admin/v1/plugins", listPluginsHandler(services.Plugins))
+	handle("GET /admin/v1/plugins/{name}", getPluginHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/{name}/enable", enablePluginHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -200,6 +215,12 @@ type createJobRequest struct {
 
 type generateModuleRequest struct {
 	Module string `json:"module"`
+}
+
+type installPluginRequest struct {
+	Name    string   `json:"name"`
+	Version string   `json:"version"`
+	Hooks   []string `json:"hooks"`
 }
 
 type setRoleMenusRequest struct {
@@ -779,6 +800,89 @@ func generateModuleHandler(svc GeneratorService) http.HandlerFunc {
 			return
 		}
 		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func installPluginHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req installPluginRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.Version = strings.TrimSpace(req.Version)
+		if req.Name == "" || req.Version == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "name and version are required"})
+			return
+		}
+		respondJSON(w, http.StatusCreated, svc.Install(req.Name, req.Version, req.Hooks))
+	}
+}
+
+func listPluginsHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func getPluginHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		item, err := svc.Get(name)
+		if err != nil {
+			if err == pluginmgr.ErrPluginNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func enablePluginHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		item, err := svc.Enable(name)
+		if err != nil {
+			if err == pluginmgr.ErrPluginNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func disablePluginHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		item, err := svc.Disable(name)
+		if err != nil {
+			if err == pluginmgr.ErrPluginNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+		respondJSON(w, http.StatusOK, item)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
+	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
@@ -27,6 +28,7 @@ type Adapter interface {
 	Files() FileRepository
 	Jobs() JobRepository
 	Generators() GeneratorRepository
+	Plugins() PluginRepository
 	RBAC() RBACRepository
 	APIs() APIRegistryRepository
 }
@@ -87,6 +89,14 @@ type GeneratorRepository interface {
 	Generate(module string) (modgenerator.Result, error)
 }
 
+type PluginRepository interface {
+	Install(name, version string, hooks []string) pluginmgr.Manifest
+	Get(name string) (pluginmgr.Manifest, error)
+	List() []pluginmgr.Manifest
+	Enable(name string) (pluginmgr.Manifest, error)
+	Disable(name string) (pluginmgr.Manifest, error)
+}
+
 type RBACRepository interface {
 	SetRoleMenus(roleID int64, menuIDs []int64) []int64
 	GetRoleMenus(roleID int64) []int64
@@ -110,6 +120,7 @@ type InMemoryAdapter struct {
 	files   FileRepository
 	jobs    JobRepository
 	gen     GeneratorRepository
+	plugins PluginRepository
 	rbac    RBACRepository
 	apis    APIRegistryRepository
 }
@@ -129,6 +140,7 @@ func NewInMemoryAdapter() *InMemoryAdapter {
 		files:   fileservice.NewService(backend),
 		jobs:    jobscheduler.NewService(),
 		gen:     modgenerator.NewService(),
+		plugins: pluginmgr.NewService(),
 		rbac:    rbac.NewService(),
 		apis:    apiregistry.NewService(),
 	}
@@ -168,6 +180,10 @@ func (a *InMemoryAdapter) Jobs() JobRepository {
 
 func (a *InMemoryAdapter) Generators() GeneratorRepository {
 	return a.gen
+}
+
+func (a *InMemoryAdapter) Plugins() PluginRepository {
+	return a.plugins
 }
 
 func (a *InMemoryAdapter) RBAC() RBACRepository {

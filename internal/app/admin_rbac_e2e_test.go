@@ -15,6 +15,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/jobscheduler"
 	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
+	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
@@ -30,6 +31,7 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 	fileSvc := fileservice.NewService(&memoryFileBackend{})
 	jobSvc := jobscheduler.NewService()
 	genSvc := modgenerator.NewService()
+	pluginSvc := pluginmgr.NewService()
 	rbacSvc := rbac.NewService()
 	apiSvc := apiregistry.NewService()
 
@@ -58,6 +60,7 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 		Files:        fileSvc,
 		Jobs:         jobSvc,
 		Generator:    genSvc,
+		Plugins:      pluginSvc,
 		RBAC:         rbacSvc,
 		APIs:         apiSvc,
 	}, wrapper)

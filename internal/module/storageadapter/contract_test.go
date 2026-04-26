@@ -124,4 +124,16 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if generated.Module != "contractmodule" || len(generated.Artifacts) == 0 {
 		t.Fatalf("unexpected generator output: %+v", generated)
 	}
+
+	plugin := a.Plugins().Install("contract-plugin", "1.0.0", []string{"on_boot"})
+	if !plugin.Enabled {
+		t.Fatalf("expected plugin enabled on install")
+	}
+	disabled, err := a.Plugins().Disable("contract-plugin")
+	if err != nil {
+		t.Fatalf("disable plugin failed: %v", err)
+	}
+	if disabled.Enabled {
+		t.Fatalf("expected plugin disabled")
+	}
 }

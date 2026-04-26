@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations plus M8 step-1 file service baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), plus the M9-step1 plugin manifest lifecycle baseline.
 
 ## Structure
 
@@ -83,6 +83,11 @@ curl http://localhost:8080/admin/v1/jobs
 curl -X POST http://localhost:8080/admin/v1/jobs/1/run
 curl http://localhost:8080/admin/v1/jobs/1/history?limit=20
 curl -X POST http://localhost:8080/admin/v1/generator/modules -H "Content-Type: application/json" -d '{"module":"billing"}'
+curl -X POST http://localhost:8080/admin/v1/plugins/manifests -H "Content-Type: application/json" -d '{"name":"audit-ext","version":"1.0.0","hooks":["on_boot"]}'
+curl http://localhost:8080/admin/v1/plugins
+curl http://localhost:8080/admin/v1/plugins/audit-ext
+curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/disable
+curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/enable
 # Available only when minimal go-admin integration is enabled
 curl http://localhost:8080/admin/ping
 # If admin auth skeleton is enabled, include the auth header
@@ -152,6 +157,7 @@ go test -bench=. -benchmem ./...
 - M8 file service baseline record: `docs/milestones/M8-file-service-baseline.md`
 - M8 job scheduler baseline record: `docs/milestones/M8-job-scheduler-baseline.md`
 - M8 module generator record: `docs/milestones/M8-module-generator.md`
+- M9 plugin manifest lifecycle record: `docs/milestones/M9-plugin-manifest-lifecycle.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution
