@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), and M17-step2 (JWT provenance recalibration evidence template and approval checklist) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), and M18-step1 (JWT provenance threshold-change log and monthly archive workflow) baseline.
 
 ## Structure
 
@@ -144,6 +144,7 @@ go test -bench=. -benchmem ./...
 - Dashboard JWT provenance SLO alert rules: `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_ALERT_RULES.md`
 - Dashboard JWT provenance baseline recalibration workflow: `docs/community/DASHBOARD_JWT_PROVENANCE_BASELINE_RECALIBRATION.md`
 - Dashboard JWT provenance recalibration evidence template: `docs/community/DASHBOARD_JWT_PROVENANCE_RECALIBRATION_EVIDENCE_TEMPLATE.md`
+- Dashboard JWT provenance threshold-change log: `docs/community/DASHBOARD_JWT_PROVENANCE_THRESHOLD_CHANGE_LOG.md`
 - Contribution guide: `CONTRIBUTING.md`
 - M0 baseline record: `docs/milestones/M0-project-baseline.md`
 - M1 core-domain record: `docs/milestones/M1-core-domain.md`
@@ -204,6 +205,7 @@ go test -bench=. -benchmem ./...
 - M16 dashboard JWT provenance SLO alert rule templates and rollout guardrails record: `docs/milestones/M16-dashboard-jwt-session-provenance-slo-alert-rules.md`
 - M17 dashboard JWT provenance baseline recalibration workflow and review cadence record: `docs/milestones/M17-dashboard-jwt-session-provenance-baseline-recalibration.md`
 - M17 dashboard JWT provenance recalibration evidence template and approval checklist record: `docs/milestones/M17-dashboard-jwt-session-provenance-recalibration-evidence-template.md`
+- M18 dashboard JWT provenance threshold-change log and monthly archive workflow record: `docs/milestones/M18-dashboard-jwt-session-provenance-threshold-change-log.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

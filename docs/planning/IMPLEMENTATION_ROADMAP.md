@@ -111,4 +111,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 59. [x] M16-dashboard-jwt-session-provenance-slo-alert-rules: Add provenance SLO alert rule templates and rollout guardrails.
 60. [x] M17-dashboard-jwt-session-provenance-baseline-recalibration: Add periodic baseline recalibration workflow and review cadence.
 61. [x] M17-dashboard-jwt-session-provenance-recalibration-evidence-template: Add reusable recalibration evidence template and approval checklist.
-62. [ ] M18-dashboard-jwt-session-provenance-threshold-change-log: Add threshold-change log format and monthly review archive workflow.
+62. [x] M18-dashboard-jwt-session-provenance-threshold-change-log: Add threshold-change log format and monthly review archive workflow.
+63. [ ] M18-dashboard-jwt-session-provenance-archive-sample: Add first monthly archive sample and review checklist execution example.
