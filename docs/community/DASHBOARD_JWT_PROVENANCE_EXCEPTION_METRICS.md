@@ -9,6 +9,7 @@ This document complements:
 - `docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_GOVERNANCE.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_REVIEW_AUTOMATION.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_POLICY.md`
+- `docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_ALERT_PROFILES.md`
 
 ## Metric Definitions
 
@@ -75,6 +76,10 @@ Derived ratios:
 ```
 
 ## Alerting Hints for Metrics
+
+Detailed profile routing and escalation thresholds are defined in:
+
+- `docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_ALERT_PROFILES.md`
 
 1. `exceptions_expired` month-over-month increase > 50%: investigate process debt.
 2. `critical_open_ratio` sustained > 0.3 for 2 months: trigger governance review.
