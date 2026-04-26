@@ -3,6 +3,7 @@ package storageadapter
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/module/audit"
 	"github.com/tinboxw/skoll/internal/module/rbac"
@@ -25,6 +26,34 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	users := a.Users().List()
 	if len(users) != 2 {
 		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+
+	now := time.Unix(1710000000, 0).UTC()
+	rotated, err := a.Users().RotatePassword(u1.ID, 0, now)
+	if err != nil {
+		t.Fatalf("rotate password failed: %v", err)
+	}
+	if rotated.PasswordRotatedAt.IsZero() {
+		t.Fatalf("expected password rotation timestamp")
+	}
+	failedState, err := a.Users().RegisterLoginFailure(u1.ID, 1, 30*time.Minute, now)
+	if err != nil {
+		t.Fatalf("register login failure failed: %v", err)
+	}
+	if failedState.LockedUntilUnixSec == 0 {
+		t.Fatalf("expected lock to be applied")
+	}
+	if _, err := a.Users().SetMFA(u1.ID, true, "totp", now); err != nil {
+		t.Fatalf("set mfa failed: %v", err)
+	}
+	revoked := a.Users().RevokeSession("sess-contract", "manual", now)
+	if !revoked.Revoked {
+		t.Fatalf("expected revoked session")
+	}
+	a.Users().ReportSessionAnomaly("sess-contract", "geo_jump", "ip changed", now)
+	status := a.Users().SessionStatus("sess-contract")
+	if status.AnomalyCount != 1 {
+		t.Fatalf("expected session anomaly count=1, got %+v", status)
 	}
 
 	r1 := a.Roles().Create("admin", []string{"user.read", "user.write"})

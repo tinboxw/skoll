@@ -102,6 +102,85 @@ func TestAdminUserRoutes_CreateListGet(t *testing.T) {
 	}
 }
 
+func TestAdminUserSecurityRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users", strings.NewReader(`{"name":"alice","email":"alice@example.com"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRR, createReq)
+	if createRR.Code != http.StatusCreated {
+		t.Fatalf("expected user create status 201, got %d", createRR.Code)
+	}
+
+	rotateReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users/1/password/rotate", strings.NewReader(`{"min_interval_minutes":0}`))
+	rotateReq.Header.Set("Content-Type", "application/json")
+	rotateRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rotateRR, rotateReq)
+	if rotateRR.Code != http.StatusOK {
+		t.Fatalf("expected password rotate status 200, got %d", rotateRR.Code)
+	}
+
+	loginFailureReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users/1/login-failures", strings.NewReader(`{"lock_threshold":1,"lock_duration_minutes":15}`))
+	loginFailureReq.Header.Set("Content-Type", "application/json")
+	loginFailureRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(loginFailureRR, loginFailureReq)
+	if loginFailureRR.Code != http.StatusOK {
+		t.Fatalf("expected login failure status 200, got %d", loginFailureRR.Code)
+	}
+	if !strings.Contains(loginFailureRR.Body.String(), `"locked_until_unix_sec":`) {
+		t.Fatalf("expected lock info in response, got %s", loginFailureRR.Body.String())
+	}
+
+	mfaReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users/1/mfa", strings.NewReader(`{"enabled":true,"provider":"totp"}`))
+	mfaReq.Header.Set("Content-Type", "application/json")
+	mfaRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(mfaRR, mfaReq)
+	if mfaRR.Code != http.StatusOK {
+		t.Fatalf("expected mfa update status 200, got %d", mfaRR.Code)
+	}
+	if !strings.Contains(mfaRR.Body.String(), `"mfa_enabled":true`) {
+		t.Fatalf("expected mfa enabled in response, got %s", mfaRR.Body.String())
+	}
+
+	revokeReq := httptest.NewRequest(http.MethodPost, "/admin/v1/sessions/revoke", strings.NewReader(`{"session_id":"sess-1","reason":"manual"}`))
+	revokeReq.Header.Set("Content-Type", "application/json")
+	revokeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(revokeRR, revokeReq)
+	if revokeRR.Code != http.StatusOK {
+		t.Fatalf("expected session revoke status 200, got %d", revokeRR.Code)
+	}
+
+	anomalyReq := httptest.NewRequest(http.MethodPost, "/admin/v1/sessions/anomalies", strings.NewReader(`{"session_id":"sess-1","category":"geo_jump","detail":"ip changed"}`))
+	anomalyReq.Header.Set("Content-Type", "application/json")
+	anomalyRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(anomalyRR, anomalyReq)
+	if anomalyRR.Code != http.StatusCreated {
+		t.Fatalf("expected session anomaly status 201, got %d", anomalyRR.Code)
+	}
+
+	statusReq := httptest.NewRequest(http.MethodGet, "/admin/v1/sessions/sess-1/status", nil)
+	statusRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(statusRR, statusReq)
+	if statusRR.Code != http.StatusOK {
+		t.Fatalf("expected session status 200, got %d", statusRR.Code)
+	}
+	if !strings.Contains(statusRR.Body.String(), `"revoked":true`) {
+		t.Fatalf("expected revoked session status, got %s", statusRR.Body.String())
+	}
+
+	auditReq := httptest.NewRequest(http.MethodGet, "/admin/v1/audit-logs?page=1&size=20&actor=security", nil)
+	auditRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(auditRR, auditReq)
+	if auditRR.Code != http.StatusOK {
+		t.Fatalf("expected audit query status 200, got %d", auditRR.Code)
+	}
+	if !strings.Contains(auditRR.Body.String(), `"total":5`) {
+		t.Fatalf("expected security audit events in response, got %s", auditRR.Body.String())
+	}
+}
+
 func TestAdminRoleAndMenuRoutes(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)

@@ -54,6 +54,13 @@ type UserService interface {
 	Create(name, email string) user.User
 	Get(id int64) (user.User, error)
 	List() []user.User
+	RotatePassword(userID int64, minInterval time.Duration, now time.Time) (user.SecurityState, error)
+	RegisterLoginFailure(userID int64, lockThreshold int, lockDuration time.Duration, now time.Time) (user.SecurityState, error)
+	ResetUserLock(userID int64, now time.Time) (user.SecurityState, error)
+	SetMFA(userID int64, enabled bool, provider string, now time.Time) (user.SecurityState, error)
+	RevokeSession(sessionID, reason string, now time.Time) user.SessionStatus
+	SessionStatus(sessionID string) user.SessionStatus
+	ReportSessionAnomaly(sessionID, category, detail string, now time.Time) user.SessionAnomaly
 }
 
 type RoleService interface {
@@ -156,6 +163,13 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/users", createUserHandler(services.Users))
 	handle("GET /admin/v1/users", listUsersHandler(services.Users))
 	handle("GET /admin/v1/users/{id}", getUserHandler(services.Users))
+	handle("POST /admin/v1/users/{id}/password/rotate", rotateUserPasswordHandler(services.Users, services.Audit))
+	handle("POST /admin/v1/users/{id}/login-failures", registerUserLoginFailureHandler(services.Users, services.Audit))
+	handle("POST /admin/v1/users/{id}/lock/reset", resetUserLockHandler(services.Users, services.Audit))
+	handle("POST /admin/v1/users/{id}/mfa", setUserMFAHandler(services.Users, services.Audit))
+	handle("POST /admin/v1/sessions/revoke", revokeSessionHandler(services.Users, services.Audit))
+	handle("GET /admin/v1/sessions/{session_id}/status", getSessionStatusHandler(services.Users))
+	handle("POST /admin/v1/sessions/anomalies", reportSessionAnomalyHandler(services.Users, services.Audit))
 
 	handle("POST /admin/v1/roles", createRoleHandler(services.Roles))
 	handle("GET /admin/v1/roles", listRolesHandler(services.Roles))
@@ -210,6 +224,31 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 type createUserRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
+}
+
+type rotateUserPasswordRequest struct {
+	MinIntervalMinutes int `json:"min_interval_minutes"`
+}
+
+type registerUserLoginFailureRequest struct {
+	LockThreshold      int `json:"lock_threshold"`
+	LockDurationMinute int `json:"lock_duration_minutes"`
+}
+
+type setUserMFARequest struct {
+	Enabled  bool   `json:"enabled"`
+	Provider string `json:"provider"`
+}
+
+type revokeSessionRequest struct {
+	SessionID string `json:"session_id"`
+	Reason    string `json:"reason"`
+}
+
+type reportSessionAnomalyRequest struct {
+	SessionID string `json:"session_id"`
+	Category  string `json:"category"`
+	Detail    string `json:"detail"`
 }
 
 type createRoleRequest struct {
@@ -532,6 +571,173 @@ func getUserHandler(svc UserService) http.HandlerFunc {
 		}
 
 		respondJSON(w, http.StatusOK, out)
+	}
+}
+
+func rotateUserPasswordHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req rotateUserPasswordRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if req.MinIntervalMinutes < 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "min_interval_minutes must be >= 0"})
+			return
+		}
+		state, err := userSvc.RotatePassword(userID, time.Duration(req.MinIntervalMinutes)*time.Minute, time.Now().UTC())
+		if err != nil {
+			if err == user.ErrUserNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("security", "password_rotate", fmt.Sprintf("user:%d", userID))
+		respondJSON(w, http.StatusOK, state)
+	}
+}
+
+func registerUserLoginFailureHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req registerUserLoginFailureRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if req.LockThreshold <= 0 {
+			req.LockThreshold = 5
+		}
+		if req.LockDurationMinute <= 0 {
+			req.LockDurationMinute = 30
+		}
+		state, err := userSvc.RegisterLoginFailure(userID, req.LockThreshold, time.Duration(req.LockDurationMinute)*time.Minute, time.Now().UTC())
+		if err != nil {
+			if err == user.ErrUserNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("security", "login_failure", fmt.Sprintf("user:%d", userID))
+		respondJSON(w, http.StatusOK, state)
+	}
+}
+
+func resetUserLockHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		state, err := userSvc.ResetUserLock(userID, time.Now().UTC())
+		if err != nil {
+			if err == user.ErrUserNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("security", "lock_reset", fmt.Sprintf("user:%d", userID))
+		respondJSON(w, http.StatusOK, state)
+	}
+}
+
+func setUserMFAHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req setUserMFARequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		provider := strings.TrimSpace(req.Provider)
+		if req.Enabled && provider == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "provider is required when MFA is enabled"})
+			return
+		}
+		state, err := userSvc.SetMFA(userID, req.Enabled, provider, time.Now().UTC())
+		if err != nil {
+			if err == user.ErrUserNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("security", "mfa_update", fmt.Sprintf("user:%d", userID))
+		respondJSON(w, http.StatusOK, state)
+	}
+}
+
+func revokeSessionHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req revokeSessionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.SessionID = strings.TrimSpace(req.SessionID)
+		req.Reason = strings.TrimSpace(req.Reason)
+		if req.SessionID == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "session_id is required"})
+			return
+		}
+		if req.Reason == "" {
+			req.Reason = "manual revoke"
+		}
+		status := userSvc.RevokeSession(req.SessionID, req.Reason, time.Now().UTC())
+		auditSvc.Append("security", "session_revoke", req.SessionID)
+		respondJSON(w, http.StatusOK, status)
+	}
+}
+
+func getSessionStatusHandler(userSvc UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionID, err := parsePathString(r, "session_id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusOK, userSvc.SessionStatus(sessionID))
+	}
+}
+
+func reportSessionAnomalyHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req reportSessionAnomalyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.SessionID = strings.TrimSpace(req.SessionID)
+		req.Category = strings.TrimSpace(req.Category)
+		req.Detail = strings.TrimSpace(req.Detail)
+		if req.SessionID == "" || req.Category == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "session_id and category are required"})
+			return
+		}
+		out := userSvc.ReportSessionAnomaly(req.SessionID, req.Category, req.Detail, time.Now().UTC())
+		auditSvc.Append("security", "session_anomaly", req.SessionID+":"+req.Category)
+		respondJSON(w, http.StatusCreated, out)
 	}
 }
 

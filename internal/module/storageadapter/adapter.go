@@ -3,6 +3,7 @@ package storageadapter
 import (
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/audit"
@@ -38,6 +39,13 @@ type UserRepository interface {
 	Create(name, email string) user.User
 	Get(id int64) (user.User, error)
 	List() []user.User
+	RotatePassword(userID int64, minInterval time.Duration, now time.Time) (user.SecurityState, error)
+	RegisterLoginFailure(userID int64, lockThreshold int, lockDuration time.Duration, now time.Time) (user.SecurityState, error)
+	ResetUserLock(userID int64, now time.Time) (user.SecurityState, error)
+	SetMFA(userID int64, enabled bool, provider string, now time.Time) (user.SecurityState, error)
+	RevokeSession(sessionID, reason string, now time.Time) user.SessionStatus
+	SessionStatus(sessionID string) user.SessionStatus
+	ReportSessionAnomaly(sessionID, category, detail string, now time.Time) user.SessionAnomaly
 }
 
 type RoleRepository interface {
