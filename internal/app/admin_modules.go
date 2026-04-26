@@ -32,6 +32,8 @@ var adminModuleStartTime = time.Now().UTC()
 
 const dashboardUIBootstrapContractVersion = "v1"
 
+const dashboardJWTRefreshLeadWindow = 5 * time.Minute
+
 type AdminModuleServices struct {
 	Users        UserService
 	Roles        RoleService
@@ -364,16 +366,21 @@ type dashboardAuthActionability struct {
 }
 
 type dashboardJWTSessionBootstrap struct {
-	TokenPresent     bool     `json:"token_present"`
-	TokenFormat      string   `json:"token_format"`
-	ClaimsTrusted    bool     `json:"claims_trusted"`
-	Subject          string   `json:"subject,omitempty"`
-	Issuer           string   `json:"issuer,omitempty"`
-	Audience         []string `json:"audience,omitempty"`
-	IssuedAtUnixSec  int64    `json:"issued_at_unix_sec,omitempty"`
-	ExpiresAtUnixSec int64    `json:"expires_at_unix_sec,omitempty"`
-	Expired          bool     `json:"expired"`
-	ParseError       string   `json:"parse_error,omitempty"`
+	TokenPresent        bool     `json:"token_present"`
+	TokenFormat         string   `json:"token_format"`
+	ClaimsTrusted       bool     `json:"claims_trusted"`
+	SessionState        string   `json:"session_state"`
+	Subject             string   `json:"subject,omitempty"`
+	Issuer              string   `json:"issuer,omitempty"`
+	Audience            []string `json:"audience,omitempty"`
+	IssuedAtUnixSec     int64    `json:"issued_at_unix_sec,omitempty"`
+	ExpiresAtUnixSec    int64    `json:"expires_at_unix_sec,omitempty"`
+	ExpiresInSec        int64    `json:"expires_in_sec,omitempty"`
+	RefreshAfterUnixSec int64    `json:"refresh_after_unix_sec,omitempty"`
+	RefreshRecommended  bool     `json:"refresh_recommended"`
+	RefreshReason       string   `json:"refresh_reason,omitempty"`
+	Expired             bool     `json:"expired"`
+	ParseError          string   `json:"parse_error,omitempty"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1129,59 +1136,102 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboardJWTSessionBootstrap {
 	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
 	if authorization == "" {
-		return dashboardJWTSessionBootstrap{TokenPresent: false, TokenFormat: "none", ClaimsTrusted: false, Expired: false}
+		return dashboardJWTSessionBootstrap{TokenPresent: false, TokenFormat: "none", ClaimsTrusted: false, SessionState: "none", Expired: false, RefreshRecommended: false}
 	}
 
 	parts := strings.Fields(authorization)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
 		return dashboardJWTSessionBootstrap{
-			TokenPresent:  true,
-			TokenFormat:   "unsupported",
-			ClaimsTrusted: false,
-			ParseError:    "authorization header must use bearer scheme",
+			TokenPresent:       true,
+			TokenFormat:        "unsupported",
+			ClaimsTrusted:      false,
+			SessionState:       "invalid",
+			RefreshRecommended: true,
+			RefreshReason:      "authorization_header_invalid",
+			ParseError:         "authorization header must use bearer scheme",
 		}
 	}
 
 	token := strings.TrimSpace(parts[1])
 	if token == "" {
 		return dashboardJWTSessionBootstrap{
-			TokenPresent:  true,
-			TokenFormat:   "unsupported",
-			ClaimsTrusted: false,
-			ParseError:    "bearer token is empty",
+			TokenPresent:       true,
+			TokenFormat:        "unsupported",
+			ClaimsTrusted:      false,
+			SessionState:       "invalid",
+			RefreshRecommended: true,
+			RefreshReason:      "authorization_header_invalid",
+			ParseError:         "bearer token is empty",
 		}
 	}
 
 	if strings.Count(token, ".") != 2 {
 		return dashboardJWTSessionBootstrap{
-			TokenPresent:  true,
-			TokenFormat:   "bearer-non-jwt",
-			ClaimsTrusted: false,
-			ParseError:    "token does not match jwt compact format",
+			TokenPresent:       true,
+			TokenFormat:        "bearer-non-jwt",
+			ClaimsTrusted:      false,
+			SessionState:       "invalid",
+			RefreshRecommended: true,
+			RefreshReason:      "token_not_jwt",
+			ParseError:         "token does not match jwt compact format",
 		}
 	}
 
 	claims, err := decodeJWTClaims(token)
 	if err != nil {
 		return dashboardJWTSessionBootstrap{
-			TokenPresent:  true,
-			TokenFormat:   "bearer-jwt",
-			ClaimsTrusted: false,
-			ParseError:    err.Error(),
+			TokenPresent:       true,
+			TokenFormat:        "bearer-jwt",
+			ClaimsTrusted:      false,
+			SessionState:       "invalid",
+			RefreshRecommended: true,
+			RefreshReason:      "jwt_parse_error",
+			ParseError:         err.Error(),
 		}
 	}
 
 	expiresAt := claimInt64(claims, "exp")
+	expiresInSec := int64(0)
+	refreshAfterUnixSec := int64(0)
+	refreshRecommended := false
+	refreshReason := ""
+	sessionState := "active"
+
+	if expiresAt <= 0 {
+		sessionState = "no-exp"
+		refreshRecommended = true
+		refreshReason = "exp_claim_missing"
+	} else {
+		expiresInSec = expiresAt - now.Unix()
+		if expiresInSec <= 0 {
+			sessionState = "expired"
+			refreshRecommended = true
+			refreshReason = "token_expired"
+		} else if expiresInSec <= int64(dashboardJWTRefreshLeadWindow/time.Second) {
+			sessionState = "expiring"
+			refreshRecommended = true
+			refreshReason = "token_expiring_soon"
+			refreshAfterUnixSec = now.Unix()
+		} else {
+			refreshAfterUnixSec = expiresAt - int64(dashboardJWTRefreshLeadWindow/time.Second)
+		}
+	}
+
 	return dashboardJWTSessionBootstrap{
-		TokenPresent:     true,
-		TokenFormat:      "bearer-jwt",
-		ClaimsTrusted:    false,
-		Subject:          claimString(claims, "sub"),
-		Issuer:           claimString(claims, "iss"),
-		Audience:         claimAudience(claims, "aud"),
-		IssuedAtUnixSec:  claimInt64(claims, "iat"),
-		ExpiresAtUnixSec: expiresAt,
-		Expired:          expiresAt > 0 && now.Unix() >= expiresAt,
+		TokenPresent:        true,
+		TokenFormat:         "bearer-jwt",
+		ClaimsTrusted:       false,
+		SessionState:        sessionState,
+		Subject:             claimString(claims, "sub"),
+		Issuer:              claimString(claims, "iss"),
+		Audience:            claimAudience(claims, "aud"),
+		IssuedAtUnixSec:     claimInt64(claims, "iat"),
+		ExpiresAtUnixSec:    expiresAt,
+		ExpiresInSec:        expiresInSec,
+		RefreshAfterUnixSec: refreshAfterUnixSec,
+		RefreshRecommended:  refreshRecommended,
+		RefreshReason:       refreshReason,
+		Expired:             expiresAt > 0 && now.Unix() >= expiresAt,
 	}
 }
 

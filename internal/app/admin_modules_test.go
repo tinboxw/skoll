@@ -680,6 +680,9 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	if got, ok := jwtBootstrap["token_format"].(string); !ok || got != "none" {
 		t.Fatalf("expected jwt_session_bootstrap.token_format=none, got %v", jwtBootstrap["token_format"])
 	}
+	if got, ok := jwtBootstrap["session_state"].(string); !ok || got != "none" {
+		t.Fatalf("expected jwt_session_bootstrap.session_state=none, got %v", jwtBootstrap["session_state"])
+	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected status object, got %v", payload["status"])
@@ -793,6 +796,12 @@ func TestDashboardAggregateRoute_JWTSessionBootstrapFromBearerToken(t *testing.T
 	if got, ok := jwtBootstrap["expires_at_unix_sec"].(float64); !ok || int64(got) != expiresAt {
 		t.Fatalf("expected jwt_session_bootstrap.expires_at_unix_sec=%d, got %v", expiresAt, jwtBootstrap["expires_at_unix_sec"])
 	}
+	if got, ok := jwtBootstrap["session_state"].(string); !ok || got != "active" {
+		t.Fatalf("expected jwt_session_bootstrap.session_state=active, got %v", jwtBootstrap["session_state"])
+	}
+	if got, ok := jwtBootstrap["refresh_recommended"].(bool); !ok || got {
+		t.Fatalf("expected jwt_session_bootstrap.refresh_recommended=false, got %v", jwtBootstrap["refresh_recommended"])
+	}
 }
 
 func TestCollectDashboardJWTSessionBootstrap_InvalidBearer(t *testing.T) {
@@ -805,6 +814,53 @@ func TestCollectDashboardJWTSessionBootstrap_InvalidBearer(t *testing.T) {
 	}
 	if jwtBootstrap.ParseError == "" {
 		t.Fatalf("expected parse_error for invalid bearer token")
+	}
+	if !jwtBootstrap.RefreshRecommended {
+		t.Fatalf("expected refresh_recommended=true for invalid bearer token")
+	}
+}
+
+func TestCollectDashboardJWTSessionBootstrap_ExpiringTokenNeedsRefresh(t *testing.T) {
+	now := time.Now().UTC()
+	expiresAt := now.Add(2 * time.Minute).Unix()
+	token := testUnsignedJWT(map[string]any{
+		"sub": "user-expiring",
+		"exp": expiresAt,
+	})
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/dashboard", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	jwtBootstrap := collectDashboardJWTSessionBootstrap(req, now)
+	if jwtBootstrap.SessionState != "expiring" {
+		t.Fatalf("expected session_state=expiring, got %s", jwtBootstrap.SessionState)
+	}
+	if !jwtBootstrap.RefreshRecommended {
+		t.Fatalf("expected refresh_recommended=true for expiring token")
+	}
+	if jwtBootstrap.RefreshReason != "token_expiring_soon" {
+		t.Fatalf("expected refresh_reason=token_expiring_soon, got %s", jwtBootstrap.RefreshReason)
+	}
+}
+
+func TestCollectDashboardJWTSessionBootstrap_ExpiredTokenNeedsRefresh(t *testing.T) {
+	now := time.Now().UTC()
+	expiresAt := now.Add(-1 * time.Minute).Unix()
+	token := testUnsignedJWT(map[string]any{
+		"sub": "user-expired",
+		"exp": expiresAt,
+	})
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/dashboard", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	jwtBootstrap := collectDashboardJWTSessionBootstrap(req, now)
+	if jwtBootstrap.SessionState != "expired" {
+		t.Fatalf("expected session_state=expired, got %s", jwtBootstrap.SessionState)
+	}
+	if !jwtBootstrap.Expired {
+		t.Fatalf("expected expired=true")
+	}
+	if !jwtBootstrap.RefreshRecommended {
+		t.Fatalf("expected refresh_recommended=true for expired token")
 	}
 }
 
