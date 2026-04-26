@@ -644,8 +644,15 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 		t.Fatalf("expected contract.version=v1, got %v", contract["version"])
 	}
 	sections, ok := contract["required_sections"].([]any)
-	if !ok || len(sections) < 3 {
-		t.Fatalf("expected contract.required_sections with 3 entries, got %v", contract["required_sections"])
+	if !ok || len(sections) < 4 {
+		t.Fatalf("expected contract.required_sections with 4 entries, got %v", contract["required_sections"])
+	}
+	authSession, ok := payload["auth_session"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth_session object, got %v", payload["auth_session"])
+	}
+	if got, ok := authSession["auth_mode_hint"].(string); !ok || got != "none" {
+		t.Fatalf("expected auth_session.auth_mode_hint=none, got %v", authSession["auth_mode_hint"])
 	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
@@ -667,5 +674,37 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	}
 	if got, ok := nodeHealth["node_status"].(string); !ok || got == "" {
 		t.Fatalf("expected node_health.node_status, got %v", nodeHealth["node_status"])
+	}
+}
+
+func TestDashboardAggregateRoute_AuthSessionAlignmentWithHeaders(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/dashboard", nil)
+	req.Header.Set("X-Admin-Token", "secret")
+	req.Header.Set(HeaderAdminRoleID, "1")
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected dashboard aggregate status 200, got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal dashboard aggregate response failed: %v", err)
+	}
+	authSession, ok := payload["auth_session"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth_session object, got %v", payload["auth_session"])
+	}
+	if got, ok := authSession["authenticated"].(bool); !ok || !got {
+		t.Fatalf("expected auth_session.authenticated=true, got %v", authSession["authenticated"])
+	}
+	if got, ok := authSession["auth_mode_hint"].(string); !ok || got != "static-token" {
+		t.Fatalf("expected auth_session.auth_mode_hint=static-token, got %v", authSession["auth_mode_hint"])
+	}
+	if got, ok := authSession["role_id"].(string); !ok || got != "1" {
+		t.Fatalf("expected auth_session.role_id=1, got %v", authSession["role_id"])
 	}
 }

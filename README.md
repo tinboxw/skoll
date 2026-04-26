@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）以及 M10-step5（仪表盘聚合与 UI 启动契约）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）以及 M11-step1（仪表盘鉴权会话对齐）基线。
 
 ## 目录结构
 
@@ -94,6 +94,7 @@ curl http://localhost:8080/admin/v1/system/status
 curl http://localhost:8080/admin/v1/system/runtime-metrics
 curl http://localhost:8080/admin/v1/system/node-health
 curl http://localhost:8080/admin/v1/system/dashboard
+curl -H "X-Admin-Token: secret" -H "X-Admin-Role-ID: 1" http://localhost:8080/admin/v1/system/dashboard
 # 仅在启用 go-admin 最小接入时可用
 curl http://localhost:8080/admin/ping
 # 若启用 admin 鉴权骨架，需要传入头
@@ -174,6 +175,7 @@ go test -bench=. -benchmem ./...
 - M10 节点与依赖健康摘要 API 记录：`docs/milestones/M10-dashboard-node-health.md`
 - M10 仪表盘聚合 API 记录：`docs/milestones/M10-dashboard-aggregation.md`
 - M10 仪表盘 UI 启动契约记录：`docs/milestones/M10-dashboard-ui-bootstrap-contract.md`
+- M11 仪表盘鉴权会话对齐记录：`docs/milestones/M11-dashboard-auth-session-alignment.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

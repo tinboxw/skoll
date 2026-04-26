@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/integration/adminauth"
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/audit"
 	"github.com/tinboxw/skoll/internal/module/config"
@@ -313,6 +314,7 @@ type nodeHealthResponse struct {
 type dashboardAggregateResponse struct {
 	Contract           dashboardContractDescriptor `json:"contract"`
 	GeneratedAtUnixSec int64                       `json:"generated_at_unix_sec"`
+	AuthSession        dashboardAuthSessionContext `json:"auth_session"`
 	Status             systemStatusResponse        `json:"status"`
 	RuntimeMetrics     runtimeMetricsResponse      `json:"runtime_metrics"`
 	NodeHealth         nodeHealthResponse          `json:"node_health"`
@@ -323,6 +325,15 @@ type dashboardContractDescriptor struct {
 	Version          string   `json:"version"`
 	Stability        string   `json:"stability"`
 	RequiredSections []string `json:"required_sections"`
+}
+
+type dashboardAuthSessionContext struct {
+	Authenticated          bool   `json:"authenticated"`
+	AuthModeHint           string `json:"auth_mode_hint"`
+	RoleID                 string `json:"role_id,omitempty"`
+	HasRoleBinding         bool   `json:"has_role_binding"`
+	TokenHeaderPresent     bool   `json:"token_header_present"`
+	SignatureHeaderPresent bool   `json:"signature_header_present"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1040,10 +1051,11 @@ func nodeHealthHandler(services AdminModuleServices) http.HandlerFunc {
 }
 
 func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, dashboardAggregateResponse{
 			Contract:           collectDashboardContractDescriptor(),
 			GeneratedAtUnixSec: time.Now().UTC().Unix(),
+			AuthSession:        collectDashboardAuthSessionContext(r),
 			Status:             collectSystemStatus(services),
 			RuntimeMetrics:     collectRuntimeMetrics(),
 			NodeHealth:         collectNodeHealth(services),
@@ -1057,10 +1069,37 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 		Version:   dashboardUIBootstrapContractVersion,
 		Stability: "stable",
 		RequiredSections: []string{
+			"auth_session",
 			"status",
 			"runtime_metrics",
 			"node_health",
 		},
+	}
+}
+
+func collectDashboardAuthSessionContext(r *http.Request) dashboardAuthSessionContext {
+	tokenPresent := strings.TrimSpace(r.Header.Get(adminauth.HeaderToken)) != ""
+	signaturePresent := strings.TrimSpace(r.Header.Get(adminauth.HeaderSignature)) != ""
+	mode := "none"
+	authenticated := false
+
+	if signaturePresent {
+		mode = "hmac-sha256"
+		authenticated = true
+	} else if tokenPresent {
+		mode = "static-token"
+		authenticated = true
+	}
+
+	roleID := strings.TrimSpace(r.Header.Get(HeaderAdminRoleID))
+
+	return dashboardAuthSessionContext{
+		Authenticated:          authenticated,
+		AuthModeHint:           mode,
+		RoleID:                 roleID,
+		HasRoleBinding:         roleID != "",
+		TokenHeaderPresent:     tokenPresent,
+		SignatureHeaderPresent: signaturePresent,
 	}
 }
 

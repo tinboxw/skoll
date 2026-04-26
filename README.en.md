@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), and M10-step5 (dashboard aggregation and UI bootstrap contract) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), and M11-step1 (dashboard auth/session alignment) baseline.
 
 ## Structure
 
@@ -94,6 +94,7 @@ curl http://localhost:8080/admin/v1/system/status
 curl http://localhost:8080/admin/v1/system/runtime-metrics
 curl http://localhost:8080/admin/v1/system/node-health
 curl http://localhost:8080/admin/v1/system/dashboard
+curl -H "X-Admin-Token: secret" -H "X-Admin-Role-ID: 1" http://localhost:8080/admin/v1/system/dashboard
 # Available only when minimal go-admin integration is enabled
 curl http://localhost:8080/admin/ping
 # If admin auth skeleton is enabled, include the auth header
@@ -174,6 +175,7 @@ go test -bench=. -benchmem ./...
 - M10 node and dependency health summary API record: `docs/milestones/M10-dashboard-node-health.md`
 - M10 dashboard aggregation API record: `docs/milestones/M10-dashboard-aggregation.md`
 - M10 dashboard UI bootstrap contract record: `docs/milestones/M10-dashboard-ui-bootstrap-contract.md`
+- M11 dashboard auth/session alignment record: `docs/milestones/M11-dashboard-auth-session-alignment.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

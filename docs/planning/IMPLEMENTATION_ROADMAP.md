@@ -91,4 +91,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 39. [x] M10-dashboard-node-health: Add admin node/dependency health summary endpoint.
 40. [x] M10-dashboard-aggregation: Add combined dashboard aggregate endpoint for UI bootstrap.
 41. [x] M10-dashboard-ui-bootstrap-contract: Define stable dashboard payload contract for frontend integration.
-42. [ ] M11-dashboard-auth-session-alignment: Align dashboard bootstrap with auth/session capability plan.
+42. [x] M11-dashboard-auth-session-alignment: Align dashboard bootstrap with auth/session capability plan.
+43. [ ] M11-dashboard-auth-session-policy-docs: Publish auth/session compatibility and rollout guidance.
