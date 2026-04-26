@@ -124,7 +124,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 49. Completed: E1-step1 policy engine and data-scope authorization baseline.
 50. Completed: E2-step1 dynamic route/menu/button permission contract versioning baseline.
 51. Completed: E3-step1 account/session security hardening baseline.
-52. Next: E4-step1 generator ecosystem depth baseline.
+52. Completed: E4-step1 generator ecosystem depth baseline.
+53. Next: E5-step1 plugin market and online upgrade safety baseline.
 
 ## Risks and Mitigation
 

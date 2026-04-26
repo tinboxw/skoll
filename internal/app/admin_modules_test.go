@@ -590,7 +590,7 @@ func TestGeneratorRoutes_ModuleScaffoldPreview(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/v1/generator/modules", strings.NewReader(`{"module":"billing"}`))
+	req := httptest.NewRequest(http.MethodPost, "/admin/v1/generator/modules", strings.NewReader(`{"module":"billing","template_version":"v2","form_schema":{"version":"v2","fields":[{"name":"name","type":"string","required":true},{"name":"status","type":"select"}]}}`))
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(rr, req)
@@ -602,6 +602,12 @@ func TestGeneratorRoutes_ModuleScaffoldPreview(t *testing.T) {
 	}
 	if !strings.Contains(rr.Body.String(), `"internal/module/billing/service.go"`) {
 		t.Fatalf("expected generated service artifact path, got %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"template_version":"v2"`) {
+		t.Fatalf("expected template compatibility metadata, got %s", rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"form_schema"`) {
+		t.Fatalf("expected form schema in generator response, got %s", rr.Body.String())
 	}
 }
 

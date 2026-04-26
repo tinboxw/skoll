@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tinboxw/skoll/internal/module/audit"
+	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 )
 
@@ -165,6 +166,13 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	}
 	if generated.Module != "contractmodule" || len(generated.Artifacts) == 0 {
 		t.Fatalf("unexpected generator output: %+v", generated)
+	}
+	generatedWithSchema, err := a.Generators().GenerateWithSchema("contractmodule", &modgenerator.FormSchema{Version: "v1", Fields: []modgenerator.FormField{{Name: "name", Type: "string", Required: true}}}, "v2")
+	if err != nil {
+		t.Fatalf("generate module with schema failed: %v", err)
+	}
+	if generatedWithSchema.FormSchema == nil || generatedWithSchema.Compatibility.TemplateVersion != "v2" {
+		t.Fatalf("unexpected generator schema output: %+v", generatedWithSchema)
 	}
 
 	plugin := a.Plugins().Install("contract-plugin", "1.0.0", []string{"on_boot"})

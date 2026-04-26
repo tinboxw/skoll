@@ -124,7 +124,7 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 72. [x] E1-policy-engine-and-data-scope: Strengthen policy model and data-scope authorization baseline.
 73. [x] E2-dynamic-route-menu-button-permission: Add dynamic route/menu/button permission contract with versioning.
 74. [x] E3-account-session-security-hardening: Add account/session hardening controls and audit coverage.
-75. [ ] E4-generator-ecosystem-depth: Extend generator with form-schema support and template compatibility governance.
+75. [x] E4-generator-ecosystem-depth: Extend generator with form-schema support and template compatibility governance.
 76. [ ] E5-plugin-market-and-online-upgrade-safety: Add plugin signature checks, dependency precheck, and rollback workflow.
 77. [ ] E6-database-ops-governance: Add migration orchestration, backup/restore contract, and controlled SQL audit.
 78. [ ] E7-multi-instance-consistency-hardening: Add shared-state consistency controls for sessions/jobs.

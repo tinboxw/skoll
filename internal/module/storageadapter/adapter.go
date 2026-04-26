@@ -96,6 +96,7 @@ type JobRepository interface {
 
 type GeneratorRepository interface {
 	Generate(module string) (modgenerator.Result, error)
+	GenerateWithSchema(module string, schema *modgenerator.FormSchema, templateVersion string) (modgenerator.Result, error)
 }
 
 type PluginRepository interface {

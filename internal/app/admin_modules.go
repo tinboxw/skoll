@@ -111,6 +111,7 @@ type JobService interface {
 
 type GeneratorService interface {
 	Generate(module string) (modgenerator.Result, error)
+	GenerateWithSchema(module string, schema *modgenerator.FormSchema, templateVersion string) (modgenerator.Result, error)
 }
 
 type PluginService interface {
@@ -288,7 +289,9 @@ type createJobRequest struct {
 }
 
 type generateModuleRequest struct {
-	Module string `json:"module"`
+	Module          string                   `json:"module"`
+	TemplateVersion string                   `json:"template_version"`
+	FormSchema      *modgenerator.FormSchema `json:"form_schema"`
 }
 
 type installPluginRequest struct {
@@ -1495,7 +1498,7 @@ func generateModuleHandler(svc GeneratorService) http.HandlerFunc {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
 			return
 		}
-		result, err := svc.Generate(strings.TrimSpace(req.Module))
+		result, err := svc.GenerateWithSchema(strings.TrimSpace(req.Module), req.FormSchema, strings.TrimSpace(req.TemplateVersion))
 		if err != nil {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
