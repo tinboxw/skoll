@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), M18-step2 (JWT provenance monthly archive sample and review checklist execution example), M19-step1 (JWT provenance monthly review automation checklist and ownership rotation guidance), M19-step2 (JWT provenance quarterly rotation roster sample and escalation handoff template), and M20-step1 (JWT provenance exception governance matrix and expiry revalidation workflow) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), M13-step3 (JWT claim source provenance fields), M14-step1 (JWT provenance audit export fields), M14-step2 (JWT provenance audit export docs and SIEM mapping guidance), M15-step1 (JWT provenance export operational metrics and alerting hints), M15-step2 (JWT provenance ops runbook and alert triage guidance), M16-step1 (JWT provenance SLO dashboards and error-budget policy), M16-step2 (JWT provenance SLO alert rule templates and rollout guardrails), M17-step1 (JWT provenance baseline recalibration workflow and review cadence), M17-step2 (JWT provenance recalibration evidence template and approval checklist), M18-step1 (JWT provenance threshold-change log and monthly archive workflow), M18-step2 (JWT provenance monthly archive sample and review checklist execution example), M19-step1 (JWT provenance monthly review automation checklist and ownership rotation guidance), M19-step2 (JWT provenance quarterly rotation roster sample and escalation handoff template), M20-step1 (JWT provenance exception governance matrix and expiry revalidation workflow), and M20-step2 (JWT provenance sample exception records and revalidation decision log template) baseline.
 
 ## Structure
 
@@ -147,6 +147,7 @@ go test -bench=. -benchmem ./...
 - Dashboard JWT provenance threshold-change log: `docs/community/DASHBOARD_JWT_PROVENANCE_THRESHOLD_CHANGE_LOG.md`
 - Dashboard JWT provenance monthly review automation: `docs/community/DASHBOARD_JWT_PROVENANCE_REVIEW_AUTOMATION.md`
 - Dashboard JWT provenance exception governance matrix: `docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_GOVERNANCE.md`
+- Dashboard JWT provenance sample exception records: `docs/milestones/JWT_PROVENANCE_EXCEPTION_RECORDS_2026-05.md`
 - Dashboard JWT provenance monthly archive sample: `docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md`
 - Dashboard JWT provenance quarterly rotation sample: `docs/milestones/JWT_PROVENANCE_REVIEW_ROTATION_2026-Q2.md`
 - Contribution guide: `CONTRIBUTING.md`
@@ -214,6 +215,7 @@ go test -bench=. -benchmem ./...
 - M19 dashboard JWT provenance monthly review automation checklist and ownership rotation guidance record: `docs/milestones/M19-dashboard-jwt-session-provenance-review-automation.md`
 - M19 dashboard JWT provenance quarterly rotation roster sample and escalation handoff template record: `docs/milestones/M19-dashboard-jwt-session-provenance-rotation-roster-sample.md`
 - M20 dashboard JWT provenance exception governance matrix and expiry revalidation workflow record: `docs/milestones/M20-dashboard-jwt-session-provenance-exception-governance.md`
+- M20 dashboard JWT provenance sample exception records and revalidation decision log template record: `docs/milestones/M20-dashboard-jwt-session-provenance-exception-sample-log.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

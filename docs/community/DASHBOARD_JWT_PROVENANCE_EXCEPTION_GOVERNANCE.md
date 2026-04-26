@@ -75,6 +75,25 @@ This document is used with:
 3. Any second extension requires service owner written rationale.
 4. If revalidation evidence is missing at expiry, default action is rollback/freeze.
 
+## Sample Exception Records
+
+- `docs/milestones/JWT_PROVENANCE_EXCEPTION_RECORDS_2026-05.md`
+
+## Revalidation Decision Log Template
+
+```markdown
+| decision_id | exception_id | decided_at | decision | rationale | approvers | next_due |
+| --- | --- | --- | --- | --- | --- | --- |
+```
+
+Decision values:
+
+- `close`
+- `extend_24h`
+- `extend_72h`
+- `rollback`
+- `freeze`
+
 ## Operational Metrics Suggestions
 
 - `exceptions_open_total`

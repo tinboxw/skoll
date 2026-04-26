@@ -116,4 +116,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 64. [x] M19-dashboard-jwt-session-provenance-review-automation: Add monthly review automation checklist and ownership rotation guidance.
 65. [x] M19-dashboard-jwt-session-provenance-rotation-roster-sample: Add quarterly rotation roster sample and escalation handoff template.
 66. [x] M20-dashboard-jwt-session-provenance-exception-governance: Add exception governance matrix and expiry revalidation workflow.
-67. [ ] M20-dashboard-jwt-session-provenance-exception-sample-log: Add sample exception records and revalidation decision log template.
+67. [x] M20-dashboard-jwt-session-provenance-exception-sample-log: Add sample exception records and revalidation decision log template.
+68. [ ] M21-dashboard-jwt-session-provenance-exception-metrics: Add exception governance observability metrics and monthly trend dashboard fields.
