@@ -29,7 +29,7 @@ func TestServiceInstallEnableDisable(t *testing.T) {
 func TestServiceInstallPackageAndVersionCheck(t *testing.T) {
 	svc := NewService()
 
-	installed, err := svc.InstallPackage("billing-ext", "1.2.3", "https://example.com/plugins/billing-ext-1.2.3.tgz", "sha256:abc123", []string{"on_boot"})
+	installed, err := svc.InstallPackageVerified("billing-ext", "1.2.3", "https://example.com/plugins/billing-ext-1.2.3.tgz", "sha256:abc123", "sig:sha256:abc123", nil, []string{"on_boot"})
 	if err != nil {
 		t.Fatalf("install package failed: %v", err)
 	}
@@ -51,5 +51,61 @@ func TestServiceInstallPackageAndVersionCheck(t *testing.T) {
 	}
 	if upToDate.UpdateAvailable {
 		t.Fatalf("expected no update for same version")
+	}
+}
+
+func TestServiceInstallPackageVerified_InvalidSignature(t *testing.T) {
+	svc := NewService()
+	if _, err := svc.InstallPackageVerified("billing-ext", "1.2.3", "https://example.com/plugins/billing-ext-1.2.3.tgz", "sha256:abc123", "bad-signature", nil, []string{"on_boot"}); err != ErrPluginSignatureInvalid {
+		t.Fatalf("expected ErrPluginSignatureInvalid, got %v", err)
+	}
+}
+
+func TestServiceUpgradePackage_DependencyAndRollback(t *testing.T) {
+	svc := NewService()
+	_, err := svc.InstallPackageVerified("core-ext", "1.0.0", "https://example.com/plugins/core-ext-1.0.0.tgz", "sha256:core100", "sig:sha256:core100", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("install core failed: %v", err)
+	}
+	_, err = svc.InstallPackageVerified("feature-ext", "1.0.0", "https://example.com/plugins/feature-ext-1.0.0.tgz", "sha256:feat100", "sig:sha256:feat100", []Dependency{{Name: "core-ext", MinVersion: "1.0.0"}}, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("install feature failed: %v", err)
+	}
+
+	result, err := svc.UpgradePackage("feature-ext", "1.1.0", "https://example.com/plugins/feature-ext-1.1.0.tgz", "sha256:feat110", "bad-signature", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("upgrade should return rollback result, got error %v", err)
+	}
+	if result.Succeeded || !result.RolledBack {
+		t.Fatalf("expected failed upgrade with rollback, got %+v", result)
+	}
+
+	current, err := svc.Get("feature-ext")
+	if err != nil {
+		t.Fatalf("get plugin failed: %v", err)
+	}
+	if current.Version != "1.0.0" {
+		t.Fatalf("expected rollback to previous version 1.0.0, got %s", current.Version)
+	}
+
+	result, err = svc.UpgradePackage("feature-ext", "1.1.0", "https://example.com/plugins/feature-ext-1.1.0.tgz", "sha256:feat110", "sig:sha256:feat110", []Dependency{{Name: "core-ext", MinVersion: "1.0.0"}}, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("upgrade failed: %v", err)
+	}
+	if !result.Succeeded || result.RolledBack {
+		t.Fatalf("expected successful upgrade result, got %+v", result)
+	}
+}
+
+func BenchmarkServiceInstallPackageVerified(b *testing.B) {
+	svc := NewService()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		name := "bench-plugin-" + string(rune('a'+(i%26)))
+		_, err := svc.InstallPackageVerified(name, "1.0.0", "https://example.com/plugins/bench.tgz", "sha256:bench", "sig:sha256:bench", nil, []string{"on_boot"})
+		if err != nil {
+			b.Fatalf("install package verified failed: %v", err)
+		}
 	}
 }

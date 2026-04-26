@@ -179,12 +179,26 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if !plugin.Enabled {
 		t.Fatalf("expected plugin enabled on install")
 	}
-	packaged, err := a.Plugins().InstallPackage("contract-plugin", "1.0.1", "https://example.com/plugins/contract-plugin-1.0.1.tgz", "sha256:abc", []string{"on_boot"})
+	packaged, err := a.Plugins().InstallPackageVerified("contract-plugin", "1.0.1", "https://example.com/plugins/contract-plugin-1.0.1.tgz", "sha256:abc", "sig:sha256:abc", nil, []string{"on_boot"})
 	if err != nil {
 		t.Fatalf("install package failed: %v", err)
 	}
 	if packaged.PackageURL == "" || packaged.PackageHash == "" {
 		t.Fatalf("expected package metadata in installed plugin: %+v", packaged)
+	}
+	rollbackResult, err := a.Plugins().UpgradePackage("contract-plugin", "1.0.2", "https://example.com/plugins/contract-plugin-1.0.2.tgz", "sha256:def", "bad", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("upgrade should return rollback result, got error: %v", err)
+	}
+	if rollbackResult.Succeeded || !rollbackResult.RolledBack {
+		t.Fatalf("expected rollback result for failed upgrade: %+v", rollbackResult)
+	}
+	upgradeResult, err := a.Plugins().UpgradePackage("contract-plugin", "1.0.2", "https://example.com/plugins/contract-plugin-1.0.2.tgz", "sha256:def", "sig:sha256:def", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("upgrade plugin failed: %v", err)
+	}
+	if !upgradeResult.Succeeded {
+		t.Fatalf("expected successful upgrade result: %+v", upgradeResult)
 	}
 	versionCheck, err := a.Plugins().CheckVersion("contract-plugin", "1.1.0")
 	if err != nil {

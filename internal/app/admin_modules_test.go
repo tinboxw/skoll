@@ -643,7 +643,7 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 		t.Fatalf("expected plugin enabled, got %s", enableRR.Body.String())
 	}
 
-	packageReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/packages/install", strings.NewReader(`{"name":"audit-ext","version":"1.1.0","package_url":"https://example.com/plugins/audit-ext-1.1.0.tgz","package_hash":"sha256:abcd","hooks":["on_boot"]}`))
+	packageReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/packages/install", strings.NewReader(`{"name":"audit-ext","version":"1.1.0","package_url":"https://example.com/plugins/audit-ext-1.1.0.tgz","package_hash":"sha256:abcd","signature":"sig:sha256:abcd","hooks":["on_boot"]}`))
 	packageReq.Header.Set("Content-Type", "application/json")
 	packageRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(packageRR, packageReq)
@@ -663,6 +663,28 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 	}
 	if !strings.Contains(versionRR.Body.String(), `"update_available":true`) {
 		t.Fatalf("expected update availability in response, got %s", versionRR.Body.String())
+	}
+
+	badUpgradeReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/upgrade", strings.NewReader(`{"target_version":"1.2.0","package_url":"https://example.com/plugins/audit-ext-1.2.0.tgz","package_hash":"sha256:efgh","signature":"bad"}`))
+	badUpgradeReq.Header.Set("Content-Type", "application/json")
+	badUpgradeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(badUpgradeRR, badUpgradeReq)
+	if badUpgradeRR.Code != http.StatusOK {
+		t.Fatalf("expected bad signature upgrade to return rollback result status 200, got %d", badUpgradeRR.Code)
+	}
+	if !strings.Contains(badUpgradeRR.Body.String(), `"rolled_back":true`) {
+		t.Fatalf("expected rollback result for failed upgrade, got %s", badUpgradeRR.Body.String())
+	}
+
+	upgradeReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/upgrade", strings.NewReader(`{"target_version":"1.2.0","package_url":"https://example.com/plugins/audit-ext-1.2.0.tgz","package_hash":"sha256:efgh","signature":"sig:sha256:efgh"}`))
+	upgradeReq.Header.Set("Content-Type", "application/json")
+	upgradeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(upgradeRR, upgradeReq)
+	if upgradeRR.Code != http.StatusOK {
+		t.Fatalf("expected upgrade status 200, got %d", upgradeRR.Code)
+	}
+	if !strings.Contains(upgradeRR.Body.String(), `"succeeded":true`) {
+		t.Fatalf("expected successful upgrade result, got %s", upgradeRR.Body.String())
 	}
 }
 

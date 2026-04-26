@@ -102,11 +102,13 @@ type GeneratorRepository interface {
 type PluginRepository interface {
 	Install(name, version string, hooks []string) pluginmgr.Manifest
 	InstallPackage(name, version, packageURL, packageHash string, hooks []string) (pluginmgr.Manifest, error)
+	InstallPackageVerified(name, version, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string) (pluginmgr.Manifest, error)
 	Get(name string) (pluginmgr.Manifest, error)
 	List() []pluginmgr.Manifest
 	Enable(name string) (pluginmgr.Manifest, error)
 	Disable(name string) (pluginmgr.Manifest, error)
 	CheckVersion(name, latestVersion string) (pluginmgr.VersionCheckResult, error)
+	UpgradePackage(name, targetVersion, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string) (pluginmgr.UpgradeResult, error)
 }
 
 type RBACRepository interface {

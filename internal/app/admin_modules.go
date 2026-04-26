@@ -117,11 +117,13 @@ type GeneratorService interface {
 type PluginService interface {
 	Install(name, version string, hooks []string) pluginmgr.Manifest
 	InstallPackage(name, version, packageURL, packageHash string, hooks []string) (pluginmgr.Manifest, error)
+	InstallPackageVerified(name, version, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string) (pluginmgr.Manifest, error)
 	Get(name string) (pluginmgr.Manifest, error)
 	List() []pluginmgr.Manifest
 	Enable(name string) (pluginmgr.Manifest, error)
 	Disable(name string) (pluginmgr.Manifest, error)
 	CheckVersion(name, latestVersion string) (pluginmgr.VersionCheckResult, error)
+	UpgradePackage(name, targetVersion, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string) (pluginmgr.UpgradeResult, error)
 }
 
 type RBACService interface {
@@ -215,6 +217,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/enable", enablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/{name}/upgrade", upgradePluginHandler(services.Plugins))
 	handle("GET /admin/v1/system/status", systemStatusHandler(services))
 	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
 	handle("GET /admin/v1/system/node-health", nodeHealthHandler(services))
@@ -301,11 +304,22 @@ type installPluginRequest struct {
 }
 
 type installPluginPackageRequest struct {
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	PackageURL  string   `json:"package_url"`
-	PackageHash string   `json:"package_hash"`
-	Hooks       []string `json:"hooks"`
+	Name         string                 `json:"name"`
+	Version      string                 `json:"version"`
+	PackageURL   string                 `json:"package_url"`
+	PackageHash  string                 `json:"package_hash"`
+	Signature    string                 `json:"signature"`
+	Dependencies []pluginmgr.Dependency `json:"dependencies"`
+	Hooks        []string               `json:"hooks"`
+}
+
+type upgradePluginRequest struct {
+	TargetVersion string                 `json:"target_version"`
+	PackageURL    string                 `json:"package_url"`
+	PackageHash   string                 `json:"package_hash"`
+	Signature     string                 `json:"signature"`
+	Dependencies  []pluginmgr.Dependency `json:"dependencies"`
+	Hooks         []string               `json:"hooks"`
 }
 
 type pluginVersionCheckRequest struct {
@@ -1535,16 +1549,50 @@ func installPluginPackageHandler(svc PluginService) http.HandlerFunc {
 		req.Version = strings.TrimSpace(req.Version)
 		req.PackageURL = strings.TrimSpace(req.PackageURL)
 		req.PackageHash = strings.TrimSpace(req.PackageHash)
+		req.Signature = strings.TrimSpace(req.Signature)
 		if req.Name == "" || req.Version == "" || req.PackageURL == "" || req.PackageHash == "" {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "name, version, package_url and package_hash are required"})
 			return
 		}
-		item, err := svc.InstallPackage(req.Name, req.Version, req.PackageURL, req.PackageHash, req.Hooks)
+		item, err := svc.InstallPackageVerified(req.Name, req.Version, req.PackageURL, req.PackageHash, req.Signature, req.Dependencies, req.Hooks)
 		if err != nil {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 		respondJSON(w, http.StatusCreated, item)
+	}
+}
+
+func upgradePluginHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req upgradePluginRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.TargetVersion = strings.TrimSpace(req.TargetVersion)
+		req.PackageURL = strings.TrimSpace(req.PackageURL)
+		req.PackageHash = strings.TrimSpace(req.PackageHash)
+		req.Signature = strings.TrimSpace(req.Signature)
+		if req.TargetVersion == "" || req.PackageURL == "" || req.PackageHash == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "target_version, package_url and package_hash are required"})
+			return
+		}
+		result, err := svc.UpgradePackage(name, req.TargetVersion, req.PackageURL, req.PackageHash, req.Signature, req.Dependencies, req.Hooks)
+		if err != nil {
+			if err == pluginmgr.ErrPluginNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusOK, result)
 	}
 }
 

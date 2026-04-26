@@ -2,6 +2,7 @@ package pluginmgr
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -10,6 +11,8 @@ import (
 
 var ErrPluginNotFound = errors.New("plugin not found")
 var ErrInvalidPluginVersion = errors.New("invalid plugin version")
+var ErrPluginSignatureInvalid = errors.New("plugin signature verification failed")
+var ErrPluginDependencyUnsatisfied = errors.New("plugin dependency precheck failed")
 
 type VersionCheckResult struct {
 	Name            string `json:"name"`
@@ -19,13 +22,29 @@ type VersionCheckResult struct {
 }
 
 type Manifest struct {
-	Name        string    `json:"name"`
-	Version     string    `json:"version"`
-	Hooks       []string  `json:"hooks"`
-	Enabled     bool      `json:"enabled"`
-	PackageURL  string    `json:"package_url,omitempty"`
-	PackageHash string    `json:"package_hash,omitempty"`
-	InstalledAt time.Time `json:"installed_at"`
+	Name         string       `json:"name"`
+	Version      string       `json:"version"`
+	Hooks        []string     `json:"hooks"`
+	Enabled      bool         `json:"enabled"`
+	PackageURL   string       `json:"package_url,omitempty"`
+	PackageHash  string       `json:"package_hash,omitempty"`
+	Signature    string       `json:"signature,omitempty"`
+	Dependencies []Dependency `json:"dependencies,omitempty"`
+	InstalledAt  time.Time    `json:"installed_at"`
+}
+
+type Dependency struct {
+	Name       string `json:"name"`
+	MinVersion string `json:"min_version"`
+}
+
+type UpgradeResult struct {
+	Name            string `json:"name"`
+	PreviousVersion string `json:"previous_version"`
+	TargetVersion   string `json:"target_version"`
+	Succeeded       bool   `json:"succeeded"`
+	RolledBack      bool   `json:"rolled_back"`
+	Reason          string `json:"reason,omitempty"`
 }
 
 type Service struct {
@@ -38,15 +57,25 @@ func NewService() *Service {
 }
 
 func (s *Service) Install(name, version string, hooks []string) Manifest {
-	item, _ := s.install(name, version, "", "", hooks)
+	item, _ := s.install(name, version, "", "", "", nil, hooks)
 	return item
 }
 
 func (s *Service) InstallPackage(name, version, packageURL, packageHash string, hooks []string) (Manifest, error) {
-	return s.install(name, version, packageURL, packageHash, hooks)
+	return s.InstallPackageVerified(name, version, packageURL, packageHash, "", nil, hooks)
 }
 
-func (s *Service) install(name, version, packageURL, packageHash string, hooks []string) (Manifest, error) {
+func (s *Service) InstallPackageVerified(name, version, packageURL, packageHash, signature string, dependencies []Dependency, hooks []string) (Manifest, error) {
+	if signature != "" && !verifySignature(packageHash, signature) {
+		return Manifest{}, ErrPluginSignatureInvalid
+	}
+	if err := s.precheckDependencies(dependencies); err != nil {
+		return Manifest{}, err
+	}
+	return s.install(name, version, packageURL, packageHash, signature, dependencies, hooks)
+}
+
+func (s *Service) install(name, version, packageURL, packageHash, signature string, dependencies []Dependency, hooks []string) (Manifest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	name = strings.TrimSpace(name)
@@ -63,16 +92,40 @@ func (s *Service) install(name, version, packageURL, packageHash string, hooks [
 		return Manifest{}, errors.New("package_url is required when package_hash is set")
 	}
 	item := Manifest{
-		Name:        name,
-		Version:     version,
-		Hooks:       append([]string(nil), hooks...),
-		Enabled:     true,
-		PackageURL:  packageURL,
-		PackageHash: packageHash,
-		InstalledAt: time.Now().UTC(),
+		Name:         name,
+		Version:      version,
+		Hooks:        append([]string(nil), hooks...),
+		Enabled:      true,
+		PackageURL:   packageURL,
+		PackageHash:  packageHash,
+		Signature:    strings.TrimSpace(signature),
+		Dependencies: cloneDependencies(dependencies),
+		InstalledAt:  time.Now().UTC(),
 	}
 	s.items[name] = item
 	return item, nil
+}
+
+func (s *Service) UpgradePackage(name, targetVersion, packageURL, packageHash, signature string, dependencies []Dependency, hooks []string) (UpgradeResult, error) {
+	current, err := s.Get(name)
+	if err != nil {
+		return UpgradeResult{}, err
+	}
+	result := UpgradeResult{Name: current.Name, PreviousVersion: current.Version, TargetVersion: strings.TrimSpace(targetVersion)}
+
+	_, err = s.InstallPackageVerified(name, targetVersion, packageURL, packageHash, signature, dependencies, hooks)
+	if err != nil {
+		s.mu.Lock()
+		s.items[name] = current
+		s.mu.Unlock()
+		result.Succeeded = false
+		result.RolledBack = true
+		result.Reason = err.Error()
+		return result, nil
+	}
+
+	result.Succeeded = true
+	return result, nil
 }
 
 func (s *Service) Get(name string) (Manifest, error) {
@@ -191,5 +244,46 @@ func parseVersionParts(version string) []int {
 		}
 		out = append(out, n)
 	}
+	return out
+}
+
+func verifySignature(packageHash, signature string) bool {
+	packageHash = strings.TrimSpace(packageHash)
+	signature = strings.TrimSpace(signature)
+	if packageHash == "" || signature == "" {
+		return false
+	}
+	return signature == "sig:"+packageHash
+}
+
+func (s *Service) precheckDependencies(dependencies []Dependency) error {
+	if len(dependencies) == 0 {
+		return nil
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, dep := range dependencies {
+		depName := strings.TrimSpace(dep.Name)
+		depMin := strings.TrimSpace(dep.MinVersion)
+		if depName == "" || depMin == "" {
+			continue
+		}
+		manifest, ok := s.items[depName]
+		if !ok {
+			return fmt.Errorf("%w: dependency %s not installed", ErrPluginDependencyUnsatisfied, depName)
+		}
+		if compareVersion(manifest.Version, depMin) < 0 {
+			return fmt.Errorf("%w: dependency %s requires >= %s", ErrPluginDependencyUnsatisfied, depName, depMin)
+		}
+	}
+	return nil
+}
+
+func cloneDependencies(in []Dependency) []Dependency {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]Dependency, len(in))
+	copy(out, in)
 	return out
 }
