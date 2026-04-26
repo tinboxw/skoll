@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), plus the M9-step2 plugin packaging and lifecycle operations baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), and full M9 (plugin lifecycle/packaging/ecosystem docs) baseline.
 
 ## Structure
 
@@ -127,6 +127,8 @@ go test -bench=. -benchmem ./...
 - Open source release note (M4): `docs/releases/M4_OPEN_SOURCE_RELEASE_NOTE.md`
 - Versioning policy: `docs/community/VERSIONING_POLICY.md`
 - Changelog process: `docs/community/CHANGELOG_PROCESS.md`
+- Extension developer guide: `docs/community/EXTENSION_DEVELOPER_GUIDE.md`
+- Extension compatibility policy: `docs/community/EXTENSION_COMPATIBILITY_POLICY.md`
 - Contribution guide: `CONTRIBUTING.md`
 - M0 baseline record: `docs/milestones/M0-project-baseline.md`
 - M1 core-domain record: `docs/milestones/M1-core-domain.md`
@@ -161,6 +163,7 @@ go test -bench=. -benchmem ./...
 - M8 module generator record: `docs/milestones/M8-module-generator.md`
 - M9 plugin manifest lifecycle record: `docs/milestones/M9-plugin-manifest-lifecycle.md`
 - M9 extension packaging and version-check record: `docs/milestones/M9-extension-packaging.md`
+- M9 ecosystem docs and compatibility strategy record: `docs/milestones/M9-ecosystem-docs.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）以及 M9-step2 插件打包与生命周期操作基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）以及 M9（插件生命周期/打包/生态文档）基线。
 
 ## 目录结构
 
@@ -127,6 +127,8 @@ go test -bench=. -benchmem ./...
 - 开源发布说明（M4）：`docs/releases/M4_OPEN_SOURCE_RELEASE_NOTE.md`
 - 版本策略：`docs/community/VERSIONING_POLICY.md`
 - 变更日志流程：`docs/community/CHANGELOG_PROCESS.md`
+- 扩展开发指南：`docs/community/EXTENSION_DEVELOPER_GUIDE.md`
+- 扩展兼容性策略：`docs/community/EXTENSION_COMPATIBILITY_POLICY.md`
 - 贡献指南：`CONTRIBUTING.md`
 - M0 基线记录：`docs/milestones/M0-project-baseline.md`
 - M1 核心域记录：`docs/milestones/M1-core-domain.md`
@@ -161,6 +163,7 @@ go test -bench=. -benchmem ./...
 - M8 模块生成器记录：`docs/milestones/M8-module-generator.md`
 - M9 插件清单生命周期记录：`docs/milestones/M9-plugin-manifest-lifecycle.md`
 - M9 扩展打包与版本检查记录：`docs/milestones/M9-extension-packaging.md`
+- M9 生态文档与兼容性策略记录：`docs/milestones/M9-ecosystem-docs.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
