@@ -1,0 +1,90 @@
+# Skoll Feature Parity Plan (HisiPHP + Gin-Vue-Admin)
+
+## Goal
+
+Build an open-source admin framework parity roadmap for Skoll by extracting common capabilities from HisiPHP and Gin-Vue-Admin, then implementing them in phased Go milestones.
+
+## Source Baseline
+
+- Gin-Vue-Admin README and docs highlight: JWT auth, Casbin RBAC, dynamic menus/routes, API permission management, user/role/menu management, dictionary/config management, upload/download, code generator, form generator, and operation features around system tools.
+- HisiPHP README highlights: built-in permission management, module management, plugin management, hook management, database management, online upgrade, and application/plugin marketplace ecosystem.
+
+## Capability Matrix
+
+| Capability | HisiPHP | Gin-Vue-Admin | Skoll Current | Skoll Plan |
+| --- | --- | --- | --- | --- |
+| Admin authentication | Yes | Yes (JWT) | Yes (static-token/HMAC pluggable) | Add JWT session and refresh flow |
+| RBAC (role-permission) | Yes | Yes (Casbin) | Scaffold only (in-memory role service) | Introduce policy engine + persistent grants |
+| Dynamic menu and route policy | Yes | Yes | Scaffold only (in-memory menu service) | Add role-menu binding and route export API |
+| User management | Yes | Yes | Scaffold only (in-memory user service) | Add CRUD + lifecycle + password policy |
+| API resource permission | Yes | Yes | No | Add API registry and permission binding |
+| Dictionary and config center | Partial | Yes | No | Add key-value config and dict APIs |
+| Audit/operation log | Yes | Yes | Scaffold only (in-memory audit service) | Add durable audit pipeline and query filters |
+| File upload/download | Yes | Yes | No | Add local/S3-compatible file service |
+| Code/form generator | Plugin/extension | Yes | No | Add template-based module generator |
+| Plugin/module marketplace model | Yes | Plugin ecosystem | No | Define module manifest and lifecycle hooks |
+| Job scheduling | Common plugin capability | Common enterprise capability | No | Add scheduler and execution audit |
+| System observability dashboard | Yes | Yes | Partial (/metrics) | Add admin system status APIs |
+| Multi-instance safety | N/A | Common deployment pattern | Partial (Redis nonce store for admin auth) | Extend shared-state strategy for sessions/jobs |
+
+## Milestone Plan
+
+### M6-foundation-admin-api-and-rbac
+
+- Deliverables:
+  - Unified admin API namespace `/admin/v1/*` with consistent DTO and error envelopes.
+  - User/role/menu/audit baseline APIs from module scaffolds.
+  - Role-menu and role-api binding model (in-memory first, then storage adapter).
+  - API registry introspection endpoint for permission assignment.
+- Acceptance:
+  - Core admin CRUD APIs reachable and covered by tests.
+  - Admin auth wrapper can protect all `/admin/*` business routes.
+
+### M7-persistence-config-and-audit
+
+- Deliverables:
+  - Storage abstraction and first persistent adapter (SQLite/MySQL selectable).
+  - Config center and dictionary APIs.
+  - Durable audit logs with paging/filter/search.
+  - Operation-level audit event enrichment.
+- Acceptance:
+  - In-memory and persistent adapters pass the same contract tests.
+  - Config/dict/audit endpoints documented and benchmarked.
+
+### M8-assets-jobs-and-generator
+
+- Deliverables:
+  - File upload/download API (local backend first, object storage adapter later).
+  - Scheduler API and execution history.
+  - Starter code generator for module CRUD skeletons.
+- Acceptance:
+  - Generated module passes `go test ./...` baseline.
+  - Job execution audit visible via admin API.
+
+### M9-plugin-and-ecosystem-readiness
+
+- Deliverables:
+  - Module/plugin manifest spec and lifecycle hook contracts.
+  - Marketplace-ready packaging baseline (install, enable, disable, version check).
+  - Public extension guide and compatibility matrix.
+- Acceptance:
+  - Reference plugin can be loaded and managed through admin API.
+  - Backward-compatibility strategy documented.
+
+## Execution Sequence (Current Turn)
+
+1. Completed: M6-step1 admin module API baseline.
+2. Completed: M6-step2 role-menu and role-api binding endpoints.
+3. Completed: M6-step3 API registry + permission assignment workflow.
+4. Completed: M7-step1 storage adapter contract and in-memory adapter baseline.
+5. Completed: M7-step2 config center and dictionary APIs with persistence-ready boundaries.
+6. Next: M7-step3 durable audit log query/filter/paging baseline.
+
+## Risks and Mitigation
+
+- Risk: feature breadth slows core stabilization.
+  - Mitigation: ship thin vertical slices with strict gate checks per milestone.
+- Risk: API shape churn between in-memory and persistent backends.
+  - Mitigation: lock transport DTO and validate with adapter contract tests.
+- Risk: auth and permission model divergence.
+  - Mitigation: keep auth (identity) and RBAC (authorization) interfaces explicitly separated.

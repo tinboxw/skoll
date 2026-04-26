@@ -54,6 +54,10 @@ func (s *Server) HandleFunc(pattern string, handler func(http.ResponseWriter, *h
 	s.mux.HandleFunc(pattern, handler)
 }
 
+func (s *Server) MountAdminModuleRoutes(services AdminModuleServices, wrapper func(http.Handler) http.Handler) {
+	MountAdminModuleRoutes(s.mux, services, wrapper)
+}
+
 func (s *Server) AddMetricsCollector(collector func() string) {
 	if collector == nil {
 		return

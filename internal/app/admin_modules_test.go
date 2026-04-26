@@ -1,0 +1,311 @@
+package app
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/tinboxw/skoll/internal/module/apiregistry"
+	"github.com/tinboxw/skoll/internal/module/audit"
+	"github.com/tinboxw/skoll/internal/module/config"
+	"github.com/tinboxw/skoll/internal/module/dictionary"
+	"github.com/tinboxw/skoll/internal/module/menu"
+	"github.com/tinboxw/skoll/internal/module/rbac"
+	"github.com/tinboxw/skoll/internal/module/role"
+	"github.com/tinboxw/skoll/internal/module/user"
+)
+
+func testAdminModuleServices() AdminModuleServices {
+	return AdminModuleServices{
+		Users:        user.NewService(),
+		Roles:        role.NewService(),
+		Menus:        menu.NewService(),
+		Audit:        audit.NewService(),
+		Configs:      config.NewService(),
+		Dictionaries: dictionary.NewService(),
+		RBAC:         rbac.NewService(),
+		APIs:         apiregistry.NewService(),
+	}
+}
+
+func TestAdminUserRoutes_CreateListGet(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users", strings.NewReader(`{"name":"alice","email":"alice@example.com"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRR, createReq)
+	if createRR.Code != http.StatusCreated {
+		t.Fatalf("expected create status 201, got %d", createRR.Code)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	listRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRR, listReq)
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected list status 200, got %d", listRR.Code)
+	}
+
+	var users []map[string]any
+	if err := json.Unmarshal(listRR.Body.Bytes(), &users); err != nil {
+		t.Fatalf("unmarshal list response failed: %v", err)
+	}
+	if len(users) != 1 {
+		t.Fatalf("expected 1 user, got %d", len(users))
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users/1", nil)
+	getRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(getRR, getReq)
+	if getRR.Code != http.StatusOK {
+		t.Fatalf("expected get status 200, got %d", getRR.Code)
+	}
+	if !strings.Contains(getRR.Body.String(), `"Email":"alice@example.com"`) {
+		t.Fatalf("expected user email in response, got %s", getRR.Body.String())
+	}
+}
+
+func TestAdminRoleAndMenuRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	roleReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles", strings.NewReader(`{"name":"ops","permissions":["user.read","menu.read"]}`))
+	roleReq.Header.Set("Content-Type", "application/json")
+	roleRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(roleRR, roleReq)
+	if roleRR.Code != http.StatusCreated {
+		t.Fatalf("expected role create status 201, got %d", roleRR.Code)
+	}
+
+	menuReq := httptest.NewRequest(http.MethodPost, "/admin/v1/menus", strings.NewReader(`{"title":"Dashboard","path":"/dashboard","order":1}`))
+	menuReq.Header.Set("Content-Type", "application/json")
+	menuRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(menuRR, menuReq)
+	if menuRR.Code != http.StatusCreated {
+		t.Fatalf("expected menu create status 201, got %d", menuRR.Code)
+	}
+
+	roleGetReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1", nil)
+	roleGetRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(roleGetRR, roleGetReq)
+	if roleGetRR.Code != http.StatusOK {
+		t.Fatalf("expected role get status 200, got %d", roleGetRR.Code)
+	}
+
+	menuListReq := httptest.NewRequest(http.MethodGet, "/admin/v1/menus", nil)
+	menuListRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(menuListRR, menuListReq)
+	if menuListRR.Code != http.StatusOK {
+		t.Fatalf("expected menu list status 200, got %d", menuListRR.Code)
+	}
+}
+
+func TestAdminAuditRoutes_RecentWithLimit(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	for i := 0; i < 3; i++ {
+		payload := []byte(`{"actor":"system","action":"create","target":"user"}`)
+		req := httptest.NewRequest(http.MethodPost, "/admin/v1/audit-logs", bytes.NewReader(payload))
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+		srv.httpServer.Handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusCreated {
+			t.Fatalf("expected audit append status 201, got %d", rr.Code)
+		}
+	}
+
+	recentReq := httptest.NewRequest(http.MethodGet, "/admin/v1/audit-logs?limit=2", nil)
+	recentRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(recentRR, recentReq)
+	if recentRR.Code != http.StatusOK {
+		t.Fatalf("expected recent status 200, got %d", recentRR.Code)
+	}
+
+	var records []map[string]any
+	if err := json.Unmarshal(recentRR.Body.Bytes(), &records); err != nil {
+		t.Fatalf("unmarshal recent response failed: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected 2 recent records, got %d", len(records))
+	}
+}
+
+func TestAdminRoutes_AuthWrapper(t *testing.T) {
+	srv := New(":0", "test-version")
+	wrapper := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("X-Admin-Token") != "secret" {
+				respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), wrapper)
+
+	unauthReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	unauthRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized status 401, got %d", unauthRR.Code)
+	}
+
+	authReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	authReq.Header.Set("X-Admin-Token", "secret")
+	authRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(authRR, authReq)
+	if authRR.Code != http.StatusOK {
+		t.Fatalf("expected authorized status 200, got %d", authRR.Code)
+	}
+}
+
+func BenchmarkAdminUsersListEndpoint(b *testing.B) {
+	srv := New(":0", "bench")
+	users := user.NewService()
+	for i := 0; i < 100; i++ {
+		users.Create("user", "user@example.com")
+	}
+	services := testAdminModuleServices()
+	services.Users = users
+	srv.MountAdminModuleRoutes(services, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rr := httptest.NewRecorder()
+		srv.httpServer.Handler.ServeHTTP(rr, req)
+	}
+}
+
+func TestRoleBindingRoutes_MenuAndAPI(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createRoleReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles", strings.NewReader(`{"name":"ops","permissions":["user.read"]}`))
+	createRoleReq.Header.Set("Content-Type", "application/json")
+	createRoleRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRoleRR, createRoleReq)
+	if createRoleRR.Code != http.StatusCreated {
+		t.Fatalf("expected role create status 201, got %d", createRoleRR.Code)
+	}
+
+	createMenuReq1 := httptest.NewRequest(http.MethodPost, "/admin/v1/menus", strings.NewReader(`{"title":"Dashboard","path":"/dashboard","order":1}`))
+	createMenuReq1.Header.Set("Content-Type", "application/json")
+	createMenuRR1 := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createMenuRR1, createMenuReq1)
+	if createMenuRR1.Code != http.StatusCreated {
+		t.Fatalf("expected menu create status 201, got %d", createMenuRR1.Code)
+	}
+
+	createMenuReq2 := httptest.NewRequest(http.MethodPost, "/admin/v1/menus", strings.NewReader(`{"title":"System","path":"/system","order":2}`))
+	createMenuReq2.Header.Set("Content-Type", "application/json")
+	createMenuRR2 := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createMenuRR2, createMenuReq2)
+	if createMenuRR2.Code != http.StatusCreated {
+		t.Fatalf("expected menu create status 201, got %d", createMenuRR2.Code)
+	}
+
+	setMenusReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/menus", strings.NewReader(`{"menu_ids":[2,1,1]}`))
+	setMenusReq.Header.Set("Content-Type", "application/json")
+	setMenusRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setMenusRR, setMenusReq)
+	if setMenusRR.Code != http.StatusOK {
+		t.Fatalf("expected set role menus status 200, got %d", setMenusRR.Code)
+	}
+
+	getMenusReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1/menus", nil)
+	getMenusRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(getMenusRR, getMenusReq)
+	if getMenusRR.Code != http.StatusOK {
+		t.Fatalf("expected get role menus status 200, got %d", getMenusRR.Code)
+	}
+	if !strings.Contains(getMenusRR.Body.String(), `"menu_ids":[1,2]`) {
+		t.Fatalf("expected sorted deduplicated menu ids, got %s", getMenusRR.Body.String())
+	}
+
+	setAPIsReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/apis", strings.NewReader(`{"apis":["POST:/admin/v1/users","GET:/admin/v1/users","GET:/admin/v1/users"]}`))
+	setAPIsReq.Header.Set("Content-Type", "application/json")
+	setAPIsRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setAPIsRR, setAPIsReq)
+	if setAPIsRR.Code != http.StatusOK {
+		t.Fatalf("expected set role apis status 200, got %d", setAPIsRR.Code)
+	}
+
+	getAPIsReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1/apis", nil)
+	getAPIsRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(getAPIsRR, getAPIsReq)
+	if getAPIsRR.Code != http.StatusOK {
+		t.Fatalf("expected get role apis status 200, got %d", getAPIsRR.Code)
+	}
+	if !strings.Contains(getAPIsRR.Body.String(), `"apis":["GET:/admin/v1/users","POST:/admin/v1/users"]`) {
+		t.Fatalf("expected sorted deduplicated api bindings, got %s", getAPIsRR.Body.String())
+	}
+
+	listRegistryReq := httptest.NewRequest(http.MethodGet, "/admin/v1/apis", nil)
+	listRegistryRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRegistryRR, listRegistryReq)
+	if listRegistryRR.Code != http.StatusOK {
+		t.Fatalf("expected list api registry status 200, got %d", listRegistryRR.Code)
+	}
+	if !strings.Contains(listRegistryRR.Body.String(), `"GET:/admin/v1/roles/{id}/apis"`) {
+		t.Fatalf("expected registered apis in response, got %s", listRegistryRR.Body.String())
+	}
+
+	invalidAPIReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/apis", strings.NewReader(`{"apis":["DELETE:/admin/v1/users"]}`))
+	invalidAPIReq.Header.Set("Content-Type", "application/json")
+	invalidAPIRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidAPIRR, invalidAPIReq)
+	if invalidAPIRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid api binding status 400, got %d", invalidAPIRR.Code)
+	}
+}
+
+func TestConfigAndDictionaryRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	configReq := httptest.NewRequest(http.MethodPost, "/admin/v1/configs", strings.NewReader(`{"key":"system.theme","value":"aurora","description":"ui theme"}`))
+	configReq.Header.Set("Content-Type", "application/json")
+	configRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(configRR, configReq)
+	if configRR.Code != http.StatusCreated {
+		t.Fatalf("expected config create status 201, got %d", configRR.Code)
+	}
+
+	configGetReq := httptest.NewRequest(http.MethodGet, "/admin/v1/configs/system.theme", nil)
+	configGetRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(configGetRR, configGetReq)
+	if configGetRR.Code != http.StatusOK {
+		t.Fatalf("expected config get status 200, got %d", configGetRR.Code)
+	}
+
+	dictReq := httptest.NewRequest(http.MethodPost, "/admin/v1/dictionaries", strings.NewReader(`{"type":"status","label":"Enabled","value":"1","sort":10}`))
+	dictReq.Header.Set("Content-Type", "application/json")
+	dictRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(dictRR, dictReq)
+	if dictRR.Code != http.StatusCreated {
+		t.Fatalf("expected dictionary create status 201, got %d", dictRR.Code)
+	}
+
+	dictListReq := httptest.NewRequest(http.MethodGet, "/admin/v1/dictionaries?type=status", nil)
+	dictListRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(dictListRR, dictListReq)
+	if dictListRR.Code != http.StatusOK {
+		t.Fatalf("expected dictionary list status 200, got %d", dictListRR.Code)
+	}
+	if !strings.Contains(dictListRR.Body.String(), `"Type":"status"`) {
+		t.Fatalf("expected filtered dictionary items, got %s", dictListRR.Body.String())
+	}
+
+	dictGetReq := httptest.NewRequest(http.MethodGet, "/admin/v1/dictionaries/1", nil)
+	dictGetRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(dictGetRR, dictGetReq)
+	if dictGetRR.Code != http.StatusOK {
+		t.Fatalf("expected dictionary get status 200, got %d", dictGetRR.Code)
+	}
+}

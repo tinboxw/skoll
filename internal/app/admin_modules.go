@@ -1,0 +1,604 @@
+package app
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/tinboxw/skoll/internal/module/apiregistry"
+	"github.com/tinboxw/skoll/internal/module/audit"
+	"github.com/tinboxw/skoll/internal/module/config"
+	"github.com/tinboxw/skoll/internal/module/dictionary"
+	"github.com/tinboxw/skoll/internal/module/menu"
+	"github.com/tinboxw/skoll/internal/module/role"
+	"github.com/tinboxw/skoll/internal/module/user"
+)
+
+type AdminModuleServices struct {
+	Users        UserService
+	Roles        RoleService
+	Menus        MenuService
+	Audit        AuditService
+	Configs      ConfigService
+	Dictionaries DictionaryService
+	RBAC         RBACService
+	APIs         APIRegistryService
+}
+
+type UserService interface {
+	Create(name, email string) user.User
+	Get(id int64) (user.User, error)
+	List() []user.User
+}
+
+type RoleService interface {
+	Create(name string, permissions []string) role.Role
+	Get(id int64) (role.Role, error)
+	List() []role.Role
+}
+
+type MenuService interface {
+	Create(title, path string, order int) menu.Item
+	Get(id int64) (menu.Item, error)
+	List() []menu.Item
+}
+
+type AuditService interface {
+	Append(actor, action, target string) audit.Record
+	Recent(limit int) []audit.Record
+}
+
+type ConfigService interface {
+	Set(key, value, description string) config.Entry
+	Get(key string) (config.Entry, error)
+	List() []config.Entry
+}
+
+type DictionaryService interface {
+	Create(itemType, label, value string, sortOrder int, enabled bool) dictionary.Item
+	Get(id int64) (dictionary.Item, error)
+	List() []dictionary.Item
+	ListByType(itemType string) []dictionary.Item
+}
+
+type RBACService interface {
+	SetRoleMenus(roleID int64, menuIDs []int64) []int64
+	GetRoleMenus(roleID int64) []int64
+	SetRoleAPIs(roleID int64, apis []string) []string
+	GetRoleAPIs(roleID int64) []string
+}
+
+type APIRegistryService interface {
+	RegisterMany(entries []string)
+	Exists(entry string) bool
+	List() []string
+}
+
+func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wrapper func(http.Handler) http.Handler) {
+	if mux == nil {
+		return
+	}
+	if services.Users == nil || services.Roles == nil || services.Menus == nil || services.Audit == nil || services.Configs == nil || services.Dictionaries == nil || services.RBAC == nil || services.APIs == nil {
+		return
+	}
+
+	handle := func(pattern string, next http.HandlerFunc) {
+		services.APIs.RegisterMany([]string{pattern})
+		h := http.Handler(next)
+		if wrapper != nil {
+			h = wrapper(h)
+		}
+		mux.Handle(pattern, h)
+	}
+
+	handle("POST /admin/v1/users", createUserHandler(services.Users))
+	handle("GET /admin/v1/users", listUsersHandler(services.Users))
+	handle("GET /admin/v1/users/{id}", getUserHandler(services.Users))
+
+	handle("POST /admin/v1/roles", createRoleHandler(services.Roles))
+	handle("GET /admin/v1/roles", listRolesHandler(services.Roles))
+	handle("GET /admin/v1/roles/{id}", getRoleHandler(services.Roles))
+	handle("PUT /admin/v1/roles/{id}/menus", setRoleMenusHandler(services.Roles, services.Menus, services.RBAC))
+	handle("GET /admin/v1/roles/{id}/menus", getRoleMenusHandler(services.Roles, services.RBAC))
+	handle("PUT /admin/v1/roles/{id}/apis", setRoleAPIsHandler(services.Roles, services.RBAC, services.APIs))
+	handle("GET /admin/v1/roles/{id}/apis", getRoleAPIsHandler(services.Roles, services.RBAC))
+
+	handle("POST /admin/v1/menus", createMenuHandler(services.Menus))
+	handle("GET /admin/v1/menus", listMenusHandler(services.Menus))
+	handle("GET /admin/v1/menus/{id}", getMenuHandler(services.Menus))
+
+	handle("POST /admin/v1/audit-logs", appendAuditLogHandler(services.Audit))
+	handle("GET /admin/v1/audit-logs", recentAuditLogsHandler(services.Audit))
+	handle("POST /admin/v1/configs", upsertConfigHandler(services.Configs))
+	handle("GET /admin/v1/configs", listConfigsHandler(services.Configs))
+	handle("GET /admin/v1/configs/{key}", getConfigHandler(services.Configs))
+	handle("POST /admin/v1/dictionaries", createDictionaryHandler(services.Dictionaries))
+	handle("GET /admin/v1/dictionaries", listDictionariesHandler(services.Dictionaries))
+	handle("GET /admin/v1/dictionaries/{id}", getDictionaryHandler(services.Dictionaries))
+	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
+}
+
+type createUserRequest struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type createRoleRequest struct {
+	Name        string   `json:"name"`
+	Permissions []string `json:"permissions"`
+}
+
+type createMenuRequest struct {
+	Title string `json:"title"`
+	Path  string `json:"path"`
+	Order int    `json:"order"`
+}
+
+type appendAuditLogRequest struct {
+	Actor  string `json:"actor"`
+	Action string `json:"action"`
+	Target string `json:"target"`
+}
+
+type upsertConfigRequest struct {
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	Description string `json:"description"`
+}
+
+type createDictionaryRequest struct {
+	Type    string `json:"type"`
+	Label   string `json:"label"`
+	Value   string `json:"value"`
+	Sort    int    `json:"sort"`
+	Enabled *bool  `json:"enabled"`
+}
+
+type setRoleMenusRequest struct {
+	MenuIDs []int64 `json:"menu_ids"`
+}
+
+type roleMenusResponse struct {
+	RoleID  int64   `json:"role_id"`
+	MenuIDs []int64 `json:"menu_ids"`
+}
+
+type setRoleAPIsRequest struct {
+	APIs []string `json:"apis"`
+}
+
+type roleAPIsResponse struct {
+	RoleID int64    `json:"role_id"`
+	APIs   []string `json:"apis"`
+}
+
+type listAPIsResponse struct {
+	Items []string `json:"items"`
+}
+
+func createUserHandler(svc UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createUserRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		req.Email = strings.TrimSpace(req.Email)
+		if req.Name == "" || req.Email == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "name and email are required"})
+			return
+		}
+
+		respondJSON(w, http.StatusCreated, svc.Create(req.Name, req.Email))
+	}
+}
+
+func listUsersHandler(svc UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func getUserHandler(svc UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		out, err := svc.Get(id)
+		if err != nil {
+			if err == user.ErrUserNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, out)
+	}
+}
+
+func createRoleHandler(svc RoleService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createRoleRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Name = strings.TrimSpace(req.Name)
+		if req.Name == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+			return
+		}
+
+		respondJSON(w, http.StatusCreated, svc.Create(req.Name, req.Permissions))
+	}
+}
+
+func listRolesHandler(svc RoleService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func getRoleHandler(svc RoleService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		out, err := svc.Get(id)
+		if err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, out)
+	}
+}
+
+func setRoleMenusHandler(roleSvc RoleService, menuSvc MenuService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req setRoleMenusRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		for _, menuID := range req.MenuIDs {
+			if menuID <= 0 {
+				continue
+			}
+			if _, err := menuSvc.Get(menuID); err != nil {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("menu id %d not found", menuID)})
+				return
+			}
+		}
+
+		respondJSON(w, http.StatusOK, roleMenusResponse{RoleID: roleID, MenuIDs: rbacSvc.SetRoleMenus(roleID, req.MenuIDs)})
+	}
+}
+
+func getRoleMenusHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, roleMenusResponse{RoleID: roleID, MenuIDs: rbacSvc.GetRoleMenus(roleID)})
+	}
+}
+
+func setRoleAPIsHandler(roleSvc RoleService, rbacSvc RBACService, apiSvc APIRegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req setRoleAPIsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		normalized := make([]string, 0, len(req.APIs))
+		for _, item := range req.APIs {
+			n := apiregistry.Normalize(item)
+			if n == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid api format: %q", item)})
+				return
+			}
+			if !apiSvc.Exists(n) {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("api not registered: %s", n)})
+				return
+			}
+			normalized = append(normalized, n)
+		}
+
+		respondJSON(w, http.StatusOK, roleAPIsResponse{RoleID: roleID, APIs: rbacSvc.SetRoleAPIs(roleID, normalized)})
+	}
+}
+
+func getRoleAPIsHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, roleAPIsResponse{RoleID: roleID, APIs: rbacSvc.GetRoleAPIs(roleID)})
+	}
+}
+
+func createMenuHandler(svc MenuService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createMenuRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Title = strings.TrimSpace(req.Title)
+		req.Path = strings.TrimSpace(req.Path)
+		if req.Title == "" || req.Path == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "title and path are required"})
+			return
+		}
+
+		respondJSON(w, http.StatusCreated, svc.Create(req.Title, req.Path, req.Order))
+	}
+}
+
+func listMenusHandler(svc MenuService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func getMenuHandler(svc MenuService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		out, err := svc.Get(id)
+		if err != nil {
+			if err == menu.ErrMenuNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, out)
+	}
+}
+
+func appendAuditLogHandler(svc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req appendAuditLogRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Actor = strings.TrimSpace(req.Actor)
+		req.Action = strings.TrimSpace(req.Action)
+		req.Target = strings.TrimSpace(req.Target)
+		if req.Actor == "" || req.Action == "" || req.Target == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "actor, action and target are required"})
+			return
+		}
+
+		respondJSON(w, http.StatusCreated, svc.Append(req.Actor, req.Action, req.Target))
+	}
+}
+
+func recentAuditLogsHandler(svc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 20
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+				return
+			}
+			if parsed > 500 {
+				parsed = 500
+			}
+			limit = parsed
+		}
+
+		respondJSON(w, http.StatusOK, svc.Recent(limit))
+	}
+}
+
+func upsertConfigHandler(svc ConfigService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req upsertConfigRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Key = strings.TrimSpace(req.Key)
+		req.Value = strings.TrimSpace(req.Value)
+		req.Description = strings.TrimSpace(req.Description)
+		if req.Key == "" || req.Value == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "key and value are required"})
+			return
+		}
+
+		respondJSON(w, http.StatusCreated, svc.Set(req.Key, req.Value, req.Description))
+	}
+}
+
+func listConfigsHandler(svc ConfigService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func getConfigHandler(svc ConfigService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		key, err := parsePathString(r, "key")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		item, err := svc.Get(key)
+		if err != nil {
+			if err == config.ErrConfigNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func createDictionaryHandler(svc DictionaryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createDictionaryRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.Type = strings.TrimSpace(req.Type)
+		req.Label = strings.TrimSpace(req.Label)
+		req.Value = strings.TrimSpace(req.Value)
+		if req.Type == "" || req.Label == "" || req.Value == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "type, label and value are required"})
+			return
+		}
+
+		enabled := true
+		if req.Enabled != nil {
+			enabled = *req.Enabled
+		}
+
+		respondJSON(w, http.StatusCreated, svc.Create(req.Type, req.Label, req.Value, req.Sort, enabled))
+	}
+}
+
+func listDictionariesHandler(svc DictionaryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		itemType := strings.TrimSpace(r.URL.Query().Get("type"))
+		if itemType == "" {
+			respondJSON(w, http.StatusOK, svc.List())
+			return
+		}
+		respondJSON(w, http.StatusOK, svc.ListByType(itemType))
+	}
+}
+
+func getDictionaryHandler(svc DictionaryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		item, err := svc.Get(id)
+		if err != nil {
+			if err == dictionary.ErrItemNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func listRegisteredAPIsHandler(svc APIRegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, listAPIsResponse{Items: svc.List()})
+	}
+}
+
+func parsePathInt64(r *http.Request, key string) (int64, error) {
+	raw := strings.TrimSpace(r.PathValue(key))
+	if raw == "" {
+		return 0, fmt.Errorf("%s is required", key)
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return id, nil
+}
+
+func parsePathString(r *http.Request, key string) (string, error) {
+	raw := strings.TrimSpace(r.PathValue(key))
+	if raw == "" {
+		return "", fmt.Errorf("%s is required", key)
+	}
+	return raw, nil
+}
