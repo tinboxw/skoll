@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）以及 M12-step4（仪表盘 JWT 中间件桥接字段）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）以及 M12-step5（仪表盘 JWT 中间件桥接合同文档）基线。
 
 ## 目录结构
 
@@ -136,6 +136,7 @@ go test -bench=. -benchmem ./...
 - 扩展兼容性策略：`docs/community/EXTENSION_COMPATIBILITY_POLICY.md`
 - 仪表盘 UI 启动契约：`docs/community/DASHBOARD_UI_BOOTSTRAP_CONTRACT.md`
 - 仪表盘鉴权会话策略：`docs/community/DASHBOARD_AUTH_SESSION_POLICY.md`
+- 仪表盘 JWT 中间件桥接合同：`docs/community/DASHBOARD_JWT_MIDDLEWARE_BRIDGE_CONTRACT.md`
 - 贡献指南：`CONTRIBUTING.md`
 - M0 基线记录：`docs/milestones/M0-project-baseline.md`
 - M1 核心域记录：`docs/milestones/M1-core-domain.md`
@@ -184,6 +185,7 @@ go test -bench=. -benchmem ./...
 - M12 仪表盘 JWT 刷新/过期提示记录：`docs/milestones/M12-dashboard-jwt-session-refresh-hints.md`
 - M12 仪表盘 JWT 校验态提示记录：`docs/milestones/M12-dashboard-jwt-session-verification-state.md`
 - M12 仪表盘 JWT 中间件桥接字段记录：`docs/milestones/M12-dashboard-jwt-session-middleware-bridge.md`
+- M12 仪表盘 JWT 中间件桥接合同文档记录：`docs/milestones/M12-dashboard-jwt-session-bridge-contract-docs.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

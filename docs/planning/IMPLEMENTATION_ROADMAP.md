@@ -99,4 +99,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 47. [x] M12-dashboard-jwt-session-refresh-hints: Add JWT refresh and expiry hint fields for dashboard UX.
 48. [x] M12-dashboard-jwt-session-verification-state: Add JWT verification-state hints for dashboard trust messaging.
 49. [x] M12-dashboard-jwt-session-middleware-bridge: Expose verified-claims bridge fields for middleware integration.
-50. [ ] M12-dashboard-jwt-session-bridge-contract-docs: Publish middleware bridge rollout and compatibility docs.
+50. [x] M12-dashboard-jwt-session-bridge-contract-docs: Publish middleware bridge rollout and compatibility docs.
+51. [ ] M13-dashboard-jwt-session-verified-claims-adapter: Align verified claims adapter interfaces for dashboard and RBAC bridge.
