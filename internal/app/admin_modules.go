@@ -26,6 +26,8 @@ import (
 
 var adminModuleStartTime = time.Now().UTC()
 
+const dashboardUIBootstrapContractVersion = "v1"
+
 type AdminModuleServices struct {
 	Users        UserService
 	Roles        RoleService
@@ -309,10 +311,18 @@ type nodeHealthResponse struct {
 }
 
 type dashboardAggregateResponse struct {
-	GeneratedAtUnixSec int64                  `json:"generated_at_unix_sec"`
-	Status             systemStatusResponse   `json:"status"`
-	RuntimeMetrics     runtimeMetricsResponse `json:"runtime_metrics"`
-	NodeHealth         nodeHealthResponse     `json:"node_health"`
+	Contract           dashboardContractDescriptor `json:"contract"`
+	GeneratedAtUnixSec int64                       `json:"generated_at_unix_sec"`
+	Status             systemStatusResponse        `json:"status"`
+	RuntimeMetrics     runtimeMetricsResponse      `json:"runtime_metrics"`
+	NodeHealth         nodeHealthResponse          `json:"node_health"`
+}
+
+type dashboardContractDescriptor struct {
+	Name             string   `json:"name"`
+	Version          string   `json:"version"`
+	Stability        string   `json:"stability"`
+	RequiredSections []string `json:"required_sections"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1032,11 +1042,25 @@ func nodeHealthHandler(services AdminModuleServices) http.HandlerFunc {
 func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, dashboardAggregateResponse{
+			Contract:           collectDashboardContractDescriptor(),
 			GeneratedAtUnixSec: time.Now().UTC().Unix(),
 			Status:             collectSystemStatus(services),
 			RuntimeMetrics:     collectRuntimeMetrics(),
 			NodeHealth:         collectNodeHealth(services),
 		})
+	}
+}
+
+func collectDashboardContractDescriptor() dashboardContractDescriptor {
+	return dashboardContractDescriptor{
+		Name:      "dashboard-ui-bootstrap",
+		Version:   dashboardUIBootstrapContractVersion,
+		Stability: "stable",
+		RequiredSections: []string{
+			"status",
+			"runtime_metrics",
+			"node_health",
+		},
 	}
 }
 

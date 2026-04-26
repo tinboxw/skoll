@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), and M10-step4 (observability dashboard aggregation API) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), and M10-step5 (dashboard aggregation and UI bootstrap contract) baseline.
 
 ## Structure
 
@@ -133,6 +133,7 @@ go test -bench=. -benchmem ./...
 - Changelog process: `docs/community/CHANGELOG_PROCESS.md`
 - Extension developer guide: `docs/community/EXTENSION_DEVELOPER_GUIDE.md`
 - Extension compatibility policy: `docs/community/EXTENSION_COMPATIBILITY_POLICY.md`
+- Dashboard UI bootstrap contract: `docs/community/DASHBOARD_UI_BOOTSTRAP_CONTRACT.md`
 - Contribution guide: `CONTRIBUTING.md`
 - M0 baseline record: `docs/milestones/M0-project-baseline.md`
 - M1 core-domain record: `docs/milestones/M1-core-domain.md`
@@ -172,6 +173,7 @@ go test -bench=. -benchmem ./...
 - M10 runtime metrics snapshot API record: `docs/milestones/M10-dashboard-runtime-metrics.md`
 - M10 node and dependency health summary API record: `docs/milestones/M10-dashboard-node-health.md`
 - M10 dashboard aggregation API record: `docs/milestones/M10-dashboard-aggregation.md`
+- M10 dashboard UI bootstrap contract record: `docs/milestones/M10-dashboard-ui-bootstrap-contract.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

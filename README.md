@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）以及 M10-step4（观测仪表盘聚合 API）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）以及 M10-step5（仪表盘聚合与 UI 启动契约）基线。
 
 ## 目录结构
 
@@ -133,6 +133,7 @@ go test -bench=. -benchmem ./...
 - 变更日志流程：`docs/community/CHANGELOG_PROCESS.md`
 - 扩展开发指南：`docs/community/EXTENSION_DEVELOPER_GUIDE.md`
 - 扩展兼容性策略：`docs/community/EXTENSION_COMPATIBILITY_POLICY.md`
+- 仪表盘 UI 启动契约：`docs/community/DASHBOARD_UI_BOOTSTRAP_CONTRACT.md`
 - 贡献指南：`CONTRIBUTING.md`
 - M0 基线记录：`docs/milestones/M0-project-baseline.md`
 - M1 核心域记录：`docs/milestones/M1-core-domain.md`
@@ -172,6 +173,7 @@ go test -bench=. -benchmem ./...
 - M10 运行时指标快照 API 记录：`docs/milestones/M10-dashboard-runtime-metrics.md`
 - M10 节点与依赖健康摘要 API 记录：`docs/milestones/M10-dashboard-node-health.md`
 - M10 仪表盘聚合 API 记录：`docs/milestones/M10-dashboard-aggregation.md`
+- M10 仪表盘 UI 启动契约记录：`docs/milestones/M10-dashboard-ui-bootstrap-contract.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

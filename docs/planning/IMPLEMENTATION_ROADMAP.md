@@ -90,4 +90,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 38. [x] M10-dashboard-runtime-metrics: Add admin dashboard runtime metric snapshot endpoint.
 39. [x] M10-dashboard-node-health: Add admin node/dependency health summary endpoint.
 40. [x] M10-dashboard-aggregation: Add combined dashboard aggregate endpoint for UI bootstrap.
-41. [ ] M10-dashboard-ui-bootstrap-contract: Define stable dashboard payload contract for frontend integration.
+41. [x] M10-dashboard-ui-bootstrap-contract: Define stable dashboard payload contract for frontend integration.
+42. [ ] M11-dashboard-auth-session-alignment: Align dashboard bootstrap with auth/session capability plan.

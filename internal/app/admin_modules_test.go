@@ -633,6 +633,20 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	if got, ok := payload["generated_at_unix_sec"].(float64); !ok || got <= 0 {
 		t.Fatalf("expected generated_at_unix_sec > 0, got %v", payload["generated_at_unix_sec"])
 	}
+	contract, ok := payload["contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected contract object, got %v", payload["contract"])
+	}
+	if got, ok := contract["name"].(string); !ok || got != "dashboard-ui-bootstrap" {
+		t.Fatalf("expected contract.name=dashboard-ui-bootstrap, got %v", contract["name"])
+	}
+	if got, ok := contract["version"].(string); !ok || got != "v1" {
+		t.Fatalf("expected contract.version=v1, got %v", contract["version"])
+	}
+	sections, ok := contract["required_sections"].([]any)
+	if !ok || len(sections) < 3 {
+		t.Fatalf("expected contract.required_sections with 3 entries, got %v", contract["required_sections"])
+	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected status object, got %v", payload["status"])
