@@ -112,4 +112,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 60. [x] M17-dashboard-jwt-session-provenance-baseline-recalibration: Add periodic baseline recalibration workflow and review cadence.
 61. [x] M17-dashboard-jwt-session-provenance-recalibration-evidence-template: Add reusable recalibration evidence template and approval checklist.
 62. [x] M18-dashboard-jwt-session-provenance-threshold-change-log: Add threshold-change log format and monthly review archive workflow.
-63. [ ] M18-dashboard-jwt-session-provenance-archive-sample: Add first monthly archive sample and review checklist execution example.
+63. [x] M18-dashboard-jwt-session-provenance-archive-sample: Add first monthly archive sample and review checklist execution example.
+64. [ ] M19-dashboard-jwt-session-provenance-review-automation: Add monthly review automation checklist and ownership rotation guidance.

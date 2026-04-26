@@ -97,3 +97,13 @@ post_check_due: 2026-05-04
 - Do not overwrite historical log records.
 - Corrections must be appended as new records referencing original `log_id`.
 - Monthly archive must be committed to version control.
+
+## First Sample Archive
+
+- `docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md`
+
+## Checklist Execution Example
+
+Reference implementation:
+
+- `docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md` (`Review Checklist Execution Example` section)

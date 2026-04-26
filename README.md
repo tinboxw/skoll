@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）以及 M18-step1（JWT 溯源阈值变更日志与月度归档流程）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）以及 M18-step2（JWT 溯源月度归档样例与审查清单执行示例）基线。
 
 ## 目录结构
 
@@ -145,6 +145,7 @@ go test -bench=. -benchmem ./...
 - 仪表盘 JWT 溯源基线重校准流程：`docs/community/DASHBOARD_JWT_PROVENANCE_BASELINE_RECALIBRATION.md`
 - 仪表盘 JWT 溯源重校准证据模板：`docs/community/DASHBOARD_JWT_PROVENANCE_RECALIBRATION_EVIDENCE_TEMPLATE.md`
 - 仪表盘 JWT 溯源阈值变更日志：`docs/community/DASHBOARD_JWT_PROVENANCE_THRESHOLD_CHANGE_LOG.md`
+- 仪表盘 JWT 溯源月度归档样例：`docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md`
 - 贡献指南：`CONTRIBUTING.md`
 - M0 基线记录：`docs/milestones/M0-project-baseline.md`
 - M1 核心域记录：`docs/milestones/M1-core-domain.md`
@@ -206,6 +207,7 @@ go test -bench=. -benchmem ./...
 - M17 仪表盘 JWT 溯源基线重校准工作流与评审节奏记录：`docs/milestones/M17-dashboard-jwt-session-provenance-baseline-recalibration.md`
 - M17 仪表盘 JWT 溯源重校准证据模板与审批清单记录：`docs/milestones/M17-dashboard-jwt-session-provenance-recalibration-evidence-template.md`
 - M18 仪表盘 JWT 溯源阈值变更日志与月度归档流程记录：`docs/milestones/M18-dashboard-jwt-session-provenance-threshold-change-log.md`
+- M18 仪表盘 JWT 溯源月度归档样例与审查清单执行示例记录：`docs/milestones/M18-dashboard-jwt-session-provenance-archive-sample.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
