@@ -9,6 +9,7 @@ This document complements:
 - `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_POLICY.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_SLO_ALERT_RULES.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_OPS_RUNBOOK.md`
+- `docs/community/DASHBOARD_JWT_PROVENANCE_RECALIBRATION_EVIDENCE_TEMPLATE.md`
 
 ## Recalibration Scope
 
