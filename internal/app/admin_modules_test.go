@@ -686,6 +686,13 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	if got, ok := jwtBootstrap["verification_state"].(string); !ok || got != "not_present" {
 		t.Fatalf("expected jwt_session_bootstrap.verification_state=not_present, got %v", jwtBootstrap["verification_state"])
 	}
+	bridge, ok := jwtBootstrap["middleware_bridge"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected jwt_session_bootstrap.middleware_bridge object, got %v", jwtBootstrap["middleware_bridge"])
+	}
+	if got, ok := bridge["source"].(string); !ok || got != "none" {
+		t.Fatalf("expected middleware_bridge.source=none, got %v", bridge["source"])
+	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected status object, got %v", payload["status"])
@@ -808,8 +815,59 @@ func TestDashboardAggregateRoute_JWTSessionBootstrapFromBearerToken(t *testing.T
 	if got, ok := jwtBootstrap["trust_level"].(string); !ok || got != "low" {
 		t.Fatalf("expected jwt_session_bootstrap.trust_level=low, got %v", jwtBootstrap["trust_level"])
 	}
+	bridge, ok := jwtBootstrap["middleware_bridge"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected jwt_session_bootstrap.middleware_bridge object, got %v", jwtBootstrap["middleware_bridge"])
+	}
+	if got, ok := bridge["source"].(string); !ok || got != "none" {
+		t.Fatalf("expected middleware_bridge.source=none, got %v", bridge["source"])
+	}
 	if got, ok := jwtBootstrap["refresh_recommended"].(bool); !ok || got {
 		t.Fatalf("expected jwt_session_bootstrap.refresh_recommended=false, got %v", jwtBootstrap["refresh_recommended"])
+	}
+}
+
+func TestDashboardAggregateRoute_JWTMiddlewareBridgePromotesVerifiedTrust(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/system/dashboard", nil)
+	req.Header.Set(HeaderAdminJWTVerified, "true")
+	req.Header.Set(HeaderAdminJWTSubject, "bridge-user")
+	req.Header.Set(HeaderAdminRoleID, "9")
+	req.Header.Set(HeaderAdminJWTClaimsVersion, "v1")
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected dashboard aggregate status 200, got %d", rr.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal dashboard aggregate response failed: %v", err)
+	}
+	jwtBootstrap, ok := payload["jwt_session_bootstrap"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected jwt_session_bootstrap object, got %v", payload["jwt_session_bootstrap"])
+	}
+	if got, ok := jwtBootstrap["claims_trusted"].(bool); !ok || !got {
+		t.Fatalf("expected claims_trusted=true, got %v", jwtBootstrap["claims_trusted"])
+	}
+	if got, ok := jwtBootstrap["verification_state"].(string); !ok || got != "verified" {
+		t.Fatalf("expected verification_state=verified, got %v", jwtBootstrap["verification_state"])
+	}
+	if got, ok := jwtBootstrap["trust_level"].(string); !ok || got != "trusted" {
+		t.Fatalf("expected trust_level=trusted, got %v", jwtBootstrap["trust_level"])
+	}
+	bridge, ok := jwtBootstrap["middleware_bridge"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected middleware_bridge object, got %v", jwtBootstrap["middleware_bridge"])
+	}
+	if got, ok := bridge["source"].(string); !ok || got != "header" {
+		t.Fatalf("expected middleware_bridge.source=header, got %v", bridge["source"])
+	}
+	if got, ok := bridge["subject"].(string); !ok || got != "bridge-user" {
+		t.Fatalf("expected middleware_bridge.subject=bridge-user, got %v", bridge["subject"])
 	}
 }
 

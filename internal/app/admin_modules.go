@@ -34,6 +34,12 @@ const dashboardUIBootstrapContractVersion = "v1"
 
 const dashboardJWTRefreshLeadWindow = 5 * time.Minute
 
+const (
+	HeaderAdminJWTVerified      = "X-Admin-JWT-Verified"
+	HeaderAdminJWTSubject       = "X-Admin-JWT-Subject"
+	HeaderAdminJWTClaimsVersion = "X-Admin-JWT-Claims-Version"
+)
+
 type AdminModuleServices struct {
 	Users        UserService
 	Roles        RoleService
@@ -366,25 +372,35 @@ type dashboardAuthActionability struct {
 }
 
 type dashboardJWTSessionBootstrap struct {
-	TokenPresent        bool     `json:"token_present"`
-	TokenFormat         string   `json:"token_format"`
-	ClaimsTrusted       bool     `json:"claims_trusted"`
-	SessionState        string   `json:"session_state"`
-	VerificationState   string   `json:"verification_state"`
-	VerificationHint    string   `json:"verification_hint,omitempty"`
-	TrustLevel          string   `json:"trust_level"`
-	TrustMessage        string   `json:"trust_message"`
-	Subject             string   `json:"subject,omitempty"`
-	Issuer              string   `json:"issuer,omitempty"`
-	Audience            []string `json:"audience,omitempty"`
-	IssuedAtUnixSec     int64    `json:"issued_at_unix_sec,omitempty"`
-	ExpiresAtUnixSec    int64    `json:"expires_at_unix_sec,omitempty"`
-	ExpiresInSec        int64    `json:"expires_in_sec,omitempty"`
-	RefreshAfterUnixSec int64    `json:"refresh_after_unix_sec,omitempty"`
-	RefreshRecommended  bool     `json:"refresh_recommended"`
-	RefreshReason       string   `json:"refresh_reason,omitempty"`
-	Expired             bool     `json:"expired"`
-	ParseError          string   `json:"parse_error,omitempty"`
+	TokenPresent        bool                         `json:"token_present"`
+	TokenFormat         string                       `json:"token_format"`
+	ClaimsTrusted       bool                         `json:"claims_trusted"`
+	MiddlewareBridge    dashboardJWTMiddlewareBridge `json:"middleware_bridge"`
+	SessionState        string                       `json:"session_state"`
+	VerificationState   string                       `json:"verification_state"`
+	VerificationHint    string                       `json:"verification_hint,omitempty"`
+	TrustLevel          string                       `json:"trust_level"`
+	TrustMessage        string                       `json:"trust_message"`
+	Subject             string                       `json:"subject,omitempty"`
+	Issuer              string                       `json:"issuer,omitempty"`
+	Audience            []string                     `json:"audience,omitempty"`
+	IssuedAtUnixSec     int64                        `json:"issued_at_unix_sec,omitempty"`
+	ExpiresAtUnixSec    int64                        `json:"expires_at_unix_sec,omitempty"`
+	ExpiresInSec        int64                        `json:"expires_in_sec,omitempty"`
+	RefreshAfterUnixSec int64                        `json:"refresh_after_unix_sec,omitempty"`
+	RefreshRecommended  bool                         `json:"refresh_recommended"`
+	RefreshReason       string                       `json:"refresh_reason,omitempty"`
+	Expired             bool                         `json:"expired"`
+	ParseError          string                       `json:"parse_error,omitempty"`
+}
+
+type dashboardJWTMiddlewareBridge struct {
+	Present       bool   `json:"present"`
+	Verified      bool   `json:"verified"`
+	Source        string `json:"source"`
+	Subject       string `json:"subject,omitempty"`
+	RoleID        string `json:"role_id,omitempty"`
+	ClaimsVersion string `json:"claims_version,omitempty"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1138,13 +1154,17 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 }
 
 func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboardJWTSessionBootstrap {
+	middlewareBridge := collectDashboardJWTMiddlewareBridge(r)
+	claimsTrusted := middlewareBridge.Verified
+
 	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
 	if authorization == "" {
-		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("none", "none", false, "")
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("none", "none", claimsTrusted, "")
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       false,
 			TokenFormat:        "none",
-			ClaimsTrusted:      false,
+			ClaimsTrusted:      claimsTrusted,
+			MiddlewareBridge:   middlewareBridge,
 			SessionState:       "none",
 			VerificationState:  verificationState,
 			VerificationHint:   verificationHint,
@@ -1157,11 +1177,12 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 
 	parts := strings.Fields(authorization)
 	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("unsupported", "invalid", false, "authorization header must use bearer scheme")
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("unsupported", "invalid", claimsTrusted, "authorization header must use bearer scheme")
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "unsupported",
-			ClaimsTrusted:      false,
+			ClaimsTrusted:      claimsTrusted,
+			MiddlewareBridge:   middlewareBridge,
 			SessionState:       "invalid",
 			VerificationState:  verificationState,
 			VerificationHint:   verificationHint,
@@ -1175,11 +1196,12 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 
 	token := strings.TrimSpace(parts[1])
 	if token == "" {
-		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("unsupported", "invalid", false, "bearer token is empty")
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("unsupported", "invalid", claimsTrusted, "bearer token is empty")
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "unsupported",
-			ClaimsTrusted:      false,
+			ClaimsTrusted:      claimsTrusted,
+			MiddlewareBridge:   middlewareBridge,
 			SessionState:       "invalid",
 			VerificationState:  verificationState,
 			VerificationHint:   verificationHint,
@@ -1192,11 +1214,12 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 	}
 
 	if strings.Count(token, ".") != 2 {
-		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-non-jwt", "invalid", false, "token does not match jwt compact format")
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-non-jwt", "invalid", claimsTrusted, "token does not match jwt compact format")
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "bearer-non-jwt",
-			ClaimsTrusted:      false,
+			ClaimsTrusted:      claimsTrusted,
+			MiddlewareBridge:   middlewareBridge,
 			SessionState:       "invalid",
 			VerificationState:  verificationState,
 			VerificationHint:   verificationHint,
@@ -1210,11 +1233,12 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 
 	claims, err := decodeJWTClaims(token)
 	if err != nil {
-		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-jwt", "invalid", false, err.Error())
+		verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-jwt", "invalid", claimsTrusted, err.Error())
 		return dashboardJWTSessionBootstrap{
 			TokenPresent:       true,
 			TokenFormat:        "bearer-jwt",
-			ClaimsTrusted:      false,
+			ClaimsTrusted:      claimsTrusted,
+			MiddlewareBridge:   middlewareBridge,
 			SessionState:       "invalid",
 			VerificationState:  verificationState,
 			VerificationHint:   verificationHint,
@@ -1253,12 +1277,13 @@ func collectDashboardJWTSessionBootstrap(r *http.Request, now time.Time) dashboa
 		}
 	}
 
-	verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-jwt", sessionState, false, "")
+	verificationState, verificationHint, trustLevel, trustMessage := deriveJWTVerificationHints("bearer-jwt", sessionState, claimsTrusted, "")
 
 	return dashboardJWTSessionBootstrap{
 		TokenPresent:        true,
 		TokenFormat:         "bearer-jwt",
-		ClaimsTrusted:       false,
+		ClaimsTrusted:       claimsTrusted,
+		MiddlewareBridge:    middlewareBridge,
 		SessionState:        sessionState,
 		VerificationState:   verificationState,
 		VerificationHint:    verificationHint,
@@ -1291,6 +1316,29 @@ func deriveJWTVerificationHints(tokenFormat, sessionState string, claimsTrusted 
 	}
 
 	return "unverified", "JWT payload is parsed without signature validation in bootstrap mode.", "low", "Display identity hints only; defer privileged actions until backend-verified session checks succeed."
+}
+
+func collectDashboardJWTMiddlewareBridge(r *http.Request) dashboardJWTMiddlewareBridge {
+	verifiedRaw := strings.TrimSpace(r.Header.Get(HeaderAdminJWTVerified))
+	verified := strings.EqualFold(verifiedRaw, "true") || verifiedRaw == "1"
+	subject := strings.TrimSpace(r.Header.Get(HeaderAdminJWTSubject))
+	roleID := strings.TrimSpace(r.Header.Get(HeaderAdminRoleID))
+	claimsVersion := strings.TrimSpace(r.Header.Get(HeaderAdminJWTClaimsVersion))
+
+	present := verifiedRaw != "" || subject != "" || roleID != "" || claimsVersion != ""
+	source := "none"
+	if present {
+		source = "header"
+	}
+
+	return dashboardJWTMiddlewareBridge{
+		Present:       present,
+		Verified:      verified,
+		Source:        source,
+		Subject:       subject,
+		RoleID:        roleID,
+		ClaimsVersion: claimsVersion,
+	}
 }
 
 func decodeJWTClaims(token string) (map[string]any, error) {
