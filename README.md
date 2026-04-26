@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）以及 M13-step2（JWT 声明归一化策略）基线。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）以及 M13-step3（JWT 声明来源溯源字段）基线。
 
 ## 目录结构
 
@@ -189,6 +189,7 @@ go test -bench=. -benchmem ./...
 - M12 仪表盘 JWT 中间件桥接合同文档记录：`docs/milestones/M12-dashboard-jwt-session-bridge-contract-docs.md`
 - M13 仪表盘 JWT 已验证声明适配器对齐记录：`docs/milestones/M13-dashboard-jwt-session-verified-claims-adapter.md`
 - M13 仪表盘 JWT 声明归一化策略记录：`docs/milestones/M13-dashboard-jwt-session-claims-normalization.md`
+- M13 仪表盘 JWT 声明来源溯源记录：`docs/milestones/M13-dashboard-jwt-session-source-provenance.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

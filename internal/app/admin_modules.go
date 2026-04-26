@@ -389,12 +389,17 @@ type dashboardJWTSessionBootstrap struct {
 }
 
 type dashboardJWTMiddlewareBridge struct {
-	Present       bool   `json:"present"`
-	Verified      bool   `json:"verified"`
-	Source        string `json:"source"`
-	Subject       string `json:"subject,omitempty"`
-	RoleID        string `json:"role_id,omitempty"`
-	ClaimsVersion string `json:"claims_version,omitempty"`
+	Present             bool     `json:"present"`
+	Verified            bool     `json:"verified"`
+	Source              string   `json:"source"`
+	SourceProvenance    []string `json:"source_provenance"`
+	Subject             string   `json:"subject,omitempty"`
+	SubjectSource       string   `json:"subject_source,omitempty"`
+	RoleID              string   `json:"role_id,omitempty"`
+	RoleSource          string   `json:"role_source,omitempty"`
+	ClaimsVersion       string   `json:"claims_version,omitempty"`
+	ClaimsVersionSource string   `json:"claims_version_source,omitempty"`
+	VerifiedSource      string   `json:"verified_source,omitempty"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1316,12 +1321,17 @@ func collectDashboardJWTMiddlewareBridge(r *http.Request) dashboardJWTMiddleware
 	claims := resolveAdminVerifiedClaims(r)
 
 	return dashboardJWTMiddlewareBridge{
-		Present:       claims.Present,
-		Verified:      claims.Verified,
-		Source:        claims.Source,
-		Subject:       claims.Subject,
-		RoleID:        claims.RoleID,
-		ClaimsVersion: claims.ClaimsVersion,
+		Present:             claims.Present,
+		Verified:            claims.Verified,
+		Source:              claims.Source,
+		SourceProvenance:    claims.SourceProvenance,
+		Subject:             claims.Subject,
+		SubjectSource:       claims.SubjectSource,
+		RoleID:              claims.RoleID,
+		RoleSource:          claims.RoleSource,
+		ClaimsVersion:       claims.ClaimsVersion,
+		ClaimsVersionSource: claims.ClaimsVersionSource,
+		VerifiedSource:      claims.VerifiedSource,
 	}
 }
 

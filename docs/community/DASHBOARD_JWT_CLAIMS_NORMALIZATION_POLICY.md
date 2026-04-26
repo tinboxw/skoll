@@ -11,12 +11,19 @@ Applies to shared adapter logic used by:
 - dashboard JWT middleware bridge extraction
 - RBAC role-id extraction for admin API authorization
 
+Also applies to bridge provenance fields:
+
+- `source`
+- `source_provenance`
+
 ## Normalized Fields
 
 - `verified`
 - `subject`
 - `role_id`
 - `claims_version`
+- `source`
+- `source_provenance`
 
 ## Rules
 
@@ -32,6 +39,13 @@ Applies to shared adapter logic used by:
    - invalid JWT-specific role values fall back to legacy role header if valid
 4. `claims_version`:
    - trim whitespace and normalize to lowercase
+5. `source`:
+   - trim and lowercase normalization
+   - defaults to `header` when bridge metadata is present and no explicit source header exists
+6. `source_provenance`:
+   - parse comma-separated chain from `X-Admin-JWT-Source-Provenance`
+   - trim/lowercase each entry and deduplicate while preserving order
+   - fallback to `[source]` when chain is empty and source is not `none`
 
 ## Compatibility Notes
 

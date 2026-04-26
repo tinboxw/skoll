@@ -693,6 +693,9 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	if got, ok := bridge["source"].(string); !ok || got != "none" {
 		t.Fatalf("expected middleware_bridge.source=none, got %v", bridge["source"])
 	}
+	if got, ok := bridge["source_provenance"].([]any); !ok || len(got) != 0 {
+		t.Fatalf("expected empty middleware_bridge.source_provenance, got %v", bridge["source_provenance"])
+	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected status object, got %v", payload["status"])
@@ -836,6 +839,8 @@ func TestDashboardAggregateRoute_JWTMiddlewareBridgePromotesVerifiedTrust(t *tes
 	req.Header.Set(HeaderAdminJWTSubject, "bridge-user")
 	req.Header.Set(HeaderAdminRoleID, "9")
 	req.Header.Set(HeaderAdminJWTClaimsVersion, "v1")
+	req.Header.Set(HeaderAdminJWTSource, "gateway")
+	req.Header.Set(HeaderAdminJWTSourceChain, "edge-auth,gateway")
 	rr := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {
@@ -863,11 +868,17 @@ func TestDashboardAggregateRoute_JWTMiddlewareBridgePromotesVerifiedTrust(t *tes
 	if !ok {
 		t.Fatalf("expected middleware_bridge object, got %v", jwtBootstrap["middleware_bridge"])
 	}
-	if got, ok := bridge["source"].(string); !ok || got != "header" {
-		t.Fatalf("expected middleware_bridge.source=header, got %v", bridge["source"])
+	if got, ok := bridge["source"].(string); !ok || got != "gateway" {
+		t.Fatalf("expected middleware_bridge.source=gateway, got %v", bridge["source"])
+	}
+	if got, ok := bridge["source_provenance"].([]any); !ok || len(got) != 2 {
+		t.Fatalf("expected middleware_bridge.source_provenance with 2 items, got %v", bridge["source_provenance"])
 	}
 	if got, ok := bridge["subject"].(string); !ok || got != "bridge-user" {
 		t.Fatalf("expected middleware_bridge.subject=bridge-user, got %v", bridge["subject"])
+	}
+	if got, ok := bridge["role_source"].(string); !ok || got != "x-admin-role-id" {
+		t.Fatalf("expected middleware_bridge.role_source=x-admin-role-id, got %v", bridge["role_source"])
 	}
 }
 

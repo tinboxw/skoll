@@ -16,14 +16,21 @@ This contract governs bridge metadata only. It does not define JWT signing algor
 - `middleware_bridge.present` (bool)
 - `middleware_bridge.verified` (bool)
 - `middleware_bridge.source` (string)
+- `middleware_bridge.source_provenance` (string[])
 - `middleware_bridge.subject` (optional string)
+- `middleware_bridge.subject_source` (optional string)
 - `middleware_bridge.role_id` (optional string)
+- `middleware_bridge.role_source` (optional string)
 - `middleware_bridge.claims_version` (optional string)
+- `middleware_bridge.claims_version_source` (optional string)
+- `middleware_bridge.verified_source` (optional string)
 
 Current source modes:
 
 - `none`: no bridge metadata found
 - `header`: metadata provided by HTTP headers
+
+When `X-Admin-JWT-Source` is provided, `middleware_bridge.source` uses that normalized value.
 
 ## Header Mapping (Current Implementation)
 
@@ -57,6 +64,11 @@ See detailed policy:
 `middleware_bridge.present` is true when any mapped bridge header is provided.
 
 `claims_trusted` is aligned with `middleware_bridge.verified` in current milestone scope.
+
+`middleware_bridge.source_provenance` is populated from:
+
+- `X-Admin-JWT-Source-Provenance` (comma-separated chain, deduplicated)
+- fallback to `[source]` when no chain is provided and source is not `none`
 
 ## Compatibility Rules
 
