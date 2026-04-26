@@ -31,8 +31,14 @@ Bridge extraction currently maps from these request headers:
 
 - `X-Admin-JWT-Verified` -> `middleware_bridge.verified`
 - `X-Admin-JWT-Subject` -> `middleware_bridge.subject`
+- `X-Admin-JWT-Role-ID` -> `middleware_bridge.role_id` (preferred)
 - `X-Admin-Role-ID` -> `middleware_bridge.role_id`
 - `X-Admin-JWT-Claims-Version` -> `middleware_bridge.claims_version`
+
+Role ID precedence in current implementation:
+
+1. `X-Admin-JWT-Role-ID`
+2. `X-Admin-Role-ID`
 
 `middleware_bridge.present` is true when any mapped bridge header is provided.
 

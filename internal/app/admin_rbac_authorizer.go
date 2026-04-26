@@ -19,7 +19,7 @@ func WithRoleAPIAuthorizer(next http.Handler, roleSvc *role.Service, rbacSvc *rb
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rawRoleID := strings.TrimSpace(r.Header.Get(HeaderAdminRoleID))
+		rawRoleID := resolveAdminVerifiedClaims(r).RoleID
 		if rawRoleID == "" {
 			writeRBACError(w, http.StatusUnauthorized, "admin role required")
 			return

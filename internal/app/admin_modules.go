@@ -34,12 +34,6 @@ const dashboardUIBootstrapContractVersion = "v1"
 
 const dashboardJWTRefreshLeadWindow = 5 * time.Minute
 
-const (
-	HeaderAdminJWTVerified      = "X-Admin-JWT-Verified"
-	HeaderAdminJWTSubject       = "X-Admin-JWT-Subject"
-	HeaderAdminJWTClaimsVersion = "X-Admin-JWT-Claims-Version"
-)
-
 type AdminModuleServices struct {
 	Users        UserService
 	Roles        RoleService
@@ -1319,25 +1313,15 @@ func deriveJWTVerificationHints(tokenFormat, sessionState string, claimsTrusted 
 }
 
 func collectDashboardJWTMiddlewareBridge(r *http.Request) dashboardJWTMiddlewareBridge {
-	verifiedRaw := strings.TrimSpace(r.Header.Get(HeaderAdminJWTVerified))
-	verified := strings.EqualFold(verifiedRaw, "true") || verifiedRaw == "1"
-	subject := strings.TrimSpace(r.Header.Get(HeaderAdminJWTSubject))
-	roleID := strings.TrimSpace(r.Header.Get(HeaderAdminRoleID))
-	claimsVersion := strings.TrimSpace(r.Header.Get(HeaderAdminJWTClaimsVersion))
-
-	present := verifiedRaw != "" || subject != "" || roleID != "" || claimsVersion != ""
-	source := "none"
-	if present {
-		source = "header"
-	}
+	claims := resolveAdminVerifiedClaims(r)
 
 	return dashboardJWTMiddlewareBridge{
-		Present:       present,
-		Verified:      verified,
-		Source:        source,
-		Subject:       subject,
-		RoleID:        roleID,
-		ClaimsVersion: claimsVersion,
+		Present:       claims.Present,
+		Verified:      claims.Verified,
+		Source:        claims.Source,
+		Subject:       claims.Subject,
+		RoleID:        claims.RoleID,
+		ClaimsVersion: claims.ClaimsVersion,
 	}
 }
 

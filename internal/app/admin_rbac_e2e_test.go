@@ -113,3 +113,62 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 		t.Fatalf("expected forbidden for unbound api, got %d", forbiddenRR.Code)
 	}
 }
+
+func TestRBACE2ESmoke_RoleAuthorizationViaJWTBridgeRoleID(t *testing.T) {
+	userSvc := user.NewService()
+	roleSvc := role.NewService()
+	menuSvc := menu.NewService()
+	auditSvc := audit.NewService()
+	configSvc := config.NewService()
+	dictionarySvc := dictionary.NewService()
+	fileSvc := fileservice.NewService(&memoryFileBackend{})
+	jobSvc := jobscheduler.NewService()
+	genSvc := modgenerator.NewService()
+	pluginSvc := pluginmgr.NewService()
+	rbacSvc := rbac.NewService()
+	apiSvc := apiregistry.NewService()
+
+	userSvc.Create("alice", "alice@example.com")
+	adminRole := roleSvc.Create("admin", []string{"user.read"})
+
+	verifier, enabled, err := adminauth.ResolveVerifier("static-token", "secret", "")
+	if err != nil {
+		t.Fatalf("resolve admin auth verifier failed: %v", err)
+	}
+	if !enabled {
+		t.Fatalf("expected static-token verifier enabled")
+	}
+
+	srv := New(":0", "test-version")
+	wrapper := func(next http.Handler) http.Handler {
+		return adminauth.WithVerifier(WithRoleAPIAuthorizer(next, roleSvc, rbacSvc), verifier)
+	}
+	srv.MountAdminModuleRoutes(AdminModuleServices{
+		Users:        userSvc,
+		Roles:        roleSvc,
+		Menus:        menuSvc,
+		Audit:        auditSvc,
+		Configs:      configSvc,
+		Dictionaries: dictionarySvc,
+		Files:        fileSvc,
+		Jobs:         jobSvc,
+		Generator:    genSvc,
+		Plugins:      pluginSvc,
+		RBAC:         rbacSvc,
+		APIs:         apiSvc,
+	}, wrapper)
+
+	rbacSvc.SetRoleAPIs(adminRole.ID, []string{"GET:/admin/v1/users"})
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	req.Header.Set(adminauth.HeaderToken, "secret")
+	req.Header.Set(HeaderAdminJWTRoleID, "1")
+	rr := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected authorized list users via jwt role bridge, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "alice@example.com") {
+		t.Fatalf("expected user data in authorized response, got %s", rr.Body.String())
+	}
+}

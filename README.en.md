@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), and M12-step5 (dashboard JWT middleware bridge contract docs) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), full M11 (dashboard auth/session capabilities), full M12 (dashboard JWT session bridge capabilities), and M13-step1 (verified JWT claims adapter alignment) baseline.
 
 ## Structure
 
@@ -186,6 +186,7 @@ go test -bench=. -benchmem ./...
 - M12 dashboard JWT verification-state hints record: `docs/milestones/M12-dashboard-jwt-session-verification-state.md`
 - M12 dashboard JWT middleware bridge record: `docs/milestones/M12-dashboard-jwt-session-middleware-bridge.md`
 - M12 dashboard JWT middleware bridge contract docs record: `docs/milestones/M12-dashboard-jwt-session-bridge-contract-docs.md`
+- M13 dashboard verified JWT claims adapter alignment record: `docs/milestones/M13-dashboard-jwt-session-verified-claims-adapter.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution
