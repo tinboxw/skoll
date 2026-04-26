@@ -173,6 +173,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/enable", enablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
+	handle("GET /admin/v1/system/status", systemStatusHandler(services))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 }
 
@@ -259,6 +260,19 @@ type roleAPIsResponse struct {
 
 type listAPIsResponse struct {
 	Items []string `json:"items"`
+}
+
+type systemStatusResponse struct {
+	Version       string `json:"version"`
+	UserCount     int    `json:"user_count"`
+	RoleCount     int    `json:"role_count"`
+	MenuCount     int    `json:"menu_count"`
+	ConfigCount   int    `json:"config_count"`
+	DictCount     int    `json:"dict_count"`
+	FileCount     int    `json:"file_count"`
+	JobCount      int    `json:"job_count"`
+	PluginCount   int    `json:"plugin_count"`
+	APIEntryCount int    `json:"api_entry_count"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -954,6 +968,23 @@ func checkPluginVersionHandler(svc PluginService) http.HandlerFunc {
 func listRegisteredAPIsHandler(svc APIRegistryService) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, listAPIsResponse{Items: svc.List()})
+	}
+}
+
+func systemStatusHandler(services AdminModuleServices) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, systemStatusResponse{
+			Version:       "v1",
+			UserCount:     len(services.Users.List()),
+			RoleCount:     len(services.Roles.List()),
+			MenuCount:     len(services.Menus.List()),
+			ConfigCount:   len(services.Configs.List()),
+			DictCount:     len(services.Dictionaries.List()),
+			FileCount:     len(services.Files.List()),
+			JobCount:      len(services.Jobs.List()),
+			PluginCount:   len(services.Plugins.List()),
+			APIEntryCount: len(services.APIs.List()),
+		})
 	}
 }
 

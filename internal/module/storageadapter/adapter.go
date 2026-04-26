@@ -1,6 +1,9 @@
 package storageadapter
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/audit"
 	"github.com/tinboxw/skoll/internal/module/config"
@@ -13,8 +16,6 @@ import (
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
-	"os"
-	"path/filepath"
 )
 
 // Adapter groups module repositories behind a single storage boundary.

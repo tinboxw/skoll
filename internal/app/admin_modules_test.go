@@ -511,3 +511,56 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 		t.Fatalf("expected update availability in response, got %s", versionRR.Body.String())
 	}
 }
+
+func TestSystemStatusRoute_AggregatesModuleCounts(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createUserReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users", strings.NewReader(`{"name":"alice","email":"alice@example.com"}`))
+	createUserReq.Header.Set("Content-Type", "application/json")
+	createUserRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createUserRR, createUserReq)
+	if createUserRR.Code != http.StatusCreated {
+		t.Fatalf("expected user create status 201, got %d", createUserRR.Code)
+	}
+
+	createRoleReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles", strings.NewReader(`{"name":"ops","permissions":["user.read"]}`))
+	createRoleReq.Header.Set("Content-Type", "application/json")
+	createRoleRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRoleRR, createRoleReq)
+	if createRoleRR.Code != http.StatusCreated {
+		t.Fatalf("expected role create status 201, got %d", createRoleRR.Code)
+	}
+
+	createPluginReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/manifests", strings.NewReader(`{"name":"audit-ext","version":"1.0.0","hooks":["on_boot"]}`))
+	createPluginReq.Header.Set("Content-Type", "application/json")
+	createPluginRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createPluginRR, createPluginReq)
+	if createPluginRR.Code != http.StatusCreated {
+		t.Fatalf("expected plugin install status 201, got %d", createPluginRR.Code)
+	}
+
+	statusReq := httptest.NewRequest(http.MethodGet, "/admin/v1/system/status", nil)
+	statusRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(statusRR, statusReq)
+	if statusRR.Code != http.StatusOK {
+		t.Fatalf("expected system status 200, got %d", statusRR.Code)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(statusRR.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal status response failed: %v", err)
+	}
+	if got, _ := payload["user_count"].(float64); got != 1 {
+		t.Fatalf("expected user_count=1, got %v", payload["user_count"])
+	}
+	if got, _ := payload["role_count"].(float64); got != 1 {
+		t.Fatalf("expected role_count=1, got %v", payload["role_count"])
+	}
+	if got, _ := payload["plugin_count"].(float64); got != 1 {
+		t.Fatalf("expected plugin_count=1, got %v", payload["plugin_count"])
+	}
+	if got, ok := payload["api_entry_count"].(float64); !ok || got <= 0 {
+		t.Fatalf("expected api_entry_count > 0, got %v", payload["api_entry_count"])
+	}
+}

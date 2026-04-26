@@ -85,7 +85,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 10. Completed: M9-step1 plugin manifest lifecycle baseline.
 11. Completed: M9-step2 extension packaging and lifecycle operations.
 12. Completed: M9-step3 ecosystem docs and compatibility strategy.
-13. Next: Define and prioritize M10 system observability dashboard slices.
+13. Completed: M10-step1 system status API baseline.
+14. Next: M10-step2 runtime metrics snapshot API.
 
 ## Risks and Mitigation
 
