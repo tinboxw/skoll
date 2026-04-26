@@ -32,6 +32,17 @@ type modeMetrics struct {
 	invalidSignature atomic.Uint64
 }
 
+type MetricsModeSnapshot struct {
+	Success uint64            `json:"success"`
+	Failure uint64            `json:"failure"`
+	Reasons map[string]uint64 `json:"reasons"`
+}
+
+type MetricsSnapshot struct {
+	StaticToken MetricsModeSnapshot `json:"static_token"`
+	HMACSHA256  MetricsModeSnapshot `json:"hmac_sha256"`
+}
+
 var adminAuthMetrics = struct {
 	static modeMetrics
 	hmac   modeMetrics
@@ -94,6 +105,30 @@ func MetricsPrometheus() string {
 	writeFailureReasons(&b, "static-token", &adminAuthMetrics.static)
 	writeFailureReasons(&b, "hmac-sha256", &adminAuthMetrics.hmac)
 	return b.String()
+}
+
+func Snapshot() MetricsSnapshot {
+	return MetricsSnapshot{
+		StaticToken: modeSnapshot(&adminAuthMetrics.static),
+		HMACSHA256:  modeSnapshot(&adminAuthMetrics.hmac),
+	}
+}
+
+func modeSnapshot(m *modeMetrics) MetricsModeSnapshot {
+	return MetricsModeSnapshot{
+		Success: m.success.Load(),
+		Failure: m.failure.Load(),
+		Reasons: map[string]uint64{
+			reasonMissingToken:     m.missingToken.Load(),
+			reasonInvalidToken:     m.invalidToken.Load(),
+			reasonMissingHeaders:   m.missingHeaders.Load(),
+			reasonInvalidTimestamp: m.invalidTimestamp.Load(),
+			reasonTimestampSkew:    m.timestampSkew.Load(),
+			reasonReplayNonce:      m.replayNonce.Load(),
+			reasonInvalidBodyHash:  m.invalidBodyHash.Load(),
+			reasonInvalidSignature: m.invalidSignature.Load(),
+		},
+	}
 }
 
 func writeVerificationResult(b *strings.Builder, mode, result string, total uint64) {

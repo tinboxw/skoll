@@ -644,8 +644,8 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 		t.Fatalf("expected contract.version=v1, got %v", contract["version"])
 	}
 	sections, ok := contract["required_sections"].([]any)
-	if !ok || len(sections) < 4 {
-		t.Fatalf("expected contract.required_sections with 4 entries, got %v", contract["required_sections"])
+	if !ok || len(sections) < 5 {
+		t.Fatalf("expected contract.required_sections with 5 entries, got %v", contract["required_sections"])
 	}
 	authSession, ok := payload["auth_session"].(map[string]any)
 	if !ok {
@@ -653,6 +653,13 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	}
 	if got, ok := authSession["auth_mode_hint"].(string); !ok || got != "none" {
 		t.Fatalf("expected auth_session.auth_mode_hint=none, got %v", authSession["auth_mode_hint"])
+	}
+	authObs, ok := payload["auth_observability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth_observability object, got %v", payload["auth_observability"])
+	}
+	if _, ok := authObs["total_failure"].(float64); !ok {
+		t.Fatalf("expected auth_observability.total_failure field, got %v", authObs["total_failure"])
 	}
 	status, ok := payload["status"].(map[string]any)
 	if !ok {
@@ -706,5 +713,12 @@ func TestDashboardAggregateRoute_AuthSessionAlignmentWithHeaders(t *testing.T) {
 	}
 	if got, ok := authSession["role_id"].(string); !ok || got != "1" {
 		t.Fatalf("expected auth_session.role_id=1, got %v", authSession["role_id"])
+	}
+	authObs, ok := payload["auth_observability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected auth_observability object, got %v", payload["auth_observability"])
+	}
+	if got, ok := authObs["total_failure"].(float64); !ok || got < 0 {
+		t.Fatalf("expected auth_observability.total_failure >= 0, got %v", authObs["total_failure"])
 	}
 }

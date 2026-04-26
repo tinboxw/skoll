@@ -93,4 +93,5 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 41. [x] M10-dashboard-ui-bootstrap-contract: Define stable dashboard payload contract for frontend integration.
 42. [x] M11-dashboard-auth-session-alignment: Align dashboard bootstrap with auth/session capability plan.
 43. [x] M11-dashboard-auth-session-policy-docs: Publish auth/session compatibility and rollout guidance.
-44. [ ] M11-dashboard-auth-session-observability: Add auth/session observability fields and failure counters to dashboard payload.
+44. [x] M11-dashboard-auth-session-observability: Add auth/session observability fields and failure counters to dashboard payload.
+45. [ ] M11-dashboard-auth-session-actionability: Add actionable auth/session guidance fields for dashboard UX.

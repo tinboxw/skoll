@@ -83,3 +83,33 @@ func TestMetricsPrometheusHMACReasons(t *testing.T) {
 		}
 	}
 }
+
+func TestSnapshotReturnsStructuredCounters(t *testing.T) {
+	resetMetricsForTest()
+
+	v, enabled, err := ResolveVerifier("static-token", "secret", "")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !enabled {
+		t.Fatalf("expected enabled verifier")
+	}
+
+	missing := httptest.NewRequest(http.MethodGet, "/admin/ping", nil)
+	_ = v.Verify(missing)
+
+	valid := httptest.NewRequest(http.MethodGet, "/admin/ping", nil)
+	valid.Header.Set(HeaderToken, "secret")
+	_ = v.Verify(valid)
+
+	snapshot := Snapshot()
+	if snapshot.StaticToken.Success != 1 {
+		t.Fatalf("expected static success=1, got %d", snapshot.StaticToken.Success)
+	}
+	if snapshot.StaticToken.Failure != 1 {
+		t.Fatalf("expected static failure=1, got %d", snapshot.StaticToken.Failure)
+	}
+	if snapshot.StaticToken.Reasons[reasonMissingToken] != 1 {
+		t.Fatalf("expected missing_token=1, got %d", snapshot.StaticToken.Reasons[reasonMissingToken])
+	}
+}

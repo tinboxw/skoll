@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go high-performance, high-concurrency framework.
 
 ## Project Status
 
-Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), and M11-step2 (dashboard auth/session policy docs) baseline.
+Skoll has completed M4 release readiness, started M5 initial generic module scaffolds (user/role/menu/audit), and delivered M6/M7 foundations, full M8 (file/job/generator), full M9 (plugin lifecycle/packaging/ecosystem docs), full M10 (dashboard aggregation and UI bootstrap contract), and M11-step3 (dashboard auth/session observability) baseline.
 
 ## Structure
 
@@ -178,6 +178,7 @@ go test -bench=. -benchmem ./...
 - M10 dashboard UI bootstrap contract record: `docs/milestones/M10-dashboard-ui-bootstrap-contract.md`
 - M11 dashboard auth/session alignment record: `docs/milestones/M11-dashboard-auth-session-alignment.md`
 - M11 dashboard auth/session policy docs record: `docs/milestones/M11-dashboard-auth-session-policy-docs.md`
+- M11 dashboard auth/session observability record: `docs/milestones/M11-dashboard-auth-session-observability.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

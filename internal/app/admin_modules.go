@@ -315,6 +315,7 @@ type dashboardAggregateResponse struct {
 	Contract           dashboardContractDescriptor `json:"contract"`
 	GeneratedAtUnixSec int64                       `json:"generated_at_unix_sec"`
 	AuthSession        dashboardAuthSessionContext `json:"auth_session"`
+	AuthObservability  dashboardAuthObservability  `json:"auth_observability"`
 	Status             systemStatusResponse        `json:"status"`
 	RuntimeMetrics     runtimeMetricsResponse      `json:"runtime_metrics"`
 	NodeHealth         nodeHealthResponse          `json:"node_health"`
@@ -334,6 +335,18 @@ type dashboardAuthSessionContext struct {
 	HasRoleBinding         bool   `json:"has_role_binding"`
 	TokenHeaderPresent     bool   `json:"token_header_present"`
 	SignatureHeaderPresent bool   `json:"signature_header_present"`
+}
+
+type dashboardAuthModeCounters struct {
+	Success uint64            `json:"success"`
+	Failure uint64            `json:"failure"`
+	Reasons map[string]uint64 `json:"reasons"`
+}
+
+type dashboardAuthObservability struct {
+	StaticToken  dashboardAuthModeCounters `json:"static_token"`
+	HMACSHA256   dashboardAuthModeCounters `json:"hmac_sha256"`
+	TotalFailure uint64                    `json:"total_failure"`
 }
 
 func createUserHandler(svc UserService) http.HandlerFunc {
@@ -1056,6 +1069,7 @@ func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
 			Contract:           collectDashboardContractDescriptor(),
 			GeneratedAtUnixSec: time.Now().UTC().Unix(),
 			AuthSession:        collectDashboardAuthSessionContext(r),
+			AuthObservability:  collectDashboardAuthObservability(),
 			Status:             collectSystemStatus(services),
 			RuntimeMetrics:     collectRuntimeMetrics(),
 			NodeHealth:         collectNodeHealth(services),
@@ -1070,6 +1084,7 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 		Stability: "stable",
 		RequiredSections: []string{
 			"auth_session",
+			"auth_observability",
 			"status",
 			"runtime_metrics",
 			"node_health",
@@ -1100,6 +1115,23 @@ func collectDashboardAuthSessionContext(r *http.Request) dashboardAuthSessionCon
 		HasRoleBinding:         roleID != "",
 		TokenHeaderPresent:     tokenPresent,
 		SignatureHeaderPresent: signaturePresent,
+	}
+}
+
+func collectDashboardAuthObservability() dashboardAuthObservability {
+	snapshot := adminauth.Snapshot()
+	return dashboardAuthObservability{
+		StaticToken: dashboardAuthModeCounters{
+			Success: snapshot.StaticToken.Success,
+			Failure: snapshot.StaticToken.Failure,
+			Reasons: snapshot.StaticToken.Reasons,
+		},
+		HMACSHA256: dashboardAuthModeCounters{
+			Success: snapshot.HMACSHA256.Success,
+			Failure: snapshot.HMACSHA256.Failure,
+			Reasons: snapshot.HMACSHA256.Reasons,
+		},
+		TotalFailure: snapshot.StaticToken.Failure + snapshot.HMACSHA256.Failure,
 	}
 }
 
