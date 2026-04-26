@@ -9,6 +9,7 @@ This document is used with:
 - `docs/community/DASHBOARD_JWT_PROVENANCE_REVIEW_AUTOMATION.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_THRESHOLD_CHANGE_LOG.md`
 - `docs/community/DASHBOARD_JWT_PROVENANCE_RECALIBRATION_EVIDENCE_TEMPLATE.md`
+- `docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_METRICS.md`
 
 ## Exception Governance Matrix
 
