@@ -95,3 +95,13 @@ Rotation policy:
 - Automation outputs are evidence, not approvals.
 - Monthly archive and rotation roster updates must be version-controlled.
 - Exceptions must include reason, approver, and expiry date.
+
+## Quarterly Roster Sample
+
+- `docs/milestones/JWT_PROVENANCE_REVIEW_ROTATION_2026-Q2.md`
+
+## Escalation Handoff Template
+
+Reference implementation:
+
+- `docs/milestones/JWT_PROVENANCE_REVIEW_ROTATION_2026-Q2.md` (`Escalation Handoff Template` section)

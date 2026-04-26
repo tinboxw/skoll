@@ -113,7 +113,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 38. Completed: M18-step1 dashboard JWT provenance threshold-change log format and monthly review archive workflow.
 39. Completed: M18-step2 dashboard JWT provenance monthly archive sample and review checklist execution example.
 40. Completed: M19-step1 dashboard JWT provenance monthly review automation checklist and ownership rotation guidance.
-41. Next: M19-step2 dashboard JWT provenance quarterly rotation roster sample and escalation handoff template.
+41. Completed: M19-step2 dashboard JWT provenance quarterly rotation roster sample and escalation handoff template.
+42. Next: M20-step1 dashboard JWT provenance exception governance matrix and expiry revalidation workflow.
 
 ## Risks and Mitigation
 
