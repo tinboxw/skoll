@@ -1,0 +1,121 @@
+name: CI Quality Gates
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gates:
+    name: Go Quality Gates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Detect module
+        id: module
+        shell: bash
+        run: |
+          if [ -f go.mod ]; then
+            echo "has_module=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_module=false" >> "$GITHUB_OUTPUT"
+            echo "go.mod not found; quality checks are skipped for scaffold stage."
+          fi
+
+      - name: Check format (gofmt)
+        if: steps.module.outputs.has_module == 'true'
+        shell: bash
+        run: |
+          files=$(find . -type f -name "*.go" -not -path "./vendor/*")
+          if [ -z "$files" ]; then
+            echo "No Go files found; skip gofmt check."
+            exit 0
+          fi
+
+          unformatted=$(gofmt -l $files)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Run unit tests
+        if: steps.module.outputs.has_module == 'true'
+        shell: bash
+        run: go test ./...
+
+      - name: Detect concurrency-related changes
+        id: detect_race
+        if: steps.module.outputs.has_module == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+          else
+            base_sha="${{ github.event.before }}"
+          fi
+
+          if [ -z "$base_sha" ] || [ "$base_sha" = "0000000000000000000000000000000000000000" ]; then
+            base_sha=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$base_sha" ]; then
+            echo "run_race=false" >> "$GITHUB_OUTPUT"
+            echo "Cannot resolve base SHA; skip race test."
+            exit 0
+          fi
+
+          changed_go=$(git diff --name-only "$base_sha" "${{ github.sha }}" -- '*.go' || true)
+          if [ -z "$changed_go" ]; then
+            echo "run_race=false" >> "$GITHUB_OUTPUT"
+            echo "No Go file changes detected."
+            exit 0
+          fi
+
+          patterns='go[[:space:]]+func|chan|sync\\.|atomic\\.|WaitGroup|Mutex|RWMutex|Once|context\\.With(Cancel|Timeout|Deadline)'
+          run_race=false
+
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            if grep -En "$patterns" "$f" >/dev/null 2>&1; then
+              run_race=true
+              echo "Concurrency-related change detected in $f"
+              break
+            fi
+          done <<< "$changed_go"
+
+          echo "run_race=$run_race" >> "$GITHUB_OUTPUT"
+
+      - name: Run race tests
+        if: steps.module.outputs.has_module == 'true' && steps.detect_race.outputs.run_race == 'true'
+        shell: bash
+        run: go test -race ./...
+
+      - name: Capture benchmark snapshot
+        if: steps.module.outputs.has_module == 'true'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          go test -bench=. -benchmem ./... | tee artifacts/bench.txt
+
+      - name: Upload benchmark artifact
+        if: steps.module.outputs.has_module == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-snapshot
+          path: artifacts/bench.txt
+          if-no-files-found: warn
