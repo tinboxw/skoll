@@ -148,6 +148,7 @@ go test -bench=. -benchmem ./...
 - 对标功能规划：`docs/planning/FEATURE_PARITY_PLAN.md`
 - 完全对等增强阶段计划：`docs/planning/PARITY_ENHANCEMENT_PHASE_PLAN.md`
 - E9 增强迭代计划：`docs/planning/E9_ENHANCEMENT_ITERATION_PLAN.md`
+- E9 后完整对等版本路线：`docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - 代码结构框架：`docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
 - 基准工具链策略：`docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`

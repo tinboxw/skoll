@@ -148,6 +148,7 @@ go test -bench=. -benchmem ./...
 - Feature parity plan: `docs/planning/FEATURE_PARITY_PLAN.md`
 - Parity enhancement phase plan: `docs/planning/PARITY_ENHANCEMENT_PHASE_PLAN.md`
 - E9 enhancement iteration plan: `docs/planning/E9_ENHANCEMENT_ITERATION_PLAN.md`
+- Post-E9 full parity version plan: `docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - Code structure framework: `docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - Production deployment env template: `docs/planning/PRODUCTION_ENV_TEMPLATE.md`
 - Benchmark toolchain policy: `docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`

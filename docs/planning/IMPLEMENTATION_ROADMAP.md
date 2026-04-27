@@ -133,3 +133,12 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 81. [ ] E9-step1-persistence-adapter-rollout-design: Design persistent/shared-state adapter rollout for session/job/release governance.
 82. [ ] E9-step2-production-hardening-plan: Define control-plane hardening gates and staged drill plan.
 83. [ ] E9-step3-benchmark-regression-policy: Define benchmark baseline, threshold, and blocking policy.
+84. [ ] E10-auth-and-session-parity: Deliver JWT login/refresh/revoke/session lifecycle parity.
+85. [ ] E11-rbac-and-permission-governance-parity: Deliver persistent policy governance and rollback parity.
+86. [ ] E12-admin-domain-operational-parity: Deliver production-grade operational completeness for admin core modules.
+87. [ ] E13-hook-and-module-governance-parity: Deliver hook/event and module lifecycle governance parity.
+88. [ ] E14-plugin-marketplace-depth-parity: Deliver marketplace index trust, dependency solver, and upgrade transaction parity.
+89. [ ] E15-database-management-depth-parity: Deliver migration drift detection and backup/restore drill parity.
+90. [ ] E16-distributed-scheduler-and-job-reliability-parity: Deliver distributed scheduling reliability and replay parity.
+91. [ ] E17-observability-and-operational-hardening-parity: Deliver control-plane hardening and fault-drill parity.
+92. [ ] E18-release-governance-and-parity-closure: Complete parity closure checklist and evidence report.
