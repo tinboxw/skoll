@@ -741,6 +741,62 @@ func TestSystemStatusRoute_AggregatesModuleCounts(t *testing.T) {
 	}
 }
 
+func TestDatabaseOpsGovernanceRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	planReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/migrations/plan", strings.NewReader(`{"from_version":"2026.04","to_version":"2026.05","steps":["add_table_users","add_index_users_email"]}`))
+	planReq.Header.Set("Content-Type", "application/json")
+	planRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(planRR, planReq)
+	if planRR.Code != http.StatusOK {
+		t.Fatalf("expected migration plan status 200, got %d", planRR.Code)
+	}
+
+	backupReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/backup", strings.NewReader(`{"backup_id":"bk-001","reason":"pre-release"}`))
+	backupReq.Header.Set("Content-Type", "application/json")
+	backupRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(backupRR, backupReq)
+	if backupRR.Code != http.StatusCreated {
+		t.Fatalf("expected backup status 201, got %d", backupRR.Code)
+	}
+
+	restoreForbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore", strings.NewReader(`{"backup_id":"bk-001","confirm_token":""}`))
+	restoreForbiddenReq.Header.Set("Content-Type", "application/json")
+	restoreForbiddenRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(restoreForbiddenRR, restoreForbiddenReq)
+	if restoreForbiddenRR.Code != http.StatusForbidden {
+		t.Fatalf("expected restore forbidden status 403, got %d", restoreForbiddenRR.Code)
+	}
+
+	restoreReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore", strings.NewReader(`{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND"}`))
+	restoreReq.Header.Set("Content-Type", "application/json")
+	restoreRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(restoreRR, restoreReq)
+	if restoreRR.Code != http.StatusOK {
+		t.Fatalf("expected restore status 200, got %d", restoreRR.Code)
+	}
+
+	sqlBlockedReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/sql/execute", strings.NewReader(`{"sql":"DROP TABLE users"}`))
+	sqlBlockedReq.Header.Set("Content-Type", "application/json")
+	sqlBlockedRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(sqlBlockedRR, sqlBlockedReq)
+	if sqlBlockedRR.Code != http.StatusForbidden {
+		t.Fatalf("expected dangerous sql blocked status 403, got %d", sqlBlockedRR.Code)
+	}
+
+	sqlAllowedReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/sql/execute", strings.NewReader(`{"sql":"DELETE FROM sessions WHERE expired=1","allow_dangerous":true,"confirm_token":"I_UNDERSTAND"}`))
+	sqlAllowedReq.Header.Set("Content-Type", "application/json")
+	sqlAllowedRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(sqlAllowedRR, sqlAllowedReq)
+	if sqlAllowedRR.Code != http.StatusOK {
+		t.Fatalf("expected controlled sql status 200, got %d", sqlAllowedRR.Code)
+	}
+	if !strings.Contains(sqlAllowedRR.Body.String(), `"allowed":true`) {
+		t.Fatalf("expected allowed sql response, got %s", sqlAllowedRR.Body.String())
+	}
+}
+
 func TestRuntimeMetricsRoute_ReturnsSnapshot(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)

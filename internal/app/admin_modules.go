@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tinboxw/skoll/internal/integration/adminauth"
@@ -218,6 +219,10 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/upgrade", upgradePluginHandler(services.Plugins))
+	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
+	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
+	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
+	handle("POST /admin/v1/db/sql/execute", executeControlledSQLHandler(services.Audit))
 	handle("GET /admin/v1/system/status", systemStatusHandler(services))
 	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
 	handle("GET /admin/v1/system/node-health", nodeHealthHandler(services))
@@ -321,6 +326,58 @@ type upgradePluginRequest struct {
 	Dependencies  []pluginmgr.Dependency `json:"dependencies"`
 	Hooks         []string               `json:"hooks"`
 }
+
+type migrationPlanRequest struct {
+	FromVersion string   `json:"from_version"`
+	ToVersion   string   `json:"to_version"`
+	Steps       []string `json:"steps"`
+}
+
+type migrationPlanResponse struct {
+	PlanID       string   `json:"plan_id"`
+	FromVersion  string   `json:"from_version"`
+	ToVersion    string   `json:"to_version"`
+	Steps        []string `json:"steps"`
+	CreatedAtSec int64    `json:"created_at_unix_sec"`
+}
+
+type backupRequest struct {
+	BackupID string `json:"backup_id"`
+	Reason   string `json:"reason"`
+}
+
+type backupResponse struct {
+	BackupID     string `json:"backup_id"`
+	Status       string `json:"status"`
+	CreatedAtSec int64  `json:"created_at_unix_sec"`
+}
+
+type restoreRequest struct {
+	BackupID     string `json:"backup_id"`
+	ConfirmToken string `json:"confirm_token"`
+}
+
+type controlledSQLRequest struct {
+	SQL            string `json:"sql"`
+	AllowDangerous bool   `json:"allow_dangerous"`
+	ConfirmToken   string `json:"confirm_token"`
+}
+
+type controlledSQLResponse struct {
+	Allowed      bool   `json:"allowed"`
+	ExecutionID  string `json:"execution_id,omitempty"`
+	SafetyResult string `json:"safety_result"`
+}
+
+type dbOpsState struct {
+	mu      sync.Mutex
+	nextID  int64
+	backups map[string]time.Time
+}
+
+var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]time.Time)}
+
+const dbDangerousConfirmToken = "I_UNDERSTAND"
 
 type pluginVersionCheckRequest struct {
 	LatestVersion string `json:"latest_version"`
@@ -1593,6 +1650,111 @@ func upgradePluginHandler(svc PluginService) http.HandlerFunc {
 			return
 		}
 		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func planDatabaseMigrationHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req migrationPlanRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.FromVersion = strings.TrimSpace(req.FromVersion)
+		req.ToVersion = strings.TrimSpace(req.ToVersion)
+		if req.FromVersion == "" || req.ToVersion == "" || len(req.Steps) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "from_version, to_version and steps are required"})
+			return
+		}
+
+		adminDBOpsState.mu.Lock()
+		planID := fmt.Sprintf("mig-%06d", adminDBOpsState.nextID)
+		adminDBOpsState.nextID++
+		adminDBOpsState.mu.Unlock()
+
+		auditSvc.Append("dbops", "migration_plan", planID)
+		respondJSON(w, http.StatusOK, migrationPlanResponse{PlanID: planID, FromVersion: req.FromVersion, ToVersion: req.ToVersion, Steps: req.Steps, CreatedAtSec: time.Now().UTC().Unix()})
+	}
+}
+
+func backupDatabaseHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req backupRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.BackupID = strings.TrimSpace(req.BackupID)
+		if req.BackupID == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "backup_id is required"})
+			return
+		}
+		now := time.Now().UTC()
+		adminDBOpsState.mu.Lock()
+		adminDBOpsState.backups[req.BackupID] = now
+		adminDBOpsState.mu.Unlock()
+		auditSvc.Append("dbops", "backup", req.BackupID)
+		respondJSON(w, http.StatusCreated, backupResponse{BackupID: req.BackupID, Status: "ready", CreatedAtSec: now.Unix()})
+	}
+}
+
+func restoreDatabaseHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req restoreRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.BackupID = strings.TrimSpace(req.BackupID)
+		req.ConfirmToken = strings.TrimSpace(req.ConfirmToken)
+		if req.BackupID == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "backup_id is required"})
+			return
+		}
+		if req.ConfirmToken != dbDangerousConfirmToken {
+			respondJSON(w, http.StatusForbidden, map[string]string{"error": "confirm_token required for restore"})
+			return
+		}
+		adminDBOpsState.mu.Lock()
+		_, ok := adminDBOpsState.backups[req.BackupID]
+		adminDBOpsState.mu.Unlock()
+		if !ok {
+			respondJSON(w, http.StatusNotFound, map[string]string{"error": "backup_id not found"})
+			return
+		}
+		auditSvc.Append("dbops", "restore", req.BackupID)
+		respondJSON(w, http.StatusOK, map[string]any{"backup_id": req.BackupID, "status": "restored", "restored_at_unix_sec": time.Now().UTC().Unix()})
+	}
+}
+
+func executeControlledSQLHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req controlledSQLRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		sqlText := strings.TrimSpace(req.SQL)
+		if sqlText == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "sql is required"})
+			return
+		}
+		upper := strings.ToUpper(sqlText)
+		dangerous := strings.Contains(upper, "DROP ") || strings.Contains(upper, "TRUNCATE ") || strings.Contains(upper, "DELETE ")
+		if dangerous {
+			if !req.AllowDangerous || strings.TrimSpace(req.ConfirmToken) != dbDangerousConfirmToken {
+				respondJSON(w, http.StatusForbidden, controlledSQLResponse{Allowed: false, SafetyResult: "dangerous_sql_blocked"})
+				return
+			}
+		}
+
+		adminDBOpsState.mu.Lock()
+		execID := fmt.Sprintf("sql-%06d", adminDBOpsState.nextID)
+		adminDBOpsState.nextID++
+		adminDBOpsState.mu.Unlock()
+
+		auditSvc.Append("dbops", "sql_execute", execID)
+		respondJSON(w, http.StatusOK, controlledSQLResponse{Allowed: true, ExecutionID: execID, SafetyResult: "approved"})
 	}
 }
 

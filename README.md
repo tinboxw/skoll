@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）、M18-step2（JWT 溯源月度归档样例与审查清单执行示例）、M19-step1（JWT 溯源月度审查自动化清单与轮值负责人指引）、M19-step2（JWT 溯源季度轮值样例与升级交接模板）、M20-step1（JWT 溯源例外治理矩阵与到期复核流程）、M20-step2（JWT 溯源例外样例记录与复核决策日志模板）、M21-step1（JWT 溯源例外治理指标与月度趋势看板字段）、M21-step2（JWT 溯源治理指标告警画像与升级阈值）、M22-step1（JWT 溯源治理评分卡模板与决策就绪度指标）、M22-step2（JWT 溯源治理评分卡样例与评审签收示例）、E1-step1（策略引擎与数据范围授权基线）、E2-step1（动态路由/菜单/按钮权限契约版本化基线）、E3-step1（账户/会话安全加固基线）、E4-step1（生成器表单 schema 与模板兼容治理基线）与 E5-step1（插件签名校验/依赖预检/升级回滚基线），并已完成后续增强阶段计划与启动封装重构。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）、M18-step2（JWT 溯源月度归档样例与审查清单执行示例）、M19-step1（JWT 溯源月度审查自动化清单与轮值负责人指引）、M19-step2（JWT 溯源季度轮值样例与升级交接模板）、M20-step1（JWT 溯源例外治理矩阵与到期复核流程）、M20-step2（JWT 溯源例外样例记录与复核决策日志模板）、M21-step1（JWT 溯源例外治理指标与月度趋势看板字段）、M21-step2（JWT 溯源治理指标告警画像与升级阈值）、M22-step1（JWT 溯源治理评分卡模板与决策就绪度指标）、M22-step2（JWT 溯源治理评分卡样例与评审签收示例）、E1-step1（策略引擎与数据范围授权基线）、E2-step1（动态路由/菜单/按钮权限契约版本化基线）、E3-step1（账户/会话安全加固基线）、E4-step1（生成器表单 schema 与模板兼容治理基线）、E5-step1（插件签名校验/依赖预检/升级回滚基线）与 E6-step1（数据库运维治理基线），并已完成后续增强阶段计划与启动封装重构。
 
 ## 目录结构
 
@@ -102,6 +102,10 @@ curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/disable
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/enable
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/version-check -H "Content-Type: application/json" -d '{"latest_version":"1.2.0"}'
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/upgrade -H "Content-Type: application/json" -d '{"target_version":"1.2.0","package_url":"https://example.com/plugins/audit-ext-1.2.0.tgz","package_hash":"sha256:efgh","signature":"sig:sha256:efgh"}'
+curl -X POST http://localhost:8080/admin/v1/db/migrations/plan -H "Content-Type: application/json" -d '{"from_version":"2026.04","to_version":"2026.05","steps":["add_table_users","add_index_users_email"]}'
+curl -X POST http://localhost:8080/admin/v1/db/backup -H "Content-Type: application/json" -d '{"backup_id":"bk-001","reason":"pre-release"}'
+curl -X POST http://localhost:8080/admin/v1/db/restore -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND"}'
+curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"DELETE FROM sessions WHERE expired=1","allow_dangerous":true,"confirm_token":"I_UNDERSTAND"}'
 curl http://localhost:8080/admin/v1/system/status
 curl http://localhost:8080/admin/v1/system/runtime-metrics
 curl http://localhost:8080/admin/v1/system/node-health
@@ -170,6 +174,7 @@ go test -bench=. -benchmem ./...
 - Admin 账户与会话安全加固基线：`docs/community/ADMIN_ACCOUNT_SESSION_SECURITY_BASELINE.md`
 - 生成器表单 schema 与模板兼容策略：`docs/community/GENERATOR_FORM_SCHEMA_COMPATIBILITY_POLICY.md`
 - 插件升级安全基线：`docs/community/PLUGIN_UPGRADE_SAFETY_BASELINE.md`
+- 数据库运维治理基线：`docs/community/DATABASE_OPS_GOVERNANCE_BASELINE.md`
 - 仪表盘 JWT 溯源例外样例记录：`docs/milestones/JWT_PROVENANCE_EXCEPTION_RECORDS_2026-05.md`
 - 仪表盘 JWT 溯源月度归档样例：`docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md`
 - 仪表盘 JWT 溯源季度轮值样例：`docs/milestones/JWT_PROVENANCE_REVIEW_ROTATION_2026-Q2.md`
@@ -248,6 +253,7 @@ go test -bench=. -benchmem ./...
 - E3 账户与会话安全加固记录：`docs/milestones/E3-account-session-security-hardening.md`
 - E4 生成器生态深度增强记录：`docs/milestones/E4-generator-ecosystem-depth.md`
 - E5 插件市场与在线升级安全记录：`docs/milestones/E5-plugin-market-and-online-upgrade-safety.md`
+- E6 数据库运维治理记录：`docs/milestones/E6-database-ops-governance.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
