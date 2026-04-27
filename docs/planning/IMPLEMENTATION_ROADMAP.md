@@ -129,3 +129,7 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 77. [x] E6-database-ops-governance: Add migration orchestration, backup/restore contract, and controlled SQL audit.
 78. [x] E7-multi-instance-consistency-hardening: Add shared-state consistency controls for sessions/jobs.
 79. [x] E8-release-governance-closure: Add release scorecard and performance-regression governance gates.
+80. [x] E9-step0-enhancement-backlog-prioritization: Define post-E8 priorities, acceptance, and risk baseline.
+81. [ ] E9-step1-persistence-adapter-rollout-design: Design persistent/shared-state adapter rollout for session/job/release governance.
+82. [ ] E9-step2-production-hardening-plan: Define control-plane hardening gates and staged drill plan.
+83. [ ] E9-step3-benchmark-regression-policy: Define benchmark baseline, threshold, and blocking policy.
