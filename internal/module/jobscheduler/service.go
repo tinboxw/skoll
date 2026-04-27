@@ -8,6 +8,7 @@ import (
 )
 
 var ErrJobNotFound = errors.New("job not found")
+var ErrExecutionKeyRequired = errors.New("execution key required")
 
 type Job struct {
 	ID        int64
@@ -26,12 +27,31 @@ type Execution struct {
 	Message   string
 }
 
+type DispatchClaim struct {
+	ExecutionKey     string `json:"execution_key"`
+	JobID            int64  `json:"job_id"`
+	InstanceID       string `json:"instance_id,omitempty"`
+	ExecutionID      int64  `json:"execution_id,omitempty"`
+	Claimed          bool   `json:"claimed"`
+	DuplicateBlocked bool   `json:"duplicate_blocked"`
+	ClaimedAtUnixSec int64  `json:"claimed_at_unix_sec,omitempty"`
+	Message          string `json:"message,omitempty"`
+}
+
+type dispatchClaimRecord struct {
+	jobID       int64
+	instanceID  string
+	executionID int64
+	claimedAt   time.Time
+}
+
 type Service struct {
 	mu             sync.RWMutex
 	nextJobID      int64
 	nextExecution  int64
 	jobs           map[int64]Job
 	executionItems map[int64][]Execution
+	claims         map[string]dispatchClaimRecord
 }
 
 func NewService() *Service {
@@ -40,6 +60,7 @@ func NewService() *Service {
 		nextExecution:  1,
 		jobs:           make(map[int64]Job),
 		executionItems: make(map[int64][]Execution),
+		claims:         make(map[string]dispatchClaimRecord),
 	}
 }
 
@@ -114,5 +135,61 @@ func (s *Service) History(jobID int64, limit int) []Execution {
 	start := len(items) - limit
 	out := make([]Execution, limit)
 	copy(out, items[start:])
+	return out
+}
+
+func (s *Service) ClaimRun(jobID int64, executionKey, instanceID string, now time.Time) (DispatchClaim, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if _, ok := s.jobs[jobID]; !ok {
+		return DispatchClaim{}, ErrJobNotFound
+	}
+	if executionKey == "" {
+		return DispatchClaim{}, ErrExecutionKeyRequired
+	}
+
+	if rec, exists := s.claims[executionKey]; exists {
+		if rec.jobID == jobID && rec.instanceID == instanceID {
+			return toDispatchClaim(executionKey, rec, true, false, "idempotent claim"), nil
+		}
+		return toDispatchClaim(executionKey, rec, false, true, "duplicate execution key blocked"), nil
+	}
+
+	rec := dispatchClaimRecord{
+		jobID:       jobID,
+		instanceID:  instanceID,
+		executionID: s.nextExecution,
+		claimedAt:   now.UTC(),
+	}
+	s.nextExecution++
+	s.claims[executionKey] = rec
+
+	return toDispatchClaim(executionKey, rec, true, false, "claim accepted"), nil
+}
+
+func (s *Service) ClaimStatus(executionKey string) DispatchClaim {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rec, ok := s.claims[executionKey]
+	if !ok {
+		return DispatchClaim{ExecutionKey: executionKey, Claimed: false, DuplicateBlocked: false, Message: "not found"}
+	}
+	return toDispatchClaim(executionKey, rec, true, false, "claimed")
+}
+
+func toDispatchClaim(executionKey string, rec dispatchClaimRecord, claimed, duplicate bool, message string) DispatchClaim {
+	out := DispatchClaim{
+		ExecutionKey:     executionKey,
+		JobID:            rec.jobID,
+		InstanceID:       rec.instanceID,
+		ExecutionID:      rec.executionID,
+		Claimed:          claimed,
+		DuplicateBlocked: duplicate,
+		Message:          message,
+	}
+	if !rec.claimedAt.IsZero() {
+		out.ClaimedAtUnixSec = rec.claimedAt.Unix()
+	}
 	return out
 }

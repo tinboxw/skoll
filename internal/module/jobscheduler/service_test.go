@@ -1,6 +1,9 @@
 package jobscheduler
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestServiceCreateRunHistory(t *testing.T) {
 	svc := NewService()
@@ -23,5 +26,53 @@ func TestServiceCreateRunHistory(t *testing.T) {
 	}
 	if history[0].ID != exec.ID {
 		t.Fatalf("unexpected execution id in history: %d", history[0].ID)
+	}
+}
+
+func TestServiceClaimRunConsistency(t *testing.T) {
+	svc := NewService()
+	job := svc.Create("daily-sync", "0 0 * * *")
+	now := time.Unix(1710000000, 0).UTC()
+
+	claim1, err := svc.ClaimRun(job.ID, "job-1:20260426T100000Z", "node-a", now)
+	if err != nil {
+		t.Fatalf("claim run failed: %v", err)
+	}
+	if !claim1.Claimed || claim1.DuplicateBlocked {
+		t.Fatalf("expected accepted claim, got %+v", claim1)
+	}
+
+	claim2, err := svc.ClaimRun(job.ID, "job-1:20260426T100000Z", "node-a", now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("idempotent claim failed: %v", err)
+	}
+	if !claim2.Claimed || claim2.DuplicateBlocked {
+		t.Fatalf("expected idempotent accepted claim, got %+v", claim2)
+	}
+
+	dup, err := svc.ClaimRun(job.ID, "job-1:20260426T100000Z", "node-b", now.Add(5*time.Second))
+	if err != nil {
+		t.Fatalf("duplicate claim call should not return error: %v", err)
+	}
+	if dup.Claimed || !dup.DuplicateBlocked {
+		t.Fatalf("expected duplicate blocked claim, got %+v", dup)
+	}
+
+	status := svc.ClaimStatus("job-1:20260426T100000Z")
+	if !status.Claimed || status.InstanceID != "node-a" {
+		t.Fatalf("unexpected claim status: %+v", status)
+	}
+}
+
+func BenchmarkServiceClaimRunConsistency(b *testing.B) {
+	svc := NewService()
+	job := svc.Create("daily-sync", "0 0 * * *")
+	now := time.Unix(1710000000, 0).UTC()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		key := "job-1:" + time.Unix(now.Unix()+int64(i), 0).UTC().Format("20060102T150405Z")
+		_, _ = svc.ClaimRun(job.ID, key, "node-a", now)
 	}
 }

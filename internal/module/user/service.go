@@ -44,6 +44,16 @@ type SessionAnomaly struct {
 	ReportedUnix int64  `json:"reported_unix_sec"`
 }
 
+type SessionConsistency struct {
+	SessionID            string `json:"session_id"`
+	Version              int64  `json:"version"`
+	WriterInstance       string `json:"writer_instance,omitempty"`
+	LastHeartbeatUnixSec int64  `json:"last_heartbeat_unix_sec,omitempty"`
+	ConflictCount        int    `json:"conflict_count"`
+	Consistent           bool   `json:"consistent"`
+	LastConflictReason   string `json:"last_conflict_reason,omitempty"`
+}
+
 type userSecurity struct {
 	passwordRotatedAt time.Time
 	failedLoginCount  int
@@ -62,16 +72,31 @@ type sessionRecord struct {
 	lastAnomalyType string
 }
 
+type sessionConsistencyRecord struct {
+	version            int64
+	writerInstance     string
+	lastHeartbeatAt    time.Time
+	conflictCount      int
+	lastConflictReason string
+}
+
 type Service struct {
-	mu       sync.RWMutex
-	nextID   int64
-	items    map[int64]User
-	security map[int64]userSecurity
-	sessions map[string]sessionRecord
+	mu                 sync.RWMutex
+	nextID             int64
+	items              map[int64]User
+	security           map[int64]userSecurity
+	sessions           map[string]sessionRecord
+	sessionConsistency map[string]sessionConsistencyRecord
 }
 
 func NewService() *Service {
-	return &Service{nextID: 1, items: make(map[int64]User), security: make(map[int64]userSecurity), sessions: make(map[string]sessionRecord)}
+	return &Service{
+		nextID:             1,
+		items:              make(map[int64]User),
+		security:           make(map[int64]userSecurity),
+		sessions:           make(map[string]sessionRecord),
+		sessionConsistency: make(map[string]sessionConsistencyRecord),
+	}
 }
 
 func (s *Service) Create(name, email string) User {
@@ -209,6 +234,49 @@ func (s *Service) ReportSessionAnomaly(sessionID, category, detail string, now t
 	return SessionAnomaly{SessionID: sessionID, Category: category, Detail: detail, ReportedUnix: now.UTC().Unix()}
 }
 
+func (s *Service) HeartbeatSessionConsistency(sessionID, instanceID string, version int64, now time.Time) SessionConsistency {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if version <= 0 {
+		version = 1
+	}
+
+	rec := s.sessionConsistency[sessionID]
+	conflict := false
+	conflictReason := ""
+
+	if rec.version > 0 {
+		switch {
+		case version < rec.version:
+			conflict = true
+			conflictReason = "stale_version"
+		case version == rec.version && rec.writerInstance != "" && instanceID != "" && rec.writerInstance != instanceID:
+			conflict = true
+			conflictReason = "writer_conflict"
+		}
+	}
+
+	if conflict {
+		rec.conflictCount++
+		rec.lastConflictReason = conflictReason
+		s.sessionConsistency[sessionID] = rec
+		return toSessionConsistency(sessionID, rec, false)
+	}
+
+	rec.version = version
+	rec.writerInstance = instanceID
+	rec.lastHeartbeatAt = now.UTC()
+	s.sessionConsistency[sessionID] = rec
+	return toSessionConsistency(sessionID, rec, true)
+}
+
+func (s *Service) SessionConsistencyStatus(sessionID string) SessionConsistency {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return toSessionConsistency(sessionID, s.sessionConsistency[sessionID], true)
+}
+
 func toSecurityState(userID int64, state userSecurity) SecurityState {
 	out := SecurityState{
 		UserID:                 userID,
@@ -233,6 +301,21 @@ func toSessionStatus(sessionID string, rec sessionRecord) SessionStatus {
 	}
 	if !rec.lastAnomalyAt.IsZero() {
 		out.LastAnomalyUnixSec = rec.lastAnomalyAt.Unix()
+	}
+	return out
+}
+
+func toSessionConsistency(sessionID string, rec sessionConsistencyRecord, consistent bool) SessionConsistency {
+	out := SessionConsistency{
+		SessionID:          sessionID,
+		Version:            rec.version,
+		WriterInstance:     rec.writerInstance,
+		ConflictCount:      rec.conflictCount,
+		Consistent:         consistent,
+		LastConflictReason: rec.lastConflictReason,
+	}
+	if !rec.lastHeartbeatAt.IsZero() {
+		out.LastHeartbeatUnixSec = rec.lastHeartbeatAt.Unix()
 	}
 	return out
 }

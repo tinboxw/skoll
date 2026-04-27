@@ -109,3 +109,33 @@ func TestServiceSessionSecurity(t *testing.T) {
 		t.Fatalf("unexpected session status: %+v", status)
 	}
 }
+
+func TestServiceSessionConsistencyHeartbeat(t *testing.T) {
+	svc := NewService()
+	now := time.Unix(1710000000, 0).UTC()
+
+	state := svc.HeartbeatSessionConsistency("sess-1", "node-a", 10, now)
+	if !state.Consistent || state.Version != 10 || state.WriterInstance != "node-a" {
+		t.Fatalf("unexpected initial consistency state: %+v", state)
+	}
+
+	stale := svc.HeartbeatSessionConsistency("sess-1", "node-b", 9, now.Add(10*time.Second))
+	if stale.Consistent || stale.LastConflictReason != "stale_version" {
+		t.Fatalf("expected stale_version conflict, got %+v", stale)
+	}
+
+	conflict := svc.HeartbeatSessionConsistency("sess-1", "node-b", 10, now.Add(20*time.Second))
+	if conflict.Consistent || conflict.LastConflictReason != "writer_conflict" {
+		t.Fatalf("expected writer_conflict, got %+v", conflict)
+	}
+
+	next := svc.HeartbeatSessionConsistency("sess-1", "node-b", 11, now.Add(30*time.Second))
+	if !next.Consistent || next.Version != 11 || next.WriterInstance != "node-b" {
+		t.Fatalf("expected consistent writer takeover on higher version, got %+v", next)
+	}
+
+	status := svc.SessionConsistencyStatus("sess-1")
+	if status.Version != 11 || status.ConflictCount != 2 {
+		t.Fatalf("unexpected consistency status: %+v", status)
+	}
+}

@@ -56,6 +56,14 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if status.AnomalyCount != 1 {
 		t.Fatalf("expected session anomaly count=1, got %+v", status)
 	}
+	consistent := a.Users().HeartbeatSessionConsistency("sess-contract", "node-a", 3, now)
+	if !consistent.Consistent || consistent.Version != 3 {
+		t.Fatalf("expected consistent heartbeat state, got %+v", consistent)
+	}
+	conflict := a.Users().HeartbeatSessionConsistency("sess-contract", "node-b", 2, now.Add(1*time.Second))
+	if conflict.Consistent {
+		t.Fatalf("expected stale heartbeat conflict, got %+v", conflict)
+	}
 
 	r1 := a.Roles().Create("admin", []string{"user.read", "user.write"})
 	if _, err := a.Roles().Get(r1.ID); err != nil {
@@ -159,6 +167,20 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if len(history) != 1 {
 		t.Fatalf("expected 1 job history item, got %d", len(history))
 	}
+	claim, err := a.Jobs().ClaimRun(job.ID, "contract-job:20260426T100000Z", "node-a", now)
+	if err != nil {
+		t.Fatalf("claim run failed: %v", err)
+	}
+	if !claim.Claimed || claim.DuplicateBlocked {
+		t.Fatalf("expected accepted claim, got %+v", claim)
+	}
+	dupClaim, err := a.Jobs().ClaimRun(job.ID, "contract-job:20260426T100000Z", "node-b", now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("duplicate claim call failed: %v", err)
+	}
+	if dupClaim.Claimed || !dupClaim.DuplicateBlocked {
+		t.Fatalf("expected duplicate blocked claim, got %+v", dupClaim)
+	}
 
 	generated, err := a.Generators().Generate("contractmodule")
 	if err != nil {
@@ -214,4 +236,5 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	if disabled.Enabled {
 		t.Fatalf("expected plugin disabled")
 	}
+
 }

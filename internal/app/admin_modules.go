@@ -62,6 +62,8 @@ type UserService interface {
 	RevokeSession(sessionID, reason string, now time.Time) user.SessionStatus
 	SessionStatus(sessionID string) user.SessionStatus
 	ReportSessionAnomaly(sessionID, category, detail string, now time.Time) user.SessionAnomaly
+	HeartbeatSessionConsistency(sessionID, instanceID string, version int64, now time.Time) user.SessionConsistency
+	SessionConsistencyStatus(sessionID string) user.SessionConsistency
 }
 
 type RoleService interface {
@@ -108,6 +110,8 @@ type JobService interface {
 	List() []jobscheduler.Job
 	Run(jobID int64) (jobscheduler.Execution, error)
 	History(jobID int64, limit int) []jobscheduler.Execution
+	ClaimRun(jobID int64, executionKey, instanceID string, now time.Time) (jobscheduler.DispatchClaim, error)
+	ClaimStatus(executionKey string) jobscheduler.DispatchClaim
 }
 
 type GeneratorService interface {
@@ -174,6 +178,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/sessions/revoke", revokeSessionHandler(services.Users, services.Audit))
 	handle("GET /admin/v1/sessions/{session_id}/status", getSessionStatusHandler(services.Users))
 	handle("POST /admin/v1/sessions/anomalies", reportSessionAnomalyHandler(services.Users, services.Audit))
+	handle("POST /admin/v1/sessions/consistency/heartbeat", heartbeatSessionConsistencyHandler(services.Users, services.Audit))
+	handle("GET /admin/v1/sessions/{session_id}/consistency", getSessionConsistencyHandler(services.Users))
 
 	handle("POST /admin/v1/roles", createRoleHandler(services.Roles))
 	handle("GET /admin/v1/roles", listRolesHandler(services.Roles))
@@ -210,6 +216,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/jobs", listJobsHandler(services.Jobs))
 	handle("POST /admin/v1/jobs/{id}/run", runJobHandler(services.Jobs))
 	handle("GET /admin/v1/jobs/{id}/history", listJobHistoryHandler(services.Jobs))
+	handle("POST /admin/v1/jobs/{id}/dispatch-claim", claimJobDispatchHandler(services.Jobs, services.Audit))
+	handle("GET /admin/v1/job-dispatch-claims/{execution_key}", getJobDispatchClaimHandler(services.Jobs))
 	handle("POST /admin/v1/generator/modules", generateModuleHandler(services.Generator))
 	handle("POST /admin/v1/plugins/manifests", installPluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/packages/install", installPluginPackageHandler(services.Plugins))
@@ -260,6 +268,12 @@ type reportSessionAnomalyRequest struct {
 	Detail    string `json:"detail"`
 }
 
+type heartbeatSessionConsistencyRequest struct {
+	SessionID  string `json:"session_id"`
+	InstanceID string `json:"instance_id"`
+	Version    int64  `json:"version"`
+}
+
 type createRoleRequest struct {
 	Name        string   `json:"name"`
 	Permissions []string `json:"permissions"`
@@ -294,6 +308,11 @@ type createDictionaryRequest struct {
 type createJobRequest struct {
 	Name     string `json:"name"`
 	Schedule string `json:"schedule"`
+}
+
+type claimJobDispatchRequest struct {
+	ExecutionKey string `json:"execution_key"`
+	InstanceID   string `json:"instance_id"`
 }
 
 type generateModuleRequest struct {
@@ -812,6 +831,44 @@ func reportSessionAnomalyHandler(userSvc UserService, auditSvc AuditService) htt
 		out := userSvc.ReportSessionAnomaly(req.SessionID, req.Category, req.Detail, time.Now().UTC())
 		auditSvc.Append("security", "session_anomaly", req.SessionID+":"+req.Category)
 		respondJSON(w, http.StatusCreated, out)
+	}
+}
+
+func heartbeatSessionConsistencyHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req heartbeatSessionConsistencyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.SessionID = strings.TrimSpace(req.SessionID)
+		req.InstanceID = strings.TrimSpace(req.InstanceID)
+		if req.SessionID == "" || req.InstanceID == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "session_id and instance_id are required"})
+			return
+		}
+		if req.Version <= 0 {
+			req.Version = 1
+		}
+
+		out := userSvc.HeartbeatSessionConsistency(req.SessionID, req.InstanceID, req.Version, time.Now().UTC())
+		action := "session_consistency_heartbeat"
+		if !out.Consistent {
+			action = "session_consistency_conflict"
+		}
+		auditSvc.Append("consistency", action, req.SessionID)
+		respondJSON(w, http.StatusOK, out)
+	}
+}
+
+func getSessionConsistencyHandler(userSvc UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionID, err := parsePathString(r, "session_id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusOK, userSvc.SessionConsistencyStatus(sessionID))
 	}
 }
 
@@ -1559,6 +1616,55 @@ func listJobHistoryHandler(svc JobService) http.HandlerFunc {
 			limit = parsed
 		}
 		respondJSON(w, http.StatusOK, svc.History(id, limit))
+	}
+}
+
+func claimJobDispatchHandler(svc JobService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jobID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		var req claimJobDispatchRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.ExecutionKey = strings.TrimSpace(req.ExecutionKey)
+		req.InstanceID = strings.TrimSpace(req.InstanceID)
+		if req.ExecutionKey == "" || req.InstanceID == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "execution_key and instance_id are required"})
+			return
+		}
+
+		out, err := svc.ClaimRun(jobID, req.ExecutionKey, req.InstanceID, time.Now().UTC())
+		if err != nil {
+			if err == jobscheduler.ErrJobNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		action := "job_dispatch_claim"
+		if out.DuplicateBlocked {
+			action = "job_dispatch_duplicate_blocked"
+		}
+		auditSvc.Append("consistency", action, req.ExecutionKey)
+		respondJSON(w, http.StatusOK, out)
+	}
+}
+
+func getJobDispatchClaimHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		executionKey, err := parsePathString(r, "execution_key")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusOK, svc.ClaimStatus(executionKey))
 	}
 }
 

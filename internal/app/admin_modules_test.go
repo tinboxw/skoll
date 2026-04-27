@@ -797,6 +797,65 @@ func TestDatabaseOpsGovernanceRoutes(t *testing.T) {
 	}
 }
 
+func TestMultiInstanceConsistencyRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createJobReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs", strings.NewReader(`{"name":"daily-sync","schedule":"0 0 * * *"}`))
+	createJobReq.Header.Set("Content-Type", "application/json")
+	createJobRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createJobRR, createJobReq)
+	if createJobRR.Code != http.StatusCreated {
+		t.Fatalf("expected create job status 201, got %d", createJobRR.Code)
+	}
+
+	heartbeatReq := httptest.NewRequest(http.MethodPost, "/admin/v1/sessions/consistency/heartbeat", strings.NewReader(`{"session_id":"sess-1","instance_id":"node-a","version":10}`))
+	heartbeatReq.Header.Set("Content-Type", "application/json")
+	heartbeatRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(heartbeatRR, heartbeatReq)
+	if heartbeatRR.Code != http.StatusOK {
+		t.Fatalf("expected heartbeat status 200, got %d", heartbeatRR.Code)
+	}
+
+	conflictReq := httptest.NewRequest(http.MethodPost, "/admin/v1/sessions/consistency/heartbeat", strings.NewReader(`{"session_id":"sess-1","instance_id":"node-b","version":10}`))
+	conflictReq.Header.Set("Content-Type", "application/json")
+	conflictRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(conflictRR, conflictReq)
+	if conflictRR.Code != http.StatusOK || !strings.Contains(conflictRR.Body.String(), `"consistent":false`) {
+		t.Fatalf("expected writer conflict response, got status=%d body=%s", conflictRR.Code, conflictRR.Body.String())
+	}
+
+	sessionStatusReq := httptest.NewRequest(http.MethodGet, "/admin/v1/sessions/sess-1/consistency", nil)
+	sessionStatusRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(sessionStatusRR, sessionStatusReq)
+	if sessionStatusRR.Code != http.StatusOK {
+		t.Fatalf("expected session consistency status 200, got %d", sessionStatusRR.Code)
+	}
+
+	claimReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs/1/dispatch-claim", strings.NewReader(`{"execution_key":"job-1:20260426T100000Z","instance_id":"node-a"}`))
+	claimReq.Header.Set("Content-Type", "application/json")
+	claimRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(claimRR, claimReq)
+	if claimRR.Code != http.StatusOK || !strings.Contains(claimRR.Body.String(), `"claimed":true`) {
+		t.Fatalf("expected dispatch claim accepted, got status=%d body=%s", claimRR.Code, claimRR.Body.String())
+	}
+
+	dupReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs/1/dispatch-claim", strings.NewReader(`{"execution_key":"job-1:20260426T100000Z","instance_id":"node-b"}`))
+	dupReq.Header.Set("Content-Type", "application/json")
+	dupRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(dupRR, dupReq)
+	if dupRR.Code != http.StatusOK || !strings.Contains(dupRR.Body.String(), `"duplicate_blocked":true`) {
+		t.Fatalf("expected duplicate blocked response, got status=%d body=%s", dupRR.Code, dupRR.Body.String())
+	}
+
+	claimStatusReq := httptest.NewRequest(http.MethodGet, "/admin/v1/job-dispatch-claims/job-1:20260426T100000Z", nil)
+	claimStatusRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(claimStatusRR, claimStatusReq)
+	if claimStatusRR.Code != http.StatusOK {
+		t.Fatalf("expected claim status 200, got %d", claimStatusRR.Code)
+	}
+}
+
 func TestRuntimeMetricsRoute_ReturnsSnapshot(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)

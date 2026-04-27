@@ -46,6 +46,8 @@ type UserRepository interface {
 	RevokeSession(sessionID, reason string, now time.Time) user.SessionStatus
 	SessionStatus(sessionID string) user.SessionStatus
 	ReportSessionAnomaly(sessionID, category, detail string, now time.Time) user.SessionAnomaly
+	HeartbeatSessionConsistency(sessionID, instanceID string, version int64, now time.Time) user.SessionConsistency
+	SessionConsistencyStatus(sessionID string) user.SessionConsistency
 }
 
 type RoleRepository interface {
@@ -92,6 +94,8 @@ type JobRepository interface {
 	List() []jobscheduler.Job
 	Run(jobID int64) (jobscheduler.Execution, error)
 	History(jobID int64, limit int) []jobscheduler.Execution
+	ClaimRun(jobID int64, executionKey, instanceID string, now time.Time) (jobscheduler.DispatchClaim, error)
+	ClaimStatus(executionKey string) jobscheduler.DispatchClaim
 }
 
 type GeneratorRepository interface {
