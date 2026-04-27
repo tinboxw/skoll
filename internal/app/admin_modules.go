@@ -26,6 +26,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/rbac"
+	"github.com/tinboxw/skoll/internal/module/releasegov"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
@@ -49,6 +50,7 @@ type AdminModuleServices struct {
 	Plugins      PluginService
 	RBAC         RBACService
 	APIs         APIRegistryService
+	Releases     ReleaseService
 }
 
 type UserService interface {
@@ -151,6 +153,11 @@ type APIRegistryService interface {
 	List() []string
 }
 
+type ReleaseService interface {
+	SubmitEvidence(input releasegov.EvidenceInput, now time.Time) (releasegov.Evidence, error)
+	Scorecard(milestone string, allowedRegression float64) releasegov.Scorecard
+}
+
 func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wrapper func(http.Handler) http.Handler) {
 	if mux == nil {
 		return
@@ -236,6 +243,10 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/system/node-health", nodeHealthHandler(services))
 	handle("GET /admin/v1/system/dashboard", dashboardAggregateHandler(services))
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
+	if services.Releases != nil {
+		handle("POST /admin/v1/release-governance/evidence", submitReleaseEvidenceHandler(services.Releases, services.Audit))
+		handle("GET /admin/v1/release-governance/scorecard/{milestone}", getReleaseScorecardHandler(services.Releases))
+	}
 }
 
 type createUserRequest struct {
@@ -386,6 +397,17 @@ type controlledSQLResponse struct {
 	Allowed      bool   `json:"allowed"`
 	ExecutionID  string `json:"execution_id,omitempty"`
 	SafetyResult string `json:"safety_result"`
+}
+
+type submitReleaseEvidenceRequest struct {
+	Milestone           string  `json:"milestone"`
+	GoTestPassed        bool    `json:"go_test_passed"`
+	GoRacePassed        bool    `json:"go_race_passed"`
+	ReadmeSynced        bool    `json:"readme_synced"`
+	BenchmarkNsPerOp    float64 `json:"benchmark_ns_per_op"`
+	BaselineNsPerOp     float64 `json:"baseline_ns_per_op"`
+	BenchmarkCommand    string  `json:"benchmark_command"`
+	EvidenceDescription string  `json:"evidence_description"`
 }
 
 type dbOpsState struct {
@@ -1864,6 +1886,53 @@ func executeControlledSQLHandler(auditSvc AuditService) http.HandlerFunc {
 	}
 }
 
+func submitReleaseEvidenceHandler(svc ReleaseService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req submitReleaseEvidenceRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		out, err := svc.SubmitEvidence(releasegov.EvidenceInput{
+			Milestone:           req.Milestone,
+			GoTestPassed:        req.GoTestPassed,
+			GoRacePassed:        req.GoRacePassed,
+			ReadmeSynced:        req.ReadmeSynced,
+			BenchmarkNsPerOp:    req.BenchmarkNsPerOp,
+			BaselineNsPerOp:     req.BaselineNsPerOp,
+			BenchmarkCommand:    req.BenchmarkCommand,
+			EvidenceDescription: req.EvidenceDescription,
+		}, time.Now().UTC())
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("release-governance", "evidence_submit", out.Milestone)
+		respondJSON(w, http.StatusCreated, out)
+	}
+}
+
+func getReleaseScorecardHandler(svc ReleaseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		milestone, err := parsePathString(r, "milestone")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		allowedRegression := 0.10
+		if raw := strings.TrimSpace(r.URL.Query().Get("allowed_regression")); raw != "" {
+			parsed, err := strconv.ParseFloat(raw, 64)
+			if err != nil || parsed <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "allowed_regression must be a positive float"})
+				return
+			}
+			allowedRegression = parsed
+		}
+		respondJSON(w, http.StatusOK, svc.Scorecard(milestone, allowedRegression))
+	}
+}
+
 func listPluginsHandler(svc PluginService) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, svc.List())
@@ -2506,6 +2575,7 @@ func collectNodeHealth(services AdminModuleServices) nodeHealthResponse {
 		{Name: "plugins", Status: healthStatus(services.Plugins != nil), Detail: "admin plugin service", CheckedAt: now},
 		{Name: "rbac", Status: healthStatus(services.RBAC != nil), Detail: "admin rbac service", CheckedAt: now},
 		{Name: "api_registry", Status: healthStatus(services.APIs != nil), Detail: "admin api registry service", CheckedAt: now},
+		{Name: "release_governance", Status: healthStatus(services.Releases != nil), Detail: "admin release governance service", CheckedAt: now},
 	}
 	nodeStatus := "up"
 	for _, item := range deps {

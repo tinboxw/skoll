@@ -22,6 +22,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/rbac"
+	"github.com/tinboxw/skoll/internal/module/releasegov"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
@@ -61,6 +62,7 @@ func testAdminModuleServices() AdminModuleServices {
 		Plugins:      pluginmgr.NewService(),
 		RBAC:         rbac.NewService(),
 		APIs:         apiregistry.NewService(),
+		Releases:     releasegov.NewService(),
 	}
 }
 
@@ -853,6 +855,29 @@ func TestMultiInstanceConsistencyRoutes(t *testing.T) {
 	srv.httpServer.Handler.ServeHTTP(claimStatusRR, claimStatusReq)
 	if claimStatusRR.Code != http.StatusOK {
 		t.Fatalf("expected claim status 200, got %d", claimStatusRR.Code)
+	}
+}
+
+func TestReleaseGovernanceRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	evidenceReq := httptest.NewRequest(http.MethodPost, "/admin/v1/release-governance/evidence", strings.NewReader(`{"milestone":"E8-step1","go_test_passed":true,"go_race_passed":true,"readme_synced":true,"benchmark_ns_per_op":3300,"baseline_ns_per_op":3000,"benchmark_command":"go test -bench=BenchmarkAdminUsersListEndpoint -benchmem ./internal/app"}`))
+	evidenceReq.Header.Set("Content-Type", "application/json")
+	evidenceRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(evidenceRR, evidenceReq)
+	if evidenceRR.Code != http.StatusCreated {
+		t.Fatalf("expected evidence submit status 201, got %d", evidenceRR.Code)
+	}
+
+	scoreReq := httptest.NewRequest(http.MethodGet, "/admin/v1/release-governance/scorecard/E8-step1?allowed_regression=0.15", nil)
+	scoreRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(scoreRR, scoreReq)
+	if scoreRR.Code != http.StatusOK {
+		t.Fatalf("expected release scorecard status 200, got %d", scoreRR.Code)
+	}
+	if !strings.Contains(scoreRR.Body.String(), `"release_ready":true`) {
+		t.Fatalf("expected release_ready=true in scorecard, got %s", scoreRR.Body.String())
 	}
 }
 

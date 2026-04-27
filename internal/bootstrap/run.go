@@ -114,6 +114,7 @@ func Run() error {
 		Plugins:      storage.Plugins(),
 		RBAC:         storage.RBAC(),
 		APIs:         storage.APIs(),
+		Releases:     storage.Releases(),
 	}, adminWrapper)
 
 	if goAdminBootstrap.Enabled() {

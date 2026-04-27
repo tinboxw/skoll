@@ -15,6 +15,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/rbac"
+	"github.com/tinboxw/skoll/internal/module/releasegov"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
@@ -33,6 +34,7 @@ type Adapter interface {
 	Plugins() PluginRepository
 	RBAC() RBACRepository
 	APIs() APIRegistryRepository
+	Releases() ReleaseRepository
 }
 
 type UserRepository interface {
@@ -135,19 +137,25 @@ type APIRegistryRepository interface {
 	List() []string
 }
 
+type ReleaseRepository interface {
+	SubmitEvidence(input releasegov.EvidenceInput, now time.Time) (releasegov.Evidence, error)
+	Scorecard(milestone string, allowedRegression float64) releasegov.Scorecard
+}
+
 type InMemoryAdapter struct {
-	users   UserRepository
-	roles   RoleRepository
-	menus   MenuRepository
-	audit   AuditRepository
-	configs ConfigRepository
-	dicts   DictionaryRepository
-	files   FileRepository
-	jobs    JobRepository
-	gen     GeneratorRepository
-	plugins PluginRepository
-	rbac    RBACRepository
-	apis    APIRegistryRepository
+	users    UserRepository
+	roles    RoleRepository
+	menus    MenuRepository
+	audit    AuditRepository
+	configs  ConfigRepository
+	dicts    DictionaryRepository
+	files    FileRepository
+	jobs     JobRepository
+	gen      GeneratorRepository
+	plugins  PluginRepository
+	rbac     RBACRepository
+	apis     APIRegistryRepository
+	releases ReleaseRepository
 }
 
 func NewInMemoryAdapter() *InMemoryAdapter {
@@ -156,18 +164,19 @@ func NewInMemoryAdapter() *InMemoryAdapter {
 		panic(err)
 	}
 	return &InMemoryAdapter{
-		users:   user.NewService(),
-		roles:   role.NewService(),
-		menus:   menu.NewService(),
-		audit:   audit.NewService(),
-		configs: config.NewService(),
-		dicts:   dictionary.NewService(),
-		files:   fileservice.NewService(backend),
-		jobs:    jobscheduler.NewService(),
-		gen:     modgenerator.NewService(),
-		plugins: pluginmgr.NewService(),
-		rbac:    rbac.NewService(),
-		apis:    apiregistry.NewService(),
+		users:    user.NewService(),
+		roles:    role.NewService(),
+		menus:    menu.NewService(),
+		audit:    audit.NewService(),
+		configs:  config.NewService(),
+		dicts:    dictionary.NewService(),
+		files:    fileservice.NewService(backend),
+		jobs:     jobscheduler.NewService(),
+		gen:      modgenerator.NewService(),
+		plugins:  pluginmgr.NewService(),
+		rbac:     rbac.NewService(),
+		apis:     apiregistry.NewService(),
+		releases: releasegov.NewService(),
 	}
 }
 
@@ -217,4 +226,8 @@ func (a *InMemoryAdapter) RBAC() RBACRepository {
 
 func (a *InMemoryAdapter) APIs() APIRegistryRepository {
 	return a.apis
+}
+
+func (a *InMemoryAdapter) Releases() ReleaseRepository {
+	return a.releases
 }

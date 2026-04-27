@@ -8,6 +8,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/audit"
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/rbac"
+	"github.com/tinboxw/skoll/internal/module/releasegov"
 )
 
 func TestInMemoryAdapterContract(t *testing.T) {
@@ -235,6 +236,25 @@ func runAdapterContract(t *testing.T, factory func() Adapter) {
 	}
 	if disabled.Enabled {
 		t.Fatalf("expected plugin disabled")
+	}
+
+	evidence, err := a.Releases().SubmitEvidence(releasegov.EvidenceInput{
+		Milestone:        "e8-step1",
+		GoTestPassed:     true,
+		GoRacePassed:     true,
+		ReadmeSynced:     true,
+		BenchmarkNsPerOp: 2500,
+		BaselineNsPerOp:  2400,
+	}, now)
+	if err != nil {
+		t.Fatalf("submit release evidence failed: %v", err)
+	}
+	if evidence.Milestone != "e8-step1" {
+		t.Fatalf("unexpected evidence milestone: %+v", evidence)
+	}
+	score := a.Releases().Scorecard("e8-step1", 0.10)
+	if !score.ReleaseReady {
+		t.Fatalf("expected release-ready scorecard, got %+v", score)
 	}
 
 }
