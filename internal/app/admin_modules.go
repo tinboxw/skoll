@@ -44,30 +44,19 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services admincontracts.AdminMod
 	}
 
 	hardeningH := adminhardening.NewHandler(services.Audit)
+	dashboardCollector := admindashboard.NewCollector(services, time.Now)
 	adminauth.NewHandler(services.Users, services.Audit).Register(mux, wrapper, services.APIs)
 	adminrbac.NewHandler(services.Roles, services.Menus, services.RBAC, services.APIs, services.Audit).Register(mux, wrapper, services.APIs)
 	adminconfigdict.NewHandler(services.Configs, services.Dictionaries, services.Audit).Register(mux, wrapper, services.APIs)
 	admindashboard.NewHandler(
-		func() any { return admindashboard.CollectSystemStatus(services) },
-		func() any { return admindashboard.CollectRuntimeMetrics() },
-		func() any { return admindashboard.CollectNodeHealth(services) },
+		func() any { return dashboardCollector.SystemStatus() },
+		func() any { return dashboardCollector.RuntimeMetrics() },
+		func() any { return dashboardCollector.NodeHealth() },
 		func(r *http.Request) any {
-			authSession := admindashboard.CollectAuthSessionContext(r)
-			authObservability := admindashboard.CollectAuthObservability()
-			jwtSession := admindashboard.CollectJWTSessionBootstrap(r, time.Now().UTC())
-			return admindashboard.AggregateResponse{
-				Contract:             admindashboard.CollectContractDescriptor(),
-				GeneratedAtUnixSec:   time.Now().UTC().Unix(),
-				AuthSession:          authSession,
-				AuthObservability:    authObservability,
-				AuthActionability:    admindashboard.CollectAuthActionability(authSession, authObservability),
-				JWTSessionBootstrap:  jwtSession,
-				Status:               admindashboard.CollectSystemStatus(services),
-				RuntimeMetrics:       admindashboard.CollectRuntimeMetrics(),
-				NodeHealth:           admindashboard.CollectNodeHealth(services),
-				SchedulerReliability: services.Jobs.ReliabilitySnapshot(time.Now().UTC()),
-				HardeningPosture:     hardeningH.Snapshot(),
-			}
+			return dashboardCollector.Aggregate(r, admindashboard.AggregateProviders{
+				SchedulerReliability: func(now time.Time) any { return services.Jobs.ReliabilitySnapshot(now) },
+				HardeningPosture:     func() any { return hardeningH.Snapshot() },
+			})
 		},
 	).Register(mux, wrapper, services.APIs)
 
