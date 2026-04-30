@@ -144,6 +144,10 @@ type PluginService interface {
 	SetHookRuntimePolicy(name, namespace string, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
 	ExecuteHookDiagnostic(name, namespace string, failTimes int) (pluginmgr.HookExecutionResult, error)
 	ListHookDeadLetters() []pluginmgr.HookDeadLetterRecord
+	SetMarketplaceTrustRoots(roots []string) []string
+	ListMarketplaceTrustRoots() []string
+	IngestMarketplaceIndex(source, signedBy, signature string, expiresAt time.Time, packages []pluginmgr.MarketplaceIndexPackage, now time.Time) (pluginmgr.MarketplaceIndexIngestResult, error)
+	ListMarketplaceIndexSources() []pluginmgr.MarketplaceIndexSource
 }
 
 type RBACService interface {
@@ -284,6 +288,10 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/runtime", setPluginHookRuntimeHandler(services.Plugins, services.Audit))
 	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/execute-diagnostic", executePluginHookDiagnosticHandler(services.Plugins, services.Audit))
 	handle("GET /admin/v1/plugins/hooks/dead-letters", listPluginHookDeadLettersHandler(services.Plugins))
+	handle("PUT /admin/v1/plugins/marketplace/trust-roots", setMarketplaceTrustRootsHandler(services.Plugins, services.Audit))
+	handle("GET /admin/v1/plugins/marketplace/trust-roots", listMarketplaceTrustRootsHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/marketplace/index/ingest", ingestMarketplaceIndexHandler(services.Plugins, services.Audit))
+	handle("GET /admin/v1/plugins/marketplace/index/sources", listMarketplaceIndexSourcesHandler(services.Plugins))
 	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
 	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
@@ -505,6 +513,18 @@ type setPluginHookRuntimeRequest struct {
 
 type executePluginHookDiagnosticRequest struct {
 	FailTimes int `json:"fail_times"`
+}
+
+type setMarketplaceTrustRootsRequest struct {
+	Roots []string `json:"roots"`
+}
+
+type ingestMarketplaceIndexRequest struct {
+	Source        string                              `json:"source"`
+	SignedBy      string                              `json:"signed_by"`
+	Signature     string                              `json:"signature"`
+	ExpiresAtUnix int64                               `json:"expires_at_unix_sec"`
+	Packages      []pluginmgr.MarketplaceIndexPackage `json:"packages"`
 }
 
 type migrationPlanRequest struct {
@@ -2884,6 +2904,56 @@ func executePluginHookDiagnosticHandler(svc PluginService, auditSvc AuditService
 func listPluginHookDeadLettersHandler(svc PluginService) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListHookDeadLetters()})
+	}
+}
+
+func setMarketplaceTrustRootsHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req setMarketplaceTrustRootsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		roots := svc.SetMarketplaceTrustRoots(req.Roots)
+		auditSvc.Append("plugin-governance", "marketplace_trust_roots_set", fmt.Sprintf("count:%d", len(roots)))
+		respondJSON(w, http.StatusOK, map[string]any{"items": roots})
+	}
+}
+
+func listMarketplaceTrustRootsHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListMarketplaceTrustRoots()})
+	}
+}
+
+func ingestMarketplaceIndexHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req ingestMarketplaceIndexRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if req.ExpiresAtUnix <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "expires_at_unix_sec must be positive"})
+			return
+		}
+		result, err := svc.IngestMarketplaceIndex(strings.TrimSpace(req.Source), strings.TrimSpace(req.SignedBy), strings.TrimSpace(req.Signature), time.Unix(req.ExpiresAtUnix, 0).UTC(), req.Packages, time.Now().UTC())
+		if err != nil {
+			if err == pluginmgr.ErrMarketplaceTrustRootNotFound {
+				respondJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("plugin-governance", "marketplace_index_ingest", result.Source)
+		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func listMarketplaceIndexSourcesHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListMarketplaceIndexSources()})
 	}
 }
 

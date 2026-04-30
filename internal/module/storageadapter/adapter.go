@@ -128,6 +128,10 @@ type PluginRepository interface {
 	SetHookRuntimePolicy(name, namespace string, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
 	ExecuteHookDiagnostic(name, namespace string, failTimes int) (pluginmgr.HookExecutionResult, error)
 	ListHookDeadLetters() []pluginmgr.HookDeadLetterRecord
+	SetMarketplaceTrustRoots(roots []string) []string
+	ListMarketplaceTrustRoots() []string
+	IngestMarketplaceIndex(source, signedBy, signature string, expiresAt time.Time, packages []pluginmgr.MarketplaceIndexPackage, now time.Time) (pluginmgr.MarketplaceIndexIngestResult, error)
+	ListMarketplaceIndexSources() []pluginmgr.MarketplaceIndexSource
 }
 
 type RBACRepository interface {

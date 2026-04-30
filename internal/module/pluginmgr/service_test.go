@@ -1,6 +1,9 @@
 package pluginmgr
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestServiceInstallEnableDisable(t *testing.T) {
 	svc := NewService()
@@ -235,5 +238,35 @@ func TestServiceHookExecutionDiagnosticAndDeadLetter(t *testing.T) {
 	}
 	if dlq[len(dlq)-1].Name != "on_order_paid" {
 		t.Fatalf("unexpected dead-letter record: %+v", dlq[len(dlq)-1])
+	}
+}
+
+func TestServiceMarketplaceTrustAndSignedIndexIngest(t *testing.T) {
+	svc := NewService()
+	roots := svc.SetMarketplaceTrustRoots([]string{"corp-root", "corp-root", "backup-root"})
+	if len(roots) != 2 {
+		t.Fatalf("expected deduplicated trust roots, got %v", roots)
+	}
+
+	expiresAt := time.Now().UTC().Add(10 * time.Minute)
+	pkgs := []MarketplaceIndexPackage{{Name: "audit-ext", Version: "1.2.0", PackageURL: "https://example.com/audit-ext.tgz", PackageHash: "sha256:abc"}}
+	signature := signMarketplaceIndex("official", "corp-root", expiresAt, pkgs)
+
+	result, err := svc.IngestMarketplaceIndex("official", "corp-root", signature, expiresAt, pkgs, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("ingest marketplace index failed: %v", err)
+	}
+	if !result.Accepted || result.PackageCount != 1 {
+		t.Fatalf("unexpected ingest result: %+v", result)
+	}
+
+	_, err = svc.IngestMarketplaceIndex("official", "unknown-root", signature, expiresAt, pkgs, time.Now().UTC())
+	if err != ErrMarketplaceTrustRootNotFound {
+		t.Fatalf("expected trust root error, got %v", err)
+	}
+
+	_, err = svc.IngestMarketplaceIndex("official", "corp-root", "bad-signature", expiresAt, pkgs, time.Now().UTC())
+	if err != ErrMarketplaceIndexSignatureInvalid {
+		t.Fatalf("expected signature invalid error, got %v", err)
 	}
 }

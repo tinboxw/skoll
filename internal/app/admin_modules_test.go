@@ -2,7 +2,9 @@ package app
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"mime/multipart"
@@ -1136,6 +1138,47 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 	if !strings.Contains(removeAgainRR.Body.String(), `"idempotent":true`) {
 		t.Fatalf("expected idempotent remove result, got %s", removeAgainRR.Body.String())
 	}
+
+	trustRootsReq := httptest.NewRequest(http.MethodPut, "/admin/v1/plugins/marketplace/trust-roots", strings.NewReader(`{"roots":["corp-root","backup-root","corp-root"]}`))
+	trustRootsReq.Header.Set("Content-Type", "application/json")
+	trustRootsRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(trustRootsRR, trustRootsReq)
+	if trustRootsRR.Code != http.StatusOK {
+		t.Fatalf("expected trust roots status 200, got %d body=%s", trustRootsRR.Code, trustRootsRR.Body.String())
+	}
+
+	expiresAt := time.Now().UTC().Add(15 * time.Minute)
+	payload := `{"source":"official","signed_by":"corp-root","signature":"%s","expires_at_unix_sec":%d,"packages":[{"name":"audit-ext","version":"1.2.0","package_url":"https://example.com/audit-ext-1.2.0.tgz","package_hash":"sha256:abc"}]}`
+	sig := testMarketplaceIndexSignature("official", "corp-root", expiresAt.Unix(), []string{"audit-ext@1.2.0#sha256:abc"})
+	ingestReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/marketplace/index/ingest", strings.NewReader(fmt.Sprintf(payload, sig, expiresAt.Unix())))
+	ingestReq.Header.Set("Content-Type", "application/json")
+	ingestRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(ingestRR, ingestReq)
+	if ingestRR.Code != http.StatusOK {
+		t.Fatalf("expected marketplace ingest status 200, got %d body=%s", ingestRR.Code, ingestRR.Body.String())
+	}
+	if !strings.Contains(ingestRR.Body.String(), `"accepted":true`) {
+		t.Fatalf("expected accepted ingest result, got %s", ingestRR.Body.String())
+	}
+
+	sourcesReq := httptest.NewRequest(http.MethodGet, "/admin/v1/plugins/marketplace/index/sources", nil)
+	sourcesRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(sourcesRR, sourcesReq)
+	if sourcesRR.Code != http.StatusOK {
+		t.Fatalf("expected index sources status 200, got %d", sourcesRR.Code)
+	}
+	if !strings.Contains(sourcesRR.Body.String(), `"source":"official"`) {
+		t.Fatalf("expected indexed source in response, got %s", sourcesRR.Body.String())
+	}
+}
+
+func testMarketplaceIndexSignature(source, signedBy string, expiresAtUnix int64, pkgDigests []string) string {
+	raw := source + "|" + signedBy + "|" + fmt.Sprintf("%d", expiresAtUnix) + "|" + fmt.Sprintf("%d", len(pkgDigests))
+	for _, digest := range pkgDigests {
+		raw += "|" + digest
+	}
+	sum := sha256.Sum256([]byte(raw))
+	return "idxsig:" + hex.EncodeToString(sum[:])
 }
 
 func TestSystemStatusRoute_AggregatesModuleCounts(t *testing.T) {
