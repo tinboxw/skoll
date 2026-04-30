@@ -327,6 +327,7 @@ go test -bench=. -benchmem ./...
 - E17-step3 incident runbook and fault-drill evidence baseline record: `docs/milestones/E17-step3-incident-runbook-and-fault-drill-evidence-baseline.md`
 - E17-step4 dashboard hardening posture closure record: `docs/milestones/E17-step4-dashboard-hardening-posture-closure.md`
 - E18-step1 parity closure checkpoints and evidence report baseline record: `docs/milestones/E18-step1-parity-closure-checkpoints-and-evidence-report-baseline.md`
+- E18-step2 release blocking policy and automated decision baseline record: `docs/milestones/E18-step2-release-blocking-policy-and-automated-decision-baseline.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

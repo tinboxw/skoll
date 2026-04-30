@@ -338,6 +338,9 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	if services.Releases != nil {
 		handle("POST /admin/v1/release-governance/evidence", submitReleaseEvidenceHandler(services.Releases, services.Audit))
 		handle("GET /admin/v1/release-governance/scorecard/{milestone}", getReleaseScorecardHandler(services.Releases))
+		handle("PUT /admin/v1/release-governance/blocking-policy", setReleaseBlockingPolicyHandler(services.Audit))
+		handle("GET /admin/v1/release-governance/blocking-policy", getReleaseBlockingPolicyHandler())
+		handle("GET /admin/v1/release-governance/block-decision/{milestone}", getReleaseBlockDecisionHandler(services.Releases))
 		handle("PUT /admin/v1/release-governance/parity-closure/checkpoints", setParityClosureCheckpointsHandler(services.Audit))
 		handle("GET /admin/v1/release-governance/parity-closure/checkpoints", listParityClosureCheckpointsHandler())
 		handle("GET /admin/v1/release-governance/parity-closure/report", getParityClosureReportHandler())
@@ -794,6 +797,32 @@ type parityClosureReport struct {
 	GeneratedAtUnixSec        int64    `json:"generated_at_unix_sec"`
 }
 
+type releaseBlockingPolicy struct {
+	AllowedRegression      float64 `json:"allowed_regression_ratio"`
+	BlockOnGoTestFailure   bool    `json:"block_on_go_test_failure"`
+	BlockOnGoRaceFailure   bool    `json:"block_on_go_race_failure"`
+	BlockOnReadmeNotSynced bool    `json:"block_on_readme_not_synced"`
+	BlockOnMissingEvidence bool    `json:"block_on_missing_evidence"`
+	UpdatedAtUnixSec       int64   `json:"updated_at_unix_sec"`
+}
+
+type setReleaseBlockingPolicyRequest struct {
+	AllowedRegression      float64 `json:"allowed_regression_ratio"`
+	BlockOnGoTestFailure   bool    `json:"block_on_go_test_failure"`
+	BlockOnGoRaceFailure   bool    `json:"block_on_go_race_failure"`
+	BlockOnReadmeNotSynced bool    `json:"block_on_readme_not_synced"`
+	BlockOnMissingEvidence bool    `json:"block_on_missing_evidence"`
+}
+
+type releaseBlockDecision struct {
+	Milestone          string                `json:"milestone"`
+	Blocked            bool                  `json:"blocked"`
+	Reasons            []string              `json:"reasons,omitempty"`
+	Scorecard          releasegov.Scorecard  `json:"scorecard"`
+	Policy             releaseBlockingPolicy `json:"policy"`
+	EvaluatedAtUnixSec int64                 `json:"evaluated_at_unix_sec"`
+}
+
 type dbOpsState struct {
 	mu      sync.Mutex
 	nextID  int64
@@ -813,6 +842,7 @@ type hardeningState struct {
 type releaseClosureState struct {
 	mu          sync.Mutex
 	checkpoints map[string]parityClosureCheckpoint
+	policy      releaseBlockingPolicy
 }
 
 var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]backupCatalogItem)}
@@ -822,7 +852,16 @@ var adminHardeningState = hardeningState{
 	runbooks:      make(map[string]incidentRunbookProfile),
 	nextDrillID:   1,
 }
-var adminReleaseClosureState = releaseClosureState{checkpoints: make(map[string]parityClosureCheckpoint)}
+var adminReleaseClosureState = releaseClosureState{
+	checkpoints: make(map[string]parityClosureCheckpoint),
+	policy: releaseBlockingPolicy{
+		AllowedRegression:      0.10,
+		BlockOnGoTestFailure:   true,
+		BlockOnGoRaceFailure:   true,
+		BlockOnReadmeNotSynced: true,
+		BlockOnMissingEvidence: true,
+	},
+}
 
 const dbDangerousConfirmToken = "I_UNDERSTAND"
 const dbDangerousDualConfirmToken = "CONFIRM_DESTRUCTIVE_SQL"
@@ -4142,6 +4181,91 @@ func getReleaseScorecardHandler(svc ReleaseService) http.HandlerFunc {
 			allowedRegression = parsed
 		}
 		respondJSON(w, http.StatusOK, svc.Scorecard(milestone, allowedRegression))
+	}
+}
+
+func setReleaseBlockingPolicyHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req setReleaseBlockingPolicyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if req.AllowedRegression <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "allowed_regression_ratio must be > 0"})
+			return
+		}
+
+		adminReleaseClosureState.mu.Lock()
+		adminReleaseClosureState.policy = releaseBlockingPolicy{
+			AllowedRegression:      req.AllowedRegression,
+			BlockOnGoTestFailure:   req.BlockOnGoTestFailure,
+			BlockOnGoRaceFailure:   req.BlockOnGoRaceFailure,
+			BlockOnReadmeNotSynced: req.BlockOnReadmeNotSynced,
+			BlockOnMissingEvidence: req.BlockOnMissingEvidence,
+			UpdatedAtUnixSec:       time.Now().UTC().Unix(),
+		}
+		policy := adminReleaseClosureState.policy
+		adminReleaseClosureState.mu.Unlock()
+
+		auditSvc.Append("release-governance", "blocking_policy_updated", fmt.Sprintf("%.4f", policy.AllowedRegression))
+		respondJSON(w, http.StatusOK, policy)
+	}
+}
+
+func getReleaseBlockingPolicyHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		adminReleaseClosureState.mu.Lock()
+		policy := adminReleaseClosureState.policy
+		adminReleaseClosureState.mu.Unlock()
+		respondJSON(w, http.StatusOK, policy)
+	}
+}
+
+func getReleaseBlockDecisionHandler(svc ReleaseService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		milestone, err := parsePathString(r, "milestone")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		adminReleaseClosureState.mu.Lock()
+		policy := adminReleaseClosureState.policy
+		adminReleaseClosureState.mu.Unlock()
+
+		scorecard := svc.Scorecard(milestone, policy.AllowedRegression)
+		reasons := make([]string, 0, len(scorecard.FailedChecks))
+		for _, check := range scorecard.FailedChecks {
+			switch check {
+			case "missing_evidence":
+				if policy.BlockOnMissingEvidence {
+					reasons = append(reasons, check)
+				}
+			case "go_test_failed":
+				if policy.BlockOnGoTestFailure {
+					reasons = append(reasons, check)
+				}
+			case "go_race_failed":
+				if policy.BlockOnGoRaceFailure {
+					reasons = append(reasons, check)
+				}
+			case "readme_not_synced":
+				if policy.BlockOnReadmeNotSynced {
+					reasons = append(reasons, check)
+				}
+			default:
+				reasons = append(reasons, check)
+			}
+		}
+
+		respondJSON(w, http.StatusOK, releaseBlockDecision{
+			Milestone:          strings.TrimSpace(strings.ToLower(milestone)),
+			Blocked:            len(reasons) > 0,
+			Reasons:            reasons,
+			Scorecard:          scorecard,
+			Policy:             policy,
+			EvaluatedAtUnixSec: time.Now().UTC().Unix(),
+		})
 	}
 }
 

@@ -1708,6 +1708,34 @@ func TestReleaseGovernanceRoutes(t *testing.T) {
 		t.Fatalf("expected release_ready=true in scorecard, got %s", scoreRR.Body.String())
 	}
 
+	policyReq := httptest.NewRequest(http.MethodPut, "/admin/v1/release-governance/blocking-policy", strings.NewReader(`{"allowed_regression_ratio":0.05,"block_on_go_test_failure":true,"block_on_go_race_failure":true,"block_on_readme_not_synced":true,"block_on_missing_evidence":true}`))
+	policyReq.Header.Set("Content-Type", "application/json")
+	policyRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(policyRR, policyReq)
+	if policyRR.Code != http.StatusOK {
+		t.Fatalf("expected release blocking policy status 200, got %d body=%s", policyRR.Code, policyRR.Body.String())
+	}
+	if !strings.Contains(policyRR.Body.String(), `"allowed_regression_ratio":0.05`) {
+		t.Fatalf("expected allowed_regression_ratio=0.05 in policy response, got %s", policyRR.Body.String())
+	}
+
+	policyGetReq := httptest.NewRequest(http.MethodGet, "/admin/v1/release-governance/blocking-policy", nil)
+	policyGetRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(policyGetRR, policyGetReq)
+	if policyGetRR.Code != http.StatusOK {
+		t.Fatalf("expected get release blocking policy status 200, got %d body=%s", policyGetRR.Code, policyGetRR.Body.String())
+	}
+
+	blockDecisionReq := httptest.NewRequest(http.MethodGet, "/admin/v1/release-governance/block-decision/E8-step1", nil)
+	blockDecisionRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(blockDecisionRR, blockDecisionReq)
+	if blockDecisionRR.Code != http.StatusOK {
+		t.Fatalf("expected block decision status 200, got %d body=%s", blockDecisionRR.Code, blockDecisionRR.Body.String())
+	}
+	if !strings.Contains(blockDecisionRR.Body.String(), `"blocked":true`) || !strings.Contains(blockDecisionRR.Body.String(), `"performance_regression_exceeded"`) {
+		t.Fatalf("expected blocked decision with regression reason, got %s", blockDecisionRR.Body.String())
+	}
+
 	invalidCheckpointReq := httptest.NewRequest(http.MethodPut, "/admin/v1/release-governance/parity-closure/checkpoints", strings.NewReader(`{"items":[{"reference_project":"gin-vue-admin","capability":"rbac_policy_governance","status":"completed","evidence_links":[],"owner":"platform-team"}]}`))
 	invalidCheckpointReq.Header.Set("Content-Type", "application/json")
 	invalidCheckpointRR := httptest.NewRecorder()

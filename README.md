@@ -327,6 +327,7 @@ go test -bench=. -benchmem ./...
 - E17-step3 事件 Runbook 与故障演练证据基线记录：`docs/milestones/E17-step3-incident-runbook-and-fault-drill-evidence-baseline.md`
 - E17-step4 Dashboard 加固画像收口记录：`docs/milestones/E17-step4-dashboard-hardening-posture-closure.md`
 - E18-step1 对等闭环清单与证据报告基线记录：`docs/milestones/E18-step1-parity-closure-checkpoints-and-evidence-report-baseline.md`
+- E18-step2 发布阻断策略与自动决策基线记录：`docs/milestones/E18-step2-release-blocking-policy-and-automated-decision-baseline.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
