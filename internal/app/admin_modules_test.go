@@ -481,7 +481,7 @@ func TestRoleBindingRoutes_MenuAndAPI(t *testing.T) {
 		t.Fatalf("expected role policy bindings in response, got %s", getPoliciesRR.Body.String())
 	}
 
-	setDataScopeReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/data-scope", strings.NewReader(`{"tenant_ids":["tenant-b","tenant-a","tenant-a"],"require_owner_match":true}`))
+	setDataScopeReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/data-scope", strings.NewReader(`{"tenant_ids":["tenant-b","tenant-a","tenant-a"],"require_owner_match":true,"cross_tenant_admin_allow":["ops@example.com","ops@example.com"]}`))
 	setDataScopeReq.Header.Set("Content-Type", "application/json")
 	setDataScopeRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(setDataScopeRR, setDataScopeReq)
@@ -497,6 +497,31 @@ func TestRoleBindingRoutes_MenuAndAPI(t *testing.T) {
 	}
 	if !strings.Contains(getDataScopeRR.Body.String(), `"tenant_ids":["tenant-a","tenant-b"]`) {
 		t.Fatalf("expected normalized tenant scope in response, got %s", getDataScopeRR.Body.String())
+	}
+	if !strings.Contains(getDataScopeRR.Body.String(), `"cross_tenant_admin_allow":["ops@example.com"]`) {
+		t.Fatalf("expected normalized cross tenant whitelist in response, got %s", getDataScopeRR.Body.String())
+	}
+
+	diffReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/permissions/diff", strings.NewReader(`{"menu_ids":[1,2],"apis":["GET:/admin/v1/users","POST:/admin/v1/users"],"rules":[{"api":"GET:/admin/v1/users","effect":"allow"}],"data_scope":{"tenant_ids":["tenant-a","tenant-b","tenant-c"],"require_owner_match":false,"cross_tenant_admin_allow":["ops@example.com","root@example.com"]},"permission_contract":{"version":"v2","items":[{"menu_id":1,"route":"/dashboard","buttons":["view"]}]}}`))
+	diffReq.Header.Set("Content-Type", "application/json")
+	diffRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(diffRR, diffReq)
+	if diffRR.Code != http.StatusOK {
+		t.Fatalf("expected permissions diff status 200, got %d body=%s", diffRR.Code, diffRR.Body.String())
+	}
+	if !strings.Contains(diffRR.Body.String(), `"data_scope_changed":true`) {
+		t.Fatalf("expected data scope drift in diff response, got %s", diffRR.Body.String())
+	}
+
+	checkReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/permissions/check", strings.NewReader(`{"menu_ids":[1,2],"apis":["GET:/admin/v1/users","POST:/admin/v1/users"],"rules":[{"api":"GET:/admin/v1/users","effect":"allow"}],"data_scope":{"tenant_ids":["tenant-a","tenant-b","tenant-c"],"require_owner_match":false,"cross_tenant_admin_allow":["ops@example.com","root@example.com"]},"permission_contract":{"version":"v2","items":[{"menu_id":1,"route":"/dashboard","buttons":["view"]}]}}`))
+	checkReq.Header.Set("Content-Type", "application/json")
+	checkRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(checkRR, checkReq)
+	if checkRR.Code != http.StatusOK {
+		t.Fatalf("expected permissions check status 200, got %d body=%s", checkRR.Code, checkRR.Body.String())
+	}
+	if !strings.Contains(checkRR.Body.String(), `"blocking":true`) {
+		t.Fatalf("expected blocking permission check, got %s", checkRR.Body.String())
 	}
 
 	setContractReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/permission-contract", strings.NewReader(`{"version":"v2","items":[{"menu_id":1,"route":"/dashboard","buttons":["view"]},{"menu_id":2,"route":"/system","buttons":["create","delete","create"]}]}`))
@@ -601,7 +626,7 @@ func TestRolePolicySnapshotAndRollbackRoutes(t *testing.T) {
 		t.Fatalf("expected snapshot versions in list, got %s", listRR.Body.String())
 	}
 
-	rollbackReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/rollback", strings.NewReader(`{"snapshot_version":"v1"}`))
+	rollbackReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/rollback", strings.NewReader(`{"snapshot_version":"v1","approver":"security.lead"}`))
 	rollbackReq.Header.Set("Content-Type", "application/json")
 	rollbackRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(rollbackRR, rollbackReq)

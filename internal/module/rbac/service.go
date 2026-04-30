@@ -29,8 +29,9 @@ type PolicyRule struct {
 }
 
 type DataScope struct {
-	TenantIDs         []string
-	RequireOwnerMatch bool
+	TenantIDs             []string
+	RequireOwnerMatch     bool
+	CrossTenantAdminAllow []string
 }
 
 type RoutePermissionItem struct {
@@ -53,6 +54,36 @@ type PolicySnapshot struct {
 	RoleID  int64
 	Version string
 	Rules   []PolicyRule
+}
+
+type PermissionBundle struct {
+	MenuIDs         []int64
+	APIs            []string
+	Policies        []PolicyRule
+	DataScope       DataScope
+	RoutePermission RoutePermissionContract
+}
+
+type PermissionDiff struct {
+	AddedMenus       []int64
+	RemovedMenus     []int64
+	AddedAPIs        []string
+	RemovedAPIs      []string
+	AddedPolicies    []PolicyRule
+	RemovedPolicies  []PolicyRule
+	DataScopeChanged bool
+	RouteChanged     bool
+	CurrentDataScope DataScope
+	TargetDataScope  DataScope
+	CurrentRoute     RoutePermissionContract
+	TargetRoute      RoutePermissionContract
+}
+
+type PermissionCheckResult struct {
+	Pass     bool
+	Blocking bool
+	Reasons  []string
+	Diff     PermissionDiff
 }
 
 func NewService() *Service {
@@ -153,6 +184,83 @@ func (s *Service) RollbackRolePolicies(roleID int64, version string) ([]PolicyRu
 		return clonePolicyRules(rules), nil
 	}
 	return nil, ErrPolicySnapshotNotFound
+}
+
+func (s *Service) PermissionBundle(roleID int64) PermissionBundle {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return PermissionBundle{
+		MenuIDs:         append([]int64(nil), s.roleMenu[roleID]...),
+		APIs:            append([]string(nil), s.roleAPI[roleID]...),
+		Policies:        clonePolicyRules(s.policies[roleID]),
+		DataScope:       cloneDataScope(s.data[roleID]),
+		RoutePermission: cloneRouteContract(s.route[roleID]),
+	}
+}
+
+func BuildPermissionDiff(current, target PermissionBundle) PermissionDiff {
+	normalizedTarget := PermissionBundle{
+		MenuIDs:         normalizeInt64List(target.MenuIDs),
+		APIs:            normalizeStringList(target.APIs),
+		Policies:        normalizePolicyRules(target.Policies),
+		DataScope:       normalizeDataScope(target.DataScope),
+		RoutePermission: normalizeRouteContract(target.RoutePermission.Version, target.RoutePermission.Items),
+	}
+
+	normalizedCurrent := PermissionBundle{
+		MenuIDs:         normalizeInt64List(current.MenuIDs),
+		APIs:            normalizeStringList(current.APIs),
+		Policies:        normalizePolicyRules(current.Policies),
+		DataScope:       normalizeDataScope(current.DataScope),
+		RoutePermission: normalizeRouteContract(current.RoutePermission.Version, current.RoutePermission.Items),
+	}
+
+	return PermissionDiff{
+		AddedMenus:       diffInt64(normalizedTarget.MenuIDs, normalizedCurrent.MenuIDs),
+		RemovedMenus:     diffInt64(normalizedCurrent.MenuIDs, normalizedTarget.MenuIDs),
+		AddedAPIs:        diffString(normalizedTarget.APIs, normalizedCurrent.APIs),
+		RemovedAPIs:      diffString(normalizedCurrent.APIs, normalizedTarget.APIs),
+		AddedPolicies:    diffPolicy(normalizedTarget.Policies, normalizedCurrent.Policies),
+		RemovedPolicies:  diffPolicy(normalizedCurrent.Policies, normalizedTarget.Policies),
+		DataScopeChanged: !equalDataScope(normalizedCurrent.DataScope, normalizedTarget.DataScope),
+		RouteChanged:     !equalRouteContract(normalizedCurrent.RoutePermission, normalizedTarget.RoutePermission),
+		CurrentDataScope: cloneDataScope(normalizedCurrent.DataScope),
+		TargetDataScope:  cloneDataScope(normalizedTarget.DataScope),
+		CurrentRoute:     cloneRouteContract(normalizedCurrent.RoutePermission),
+		TargetRoute:      cloneRouteContract(normalizedTarget.RoutePermission),
+	}
+}
+
+func EvaluatePermissionCheck(diff PermissionDiff) PermissionCheckResult {
+	reasons := make([]string, 0)
+	if len(diff.AddedAPIs) > 0 {
+		reasons = append(reasons, "api_permissions_expanded")
+	}
+	if len(diff.AddedPolicies) > 0 {
+		for _, rule := range diff.AddedPolicies {
+			if rule.Effect == "allow" {
+				reasons = append(reasons, "allow_policy_added")
+				break
+			}
+		}
+	}
+	if len(diff.TargetDataScope.TenantIDs) > len(diff.CurrentDataScope.TenantIDs) {
+		reasons = append(reasons, "tenant_scope_expanded")
+	}
+	if diff.CurrentDataScope.RequireOwnerMatch && !diff.TargetDataScope.RequireOwnerMatch {
+		reasons = append(reasons, "owner_match_relaxed")
+	}
+	if len(diff.TargetDataScope.CrossTenantAdminAllow) > len(diff.CurrentDataScope.CrossTenantAdminAllow) {
+		reasons = append(reasons, "cross_tenant_whitelist_expanded")
+	}
+
+	return PermissionCheckResult{
+		Pass:     len(reasons) == 0,
+		Blocking: len(reasons) > 0,
+		Reasons:  reasons,
+		Diff:     diff,
+	}
 }
 
 func (s *Service) SetRoleDataScope(roleID int64, scope DataScope) DataScope {
@@ -290,8 +398,9 @@ func normalizePolicyRules(raw []PolicyRule) []PolicyRule {
 
 func normalizeDataScope(scope DataScope) DataScope {
 	return DataScope{
-		TenantIDs:         normalizeStringList(scope.TenantIDs),
-		RequireOwnerMatch: scope.RequireOwnerMatch,
+		TenantIDs:             normalizeStringList(scope.TenantIDs),
+		RequireOwnerMatch:     scope.RequireOwnerMatch,
+		CrossTenantAdminAllow: normalizeStringList(scope.CrossTenantAdminAllow),
 	}
 }
 
@@ -310,9 +419,96 @@ func clonePolicySnapshot(snapshot PolicySnapshot) PolicySnapshot {
 
 func cloneDataScope(scope DataScope) DataScope {
 	return DataScope{
-		TenantIDs:         append([]string(nil), scope.TenantIDs...),
-		RequireOwnerMatch: scope.RequireOwnerMatch,
+		TenantIDs:             append([]string(nil), scope.TenantIDs...),
+		RequireOwnerMatch:     scope.RequireOwnerMatch,
+		CrossTenantAdminAllow: append([]string(nil), scope.CrossTenantAdminAllow...),
 	}
+}
+
+func diffInt64(left, right []int64) []int64 {
+	rightSet := make(map[int64]struct{}, len(right))
+	for _, v := range right {
+		rightSet[v] = struct{}{}
+	}
+	out := make([]int64, 0)
+	for _, v := range left {
+		if _, ok := rightSet[v]; ok {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func diffString(left, right []string) []string {
+	rightSet := make(map[string]struct{}, len(right))
+	for _, v := range right {
+		rightSet[v] = struct{}{}
+	}
+	out := make([]string, 0)
+	for _, v := range left {
+		if _, ok := rightSet[v]; ok {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out
+}
+
+func diffPolicy(left, right []PolicyRule) []PolicyRule {
+	rightSet := make(map[string]struct{}, len(right))
+	for _, item := range right {
+		rightSet[policyKey(item)] = struct{}{}
+	}
+	out := make([]PolicyRule, 0)
+	for _, item := range left {
+		if _, ok := rightSet[policyKey(item)]; ok {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func policyKey(rule PolicyRule) string {
+	return rule.Effect + "|" + rule.API + "|" + strconv.FormatBool(rule.RequireVerified) + "|" + rule.RequireClaimsVersion
+}
+
+func equalDataScope(a, b DataScope) bool {
+	if a.RequireOwnerMatch != b.RequireOwnerMatch {
+		return false
+	}
+	if len(a.TenantIDs) != len(b.TenantIDs) || len(a.CrossTenantAdminAllow) != len(b.CrossTenantAdminAllow) {
+		return false
+	}
+	for i := range a.TenantIDs {
+		if a.TenantIDs[i] != b.TenantIDs[i] {
+			return false
+		}
+	}
+	for i := range a.CrossTenantAdminAllow {
+		if a.CrossTenantAdminAllow[i] != b.CrossTenantAdminAllow[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalRouteContract(a, b RoutePermissionContract) bool {
+	if a.Version != b.Version || len(a.Items) != len(b.Items) {
+		return false
+	}
+	for i := range a.Items {
+		if a.Items[i].MenuID != b.Items[i].MenuID || a.Items[i].Route != b.Items[i].Route || len(a.Items[i].Buttons) != len(b.Items[i].Buttons) {
+			return false
+		}
+		for j := range a.Items[i].Buttons {
+			if a.Items[i].Buttons[j] != b.Items[i].Buttons[j] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func normalizeRouteContract(version string, items []RoutePermissionItem) RoutePermissionContract {

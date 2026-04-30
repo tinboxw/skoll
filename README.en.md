@@ -286,6 +286,7 @@ go test -bench=. -benchmem ./...
 - E9-step3 benchmark regression governance policy record: `docs/milestones/E9-step3-benchmark-regression-policy.md`
 - E10 auth and session parity record: `docs/milestones/E10-auth-and-session-parity.md`
 - E11-step1 policy snapshot and rollback baseline record: `docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
+- E11-step2 permission diff and audit linkage record: `docs/milestones/E11-step2-permission-diff-and-audit-linkage.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

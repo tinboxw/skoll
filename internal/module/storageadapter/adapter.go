@@ -131,6 +131,7 @@ type RBACRepository interface {
 	CreateRolePolicySnapshot(roleID int64) rbac.PolicySnapshot
 	ListRolePolicySnapshots(roleID int64) []rbac.PolicySnapshot
 	RollbackRolePolicies(roleID int64, version string) ([]rbac.PolicyRule, error)
+	PermissionBundle(roleID int64) rbac.PermissionBundle
 	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
 	GetRoleDataScope(roleID int64) rbac.DataScope
 	SetRoleRoutePermissions(roleID int64, version string, items []rbac.RoutePermissionItem) rbac.RoutePermissionContract

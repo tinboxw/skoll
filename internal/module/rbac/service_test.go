@@ -106,7 +106,7 @@ func TestServicePolicySnapshotsAndRollback(t *testing.T) {
 
 func TestServiceRoleDataScope(t *testing.T) {
 	svc := NewService()
-	scope := svc.SetRoleDataScope(4, DataScope{TenantIDs: []string{"tenant-b", "tenant-a", "tenant-a", ""}, RequireOwnerMatch: true})
+	scope := svc.SetRoleDataScope(4, DataScope{TenantIDs: []string{"tenant-b", "tenant-a", "tenant-a", ""}, RequireOwnerMatch: true, CrossTenantAdminAllow: []string{"ops@example.com", "ops@example.com", ""}})
 
 	if !reflect.DeepEqual(scope.TenantIDs, []string{"tenant-a", "tenant-b"}) {
 		t.Fatalf("unexpected normalized tenant ids: got %v", scope.TenantIDs)
@@ -114,10 +114,55 @@ func TestServiceRoleDataScope(t *testing.T) {
 	if !scope.RequireOwnerMatch {
 		t.Fatalf("expected require owner match true")
 	}
+	if !reflect.DeepEqual(scope.CrossTenantAdminAllow, []string{"ops@example.com"}) {
+		t.Fatalf("unexpected cross-tenant whitelist: got %v", scope.CrossTenantAdminAllow)
+	}
 
 	read := svc.GetRoleDataScope(4)
 	if !reflect.DeepEqual(read, scope) {
 		t.Fatalf("unexpected role data scope: got %v want %v", read, scope)
+	}
+}
+
+func TestPermissionDiffAndCheck(t *testing.T) {
+	current := PermissionBundle{
+		MenuIDs:  []int64{1, 2},
+		APIs:     []string{"GET:/admin/v1/users"},
+		Policies: []PolicyRule{{API: "GET:/admin/v1/users", Effect: "allow", RequireVerified: true, RequireClaimsVersion: "v2"}},
+		DataScope: DataScope{
+			TenantIDs:             []string{"tenant-a", "tenant-b"},
+			RequireOwnerMatch:     true,
+			CrossTenantAdminAllow: []string{"ops@example.com"},
+		},
+		RoutePermission: RoutePermissionContract{Version: "v2", Items: []RoutePermissionItem{{MenuID: 1, Route: "/dashboard", Buttons: []string{"view"}}}},
+	}
+
+	target := PermissionBundle{
+		MenuIDs:  []int64{1, 2, 3},
+		APIs:     []string{"GET:/admin/v1/users", "POST:/admin/v1/users"},
+		Policies: []PolicyRule{{API: "GET:/admin/v1/users", Effect: "allow"}, {API: "POST:/admin/v1/users", Effect: "allow"}},
+		DataScope: DataScope{
+			TenantIDs:             []string{"tenant-a", "tenant-b", "tenant-c"},
+			RequireOwnerMatch:     false,
+			CrossTenantAdminAllow: []string{"ops@example.com", "root@example.com"},
+		},
+		RoutePermission: RoutePermissionContract{Version: "v2", Items: []RoutePermissionItem{{MenuID: 1, Route: "/dashboard", Buttons: []string{"view"}}, {MenuID: 3, Route: "/system", Buttons: []string{"edit"}}}},
+	}
+
+	diff := BuildPermissionDiff(current, target)
+	if len(diff.AddedAPIs) != 1 || diff.AddedAPIs[0] != "POST:/admin/v1/users" {
+		t.Fatalf("unexpected api diff: %+v", diff.AddedAPIs)
+	}
+	if !diff.DataScopeChanged || !diff.RouteChanged {
+		t.Fatalf("expected data scope and route change, diff=%+v", diff)
+	}
+
+	check := EvaluatePermissionCheck(diff)
+	if check.Pass || !check.Blocking {
+		t.Fatalf("expected blocking check for expanded permissions, got %+v", check)
+	}
+	if len(check.Reasons) == 0 {
+		t.Fatalf("expected blocking reasons")
 	}
 }
 

@@ -134,7 +134,7 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 59. Completed: E9-step2 production hardening plan.
 60. Completed: E9-step3 benchmark regression governance policy.
 61. Completed: E10 auth and session parity.
-62. In-progress: E11 policy governance parity (step1 delivered, step2 plan completed).
+62. In-progress: E11 policy governance parity (step1/step2 delivered, pending persistent policy governance).
 63. Plan completed: E12 admin domain operational parity.
 64. Plan completed: E13 hook and module governance parity.
 65. Plan completed: E14 plugin marketplace depth parity.

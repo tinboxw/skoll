@@ -103,7 +103,9 @@ func authorizeByDataScope(scope rbac.DataScope, claims adminVerifiedClaims, r *h
 	if len(scope.TenantIDs) > 0 {
 		tenantID := strings.TrimSpace(r.Header.Get(HeaderAdminDataTenantID))
 		if tenantID == "" || !containsString(scope.TenantIDs, tenantID) {
-			return false
+			if claims.Subject == "" || !containsString(scope.CrossTenantAdminAllow, claims.Subject) {
+				return false
+			}
 		}
 	}
 

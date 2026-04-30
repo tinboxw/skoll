@@ -147,6 +147,7 @@ type RBACService interface {
 	CreateRolePolicySnapshot(roleID int64) rbac.PolicySnapshot
 	ListRolePolicySnapshots(roleID int64) []rbac.PolicySnapshot
 	RollbackRolePolicies(roleID int64, version string) ([]rbac.PolicyRule, error)
+	PermissionBundle(roleID int64) rbac.PermissionBundle
 	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
 	GetRoleDataScope(roleID int64) rbac.DataScope
 	SetRoleRoutePermissions(roleID int64, version string, items []rbac.RoutePermissionItem) rbac.RoutePermissionContract
@@ -215,6 +216,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/roles/{id}/policies", getRolePoliciesHandler(services.Roles, services.RBAC))
 	handle("POST /admin/v1/roles/{id}/policies/snapshots", createRolePolicySnapshotHandler(services.Roles, services.RBAC, services.Audit))
 	handle("GET /admin/v1/roles/{id}/policies/snapshots", listRolePolicySnapshotsHandler(services.Roles, services.RBAC))
+	handle("POST /admin/v1/roles/{id}/permissions/diff", diffRolePermissionsHandler(services.Roles, services.RBAC))
+	handle("POST /admin/v1/roles/{id}/permissions/check", checkRolePermissionsHandler(services.Roles, services.RBAC))
 	handle("POST /admin/v1/roles/{id}/policies/rollback", rollbackRolePoliciesHandler(services.Roles, services.RBAC, services.Audit))
 	handle("PUT /admin/v1/roles/{id}/data-scope", setRoleDataScopeHandler(services.Roles, services.RBAC))
 	handle("GET /admin/v1/roles/{id}/data-scope", getRoleDataScopeHandler(services.Roles, services.RBAC))
@@ -505,17 +508,48 @@ type rolePolicySnapshotListResponse struct {
 
 type rollbackRolePoliciesRequest struct {
 	SnapshotVersion string `json:"snapshot_version"`
+	Approver        string `json:"approver"`
 }
 
 type setRoleDataScopeRequest struct {
-	TenantIDs         []string `json:"tenant_ids"`
-	RequireOwnerMatch bool     `json:"require_owner_match"`
+	TenantIDs             []string `json:"tenant_ids"`
+	RequireOwnerMatch     bool     `json:"require_owner_match"`
+	CrossTenantAdminAllow []string `json:"cross_tenant_admin_allow"`
 }
 
 type roleDataScopeResponse struct {
-	RoleID            int64    `json:"role_id"`
-	TenantIDs         []string `json:"tenant_ids"`
-	RequireOwnerMatch bool     `json:"require_owner_match"`
+	RoleID                int64    `json:"role_id"`
+	TenantIDs             []string `json:"tenant_ids"`
+	RequireOwnerMatch     bool     `json:"require_owner_match"`
+	CrossTenantAdminAllow []string `json:"cross_tenant_admin_allow"`
+}
+
+type rolePermissionDiffRequest struct {
+	MenuIDs            []int64                          `json:"menu_ids"`
+	APIs               []string                         `json:"apis"`
+	Rules              []rolePolicyRuleItem             `json:"rules"`
+	DataScope          setRoleDataScopeRequest          `json:"data_scope"`
+	PermissionContract setRolePermissionContractRequest `json:"permission_contract"`
+}
+
+type rolePermissionDiffResponse struct {
+	RoleID           int64                `json:"role_id"`
+	AddedMenus       []int64              `json:"added_menus"`
+	RemovedMenus     []int64              `json:"removed_menus"`
+	AddedAPIs        []string             `json:"added_apis"`
+	RemovedAPIs      []string             `json:"removed_apis"`
+	AddedRules       []rolePolicyRuleItem `json:"added_rules"`
+	RemovedRules     []rolePolicyRuleItem `json:"removed_rules"`
+	DataScopeChanged bool                 `json:"data_scope_changed"`
+	RouteChanged     bool                 `json:"route_changed"`
+}
+
+type rolePermissionCheckResponse struct {
+	RoleID   int64                      `json:"role_id"`
+	Pass     bool                       `json:"pass"`
+	Blocking bool                       `json:"blocking"`
+	Reasons  []string                   `json:"reasons"`
+	Diff     rolePermissionDiffResponse `json:"diff"`
 }
 
 type rolePermissionContractItem struct {
@@ -1363,8 +1397,13 @@ func rollbackRolePoliciesHandler(roleSvc RoleService, rbacSvc RBACService, audit
 			return
 		}
 		version := strings.ToLower(strings.TrimSpace(req.SnapshotVersion))
+		approver := strings.TrimSpace(req.Approver)
 		if version == "" {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "snapshot_version is required"})
+			return
+		}
+		if approver == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "approver is required"})
 			return
 		}
 
@@ -1378,8 +1417,93 @@ func rollbackRolePoliciesHandler(roleSvc RoleService, rbacSvc RBACService, audit
 			return
 		}
 
-		auditSvc.Append("rbac", "policy_snapshot_rollback", fmt.Sprintf("role:%d@%s", roleID, version))
+		auditSvc.Append("rbac", "policy_snapshot_rollback", fmt.Sprintf("role:%d@%s approver:%s", roleID, version, approver))
 		respondJSON(w, http.StatusOK, rolePoliciesResponse{RoleID: roleID, Rules: toRolePolicyRuleItems(rules)})
+	}
+}
+
+func diffRolePermissionsHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req rolePermissionDiffRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		current := rbacSvc.PermissionBundle(roleID)
+		target := rbac.PermissionBundle{
+			MenuIDs:  req.MenuIDs,
+			APIs:     req.APIs,
+			Policies: toRolePolicyRules(req.Rules),
+			DataScope: rbac.DataScope{
+				TenantIDs:             req.DataScope.TenantIDs,
+				RequireOwnerMatch:     req.DataScope.RequireOwnerMatch,
+				CrossTenantAdminAllow: req.DataScope.CrossTenantAdminAllow,
+			},
+			RoutePermission: rbac.RoutePermissionContract{Version: req.PermissionContract.Version, Items: toRoutePermissionItems(req.PermissionContract.Items)},
+		}
+		diff := rbac.BuildPermissionDiff(current, target)
+		respondJSON(w, http.StatusOK, toRolePermissionDiffResponse(roleID, diff))
+	}
+}
+
+func checkRolePermissionsHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req rolePermissionDiffRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+
+		current := rbacSvc.PermissionBundle(roleID)
+		target := rbac.PermissionBundle{
+			MenuIDs:  req.MenuIDs,
+			APIs:     req.APIs,
+			Policies: toRolePolicyRules(req.Rules),
+			DataScope: rbac.DataScope{
+				TenantIDs:             req.DataScope.TenantIDs,
+				RequireOwnerMatch:     req.DataScope.RequireOwnerMatch,
+				CrossTenantAdminAllow: req.DataScope.CrossTenantAdminAllow,
+			},
+			RoutePermission: rbac.RoutePermissionContract{Version: req.PermissionContract.Version, Items: toRoutePermissionItems(req.PermissionContract.Items)},
+		}
+		diff := rbac.BuildPermissionDiff(current, target)
+		check := rbac.EvaluatePermissionCheck(diff)
+		respondJSON(w, http.StatusOK, rolePermissionCheckResponse{
+			RoleID:   roleID,
+			Pass:     check.Pass,
+			Blocking: check.Blocking,
+			Reasons:  check.Reasons,
+			Diff:     toRolePermissionDiffResponse(roleID, check.Diff),
+		})
 	}
 }
 
@@ -1415,8 +1539,17 @@ func setRoleDataScopeHandler(roleSvc RoleService, rbacSvc RBACService) http.Hand
 			tenantIDs = append(tenantIDs, tenantID)
 		}
 
-		out := rbacSvc.SetRoleDataScope(roleID, rbac.DataScope{TenantIDs: tenantIDs, RequireOwnerMatch: req.RequireOwnerMatch})
-		respondJSON(w, http.StatusOK, roleDataScopeResponse{RoleID: roleID, TenantIDs: out.TenantIDs, RequireOwnerMatch: out.RequireOwnerMatch})
+		crossTenantAllow := make([]string, 0, len(req.CrossTenantAdminAllow))
+		for _, subject := range req.CrossTenantAdminAllow {
+			subject = strings.TrimSpace(subject)
+			if subject == "" {
+				continue
+			}
+			crossTenantAllow = append(crossTenantAllow, subject)
+		}
+
+		out := rbacSvc.SetRoleDataScope(roleID, rbac.DataScope{TenantIDs: tenantIDs, RequireOwnerMatch: req.RequireOwnerMatch, CrossTenantAdminAllow: crossTenantAllow})
+		respondJSON(w, http.StatusOK, roleDataScopeResponse{RoleID: roleID, TenantIDs: out.TenantIDs, RequireOwnerMatch: out.RequireOwnerMatch, CrossTenantAdminAllow: out.CrossTenantAdminAllow})
 	}
 }
 
@@ -1438,7 +1571,7 @@ func getRoleDataScopeHandler(roleSvc RoleService, rbacSvc RBACService) http.Hand
 		}
 
 		out := rbacSvc.GetRoleDataScope(roleID)
-		respondJSON(w, http.StatusOK, roleDataScopeResponse{RoleID: roleID, TenantIDs: out.TenantIDs, RequireOwnerMatch: out.RequireOwnerMatch})
+		respondJSON(w, http.StatusOK, roleDataScopeResponse{RoleID: roleID, TenantIDs: out.TenantIDs, RequireOwnerMatch: out.RequireOwnerMatch, CrossTenantAdminAllow: out.CrossTenantAdminAllow})
 	}
 }
 
@@ -1558,6 +1691,47 @@ func toRolePolicyRuleItems(rules []rbac.PolicyRule) []rolePolicyRuleItem {
 		}
 	}
 	return out
+}
+
+func toRolePolicyRules(items []rolePolicyRuleItem) []rbac.PolicyRule {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]rbac.PolicyRule, len(items))
+	for i, item := range items {
+		out[i] = rbac.PolicyRule{
+			API:                  strings.TrimSpace(item.API),
+			Effect:               strings.TrimSpace(item.Effect),
+			RequireVerified:      item.RequireVerified,
+			RequireClaimsVersion: strings.TrimSpace(item.RequireClaimsVersion),
+		}
+	}
+	return out
+}
+
+func toRoutePermissionItems(items []rolePermissionContractItem) []rbac.RoutePermissionItem {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]rbac.RoutePermissionItem, len(items))
+	for i, item := range items {
+		out[i] = rbac.RoutePermissionItem{MenuID: item.MenuID, Route: strings.TrimSpace(item.Route), Buttons: append([]string(nil), item.Buttons...)}
+	}
+	return out
+}
+
+func toRolePermissionDiffResponse(roleID int64, diff rbac.PermissionDiff) rolePermissionDiffResponse {
+	return rolePermissionDiffResponse{
+		RoleID:           roleID,
+		AddedMenus:       append([]int64(nil), diff.AddedMenus...),
+		RemovedMenus:     append([]int64(nil), diff.RemovedMenus...),
+		AddedAPIs:        append([]string(nil), diff.AddedAPIs...),
+		RemovedAPIs:      append([]string(nil), diff.RemovedAPIs...),
+		AddedRules:       toRolePolicyRuleItems(diff.AddedPolicies),
+		RemovedRules:     toRolePolicyRuleItems(diff.RemovedPolicies),
+		DataScopeChanged: diff.DataScopeChanged,
+		RouteChanged:     diff.RouteChanged,
+	}
 }
 
 func createMenuHandler(svc MenuService) http.HandlerFunc {
