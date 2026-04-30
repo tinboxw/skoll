@@ -1170,6 +1170,17 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 	if !strings.Contains(sourcesRR.Body.String(), `"source":"official"`) {
 		t.Fatalf("expected indexed source in response, got %s", sourcesRR.Body.String())
 	}
+
+	solverReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/dependency-solver/resolve", strings.NewReader(`{"items":[{"name":"billing-ext","version":"1.0.0","dependencies":[{"name":"audit-ext","min_version":"2.0.0"}]},{"name":"report-ext","version":"1.0.0","dependencies":[{"name":"missing-ext","min_version":"1.0.0"}]}]}`))
+	solverReq.Header.Set("Content-Type", "application/json")
+	solverRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(solverRR, solverReq)
+	if solverRR.Code != http.StatusOK {
+		t.Fatalf("expected dependency solver status 200, got %d body=%s", solverRR.Code, solverRR.Body.String())
+	}
+	if !strings.Contains(solverRR.Body.String(), `"deterministic":true`) || !strings.Contains(solverRR.Body.String(), `"conflicts"`) {
+		t.Fatalf("expected dependency solver diagnostics payload, got %s", solverRR.Body.String())
+	}
 }
 
 func testMarketplaceIndexSignature(source, signedBy string, expiresAtUnix int64, pkgDigests []string) string {

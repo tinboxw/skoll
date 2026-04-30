@@ -132,6 +132,7 @@ type PluginRepository interface {
 	ListMarketplaceTrustRoots() []string
 	IngestMarketplaceIndex(source, signedBy, signature string, expiresAt time.Time, packages []pluginmgr.MarketplaceIndexPackage, now time.Time) (pluginmgr.MarketplaceIndexIngestResult, error)
 	ListMarketplaceIndexSources() []pluginmgr.MarketplaceIndexSource
+	SolveDependencies(items []pluginmgr.DependencySolveItem) pluginmgr.DependencySolveResult
 }
 
 type RBACRepository interface {

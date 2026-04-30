@@ -295,6 +295,7 @@ go test -bench=. -benchmem ./...
 - E13-step2 模块生命周期与兼容性治理记录：`docs/milestones/E13-step2-module-lifecycle-and-compatibility-governance.md`
 - E13-step3 运行时隔离与死信诊断记录：`docs/milestones/E13-step3-runtime-isolation-and-dead-letter-diagnostics.md`
 - E14-step1 市场信任根与签名索引基线记录：`docs/milestones/E14-step1-marketplace-trust-root-and-signed-index-baseline.md`
+- E14-step2 依赖求解与冲突诊断记录：`docs/milestones/E14-step2-dependency-solver-and-conflict-diagnostics.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

@@ -295,6 +295,7 @@ go test -bench=. -benchmem ./...
 - E13-step2 module lifecycle and compatibility governance record: `docs/milestones/E13-step2-module-lifecycle-and-compatibility-governance.md`
 - E13-step3 runtime isolation and dead-letter diagnostics record: `docs/milestones/E13-step3-runtime-isolation-and-dead-letter-diagnostics.md`
 - E14-step1 marketplace trust-root and signed-index baseline record: `docs/milestones/E14-step1-marketplace-trust-root-and-signed-index-baseline.md`
+- E14-step2 dependency solver and conflict diagnostics record: `docs/milestones/E14-step2-dependency-solver-and-conflict-diagnostics.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

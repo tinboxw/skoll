@@ -148,6 +148,7 @@ type PluginService interface {
 	ListMarketplaceTrustRoots() []string
 	IngestMarketplaceIndex(source, signedBy, signature string, expiresAt time.Time, packages []pluginmgr.MarketplaceIndexPackage, now time.Time) (pluginmgr.MarketplaceIndexIngestResult, error)
 	ListMarketplaceIndexSources() []pluginmgr.MarketplaceIndexSource
+	SolveDependencies(items []pluginmgr.DependencySolveItem) pluginmgr.DependencySolveResult
 }
 
 type RBACService interface {
@@ -292,6 +293,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/plugins/marketplace/trust-roots", listMarketplaceTrustRootsHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/marketplace/index/ingest", ingestMarketplaceIndexHandler(services.Plugins, services.Audit))
 	handle("GET /admin/v1/plugins/marketplace/index/sources", listMarketplaceIndexSourcesHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/dependency-solver/resolve", resolvePluginDependenciesHandler(services.Plugins, services.Audit))
 	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
 	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
@@ -525,6 +527,10 @@ type ingestMarketplaceIndexRequest struct {
 	Signature     string                              `json:"signature"`
 	ExpiresAtUnix int64                               `json:"expires_at_unix_sec"`
 	Packages      []pluginmgr.MarketplaceIndexPackage `json:"packages"`
+}
+
+type resolvePluginDependenciesRequest struct {
+	Items []pluginmgr.DependencySolveItem `json:"items"`
 }
 
 type migrationPlanRequest struct {
@@ -2954,6 +2960,19 @@ func ingestMarketplaceIndexHandler(svc PluginService, auditSvc AuditService) htt
 func listMarketplaceIndexSourcesHandler(svc PluginService) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListMarketplaceIndexSources()})
+	}
+}
+
+func resolvePluginDependenciesHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req resolvePluginDependenciesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		result := svc.SolveDependencies(req.Items)
+		auditSvc.Append("plugin-governance", "dependency_solver_resolve", fmt.Sprintf("items:%d conflicts:%d", len(req.Items), len(result.Conflicts)))
+		respondJSON(w, http.StatusOK, result)
 	}
 }
 

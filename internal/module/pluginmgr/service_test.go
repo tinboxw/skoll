@@ -270,3 +270,28 @@ func TestServiceMarketplaceTrustAndSignedIndexIngest(t *testing.T) {
 		t.Fatalf("expected signature invalid error, got %v", err)
 	}
 }
+
+func TestServiceDependencySolverDeterministicAndConflictDiagnostics(t *testing.T) {
+	svc := NewService()
+	_, err := svc.InstallPackageVerified("core-ext", "1.2.0", "https://example.com/plugins/core-ext-1.2.0.tgz", "sha256:core120", "sig:sha256:core120", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("install core-ext failed: %v", err)
+	}
+
+	items := []DependencySolveItem{
+		{Name: "billing-ext", Version: "1.0.0", Dependencies: []Dependency{{Name: "core-ext", MinVersion: "1.1.0"}}},
+		{Name: "report-ext", Version: "1.0.0", Dependencies: []Dependency{{Name: "missing-ext", MinVersion: "1.0.0"}}},
+	}
+	resultA := svc.SolveDependencies(items)
+	resultB := svc.SolveDependencies(items)
+
+	if !resultA.Deterministic || !resultB.Deterministic {
+		t.Fatalf("expected deterministic solver outputs")
+	}
+	if len(resultA.Resolved) != len(resultB.Resolved) || len(resultA.Conflicts) != len(resultB.Conflicts) {
+		t.Fatalf("expected stable output shape, got A=%+v B=%+v", resultA, resultB)
+	}
+	if len(resultA.Conflicts) == 0 {
+		t.Fatalf("expected conflict diagnostics, got %+v", resultA)
+	}
+}
