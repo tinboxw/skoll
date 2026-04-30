@@ -623,13 +623,16 @@ type restoreRequest struct {
 }
 
 type controlledSQLRequest struct {
-	SQL            string `json:"sql"`
-	AllowDangerous bool   `json:"allow_dangerous"`
-	ConfirmToken   string `json:"confirm_token"`
+	SQL              string `json:"sql"`
+	SQLClass         string `json:"sql_class"`
+	AllowDangerous   bool   `json:"allow_dangerous"`
+	ConfirmToken     string `json:"confirm_token"`
+	ConfirmTokenDual string `json:"confirm_token_dual"`
 }
 
 type controlledSQLResponse struct {
 	Allowed      bool   `json:"allowed"`
+	SQLClass     string `json:"sql_class"`
 	ExecutionID  string `json:"execution_id,omitempty"`
 	SafetyResult string `json:"safety_result"`
 }
@@ -655,6 +658,11 @@ type dbOpsState struct {
 var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]backupCatalogItem)}
 
 const dbDangerousConfirmToken = "I_UNDERSTAND"
+const dbDangerousDualConfirmToken = "CONFIRM_DESTRUCTIVE_SQL"
+
+const sqlClassReadOnly = "read_only"
+const sqlClassWriteGuarded = "write_guarded"
+const sqlClassDestructiveConfirmed = "destructive_confirmed"
 
 type pluginVersionCheckRequest struct {
 	LatestVersion string `json:"latest_version"`
@@ -3312,13 +3320,45 @@ func executeControlledSQLHandler(auditSvc AuditService) http.HandlerFunc {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "sql is required"})
 			return
 		}
-		upper := strings.ToUpper(sqlText)
-		dangerous := strings.Contains(upper, "DROP ") || strings.Contains(upper, "TRUNCATE ") || strings.Contains(upper, "DELETE ")
-		if dangerous {
-			if !req.AllowDangerous || strings.TrimSpace(req.ConfirmToken) != dbDangerousConfirmToken {
-				respondJSON(w, http.StatusForbidden, controlledSQLResponse{Allowed: false, SafetyResult: "dangerous_sql_blocked"})
+		resolvedClass, err := resolveSQLClass(strings.TrimSpace(req.SQLClass), sqlText)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		destructive := isDestructiveSQL(sqlText)
+		write := isWriteSQL(sqlText)
+
+		safetyResult := "approved"
+		switch resolvedClass {
+		case sqlClassReadOnly:
+			if write || destructive {
+				respondJSON(w, http.StatusForbidden, controlledSQLResponse{Allowed: false, SQLClass: resolvedClass, SafetyResult: "class_violation_read_only"})
 				return
 			}
+			safetyResult = "read_only_approved"
+		case sqlClassWriteGuarded:
+			if destructive {
+				respondJSON(w, http.StatusForbidden, controlledSQLResponse{Allowed: false, SQLClass: resolvedClass, SafetyResult: "class_violation_use_destructive_confirmed"})
+				return
+			}
+			if write && strings.TrimSpace(req.ConfirmToken) != dbDangerousConfirmToken {
+				respondJSON(w, http.StatusForbidden, controlledSQLResponse{Allowed: false, SQLClass: resolvedClass, SafetyResult: "write_guard_confirmation_required"})
+				return
+			}
+			safetyResult = "write_guarded_approved"
+		case sqlClassDestructiveConfirmed:
+			if !destructive {
+				respondJSON(w, http.StatusBadRequest, controlledSQLResponse{Allowed: false, SQLClass: resolvedClass, SafetyResult: "no_destructive_operation_detected"})
+				return
+			}
+			if !req.AllowDangerous || strings.TrimSpace(req.ConfirmToken) != dbDangerousConfirmToken || strings.TrimSpace(req.ConfirmTokenDual) != dbDangerousDualConfirmToken {
+				respondJSON(w, http.StatusForbidden, controlledSQLResponse{Allowed: false, SQLClass: resolvedClass, SafetyResult: "dangerous_sql_dual_confirmation_required"})
+				return
+			}
+			safetyResult = "destructive_confirmed_approved"
+		default:
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "unsupported sql_class"})
+			return
 		}
 
 		adminDBOpsState.mu.Lock()
@@ -3327,8 +3367,36 @@ func executeControlledSQLHandler(auditSvc AuditService) http.HandlerFunc {
 		adminDBOpsState.mu.Unlock()
 
 		auditSvc.Append("dbops", "sql_execute", execID)
-		respondJSON(w, http.StatusOK, controlledSQLResponse{Allowed: true, ExecutionID: execID, SafetyResult: "approved"})
+		respondJSON(w, http.StatusOK, controlledSQLResponse{Allowed: true, SQLClass: resolvedClass, ExecutionID: execID, SafetyResult: safetyResult})
 	}
+}
+
+func resolveSQLClass(requestedClass, sqlText string) (string, error) {
+	if requestedClass != "" {
+		switch requestedClass {
+		case sqlClassReadOnly, sqlClassWriteGuarded, sqlClassDestructiveConfirmed:
+			return requestedClass, nil
+		default:
+			return "", fmt.Errorf("sql_class must be one of %s|%s|%s", sqlClassReadOnly, sqlClassWriteGuarded, sqlClassDestructiveConfirmed)
+		}
+	}
+	if isDestructiveSQL(sqlText) {
+		return sqlClassDestructiveConfirmed, nil
+	}
+	if isWriteSQL(sqlText) {
+		return sqlClassWriteGuarded, nil
+	}
+	return sqlClassReadOnly, nil
+}
+
+func isDestructiveSQL(sqlText string) bool {
+	upper := strings.ToUpper(sqlText)
+	return strings.Contains(upper, " DROP ") || strings.HasPrefix(upper, "DROP ") || strings.Contains(upper, " TRUNCATE ") || strings.HasPrefix(upper, "TRUNCATE ") || strings.Contains(upper, " DELETE ") || strings.HasPrefix(upper, "DELETE ")
+}
+
+func isWriteSQL(sqlText string) bool {
+	upper := strings.ToUpper(sqlText)
+	return strings.Contains(upper, " INSERT ") || strings.HasPrefix(upper, "INSERT ") || strings.Contains(upper, " UPDATE ") || strings.HasPrefix(upper, "UPDATE ") || strings.Contains(upper, " MERGE ") || strings.HasPrefix(upper, "MERGE ") || strings.Contains(upper, " UPSERT ") || strings.HasPrefix(upper, "UPSERT ") || strings.Contains(upper, " ALTER ") || strings.HasPrefix(upper, "ALTER ") || strings.Contains(upper, " CREATE ") || strings.HasPrefix(upper, "CREATE ")
 }
 
 func submitReleaseEvidenceHandler(svc ReleaseService, auditSvc AuditService) http.HandlerFunc {

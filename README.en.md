@@ -112,7 +112,9 @@ curl -X POST http://localhost:8080/admin/v1/db/backup -H "Content-Type: applicat
 curl "http://localhost:8080/admin/v1/db/backups/catalog?limit=20"
 curl -X POST http://localhost:8080/admin/v1/db/restore -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND"}'
 curl -X POST http://localhost:8080/admin/v1/db/restore/drills -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500}'
-curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"DELETE FROM sessions WHERE expired=1","allow_dangerous":true,"confirm_token":"I_UNDERSTAND"}'
+curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"SELECT 1","sql_class":"read_only"}'
+curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"UPDATE users SET status=''ok''","sql_class":"write_guarded","confirm_token":"I_UNDERSTAND"}'
+curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"DELETE FROM sessions WHERE expired=1","sql_class":"destructive_confirmed","allow_dangerous":true,"confirm_token":"I_UNDERSTAND","confirm_token_dual":"CONFIRM_DESTRUCTIVE_SQL"}'
 curl -X POST http://localhost:8080/admin/v1/sessions/consistency/heartbeat -H "Content-Type: application/json" -d '{"session_id":"sess-1","instance_id":"node-a","version":10}'
 curl -X POST http://localhost:8080/admin/v1/jobs/1/dispatch-claim -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","instance_id":"node-a"}'
 curl -X GET http://localhost:8080/admin/v1/job-dispatch-claims/job-1:20260426T100000Z
@@ -304,6 +306,7 @@ go test -bench=. -benchmem ./...
 - E14-step3 upgrade transaction checkpoints and provenance retention record: `docs/milestones/E14-step3-upgrade-transaction-checkpoints-and-provenance.md`
 - E15-step1 migration drift detection and impact grading record: `docs/milestones/E15-step1-migration-drift-detection-impact-grading.md`
 - E15-step2 backup catalog and restore drill evidence record: `docs/milestones/E15-step2-backup-catalog-and-restore-drill-evidence.md`
+- E15-step3 controlled SQL classes and destructive dual confirmation record: `docs/milestones/E15-step3-controlled-sql-classes-and-dual-confirmation.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

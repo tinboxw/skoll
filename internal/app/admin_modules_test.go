@@ -1373,14 +1373,38 @@ func TestDatabaseOpsGovernanceRoutes(t *testing.T) {
 		t.Fatalf("expected dangerous sql blocked status 403, got %d", sqlBlockedRR.Code)
 	}
 
-	sqlAllowedReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/sql/execute", strings.NewReader(`{"sql":"DELETE FROM sessions WHERE expired=1","allow_dangerous":true,"confirm_token":"I_UNDERSTAND"}`))
+	readOnlyReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/sql/execute", strings.NewReader(`{"sql":"SELECT 1","sql_class":"read_only"}`))
+	readOnlyReq.Header.Set("Content-Type", "application/json")
+	readOnlyRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(readOnlyRR, readOnlyReq)
+	if readOnlyRR.Code != http.StatusOK || !strings.Contains(readOnlyRR.Body.String(), `"sql_class":"read_only"`) {
+		t.Fatalf("expected read-only sql approved, got status=%d body=%s", readOnlyRR.Code, readOnlyRR.Body.String())
+	}
+
+	writeGuardMissingConfirmReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/sql/execute", strings.NewReader(`{"sql":"UPDATE users SET status='ok'","sql_class":"write_guarded"}`))
+	writeGuardMissingConfirmReq.Header.Set("Content-Type", "application/json")
+	writeGuardMissingConfirmRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(writeGuardMissingConfirmRR, writeGuardMissingConfirmReq)
+	if writeGuardMissingConfirmRR.Code != http.StatusForbidden {
+		t.Fatalf("expected write-guarded confirmation required status 403, got %d", writeGuardMissingConfirmRR.Code)
+	}
+
+	writeGuardReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/sql/execute", strings.NewReader(`{"sql":"UPDATE users SET status='ok'","sql_class":"write_guarded","confirm_token":"I_UNDERSTAND"}`))
+	writeGuardReq.Header.Set("Content-Type", "application/json")
+	writeGuardRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(writeGuardRR, writeGuardReq)
+	if writeGuardRR.Code != http.StatusOK || !strings.Contains(writeGuardRR.Body.String(), `"sql_class":"write_guarded"`) {
+		t.Fatalf("expected write-guarded sql approved, got status=%d body=%s", writeGuardRR.Code, writeGuardRR.Body.String())
+	}
+
+	sqlAllowedReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/sql/execute", strings.NewReader(`{"sql":"DELETE FROM sessions WHERE expired=1","sql_class":"destructive_confirmed","allow_dangerous":true,"confirm_token":"I_UNDERSTAND","confirm_token_dual":"CONFIRM_DESTRUCTIVE_SQL"}`))
 	sqlAllowedReq.Header.Set("Content-Type", "application/json")
 	sqlAllowedRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(sqlAllowedRR, sqlAllowedReq)
 	if sqlAllowedRR.Code != http.StatusOK {
 		t.Fatalf("expected controlled sql status 200, got %d", sqlAllowedRR.Code)
 	}
-	if !strings.Contains(sqlAllowedRR.Body.String(), `"allowed":true`) {
+	if !strings.Contains(sqlAllowedRR.Body.String(), `"allowed":true`) || !strings.Contains(sqlAllowedRR.Body.String(), `"sql_class":"destructive_confirmed"`) {
 		t.Fatalf("expected allowed sql response, got %s", sqlAllowedRR.Body.String())
 	}
 }
