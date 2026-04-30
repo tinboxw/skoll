@@ -323,6 +323,7 @@ go test -bench=. -benchmem ./...
 - E16-step3 调度可靠性指标快照 API 记录：`docs/milestones/E16-step3-reliability-metrics-snapshot-api.md`
 - E16-step4 调度可靠性看板信号收口记录：`docs/milestones/E16-step4-dashboard-reliability-signals-and-closure.md`
 - E17-step1 控制面端点 Guardrails 基线记录：`docs/milestones/E17-step1-control-plane-endpoint-guardrails-baseline.md`
+- E17-step2 关键路径告警画像基线记录：`docs/milestones/E17-step2-critical-path-alert-profiles-baseline.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

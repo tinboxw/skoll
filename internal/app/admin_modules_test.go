@@ -1589,6 +1589,40 @@ func TestSystemEndpointGuardrailsRoutes(t *testing.T) {
 	}
 }
 
+func TestSystemAlertProfilesRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	invalidReq := httptest.NewRequest(http.MethodPut, "/admin/v1/system/hardening/alert-profiles", strings.NewReader(`{"profiles":[{"metric":"admin_request_latency_p95_ms","warn_threshold":120,"critical_threshold":80,"window_seconds":300,"runbook":"docs/runbooks/admin-latency.md","owner":"sre-oncall","enabled":true}]}`))
+	invalidReq.Header.Set("Content-Type", "application/json")
+	invalidRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidRR, invalidReq)
+	if invalidRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid alert profile status 400, got %d body=%s", invalidRR.Code, invalidRR.Body.String())
+	}
+
+	putReq := httptest.NewRequest(http.MethodPut, "/admin/v1/system/hardening/alert-profiles", strings.NewReader(`{"profiles":[{"metric":"admin_request_latency_p95_ms","warn_threshold":120,"critical_threshold":250,"window_seconds":300,"runbook":"docs/runbooks/admin-latency.md","owner":"sre-oncall","enabled":true},{"metric":"scheduler_dead_letter_count","warn_threshold":5,"critical_threshold":10,"window_seconds":600,"runbook":"docs/runbooks/scheduler-dead-letter.md","owner":"platform-ops","enabled":true}]}`))
+	putReq.Header.Set("Content-Type", "application/json")
+	putRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(putRR, putReq)
+	if putRR.Code != http.StatusOK {
+		t.Fatalf("expected set alert profiles status 200, got %d body=%s", putRR.Code, putRR.Body.String())
+	}
+	if !strings.Contains(putRR.Body.String(), `"metric":"admin_request_latency_p95_ms"`) || !strings.Contains(putRR.Body.String(), `"critical_threshold":250`) {
+		t.Fatalf("expected alert profile payload in put response, got %s", putRR.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/v1/system/hardening/alert-profiles", nil)
+	listRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRR, listReq)
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected list alert profiles status 200, got %d body=%s", listRR.Code, listRR.Body.String())
+	}
+	if !strings.Contains(listRR.Body.String(), `"metric":"scheduler_dead_letter_count"`) || !strings.Contains(listRR.Body.String(), `"runbook":"docs/runbooks/scheduler-dead-letter.md"`) {
+		t.Fatalf("expected alert profiles list payload, got %s", listRR.Body.String())
+	}
+}
+
 func TestReleaseGovernanceRoutes(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)

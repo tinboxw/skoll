@@ -328,6 +328,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/system/dashboard", dashboardAggregateHandler(services))
 	handle("PUT /admin/v1/system/hardening/endpoint-guardrails", setEndpointGuardrailsHandler(services.Audit))
 	handle("GET /admin/v1/system/hardening/endpoint-guardrails", listEndpointGuardrailsHandler())
+	handle("PUT /admin/v1/system/hardening/alert-profiles", setAlertProfilesHandler(services.Audit))
+	handle("GET /admin/v1/system/hardening/alert-profiles", listAlertProfilesHandler())
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 	if services.Releases != nil {
 		handle("POST /admin/v1/release-governance/evidence", submitReleaseEvidenceHandler(services.Releases, services.Audit))
@@ -529,6 +531,21 @@ type setEndpointGuardrailsRequest struct {
 	Profiles []endpointGuardrailProfile `json:"profiles"`
 }
 
+type alertProfile struct {
+	Metric            string  `json:"metric"`
+	WarnThreshold     float64 `json:"warn_threshold"`
+	CriticalThreshold float64 `json:"critical_threshold"`
+	WindowSeconds     int     `json:"window_seconds"`
+	Runbook           string  `json:"runbook"`
+	Owner             string  `json:"owner"`
+	Enabled           bool    `json:"enabled"`
+	UpdatedAtUnixSec  int64   `json:"updated_at_unix_sec"`
+}
+
+type setAlertProfilesRequest struct {
+	Profiles []alertProfile `json:"profiles"`
+}
+
 type generateModuleRequest struct {
 	Module          string                   `json:"module"`
 	TemplateVersion string                   `json:"template_version"`
@@ -721,12 +738,16 @@ type dbOpsState struct {
 }
 
 type hardeningState struct {
-	mu       sync.Mutex
-	profiles map[string]endpointGuardrailProfile
+	mu            sync.Mutex
+	profiles      map[string]endpointGuardrailProfile
+	alertProfiles map[string]alertProfile
 }
 
 var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]backupCatalogItem)}
-var adminHardeningState = hardeningState{profiles: make(map[string]endpointGuardrailProfile)}
+var adminHardeningState = hardeningState{
+	profiles:      make(map[string]endpointGuardrailProfile),
+	alertProfiles: make(map[string]alertProfile),
+}
 
 const dbDangerousConfirmToken = "I_UNDERSTAND"
 const dbDangerousDualConfirmToken = "CONFIRM_DESTRUCTIVE_SQL"
@@ -3066,6 +3087,85 @@ func endpointGuardrailProfilesSnapshot() []endpointGuardrailProfile {
 	}
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].Endpoint < items[j].Endpoint
+	})
+	return items
+}
+
+func setAlertProfilesHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req setAlertProfilesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if len(req.Profiles) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "profiles must not be empty"})
+			return
+		}
+
+		now := time.Now().UTC().Unix()
+		normalized := make(map[string]alertProfile, len(req.Profiles))
+		for _, item := range req.Profiles {
+			item.Metric = strings.TrimSpace(item.Metric)
+			item.Runbook = strings.TrimSpace(item.Runbook)
+			item.Owner = strings.TrimSpace(item.Owner)
+			if item.Metric == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "metric is required"})
+				return
+			}
+			if item.WarnThreshold <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "warn_threshold must be > 0"})
+				return
+			}
+			if item.CriticalThreshold <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "critical_threshold must be > 0"})
+				return
+			}
+			if item.CriticalThreshold < item.WarnThreshold {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "critical_threshold must be >= warn_threshold"})
+				return
+			}
+			if item.WindowSeconds <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "window_seconds must be > 0"})
+				return
+			}
+			if item.Runbook == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "runbook is required"})
+				return
+			}
+			if item.Owner == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "owner is required"})
+				return
+			}
+			item.UpdatedAtUnixSec = now
+			normalized[item.Metric] = item
+		}
+
+		adminHardeningState.mu.Lock()
+		adminHardeningState.alertProfiles = normalized
+		adminHardeningState.mu.Unlock()
+
+		auditSvc.Append("system", "alert_profiles_updated", strconv.Itoa(len(normalized)))
+		respondJSON(w, http.StatusOK, map[string]any{"items": alertProfilesSnapshot()})
+	}
+}
+
+func listAlertProfilesHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]any{"items": alertProfilesSnapshot()})
+	}
+}
+
+func alertProfilesSnapshot() []alertProfile {
+	adminHardeningState.mu.Lock()
+	defer adminHardeningState.mu.Unlock()
+
+	items := make([]alertProfile, 0, len(adminHardeningState.alertProfiles))
+	for _, item := range adminHardeningState.alertProfiles {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Metric < items[j].Metric
 	})
 	return items
 }

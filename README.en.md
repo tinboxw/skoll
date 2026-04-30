@@ -323,6 +323,7 @@ go test -bench=. -benchmem ./...
 - E16-step3 scheduler reliability metrics snapshot API record: `docs/milestones/E16-step3-reliability-metrics-snapshot-api.md`
 - E16-step4 scheduler reliability dashboard signal closure record: `docs/milestones/E16-step4-dashboard-reliability-signals-and-closure.md`
 - E17-step1 control-plane endpoint guardrails baseline record: `docs/milestones/E17-step1-control-plane-endpoint-guardrails-baseline.md`
+- E17-step2 critical-path alert profile baseline record: `docs/milestones/E17-step2-critical-path-alert-profiles-baseline.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
