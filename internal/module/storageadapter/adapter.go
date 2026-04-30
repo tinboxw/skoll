@@ -119,6 +119,8 @@ type PluginRepository interface {
 	Disable(name string) (pluginmgr.Manifest, error)
 	CheckVersion(name, latestVersion string) (pluginmgr.VersionCheckResult, error)
 	UpgradePackage(name, targetVersion, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string) (pluginmgr.UpgradeResult, error)
+	Remove(name string) pluginmgr.LifecycleResult
+	CheckCompatibility(name, version string, dependencies []pluginmgr.Dependency) pluginmgr.CompatibilityResult
 	RegisterHook(name, namespace, version string, order, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
 	ListHooks() []pluginmgr.HookRegistration
 	SetHookEnabled(name, namespace string, enabled bool) (pluginmgr.HookRegistration, error)

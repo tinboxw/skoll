@@ -177,3 +177,31 @@ func TestServiceHookRegistryValidationAndIsolation(t *testing.T) {
 		t.Fatalf("expected two isolated hook records, got %d", len(all))
 	}
 }
+
+func TestServiceLifecycleRemoveAndCompatibilityCheck(t *testing.T) {
+	svc := NewService()
+	_, err := svc.InstallPackageVerified("core-ext", "1.0.0", "https://example.com/plugins/core-ext-1.0.0.tgz", "sha256:core100", "sig:sha256:core100", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("install core failed: %v", err)
+	}
+
+	compatible := svc.CheckCompatibility("billing-ext", "1.2.0", []Dependency{{Name: "core-ext", MinVersion: "1.0.0"}})
+	if !compatible.Compatible {
+		t.Fatalf("expected compatibility pass, got %+v", compatible)
+	}
+
+	incompatible := svc.CheckCompatibility("billing-ext", "1.2.0", []Dependency{{Name: "core-ext", MinVersion: "2.0.0"}})
+	if incompatible.Compatible || len(incompatible.Blockers) == 0 {
+		t.Fatalf("expected compatibility blockers, got %+v", incompatible)
+	}
+
+	removeExisting := svc.Remove("core-ext")
+	if !removeExisting.Succeeded || removeExisting.Idempotent {
+		t.Fatalf("expected successful non-idempotent remove, got %+v", removeExisting)
+	}
+
+	removeAgain := svc.Remove("core-ext")
+	if !removeAgain.Succeeded || !removeAgain.Idempotent {
+		t.Fatalf("expected idempotent remove for missing plugin, got %+v", removeAgain)
+	}
+}

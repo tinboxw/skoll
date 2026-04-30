@@ -1069,6 +1069,37 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 	if !strings.Contains(hookDisableRR.Body.String(), `"enabled":false`) {
 		t.Fatalf("expected hook disabled, got %s", hookDisableRR.Body.String())
 	}
+
+	compatReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/compatibility-check", strings.NewReader(`{"name":"audit-ext","version":"1.2.0","dependencies":[{"name":"audit-ext","min_version":"1.0.0"}]}`))
+	compatReq.Header.Set("Content-Type", "application/json")
+	compatRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(compatRR, compatReq)
+	if compatRR.Code != http.StatusOK {
+		t.Fatalf("expected compatibility status 200, got %d body=%s", compatRR.Code, compatRR.Body.String())
+	}
+	if !strings.Contains(compatRR.Body.String(), `"compatible":false`) {
+		t.Fatalf("expected compatibility blockers for self dependency, got %s", compatRR.Body.String())
+	}
+
+	removeReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/remove", nil)
+	removeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(removeRR, removeReq)
+	if removeRR.Code != http.StatusOK {
+		t.Fatalf("expected remove status 200, got %d body=%s", removeRR.Code, removeRR.Body.String())
+	}
+	if !strings.Contains(removeRR.Body.String(), `"succeeded":true`) {
+		t.Fatalf("expected successful remove result, got %s", removeRR.Body.String())
+	}
+
+	removeAgainReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/remove", nil)
+	removeAgainRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(removeAgainRR, removeAgainReq)
+	if removeAgainRR.Code != http.StatusOK {
+		t.Fatalf("expected idempotent remove status 200, got %d", removeAgainRR.Code)
+	}
+	if !strings.Contains(removeAgainRR.Body.String(), `"idempotent":true`) {
+		t.Fatalf("expected idempotent remove result, got %s", removeAgainRR.Body.String())
+	}
 }
 
 func TestSystemStatusRoute_AggregatesModuleCounts(t *testing.T) {

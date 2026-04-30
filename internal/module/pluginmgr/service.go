@@ -50,6 +50,22 @@ type UpgradeResult struct {
 	Reason          string `json:"reason,omitempty"`
 }
 
+type LifecycleResult struct {
+	Name       string `json:"name"`
+	Action     string `json:"action"`
+	Succeeded  bool   `json:"succeeded"`
+	Idempotent bool   `json:"idempotent"`
+	Message    string `json:"message,omitempty"`
+}
+
+type CompatibilityResult struct {
+	Name       string    `json:"name"`
+	Version    string    `json:"version"`
+	Compatible bool      `json:"compatible"`
+	Blockers   []string  `json:"blockers,omitempty"`
+	CheckedAt  time.Time `json:"checked_at"`
+}
+
 type HookRegistration struct {
 	Name          string    `json:"name"`
 	Namespace     string    `json:"namespace"`
@@ -142,6 +158,68 @@ func (s *Service) UpgradePackage(name, targetVersion, packageURL, packageHash, s
 
 	result.Succeeded = true
 	return result, nil
+}
+
+func (s *Service) Remove(name string) LifecycleResult {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return LifecycleResult{Name: name, Action: "remove", Succeeded: false, Message: "name is required"}
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.items[name]; !ok {
+		return LifecycleResult{Name: name, Action: "remove", Succeeded: true, Idempotent: true, Message: "plugin already absent"}
+	}
+	delete(s.items, name)
+	return LifecycleResult{Name: name, Action: "remove", Succeeded: true}
+}
+
+func (s *Service) CheckCompatibility(name, version string, dependencies []Dependency) CompatibilityResult {
+	name = strings.TrimSpace(name)
+	version = strings.TrimSpace(version)
+	result := CompatibilityResult{Name: name, Version: version, CheckedAt: time.Now().UTC()}
+	blockers := make([]string, 0)
+
+	if name == "" {
+		blockers = append(blockers, "name is required")
+	}
+	if version == "" {
+		blockers = append(blockers, "version is required")
+	} else if !isValidVersion(version) {
+		blockers = append(blockers, "version is invalid")
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, dep := range dependencies {
+		depName := strings.TrimSpace(dep.Name)
+		depMin := strings.TrimSpace(dep.MinVersion)
+		if depName == "" {
+			continue
+		}
+		if depName == name {
+			blockers = append(blockers, "self dependency is not allowed")
+			continue
+		}
+		manifest, ok := s.items[depName]
+		if !ok {
+			blockers = append(blockers, fmt.Sprintf("dependency %s not installed", depName))
+			continue
+		}
+		if depMin != "" && !isValidVersion(depMin) {
+			blockers = append(blockers, fmt.Sprintf("dependency %s has invalid min_version", depName))
+			continue
+		}
+		if depMin != "" && compareVersion(manifest.Version, depMin) < 0 {
+			blockers = append(blockers, fmt.Sprintf("dependency %s requires >= %s", depName, depMin))
+		}
+	}
+
+	sort.Strings(blockers)
+	result.Blockers = blockers
+	result.Compatible = len(blockers) == 0
+	return result
 }
 
 func (s *Service) RegisterHook(name, namespace, version string, order, timeoutMillis, retryLimit int, deadLetter bool) (HookRegistration, error) {

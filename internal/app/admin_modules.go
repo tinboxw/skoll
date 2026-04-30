@@ -135,6 +135,8 @@ type PluginService interface {
 	Disable(name string) (pluginmgr.Manifest, error)
 	CheckVersion(name, latestVersion string) (pluginmgr.VersionCheckResult, error)
 	UpgradePackage(name, targetVersion, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string) (pluginmgr.UpgradeResult, error)
+	Remove(name string) pluginmgr.LifecycleResult
+	CheckCompatibility(name, version string, dependencies []pluginmgr.Dependency) pluginmgr.CompatibilityResult
 	RegisterHook(name, namespace, version string, order, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
 	ListHooks() []pluginmgr.HookRegistration
 	SetHookEnabled(name, namespace string, enabled bool) (pluginmgr.HookRegistration, error)
@@ -270,6 +272,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/upgrade", upgradePluginHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/{name}/remove", removePluginHandler(services.Plugins, services.Audit))
+	handle("POST /admin/v1/plugins/compatibility-check", checkPluginCompatibilityHandler(services.Plugins, services.Audit))
 	handle("POST /admin/v1/plugins/hooks/register", registerPluginHookHandler(services.Plugins, services.Audit))
 	handle("GET /admin/v1/plugins/hooks", listPluginHooksHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/enable", setPluginHookEnabledHandler(services.Plugins, services.Audit, true))
@@ -560,6 +564,12 @@ const dbDangerousConfirmToken = "I_UNDERSTAND"
 
 type pluginVersionCheckRequest struct {
 	LatestVersion string `json:"latest_version"`
+}
+
+type pluginCompatibilityCheckRequest struct {
+	Name         string                 `json:"name"`
+	Version      string                 `json:"version"`
+	Dependencies []pluginmgr.Dependency `json:"dependencies"`
 }
 
 type setRoleMenusRequest struct {
@@ -3071,6 +3081,36 @@ func checkPluginVersionHandler(svc PluginService) http.HandlerFunc {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func removePluginHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		result := svc.Remove(name)
+		if !result.Succeeded {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": result.Message})
+			return
+		}
+		auditSvc.Append("plugin-governance", "plugin_remove", name)
+		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func checkPluginCompatibilityHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req pluginCompatibilityCheckRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		result := svc.CheckCompatibility(strings.TrimSpace(req.Name), strings.TrimSpace(req.Version), req.Dependencies)
+		auditSvc.Append("plugin-governance", "plugin_compatibility_check", result.Name)
 		respondJSON(w, http.StatusOK, result)
 	}
 }
