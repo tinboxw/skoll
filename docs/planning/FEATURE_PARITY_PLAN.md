@@ -140,8 +140,8 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 65. Completed: E14 plugin marketplace depth parity (step1 trust-root/signed-index + step2 dependency solver diagnostics + step3 checkpointed upgrade transactions/provenance delivered).
 66. Completed: E15 database management depth parity (step1 drift detection + step2 backup catalog/restore drills + step3 SQL class governance + step4 drill evidence query and RPO checks delivered).
 67. Completed: E16 distributed scheduler and job reliability parity (step1 lease renewal + step2 retry/backoff/DLQ/replay + step3 reliability metrics API + step4 dashboard reliability signal closure delivered).
-68. Plan completed: E17 observability and operational hardening parity (step1 endpoint guardrails baseline + step2 alert profile baseline + step3 incident runbooks and fault-drill evidence baseline + step4 dashboard hardening posture closure delivered).
-69. Plan completed: E18 release governance and parity closure (step1 parity closure checkpoints and evidence report baseline + step2 scorecard blocking policy and automated block decision baseline + step3 public parity closure report and compatibility statement delivered).
+68. Completed: E17 observability and operational hardening parity (step1 endpoint guardrails baseline + step2 alert profile baseline + step3 incident runbooks and fault-drill evidence baseline + step4 dashboard hardening posture closure delivered).
+69. Completed: E18 release governance and parity closure (step1 parity closure checkpoints and evidence report baseline + step2 scorecard blocking policy and automated block decision baseline + step3 public parity closure report and compatibility statement delivered).
 
 ## Risks and Mitigation
 
