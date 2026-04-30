@@ -104,6 +104,37 @@ func TestAdminUserRoutes_CreateListGet(t *testing.T) {
 	}
 }
 
+func TestAdminBulkUserCreateAtomic(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	bulkReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users/bulk", strings.NewReader(`{"items":[{"name":"alice","email":"alice@example.com"},{"name":"bob","email":"bob@example.com"}]}`))
+	bulkReq.Header.Set("Content-Type", "application/json")
+	bulkRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(bulkRR, bulkReq)
+	if bulkRR.Code != http.StatusCreated {
+		t.Fatalf("expected bulk create status 201, got %d body=%s", bulkRR.Code, bulkRR.Body.String())
+	}
+	if !strings.Contains(bulkRR.Body.String(), `"atomic":true`) {
+		t.Fatalf("expected atomic true in bulk create response, got %s", bulkRR.Body.String())
+	}
+
+	invalidReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users/bulk", strings.NewReader(`{"items":[{"name":"ok","email":"ok@example.com"},{"name":"","email":"bad@example.com"}]}`))
+	invalidReq.Header.Set("Content-Type", "application/json")
+	invalidRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidRR, invalidReq)
+	if invalidRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid bulk create status 400, got %d", invalidRR.Code)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	listRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRR, listReq)
+	if !strings.Contains(listRR.Body.String(), `"Email":"alice@example.com"`) || !strings.Contains(listRR.Body.String(), `"Email":"bob@example.com"`) {
+		t.Fatalf("expected only valid bulk-created users persisted, got %s", listRR.Body.String())
+	}
+}
+
 func TestAdminUserSecurityRoutes(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
@@ -636,6 +667,14 @@ func TestRolePolicySnapshotAndRollbackRoutes(t *testing.T) {
 	if !strings.Contains(rollbackRR.Body.String(), `"api":"GET:/admin/v1/users"`) {
 		t.Fatalf("expected rollback to restore v1 policy, got %s", rollbackRR.Body.String())
 	}
+
+	missingApproverReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/rollback", strings.NewReader(`{"snapshot_version":"v1"}`))
+	missingApproverReq.Header.Set("Content-Type", "application/json")
+	missingApproverRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(missingApproverRR, missingApproverReq)
+	if missingApproverRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected rollback approver required status 400, got %d", missingApproverRR.Code)
+	}
 }
 
 func TestConfigAndDictionaryRoutes(t *testing.T) {
@@ -680,6 +719,22 @@ func TestConfigAndDictionaryRoutes(t *testing.T) {
 	srv.httpServer.Handler.ServeHTTP(dictGetRR, dictGetReq)
 	if dictGetRR.Code != http.StatusOK {
 		t.Fatalf("expected dictionary get status 200, got %d", dictGetRR.Code)
+	}
+
+	bulkConfigReq := httptest.NewRequest(http.MethodPost, "/admin/v1/configs/bulk", strings.NewReader(`{"items":[{"key":"feature.a","value":"on","description":"a"},{"key":"feature.b","value":"off","description":"b"}]}`))
+	bulkConfigReq.Header.Set("Content-Type", "application/json")
+	bulkConfigRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(bulkConfigRR, bulkConfigReq)
+	if bulkConfigRR.Code != http.StatusCreated {
+		t.Fatalf("expected bulk config upsert status 201, got %d body=%s", bulkConfigRR.Code, bulkConfigRR.Body.String())
+	}
+
+	bulkDictReq := httptest.NewRequest(http.MethodPost, "/admin/v1/dictionaries/bulk", strings.NewReader(`{"items":[{"type":"status","label":"Disabled","value":"0","sort":20},{"type":"status","label":"Archived","value":"2","sort":30}]}`))
+	bulkDictReq.Header.Set("Content-Type", "application/json")
+	bulkDictRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(bulkDictRR, bulkDictReq)
+	if bulkDictRR.Code != http.StatusCreated {
+		t.Fatalf("expected bulk dictionary create status 201, got %d body=%s", bulkDictRR.Code, bulkDictRR.Body.String())
 	}
 }
 

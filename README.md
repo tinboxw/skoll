@@ -287,6 +287,7 @@ go test -bench=. -benchmem ./...
 - E10 鉴权与会话对等能力记录：`docs/milestones/E10-auth-and-session-parity.md`
 - E11-step1 策略快照与回滚基线记录：`docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
 - E11-step2 权限差异检查与审计联动记录：`docs/milestones/E11-step2-permission-diff-and-audit-linkage.md`
+- E12-step1 管理域批量原子操作基线记录：`docs/milestones/E12-step1-bulk-atomic-operations-baseline.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

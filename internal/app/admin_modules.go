@@ -193,6 +193,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handlePublic("GET /admin/v1/auth/sessions/{session_id}", getAdminAuthSessionHandler(services.Users))
 
 	handle("POST /admin/v1/users", createUserHandler(services.Users))
+	handle("POST /admin/v1/users/bulk", createUsersBulkHandler(services.Users, services.Audit))
 	handle("GET /admin/v1/users", listUsersHandler(services.Users))
 	handle("GET /admin/v1/users/{id}", getUserHandler(services.Users))
 	handle("POST /admin/v1/users/{id}/password/rotate", rotateUserPasswordHandler(services.Users, services.Audit))
@@ -232,9 +233,11 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/audit-logs", appendAuditLogHandler(services.Audit))
 	handle("GET /admin/v1/audit-logs", recentAuditLogsHandler(services.Audit))
 	handle("POST /admin/v1/configs", upsertConfigHandler(services.Configs))
+	handle("POST /admin/v1/configs/bulk", upsertConfigsBulkHandler(services.Configs, services.Audit))
 	handle("GET /admin/v1/configs", listConfigsHandler(services.Configs))
 	handle("GET /admin/v1/configs/{key}", getConfigHandler(services.Configs))
 	handle("POST /admin/v1/dictionaries", createDictionaryHandler(services.Dictionaries))
+	handle("POST /admin/v1/dictionaries/bulk", createDictionariesBulkHandler(services.Dictionaries, services.Audit))
 	handle("GET /admin/v1/dictionaries", listDictionariesHandler(services.Dictionaries))
 	handle("GET /admin/v1/dictionaries/{id}", getDictionaryHandler(services.Dictionaries))
 	handle("POST /admin/v1/files", uploadFileHandler(services.Files))
@@ -274,6 +277,16 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 type createUserRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
+}
+
+type createUsersBulkRequest struct {
+	Items []createUserRequest `json:"items"`
+}
+
+type createUsersBulkResponse struct {
+	Atomic bool        `json:"atomic"`
+	Count  int         `json:"count"`
+	Items  []user.User `json:"items"`
 }
 
 type rotateUserPasswordRequest struct {
@@ -345,12 +358,32 @@ type upsertConfigRequest struct {
 	Description string `json:"description"`
 }
 
+type upsertConfigsBulkRequest struct {
+	Items []upsertConfigRequest `json:"items"`
+}
+
+type upsertConfigsBulkResponse struct {
+	Atomic bool           `json:"atomic"`
+	Count  int            `json:"count"`
+	Items  []config.Entry `json:"items"`
+}
+
 type createDictionaryRequest struct {
 	Type    string `json:"type"`
 	Label   string `json:"label"`
 	Value   string `json:"value"`
 	Sort    int    `json:"sort"`
 	Enabled *bool  `json:"enabled"`
+}
+
+type createDictionariesBulkRequest struct {
+	Items []createDictionaryRequest `json:"items"`
+}
+
+type createDictionariesBulkResponse struct {
+	Atomic bool              `json:"atomic"`
+	Count  int               `json:"count"`
+	Items  []dictionary.Item `json:"items"`
 }
 
 type createJobRequest struct {
@@ -741,6 +774,35 @@ func createUserHandler(svc UserService) http.HandlerFunc {
 		}
 
 		respondJSON(w, http.StatusCreated, svc.Create(req.Name, req.Email))
+	}
+}
+
+func createUsersBulkHandler(svc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createUsersBulkRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if len(req.Items) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "items are required"})
+			return
+		}
+		for i := range req.Items {
+			req.Items[i].Name = strings.TrimSpace(req.Items[i].Name)
+			req.Items[i].Email = strings.TrimSpace(req.Items[i].Email)
+			if req.Items[i].Name == "" || req.Items[i].Email == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid item at index %d", i)})
+				return
+			}
+		}
+
+		out := make([]user.User, 0, len(req.Items))
+		for _, item := range req.Items {
+			out = append(out, svc.Create(item.Name, item.Email))
+		}
+		auditSvc.Append("admin", "users_bulk_create", fmt.Sprintf("count:%d", len(out)))
+		respondJSON(w, http.StatusCreated, createUsersBulkResponse{Atomic: true, Count: len(out), Items: out})
 	}
 }
 
@@ -1829,6 +1891,36 @@ func upsertConfigHandler(svc ConfigService) http.HandlerFunc {
 	}
 }
 
+func upsertConfigsBulkHandler(svc ConfigService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req upsertConfigsBulkRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if len(req.Items) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "items are required"})
+			return
+		}
+		for i := range req.Items {
+			req.Items[i].Key = strings.TrimSpace(req.Items[i].Key)
+			req.Items[i].Value = strings.TrimSpace(req.Items[i].Value)
+			req.Items[i].Description = strings.TrimSpace(req.Items[i].Description)
+			if req.Items[i].Key == "" || req.Items[i].Value == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid item at index %d", i)})
+				return
+			}
+		}
+
+		out := make([]config.Entry, 0, len(req.Items))
+		for _, item := range req.Items {
+			out = append(out, svc.Set(item.Key, item.Value, item.Description))
+		}
+		auditSvc.Append("admin", "configs_bulk_upsert", fmt.Sprintf("count:%d", len(out)))
+		respondJSON(w, http.StatusCreated, upsertConfigsBulkResponse{Atomic: true, Count: len(out), Items: out})
+	}
+}
+
 func listConfigsHandler(svc ConfigService) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, svc.List())
@@ -1878,6 +1970,40 @@ func createDictionaryHandler(svc DictionaryService) http.HandlerFunc {
 		}
 
 		respondJSON(w, http.StatusCreated, svc.Create(req.Type, req.Label, req.Value, req.Sort, enabled))
+	}
+}
+
+func createDictionariesBulkHandler(svc DictionaryService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req createDictionariesBulkRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if len(req.Items) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "items are required"})
+			return
+		}
+		for i := range req.Items {
+			req.Items[i].Type = strings.TrimSpace(req.Items[i].Type)
+			req.Items[i].Label = strings.TrimSpace(req.Items[i].Label)
+			req.Items[i].Value = strings.TrimSpace(req.Items[i].Value)
+			if req.Items[i].Type == "" || req.Items[i].Label == "" || req.Items[i].Value == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid item at index %d", i)})
+				return
+			}
+		}
+
+		out := make([]dictionary.Item, 0, len(req.Items))
+		for _, item := range req.Items {
+			enabled := true
+			if item.Enabled != nil {
+				enabled = *item.Enabled
+			}
+			out = append(out, svc.Create(item.Type, item.Label, item.Value, item.Sort, enabled))
+		}
+		auditSvc.Append("admin", "dictionaries_bulk_create", fmt.Sprintf("count:%d", len(out)))
+		respondJSON(w, http.StatusCreated, createDictionariesBulkResponse{Atomic: true, Count: len(out), Items: out})
 	}
 }
 
