@@ -202,4 +202,4 @@ A established the structural seam (contracts/memory/persistent) but did not deli
 | E-Task03 | completed | E3a role+menu, E3b rbac (kind-keyed JSON state), E3c user (per-row + counter, ephemeral sessions/anomaly intentionally not persisted) |
 | E-Task04 | completed | E4a generator passthrough + release append-only + file metadata, E4b job (per-row jobs/executions + JSON claims/retry/dead-letters + counter), E4c plugin (single-row JSON aggregate) |
 | E-Task05 | completed | postgres parity wired through shared `persistent.Adapter`; env-gated `SKOLL_TEST_PG_DSN` / `SKOLL_TEST_MYSQL_DSN` smoke tests live alongside default sqlite suites |
-| E-Task06 | partial | factory wires real MySQL/Postgres adapters via `persistent.NewAdapter`; production default tightening (warning when memory mode is used outside dev/test) still pending |
+| E-Task06 | completed | factory wires real MySQL/Postgres adapters via `persistent.NewAdapter`; bootstrap logs a WARNING when memory mode is used with `go-admin-mode=prod` |

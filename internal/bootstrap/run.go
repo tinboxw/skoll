@@ -141,6 +141,9 @@ func (r *Runner) buildServer(opts runOptions, adminVerifier adminauth.Verifier, 
 	if err != nil {
 		return nil, fmt.Errorf("invalid storage adapter configuration: %w", err)
 	}
+	if opts.storageAdapterMode == storageadapter.ModeMemory && opts.goAdminMode == "prod" {
+		log.Printf("WARNING: storage-adapter=memory selected in go-admin-mode=prod; data is volatile and will be lost on restart. Set SKOLL_STORAGE_ADAPTER=mysql|postgres for production deployments.")
+	}
 
 	var adminWrapper func(http.Handler) http.Handler
 	if adminAuthEnabled {
