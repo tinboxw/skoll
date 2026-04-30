@@ -3,6 +3,9 @@ package storageadapter
 import (
 	"fmt"
 	"strings"
+
+	"github.com/tinboxw/skoll/internal/module/storageadapter/memory"
+	"github.com/tinboxw/skoll/internal/module/storageadapter/persistent"
 )
 
 const (
@@ -19,19 +22,19 @@ func NewByMode(mode string) (Adapter, error) {
 
 	switch resolved {
 	case ModeMemory:
-		return NewInMemoryAdapter(), nil
+		return memory.NewAdapter()
 	case ModeMySQL:
-		cfg, err := ResolvePersistentBootstrapConfig(resolved, nil)
+		cfg, err := persistent.ResolveBootstrapConfig(resolved, nil)
 		if err != nil {
 			return nil, err
 		}
-		return newMySQLAdapter(cfg)
+		return persistent.NewMySQLAdapter(cfg)
 	case ModePostgres:
-		cfg, err := ResolvePersistentBootstrapConfig(resolved, nil)
+		cfg, err := persistent.ResolveBootstrapConfig(resolved, nil)
 		if err != nil {
 			return nil, err
 		}
-		return newPostgresAdapter(cfg)
+		return persistent.NewPostgresAdapter(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported storage adapter mode %q, valid: memory|mysql|postgres", resolved)
 	}

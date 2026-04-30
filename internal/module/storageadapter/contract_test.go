@@ -9,10 +9,17 @@ import (
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/releasegov"
+	"github.com/tinboxw/skoll/internal/module/storageadapter/memory"
 )
 
 func TestInMemoryAdapterContract(t *testing.T) {
-	runAdapterContract(t, func() Adapter { return NewInMemoryAdapter() })
+	runAdapterContract(t, func() Adapter {
+		a, err := memory.NewAdapter()
+		if err != nil {
+			t.Fatalf("new memory adapter failed: %v", err)
+		}
+		return a
+	})
 }
 
 func runAdapterContract(t *testing.T, factory func() Adapter) {
