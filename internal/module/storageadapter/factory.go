@@ -20,8 +20,18 @@ func NewByMode(mode string) (Adapter, error) {
 	switch resolved {
 	case ModeMemory:
 		return NewInMemoryAdapter(), nil
-	case ModeMySQL, ModePostgres:
-		return nil, fmt.Errorf("storage adapter mode %q is planned but not implemented yet", resolved)
+	case ModeMySQL:
+		cfg, err := ResolvePersistentBootstrapConfig(resolved, nil)
+		if err != nil {
+			return nil, err
+		}
+		return newMySQLAdapter(cfg)
+	case ModePostgres:
+		cfg, err := ResolvePersistentBootstrapConfig(resolved, nil)
+		if err != nil {
+			return nil, err
+		}
+		return newPostgresAdapter(cfg)
 	default:
 		return nil, fmt.Errorf("unsupported storage adapter mode %q, valid: memory|mysql|postgres", resolved)
 	}
