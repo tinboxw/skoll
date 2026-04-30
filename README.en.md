@@ -180,6 +180,7 @@ go test -bench=. -benchmem ./...
 - E16 distributed scheduler and job reliability parity plan: `docs/planning/E16_DISTRIBUTED_SCHEDULER_AND_JOB_RELIABILITY_PARITY_PLAN.md`
 - E17 observability and operational hardening parity plan: `docs/planning/E17_OBSERVABILITY_AND_OPERATIONAL_HARDENING_PARITY_PLAN.md`
 - E18 release governance and parity closure plan: `docs/planning/E18_RELEASE_GOVERNANCE_AND_PARITY_CLOSURE_PLAN.md`
+- E18 public parity closure report: `docs/releases/E18_PARITY_CLOSURE_REPORT.md`
 - Post-E9 full parity version plan: `docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - Code structure framework: `docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - Production deployment env template: `docs/planning/PRODUCTION_ENV_TEMPLATE.md`
@@ -328,6 +329,7 @@ go test -bench=. -benchmem ./...
 - E17-step4 dashboard hardening posture closure record: `docs/milestones/E17-step4-dashboard-hardening-posture-closure.md`
 - E18-step1 parity closure checkpoints and evidence report baseline record: `docs/milestones/E18-step1-parity-closure-checkpoints-and-evidence-report-baseline.md`
 - E18-step2 release blocking policy and automated decision baseline record: `docs/milestones/E18-step2-release-blocking-policy-and-automated-decision-baseline.md`
+- E18-step3 public parity closure report and compatibility statement record: `docs/milestones/E18-step3-public-closure-report-and-compatibility-statement.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

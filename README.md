@@ -180,6 +180,7 @@ go test -bench=. -benchmem ./...
 - E16 分布式调度可靠性对等计划：`docs/planning/E16_DISTRIBUTED_SCHEDULER_AND_JOB_RELIABILITY_PARITY_PLAN.md`
 - E17 可观测性与运维加固对等计划：`docs/planning/E17_OBSERVABILITY_AND_OPERATIONAL_HARDENING_PARITY_PLAN.md`
 - E18 发布治理与对等收口计划：`docs/planning/E18_RELEASE_GOVERNANCE_AND_PARITY_CLOSURE_PLAN.md`
+- E18 对等收口公开报告：`docs/releases/E18_PARITY_CLOSURE_REPORT.md`
 - E9 后完整对等版本路线：`docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - 代码结构框架：`docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
@@ -328,6 +329,7 @@ go test -bench=. -benchmem ./...
 - E17-step4 Dashboard 加固画像收口记录：`docs/milestones/E17-step4-dashboard-hardening-posture-closure.md`
 - E18-step1 对等闭环清单与证据报告基线记录：`docs/milestones/E18-step1-parity-closure-checkpoints-and-evidence-report-baseline.md`
 - E18-step2 发布阻断策略与自动决策基线记录：`docs/milestones/E18-step2-release-blocking-policy-and-automated-decision-baseline.md`
+- E18-step3 对等收口公开报告与兼容性声明记录：`docs/milestones/E18-step3-public-closure-report-and-compatibility-statement.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
