@@ -64,6 +64,30 @@ func TestServiceClaimRunConsistency(t *testing.T) {
 	}
 }
 
+func TestServiceClaimLeaseRenewal(t *testing.T) {
+	svc := NewService()
+	job := svc.Create("daily-sync", "0 0 * * *")
+	now := time.Unix(1710000000, 0).UTC()
+
+	_, err := svc.ClaimRun(job.ID, "job-1:20260426T100000Z", "node-a", now)
+	if err != nil {
+		t.Fatalf("claim run failed: %v", err)
+	}
+
+	renewed, err := svc.RenewClaimLease("job-1:20260426T100000Z", "node-a", 45, now.Add(5*time.Second))
+	if err != nil {
+		t.Fatalf("renew claim lease failed: %v", err)
+	}
+	if renewed.LeaseRenewalCount != 1 || renewed.LeaseUntilUnixSec == 0 {
+		t.Fatalf("expected lease renewal fields, got %+v", renewed)
+	}
+
+	_, err = svc.RenewClaimLease("job-1:20260426T100000Z", "node-b", 45, now.Add(10*time.Second))
+	if err != ErrClaimLeaseOwnerMismatch {
+		t.Fatalf("expected owner mismatch error, got %v", err)
+	}
+}
+
 func BenchmarkServiceClaimRunConsistency(b *testing.B) {
 	svc := NewService()
 	job := svc.Create("daily-sync", "0 0 * * *")

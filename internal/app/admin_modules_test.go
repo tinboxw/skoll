@@ -1476,6 +1476,25 @@ func TestMultiInstanceConsistencyRoutes(t *testing.T) {
 	if claimStatusRR.Code != http.StatusOK {
 		t.Fatalf("expected claim status 200, got %d", claimStatusRR.Code)
 	}
+
+	renewForbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/job-dispatch-claims/job-1:20260426T100000Z/renew", strings.NewReader(`{"instance_id":"node-b","lease_ttl_sec":60}`))
+	renewForbiddenReq.Header.Set("Content-Type", "application/json")
+	renewForbiddenRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(renewForbiddenRR, renewForbiddenReq)
+	if renewForbiddenRR.Code != http.StatusForbidden {
+		t.Fatalf("expected renew forbidden status 403, got %d", renewForbiddenRR.Code)
+	}
+
+	renewReq := httptest.NewRequest(http.MethodPost, "/admin/v1/job-dispatch-claims/job-1:20260426T100000Z/renew", strings.NewReader(`{"instance_id":"node-a","lease_ttl_sec":60}`))
+	renewReq.Header.Set("Content-Type", "application/json")
+	renewRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(renewRR, renewReq)
+	if renewRR.Code != http.StatusOK {
+		t.Fatalf("expected renew status 200, got %d body=%s", renewRR.Code, renewRR.Body.String())
+	}
+	if !strings.Contains(renewRR.Body.String(), `"lease_renewal_count":1`) {
+		t.Fatalf("expected lease renewal payload, got %s", renewRR.Body.String())
+	}
 }
 
 func TestReleaseGovernanceRoutes(t *testing.T) {

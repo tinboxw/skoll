@@ -117,6 +117,7 @@ type JobService interface {
 	Run(jobID int64) (jobscheduler.Execution, error)
 	History(jobID int64, limit int) []jobscheduler.Execution
 	ClaimRun(jobID int64, executionKey, instanceID string, now time.Time) (jobscheduler.DispatchClaim, error)
+	RenewClaimLease(executionKey, instanceID string, leaseTTLSeconds int64, now time.Time) (jobscheduler.DispatchClaim, error)
 	ClaimStatus(executionKey string) jobscheduler.DispatchClaim
 }
 
@@ -271,6 +272,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/jobs/{id}/run", runJobHandler(services.Jobs))
 	handle("GET /admin/v1/jobs/{id}/history", listJobHistoryHandler(services.Jobs))
 	handle("POST /admin/v1/jobs/{id}/dispatch-claim", claimJobDispatchHandler(services.Jobs, services.Audit))
+	handle("POST /admin/v1/job-dispatch-claims/{execution_key}/renew", renewJobDispatchClaimHandler(services.Jobs, services.Audit))
 	handle("GET /admin/v1/job-dispatch-claims/{execution_key}", getJobDispatchClaimHandler(services.Jobs))
 	handle("POST /admin/v1/generator/modules", generateModuleHandler(services.Generator))
 	handle("POST /admin/v1/plugins/manifests", installPluginHandler(services.Plugins))
@@ -468,6 +470,11 @@ type createJobRequest struct {
 type claimJobDispatchRequest struct {
 	ExecutionKey string `json:"execution_key"`
 	InstanceID   string `json:"instance_id"`
+}
+
+type renewJobDispatchClaimRequest struct {
+	InstanceID     string `json:"instance_id"`
+	LeaseTTLSecond int64  `json:"lease_ttl_sec"`
 }
 
 type generateModuleRequest struct {
@@ -2733,6 +2740,44 @@ func getJobDispatchClaimHandler(svc JobService) http.HandlerFunc {
 			return
 		}
 		respondJSON(w, http.StatusOK, svc.ClaimStatus(executionKey))
+	}
+}
+
+func renewJobDispatchClaimHandler(svc JobService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		executionKey, err := parsePathString(r, "execution_key")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		var req renewJobDispatchClaimRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.InstanceID = strings.TrimSpace(req.InstanceID)
+		if req.InstanceID == "" || req.LeaseTTLSecond <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "instance_id and lease_ttl_sec > 0 are required"})
+			return
+		}
+
+		out, err := svc.RenewClaimLease(executionKey, req.InstanceID, req.LeaseTTLSecond, time.Now().UTC())
+		if err != nil {
+			switch err {
+			case jobscheduler.ErrClaimNotFound:
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			case jobscheduler.ErrClaimLeaseOwnerMismatch:
+				respondJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
+				return
+			default:
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
+		}
+		auditSvc.Append("consistency", "job_dispatch_claim_renew", executionKey)
+		respondJSON(w, http.StatusOK, out)
 	}
 }
 

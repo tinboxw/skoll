@@ -118,6 +118,7 @@ curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: app
 curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"DELETE FROM sessions WHERE expired=1","sql_class":"destructive_confirmed","allow_dangerous":true,"confirm_token":"I_UNDERSTAND","confirm_token_dual":"CONFIRM_DESTRUCTIVE_SQL"}'
 curl -X POST http://localhost:8080/admin/v1/sessions/consistency/heartbeat -H "Content-Type: application/json" -d '{"session_id":"sess-1","instance_id":"node-a","version":10}'
 curl -X POST http://localhost:8080/admin/v1/jobs/1/dispatch-claim -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","instance_id":"node-a"}'
+curl -X POST http://localhost:8080/admin/v1/job-dispatch-claims/job-1:20260426T100000Z/renew -H "Content-Type: application/json" -d '{"instance_id":"node-a","lease_ttl_sec":60}'
 curl -X GET http://localhost:8080/admin/v1/job-dispatch-claims/job-1:20260426T100000Z
 curl -X POST http://localhost:8080/admin/v1/release-governance/evidence -H "Content-Type: application/json" -d '{"milestone":"E8-step1","go_test_passed":true,"go_race_passed":true,"readme_synced":true,"benchmark_ns_per_op":3300,"baseline_ns_per_op":3000,"benchmark_command":"go test -bench=BenchmarkAdminUsersListEndpoint -benchmem ./internal/app"}'
 curl -X GET "http://localhost:8080/admin/v1/release-governance/scorecard/E8-step1?allowed_regression=0.15"
@@ -309,6 +310,7 @@ go test -bench=. -benchmem ./...
 - E15-step2 backup catalog and restore drill evidence record: `docs/milestones/E15-step2-backup-catalog-and-restore-drill-evidence.md`
 - E15-step3 controlled SQL classes and destructive dual confirmation record: `docs/milestones/E15-step3-controlled-sql-classes-and-dual-confirmation.md`
 - E15-step4 restore drill evidence query and RPO checks record: `docs/milestones/E15-step4-restore-drill-evidence-query-and-rpo-checks.md`
+- E16-step1 dispatch claim lease renewal baseline record: `docs/milestones/E16-step1-dispatch-claim-lease-renewal-baseline.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

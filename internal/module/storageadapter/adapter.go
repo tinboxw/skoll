@@ -101,6 +101,7 @@ type JobRepository interface {
 	Run(jobID int64) (jobscheduler.Execution, error)
 	History(jobID int64, limit int) []jobscheduler.Execution
 	ClaimRun(jobID int64, executionKey, instanceID string, now time.Time) (jobscheduler.DispatchClaim, error)
+	RenewClaimLease(executionKey, instanceID string, leaseTTLSeconds int64, now time.Time) (jobscheduler.DispatchClaim, error)
 	ClaimStatus(executionKey string) jobscheduler.DispatchClaim
 }
 

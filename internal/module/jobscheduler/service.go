@@ -3,12 +3,16 @@ package jobscheduler
 import (
 	"errors"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
 
 var ErrJobNotFound = errors.New("job not found")
 var ErrExecutionKeyRequired = errors.New("execution key required")
+var ErrClaimNotFound = errors.New("dispatch claim not found")
+var ErrClaimLeaseOwnerMismatch = errors.New("dispatch claim lease owner mismatch")
+var ErrInvalidLeaseTTL = errors.New("invalid lease ttl")
 
 type Job struct {
 	ID        int64
@@ -28,14 +32,16 @@ type Execution struct {
 }
 
 type DispatchClaim struct {
-	ExecutionKey     string `json:"execution_key"`
-	JobID            int64  `json:"job_id"`
-	InstanceID       string `json:"instance_id,omitempty"`
-	ExecutionID      int64  `json:"execution_id,omitempty"`
-	Claimed          bool   `json:"claimed"`
-	DuplicateBlocked bool   `json:"duplicate_blocked"`
-	ClaimedAtUnixSec int64  `json:"claimed_at_unix_sec,omitempty"`
-	Message          string `json:"message,omitempty"`
+	ExecutionKey      string `json:"execution_key"`
+	JobID             int64  `json:"job_id"`
+	InstanceID        string `json:"instance_id,omitempty"`
+	ExecutionID       int64  `json:"execution_id,omitempty"`
+	Claimed           bool   `json:"claimed"`
+	DuplicateBlocked  bool   `json:"duplicate_blocked"`
+	ClaimedAtUnixSec  int64  `json:"claimed_at_unix_sec,omitempty"`
+	LeaseUntilUnixSec int64  `json:"lease_until_unix_sec,omitempty"`
+	LeaseRenewalCount int64  `json:"lease_renewal_count,omitempty"`
+	Message           string `json:"message,omitempty"`
 }
 
 type dispatchClaimRecord struct {
@@ -43,6 +49,8 @@ type dispatchClaimRecord struct {
 	instanceID  string
 	executionID int64
 	claimedAt   time.Time
+	leaseUntil  time.Time
+	renewCount  int64
 }
 
 type Service struct {
@@ -161,11 +169,36 @@ func (s *Service) ClaimRun(jobID int64, executionKey, instanceID string, now tim
 		instanceID:  instanceID,
 		executionID: s.nextExecution,
 		claimedAt:   now.UTC(),
+		leaseUntil:  now.UTC().Add(30 * time.Second),
 	}
 	s.nextExecution++
 	s.claims[executionKey] = rec
 
 	return toDispatchClaim(executionKey, rec, true, false, "claim accepted"), nil
+}
+
+func (s *Service) RenewClaimLease(executionKey, instanceID string, leaseTTLSeconds int64, now time.Time) (DispatchClaim, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	executionKey = strings.TrimSpace(executionKey)
+	if executionKey == "" {
+		return DispatchClaim{}, ErrExecutionKeyRequired
+	}
+	if leaseTTLSeconds <= 0 {
+		return DispatchClaim{}, ErrInvalidLeaseTTL
+	}
+	rec, ok := s.claims[executionKey]
+	if !ok {
+		return DispatchClaim{}, ErrClaimNotFound
+	}
+	if strings.TrimSpace(instanceID) == "" || rec.instanceID != strings.TrimSpace(instanceID) {
+		return DispatchClaim{}, ErrClaimLeaseOwnerMismatch
+	}
+	rec.leaseUntil = now.UTC().Add(time.Duration(leaseTTLSeconds) * time.Second)
+	rec.renewCount++
+	s.claims[executionKey] = rec
+	return toDispatchClaim(executionKey, rec, true, false, "lease renewed"), nil
 }
 
 func (s *Service) ClaimStatus(executionKey string) DispatchClaim {
@@ -191,5 +224,9 @@ func toDispatchClaim(executionKey string, rec dispatchClaimRecord, claimed, dupl
 	if !rec.claimedAt.IsZero() {
 		out.ClaimedAtUnixSec = rec.claimedAt.Unix()
 	}
+	if !rec.leaseUntil.IsZero() {
+		out.LeaseUntilUnixSec = rec.leaseUntil.Unix()
+	}
+	out.LeaseRenewalCount = rec.renewCount
 	return out
 }
