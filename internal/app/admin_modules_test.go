@@ -1330,7 +1330,7 @@ func TestDatabaseOpsGovernanceRoutes(t *testing.T) {
 		t.Fatalf("expected backup catalog item, got %s", catalogRR.Body.String())
 	}
 
-	restoreDrillForbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore/drills", strings.NewReader(`{"backup_id":"bk-001","confirm_token":"","expected_max_rto_ms":500}`))
+	restoreDrillForbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore/drills", strings.NewReader(`{"backup_id":"bk-001","confirm_token":"","expected_max_rto_ms":500,"expected_max_rpo_ms":300}`))
 	restoreDrillForbiddenReq.Header.Set("Content-Type", "application/json")
 	restoreDrillForbiddenRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(restoreDrillForbiddenRR, restoreDrillForbiddenReq)
@@ -1338,15 +1338,25 @@ func TestDatabaseOpsGovernanceRoutes(t *testing.T) {
 		t.Fatalf("expected restore drill forbidden status 403, got %d", restoreDrillForbiddenRR.Code)
 	}
 
-	restoreDrillReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore/drills", strings.NewReader(`{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500}`))
+	restoreDrillReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore/drills", strings.NewReader(`{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500,"expected_max_rpo_ms":300}`))
 	restoreDrillReq.Header.Set("Content-Type", "application/json")
 	restoreDrillRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(restoreDrillRR, restoreDrillReq)
 	if restoreDrillRR.Code != http.StatusOK {
 		t.Fatalf("expected restore drill status 200, got %d body=%s", restoreDrillRR.Code, restoreDrillRR.Body.String())
 	}
-	if !strings.Contains(restoreDrillRR.Body.String(), `"rto_compliant":true`) {
-		t.Fatalf("expected restore drill RTO compliance payload, got %s", restoreDrillRR.Body.String())
+	if !strings.Contains(restoreDrillRR.Body.String(), `"rto_compliant":true`) || !strings.Contains(restoreDrillRR.Body.String(), `"rpo_compliant":true`) || !strings.Contains(restoreDrillRR.Body.String(), `"data_check_passed":true`) {
+		t.Fatalf("expected restore drill RTO/RPO/data-check payload, got %s", restoreDrillRR.Body.String())
+	}
+
+	restoreDrillListReq := httptest.NewRequest(http.MethodGet, "/admin/v1/db/restore/drills?limit=10", nil)
+	restoreDrillListRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(restoreDrillListRR, restoreDrillListReq)
+	if restoreDrillListRR.Code != http.StatusOK {
+		t.Fatalf("expected restore drill list status 200, got %d body=%s", restoreDrillListRR.Code, restoreDrillListRR.Body.String())
+	}
+	if !strings.Contains(restoreDrillListRR.Body.String(), `"drill_id":"drill-`) {
+		t.Fatalf("expected drill evidence list payload, got %s", restoreDrillListRR.Body.String())
 	}
 
 	restoreForbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore", strings.NewReader(`{"backup_id":"bk-001","confirm_token":""}`))

@@ -304,6 +304,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/db/backups/catalog", listBackupCatalogHandler())
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/restore/drills", executeRestoreDrillHandler(services.Audit))
+	handle("GET /admin/v1/db/restore/drills", listRestoreDrillEvidenceHandler())
 	handle("POST /admin/v1/db/sql/execute", executeControlledSQLHandler(services.Audit))
 	handle("GET /admin/v1/system/status", systemStatusHandler(services))
 	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
@@ -605,6 +606,7 @@ type restoreDrillRequest struct {
 	BackupID         string `json:"backup_id"`
 	ConfirmToken     string `json:"confirm_token"`
 	ExpectedMaxRTOms int64  `json:"expected_max_rto_ms"`
+	ExpectedMaxRPOms int64  `json:"expected_max_rpo_ms"`
 }
 
 type restoreDrillResponse struct {
@@ -614,6 +616,10 @@ type restoreDrillResponse struct {
 	DurationMs       int64  `json:"duration_ms"`
 	ExpectedMaxRTOms int64  `json:"expected_max_rto_ms"`
 	RTOCompliant     bool   `json:"rto_compliant"`
+	ReplicaLagMs     int64  `json:"replica_lag_ms"`
+	ExpectedMaxRPOms int64  `json:"expected_max_rpo_ms"`
+	RPOCompliant     bool   `json:"rpo_compliant"`
+	DataCheckPassed  bool   `json:"data_check_passed"`
 	PerformedAtSec   int64  `json:"performed_at_unix_sec"`
 }
 
@@ -3280,9 +3286,14 @@ func executeRestoreDrillHandler(auditSvc AuditService) http.HandlerFunc {
 			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "expected_max_rto_ms must be > 0"})
 			return
 		}
+		if req.ExpectedMaxRPOms <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "expected_max_rpo_ms must be > 0"})
+			return
+		}
 
 		now := time.Now().UTC()
 		simulatedDurationMs := int64(350)
+		simulatedReplicaLagMs := int64(120)
 		adminDBOpsState.mu.Lock()
 		if _, ok := adminDBOpsState.backups[req.BackupID]; !ok {
 			adminDBOpsState.mu.Unlock()
@@ -3298,6 +3309,10 @@ func executeRestoreDrillHandler(auditSvc AuditService) http.HandlerFunc {
 			DurationMs:       simulatedDurationMs,
 			ExpectedMaxRTOms: req.ExpectedMaxRTOms,
 			RTOCompliant:     simulatedDurationMs <= req.ExpectedMaxRTOms,
+			ReplicaLagMs:     simulatedReplicaLagMs,
+			ExpectedMaxRPOms: req.ExpectedMaxRPOms,
+			RPOCompliant:     simulatedReplicaLagMs <= req.ExpectedMaxRPOms,
+			DataCheckPassed:  true,
 			PerformedAtSec:   now.Unix(),
 		}
 		adminDBOpsState.drills = append(adminDBOpsState.drills, result)
@@ -3305,6 +3320,29 @@ func executeRestoreDrillHandler(auditSvc AuditService) http.HandlerFunc {
 
 		auditSvc.Append("dbops", "restore_drill", result.DrillID)
 		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func listRestoreDrillEvidenceHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 20
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+				return
+			}
+			limit = parsed
+		}
+		adminDBOpsState.mu.Lock()
+		items := make([]restoreDrillResponse, len(adminDBOpsState.drills))
+		copy(items, adminDBOpsState.drills)
+		adminDBOpsState.mu.Unlock()
+		sort.Slice(items, func(i, j int) bool { return items[i].PerformedAtSec > items[j].PerformedAtSec })
+		if limit < len(items) {
+			items = items[:limit]
+		}
+		respondJSON(w, http.StatusOK, map[string]any{"items": items})
 	}
 }
 

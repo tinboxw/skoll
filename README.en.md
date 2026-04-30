@@ -111,7 +111,8 @@ curl -X POST http://localhost:8080/admin/v1/db/migrations/drift-detect -H "Conte
 curl -X POST http://localhost:8080/admin/v1/db/backup -H "Content-Type: application/json" -d '{"backup_id":"bk-001","reason":"pre-release"}'
 curl "http://localhost:8080/admin/v1/db/backups/catalog?limit=20"
 curl -X POST http://localhost:8080/admin/v1/db/restore -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND"}'
-curl -X POST http://localhost:8080/admin/v1/db/restore/drills -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500}'
+curl -X POST http://localhost:8080/admin/v1/db/restore/drills -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500,"expected_max_rpo_ms":300}'
+curl "http://localhost:8080/admin/v1/db/restore/drills?limit=20"
 curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"SELECT 1","sql_class":"read_only"}'
 curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"UPDATE users SET status=''ok''","sql_class":"write_guarded","confirm_token":"I_UNDERSTAND"}'
 curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"DELETE FROM sessions WHERE expired=1","sql_class":"destructive_confirmed","allow_dangerous":true,"confirm_token":"I_UNDERSTAND","confirm_token_dual":"CONFIRM_DESTRUCTIVE_SQL"}'
@@ -307,6 +308,7 @@ go test -bench=. -benchmem ./...
 - E15-step1 migration drift detection and impact grading record: `docs/milestones/E15-step1-migration-drift-detection-impact-grading.md`
 - E15-step2 backup catalog and restore drill evidence record: `docs/milestones/E15-step2-backup-catalog-and-restore-drill-evidence.md`
 - E15-step3 controlled SQL classes and destructive dual confirmation record: `docs/milestones/E15-step3-controlled-sql-classes-and-dual-confirmation.md`
+- E15-step4 restore drill evidence query and RPO checks record: `docs/milestones/E15-step4-restore-drill-evidence-query-and-rpo-checks.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

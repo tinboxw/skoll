@@ -12,6 +12,7 @@ This document defines E6 baseline governance for database operations.
 - `GET /admin/v1/db/backups/catalog`
 - `POST /admin/v1/db/restore`
 - `POST /admin/v1/db/restore/drills`
+- `GET /admin/v1/db/restore/drills`
 - `POST /admin/v1/db/sql/execute`
 
 ## Governance Controls
@@ -19,6 +20,7 @@ This document defines E6 baseline governance for database operations.
 - migration operations require explicit `from_version`, `to_version`, and steps.
 - backup operations produce named backup records.
 - restore requires explicit safeguard token: `confirm_token = I_UNDERSTAND`.
+- restore drills produce evidence with RTO/RPO timing and data-check status.
 - controlled SQL classes:
   - `read_only`: only read statements are allowed.
   - `write_guarded`: write statements require `confirm_token = I_UNDERSTAND`.
