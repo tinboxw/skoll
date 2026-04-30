@@ -1293,6 +1293,25 @@ func TestDatabaseOpsGovernanceRoutes(t *testing.T) {
 		t.Fatalf("expected migration plan status 200, got %d", planRR.Code)
 	}
 
+	driftReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/migrations/drift-detect", strings.NewReader(`{"from_version":"2026.04","to_version":"2026.05","expected_steps":["add_table_users","add_index_users_email"],"applied_steps":["add_table_users","hotfix_sessions_index"]}`))
+	driftReq.Header.Set("Content-Type", "application/json")
+	driftRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(driftRR, driftReq)
+	if driftRR.Code != http.StatusOK {
+		t.Fatalf("expected drift detect status 200, got %d body=%s", driftRR.Code, driftRR.Body.String())
+	}
+	if !strings.Contains(driftRR.Body.String(), `"drift_detected":true`) || !strings.Contains(driftRR.Body.String(), `"impact_grade":"high"`) {
+		t.Fatalf("expected drift detected payload with impact grade, got %s", driftRR.Body.String())
+	}
+
+	driftBadReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/migrations/drift-detect", strings.NewReader(`{"from_version":"2026.04","to_version":"2026.05"}`))
+	driftBadReq.Header.Set("Content-Type", "application/json")
+	driftBadRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(driftBadRR, driftBadReq)
+	if driftBadRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected drift detect validation status 400, got %d", driftBadRR.Code)
+	}
+
 	backupReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/backup", strings.NewReader(`{"backup_id":"bk-001","reason":"pre-release"}`))
 	backupReq.Header.Set("Content-Type", "application/json")
 	backupRR := httptest.NewRecorder()

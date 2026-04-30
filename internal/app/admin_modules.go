@@ -299,6 +299,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/upgrade/transaction", upgradePluginTransactionalHandler(services.Plugins, services.Audit))
 	handle("GET /admin/v1/plugins/upgrade/provenance", listPluginUpgradeProvenanceHandler(services.Plugins))
 	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
+	handle("POST /admin/v1/db/migrations/drift-detect", detectDatabaseMigrationDriftHandler(services.Audit))
 	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/sql/execute", executeControlledSQLHandler(services.Audit))
@@ -559,6 +560,25 @@ type migrationPlanResponse struct {
 	ToVersion    string   `json:"to_version"`
 	Steps        []string `json:"steps"`
 	CreatedAtSec int64    `json:"created_at_unix_sec"`
+}
+
+type migrationDriftDetectRequest struct {
+	FromVersion   string   `json:"from_version"`
+	ToVersion     string   `json:"to_version"`
+	ExpectedSteps []string `json:"expected_steps"`
+	AppliedSteps  []string `json:"applied_steps"`
+}
+
+type migrationDriftDetectResponse struct {
+	ReportID           string   `json:"report_id"`
+	FromVersion        string   `json:"from_version"`
+	ToVersion          string   `json:"to_version"`
+	DriftDetected      bool     `json:"drift_detected"`
+	MissingExpected    []string `json:"missing_expected,omitempty"`
+	UnexpectedApplied  []string `json:"unexpected_applied,omitempty"`
+	ImpactGrade        string   `json:"impact_grade"`
+	Recommendations    []string `json:"recommendations,omitempty"`
+	GeneratedAtUnixSec int64    `json:"generated_at_unix_sec"`
 }
 
 type backupRequest struct {
@@ -3051,6 +3071,85 @@ func planDatabaseMigrationHandler(auditSvc AuditService) http.HandlerFunc {
 	}
 }
 
+func detectDatabaseMigrationDriftHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req migrationDriftDetectRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.FromVersion = strings.TrimSpace(req.FromVersion)
+		req.ToVersion = strings.TrimSpace(req.ToVersion)
+		if req.FromVersion == "" || req.ToVersion == "" || len(req.ExpectedSteps) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "from_version, to_version and expected_steps are required"})
+			return
+		}
+
+		expected := uniqueNonEmptyStrings(req.ExpectedSteps)
+		applied := uniqueNonEmptyStrings(req.AppliedSteps)
+
+		appliedSet := make(map[string]struct{}, len(applied))
+		for _, step := range applied {
+			appliedSet[step] = struct{}{}
+		}
+		expectedSet := make(map[string]struct{}, len(expected))
+		for _, step := range expected {
+			expectedSet[step] = struct{}{}
+		}
+
+		missing := make([]string, 0)
+		for _, step := range expected {
+			if _, ok := appliedSet[step]; !ok {
+				missing = append(missing, step)
+			}
+		}
+
+		unexpected := make([]string, 0)
+		for _, step := range applied {
+			if _, ok := expectedSet[step]; !ok {
+				unexpected = append(unexpected, step)
+			}
+		}
+
+		sort.Strings(missing)
+		sort.Strings(unexpected)
+
+		impact := "none"
+		if len(missing) > 0 {
+			impact = "high"
+		} else if len(unexpected) > 0 {
+			impact = "medium"
+		}
+
+		recommendations := make([]string, 0, 2)
+		if len(missing) > 0 {
+			recommendations = append(recommendations, "apply missing expected migration steps before release")
+		}
+		if len(unexpected) > 0 {
+			recommendations = append(recommendations, "verify unexpected applied steps against approved migration inventory")
+		}
+
+		now := time.Now().UTC()
+		adminDBOpsState.mu.Lock()
+		reportID := fmt.Sprintf("drift-%06d", adminDBOpsState.nextID)
+		adminDBOpsState.nextID++
+		adminDBOpsState.mu.Unlock()
+
+		auditSvc.Append("dbops", "migration_drift_detect", reportID)
+		respondJSON(w, http.StatusOK, migrationDriftDetectResponse{
+			ReportID:           reportID,
+			FromVersion:        req.FromVersion,
+			ToVersion:          req.ToVersion,
+			DriftDetected:      len(missing) > 0 || len(unexpected) > 0,
+			MissingExpected:    missing,
+			UnexpectedApplied:  unexpected,
+			ImpactGrade:        impact,
+			Recommendations:    recommendations,
+			GeneratedAtUnixSec: now.Unix(),
+		})
+	}
+}
+
 func backupDatabaseHandler(auditSvc AuditService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req backupRequest
@@ -3888,6 +3987,26 @@ func parsePathString(r *http.Request, key string) (string, error) {
 		return "", fmt.Errorf("%s is required", key)
 	}
 	return raw, nil
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, item := range values {
+		normalized := strings.TrimSpace(item)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+	return result
 }
 
 func parseAuditQuery(r *http.Request) (audit.Query, error) {
