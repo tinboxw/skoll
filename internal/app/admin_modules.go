@@ -326,6 +326,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
 	handle("GET /admin/v1/system/node-health", nodeHealthHandler(services))
 	handle("GET /admin/v1/system/dashboard", dashboardAggregateHandler(services))
+	handle("PUT /admin/v1/system/hardening/endpoint-guardrails", setEndpointGuardrailsHandler(services.Audit))
+	handle("GET /admin/v1/system/hardening/endpoint-guardrails", listEndpointGuardrailsHandler())
 	handle("GET /admin/v1/apis", listRegisteredAPIsHandler(services.APIs))
 	if services.Releases != nil {
 		handle("POST /admin/v1/release-governance/evidence", submitReleaseEvidenceHandler(services.Releases, services.Audit))
@@ -511,6 +513,20 @@ type markJobDeadLetterRequest struct {
 
 type replayJobDeadLetterRequest struct {
 	Operator string `json:"operator"`
+}
+
+type endpointGuardrailProfile struct {
+	Endpoint              string `json:"endpoint"`
+	RateLimitRPM          int    `json:"rate_limit_rpm"`
+	TimeoutMillis         int    `json:"timeout_millis"`
+	CircuitErrorThreshold int    `json:"circuit_error_threshold"`
+	CircuitOpenWindowSec  int    `json:"circuit_open_window_sec"`
+	Enabled               bool   `json:"enabled"`
+	UpdatedAtUnixSec      int64  `json:"updated_at_unix_sec"`
+}
+
+type setEndpointGuardrailsRequest struct {
+	Profiles []endpointGuardrailProfile `json:"profiles"`
 }
 
 type generateModuleRequest struct {
@@ -704,7 +720,13 @@ type dbOpsState struct {
 	drills  []restoreDrillResponse
 }
 
+type hardeningState struct {
+	mu       sync.Mutex
+	profiles map[string]endpointGuardrailProfile
+}
+
 var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]backupCatalogItem)}
+var adminHardeningState = hardeningState{profiles: make(map[string]endpointGuardrailProfile)}
 
 const dbDangerousConfirmToken = "I_UNDERSTAND"
 const dbDangerousDualConfirmToken = "CONFIRM_DESTRUCTIVE_SQL"
@@ -2977,6 +2999,75 @@ func jobReliabilityMetricsHandler(svc JobService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, svc.ReliabilitySnapshot(time.Now().UTC()))
 	}
+}
+
+func setEndpointGuardrailsHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req setEndpointGuardrailsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if len(req.Profiles) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "profiles must not be empty"})
+			return
+		}
+
+		now := time.Now().UTC().Unix()
+		normalized := make(map[string]endpointGuardrailProfile, len(req.Profiles))
+		for _, item := range req.Profiles {
+			item.Endpoint = strings.TrimSpace(item.Endpoint)
+			if item.Endpoint == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "endpoint is required"})
+				return
+			}
+			if item.RateLimitRPM <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "rate_limit_rpm must be > 0"})
+				return
+			}
+			if item.TimeoutMillis <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "timeout_millis must be > 0"})
+				return
+			}
+			if item.CircuitErrorThreshold <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "circuit_error_threshold must be > 0"})
+				return
+			}
+			if item.CircuitOpenWindowSec <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "circuit_open_window_sec must be > 0"})
+				return
+			}
+			item.UpdatedAtUnixSec = now
+			normalized[item.Endpoint] = item
+		}
+
+		adminHardeningState.mu.Lock()
+		adminHardeningState.profiles = normalized
+		adminHardeningState.mu.Unlock()
+
+		auditSvc.Append("system", "endpoint_guardrails_updated", strconv.Itoa(len(normalized)))
+		respondJSON(w, http.StatusOK, map[string]any{"items": endpointGuardrailProfilesSnapshot()})
+	}
+}
+
+func listEndpointGuardrailsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]any{"items": endpointGuardrailProfilesSnapshot()})
+	}
+}
+
+func endpointGuardrailProfilesSnapshot() []endpointGuardrailProfile {
+	adminHardeningState.mu.Lock()
+	defer adminHardeningState.mu.Unlock()
+
+	items := make([]endpointGuardrailProfile, 0, len(adminHardeningState.profiles))
+	for _, item := range adminHardeningState.profiles {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].Endpoint < items[j].Endpoint
+	})
+	return items
 }
 
 func generateModuleHandler(svc GeneratorService) http.HandlerFunc {

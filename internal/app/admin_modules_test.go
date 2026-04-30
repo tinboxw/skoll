@@ -1555,6 +1555,40 @@ func TestMultiInstanceConsistencyRoutes(t *testing.T) {
 	}
 }
 
+func TestSystemEndpointGuardrailsRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	invalidReq := httptest.NewRequest(http.MethodPut, "/admin/v1/system/hardening/endpoint-guardrails", strings.NewReader(`{"profiles":[{"endpoint":"/admin/v1/jobs","rate_limit_rpm":0,"timeout_millis":1200,"circuit_error_threshold":5,"circuit_open_window_sec":60,"enabled":true}]}`))
+	invalidReq.Header.Set("Content-Type", "application/json")
+	invalidRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidRR, invalidReq)
+	if invalidRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid guardrail status 400, got %d body=%s", invalidRR.Code, invalidRR.Body.String())
+	}
+
+	putReq := httptest.NewRequest(http.MethodPut, "/admin/v1/system/hardening/endpoint-guardrails", strings.NewReader(`{"profiles":[{"endpoint":"/admin/v1/jobs","rate_limit_rpm":120,"timeout_millis":1200,"circuit_error_threshold":5,"circuit_open_window_sec":60,"enabled":true},{"endpoint":"/admin/v1/system/dashboard","rate_limit_rpm":90,"timeout_millis":1000,"circuit_error_threshold":3,"circuit_open_window_sec":45,"enabled":true}]}`))
+	putReq.Header.Set("Content-Type", "application/json")
+	putRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(putRR, putReq)
+	if putRR.Code != http.StatusOK {
+		t.Fatalf("expected set endpoint guardrails status 200, got %d body=%s", putRR.Code, putRR.Body.String())
+	}
+	if !strings.Contains(putRR.Body.String(), `"endpoint":"/admin/v1/jobs"`) || !strings.Contains(putRR.Body.String(), `"rate_limit_rpm":120`) {
+		t.Fatalf("expected guardrail payload in put response, got %s", putRR.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/v1/system/hardening/endpoint-guardrails", nil)
+	listRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRR, listReq)
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected list endpoint guardrails status 200, got %d body=%s", listRR.Code, listRR.Body.String())
+	}
+	if !strings.Contains(listRR.Body.String(), `"endpoint":"/admin/v1/system/dashboard"`) || !strings.Contains(listRR.Body.String(), `"timeout_millis":1000`) {
+		t.Fatalf("expected endpoint guardrails list payload, got %s", listRR.Body.String())
+	}
+}
+
 func TestReleaseGovernanceRoutes(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
