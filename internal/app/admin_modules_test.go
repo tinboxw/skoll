@@ -1789,8 +1789,8 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 		t.Fatalf("expected contract.version=v1, got %v", contract["version"])
 	}
 	sections, ok := contract["required_sections"].([]any)
-	if !ok || len(sections) < 8 {
-		t.Fatalf("expected contract.required_sections with 8 entries, got %v", contract["required_sections"])
+	if !ok || len(sections) < 9 {
+		t.Fatalf("expected contract.required_sections with 9 entries, got %v", contract["required_sections"])
 	}
 	authSession, ok := payload["auth_session"].(map[string]any)
 	if !ok {
@@ -1903,6 +1903,13 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	}
 	if _, ok := schedulerReliability["retry_schedule_count"].(float64); !ok {
 		t.Fatalf("expected scheduler_reliability.retry_schedule_count field, got %v", schedulerReliability["retry_schedule_count"])
+	}
+	hardeningPosture, ok := payload["hardening_posture"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected hardening_posture object, got %v", payload["hardening_posture"])
+	}
+	if _, ok := hardeningPosture["endpoint_guardrails_enabled"].(float64); !ok {
+		t.Fatalf("expected hardening_posture.endpoint_guardrails_enabled field, got %v", hardeningPosture["endpoint_guardrails_enabled"])
 	}
 }
 

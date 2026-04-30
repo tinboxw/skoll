@@ -995,6 +995,15 @@ type dashboardAggregateResponse struct {
 	RuntimeMetrics       runtimeMetricsResponse          `json:"runtime_metrics"`
 	NodeHealth           nodeHealthResponse              `json:"node_health"`
 	SchedulerReliability jobscheduler.ReliabilityMetrics `json:"scheduler_reliability"`
+	HardeningPosture     dashboardHardeningPosture       `json:"hardening_posture"`
+}
+
+type dashboardHardeningPosture struct {
+	EndpointGuardrailsEnabled int   `json:"endpoint_guardrails_enabled"`
+	AlertProfilesEnabled      int   `json:"alert_profiles_enabled"`
+	IncidentRunbookProfiles   int   `json:"incident_runbook_profiles"`
+	FaultDrillsRecorded       int   `json:"fault_drills_recorded"`
+	LatestDrillRecordedAtSec  int64 `json:"latest_drill_recorded_at_unix_sec"`
 }
 
 type dashboardContractDescriptor struct {
@@ -4263,6 +4272,7 @@ func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
 			RuntimeMetrics:       collectRuntimeMetrics(),
 			NodeHealth:           collectNodeHealth(services),
 			SchedulerReliability: services.Jobs.ReliabilitySnapshot(time.Now().UTC()),
+			HardeningPosture:     collectDashboardHardeningPosture(),
 		})
 	}
 }
@@ -4281,7 +4291,40 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 			"runtime_metrics",
 			"node_health",
 			"scheduler_reliability",
+			"hardening_posture",
 		},
+	}
+}
+
+func collectDashboardHardeningPosture() dashboardHardeningPosture {
+	adminHardeningState.mu.Lock()
+	defer adminHardeningState.mu.Unlock()
+
+	endpointEnabled := 0
+	for _, item := range adminHardeningState.profiles {
+		if item.Enabled {
+			endpointEnabled++
+		}
+	}
+	alertEnabled := 0
+	for _, item := range adminHardeningState.alertProfiles {
+		if item.Enabled {
+			alertEnabled++
+		}
+	}
+	latest := int64(0)
+	for _, item := range adminHardeningState.drills {
+		if item.RecordedAtUnixSec > latest {
+			latest = item.RecordedAtUnixSec
+		}
+	}
+
+	return dashboardHardeningPosture{
+		EndpointGuardrailsEnabled: endpointEnabled,
+		AlertProfilesEnabled:      alertEnabled,
+		IncidentRunbookProfiles:   len(adminHardeningState.runbooks),
+		FaultDrillsRecorded:       len(adminHardeningState.drills),
+		LatestDrillRecordedAtSec:  latest,
 	}
 }
 

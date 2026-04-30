@@ -325,6 +325,7 @@ go test -bench=. -benchmem ./...
 - E17-step1 控制面端点 Guardrails 基线记录：`docs/milestones/E17-step1-control-plane-endpoint-guardrails-baseline.md`
 - E17-step2 关键路径告警画像基线记录：`docs/milestones/E17-step2-critical-path-alert-profiles-baseline.md`
 - E17-step3 事件 Runbook 与故障演练证据基线记录：`docs/milestones/E17-step3-incident-runbook-and-fault-drill-evidence-baseline.md`
+- E17-step4 Dashboard 加固画像收口记录：`docs/milestones/E17-step4-dashboard-hardening-posture-closure.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
