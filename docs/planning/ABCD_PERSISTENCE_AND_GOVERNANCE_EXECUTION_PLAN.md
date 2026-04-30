@@ -198,7 +198,7 @@ A established the structural seam (contracts/memory/persistent) but did not deli
 | Item | Status | Notes |
 | --- | --- | --- |
 | E-Task01 | completed | drivers + persistent/db base + harness |
-| E-Task02 | not-started | audit/config/dict mysql |
+| E-Task02 | completed | audit/config/dict SQL repos validated against sqlite (mysql/pg ready when wired) |
 | E-Task03 | not-started | user/role/menu/rbac mysql |
 | E-Task04 | not-started | job/release/plugin/api/generator/file mysql |
 | E-Task05 | not-started | postgres parity |
