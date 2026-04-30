@@ -1,0 +1,264 @@
+// Package contracttest provides the shared adapter contract test suite.
+// Both the in-memory adapter and any future SQL-backed adapters reuse this
+// suite to guarantee behavioural parity. The suite is intentionally
+// implementation-agnostic and exercises only the contracts.Adapter surface.
+package contracttest
+
+import (
+	"reflect"
+	"testing"
+	"time"
+
+	"github.com/tinboxw/skoll/internal/module/audit"
+	"github.com/tinboxw/skoll/internal/module/modgenerator"
+	"github.com/tinboxw/skoll/internal/module/rbac"
+	"github.com/tinboxw/skoll/internal/module/releasegov"
+	"github.com/tinboxw/skoll/internal/module/storageadapter/contracts"
+)
+
+// Factory builds a fresh, empty Adapter for each contract invocation. Each
+// invocation must yield an isolated state space so contract phases do not
+// interfere with one another.
+type Factory func(t *testing.T) contracts.Adapter
+
+// Run executes the full adapter contract against the factory.
+func Run(t *testing.T, factory Factory) {
+	t.Helper()
+
+	a := factory(t)
+
+	u1 := a.Users().Create("alice", "alice@example.com")
+	u2 := a.Users().Create("bob", "bob@example.com")
+	if u1.ID <= 0 || u2.ID <= 0 || u2.ID <= u1.ID {
+		t.Fatalf("unexpected user IDs: u1=%d u2=%d", u1.ID, u2.ID)
+	}
+	users := a.Users().List()
+	if len(users) != 2 {
+		t.Fatalf("expected 2 users, got %d", len(users))
+	}
+
+	now := time.Unix(1710000000, 0).UTC()
+	rotated, err := a.Users().RotatePassword(u1.ID, 0, now)
+	if err != nil {
+		t.Fatalf("rotate password failed: %v", err)
+	}
+	if rotated.PasswordRotatedAt.IsZero() {
+		t.Fatalf("expected password rotation timestamp")
+	}
+	failedState, err := a.Users().RegisterLoginFailure(u1.ID, 1, 30*time.Minute, now)
+	if err != nil {
+		t.Fatalf("register login failure failed: %v", err)
+	}
+	if failedState.LockedUntilUnixSec == 0 {
+		t.Fatalf("expected lock to be applied")
+	}
+	if _, err := a.Users().SetMFA(u1.ID, true, "totp", now); err != nil {
+		t.Fatalf("set mfa failed: %v", err)
+	}
+	revoked := a.Users().RevokeSession("sess-contract", "manual", now)
+	if !revoked.Revoked {
+		t.Fatalf("expected revoked session")
+	}
+	a.Users().ReportSessionAnomaly("sess-contract", "geo_jump", "ip changed", now)
+	status := a.Users().SessionStatus("sess-contract")
+	if status.AnomalyCount != 1 {
+		t.Fatalf("expected session anomaly count=1, got %+v", status)
+	}
+	consistent := a.Users().HeartbeatSessionConsistency("sess-contract", "node-a", 3, now)
+	if !consistent.Consistent || consistent.Version != 3 {
+		t.Fatalf("expected consistent heartbeat state, got %+v", consistent)
+	}
+	conflict := a.Users().HeartbeatSessionConsistency("sess-contract", "node-b", 2, now.Add(1*time.Second))
+	if conflict.Consistent {
+		t.Fatalf("expected stale heartbeat conflict, got %+v", conflict)
+	}
+
+	r1 := a.Roles().Create("admin", []string{"user.read", "user.write"})
+	if _, err := a.Roles().Get(r1.ID); err != nil {
+		t.Fatalf("role get failed: %v", err)
+	}
+
+	m1 := a.Menus().Create("Dashboard", "/dashboard", 20)
+	m2 := a.Menus().Create("System", "/system", 10)
+	menus := a.Menus().List()
+	if len(menus) != 2 || menus[0].ID != m2.ID || menus[1].ID != m1.ID {
+		t.Fatalf("unexpected menu ordering: %#v", menus)
+	}
+
+	boundMenus := a.RBAC().SetRoleMenus(r1.ID, []int64{m1.ID, m2.ID, m1.ID})
+	if !reflect.DeepEqual(boundMenus, []int64{m1.ID, m2.ID}) && !reflect.DeepEqual(boundMenus, []int64{m2.ID, m1.ID}) {
+		t.Fatalf("unexpected role menus: %v", boundMenus)
+	}
+	roleMenus := a.RBAC().GetRoleMenus(r1.ID)
+	if len(roleMenus) != 2 {
+		t.Fatalf("expected 2 role menus, got %d", len(roleMenus))
+	}
+
+	routeContract := a.RBAC().SetRoleRoutePermissions(r1.ID, "v2", []rbac.RoutePermissionItem{
+		{MenuID: m1.ID, Route: "/admin/users", Buttons: []string{"create", "delete"}},
+		{MenuID: m2.ID, Route: "/admin/roles", Buttons: []string{"assign"}},
+	})
+	if routeContract.Version != "v2" || len(routeContract.Items) != 2 {
+		t.Fatalf("unexpected route permission contract: %+v", routeContract)
+	}
+	consistency := a.RBAC().CheckRoleRoutePermissionConsistency(r1.ID)
+	if !consistency.Passed {
+		t.Fatalf("expected route/menu consistency to pass, got %+v", consistency)
+	}
+
+	a.APIs().RegisterMany([]string{"GET /admin/v1/users", "POST:/admin/v1/users"})
+	if !a.APIs().Exists("GET:/admin/v1/users") {
+		t.Fatalf("expected registered api to exist")
+	}
+
+	apis := a.RBAC().SetRoleAPIs(r1.ID, []string{"POST:/admin/v1/users", "GET:/admin/v1/users", "GET:/admin/v1/users"})
+	if len(apis) != 2 {
+		t.Fatalf("expected 2 role apis after dedupe, got %d", len(apis))
+	}
+
+	a.Audit().Append("system", "bind-role-api", "role:1")
+	a.Audit().Append("system", "bind-role-menu", "role:1")
+	recent := a.Audit().Recent(1)
+	if len(recent) != 1 {
+		t.Fatalf("expected 1 recent audit item, got %d", len(recent))
+	}
+	query := a.Audit().Query(audit.Query{Page: 1, Size: 10, Action: "bind-role-api"})
+	if query.Total != 1 || len(query.Items) != 1 {
+		t.Fatalf("unexpected audit query result: %+v", query)
+	}
+
+	a.Configs().Set("system.theme", "aurora", "ui theme")
+	cfg, err := a.Configs().Get("system.theme")
+	if err != nil {
+		t.Fatalf("config get failed: %v", err)
+	}
+	if cfg.Value != "aurora" {
+		t.Fatalf("unexpected config value: %s", cfg.Value)
+	}
+
+	a.Dictionaries().Create("status", "Enabled", "1", 10, true)
+	a.Dictionaries().Create("status", "Disabled", "0", 20, true)
+	statusItems := a.Dictionaries().ListByType("status")
+	if len(statusItems) != 2 {
+		t.Fatalf("expected 2 dictionary items, got %d", len(statusItems))
+	}
+
+	uploaded, err := a.Files().Upload("contract.txt", []byte("contract"))
+	if err != nil {
+		t.Fatalf("file upload failed: %v", err)
+	}
+	if uploaded.ID <= 0 {
+		t.Fatalf("expected generated file id")
+	}
+	_, content, err := a.Files().Download(uploaded.ID)
+	if err != nil {
+		t.Fatalf("file download failed: %v", err)
+	}
+	if string(content) != "contract" {
+		t.Fatalf("unexpected downloaded content: %s", string(content))
+	}
+
+	job := a.Jobs().Create("daily-sync", "0 0 * * *")
+	if job.ID <= 0 {
+		t.Fatalf("expected generated job id")
+	}
+	run, err := a.Jobs().Run(job.ID)
+	if err != nil {
+		t.Fatalf("run job failed: %v", err)
+	}
+	if run.Status != "success" {
+		t.Fatalf("unexpected run status: %s", run.Status)
+	}
+	history := a.Jobs().History(job.ID, 10)
+	if len(history) != 1 {
+		t.Fatalf("expected 1 job history item, got %d", len(history))
+	}
+	claim, err := a.Jobs().ClaimRun(job.ID, "contract-job:20260426T100000Z", "node-a", now)
+	if err != nil {
+		t.Fatalf("claim run failed: %v", err)
+	}
+	if !claim.Claimed || claim.DuplicateBlocked {
+		t.Fatalf("expected accepted claim, got %+v", claim)
+	}
+	dupClaim, err := a.Jobs().ClaimRun(job.ID, "contract-job:20260426T100000Z", "node-b", now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("duplicate claim call failed: %v", err)
+	}
+	if dupClaim.Claimed || !dupClaim.DuplicateBlocked {
+		t.Fatalf("expected duplicate blocked claim, got %+v", dupClaim)
+	}
+
+	generated, err := a.Generators().Generate("contractmodule")
+	if err != nil {
+		t.Fatalf("generate module failed: %v", err)
+	}
+	if generated.Module != "contractmodule" || len(generated.Artifacts) == 0 {
+		t.Fatalf("unexpected generator output: %+v", generated)
+	}
+	generatedWithSchema, err := a.Generators().GenerateWithSchema("contractmodule", &modgenerator.FormSchema{Version: "v1", Fields: []modgenerator.FormField{{Name: "name", Type: "string", Required: true}}}, "v2")
+	if err != nil {
+		t.Fatalf("generate module with schema failed: %v", err)
+	}
+	if generatedWithSchema.FormSchema == nil || generatedWithSchema.Compatibility.TemplateVersion != "v2" {
+		t.Fatalf("unexpected generator schema output: %+v", generatedWithSchema)
+	}
+
+	plugin := a.Plugins().Install("contract-plugin", "1.0.0", []string{"on_boot"})
+	if !plugin.Enabled {
+		t.Fatalf("expected plugin enabled on install")
+	}
+	packaged, err := a.Plugins().InstallPackageVerified("contract-plugin", "1.0.1", "https://example.com/plugins/contract-plugin-1.0.1.tgz", "sha256:abc", "sig:sha256:abc", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("install package failed: %v", err)
+	}
+	if packaged.PackageURL == "" || packaged.PackageHash == "" {
+		t.Fatalf("expected package metadata in installed plugin: %+v", packaged)
+	}
+	rollbackResult, err := a.Plugins().UpgradePackage("contract-plugin", "1.0.2", "https://example.com/plugins/contract-plugin-1.0.2.tgz", "sha256:def", "bad", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("upgrade should return rollback result, got error: %v", err)
+	}
+	if rollbackResult.Succeeded || !rollbackResult.RolledBack {
+		t.Fatalf("expected rollback result for failed upgrade: %+v", rollbackResult)
+	}
+	upgradeResult, err := a.Plugins().UpgradePackage("contract-plugin", "1.0.2", "https://example.com/plugins/contract-plugin-1.0.2.tgz", "sha256:def", "sig:sha256:def", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("upgrade plugin failed: %v", err)
+	}
+	if !upgradeResult.Succeeded {
+		t.Fatalf("expected successful upgrade result: %+v", upgradeResult)
+	}
+	versionCheck, err := a.Plugins().CheckVersion("contract-plugin", "1.1.0")
+	if err != nil {
+		t.Fatalf("check version failed: %v", err)
+	}
+	if !versionCheck.UpdateAvailable {
+		t.Fatalf("expected update available for plugin: %+v", versionCheck)
+	}
+	disabled, err := a.Plugins().Disable("contract-plugin")
+	if err != nil {
+		t.Fatalf("disable plugin failed: %v", err)
+	}
+	if disabled.Enabled {
+		t.Fatalf("expected plugin disabled")
+	}
+
+	evidence, err := a.Releases().SubmitEvidence(releasegov.EvidenceInput{
+		Milestone:        "e8-step1",
+		GoTestPassed:     true,
+		GoRacePassed:     true,
+		ReadmeSynced:     true,
+		BenchmarkNsPerOp: 2500,
+		BaselineNsPerOp:  2400,
+	}, now)
+	if err != nil {
+		t.Fatalf("submit release evidence failed: %v", err)
+	}
+	if evidence.Milestone != "e8-step1" {
+		t.Fatalf("unexpected evidence milestone: %+v", evidence)
+	}
+	score := a.Releases().Scorecard("e8-step1", 0.10)
+	if !score.ReleaseReady {
+		t.Fatalf("expected release-ready scorecard, got %+v", score)
+	}
+}

@@ -133,3 +133,73 @@
   - Moved memory implementation into dedicated subpackage and kept root factory behavior unchanged for callers.
   - Enabled mysql/postgres mode constructor path under unified factory (transitional backend wiring in this slice).
   - Validation gates passed: `go fmt ./...`, `go test ./internal/module/storageadapter/...`, `go test ./...`.
+- 2026-04-30: A iteration cleanup landed (commit f01ec62).
+  - Removed root-level compatibility wrappers (`memory_adapter.go`, `persistent_config.go`, `persistent_factory_stub.go`).
+  - Persistent factory no longer silently delegates to memory; mysql/postgres now return explicit not-implemented errors until E-slices ship.
+  - Tests reference subpackage symbols directly; full suite green.
+
+## Iteration E - MySQL/Postgres repository implementation slices (P0 follow-up to A)
+
+A established the structural seam (contracts/memory/persistent) but did not deliver real SQL repositories. E breaks the actual implementation work into slices so each can land green independently.
+
+### E-Slice E1 - persistent/db base infrastructure
+
+- Deliverables:
+  - add `gorm.io/driver/mysql` and `gorm.io/driver/postgres` to `go.mod`.
+  - `persistent/db` shared package: connection open, ping, migration runner, tx helper.
+  - re-usable contract test harness so SQL repos can run against the same assertions as the memory adapter.
+- Acceptance:
+  - `persistent.NewMySQLAdapter` / `NewPostgresAdapter` can open a real connection (against sqlite-shim or test container) and return a non-nil Adapter even if repos are still unimplemented stubs.
+  - existing `go test ./...` stays green; no behavior change for memory mode.
+
+### E-Slice E2 - low-risk CRUD repos on mysql
+
+- Scope: `Audit`, `Config`, `Dictionary` (pure CRUD + small query).
+- Deliverables:
+  - gorm models, migrations, repository implementations.
+  - DTO conversion helpers in persistent package, contracts unaware of gorm.
+  - contract tests reused.
+- Acceptance:
+  - mysql mode boots and these three repos pass the shared contract suite.
+  - other repos still return clearly-typed not-implemented errors.
+
+### E-Slice E3 - identity and access on mysql
+
+- Scope: `User` (incl. auth/session/MFA sub-state), `Role`, `Menu`, `RBAC`.
+- Deliverables: schemas including session/auth child tables, transactional update paths.
+- Acceptance: contract suite passes for the four repos under mysql.
+
+### E-Slice E4 - operations and lifecycle repos on mysql
+
+- Scope: `Job`, `Release`, `Plugin`, `API`, `Generator`, `File`.
+- Acceptance: contract suite passes for all 13 repos under mysql; admin smoke runs end-to-end on mysql.
+
+### E-Slice E5 - postgres parity
+
+- Deliverables: postgres dialect adjustments (returning, json types), shared test harness runs against postgres.
+- Acceptance: contract suite passes for all 13 repos under both mysql and postgres.
+
+### E-Slice E6 - production default tightening
+
+- Deliverables: production default mode becomes a SQL backend; memory mode kept for dev/test only with explicit log warning.
+- Acceptance: docs/runbooks updated; release evidence references SQL mode.
+
+### E Tasks (initial decomposition)
+
+- E-Task01 (E1): introduce gorm drivers, `persistent/db` connection + migration helper, shared contract harness skeleton.
+- E-Task02 (E2): mysql `AuditRepository` + `ConfigRepository` + `DictionaryRepository` implementation and migrations.
+- E-Task03 (E3): mysql identity stack repos.
+- E-Task04 (E4): mysql operations stack repos.
+- E-Task05 (E5): postgres parity for all repos.
+- E-Task06 (E6): production default + docs.
+
+### E Tracking
+
+| Item | Status | Notes |
+| --- | --- | --- |
+| E-Task01 | completed | drivers + persistent/db base + harness |
+| E-Task02 | not-started | audit/config/dict mysql |
+| E-Task03 | not-started | user/role/menu/rbac mysql |
+| E-Task04 | not-started | job/release/plugin/api/generator/file mysql |
+| E-Task05 | not-started | postgres parity |
+| E-Task06 | not-started | production default tightening |
