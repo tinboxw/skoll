@@ -149,6 +149,8 @@ type PluginService interface {
 	IngestMarketplaceIndex(source, signedBy, signature string, expiresAt time.Time, packages []pluginmgr.MarketplaceIndexPackage, now time.Time) (pluginmgr.MarketplaceIndexIngestResult, error)
 	ListMarketplaceIndexSources() []pluginmgr.MarketplaceIndexSource
 	SolveDependencies(items []pluginmgr.DependencySolveItem) pluginmgr.DependencySolveResult
+	UpgradePackageTransactional(transactionID, name, targetVersion, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string, now time.Time) (pluginmgr.UpgradeTransactionResult, error)
+	ListUpgradeProvenance(limit int) []pluginmgr.UpgradeProvenanceRecord
 }
 
 type RBACService interface {
@@ -294,6 +296,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/marketplace/index/ingest", ingestMarketplaceIndexHandler(services.Plugins, services.Audit))
 	handle("GET /admin/v1/plugins/marketplace/index/sources", listMarketplaceIndexSourcesHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/dependency-solver/resolve", resolvePluginDependenciesHandler(services.Plugins, services.Audit))
+	handle("POST /admin/v1/plugins/{name}/upgrade/transaction", upgradePluginTransactionalHandler(services.Plugins, services.Audit))
+	handle("GET /admin/v1/plugins/upgrade/provenance", listPluginUpgradeProvenanceHandler(services.Plugins))
 	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
 	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
@@ -531,6 +535,16 @@ type ingestMarketplaceIndexRequest struct {
 
 type resolvePluginDependenciesRequest struct {
 	Items []pluginmgr.DependencySolveItem `json:"items"`
+}
+
+type upgradePluginTransactionalRequest struct {
+	TransactionID string                 `json:"transaction_id"`
+	TargetVersion string                 `json:"target_version"`
+	PackageURL    string                 `json:"package_url"`
+	PackageHash   string                 `json:"package_hash"`
+	Signature     string                 `json:"signature"`
+	Dependencies  []pluginmgr.Dependency `json:"dependencies"`
+	Hooks         []string               `json:"hooks"`
 }
 
 type migrationPlanRequest struct {
@@ -2973,6 +2987,43 @@ func resolvePluginDependenciesHandler(svc PluginService, auditSvc AuditService) 
 		result := svc.SolveDependencies(req.Items)
 		auditSvc.Append("plugin-governance", "dependency_solver_resolve", fmt.Sprintf("items:%d conflicts:%d", len(req.Items), len(result.Conflicts)))
 		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func upgradePluginTransactionalHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req upgradePluginTransactionalRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		result, err := svc.UpgradePackageTransactional(strings.TrimSpace(req.TransactionID), strings.TrimSpace(name), strings.TrimSpace(req.TargetVersion), strings.TrimSpace(req.PackageURL), strings.TrimSpace(req.PackageHash), strings.TrimSpace(req.Signature), req.Dependencies, req.Hooks, time.Now().UTC())
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("plugin-governance", "upgrade_transaction", result.TransactionID)
+		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func listPluginUpgradeProvenanceHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 20
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+				return
+			}
+			limit = parsed
+		}
+		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListUpgradeProvenance(limit)})
 	}
 }
 

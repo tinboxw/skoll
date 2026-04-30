@@ -104,6 +104,8 @@ curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/disable
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/enable
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/version-check -H "Content-Type: application/json" -d '{"latest_version":"1.2.0"}'
 curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/upgrade -H "Content-Type: application/json" -d '{"target_version":"1.2.0","package_url":"https://example.com/plugins/audit-ext-1.2.0.tgz","package_hash":"sha256:efgh","signature":"sig:sha256:efgh"}'
+curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/upgrade/transaction -H "Content-Type: application/json" -d '{"transaction_id":"tx-001","target_version":"1.3.0","package_url":"https://example.com/plugins/audit-ext-1.3.0.tgz","package_hash":"sha256:hijk","signature":"sig:sha256:hijk"}'
+curl "http://localhost:8080/admin/v1/plugins/upgrade/provenance?limit=20"
 curl -X POST http://localhost:8080/admin/v1/db/migrations/plan -H "Content-Type: application/json" -d '{"from_version":"2026.04","to_version":"2026.05","steps":["add_table_users","add_index_users_email"]}'
 curl -X POST http://localhost:8080/admin/v1/db/backup -H "Content-Type: application/json" -d '{"backup_id":"bk-001","reason":"pre-release"}'
 curl -X POST http://localhost:8080/admin/v1/db/restore -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND"}'
@@ -296,6 +298,7 @@ go test -bench=. -benchmem ./...
 - E13-step3 runtime isolation and dead-letter diagnostics record: `docs/milestones/E13-step3-runtime-isolation-and-dead-letter-diagnostics.md`
 - E14-step1 marketplace trust-root and signed-index baseline record: `docs/milestones/E14-step1-marketplace-trust-root-and-signed-index-baseline.md`
 - E14-step2 dependency solver and conflict diagnostics record: `docs/milestones/E14-step2-dependency-solver-and-conflict-diagnostics.md`
+- E14-step3 upgrade transaction checkpoints and provenance retention record: `docs/milestones/E14-step3-upgrade-transaction-checkpoints-and-provenance.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

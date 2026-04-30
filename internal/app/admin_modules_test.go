@@ -1181,6 +1181,42 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 	if !strings.Contains(solverRR.Body.String(), `"deterministic":true`) || !strings.Contains(solverRR.Body.String(), `"conflicts"`) {
 		t.Fatalf("expected dependency solver diagnostics payload, got %s", solverRR.Body.String())
 	}
+
+	reinstallReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/manifests", strings.NewReader(`{"name":"audit-ext","version":"1.2.0","hooks":["on_boot"]}`))
+	reinstallReq.Header.Set("Content-Type", "application/json")
+	reinstallRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(reinstallRR, reinstallReq)
+	if reinstallRR.Code != http.StatusCreated {
+		t.Fatalf("expected reinstall status 201, got %d body=%s", reinstallRR.Code, reinstallRR.Body.String())
+	}
+
+	txUpgradeReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/audit-ext/upgrade/transaction", strings.NewReader(`{"transaction_id":"tx-api-1","target_version":"1.3.0","package_url":"https://example.com/plugins/audit-ext-1.3.0.tgz","package_hash":"sha256:aa130","signature":"sig:sha256:aa130"}`))
+	txUpgradeReq.Header.Set("Content-Type", "application/json")
+	txUpgradeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(txUpgradeRR, txUpgradeReq)
+	if txUpgradeRR.Code != http.StatusOK {
+		t.Fatalf("expected transactional upgrade status 200, got %d body=%s", txUpgradeRR.Code, txUpgradeRR.Body.String())
+	}
+	if !strings.Contains(txUpgradeRR.Body.String(), `"transaction_id":"tx-api-1"`) || !strings.Contains(txUpgradeRR.Body.String(), `"succeeded":true`) {
+		t.Fatalf("expected transactional upgrade success payload, got %s", txUpgradeRR.Body.String())
+	}
+
+	provenanceReq := httptest.NewRequest(http.MethodGet, "/admin/v1/plugins/upgrade/provenance?limit=1", nil)
+	provenanceRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(provenanceRR, provenanceReq)
+	if provenanceRR.Code != http.StatusOK {
+		t.Fatalf("expected provenance list status 200, got %d body=%s", provenanceRR.Code, provenanceRR.Body.String())
+	}
+	if !strings.Contains(provenanceRR.Body.String(), `"transaction_id":"tx-api-1"`) {
+		t.Fatalf("expected provenance payload to include tx-api-1, got %s", provenanceRR.Body.String())
+	}
+
+	provenanceBadLimitReq := httptest.NewRequest(http.MethodGet, "/admin/v1/plugins/upgrade/provenance?limit=0", nil)
+	provenanceBadLimitRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(provenanceBadLimitRR, provenanceBadLimitReq)
+	if provenanceBadLimitRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected provenance bad limit status 400, got %d", provenanceBadLimitRR.Code)
+	}
 }
 
 func testMarketplaceIndexSignature(source, signedBy string, expiresAtUnix int64, pkgDigests []string) string {

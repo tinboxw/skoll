@@ -137,7 +137,7 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 62. Completed: E11 policy governance parity (step1/step2/step3 delivered including policy persistence governance).
 63. Completed: E12 admin domain operational parity (step1/step2/step3 delivered including bulk, query contract, and controls profile).
 64. Completed: E13 hook and module governance parity (step1/step2/step3 delivered).
-65. In-progress: E14 plugin marketplace depth parity (step1 trust-root/signed-index + step2 dependency solver diagnostics delivered).
+65. Completed: E14 plugin marketplace depth parity (step1 trust-root/signed-index + step2 dependency solver diagnostics + step3 checkpointed upgrade transactions/provenance delivered).
 66. Plan completed: E15 database management depth parity.
 67. Plan completed: E16 distributed scheduler and job reliability parity.
 68. Plan completed: E17 observability and operational hardening parity.

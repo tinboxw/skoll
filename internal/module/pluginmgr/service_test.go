@@ -1,6 +1,7 @@
 package pluginmgr
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -293,5 +294,57 @@ func TestServiceDependencySolverDeterministicAndConflictDiagnostics(t *testing.T
 	}
 	if len(resultA.Conflicts) == 0 {
 		t.Fatalf("expected conflict diagnostics, got %+v", resultA)
+	}
+}
+
+func TestServiceUpgradePackageTransactional_CheckpointsRollbackAndProvenance(t *testing.T) {
+	svc := NewService()
+	_, err := svc.InstallPackageVerified("audit-ext", "1.0.0", "https://example.com/plugins/audit-ext-1.0.0.tgz", "sha256:a100", "sig:sha256:a100", nil, []string{"on_boot"})
+	if err != nil {
+		t.Fatalf("install baseline failed: %v", err)
+	}
+
+	failure, err := svc.UpgradePackageTransactional("tx-fail", "audit-ext", "1.1.0", "https://example.com/plugins/audit-ext-1.1.0.tgz", "sha256:a110", "bad-signature", nil, []string{"on_boot"}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("transactional upgrade should return result payload, got error: %v", err)
+	}
+	if failure.Succeeded || !strings.Contains(failure.Reason, ErrPluginSignatureInvalid.Error()) {
+		t.Fatalf("expected signature failure result, got %+v", failure)
+	}
+	if len(failure.Checkpoints) == 0 {
+		t.Fatalf("expected checkpoints for failed upgrade")
+	}
+
+	success, err := svc.UpgradePackageTransactional("tx-success", "audit-ext", "1.1.0", "https://example.com/plugins/audit-ext-1.1.0.tgz", "sha256:a110", "sig:sha256:a110", nil, []string{"on_boot"}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("transactional upgrade failed: %v", err)
+	}
+	if !success.Succeeded || success.RolledBack {
+		t.Fatalf("expected successful transactional upgrade, got %+v", success)
+	}
+
+	items := svc.ListUpgradeProvenance(10)
+	if len(items) < 2 {
+		t.Fatalf("expected provenance records, got %d", len(items))
+	}
+	if items[0].TransactionID != "tx-success" {
+		t.Fatalf("expected latest provenance to be tx-success, got %+v", items[0])
+	}
+	if items[1].TransactionID != "tx-fail" {
+		t.Fatalf("expected previous provenance to be tx-fail, got %+v", items[1])
+	}
+}
+
+func TestServiceUpgradePackageTransactional_MissingPluginProducesCheckpointedFailure(t *testing.T) {
+	svc := NewService()
+	result, err := svc.UpgradePackageTransactional("", "missing-ext", "1.0.1", "https://example.com/plugins/missing-ext-1.0.1.tgz", "sha256:m101", "sig:sha256:m101", nil, nil, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("expected checkpointed failure result without error, got %v", err)
+	}
+	if result.Succeeded {
+		t.Fatalf("expected failed transactional result for missing plugin")
+	}
+	if len(result.Checkpoints) < 3 {
+		t.Fatalf("expected input/load checkpoints, got %+v", result.Checkpoints)
 	}
 }

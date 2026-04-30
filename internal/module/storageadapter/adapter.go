@@ -133,6 +133,8 @@ type PluginRepository interface {
 	IngestMarketplaceIndex(source, signedBy, signature string, expiresAt time.Time, packages []pluginmgr.MarketplaceIndexPackage, now time.Time) (pluginmgr.MarketplaceIndexIngestResult, error)
 	ListMarketplaceIndexSources() []pluginmgr.MarketplaceIndexSource
 	SolveDependencies(items []pluginmgr.DependencySolveItem) pluginmgr.DependencySolveResult
+	UpgradePackageTransactional(transactionID, name, targetVersion, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string, now time.Time) (pluginmgr.UpgradeTransactionResult, error)
+	ListUpgradeProvenance(limit int) []pluginmgr.UpgradeProvenanceRecord
 }
 
 type RBACRepository interface {
