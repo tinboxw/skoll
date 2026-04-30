@@ -13,6 +13,9 @@ var ErrPluginNotFound = errors.New("plugin not found")
 var ErrInvalidPluginVersion = errors.New("invalid plugin version")
 var ErrPluginSignatureInvalid = errors.New("plugin signature verification failed")
 var ErrPluginDependencyUnsatisfied = errors.New("plugin dependency precheck failed")
+var ErrHookNotFound = errors.New("hook not found")
+var ErrHookNamespaceRequired = errors.New("hook namespace is required")
+var ErrHookNameRequired = errors.New("hook name is required")
 
 type VersionCheckResult struct {
 	Name            string `json:"name"`
@@ -47,13 +50,26 @@ type UpgradeResult struct {
 	Reason          string `json:"reason,omitempty"`
 }
 
+type HookRegistration struct {
+	Name          string    `json:"name"`
+	Namespace     string    `json:"namespace"`
+	Version       string    `json:"version"`
+	Enabled       bool      `json:"enabled"`
+	Order         int       `json:"order"`
+	TimeoutMillis int       `json:"timeout_millis"`
+	RetryLimit    int       `json:"retry_limit"`
+	DeadLetter    bool      `json:"dead_letter"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 type Service struct {
 	mu    sync.RWMutex
 	items map[string]Manifest
+	hooks map[string]HookRegistration
 }
 
 func NewService() *Service {
-	return &Service{items: make(map[string]Manifest)}
+	return &Service{items: make(map[string]Manifest), hooks: make(map[string]HookRegistration)}
 }
 
 func (s *Service) Install(name, version string, hooks []string) Manifest {
@@ -128,6 +144,112 @@ func (s *Service) UpgradePackage(name, targetVersion, packageURL, packageHash, s
 	return result, nil
 }
 
+func (s *Service) RegisterHook(name, namespace, version string, order, timeoutMillis, retryLimit int, deadLetter bool) (HookRegistration, error) {
+	name = strings.TrimSpace(name)
+	namespace = strings.TrimSpace(namespace)
+	version = strings.TrimSpace(version)
+	if name == "" {
+		return HookRegistration{}, ErrHookNameRequired
+	}
+	if namespace == "" {
+		return HookRegistration{}, ErrHookNamespaceRequired
+	}
+	if version == "" {
+		version = "1.0.0"
+	}
+	if !isValidVersion(version) {
+		return HookRegistration{}, ErrInvalidPluginVersion
+	}
+	if order < 0 {
+		order = 0
+	}
+	if timeoutMillis <= 0 {
+		timeoutMillis = 500
+	}
+	if timeoutMillis > 60000 {
+		timeoutMillis = 60000
+	}
+	if retryLimit < 0 {
+		retryLimit = 0
+	}
+	if retryLimit > 10 {
+		retryLimit = 10
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item := HookRegistration{
+		Name:          name,
+		Namespace:     namespace,
+		Version:       version,
+		Enabled:       true,
+		Order:         order,
+		TimeoutMillis: timeoutMillis,
+		RetryLimit:    retryLimit,
+		DeadLetter:    deadLetter,
+		UpdatedAt:     time.Now().UTC(),
+	}
+	s.hooks[hookKey(namespace, name)] = item
+	return item, nil
+}
+
+func (s *Service) ListHooks() []HookRegistration {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]HookRegistration, 0, len(s.hooks))
+	for _, item := range s.hooks {
+		out = append(out, item)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Namespace == out[j].Namespace {
+			if out[i].Order == out[j].Order {
+				return out[i].Name < out[j].Name
+			}
+			return out[i].Order < out[j].Order
+		}
+		return out[i].Namespace < out[j].Namespace
+	})
+	return out
+}
+
+func (s *Service) SetHookEnabled(name, namespace string, enabled bool) (HookRegistration, error) {
+	return s.updateHook(name, namespace, func(item HookRegistration) HookRegistration {
+		item.Enabled = enabled
+		return item
+	})
+}
+
+func (s *Service) SetHookOrder(name, namespace string, order int) (HookRegistration, error) {
+	if order < 0 {
+		order = 0
+	}
+	return s.updateHook(name, namespace, func(item HookRegistration) HookRegistration {
+		item.Order = order
+		return item
+	})
+}
+
+func (s *Service) SetHookRuntimePolicy(name, namespace string, timeoutMillis, retryLimit int, deadLetter bool) (HookRegistration, error) {
+	if timeoutMillis <= 0 {
+		timeoutMillis = 500
+	}
+	if timeoutMillis > 60000 {
+		timeoutMillis = 60000
+	}
+	if retryLimit < 0 {
+		retryLimit = 0
+	}
+	if retryLimit > 10 {
+		retryLimit = 10
+	}
+	return s.updateHook(name, namespace, func(item HookRegistration) HookRegistration {
+		item.TimeoutMillis = timeoutMillis
+		item.RetryLimit = retryLimit
+		item.DeadLetter = deadLetter
+		return item
+	})
+}
+
 func (s *Service) Get(name string) (Manifest, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -186,6 +308,33 @@ func (s *Service) setEnabled(name string, enabled bool) (Manifest, error) {
 	item.Enabled = enabled
 	s.items[key] = item
 	return item, nil
+}
+
+func (s *Service) updateHook(name, namespace string, fn func(HookRegistration) HookRegistration) (HookRegistration, error) {
+	name = strings.TrimSpace(name)
+	namespace = strings.TrimSpace(namespace)
+	if name == "" {
+		return HookRegistration{}, ErrHookNameRequired
+	}
+	if namespace == "" {
+		return HookRegistration{}, ErrHookNamespaceRequired
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := hookKey(namespace, name)
+	item, ok := s.hooks[key]
+	if !ok {
+		return HookRegistration{}, ErrHookNotFound
+	}
+	item = fn(item)
+	item.UpdatedAt = time.Now().UTC()
+	s.hooks[key] = item
+	return item, nil
+}
+
+func hookKey(namespace, name string) string {
+	return strings.TrimSpace(namespace) + "::" + strings.TrimSpace(name)
 }
 
 func isValidVersion(version string) bool {

@@ -1019,6 +1019,56 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 	if !strings.Contains(upgradeRR.Body.String(), `"succeeded":true`) {
 		t.Fatalf("expected successful upgrade result, got %s", upgradeRR.Body.String())
 	}
+
+	hookRegisterReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/hooks/register", strings.NewReader(`{"name":"on_user_created","namespace":"billing","version":"1.0.0","order":10,"timeout_millis":900,"retry_limit":2,"dead_letter":true}`))
+	hookRegisterReq.Header.Set("Content-Type", "application/json")
+	hookRegisterRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookRegisterRR, hookRegisterReq)
+	if hookRegisterRR.Code != http.StatusCreated {
+		t.Fatalf("expected hook register status 201, got %d body=%s", hookRegisterRR.Code, hookRegisterRR.Body.String())
+	}
+
+	hookListReq := httptest.NewRequest(http.MethodGet, "/admin/v1/plugins/hooks", nil)
+	hookListRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookListRR, hookListReq)
+	if hookListRR.Code != http.StatusOK {
+		t.Fatalf("expected hook list status 200, got %d", hookListRR.Code)
+	}
+	if !strings.Contains(hookListRR.Body.String(), `"namespace":"billing"`) {
+		t.Fatalf("expected hook namespace in list, got %s", hookListRR.Body.String())
+	}
+
+	hookOrderReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/hooks/billing/on_user_created/order", strings.NewReader(`{"order":30}`))
+	hookOrderReq.Header.Set("Content-Type", "application/json")
+	hookOrderRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookOrderRR, hookOrderReq)
+	if hookOrderRR.Code != http.StatusOK {
+		t.Fatalf("expected hook order status 200, got %d body=%s", hookOrderRR.Code, hookOrderRR.Body.String())
+	}
+	if !strings.Contains(hookOrderRR.Body.String(), `"order":30`) {
+		t.Fatalf("expected updated hook order, got %s", hookOrderRR.Body.String())
+	}
+
+	hookRuntimeReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/hooks/billing/on_user_created/runtime", strings.NewReader(`{"timeout_millis":1200,"retry_limit":3,"dead_letter":false}`))
+	hookRuntimeReq.Header.Set("Content-Type", "application/json")
+	hookRuntimeRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookRuntimeRR, hookRuntimeReq)
+	if hookRuntimeRR.Code != http.StatusOK {
+		t.Fatalf("expected hook runtime status 200, got %d body=%s", hookRuntimeRR.Code, hookRuntimeRR.Body.String())
+	}
+	if !strings.Contains(hookRuntimeRR.Body.String(), `"timeout_millis":1200`) || !strings.Contains(hookRuntimeRR.Body.String(), `"dead_letter":false`) {
+		t.Fatalf("expected updated runtime policy, got %s", hookRuntimeRR.Body.String())
+	}
+
+	hookDisableReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/hooks/billing/on_user_created/disable", nil)
+	hookDisableRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookDisableRR, hookDisableReq)
+	if hookDisableRR.Code != http.StatusOK {
+		t.Fatalf("expected hook disable status 200, got %d", hookDisableRR.Code)
+	}
+	if !strings.Contains(hookDisableRR.Body.String(), `"enabled":false`) {
+		t.Fatalf("expected hook disabled, got %s", hookDisableRR.Body.String())
+	}
 }
 
 func TestSystemStatusRoute_AggregatesModuleCounts(t *testing.T) {

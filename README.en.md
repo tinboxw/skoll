@@ -291,6 +291,7 @@ go test -bench=. -benchmem ./...
 - E12-step1 admin-domain bulk atomic operations baseline record: `docs/milestones/E12-step1-bulk-atomic-operations-baseline.md`
 - E12-step2 admin-domain query contract and audit paging SLA profile record: `docs/milestones/E12-step2-admin-query-contract-and-audit-sla-profile.md`
 - E12-step3 admin-domain operational controls profile baseline record: `docs/milestones/E12-step3-admin-operational-controls-profile.md`
+- E13-step1 hook registry governance baseline record: `docs/milestones/E13-step1-hook-registry-governance-baseline.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

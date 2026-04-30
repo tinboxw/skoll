@@ -135,6 +135,11 @@ type PluginService interface {
 	Disable(name string) (pluginmgr.Manifest, error)
 	CheckVersion(name, latestVersion string) (pluginmgr.VersionCheckResult, error)
 	UpgradePackage(name, targetVersion, packageURL, packageHash, signature string, dependencies []pluginmgr.Dependency, hooks []string) (pluginmgr.UpgradeResult, error)
+	RegisterHook(name, namespace, version string, order, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
+	ListHooks() []pluginmgr.HookRegistration
+	SetHookEnabled(name, namespace string, enabled bool) (pluginmgr.HookRegistration, error)
+	SetHookOrder(name, namespace string, order int) (pluginmgr.HookRegistration, error)
+	SetHookRuntimePolicy(name, namespace string, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
 }
 
 type RBACService interface {
@@ -265,6 +270,12 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/{name}/disable", disablePluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/version-check", checkPluginVersionHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/{name}/upgrade", upgradePluginHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/hooks/register", registerPluginHookHandler(services.Plugins, services.Audit))
+	handle("GET /admin/v1/plugins/hooks", listPluginHooksHandler(services.Plugins))
+	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/enable", setPluginHookEnabledHandler(services.Plugins, services.Audit, true))
+	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/disable", setPluginHookEnabledHandler(services.Plugins, services.Audit, false))
+	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/order", setPluginHookOrderHandler(services.Plugins, services.Audit))
+	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/runtime", setPluginHookRuntimeHandler(services.Plugins, services.Audit))
 	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
 	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
@@ -462,6 +473,26 @@ type upgradePluginRequest struct {
 	Signature     string                 `json:"signature"`
 	Dependencies  []pluginmgr.Dependency `json:"dependencies"`
 	Hooks         []string               `json:"hooks"`
+}
+
+type registerPluginHookRequest struct {
+	Name          string `json:"name"`
+	Namespace     string `json:"namespace"`
+	Version       string `json:"version"`
+	Order         int    `json:"order"`
+	TimeoutMillis int    `json:"timeout_millis"`
+	RetryLimit    int    `json:"retry_limit"`
+	DeadLetter    *bool  `json:"dead_letter"`
+}
+
+type setPluginHookOrderRequest struct {
+	Order int `json:"order"`
+}
+
+type setPluginHookRuntimeRequest struct {
+	TimeoutMillis int   `json:"timeout_millis"`
+	RetryLimit    int   `json:"retry_limit"`
+	DeadLetter    *bool `json:"dead_letter"`
 }
 
 type migrationPlanRequest struct {
@@ -2675,6 +2706,129 @@ func upgradePluginHandler(svc PluginService) http.HandlerFunc {
 			return
 		}
 		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func registerPluginHookHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req registerPluginHookRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		deadLetter := true
+		if req.DeadLetter != nil {
+			deadLetter = *req.DeadLetter
+		}
+		item, err := svc.RegisterHook(req.Name, req.Namespace, req.Version, req.Order, req.TimeoutMillis, req.RetryLimit, deadLetter)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("plugin-governance", "hook_register", item.Namespace+":"+item.Name)
+		respondJSON(w, http.StatusCreated, item)
+	}
+}
+
+func listPluginHooksHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListHooks()})
+	}
+}
+
+func setPluginHookEnabledHandler(svc PluginService, auditSvc AuditService, enabled bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		namespace, err := parsePathString(r, "namespace")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		item, err := svc.SetHookEnabled(name, namespace, enabled)
+		if err != nil {
+			if err == pluginmgr.ErrHookNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		action := "hook_disable"
+		if enabled {
+			action = "hook_enable"
+		}
+		auditSvc.Append("plugin-governance", action, item.Namespace+":"+item.Name)
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func setPluginHookOrderHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		namespace, err := parsePathString(r, "namespace")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req setPluginHookOrderRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		item, err := svc.SetHookOrder(name, namespace, req.Order)
+		if err != nil {
+			if err == pluginmgr.ErrHookNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("plugin-governance", "hook_order", item.Namespace+":"+item.Name)
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func setPluginHookRuntimeHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		namespace, err := parsePathString(r, "namespace")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req setPluginHookRuntimeRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		deadLetter := true
+		if req.DeadLetter != nil {
+			deadLetter = *req.DeadLetter
+		}
+		item, err := svc.SetHookRuntimePolicy(name, namespace, req.TimeoutMillis, req.RetryLimit, deadLetter)
+		if err != nil {
+			if err == pluginmgr.ErrHookNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("plugin-governance", "hook_runtime", item.Namespace+":"+item.Name)
+		respondJSON(w, http.StatusOK, item)
 	}
 }
 

@@ -109,3 +109,71 @@ func BenchmarkServiceInstallPackageVerified(b *testing.B) {
 		}
 	}
 }
+
+func TestServiceHookRegistryLifecycle(t *testing.T) {
+	svc := NewService()
+
+	hook, err := svc.RegisterHook("onUserCreated", "billing", "1.0.0", 10, 800, 2, true)
+	if err != nil {
+		t.Fatalf("register hook failed: %v", err)
+	}
+	if !hook.Enabled {
+		t.Fatalf("expected hook enabled on register")
+	}
+	if hook.Namespace != "billing" || hook.Name != "onUserCreated" {
+		t.Fatalf("unexpected hook identity: %+v", hook)
+	}
+
+	updated, err := svc.SetHookOrder("onUserCreated", "billing", 30)
+	if err != nil {
+		t.Fatalf("set hook order failed: %v", err)
+	}
+	if updated.Order != 30 {
+		t.Fatalf("expected order=30, got %d", updated.Order)
+	}
+
+	runtimeUpdated, err := svc.SetHookRuntimePolicy("onUserCreated", "billing", 1200, 3, false)
+	if err != nil {
+		t.Fatalf("set runtime policy failed: %v", err)
+	}
+	if runtimeUpdated.TimeoutMillis != 1200 || runtimeUpdated.RetryLimit != 3 || runtimeUpdated.DeadLetter {
+		t.Fatalf("unexpected runtime update: %+v", runtimeUpdated)
+	}
+
+	disabled, err := svc.SetHookEnabled("onUserCreated", "billing", false)
+	if err != nil {
+		t.Fatalf("disable hook failed: %v", err)
+	}
+	if disabled.Enabled {
+		t.Fatalf("expected hook disabled")
+	}
+}
+
+func TestServiceHookRegistryValidationAndIsolation(t *testing.T) {
+	svc := NewService()
+
+	if _, err := svc.RegisterHook("", "billing", "1.0.0", 0, 500, 1, true); err != ErrHookNameRequired {
+		t.Fatalf("expected ErrHookNameRequired, got %v", err)
+	}
+	if _, err := svc.RegisterHook("onCreate", "", "1.0.0", 0, 500, 1, true); err != ErrHookNamespaceRequired {
+		t.Fatalf("expected ErrHookNamespaceRequired, got %v", err)
+	}
+
+	_, err := svc.RegisterHook("onCreate", "moduleA", "1.0.0", 0, 500, 1, true)
+	if err != nil {
+		t.Fatalf("register moduleA hook failed: %v", err)
+	}
+	_, err = svc.RegisterHook("onCreate", "moduleB", "1.0.0", 0, 500, 1, true)
+	if err != nil {
+		t.Fatalf("register moduleB hook failed: %v", err)
+	}
+
+	if _, err := svc.SetHookEnabled("onCreate", "moduleC", false); err != ErrHookNotFound {
+		t.Fatalf("expected ErrHookNotFound for unknown namespace, got %v", err)
+	}
+
+	all := svc.ListHooks()
+	if len(all) != 2 {
+		t.Fatalf("expected two isolated hook records, got %d", len(all))
+	}
+}
