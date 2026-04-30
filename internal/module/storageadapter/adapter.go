@@ -126,6 +126,8 @@ type PluginRepository interface {
 	SetHookEnabled(name, namespace string, enabled bool) (pluginmgr.HookRegistration, error)
 	SetHookOrder(name, namespace string, order int) (pluginmgr.HookRegistration, error)
 	SetHookRuntimePolicy(name, namespace string, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
+	ExecuteHookDiagnostic(name, namespace string, failTimes int) (pluginmgr.HookExecutionResult, error)
+	ListHookDeadLetters() []pluginmgr.HookDeadLetterRecord
 }
 
 type RBACRepository interface {

@@ -136,7 +136,7 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 84. [x] E10-auth-and-session-parity: Deliver JWT login/refresh/revoke/session lifecycle parity.
 85. [x] E11-rbac-and-permission-governance-parity: Deliver persistent policy governance and rollback parity.
 86. [x] E12-admin-domain-operational-parity: Deliver production-grade operational completeness for admin core modules.
-87. [ ] E13-hook-and-module-governance-parity: Deliver hook/event and module lifecycle governance parity.
+87. [x] E13-hook-and-module-governance-parity: Deliver hook/event and module lifecycle governance parity.
 88. [ ] E14-plugin-marketplace-depth-parity: Deliver marketplace index trust, dependency solver, and upgrade transaction parity.
 89. [ ] E15-database-management-depth-parity: Deliver migration drift detection and backup/restore drill parity.
 90. [ ] E16-distributed-scheduler-and-job-reliability-parity: Deliver distributed scheduling reliability and replay parity.

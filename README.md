@@ -293,6 +293,7 @@ go test -bench=. -benchmem ./...
 - E12-step3 管理域运维控制画像基线记录：`docs/milestones/E12-step3-admin-operational-controls-profile.md`
 - E13-step1 Hook 注册治理基线记录：`docs/milestones/E13-step1-hook-registry-governance-baseline.md`
 - E13-step2 模块生命周期与兼容性治理记录：`docs/milestones/E13-step2-module-lifecycle-and-compatibility-governance.md`
+- E13-step3 运行时隔离与死信诊断记录：`docs/milestones/E13-step3-runtime-isolation-and-dead-letter-diagnostics.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

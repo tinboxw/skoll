@@ -1070,6 +1070,42 @@ func TestPluginRoutes_InstallAndToggle(t *testing.T) {
 		t.Fatalf("expected hook disabled, got %s", hookDisableRR.Body.String())
 	}
 
+	hookEnableReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/hooks/billing/on_user_created/enable", nil)
+	hookEnableRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookEnableRR, hookEnableReq)
+	if hookEnableRR.Code != http.StatusOK {
+		t.Fatalf("expected hook enable status 200, got %d", hookEnableRR.Code)
+	}
+
+	hookRuntimeDlqReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/hooks/billing/on_user_created/runtime", strings.NewReader(`{"timeout_millis":1200,"retry_limit":3,"dead_letter":true}`))
+	hookRuntimeDlqReq.Header.Set("Content-Type", "application/json")
+	hookRuntimeDlqRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookRuntimeDlqRR, hookRuntimeDlqReq)
+	if hookRuntimeDlqRR.Code != http.StatusOK {
+		t.Fatalf("expected hook runtime update status 200, got %d", hookRuntimeDlqRR.Code)
+	}
+
+	hookDiagReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/hooks/billing/on_user_created/execute-diagnostic", strings.NewReader(`{"fail_times":10}`))
+	hookDiagReq.Header.Set("Content-Type", "application/json")
+	hookDiagRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(hookDiagRR, hookDiagReq)
+	if hookDiagRR.Code != http.StatusOK {
+		t.Fatalf("expected hook diagnostic status 200, got %d body=%s", hookDiagRR.Code, hookDiagRR.Body.String())
+	}
+	if !strings.Contains(hookDiagRR.Body.String(), `"dead_lettered":true`) {
+		t.Fatalf("expected dead-lettered diagnostic result, got %s", hookDiagRR.Body.String())
+	}
+
+	dlqReq := httptest.NewRequest(http.MethodGet, "/admin/v1/plugins/hooks/dead-letters", nil)
+	dlqRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(dlqRR, dlqReq)
+	if dlqRR.Code != http.StatusOK {
+		t.Fatalf("expected dead-letter list status 200, got %d", dlqRR.Code)
+	}
+	if !strings.Contains(dlqRR.Body.String(), `"namespace":"billing"`) {
+		t.Fatalf("expected dead-letter payload in response, got %s", dlqRR.Body.String())
+	}
+
 	compatReq := httptest.NewRequest(http.MethodPost, "/admin/v1/plugins/compatibility-check", strings.NewReader(`{"name":"audit-ext","version":"1.2.0","dependencies":[{"name":"audit-ext","min_version":"1.0.0"}]}`))
 	compatReq.Header.Set("Content-Type", "application/json")
 	compatRR := httptest.NewRecorder()

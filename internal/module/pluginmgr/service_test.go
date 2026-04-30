@@ -205,3 +205,35 @@ func TestServiceLifecycleRemoveAndCompatibilityCheck(t *testing.T) {
 		t.Fatalf("expected idempotent remove for missing plugin, got %+v", removeAgain)
 	}
 }
+
+func TestServiceHookExecutionDiagnosticAndDeadLetter(t *testing.T) {
+	svc := NewService()
+	_, err := svc.RegisterHook("on_order_paid", "billing", "1.0.0", 1, 500, 2, true)
+	if err != nil {
+		t.Fatalf("register hook failed: %v", err)
+	}
+
+	success, err := svc.ExecuteHookDiagnostic("on_order_paid", "billing", 1)
+	if err != nil {
+		t.Fatalf("execute diagnostic failed: %v", err)
+	}
+	if !success.Success || success.Attempts != 2 {
+		t.Fatalf("expected success at second attempt, got %+v", success)
+	}
+
+	failed, err := svc.ExecuteHookDiagnostic("on_order_paid", "billing", 5)
+	if err != nil {
+		t.Fatalf("execute diagnostic failed: %v", err)
+	}
+	if failed.Success || !failed.DeadLettered {
+		t.Fatalf("expected dead-lettered failed execution, got %+v", failed)
+	}
+
+	dlq := svc.ListHookDeadLetters()
+	if len(dlq) == 0 {
+		t.Fatalf("expected dead-letter records")
+	}
+	if dlq[len(dlq)-1].Name != "on_order_paid" {
+		t.Fatalf("unexpected dead-letter record: %+v", dlq[len(dlq)-1])
+	}
+}

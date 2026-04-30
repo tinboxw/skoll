@@ -78,10 +78,29 @@ type HookRegistration struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
+type HookExecutionResult struct {
+	Name         string   `json:"name"`
+	Namespace    string   `json:"namespace"`
+	Success      bool     `json:"success"`
+	Attempts     int      `json:"attempts"`
+	MaxAttempts  int      `json:"max_attempts"`
+	DeadLettered bool     `json:"dead_lettered"`
+	Diagnostics  []string `json:"diagnostics"`
+}
+
+type HookDeadLetterRecord struct {
+	Name      string    `json:"name"`
+	Namespace string    `json:"namespace"`
+	Attempts  int       `json:"attempts"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Service struct {
-	mu    sync.RWMutex
-	items map[string]Manifest
-	hooks map[string]HookRegistration
+	mu          sync.RWMutex
+	items       map[string]Manifest
+	hooks       map[string]HookRegistration
+	deadLetters []HookDeadLetterRecord
 }
 
 func NewService() *Service {
@@ -326,6 +345,76 @@ func (s *Service) SetHookRuntimePolicy(name, namespace string, timeoutMillis, re
 		item.DeadLetter = deadLetter
 		return item
 	})
+}
+
+func (s *Service) ExecuteHookDiagnostic(name, namespace string, failTimes int) (HookExecutionResult, error) {
+	name = strings.TrimSpace(name)
+	namespace = strings.TrimSpace(namespace)
+	if name == "" {
+		return HookExecutionResult{}, ErrHookNameRequired
+	}
+	if namespace == "" {
+		return HookExecutionResult{}, ErrHookNamespaceRequired
+	}
+	if failTimes < 0 {
+		failTimes = 0
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.hooks[hookKey(namespace, name)]
+	if !ok {
+		return HookExecutionResult{}, ErrHookNotFound
+	}
+
+	maxAttempts := item.RetryLimit + 1
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+	diag := make([]string, 0, maxAttempts+1)
+	result := HookExecutionResult{Name: name, Namespace: namespace, MaxAttempts: maxAttempts}
+	if !item.Enabled {
+		result.Diagnostics = []string{"hook disabled"}
+		return result, nil
+	}
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		result.Attempts = attempt
+		if attempt <= failTimes {
+			diag = append(diag, fmt.Sprintf("attempt %d failed", attempt))
+			continue
+		}
+		result.Success = true
+		diag = append(diag, fmt.Sprintf("attempt %d succeeded", attempt))
+		break
+	}
+
+	if !result.Success {
+		diag = append(diag, "max attempts exhausted")
+		if item.DeadLetter {
+			result.DeadLettered = true
+			s.deadLetters = append(s.deadLetters, HookDeadLetterRecord{
+				Name:      name,
+				Namespace: namespace,
+				Attempts:  result.Attempts,
+				Reason:    "max attempts exhausted",
+				CreatedAt: time.Now().UTC(),
+			})
+		}
+	}
+	result.Diagnostics = diag
+	return result, nil
+}
+
+func (s *Service) ListHookDeadLetters() []HookDeadLetterRecord {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.deadLetters) == 0 {
+		return nil
+	}
+	out := make([]HookDeadLetterRecord, len(s.deadLetters))
+	copy(out, s.deadLetters)
+	return out
 }
 
 func (s *Service) Get(name string) (Manifest, error) {

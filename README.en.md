@@ -293,6 +293,7 @@ go test -bench=. -benchmem ./...
 - E12-step3 admin-domain operational controls profile baseline record: `docs/milestones/E12-step3-admin-operational-controls-profile.md`
 - E13-step1 hook registry governance baseline record: `docs/milestones/E13-step1-hook-registry-governance-baseline.md`
 - E13-step2 module lifecycle and compatibility governance record: `docs/milestones/E13-step2-module-lifecycle-and-compatibility-governance.md`
+- E13-step3 runtime isolation and dead-letter diagnostics record: `docs/milestones/E13-step3-runtime-isolation-and-dead-letter-diagnostics.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

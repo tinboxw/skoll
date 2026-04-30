@@ -142,6 +142,8 @@ type PluginService interface {
 	SetHookEnabled(name, namespace string, enabled bool) (pluginmgr.HookRegistration, error)
 	SetHookOrder(name, namespace string, order int) (pluginmgr.HookRegistration, error)
 	SetHookRuntimePolicy(name, namespace string, timeoutMillis, retryLimit int, deadLetter bool) (pluginmgr.HookRegistration, error)
+	ExecuteHookDiagnostic(name, namespace string, failTimes int) (pluginmgr.HookExecutionResult, error)
+	ListHookDeadLetters() []pluginmgr.HookDeadLetterRecord
 }
 
 type RBACService interface {
@@ -280,6 +282,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/disable", setPluginHookEnabledHandler(services.Plugins, services.Audit, false))
 	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/order", setPluginHookOrderHandler(services.Plugins, services.Audit))
 	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/runtime", setPluginHookRuntimeHandler(services.Plugins, services.Audit))
+	handle("POST /admin/v1/plugins/hooks/{namespace}/{name}/execute-diagnostic", executePluginHookDiagnosticHandler(services.Plugins, services.Audit))
+	handle("GET /admin/v1/plugins/hooks/dead-letters", listPluginHookDeadLettersHandler(services.Plugins))
 	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
 	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
@@ -497,6 +501,10 @@ type setPluginHookRuntimeRequest struct {
 	TimeoutMillis int   `json:"timeout_millis"`
 	RetryLimit    int   `json:"retry_limit"`
 	DeadLetter    *bool `json:"dead_letter"`
+}
+
+type executePluginHookDiagnosticRequest struct {
+	FailTimes int `json:"fail_times"`
 }
 
 type migrationPlanRequest struct {
@@ -2839,6 +2847,43 @@ func setPluginHookRuntimeHandler(svc PluginService, auditSvc AuditService) http.
 		}
 		auditSvc.Append("plugin-governance", "hook_runtime", item.Namespace+":"+item.Name)
 		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func executePluginHookDiagnosticHandler(svc PluginService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		namespace, err := parsePathString(r, "namespace")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		name, err := parsePathString(r, "name")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req executePluginHookDiagnosticRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		result, err := svc.ExecuteHookDiagnostic(name, namespace, req.FailTimes)
+		if err != nil {
+			if err == pluginmgr.ErrHookNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("plugin-governance", "hook_execute_diagnostic", namespace+":"+name)
+		respondJSON(w, http.StatusOK, result)
+	}
+}
+
+func listPluginHookDeadLettersHandler(svc PluginService) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListHookDeadLetters()})
 	}
 }
 
