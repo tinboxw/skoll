@@ -154,6 +154,7 @@ go test -bench=. -benchmem ./...
 - E9-step2 production hardening plan: `docs/planning/E9_STEP2_PRODUCTION_HARDENING_PLAN.md`
 - E9-step3 benchmark regression governance policy: `docs/planning/E9_STEP3_BENCHMARK_REGRESSION_POLICY.md`
 - E10 auth and session parity plan: `docs/planning/E10_AUTH_AND_SESSION_PARITY_PLAN.md`
+- E11-step1 policy snapshot and rollback baseline: `docs/planning/E11_STEP1_POLICY_SNAPSHOT_AND_ROLLBACK_BASELINE.md`
 - Post-E9 full parity version plan: `docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - Code structure framework: `docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - Production deployment env template: `docs/planning/PRODUCTION_ENV_TEMPLATE.md`
@@ -276,6 +277,7 @@ go test -bench=. -benchmem ./...
 - E9-step2 production hardening plan record: `docs/milestones/E9-step2-production-hardening-plan.md`
 - E9-step3 benchmark regression governance policy record: `docs/milestones/E9-step3-benchmark-regression-policy.md`
 - E10 auth and session parity record: `docs/milestones/E10-auth-and-session-parity.md`
+- E11-step1 policy snapshot and rollback baseline record: `docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

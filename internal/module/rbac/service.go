@@ -1,19 +1,24 @@
 package rbac
 
 import (
+	"errors"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 )
 
+var ErrPolicySnapshotNotFound = errors.New("policy snapshot not found")
+
 type Service struct {
-	mu       sync.RWMutex
-	roleMenu map[int64][]int64
-	roleAPI  map[int64][]string
-	policies map[int64][]PolicyRule
-	data     map[int64]DataScope
-	route    map[int64]RoutePermissionContract
+	mu          sync.RWMutex
+	roleMenu    map[int64][]int64
+	roleAPI     map[int64][]string
+	policies    map[int64][]PolicyRule
+	snapshotSeq map[int64]int64
+	snapshots   map[int64][]PolicySnapshot
+	data        map[int64]DataScope
+	route       map[int64]RoutePermissionContract
 }
 
 type PolicyRule struct {
@@ -44,13 +49,21 @@ type RoutePermissionConsistency struct {
 	Problems []string
 }
 
+type PolicySnapshot struct {
+	RoleID  int64
+	Version string
+	Rules   []PolicyRule
+}
+
 func NewService() *Service {
 	return &Service{
-		roleMenu: make(map[int64][]int64),
-		roleAPI:  make(map[int64][]string),
-		policies: make(map[int64][]PolicyRule),
-		data:     make(map[int64]DataScope),
-		route:    make(map[int64]RoutePermissionContract),
+		roleMenu:    make(map[int64][]int64),
+		roleAPI:     make(map[int64][]string),
+		policies:    make(map[int64][]PolicyRule),
+		snapshotSeq: make(map[int64]int64),
+		snapshots:   make(map[int64][]PolicySnapshot),
+		data:        make(map[int64]DataScope),
+		route:       make(map[int64]RoutePermissionContract),
 	}
 }
 
@@ -97,6 +110,49 @@ func (s *Service) GetRolePolicies(roleID int64) []PolicyRule {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return clonePolicyRules(s.policies[roleID])
+}
+
+func (s *Service) CreateRolePolicySnapshot(roleID int64) PolicySnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rules := clonePolicyRules(s.policies[roleID])
+	next := s.snapshotSeq[roleID] + 1
+	s.snapshotSeq[roleID] = next
+	snapshot := PolicySnapshot{RoleID: roleID, Version: "v" + strconv.FormatInt(next, 10), Rules: rules}
+	s.snapshots[roleID] = append(s.snapshots[roleID], snapshot)
+	return clonePolicySnapshot(snapshot)
+}
+
+func (s *Service) ListRolePolicySnapshots(roleID int64) []PolicySnapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	raw := s.snapshots[roleID]
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]PolicySnapshot, len(raw))
+	for i := range raw {
+		out[i] = clonePolicySnapshot(raw[i])
+	}
+	return out
+}
+
+func (s *Service) RollbackRolePolicies(roleID int64, version string) ([]PolicyRule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	version = strings.ToLower(strings.TrimSpace(version))
+	for _, snapshot := range s.snapshots[roleID] {
+		if snapshot.Version != version {
+			continue
+		}
+		rules := clonePolicyRules(snapshot.Rules)
+		s.policies[roleID] = rules
+		return clonePolicyRules(rules), nil
+	}
+	return nil, ErrPolicySnapshotNotFound
 }
 
 func (s *Service) SetRoleDataScope(roleID int64, scope DataScope) DataScope {
@@ -246,6 +302,10 @@ func clonePolicyRules(raw []PolicyRule) []PolicyRule {
 	out := make([]PolicyRule, len(raw))
 	copy(out, raw)
 	return out
+}
+
+func clonePolicySnapshot(snapshot PolicySnapshot) PolicySnapshot {
+	return PolicySnapshot{RoleID: snapshot.RoleID, Version: snapshot.Version, Rules: clonePolicyRules(snapshot.Rules)}
 }
 
 func cloneDataScope(scope DataScope) DataScope {

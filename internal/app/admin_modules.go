@@ -144,6 +144,9 @@ type RBACService interface {
 	GetRoleAPIs(roleID int64) []string
 	SetRolePolicies(roleID int64, rules []rbac.PolicyRule) []rbac.PolicyRule
 	GetRolePolicies(roleID int64) []rbac.PolicyRule
+	CreateRolePolicySnapshot(roleID int64) rbac.PolicySnapshot
+	ListRolePolicySnapshots(roleID int64) []rbac.PolicySnapshot
+	RollbackRolePolicies(roleID int64, version string) ([]rbac.PolicyRule, error)
 	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
 	GetRoleDataScope(roleID int64) rbac.DataScope
 	SetRoleRoutePermissions(roleID int64, version string, items []rbac.RoutePermissionItem) rbac.RoutePermissionContract
@@ -210,6 +213,9 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/roles/{id}/apis", getRoleAPIsHandler(services.Roles, services.RBAC))
 	handle("PUT /admin/v1/roles/{id}/policies", setRolePoliciesHandler(services.Roles, services.RBAC, services.APIs))
 	handle("GET /admin/v1/roles/{id}/policies", getRolePoliciesHandler(services.Roles, services.RBAC))
+	handle("POST /admin/v1/roles/{id}/policies/snapshots", createRolePolicySnapshotHandler(services.Roles, services.RBAC, services.Audit))
+	handle("GET /admin/v1/roles/{id}/policies/snapshots", listRolePolicySnapshotsHandler(services.Roles, services.RBAC))
+	handle("POST /admin/v1/roles/{id}/policies/rollback", rollbackRolePoliciesHandler(services.Roles, services.RBAC, services.Audit))
 	handle("PUT /admin/v1/roles/{id}/data-scope", setRoleDataScopeHandler(services.Roles, services.RBAC))
 	handle("GET /admin/v1/roles/{id}/data-scope", getRoleDataScopeHandler(services.Roles, services.RBAC))
 	handle("PUT /admin/v1/roles/{id}/permission-contract", setRolePermissionContractHandler(services.Roles, services.RBAC, services.Menus))
@@ -484,6 +490,21 @@ type setRolePoliciesRequest struct {
 type rolePoliciesResponse struct {
 	RoleID int64                `json:"role_id"`
 	Rules  []rolePolicyRuleItem `json:"rules"`
+}
+
+type rolePolicySnapshotResponse struct {
+	RoleID  int64                `json:"role_id"`
+	Version string               `json:"version"`
+	Rules   []rolePolicyRuleItem `json:"rules"`
+}
+
+type rolePolicySnapshotListResponse struct {
+	RoleID    int64                        `json:"role_id"`
+	Snapshots []rolePolicySnapshotResponse `json:"snapshots"`
+}
+
+type rollbackRolePoliciesRequest struct {
+	SnapshotVersion string `json:"snapshot_version"`
 }
 
 type setRoleDataScopeRequest struct {
@@ -1267,6 +1288,98 @@ func getRolePoliciesHandler(roleSvc RoleService, rbacSvc RBACService) http.Handl
 
 		out := rbacSvc.GetRolePolicies(roleID)
 		respondJSON(w, http.StatusOK, rolePoliciesResponse{RoleID: roleID, Rules: toRolePolicyRuleItems(out)})
+	}
+}
+
+func createRolePolicySnapshotHandler(roleSvc RoleService, rbacSvc RBACService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		snapshot := rbacSvc.CreateRolePolicySnapshot(roleID)
+		auditSvc.Append("rbac", "policy_snapshot_create", fmt.Sprintf("role:%d@%s", roleID, snapshot.Version))
+		respondJSON(w, http.StatusCreated, rolePolicySnapshotResponse{RoleID: snapshot.RoleID, Version: snapshot.Version, Rules: toRolePolicyRuleItems(snapshot.Rules)})
+	}
+}
+
+func listRolePolicySnapshotsHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		raw := rbacSvc.ListRolePolicySnapshots(roleID)
+		snapshots := make([]rolePolicySnapshotResponse, 0, len(raw))
+		for _, item := range raw {
+			snapshots = append(snapshots, rolePolicySnapshotResponse{RoleID: item.RoleID, Version: item.Version, Rules: toRolePolicyRuleItems(item.Rules)})
+		}
+		respondJSON(w, http.StatusOK, rolePolicySnapshotListResponse{RoleID: roleID, Snapshots: snapshots})
+	}
+}
+
+func rollbackRolePoliciesHandler(roleSvc RoleService, rbacSvc RBACService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req rollbackRolePoliciesRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		version := strings.ToLower(strings.TrimSpace(req.SnapshotVersion))
+		if version == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "snapshot_version is required"})
+			return
+		}
+
+		rules, err := rbacSvc.RollbackRolePolicies(roleID, version)
+		if err != nil {
+			if err == rbac.ErrPolicySnapshotNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		auditSvc.Append("rbac", "policy_snapshot_rollback", fmt.Sprintf("role:%d@%s", roleID, version))
+		respondJSON(w, http.StatusOK, rolePoliciesResponse{RoleID: roleID, Rules: toRolePolicyRuleItems(rules)})
 	}
 }
 

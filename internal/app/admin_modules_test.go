@@ -549,6 +549,70 @@ func TestRoleBindingRoutes_MenuAndAPI(t *testing.T) {
 	}
 }
 
+func TestRolePolicySnapshotAndRollbackRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createRoleReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles", strings.NewReader(`{"name":"ops","permissions":["user.read"]}`))
+	createRoleReq.Header.Set("Content-Type", "application/json")
+	createRoleRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRoleRR, createRoleReq)
+	if createRoleRR.Code != http.StatusCreated {
+		t.Fatalf("expected role create status 201, got %d", createRoleRR.Code)
+	}
+
+	setV1Req := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/policies", strings.NewReader(`{"rules":[{"api":"GET:/admin/v1/users","effect":"allow"}]}`))
+	setV1Req.Header.Set("Content-Type", "application/json")
+	setV1RR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setV1RR, setV1Req)
+	if setV1RR.Code != http.StatusOK {
+		t.Fatalf("expected set policies v1 status 200, got %d body=%s", setV1RR.Code, setV1RR.Body.String())
+	}
+
+	snapV1Req := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/snapshots", nil)
+	snapV1RR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(snapV1RR, snapV1Req)
+	if snapV1RR.Code != http.StatusCreated || !strings.Contains(snapV1RR.Body.String(), `"version":"v1"`) {
+		t.Fatalf("expected snapshot v1 created, got code=%d body=%s", snapV1RR.Code, snapV1RR.Body.String())
+	}
+
+	setV2Req := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/policies", strings.NewReader(`{"rules":[{"api":"POST:/admin/v1/users","effect":"deny"}]}`))
+	setV2Req.Header.Set("Content-Type", "application/json")
+	setV2RR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setV2RR, setV2Req)
+	if setV2RR.Code != http.StatusOK {
+		t.Fatalf("expected set policies v2 status 200, got %d body=%s", setV2RR.Code, setV2RR.Body.String())
+	}
+
+	snapV2Req := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/snapshots", nil)
+	snapV2RR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(snapV2RR, snapV2Req)
+	if snapV2RR.Code != http.StatusCreated || !strings.Contains(snapV2RR.Body.String(), `"version":"v2"`) {
+		t.Fatalf("expected snapshot v2 created, got code=%d body=%s", snapV2RR.Code, snapV2RR.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1/policies/snapshots", nil)
+	listRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRR, listReq)
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected list snapshots status 200, got %d", listRR.Code)
+	}
+	if !strings.Contains(listRR.Body.String(), `"version":"v1"`) || !strings.Contains(listRR.Body.String(), `"version":"v2"`) {
+		t.Fatalf("expected snapshot versions in list, got %s", listRR.Body.String())
+	}
+
+	rollbackReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/rollback", strings.NewReader(`{"snapshot_version":"v1"}`))
+	rollbackReq.Header.Set("Content-Type", "application/json")
+	rollbackRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(rollbackRR, rollbackReq)
+	if rollbackRR.Code != http.StatusOK {
+		t.Fatalf("expected rollback status 200, got %d body=%s", rollbackRR.Code, rollbackRR.Body.String())
+	}
+	if !strings.Contains(rollbackRR.Body.String(), `"api":"GET:/admin/v1/users"`) {
+		t.Fatalf("expected rollback to restore v1 policy, got %s", rollbackRR.Body.String())
+	}
+}
+
 func TestConfigAndDictionaryRoutes(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)

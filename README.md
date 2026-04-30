@@ -154,6 +154,7 @@ go test -bench=. -benchmem ./...
 - E9-step2 生产加固方案：`docs/planning/E9_STEP2_PRODUCTION_HARDENING_PLAN.md`
 - E9-step3 基准回归治理策略：`docs/planning/E9_STEP3_BENCHMARK_REGRESSION_POLICY.md`
 - E10 鉴权与会话对等能力计划：`docs/planning/E10_AUTH_AND_SESSION_PARITY_PLAN.md`
+- E11-step1 策略快照与回滚基线：`docs/planning/E11_STEP1_POLICY_SNAPSHOT_AND_ROLLBACK_BASELINE.md`
 - E9 后完整对等版本路线：`docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - 代码结构框架：`docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
@@ -276,6 +277,7 @@ go test -bench=. -benchmem ./...
 - E9-step2 生产加固方案记录：`docs/milestones/E9-step2-production-hardening-plan.md`
 - E9-step3 基准回归治理策略记录：`docs/milestones/E9-step3-benchmark-regression-policy.md`
 - E10 鉴权与会话对等能力记录：`docs/milestones/E10-auth-and-session-parity.md`
+- E11-step1 策略快照与回滚基线记录：`docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献

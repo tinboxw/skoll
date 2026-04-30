@@ -59,6 +59,51 @@ func TestServiceRolePolicies(t *testing.T) {
 	}
 }
 
+func TestServicePolicySnapshotsAndRollback(t *testing.T) {
+	svc := NewService()
+	roleID := int64(7)
+
+	first := svc.SetRolePolicies(roleID, []PolicyRule{{API: "GET:/admin/v1/users", Effect: "allow"}})
+	s1 := svc.CreateRolePolicySnapshot(roleID)
+	if s1.Version != "v1" {
+		t.Fatalf("expected first snapshot version v1, got %s", s1.Version)
+	}
+	if !reflect.DeepEqual(s1.Rules, first) {
+		t.Fatalf("expected snapshot rules to match first policy set, got %+v", s1.Rules)
+	}
+
+	second := svc.SetRolePolicies(roleID, []PolicyRule{{API: "POST:/admin/v1/users", Effect: "deny"}})
+	s2 := svc.CreateRolePolicySnapshot(roleID)
+	if s2.Version != "v2" {
+		t.Fatalf("expected second snapshot version v2, got %s", s2.Version)
+	}
+
+	all := svc.ListRolePolicySnapshots(roleID)
+	if len(all) != 2 {
+		t.Fatalf("expected two snapshots, got %d", len(all))
+	}
+
+	rolled, err := svc.RollbackRolePolicies(roleID, "v1")
+	if err != nil {
+		t.Fatalf("rollback failed: %v", err)
+	}
+	if !reflect.DeepEqual(rolled, first) {
+		t.Fatalf("expected rollback to restore first policy set, got %+v", rolled)
+	}
+
+	current := svc.GetRolePolicies(roleID)
+	if !reflect.DeepEqual(current, first) {
+		t.Fatalf("expected current role policies to match rolled snapshot, got %+v", current)
+	}
+	if reflect.DeepEqual(current, second) {
+		t.Fatalf("expected rollback to differ from second policy set")
+	}
+
+	if _, err := svc.RollbackRolePolicies(roleID, "v99"); err != ErrPolicySnapshotNotFound {
+		t.Fatalf("expected ErrPolicySnapshotNotFound, got %v", err)
+	}
+}
+
 func TestServiceRoleDataScope(t *testing.T) {
 	svc := NewService()
 	scope := svc.SetRoleDataScope(4, DataScope{TenantIDs: []string{"tenant-b", "tenant-a", "tenant-a", ""}, RequireOwnerMatch: true})
