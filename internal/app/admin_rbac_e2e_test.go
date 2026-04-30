@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	admincontracts "github.com/tinboxw/skoll/internal/app/admin/contracts"
+	adminsecurity "github.com/tinboxw/skoll/internal/app/admin/security"
 	"github.com/tinboxw/skoll/internal/integration/adminauth"
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/audit"
@@ -17,6 +19,7 @@ import (
 	"github.com/tinboxw/skoll/internal/module/modgenerator"
 	"github.com/tinboxw/skoll/internal/module/pluginmgr"
 	"github.com/tinboxw/skoll/internal/module/rbac"
+	"github.com/tinboxw/skoll/internal/module/releasegov"
 	"github.com/tinboxw/skoll/internal/module/role"
 	"github.com/tinboxw/skoll/internal/module/user"
 )
@@ -48,9 +51,9 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 
 	srv := New(":0", "test-version")
 	wrapper := func(next http.Handler) http.Handler {
-		return adminauth.WithVerifier(WithRoleAPIAuthorizer(next, roleSvc, rbacSvc), verifier)
+		return adminauth.WithVerifier(adminsecurity.WithRoleAPIAuthorizer(next, roleSvc, rbacSvc), verifier)
 	}
-	srv.MountAdminModuleRoutes(AdminModuleServices{
+	srv.MountAdminModuleRoutes(admincontracts.AdminModuleServices{
 		Users:        userSvc,
 		Roles:        roleSvc,
 		Menus:        menuSvc,
@@ -63,6 +66,7 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 		Plugins:      pluginSvc,
 		RBAC:         rbacSvc,
 		APIs:         apiSvc,
+		Releases:     releasegov.NewService(),
 	}, wrapper)
 
 	rbacSvc.SetRoleAPIs(adminRole.ID, []string{"GET:/admin/v1/users", "GET:/admin/v1/users/{id}"})
@@ -86,12 +90,12 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 
 	allowedReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	allowedReq.Header.Set(adminauth.HeaderToken, "secret")
-	allowedReq.Header.Set(HeaderAdminRoleID, "1")
-	allowedReq.Header.Set(HeaderAdminJWTVerified, "true")
-	allowedReq.Header.Set(HeaderAdminJWTClaimsVersion, "v2")
-	allowedReq.Header.Set(HeaderAdminJWTSubject, "alice")
-	allowedReq.Header.Set(HeaderAdminDataTenantID, "tenant-a")
-	allowedReq.Header.Set(HeaderAdminResourceOwner, "alice")
+	allowedReq.Header.Set(adminsecurity.HeaderAdminRoleID, "1")
+	allowedReq.Header.Set(adminsecurity.HeaderAdminJWTVerified, "true")
+	allowedReq.Header.Set(adminsecurity.HeaderAdminJWTClaimsVersion, "v2")
+	allowedReq.Header.Set(adminsecurity.HeaderAdminJWTSubject, "alice")
+	allowedReq.Header.Set(adminsecurity.HeaderAdminDataTenantID, "tenant-a")
+	allowedReq.Header.Set(adminsecurity.HeaderAdminResourceOwner, "alice")
 	allowedRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(allowedRR, allowedReq)
 	if allowedRR.Code != http.StatusOK {
@@ -103,10 +107,10 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 
 	allowedGetReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users/1", nil)
 	allowedGetReq.Header.Set(adminauth.HeaderToken, "secret")
-	allowedGetReq.Header.Set(HeaderAdminRoleID, "1")
-	allowedGetReq.Header.Set(HeaderAdminJWTSubject, "alice")
-	allowedGetReq.Header.Set(HeaderAdminDataTenantID, "tenant-a")
-	allowedGetReq.Header.Set(HeaderAdminResourceOwner, "alice")
+	allowedGetReq.Header.Set(adminsecurity.HeaderAdminRoleID, "1")
+	allowedGetReq.Header.Set(adminsecurity.HeaderAdminJWTSubject, "alice")
+	allowedGetReq.Header.Set(adminsecurity.HeaderAdminDataTenantID, "tenant-a")
+	allowedGetReq.Header.Set(adminsecurity.HeaderAdminResourceOwner, "alice")
 	allowedGetRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(allowedGetRR, allowedGetReq)
 	if allowedGetRR.Code != http.StatusOK {
@@ -115,11 +119,11 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 
 	policyDeniedReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	policyDeniedReq.Header.Set(adminauth.HeaderToken, "secret")
-	policyDeniedReq.Header.Set(HeaderAdminRoleID, "1")
-	policyDeniedReq.Header.Set(HeaderAdminJWTClaimsVersion, "v2")
-	policyDeniedReq.Header.Set(HeaderAdminJWTSubject, "alice")
-	policyDeniedReq.Header.Set(HeaderAdminDataTenantID, "tenant-a")
-	policyDeniedReq.Header.Set(HeaderAdminResourceOwner, "alice")
+	policyDeniedReq.Header.Set(adminsecurity.HeaderAdminRoleID, "1")
+	policyDeniedReq.Header.Set(adminsecurity.HeaderAdminJWTClaimsVersion, "v2")
+	policyDeniedReq.Header.Set(adminsecurity.HeaderAdminJWTSubject, "alice")
+	policyDeniedReq.Header.Set(adminsecurity.HeaderAdminDataTenantID, "tenant-a")
+	policyDeniedReq.Header.Set(adminsecurity.HeaderAdminResourceOwner, "alice")
 	policyDeniedRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(policyDeniedRR, policyDeniedReq)
 	if policyDeniedRR.Code != http.StatusForbidden {
@@ -128,12 +132,12 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 
 	tenantDeniedReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	tenantDeniedReq.Header.Set(adminauth.HeaderToken, "secret")
-	tenantDeniedReq.Header.Set(HeaderAdminRoleID, "1")
-	tenantDeniedReq.Header.Set(HeaderAdminJWTVerified, "true")
-	tenantDeniedReq.Header.Set(HeaderAdminJWTClaimsVersion, "v2")
-	tenantDeniedReq.Header.Set(HeaderAdminJWTSubject, "alice")
-	tenantDeniedReq.Header.Set(HeaderAdminDataTenantID, "tenant-z")
-	tenantDeniedReq.Header.Set(HeaderAdminResourceOwner, "alice")
+	tenantDeniedReq.Header.Set(adminsecurity.HeaderAdminRoleID, "1")
+	tenantDeniedReq.Header.Set(adminsecurity.HeaderAdminJWTVerified, "true")
+	tenantDeniedReq.Header.Set(adminsecurity.HeaderAdminJWTClaimsVersion, "v2")
+	tenantDeniedReq.Header.Set(adminsecurity.HeaderAdminJWTSubject, "alice")
+	tenantDeniedReq.Header.Set(adminsecurity.HeaderAdminDataTenantID, "tenant-z")
+	tenantDeniedReq.Header.Set(adminsecurity.HeaderAdminResourceOwner, "alice")
 	tenantDeniedRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(tenantDeniedRR, tenantDeniedReq)
 	if tenantDeniedRR.Code != http.StatusForbidden {
@@ -143,7 +147,7 @@ func TestRBACE2ESmoke_IdentityRoleAndAPIAuthorization(t *testing.T) {
 	forbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users", strings.NewReader(`{"name":"bob","email":"bob@example.com"}`))
 	forbiddenReq.Header.Set("Content-Type", "application/json")
 	forbiddenReq.Header.Set(adminauth.HeaderToken, "secret")
-	forbiddenReq.Header.Set(HeaderAdminRoleID, "1")
+	forbiddenReq.Header.Set(adminsecurity.HeaderAdminRoleID, "1")
 	forbiddenRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(forbiddenRR, forbiddenReq)
 	if forbiddenRR.Code != http.StatusForbidden {
@@ -178,9 +182,9 @@ func TestRBACE2ESmoke_RoleAuthorizationViaJWTBridgeRoleID(t *testing.T) {
 
 	srv := New(":0", "test-version")
 	wrapper := func(next http.Handler) http.Handler {
-		return adminauth.WithVerifier(WithRoleAPIAuthorizer(next, roleSvc, rbacSvc), verifier)
+		return adminauth.WithVerifier(adminsecurity.WithRoleAPIAuthorizer(next, roleSvc, rbacSvc), verifier)
 	}
-	srv.MountAdminModuleRoutes(AdminModuleServices{
+	srv.MountAdminModuleRoutes(admincontracts.AdminModuleServices{
 		Users:        userSvc,
 		Roles:        roleSvc,
 		Menus:        menuSvc,
@@ -193,13 +197,14 @@ func TestRBACE2ESmoke_RoleAuthorizationViaJWTBridgeRoleID(t *testing.T) {
 		Plugins:      pluginSvc,
 		RBAC:         rbacSvc,
 		APIs:         apiSvc,
+		Releases:     releasegov.NewService(),
 	}, wrapper)
 
 	rbacSvc.SetRoleAPIs(adminRole.ID, []string{"GET:/admin/v1/users"})
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	req.Header.Set(adminauth.HeaderToken, "secret")
-	req.Header.Set(HeaderAdminJWTRoleID, "001")
+	req.Header.Set(adminsecurity.HeaderAdminJWTRoleID, "001")
 	rr := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(rr, req)
 	if rr.Code != http.StatusOK {

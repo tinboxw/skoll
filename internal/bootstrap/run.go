@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/tinboxw/skoll/internal/app"
+	admincontracts "github.com/tinboxw/skoll/internal/app/admin/contracts"
+	adminsecurity "github.com/tinboxw/skoll/internal/app/admin/security"
 	"github.com/tinboxw/skoll/internal/integration/adminauth"
 	"github.com/tinboxw/skoll/internal/integration/goadmin"
 	"github.com/tinboxw/skoll/internal/module/storageadapter"
@@ -101,11 +103,11 @@ func Run() error {
 	var adminWrapper func(http.Handler) http.Handler
 	if adminAuthEnabled {
 		adminWrapper = func(next http.Handler) http.Handler {
-			return adminauth.WithVerifier(app.WithRoleAPIAuthorizer(next, storage.Roles(), storage.RBAC()), adminVerifier)
+			return adminauth.WithVerifier(adminsecurity.WithRoleAPIAuthorizer(next, storage.Roles(), storage.RBAC()), adminVerifier)
 		}
 	}
 
-	srv.MountAdminModuleRoutes(app.AdminModuleServices{
+	srv.MountAdminModuleRoutes(admincontracts.AdminModuleServices{
 		Users:        storage.Users(),
 		Roles:        storage.Roles(),
 		Menus:        storage.Menus(),

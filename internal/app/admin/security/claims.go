@@ -1,4 +1,4 @@
-package app
+package security
 
 import (
 	"net/http"
@@ -13,9 +13,10 @@ const (
 	HeaderAdminJWTRoleID        = "X-Admin-JWT-Role-ID"
 	HeaderAdminJWTSource        = "X-Admin-JWT-Source"
 	HeaderAdminJWTSourceChain   = "X-Admin-JWT-Source-Provenance"
+	HeaderAdminRoleID           = "X-Admin-Role-ID"
 )
 
-type adminVerifiedClaims struct {
+type VerifiedClaims struct {
 	Present             bool
 	Verified            bool
 	Subject             string
@@ -29,20 +30,20 @@ type adminVerifiedClaims struct {
 	ClaimsVersionSource string
 }
 
-func resolveAdminVerifiedClaims(r *http.Request) adminVerifiedClaims {
+func ResolveVerifiedClaims(r *http.Request) VerifiedClaims {
 	if r == nil {
-		return adminVerifiedClaims{Source: "none"}
+		return VerifiedClaims{Source: "none"}
 	}
 
 	verifiedRaw := strings.TrimSpace(r.Header.Get(HeaderAdminJWTVerified))
-	verified := normalizeAdminJWTVerified(verifiedRaw)
-	subject := normalizeAdminJWTSubject(strings.TrimSpace(r.Header.Get(HeaderAdminJWTSubject)))
+	verified := normalizeVerified(verifiedRaw)
+	subject := normalizeSubject(strings.TrimSpace(r.Header.Get(HeaderAdminJWTSubject)))
 	jwtRoleID := strings.TrimSpace(r.Header.Get(HeaderAdminJWTRoleID))
 	legacyRoleID := strings.TrimSpace(r.Header.Get(HeaderAdminRoleID))
 	claimsVersionRaw := strings.TrimSpace(r.Header.Get(HeaderAdminJWTClaimsVersion))
-	claimsVersion := normalizeAdminJWTClaimsVersion(claimsVersionRaw)
+	claimsVersion := normalizeClaimsVersion(claimsVersionRaw)
 
-	roleID, roleSource := normalizeAdminJWTRoleID(jwtRoleID, legacyRoleID)
+	roleID, roleSource := normalizeRoleID(jwtRoleID, legacyRoleID)
 
 	subjectSource := ""
 	if subject != "" {
@@ -62,13 +63,13 @@ func resolveAdminVerifiedClaims(r *http.Request) adminVerifiedClaims {
 	if present {
 		source = "header"
 	}
-	sourceHint := normalizeAdminJWTSource(strings.TrimSpace(r.Header.Get(HeaderAdminJWTSource)))
+	sourceHint := normalizeSource(strings.TrimSpace(r.Header.Get(HeaderAdminJWTSource)))
 	if sourceHint != "" {
 		source = sourceHint
 	}
-	sourceProvenance := normalizeAdminJWTSourceProvenance(strings.TrimSpace(r.Header.Get(HeaderAdminJWTSourceChain)), source)
+	sourceProvenance := normalizeSourceProvenance(strings.TrimSpace(r.Header.Get(HeaderAdminJWTSourceChain)), source)
 
-	return adminVerifiedClaims{
+	return VerifiedClaims{
 		Present:             present,
 		Verified:            verified,
 		Subject:             subject,
@@ -83,7 +84,7 @@ func resolveAdminVerifiedClaims(r *http.Request) adminVerifiedClaims {
 	}
 }
 
-func normalizeAdminJWTRoleID(jwtRoleID, legacyRoleID string) (string, string) {
+func normalizeRoleID(jwtRoleID, legacyRoleID string) (string, string) {
 	if normalized, ok := normalizePositiveIntString(jwtRoleID); ok {
 		return normalized, strings.ToLower(HeaderAdminJWTRoleID)
 	}
@@ -93,15 +94,15 @@ func normalizeAdminJWTRoleID(jwtRoleID, legacyRoleID string) (string, string) {
 	return "", ""
 }
 
-func normalizeAdminJWTSubject(subject string) string {
+func normalizeSubject(subject string) string {
 	return strings.TrimSpace(subject)
 }
 
-func normalizeAdminJWTClaimsVersion(version string) string {
+func normalizeClaimsVersion(version string) string {
 	return strings.ToLower(strings.TrimSpace(version))
 }
 
-func normalizeAdminJWTSource(raw string) string {
+func normalizeSource(raw string) string {
 	value := strings.ToLower(strings.TrimSpace(raw))
 	if value == "" {
 		return ""
@@ -109,12 +110,12 @@ func normalizeAdminJWTSource(raw string) string {
 	return value
 }
 
-func normalizeAdminJWTSourceProvenance(raw, fallback string) []string {
+func normalizeSourceProvenance(raw, fallback string) []string {
 	parts := strings.Split(raw, ",")
 	seen := make(map[string]struct{})
 	out := make([]string, 0, len(parts)+1)
 	for _, part := range parts {
-		value := normalizeAdminJWTSource(part)
+		value := normalizeSource(part)
 		if value == "" {
 			continue
 		}
@@ -133,7 +134,7 @@ func normalizeAdminJWTSourceProvenance(raw, fallback string) []string {
 	return out
 }
 
-func normalizeAdminJWTVerified(raw string) bool {
+func normalizeVerified(raw string) bool {
 	value := strings.ToLower(strings.TrimSpace(raw))
 	switch value {
 	case "1", "true", "yes", "y", "on":
@@ -144,11 +145,11 @@ func normalizeAdminJWTVerified(raw string) bool {
 }
 
 func normalizePositiveIntString(raw string) (string, bool) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
 		return "", false
 	}
-	parsed, err := strconv.ParseInt(value, 10, 64)
+	parsed, err := strconv.ParseInt(trimmed, 10, 64)
 	if err != nil || parsed <= 0 {
 		return "", false
 	}

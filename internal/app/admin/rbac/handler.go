@@ -1,4 +1,4 @@
-package app
+package rbac
 
 import (
 	"encoding/json"
@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
+	"github.com/tinboxw/skoll/internal/module/audit"
+	"github.com/tinboxw/skoll/internal/module/menu"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 	"github.com/tinboxw/skoll/internal/module/role"
 )
@@ -819,4 +821,257 @@ func toRolePermissionDiffResponse(roleID int64, diff rbac.PermissionDiff) rolePe
 		DataScopeChanged: diff.DataScopeChanged,
 		RouteChanged:     diff.RouteChanged,
 	}
+}
+
+type RoleService interface {
+	Create(name string, permissions []string) role.Role
+	Get(id int64) (role.Role, error)
+	List() []role.Role
+}
+
+type MenuService interface {
+	Get(id int64) (menu.Item, error)
+}
+
+type AuditService interface {
+	Append(actor, action, target string) audit.Record
+}
+
+type RBACService interface {
+	SetRoleMenus(roleID int64, menuIDs []int64) []int64
+	GetRoleMenus(roleID int64) []int64
+	SetRoleAPIs(roleID int64, apis []string) []string
+	GetRoleAPIs(roleID int64) []string
+	SetRolePolicies(roleID int64, rules []rbac.PolicyRule) []rbac.PolicyRule
+	GetRolePolicies(roleID int64) []rbac.PolicyRule
+	CreateRolePolicySnapshot(roleID int64) rbac.PolicySnapshot
+	ListRolePolicySnapshots(roleID int64) []rbac.PolicySnapshot
+	RollbackRolePolicies(roleID int64, version string) ([]rbac.PolicyRule, error)
+	PermissionBundle(roleID int64) rbac.PermissionBundle
+	SetRoleDataScope(roleID int64, scope rbac.DataScope) rbac.DataScope
+	GetRoleDataScope(roleID int64) rbac.DataScope
+	SetRoleRoutePermissions(roleID int64, version string, items []rbac.RoutePermissionItem) rbac.RoutePermissionContract
+	GetRoleRoutePermissions(roleID int64) rbac.RoutePermissionContract
+	CheckRoleRoutePermissionConsistency(roleID int64) rbac.RoutePermissionConsistency
+}
+
+type APIRegistryService interface {
+	Exists(entry string) bool
+}
+
+type APIRegistry interface {
+	RegisterMany(entries []string)
+}
+
+type Handler struct {
+	roles RoleService
+	menus MenuService
+	rbac  RBACService
+	apis  APIRegistryService
+	audit AuditService
+}
+
+func NewHandler(roles RoleService, menus MenuService, rbacSvc RBACService, apiSvc APIRegistryService, auditSvc AuditService) *Handler {
+	return &Handler{roles: roles, menus: menus, rbac: rbacSvc, apis: apiSvc, audit: auditSvc}
+}
+
+func (h *Handler) Register(mux *http.ServeMux, wrapper func(http.Handler) http.Handler, registry APIRegistry) {
+	if mux == nil || h == nil || h.roles == nil || h.menus == nil || h.rbac == nil || h.apis == nil {
+		return
+	}
+	handle := func(pattern string, next http.HandlerFunc) {
+		if registry != nil {
+			registry.RegisterMany([]string{pattern})
+		}
+		hd := http.Handler(next)
+		if wrapper != nil {
+			hd = wrapper(hd)
+		}
+		mux.Handle(pattern, hd)
+	}
+
+	handle("POST /admin/v1/roles", createRoleHandler(h.roles))
+	handle("GET /admin/v1/roles", listRolesHandler(h.roles))
+	handle("GET /admin/v1/roles/{id}", getRoleHandler(h.roles))
+	handle("PUT /admin/v1/roles/{id}/menus", setRoleMenusHandler(h.roles, h.menus, h.rbac))
+	handle("GET /admin/v1/roles/{id}/menus", getRoleMenusHandler(h.roles, h.rbac))
+	handle("PUT /admin/v1/roles/{id}/apis", setRoleAPIsHandler(h.roles, h.rbac, h.apis))
+	handle("GET /admin/v1/roles/{id}/apis", getRoleAPIsHandler(h.roles, h.rbac))
+	handle("PUT /admin/v1/roles/{id}/policies", setRolePoliciesHandler(h.roles, h.rbac, h.apis))
+	handle("GET /admin/v1/roles/{id}/policies", getRolePoliciesHandler(h.roles, h.rbac))
+	handle("POST /admin/v1/roles/{id}/policies/snapshots", createRolePolicySnapshotHandler(h.roles, h.rbac, h.audit))
+	handle("GET /admin/v1/roles/{id}/policies/snapshots", listRolePolicySnapshotsHandler(h.roles, h.rbac))
+	handle("POST /admin/v1/roles/{id}/permissions/diff", diffRolePermissionsHandler(h.roles, h.rbac))
+	handle("POST /admin/v1/roles/{id}/permissions/check", checkRolePermissionsHandler(h.roles, h.rbac))
+	handle("GET /admin/v1/roles/{id}/policies/persistence/export", exportRolePolicyPersistenceHandler(h.roles, h.rbac))
+	handle("POST /admin/v1/roles/{id}/policies/persistence/import", importRolePolicyPersistenceHandler(h.roles, h.menus, h.rbac, h.apis, h.audit))
+	handle("POST /admin/v1/roles/{id}/policies/rollback", rollbackRolePoliciesHandler(h.roles, h.rbac, h.audit))
+	handle("PUT /admin/v1/roles/{id}/data-scope", setRoleDataScopeHandler(h.roles, h.rbac))
+	handle("GET /admin/v1/roles/{id}/data-scope", getRoleDataScopeHandler(h.roles, h.rbac))
+	handle("PUT /admin/v1/roles/{id}/permission-contract", setRolePermissionContractHandler(h.roles, h.rbac, h.menus))
+	handle("GET /admin/v1/roles/{id}/permission-contract", getRolePermissionContractHandler(h.roles, h.rbac))
+	handle("POST /admin/v1/roles/{id}/permission-contract/consistency-check", checkRolePermissionContractConsistencyHandler(h.roles, h.rbac))
+}
+
+func parsePathInt64(r *http.Request, key string) (int64, error) {
+	raw := strings.TrimSpace(r.PathValue(key))
+	if raw == "" {
+		return 0, fmt.Errorf("%s is required", key)
+	}
+	var id int64
+	for _, ch := range raw {
+		if ch < '0' || ch > '9' {
+			return 0, fmt.Errorf("%s must be a positive integer", key)
+		}
+		id = id*10 + int64(ch-'0')
+	}
+	if id <= 0 {
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+	return id, nil
+}
+
+func respondJSON(w http.ResponseWriter, status int, payload any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+type createRoleRequest struct {
+	Name        string   `json:"name"`
+	Permissions []string `json:"permissions"`
+}
+
+type setRoleMenusRequest struct {
+	MenuIDs []int64 `json:"menu_ids"`
+}
+
+type roleMenusResponse struct {
+	RoleID  int64   `json:"role_id"`
+	MenuIDs []int64 `json:"menu_ids"`
+}
+
+type setRoleAPIsRequest struct {
+	APIs []string `json:"apis"`
+}
+
+type roleAPIsResponse struct {
+	RoleID int64    `json:"role_id"`
+	APIs   []string `json:"apis"`
+}
+
+type rolePolicyRuleItem struct {
+	API                  string `json:"api"`
+	Effect               string `json:"effect"`
+	RequireVerified      bool   `json:"require_verified"`
+	RequireClaimsVersion string `json:"require_claims_version,omitempty"`
+}
+
+type setRolePoliciesRequest struct {
+	Rules []rolePolicyRuleItem `json:"rules"`
+}
+
+type rolePoliciesResponse struct {
+	RoleID int64                `json:"role_id"`
+	Rules  []rolePolicyRuleItem `json:"rules"`
+}
+
+type rolePolicySnapshotResponse struct {
+	RoleID  int64                `json:"role_id"`
+	Version string               `json:"version"`
+	Rules   []rolePolicyRuleItem `json:"rules"`
+}
+
+type rolePolicySnapshotListResponse struct {
+	RoleID    int64                        `json:"role_id"`
+	Snapshots []rolePolicySnapshotResponse `json:"snapshots"`
+}
+
+type rollbackRolePoliciesRequest struct {
+	SnapshotVersion string `json:"snapshot_version"`
+	Approver        string `json:"approver"`
+}
+
+type setRoleDataScopeRequest struct {
+	TenantIDs             []string `json:"tenant_ids"`
+	RequireOwnerMatch     bool     `json:"require_owner_match"`
+	CrossTenantAdminAllow []string `json:"cross_tenant_admin_allow"`
+}
+
+type roleDataScopeResponse struct {
+	RoleID                int64    `json:"role_id"`
+	TenantIDs             []string `json:"tenant_ids"`
+	RequireOwnerMatch     bool     `json:"require_owner_match"`
+	CrossTenantAdminAllow []string `json:"cross_tenant_admin_allow"`
+}
+
+type rolePermissionContractItem struct {
+	MenuID  int64    `json:"menu_id"`
+	Route   string   `json:"route"`
+	Buttons []string `json:"buttons"`
+}
+
+type setRolePermissionContractRequest struct {
+	Version string                       `json:"version"`
+	Items   []rolePermissionContractItem `json:"items"`
+}
+
+type rolePermissionContractResponse struct {
+	RoleID  int64                        `json:"role_id"`
+	Version string                       `json:"version"`
+	Items   []rolePermissionContractItem `json:"items"`
+}
+
+type rolePermissionContractConsistencyResponse struct {
+	RoleID   int64    `json:"role_id"`
+	Passed   bool     `json:"passed"`
+	Problems []string `json:"problems,omitempty"`
+}
+
+type rolePermissionDiffRequest struct {
+	MenuIDs            []int64                          `json:"menu_ids"`
+	APIs               []string                         `json:"apis"`
+	Rules              []rolePolicyRuleItem             `json:"rules"`
+	DataScope          setRoleDataScopeRequest          `json:"data_scope"`
+	PermissionContract setRolePermissionContractRequest `json:"permission_contract"`
+}
+
+type rolePermissionDiffResponse struct {
+	RoleID           int64                `json:"role_id"`
+	AddedMenus       []int64              `json:"added_menus"`
+	RemovedMenus     []int64              `json:"removed_menus"`
+	AddedAPIs        []string             `json:"added_apis"`
+	RemovedAPIs      []string             `json:"removed_apis"`
+	AddedRules       []rolePolicyRuleItem `json:"added_rules"`
+	RemovedRules     []rolePolicyRuleItem `json:"removed_rules"`
+	DataScopeChanged bool                 `json:"data_scope_changed"`
+	RouteChanged     bool                 `json:"route_changed"`
+}
+
+type rolePermissionCheckResponse struct {
+	RoleID   int64                      `json:"role_id"`
+	Pass     bool                       `json:"pass"`
+	Blocking bool                       `json:"blocking"`
+	Reasons  []string                   `json:"reasons"`
+	Diff     rolePermissionDiffResponse `json:"diff"`
+}
+
+type rolePolicyPersistenceBundle struct {
+	MenuIDs            []int64                          `json:"menu_ids"`
+	APIs               []string                         `json:"apis"`
+	Rules              []rolePolicyRuleItem             `json:"rules"`
+	DataScope          setRoleDataScopeRequest          `json:"data_scope"`
+	PermissionContract setRolePermissionContractRequest `json:"permission_contract"`
+	Snapshots          []rolePolicySnapshotResponse     `json:"snapshots,omitempty"`
+}
+
+type rolePolicyPersistenceResponse struct {
+	RoleID         int64                       `json:"role_id"`
+	ExportedAtUnix int64                       `json:"exported_at_unix_sec"`
+	Bundle         rolePolicyPersistenceBundle `json:"bundle"`
+}
+
+type importRolePolicyPersistenceRequest struct {
+	Operator string                      `json:"operator"`
+	Bundle   rolePolicyPersistenceBundle `json:"bundle"`
 }

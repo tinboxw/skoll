@@ -3,6 +3,8 @@ package app
 import (
 	"strings"
 	"testing"
+
+	admindashboard "github.com/tinboxw/skoll/internal/app/admin/dashboard"
 )
 
 func TestNormalizePathLabelWhitelistAndFallback(t *testing.T) {
@@ -46,7 +48,7 @@ func TestObserveRequestUsesNormalizedPath(t *testing.T) {
 }
 
 func TestDeriveDashboardJWTProvenanceAlertingHints(t *testing.T) {
-	hints := deriveDashboardJWTProvenanceAlertingHints(dashboardJWTProvenanceAuditExport{
+	hints := admindashboard.DeriveJWTProvenanceAlertingHints(admindashboard.JWTProvenanceAuditExport{
 		Enabled:           true,
 		Verified:          false,
 		VerificationState: "unverified",
@@ -54,27 +56,27 @@ func TestDeriveDashboardJWTProvenanceAlertingHints(t *testing.T) {
 	})
 
 	joined := strings.Join(hints, ",")
-	if !strings.Contains(joined, provenanceHintVerificationUnverified) {
+	if !strings.Contains(joined, admindashboard.JWTProvenanceHintVerificationUnverified) {
 		t.Fatalf("expected unverified hint, got %v", hints)
 	}
-	if !strings.Contains(joined, provenanceHintClaimsNotVerified) {
+	if !strings.Contains(joined, admindashboard.JWTProvenanceHintClaimsNotVerified) {
 		t.Fatalf("expected claims_not_verified hint, got %v", hints)
 	}
-	if !strings.Contains(joined, provenanceHintClaimsVersionMissing) {
+	if !strings.Contains(joined, admindashboard.JWTProvenanceHintClaimsVersionMissing) {
 		t.Fatalf("expected claims_version_missing hint, got %v", hints)
 	}
-	if !strings.Contains(joined, provenanceHintChainDepthHigh) {
+	if !strings.Contains(joined, admindashboard.JWTProvenanceHintChainDepthHigh) {
 		t.Fatalf("expected chain depth high hint, got %v", hints)
 	}
 }
 
 func TestMetricsPrometheusIncludesDashboardJWTProvenanceMetrics(t *testing.T) {
-	resetDashboardJWTProvenanceMetricsForTest()
+	admindashboard.ResetJWTProvenanceMetricsForTest()
 	m := NewMetrics()
 
-	observeDashboardJWTProvenanceAuditExport(
-		dashboardJWTProvenanceAuditExport{Enabled: true, Verified: false, VerificationState: "invalid"},
-		[]string{provenanceHintVerificationInvalid},
+	admindashboard.ObserveJWTProvenanceAuditExport(
+		admindashboard.JWTProvenanceAuditExport{Enabled: true, Verified: false, VerificationState: "invalid"},
+		[]string{admindashboard.JWTProvenanceHintVerificationInvalid},
 	)
 
 	out := m.Prometheus()
@@ -90,7 +92,7 @@ func TestMetricsPrometheusIncludesDashboardJWTProvenanceMetrics(t *testing.T) {
 }
 
 func TestBuildDashboardJWTProvenanceSLODashboard_AtRiskAndCritical(t *testing.T) {
-	atRisk := buildDashboardJWTProvenanceSLODashboard(dashboardJWTProvenanceOperationalMetrics{
+	atRisk := admindashboard.BuildJWTProvenanceSLODashboard(admindashboard.JWTProvenanceOperationalMetrics{
 		EnabledTotal: 100,
 		InvalidTotal: 1,
 	})
@@ -98,7 +100,7 @@ func TestBuildDashboardJWTProvenanceSLODashboard_AtRiskAndCritical(t *testing.T)
 		t.Fatalf("expected at_risk status, got %s", atRisk.Status)
 	}
 
-	critical := buildDashboardJWTProvenanceSLODashboard(dashboardJWTProvenanceOperationalMetrics{
+	critical := admindashboard.BuildJWTProvenanceSLODashboard(admindashboard.JWTProvenanceOperationalMetrics{
 		EnabledTotal:    100,
 		InvalidTotal:    2,
 		UnverifiedTotal: 1,
@@ -109,7 +111,7 @@ func TestBuildDashboardJWTProvenanceSLODashboard_AtRiskAndCritical(t *testing.T)
 }
 
 func TestBuildDashboardJWTProvenanceErrorBudgetPolicy_Critical(t *testing.T) {
-	policy := buildDashboardJWTProvenanceErrorBudgetPolicy(dashboardJWTProvenanceSLODashboard{
+	policy := admindashboard.BuildJWTProvenanceErrorBudgetPolicy(admindashboard.JWTProvenanceSLODashboard{
 		Window:              "30d",
 		TargetReliability:   0.99,
 		ObservedReliability: 0.96,

@@ -1,4 +1,4 @@
-package app
+package security
 
 import (
 	"encoding/json"
@@ -6,24 +6,23 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tinboxw/skoll/internal/app/admin/contracts"
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
 	"github.com/tinboxw/skoll/internal/module/rbac"
 )
-
-const HeaderAdminRoleID = "X-Admin-Role-ID"
 
 const (
 	HeaderAdminDataTenantID  = "X-Data-Tenant-ID"
 	HeaderAdminResourceOwner = "X-Resource-Owner"
 )
 
-func WithRoleAPIAuthorizer(next http.Handler, roleSvc RoleService, rbacSvc RBACService) http.Handler {
+func WithRoleAPIAuthorizer(next http.Handler, roleSvc contracts.RoleService, rbacSvc contracts.RBACService) http.Handler {
 	if next == nil || roleSvc == nil || rbacSvc == nil {
 		return next
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rawRoleID := resolveAdminVerifiedClaims(r).RoleID
+		rawRoleID := ResolveVerifiedClaims(r).RoleID
 		if rawRoleID == "" {
 			writeRBACError(w, http.StatusUnauthorized, "admin role required")
 			return
@@ -54,7 +53,7 @@ func WithRoleAPIAuthorizer(next http.Handler, roleSvc RoleService, rbacSvc RBACS
 			return
 		}
 
-		claims := resolveAdminVerifiedClaims(r)
+		claims := ResolveVerifiedClaims(r)
 		if !authorizeByPolicy(rbacSvc.GetRolePolicies(roleID), apiKey, claims) {
 			writeRBACError(w, http.StatusForbidden, "policy permission denied")
 			return
@@ -69,7 +68,7 @@ func WithRoleAPIAuthorizer(next http.Handler, roleSvc RoleService, rbacSvc RBACS
 	})
 }
 
-func authorizeByPolicy(rules []rbac.PolicyRule, apiKey string, claims adminVerifiedClaims) bool {
+func authorizeByPolicy(rules []rbac.PolicyRule, apiKey string, claims VerifiedClaims) bool {
 	if len(rules) == 0 {
 		return true
 	}
@@ -99,7 +98,7 @@ func authorizeByPolicy(rules []rbac.PolicyRule, apiKey string, claims adminVerif
 	return allowed
 }
 
-func authorizeByDataScope(scope rbac.DataScope, claims adminVerifiedClaims, r *http.Request) bool {
+func authorizeByDataScope(scope rbac.DataScope, claims VerifiedClaims, r *http.Request) bool {
 	if len(scope.TenantIDs) > 0 {
 		tenantID := strings.TrimSpace(r.Header.Get(HeaderAdminDataTenantID))
 		if tenantID == "" || !containsString(scope.TenantIDs, tenantID) {

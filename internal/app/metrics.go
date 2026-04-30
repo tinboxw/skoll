@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"sync/atomic"
+
+	admindashboard "github.com/tinboxw/skoll/internal/app/admin/dashboard"
 )
 
 const (
@@ -106,7 +108,7 @@ func (m *Metrics) Prometheus() string {
 		b.WriteString(fmt.Sprintf("skoll_http_responses_status_total{code=%q} %d\n", fmt.Sprintf("%d", code), statusMap[code]))
 	}
 
-	provenance := strings.TrimSpace(dashboardJWTProvenanceMetricsPrometheus())
+	provenance := strings.TrimSpace(admindashboard.JWTProvenanceMetricsPrometheus())
 	if provenance != "" {
 		b.WriteString("\n")
 		b.WriteString(provenance)

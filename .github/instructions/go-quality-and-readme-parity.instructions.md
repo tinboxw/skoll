@@ -16,6 +16,18 @@ applyTo: ["**/*.go", "README.md", "README.en.md"]
   - `cmd/` 仅放可执行入口。
   - `internal/` 放私有实现。
   - `pkg/` 放可复用公共能力。
+- Admin 模块子包化与对象化调用（新增强制规则）：
+  - **包名与目录名必须一致**：`internal/app/admin/<domain>/` 下的包名必须声明为 `package <domain>`，不得加 `admin` 前缀（例如目录 `rbac/` → `package rbac`，而非 `package adminrbac`）。导入时如需区分同名包可使用别名（`import adminrbac "...admin/rbac"`），但源文件 `package` 声明本身必须等于目录名。
+  - 当 `internal/app` 中某一业务域出现 `handler + dto + 路由装配` 三类逻辑时，必须优先拆分为子包（示例：`internal/app/admin/<domain>/`）。
+  - 子包必须提供对象化入口，不再新增同域的散落函数式装配。推荐固定形态：
+    - `type Handler struct { ... }`
+    - `func NewHandler(...) *Handler`
+    - `func (h *Handler) Register(mux *http.ServeMux, wrapper func(http.Handler) http.Handler, apis APIRegistry)`
+  - 路由注册必须在域内 `Register` 完成；`internal/app` 根包仅保留 façade/组装职责，不继续扩展跨域超大 `Mount...Routes` 细节。
+  - 新增/迁移子包时，必须保持外部 API 路径、请求/响应 JSON 字段与语义兼容，避免结构重构与协议变更耦合。
+  - 域内优先定义最小端口接口（small interface）；禁止通过单一超大接口向所有子包暴露无关能力。
+  - 通用能力（如 path 解析、分页、统一响应）可放入共享位置，但不得把业务 DTO 无差别下沉到全局共享包。
+  - 每完成一个域迁移，必须执行并记录最小门禁：`go fmt ./...`、`go test ./internal/app`、`go test ./...`；涉及并发路径时追加 `go test -race ./...`。
 - 并发相关实现必须显式说明取消、超时和错误传播路径，避免 goroutine 泄漏。
 - 新增性能敏感路径时，优先补基准测试并记录 `-benchmem` 结果。
 
