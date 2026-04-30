@@ -247,7 +247,7 @@ func TestWaitForDrainInterruptedBySecondSignal(t *testing.T) {
 }
 
 func TestFormatRuntimeConfigLog(t *testing.T) {
-	line := formatRuntimeConfigLog(":8080", 10*time.Second, 2*time.Second, true, "dev", "auto", "static-token", true, false)
+	line := formatRuntimeConfigLog(":8080", 10*time.Second, 2*time.Second, true, "dev", "auto", "static-token", true, false, "memory")
 
 	parts := []string{
 		"runtime config",
@@ -260,6 +260,7 @@ func TestFormatRuntimeConfigLog(t *testing.T) {
 		"admin-auth-effective-mode=static-token",
 		"admin-auth-enabled=true",
 		"admin-auth-allow-static-token-in-prod=false",
+		"storage-adapter=memory",
 	}
 	for _, p := range parts {
 		if !strings.Contains(line, p) {

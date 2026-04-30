@@ -4,7 +4,7 @@
 
 - ID: `E9`
 - Name: `enhancement backlog prioritization and production hardening`
-- Status: `step0 planning baseline completed`
+- Status: `step1 persistence adapter rollout design completed`
 
 ## Scope
 

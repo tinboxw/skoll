@@ -45,6 +45,7 @@ func Run() error {
 	adminAuthNonceRedisDB := flag.Int("admin-auth-nonce-redis-db", intFromEnv("SKOLL_ADMIN_AUTH_NONCE_REDIS_DB", 0), "redis DB index for shared admin auth nonce store (env: SKOLL_ADMIN_AUTH_NONCE_REDIS_DB)")
 	adminAuthNonceRedisKeyPrefix := flag.String("admin-auth-nonce-redis-key-prefix", envOrDefault("SKOLL_ADMIN_AUTH_NONCE_REDIS_KEY_PREFIX", ""), "redis key prefix for shared admin auth nonce store (env: SKOLL_ADMIN_AUTH_NONCE_REDIS_KEY_PREFIX)")
 	adminAuthAllowStaticTokenInProd := flag.Bool("admin-auth-allow-static-token-in-prod", boolFromEnv("SKOLL_ADMIN_AUTH_ALLOW_STATIC_TOKEN_IN_PROD", false), "allow static-token admin auth in prod mode (env: SKOLL_ADMIN_AUTH_ALLOW_STATIC_TOKEN_IN_PROD)")
+	storageAdapterMode := flag.String("storage-adapter", envOrDefault("SKOLL_STORAGE_ADAPTER", storageadapter.ModeMemory), "storage adapter mode: memory|mysql|postgres (env: SKOLL_STORAGE_ADAPTER)")
 	flag.Parse()
 
 	nonceStore, closeNonceStore, err := resolveAdminNonceStore(*adminAuthMode, *adminAuthToken, *adminAuthHMACSecret, *adminAuthNonceStore, *adminAuthNonceRedisAddr, *adminAuthNonceRedisPassword, *adminAuthNonceRedisDB, *adminAuthNonceRedisKeyPrefix)
@@ -76,7 +77,7 @@ func Run() error {
 	if err := validateAdminAuthPolicy(*goAdminEnabled, *goAdminMode, effectiveAdminAuthMode, *adminAuthAllowStaticTokenInProd); err != nil {
 		return fmt.Errorf("invalid admin auth policy: %w", err)
 	}
-	log.Print(formatRuntimeConfigLog(*addr, *shutdownTimeout, *drainTime, *goAdminEnabled, *goAdminMode, *adminAuthMode, effectiveAdminAuthMode, adminAuthEnabled, *adminAuthAllowStaticTokenInProd))
+	log.Print(formatRuntimeConfigLog(*addr, *shutdownTimeout, *drainTime, *goAdminEnabled, *goAdminMode, *adminAuthMode, effectiveAdminAuthMode, adminAuthEnabled, *adminAuthAllowStaticTokenInProd, *storageAdapterMode))
 
 	goAdminBootstrap, err := goadmin.New(*goAdminEnabled, *goAdminMode)
 	if err != nil {
@@ -92,7 +93,10 @@ func Run() error {
 	srv := app.New(*addr, version.String())
 	srv.AddMetricsCollector(adminauth.MetricsPrometheus)
 	srv.SetReady(true)
-	storage := storageadapter.NewInMemoryAdapter()
+	storage, err := storageadapter.NewByMode(*storageAdapterMode)
+	if err != nil {
+		return fmt.Errorf("invalid storage adapter configuration: %w", err)
+	}
 
 	var adminWrapper func(http.Handler) http.Handler
 	if adminAuthEnabled {
@@ -297,6 +301,6 @@ func isHMACFlowEnabled(mode, token, hmacSecret string) bool {
 	}
 }
 
-func formatRuntimeConfigLog(addr string, shutdownTimeout, drainTime time.Duration, goAdminEnabled bool, goAdminMode, adminAuthMode, effectiveAdminAuthMode string, adminAuthEnabled bool, adminAuthAllowStaticTokenInProd bool) string {
-	return fmt.Sprintf("runtime config addr=%s shutdown-timeout=%s drain-time=%s go-admin-enabled=%t go-admin-mode=%s admin-auth-mode=%s admin-auth-effective-mode=%s admin-auth-enabled=%t admin-auth-allow-static-token-in-prod=%t", addr, shutdownTimeout, drainTime, goAdminEnabled, goAdminMode, adminAuthMode, effectiveAdminAuthMode, adminAuthEnabled, adminAuthAllowStaticTokenInProd)
+func formatRuntimeConfigLog(addr string, shutdownTimeout, drainTime time.Duration, goAdminEnabled bool, goAdminMode, adminAuthMode, effectiveAdminAuthMode string, adminAuthEnabled bool, adminAuthAllowStaticTokenInProd bool, storageAdapterMode string) string {
+	return fmt.Sprintf("runtime config addr=%s shutdown-timeout=%s drain-time=%s go-admin-enabled=%t go-admin-mode=%s admin-auth-mode=%s admin-auth-effective-mode=%s admin-auth-enabled=%t admin-auth-allow-static-token-in-prod=%t storage-adapter=%s", addr, shutdownTimeout, drainTime, goAdminEnabled, goAdminMode, adminAuthMode, effectiveAdminAuthMode, adminAuthEnabled, adminAuthAllowStaticTokenInProd, storageAdapterMode)
 }

@@ -130,7 +130,7 @@ Build an open-source admin framework parity roadmap for Skoll by extracting comm
 55. Completed: E7-step1 multi-instance consistency hardening baseline.
 56. Completed: E8-step1 release governance closure baseline.
 57. Completed: E9-step0 enhancement backlog prioritization and iteration planning baseline.
-58. Next: E9-step1 persistence adapter rollout design.
+58. Completed: E9-step1 persistence adapter rollout design.
 59. Next: E9-step2 production hardening plan.
 60. Next: E9-step3 benchmark regression governance policy.
 61. Planned: E10 auth and session parity.
