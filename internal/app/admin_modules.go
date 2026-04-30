@@ -66,6 +66,10 @@ type UserService interface {
 	ReportSessionAnomaly(sessionID, category, detail string, now time.Time) user.SessionAnomaly
 	HeartbeatSessionConsistency(sessionID, instanceID string, version int64, now time.Time) user.SessionConsistency
 	SessionConsistencyStatus(sessionID string) user.SessionConsistency
+	CreateAuthSession(userID, roleID int64, claimsVersion string, now time.Time) (user.AuthTokenPair, error)
+	RefreshAuthSession(refreshToken string, now time.Time) (user.AuthTokenPair, error)
+	RevokeAuthSession(sessionID, reason string, now time.Time) (user.AuthSession, error)
+	GetAuthSession(sessionID string) (user.AuthSession, error)
 }
 
 type RoleService interface {
@@ -174,6 +178,15 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 		}
 		mux.Handle(pattern, h)
 	}
+	handlePublic := func(pattern string, next http.HandlerFunc) {
+		services.APIs.RegisterMany([]string{pattern})
+		mux.Handle(pattern, next)
+	}
+
+	handlePublic("POST /admin/v1/auth/login", loginAdminAuthHandler(services.Users, services.Audit))
+	handlePublic("POST /admin/v1/auth/refresh", refreshAdminAuthHandler(services.Users, services.Audit))
+	handlePublic("POST /admin/v1/auth/logout", logoutAdminAuthHandler(services.Users, services.Audit))
+	handlePublic("GET /admin/v1/auth/sessions/{session_id}", getAdminAuthSessionHandler(services.Users))
 
 	handle("POST /admin/v1/users", createUserHandler(services.Users))
 	handle("GET /admin/v1/users", listUsersHandler(services.Users))
@@ -283,6 +296,21 @@ type heartbeatSessionConsistencyRequest struct {
 	SessionID  string `json:"session_id"`
 	InstanceID string `json:"instance_id"`
 	Version    int64  `json:"version"`
+}
+
+type adminAuthLoginRequest struct {
+	UserID        int64  `json:"user_id"`
+	RoleID        int64  `json:"role_id"`
+	ClaimsVersion string `json:"claims_version"`
+}
+
+type adminAuthRefreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type adminAuthLogoutRequest struct {
+	SessionID string `json:"session_id"`
+	Reason    string `json:"reason"`
 }
 
 type createRoleRequest struct {
@@ -800,6 +828,115 @@ func setUserMFAHandler(userSvc UserService, auditSvc AuditService) http.HandlerF
 		}
 		auditSvc.Append("security", "mfa_update", fmt.Sprintf("user:%d", userID))
 		respondJSON(w, http.StatusOK, state)
+	}
+}
+
+func loginAdminAuthHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req adminAuthLoginRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if req.UserID <= 0 || req.RoleID <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "user_id and role_id must be > 0"})
+			return
+		}
+
+		pair, err := userSvc.CreateAuthSession(req.UserID, req.RoleID, req.ClaimsVersion, time.Now().UTC())
+		if err != nil {
+			if err == user.ErrUserNotFound {
+				respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_credentials"})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		auditSvc.Append("auth", "login", fmt.Sprintf("user:%d session:%s", req.UserID, pair.SessionID))
+		respondJSON(w, http.StatusOK, pair)
+	}
+}
+
+func refreshAdminAuthHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req adminAuthRefreshRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		pair, err := userSvc.RefreshAuthSession(strings.TrimSpace(req.RefreshToken), time.Now().UTC())
+		if err != nil {
+			switch err {
+			case user.ErrAuthInvalidRefreshToken, user.ErrAuthRefreshTokenExpired, user.ErrAuthSessionRevoked:
+				respondJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_refresh_token"})
+				return
+			case user.ErrAuthSessionNotFound:
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			default:
+				respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+				return
+			}
+		}
+
+		auditSvc.Append("auth", "refresh", pair.SessionID)
+		respondJSON(w, http.StatusOK, pair)
+	}
+}
+
+func logoutAdminAuthHandler(userSvc UserService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req adminAuthLogoutRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.SessionID = strings.TrimSpace(req.SessionID)
+		req.Reason = strings.TrimSpace(req.Reason)
+		if req.SessionID == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "session_id is required"})
+			return
+		}
+		if req.Reason == "" {
+			req.Reason = "logout"
+		}
+
+		session, err := userSvc.RevokeAuthSession(req.SessionID, req.Reason, time.Now().UTC())
+		if err != nil {
+			if err == user.ErrAuthSessionNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		_ = userSvc.RevokeSession(req.SessionID, req.Reason, time.Now().UTC())
+		auditSvc.Append("auth", "logout", req.SessionID)
+		respondJSON(w, http.StatusOK, session)
+	}
+}
+
+func getAdminAuthSessionHandler(userSvc UserService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		sessionID, err := parsePathString(r, "session_id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		session, err := userSvc.GetAuthSession(sessionID)
+		if err != nil {
+			if err == user.ErrAuthSessionNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		respondJSON(w, http.StatusOK, session)
 	}
 }
 

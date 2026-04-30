@@ -183,6 +183,63 @@ func TestAdminUserSecurityRoutes(t *testing.T) {
 	}
 }
 
+func TestAdminAuthLifecycleRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users", strings.NewReader(`{"name":"alice","email":"alice@example.com"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRR, createReq)
+	if createRR.Code != http.StatusCreated {
+		t.Fatalf("expected user create status 201, got %d", createRR.Code)
+	}
+
+	loginReq := httptest.NewRequest(http.MethodPost, "/admin/v1/auth/login", strings.NewReader(`{"user_id":1,"role_id":1,"claims_version":"v2"}`))
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(loginRR, loginReq)
+	if loginRR.Code != http.StatusOK {
+		t.Fatalf("expected login status 200, got %d body=%s", loginRR.Code, loginRR.Body.String())
+	}
+
+	var loginResp map[string]any
+	if err := json.Unmarshal(loginRR.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("unmarshal login response failed: %v", err)
+	}
+	sessionID, _ := loginResp["session_id"].(string)
+	refreshToken, _ := loginResp["refresh_token"].(string)
+	if sessionID == "" || refreshToken == "" {
+		t.Fatalf("expected non-empty login payload, got %+v", loginResp)
+	}
+
+	refreshReq := httptest.NewRequest(http.MethodPost, "/admin/v1/auth/refresh", strings.NewReader(`{"refresh_token":"`+refreshToken+`"}`))
+	refreshReq.Header.Set("Content-Type", "application/json")
+	refreshRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(refreshRR, refreshReq)
+	if refreshRR.Code != http.StatusOK {
+		t.Fatalf("expected refresh status 200, got %d body=%s", refreshRR.Code, refreshRR.Body.String())
+	}
+
+	sessionReq := httptest.NewRequest(http.MethodGet, "/admin/v1/auth/sessions/"+sessionID, nil)
+	sessionRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(sessionRR, sessionReq)
+	if sessionRR.Code != http.StatusOK {
+		t.Fatalf("expected auth session get status 200, got %d", sessionRR.Code)
+	}
+
+	logoutReq := httptest.NewRequest(http.MethodPost, "/admin/v1/auth/logout", strings.NewReader(`{"session_id":"`+sessionID+`","reason":"manual"}`))
+	logoutReq.Header.Set("Content-Type", "application/json")
+	logoutRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(logoutRR, logoutReq)
+	if logoutRR.Code != http.StatusOK {
+		t.Fatalf("expected logout status 200, got %d body=%s", logoutRR.Code, logoutRR.Body.String())
+	}
+	if !strings.Contains(logoutRR.Body.String(), `"revoked":true`) {
+		t.Fatalf("expected revoked auth session, got %s", logoutRR.Body.String())
+	}
+}
+
 func TestAdminRoleAndMenuRoutes(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
@@ -276,6 +333,23 @@ func TestAdminRoutes_AuthWrapper(t *testing.T) {
 	}
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), wrapper)
 
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/v1/users", strings.NewReader(`{"name":"alice","email":"alice@example.com"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createReq.Header.Set("X-Admin-Token", "secret")
+	createRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRR, createReq)
+	if createRR.Code != http.StatusCreated {
+		t.Fatalf("expected setup user create status 201, got %d", createRR.Code)
+	}
+
+	publicLoginReq := httptest.NewRequest(http.MethodPost, "/admin/v1/auth/login", strings.NewReader(`{"user_id":1,"role_id":1}`))
+	publicLoginReq.Header.Set("Content-Type", "application/json")
+	publicLoginRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(publicLoginRR, publicLoginReq)
+	if publicLoginRR.Code != http.StatusOK {
+		t.Fatalf("expected public auth login route bypass wrapper, got %d body=%s", publicLoginRR.Code, publicLoginRR.Body.String())
+	}
+
 	unauthReq := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
 	unauthRR := httptest.NewRecorder()
 	srv.httpServer.Handler.ServeHTTP(unauthRR, unauthReq)
@@ -303,6 +377,21 @@ func BenchmarkAdminUsersListEndpoint(b *testing.B) {
 	srv.MountAdminModuleRoutes(services, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/admin/v1/users", nil)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		rr := httptest.NewRecorder()
+		srv.httpServer.Handler.ServeHTTP(rr, req)
+	}
+}
+
+func BenchmarkAdminAuthLoginEndpoint(b *testing.B) {
+	srv := New(":0", "bench")
+	services := testAdminModuleServices()
+	services.Users.Create("alice", "alice@example.com")
+	srv.MountAdminModuleRoutes(services, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/v1/auth/login", strings.NewReader(`{"user_id":1,"role_id":1,"claims_version":"v2"}`))
+	req.Header.Set("Content-Type", "application/json")
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		rr := httptest.NewRecorder()

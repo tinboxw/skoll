@@ -139,3 +139,48 @@ func TestServiceSessionConsistencyHeartbeat(t *testing.T) {
 		t.Fatalf("unexpected consistency status: %+v", status)
 	}
 }
+
+func TestServiceAuthSessionLifecycle(t *testing.T) {
+	svc := NewService()
+	u := svc.Create("alice", "alice@example.com")
+	now := time.Unix(1710000000, 0).UTC()
+
+	pair, err := svc.CreateAuthSession(u.ID, 1, "v2", now)
+	if err != nil {
+		t.Fatalf("create auth session failed: %v", err)
+	}
+	if pair.AccessToken == "" || pair.RefreshToken == "" || pair.SessionID == "" {
+		t.Fatalf("expected non-empty token pair, got %+v", pair)
+	}
+
+	session, err := svc.GetAuthSession(pair.SessionID)
+	if err != nil {
+		t.Fatalf("get auth session failed: %v", err)
+	}
+	if session.UserID != u.ID || session.RoleID != 1 || session.ClaimsVersion != "v2" {
+		t.Fatalf("unexpected auth session payload: %+v", session)
+	}
+
+	refreshed, err := svc.RefreshAuthSession(pair.RefreshToken, now.Add(1*time.Minute))
+	if err != nil {
+		t.Fatalf("refresh auth session failed: %v", err)
+	}
+	if refreshed.AccessToken == "" || refreshed.RefreshToken == "" {
+		t.Fatalf("expected refreshed tokens, got %+v", refreshed)
+	}
+	if refreshed.RefreshToken == pair.RefreshToken {
+		t.Fatalf("expected refresh token rotation")
+	}
+
+	revoked, err := svc.RevokeAuthSession(pair.SessionID, "logout", now.Add(2*time.Minute))
+	if err != nil {
+		t.Fatalf("revoke auth session failed: %v", err)
+	}
+	if !revoked.Revoked || revoked.RevokeReason != "logout" {
+		t.Fatalf("expected revoked session, got %+v", revoked)
+	}
+
+	if _, err := svc.RefreshAuthSession(refreshed.RefreshToken, now.Add(3*time.Minute)); err != ErrAuthInvalidRefreshToken {
+		t.Fatalf("expected ErrAuthInvalidRefreshToken after logout token invalidation, got %v", err)
+	}
+}

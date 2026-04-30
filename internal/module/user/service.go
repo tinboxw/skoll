@@ -1,14 +1,34 @@
 package user
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
 
 var ErrUserNotFound = errors.New("user not found")
 var ErrPasswordRotationTooFrequent = errors.New("password rotation too frequent")
+var ErrAuthSessionNotFound = errors.New("auth session not found")
+var ErrAuthInvalidRefreshToken = errors.New("invalid refresh token")
+var ErrAuthRefreshTokenExpired = errors.New("refresh token expired")
+var ErrAuthSessionRevoked = errors.New("auth session revoked")
+
+const (
+	defaultJWTIssuer      = "skoll-admin"
+	defaultJWTClaimsVer   = "v1"
+	defaultJWTAccessTTL   = 15 * time.Minute
+	defaultJWTRefreshTTL  = 24 * time.Hour
+	defaultJWTSigningSalt = "skoll-dev-jwt-secret"
+)
 
 type User struct {
 	ID        int64
@@ -54,6 +74,30 @@ type SessionConsistency struct {
 	LastConflictReason   string `json:"last_conflict_reason,omitempty"`
 }
 
+type AuthTokenPair struct {
+	TokenType           string `json:"token_type"`
+	SessionID           string `json:"session_id"`
+	AccessToken         string `json:"access_token"`
+	RefreshToken        string `json:"refresh_token"`
+	ExpiresInSec        int64  `json:"expires_in_sec"`
+	RefreshExpiresInSec int64  `json:"refresh_expires_in_sec"`
+	IssuedAtUnixSec     int64  `json:"issued_at_unix_sec"`
+}
+
+type AuthSession struct {
+	SessionID               string `json:"session_id"`
+	UserID                  int64  `json:"user_id"`
+	RoleID                  int64  `json:"role_id"`
+	Subject                 string `json:"subject"`
+	ClaimsVersion           string `json:"claims_version"`
+	IssuedAtUnixSec         int64  `json:"issued_at_unix_sec"`
+	AccessExpiresAtUnixSec  int64  `json:"access_expires_at_unix_sec"`
+	RefreshExpiresAtUnixSec int64  `json:"refresh_expires_at_unix_sec"`
+	Revoked                 bool   `json:"revoked"`
+	RevokedAtUnixSec        int64  `json:"revoked_at_unix_sec,omitempty"`
+	RevokeReason            string `json:"revoke_reason,omitempty"`
+}
+
 type userSecurity struct {
 	passwordRotatedAt time.Time
 	failedLoginCount  int
@@ -80,6 +124,21 @@ type sessionConsistencyRecord struct {
 	lastConflictReason string
 }
 
+type authSessionRecord struct {
+	sessionID        string
+	userID           int64
+	roleID           int64
+	subject          string
+	claimsVersion    string
+	issuedAt         time.Time
+	accessExpiresAt  time.Time
+	refreshExpiresAt time.Time
+	refreshTokenHash string
+	revoked          bool
+	revokedAt        time.Time
+	revokeReason     string
+}
+
 type Service struct {
 	mu                 sync.RWMutex
 	nextID             int64
@@ -87,6 +146,12 @@ type Service struct {
 	security           map[int64]userSecurity
 	sessions           map[string]sessionRecord
 	sessionConsistency map[string]sessionConsistencyRecord
+	authSessions       map[string]authSessionRecord
+	refreshIndex       map[string]string
+	jwtSigningSecret   []byte
+	jwtIssuer          string
+	jwtAccessTTL       time.Duration
+	jwtRefreshTTL      time.Duration
 }
 
 func NewService() *Service {
@@ -96,7 +161,158 @@ func NewService() *Service {
 		security:           make(map[int64]userSecurity),
 		sessions:           make(map[string]sessionRecord),
 		sessionConsistency: make(map[string]sessionConsistencyRecord),
+		authSessions:       make(map[string]authSessionRecord),
+		refreshIndex:       make(map[string]string),
+		jwtSigningSecret:   []byte(defaultJWTSigningSalt),
+		jwtIssuer:          defaultJWTIssuer,
+		jwtAccessTTL:       defaultJWTAccessTTL,
+		jwtRefreshTTL:      defaultJWTRefreshTTL,
 	}
+}
+
+func (s *Service) CreateAuthSession(userID, roleID int64, claimsVersion string, now time.Time) (AuthTokenPair, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	u, ok := s.items[userID]
+	if !ok {
+		return AuthTokenPair{}, ErrUserNotFound
+	}
+
+	issuedAt := now.UTC()
+	sessionID, err := newToken(18)
+	if err != nil {
+		return AuthTokenPair{}, fmt.Errorf("create session id: %w", err)
+	}
+	refreshToken, err := newToken(32)
+	if err != nil {
+		return AuthTokenPair{}, fmt.Errorf("create refresh token: %w", err)
+	}
+	refreshHash := tokenHash(refreshToken)
+	claimsVersion = strings.ToLower(strings.TrimSpace(claimsVersion))
+	if claimsVersion == "" {
+		claimsVersion = defaultJWTClaimsVer
+	}
+
+	rec := authSessionRecord{
+		sessionID:        sessionID,
+		userID:           userID,
+		roleID:           roleID,
+		subject:          u.Email,
+		claimsVersion:    claimsVersion,
+		issuedAt:         issuedAt,
+		accessExpiresAt:  issuedAt.Add(s.jwtAccessTTL),
+		refreshExpiresAt: issuedAt.Add(s.jwtRefreshTTL),
+		refreshTokenHash: refreshHash,
+	}
+	s.authSessions[sessionID] = rec
+	s.refreshIndex[refreshHash] = sessionID
+
+	accessToken, err := s.signAccessToken(rec)
+	if err != nil {
+		delete(s.authSessions, sessionID)
+		delete(s.refreshIndex, refreshHash)
+		return AuthTokenPair{}, fmt.Errorf("sign access token: %w", err)
+	}
+
+	return AuthTokenPair{
+		TokenType:           "Bearer",
+		SessionID:           sessionID,
+		AccessToken:         accessToken,
+		RefreshToken:        refreshToken,
+		ExpiresInSec:        int64(s.jwtAccessTTL.Seconds()),
+		RefreshExpiresInSec: int64(s.jwtRefreshTTL.Seconds()),
+		IssuedAtUnixSec:     issuedAt.Unix(),
+	}, nil
+}
+
+func (s *Service) RefreshAuthSession(refreshToken string, now time.Time) (AuthTokenPair, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return AuthTokenPair{}, ErrAuthInvalidRefreshToken
+	}
+
+	hash := tokenHash(refreshToken)
+	sessionID, ok := s.refreshIndex[hash]
+	if !ok {
+		return AuthTokenPair{}, ErrAuthInvalidRefreshToken
+	}
+
+	rec, ok := s.authSessions[sessionID]
+	if !ok {
+		delete(s.refreshIndex, hash)
+		return AuthTokenPair{}, ErrAuthSessionNotFound
+	}
+	if rec.revoked {
+		return AuthTokenPair{}, ErrAuthSessionRevoked
+	}
+	now = now.UTC()
+	if now.After(rec.refreshExpiresAt) {
+		delete(s.refreshIndex, hash)
+		return AuthTokenPair{}, ErrAuthRefreshTokenExpired
+	}
+
+	newRefreshToken, err := newToken(32)
+	if err != nil {
+		return AuthTokenPair{}, fmt.Errorf("create refresh token: %w", err)
+	}
+	newHash := tokenHash(newRefreshToken)
+
+	delete(s.refreshIndex, rec.refreshTokenHash)
+	rec.refreshTokenHash = newHash
+	rec.issuedAt = now
+	rec.accessExpiresAt = now.Add(s.jwtAccessTTL)
+	s.authSessions[sessionID] = rec
+	s.refreshIndex[newHash] = sessionID
+
+	accessToken, err := s.signAccessToken(rec)
+	if err != nil {
+		return AuthTokenPair{}, fmt.Errorf("sign access token: %w", err)
+	}
+
+	return AuthTokenPair{
+		TokenType:           "Bearer",
+		SessionID:           sessionID,
+		AccessToken:         accessToken,
+		RefreshToken:        newRefreshToken,
+		ExpiresInSec:        int64(s.jwtAccessTTL.Seconds()),
+		RefreshExpiresInSec: int64(time.Until(rec.refreshExpiresAt).Seconds()),
+		IssuedAtUnixSec:     rec.issuedAt.Unix(),
+	}, nil
+}
+
+func (s *Service) RevokeAuthSession(sessionID, reason string, now time.Time) (AuthSession, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	rec, ok := s.authSessions[sessionID]
+	if !ok {
+		return AuthSession{}, ErrAuthSessionNotFound
+	}
+	rec.revoked = true
+	rec.revokeReason = strings.TrimSpace(reason)
+	if rec.revokeReason == "" {
+		rec.revokeReason = "logout"
+	}
+	rec.revokedAt = now.UTC()
+	s.authSessions[sessionID] = rec
+	delete(s.refreshIndex, rec.refreshTokenHash)
+
+	return toAuthSession(rec), nil
+}
+
+func (s *Service) GetAuthSession(sessionID string) (AuthSession, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	rec, ok := s.authSessions[sessionID]
+	if !ok {
+		return AuthSession{}, ErrAuthSessionNotFound
+	}
+	return toAuthSession(rec), nil
 }
 
 func (s *Service) Create(name, email string) User {
@@ -318,4 +534,66 @@ func toSessionConsistency(sessionID string, rec sessionConsistencyRecord, consis
 		out.LastHeartbeatUnixSec = rec.lastHeartbeatAt.Unix()
 	}
 	return out
+}
+
+func toAuthSession(rec authSessionRecord) AuthSession {
+	out := AuthSession{
+		SessionID:               rec.sessionID,
+		UserID:                  rec.userID,
+		RoleID:                  rec.roleID,
+		Subject:                 rec.subject,
+		ClaimsVersion:           rec.claimsVersion,
+		IssuedAtUnixSec:         rec.issuedAt.Unix(),
+		AccessExpiresAtUnixSec:  rec.accessExpiresAt.Unix(),
+		RefreshExpiresAtUnixSec: rec.refreshExpiresAt.Unix(),
+		Revoked:                 rec.revoked,
+		RevokeReason:            rec.revokeReason,
+	}
+	if !rec.revokedAt.IsZero() {
+		out.RevokedAtUnixSec = rec.revokedAt.Unix()
+	}
+	return out
+}
+
+func (s *Service) signAccessToken(rec authSessionRecord) (string, error) {
+	headerJSON, err := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
+	if err != nil {
+		return "", err
+	}
+	payloadJSON, err := json.Marshal(map[string]any{
+		"iss":            s.jwtIssuer,
+		"sub":            rec.subject,
+		"sid":            rec.sessionID,
+		"uid":            rec.userID,
+		"role_id":        rec.roleID,
+		"claims_version": rec.claimsVersion,
+		"iat":            rec.issuedAt.Unix(),
+		"exp":            rec.accessExpiresAt.Unix(),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	encodedHeader := base64.RawURLEncoding.EncodeToString(headerJSON)
+	encodedPayload := base64.RawURLEncoding.EncodeToString(payloadJSON)
+	unsigned := encodedHeader + "." + encodedPayload
+
+	mac := hmac.New(sha256.New, s.jwtSigningSecret)
+	_, _ = mac.Write([]byte(unsigned))
+	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+
+	return unsigned + "." + sig, nil
+}
+
+func newToken(size int) (string, error) {
+	b := make([]byte, size)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func tokenHash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }

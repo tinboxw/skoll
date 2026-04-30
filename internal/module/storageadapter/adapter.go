@@ -50,6 +50,10 @@ type UserRepository interface {
 	ReportSessionAnomaly(sessionID, category, detail string, now time.Time) user.SessionAnomaly
 	HeartbeatSessionConsistency(sessionID, instanceID string, version int64, now time.Time) user.SessionConsistency
 	SessionConsistencyStatus(sessionID string) user.SessionConsistency
+	CreateAuthSession(userID, roleID int64, claimsVersion string, now time.Time) (user.AuthTokenPair, error)
+	RefreshAuthSession(refreshToken string, now time.Time) (user.AuthTokenPair, error)
+	RevokeAuthSession(sessionID, reason string, now time.Time) (user.AuthSession, error)
+	GetAuthSession(sessionID string) (user.AuthSession, error)
 }
 
 type RoleRepository interface {
