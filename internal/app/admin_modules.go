@@ -338,6 +338,9 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	if services.Releases != nil {
 		handle("POST /admin/v1/release-governance/evidence", submitReleaseEvidenceHandler(services.Releases, services.Audit))
 		handle("GET /admin/v1/release-governance/scorecard/{milestone}", getReleaseScorecardHandler(services.Releases))
+		handle("PUT /admin/v1/release-governance/parity-closure/checkpoints", setParityClosureCheckpointsHandler(services.Audit))
+		handle("GET /admin/v1/release-governance/parity-closure/checkpoints", listParityClosureCheckpointsHandler())
+		handle("GET /admin/v1/release-governance/parity-closure/report", getParityClosureReportHandler())
 	}
 }
 
@@ -766,6 +769,31 @@ type submitReleaseEvidenceRequest struct {
 	EvidenceDescription string  `json:"evidence_description"`
 }
 
+type parityClosureCheckpoint struct {
+	ReferenceProject string   `json:"reference_project"`
+	Capability       string   `json:"capability"`
+	Status           string   `json:"status"`
+	EvidenceLinks    []string `json:"evidence_links"`
+	KnownGap         string   `json:"known_gap,omitempty"`
+	Owner            string   `json:"owner"`
+	UpdatedAtUnixSec int64    `json:"updated_at_unix_sec"`
+}
+
+type setParityClosureCheckpointsRequest struct {
+	Items []parityClosureCheckpoint `json:"items"`
+}
+
+type parityClosureReport struct {
+	ReferenceProjects         []string `json:"reference_projects"`
+	TotalCheckpoints          int      `json:"total_checkpoints"`
+	CompletedCheckpoints      int      `json:"completed_checkpoints"`
+	KnownGapCheckpoints       int      `json:"known_gap_checkpoints"`
+	EvidenceLinkedCheckpoints int      `json:"evidence_linked_checkpoints"`
+	CompatibilityStatement    string   `json:"compatibility_statement"`
+	KnownGapSummary           []string `json:"known_gap_summary"`
+	GeneratedAtUnixSec        int64    `json:"generated_at_unix_sec"`
+}
+
 type dbOpsState struct {
 	mu      sync.Mutex
 	nextID  int64
@@ -782,6 +810,11 @@ type hardeningState struct {
 	nextDrillID   int64
 }
 
+type releaseClosureState struct {
+	mu          sync.Mutex
+	checkpoints map[string]parityClosureCheckpoint
+}
+
 var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]backupCatalogItem)}
 var adminHardeningState = hardeningState{
 	profiles:      make(map[string]endpointGuardrailProfile),
@@ -789,6 +822,7 @@ var adminHardeningState = hardeningState{
 	runbooks:      make(map[string]incidentRunbookProfile),
 	nextDrillID:   1,
 }
+var adminReleaseClosureState = releaseClosureState{checkpoints: make(map[string]parityClosureCheckpoint)}
 
 const dbDangerousConfirmToken = "I_UNDERSTAND"
 const dbDangerousDualConfirmToken = "CONFIRM_DESTRUCTIVE_SQL"
@@ -4109,6 +4143,137 @@ func getReleaseScorecardHandler(svc ReleaseService) http.HandlerFunc {
 		}
 		respondJSON(w, http.StatusOK, svc.Scorecard(milestone, allowedRegression))
 	}
+}
+
+func setParityClosureCheckpointsHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req setParityClosureCheckpointsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		if len(req.Items) == 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "items must not be empty"})
+			return
+		}
+
+		now := time.Now().UTC().Unix()
+		normalized := make(map[string]parityClosureCheckpoint, len(req.Items))
+		for _, item := range req.Items {
+			item.ReferenceProject = strings.TrimSpace(strings.ToLower(item.ReferenceProject))
+			item.Capability = strings.TrimSpace(item.Capability)
+			item.Status = strings.TrimSpace(strings.ToLower(item.Status))
+			item.KnownGap = strings.TrimSpace(item.KnownGap)
+			item.Owner = strings.TrimSpace(item.Owner)
+			if item.ReferenceProject == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "reference_project is required"})
+				return
+			}
+			if item.Capability == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "capability is required"})
+				return
+			}
+			if item.Status != "completed" && item.Status != "partial" && item.Status != "planned" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "status must be completed|partial|planned"})
+				return
+			}
+			if len(item.EvidenceLinks) == 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "evidence_links must not be empty"})
+				return
+			}
+			for i := range item.EvidenceLinks {
+				item.EvidenceLinks[i] = strings.TrimSpace(item.EvidenceLinks[i])
+				if item.EvidenceLinks[i] == "" {
+					respondJSON(w, http.StatusBadRequest, map[string]string{"error": "evidence_links must not contain empty value"})
+					return
+				}
+			}
+			if item.Owner == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "owner is required"})
+				return
+			}
+			item.UpdatedAtUnixSec = now
+			normalized[item.ReferenceProject+":"+strings.ToLower(item.Capability)] = item
+		}
+
+		adminReleaseClosureState.mu.Lock()
+		adminReleaseClosureState.checkpoints = normalized
+		adminReleaseClosureState.mu.Unlock()
+
+		auditSvc.Append("release-governance", "parity_closure_checkpoints_updated", strconv.Itoa(len(normalized)))
+		respondJSON(w, http.StatusOK, map[string]any{"items": parityClosureCheckpointsSnapshot()})
+	}
+}
+
+func listParityClosureCheckpointsHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		respondJSON(w, http.StatusOK, map[string]any{"items": parityClosureCheckpointsSnapshot()})
+	}
+}
+
+func getParityClosureReportHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		items := parityClosureCheckpointsSnapshot()
+		projectsSet := make(map[string]struct{})
+		knownGaps := make([]string, 0)
+		completed := 0
+		evidenceLinked := 0
+		knownGapCount := 0
+		for _, item := range items {
+			projectsSet[item.ReferenceProject] = struct{}{}
+			if item.Status == "completed" {
+				completed++
+			}
+			if len(item.EvidenceLinks) > 0 {
+				evidenceLinked++
+			}
+			if item.KnownGap != "" {
+				knownGapCount++
+				knownGaps = append(knownGaps, item.ReferenceProject+": "+item.Capability+" -> "+item.KnownGap)
+			}
+		}
+		projects := make([]string, 0, len(projectsSet))
+		for project := range projectsSet {
+			projects = append(projects, project)
+		}
+		sort.Strings(projects)
+		sort.Strings(knownGaps)
+
+		statement := "parity closure in progress"
+		if len(items) > 0 && completed == len(items) && knownGapCount == 0 {
+			statement = "full parity achieved against tracked reference capabilities"
+		} else if len(items) > 0 && completed > 0 {
+			statement = "parity partially achieved with known gaps tracked"
+		}
+
+		respondJSON(w, http.StatusOK, parityClosureReport{
+			ReferenceProjects:         projects,
+			TotalCheckpoints:          len(items),
+			CompletedCheckpoints:      completed,
+			KnownGapCheckpoints:       knownGapCount,
+			EvidenceLinkedCheckpoints: evidenceLinked,
+			CompatibilityStatement:    statement,
+			KnownGapSummary:           knownGaps,
+			GeneratedAtUnixSec:        time.Now().UTC().Unix(),
+		})
+	}
+}
+
+func parityClosureCheckpointsSnapshot() []parityClosureCheckpoint {
+	adminReleaseClosureState.mu.Lock()
+	defer adminReleaseClosureState.mu.Unlock()
+
+	items := make([]parityClosureCheckpoint, 0, len(adminReleaseClosureState.checkpoints))
+	for _, item := range adminReleaseClosureState.checkpoints {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].ReferenceProject == items[j].ReferenceProject {
+			return strings.ToLower(items[i].Capability) < strings.ToLower(items[j].Capability)
+		}
+		return items[i].ReferenceProject < items[j].ReferenceProject
+	})
+	return items
 }
 
 func listPluginsHandler(svc PluginService) http.HandlerFunc {

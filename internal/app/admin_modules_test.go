@@ -1707,6 +1707,42 @@ func TestReleaseGovernanceRoutes(t *testing.T) {
 	if !strings.Contains(scoreRR.Body.String(), `"release_ready":true`) {
 		t.Fatalf("expected release_ready=true in scorecard, got %s", scoreRR.Body.String())
 	}
+
+	invalidCheckpointReq := httptest.NewRequest(http.MethodPut, "/admin/v1/release-governance/parity-closure/checkpoints", strings.NewReader(`{"items":[{"reference_project":"gin-vue-admin","capability":"rbac_policy_governance","status":"completed","evidence_links":[],"owner":"platform-team"}]}`))
+	invalidCheckpointReq.Header.Set("Content-Type", "application/json")
+	invalidCheckpointRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidCheckpointRR, invalidCheckpointReq)
+	if invalidCheckpointRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid parity checkpoint status 400, got %d body=%s", invalidCheckpointRR.Code, invalidCheckpointRR.Body.String())
+	}
+
+	checkpointReq := httptest.NewRequest(http.MethodPut, "/admin/v1/release-governance/parity-closure/checkpoints", strings.NewReader(`{"items":[{"reference_project":"gin-vue-admin","capability":"rbac_policy_governance","status":"completed","evidence_links":["docs/milestones/E11-step3-policy-persistence-governance-baseline.md"],"owner":"platform-team"},{"reference_project":"hisiphp","capability":"plugin_upgrade_governance","status":"partial","evidence_links":["docs/milestones/E14-step3-upgrade-transaction-checkpoints-and-provenance.md"],"known_gap":"pending plugin marketplace compatibility matrix sample","owner":"platform-team"}]}`))
+	checkpointReq.Header.Set("Content-Type", "application/json")
+	checkpointRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(checkpointRR, checkpointReq)
+	if checkpointRR.Code != http.StatusOK {
+		t.Fatalf("expected parity checkpoint set status 200, got %d body=%s", checkpointRR.Code, checkpointRR.Body.String())
+	}
+	if !strings.Contains(checkpointRR.Body.String(), `"reference_project":"gin-vue-admin"`) || !strings.Contains(checkpointRR.Body.String(), `"capability":"plugin_upgrade_governance"`) {
+		t.Fatalf("expected parity checkpoint payload, got %s", checkpointRR.Body.String())
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/admin/v1/release-governance/parity-closure/checkpoints", nil)
+	listRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRR, listReq)
+	if listRR.Code != http.StatusOK {
+		t.Fatalf("expected parity checkpoint list status 200, got %d body=%s", listRR.Code, listRR.Body.String())
+	}
+
+	reportReq := httptest.NewRequest(http.MethodGet, "/admin/v1/release-governance/parity-closure/report", nil)
+	reportRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(reportRR, reportReq)
+	if reportRR.Code != http.StatusOK {
+		t.Fatalf("expected parity closure report status 200, got %d body=%s", reportRR.Code, reportRR.Body.String())
+	}
+	if !strings.Contains(reportRR.Body.String(), `"total_checkpoints":2`) || !strings.Contains(reportRR.Body.String(), `"known_gap_checkpoints":1`) {
+		t.Fatalf("expected parity closure report totals, got %s", reportRR.Body.String())
+	}
 }
 
 func TestRuntimeMetricsRoute_ReturnsSnapshot(t *testing.T) {
