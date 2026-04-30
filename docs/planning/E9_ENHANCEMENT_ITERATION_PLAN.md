@@ -4,7 +4,7 @@
 
 - ID: `E9`
 - Name: `enhancement backlog prioritization and production hardening`
-- Status: `step1 persistence adapter rollout design completed`
+- Status: `step3 benchmark regression governance policy completed (E9 closed)`
 
 ## Scope
 

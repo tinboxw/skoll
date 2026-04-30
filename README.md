@@ -4,7 +4,7 @@ Skoll 北欧・巨狼｜Go 高性能、高并发
 
 ## 项目定位
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）、M18-step2（JWT 溯源月度归档样例与审查清单执行示例）、M19-step1（JWT 溯源月度审查自动化清单与轮值负责人指引）、M19-step2（JWT 溯源季度轮值样例与升级交接模板）、M20-step1（JWT 溯源例外治理矩阵与到期复核流程）、M20-step2（JWT 溯源例外样例记录与复核决策日志模板）、M21-step1（JWT 溯源例外治理指标与月度趋势看板字段）、M21-step2（JWT 溯源治理指标告警画像与升级阈值）、M22-step1（JWT 溯源治理评分卡模板与决策就绪度指标）、M22-step2（JWT 溯源治理评分卡样例与评审签收示例）、E1-step1（策略引擎与数据范围授权基线）、E2-step1（动态路由/菜单/按钮权限契约版本化基线）、E3-step1（账户/会话安全加固基线）、E4-step1（生成器表单 schema 与模板兼容治理基线）、E5-step1（插件签名校验/依赖预检/升级回滚基线）、E6-step1（数据库运维治理基线）、E7-step1（多实例一致性加固基线）、E8-step1（发布治理闭环评分卡基线）、E9-step0（增强阶段待办优先级与迭代规划基线）与 E9-step1（持久化适配器滚动设计基线），并已完成后续增强阶段计划与启动封装重构。
+Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）、M18-step2（JWT 溯源月度归档样例与审查清单执行示例）、M19-step1（JWT 溯源月度审查自动化清单与轮值负责人指引）、M19-step2（JWT 溯源季度轮值样例与升级交接模板）、M20-step1（JWT 溯源例外治理矩阵与到期复核流程）、M20-step2（JWT 溯源例外样例记录与复核决策日志模板）、M21-step1（JWT 溯源例外治理指标与月度趋势看板字段）、M21-step2（JWT 溯源治理指标告警画像与升级阈值）、M22-step1（JWT 溯源治理评分卡模板与决策就绪度指标）、M22-step2（JWT 溯源治理评分卡样例与评审签收示例）、E1-step1（策略引擎与数据范围授权基线）、E2-step1（动态路由/菜单/按钮权限契约版本化基线）、E3-step1（账户/会话安全加固基线）、E4-step1（生成器表单 schema 与模板兼容治理基线）、E5-step1（插件签名校验/依赖预检/升级回滚基线）、E6-step1（数据库运维治理基线）、E7-step1（多实例一致性加固基线）、E8-step1（发布治理闭环评分卡基线）、E9-step0（增强阶段待办优先级与迭代规划基线）、E9-step1（持久化适配器滚动设计基线）、E9-step2（生产加固方案基线）与 E9-step3（基准回归治理策略基线），并已完成后续增强阶段计划与启动封装重构。
 
 ## 目录结构
 
@@ -151,6 +151,8 @@ go test -bench=. -benchmem ./...
 - 完全对等增强阶段计划：`docs/planning/PARITY_ENHANCEMENT_PHASE_PLAN.md`
 - E9 增强迭代计划：`docs/planning/E9_ENHANCEMENT_ITERATION_PLAN.md`
 - E9-step1 持久化适配器滚动设计：`docs/planning/E9_STEP1_PERSISTENCE_ADAPTER_ROLLOUT_DESIGN.md`
+- E9-step2 生产加固方案：`docs/planning/E9_STEP2_PRODUCTION_HARDENING_PLAN.md`
+- E9-step3 基准回归治理策略：`docs/planning/E9_STEP3_BENCHMARK_REGRESSION_POLICY.md`
 - E9 后完整对等版本路线：`docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - 代码结构框架：`docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
@@ -270,6 +272,8 @@ go test -bench=. -benchmem ./...
 - E8 发布治理闭环记录：`docs/milestones/E8-release-governance-closure.md`
 - E9 增强待办优先级与规划记录：`docs/milestones/E9-enhancement-backlog-prioritization.md`
 - E9-step1 持久化适配器滚动设计记录：`docs/milestones/E9-step1-persistence-adapter-rollout-design.md`
+- E9-step2 生产加固方案记录：`docs/milestones/E9-step2-production-hardening-plan.md`
+- E9-step3 基准回归治理策略记录：`docs/milestones/E9-step3-benchmark-regression-policy.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
