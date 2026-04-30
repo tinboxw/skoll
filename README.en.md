@@ -287,8 +287,10 @@ go test -bench=. -benchmem ./...
 - E10 auth and session parity record: `docs/milestones/E10-auth-and-session-parity.md`
 - E11-step1 policy snapshot and rollback baseline record: `docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
 - E11-step2 permission diff and audit linkage record: `docs/milestones/E11-step2-permission-diff-and-audit-linkage.md`
+- E11-step3 RBAC policy persistence governance baseline record: `docs/milestones/E11-step3-policy-persistence-governance-baseline.md`
 - E12-step1 admin-domain bulk atomic operations baseline record: `docs/milestones/E12-step1-bulk-atomic-operations-baseline.md`
 - E12-step2 admin-domain query contract and audit paging SLA profile record: `docs/milestones/E12-step2-admin-query-contract-and-audit-sla-profile.md`
+- E12-step3 admin-domain operational controls profile baseline record: `docs/milestones/E12-step3-admin-operational-controls-profile.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

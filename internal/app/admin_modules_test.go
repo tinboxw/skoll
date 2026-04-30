@@ -359,6 +359,16 @@ func TestAdminAuditRoutes_RecentWithLimit(t *testing.T) {
 	if !strings.Contains(profileRR.Body.String(), `"max_size":200`) {
 		t.Fatalf("expected audit profile max size field, got %s", profileRR.Body.String())
 	}
+
+	controlProfileReq := httptest.NewRequest(http.MethodGet, "/admin/v1/admin-ops/control-profile", nil)
+	controlProfileRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(controlProfileRR, controlProfileReq)
+	if controlProfileRR.Code != http.StatusOK {
+		t.Fatalf("expected control profile status 200, got %d", controlProfileRR.Code)
+	}
+	if !strings.Contains(controlProfileRR.Body.String(), `"audit_retention_days":180`) {
+		t.Fatalf("expected retention profile payload, got %s", controlProfileRR.Body.String())
+	}
 }
 
 func TestAdminRoutes_AuthWrapper(t *testing.T) {
@@ -684,6 +694,64 @@ func TestRolePolicySnapshotAndRollbackRoutes(t *testing.T) {
 	srv.httpServer.Handler.ServeHTTP(missingApproverRR, missingApproverReq)
 	if missingApproverRR.Code != http.StatusBadRequest {
 		t.Fatalf("expected rollback approver required status 400, got %d", missingApproverRR.Code)
+	}
+}
+
+func TestRolePolicyPersistenceExportImportRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	createRoleReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles", strings.NewReader(`{"name":"ops","permissions":["user.read"]}`))
+	createRoleReq.Header.Set("Content-Type", "application/json")
+	createRoleRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createRoleRR, createRoleReq)
+	if createRoleRR.Code != http.StatusCreated {
+		t.Fatalf("expected role create status 201, got %d", createRoleRR.Code)
+	}
+
+	createMenuReq := httptest.NewRequest(http.MethodPost, "/admin/v1/menus", strings.NewReader(`{"title":"Dashboard","path":"/dashboard","order":1}`))
+	createMenuReq.Header.Set("Content-Type", "application/json")
+	createMenuRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createMenuRR, createMenuReq)
+	if createMenuRR.Code != http.StatusCreated {
+		t.Fatalf("expected menu create status 201, got %d", createMenuRR.Code)
+	}
+
+	setPoliciesReq := httptest.NewRequest(http.MethodPut, "/admin/v1/roles/1/policies", strings.NewReader(`{"rules":[{"api":"GET:/admin/v1/users","effect":"allow"}]}`))
+	setPoliciesReq.Header.Set("Content-Type", "application/json")
+	setPoliciesRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(setPoliciesRR, setPoliciesReq)
+	if setPoliciesRR.Code != http.StatusOK {
+		t.Fatalf("expected set policies status 200, got %d", setPoliciesRR.Code)
+	}
+
+	exportReq := httptest.NewRequest(http.MethodGet, "/admin/v1/roles/1/policies/persistence/export", nil)
+	exportRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(exportRR, exportReq)
+	if exportRR.Code != http.StatusOK {
+		t.Fatalf("expected export status 200, got %d body=%s", exportRR.Code, exportRR.Body.String())
+	}
+	if !strings.Contains(exportRR.Body.String(), `"role_id":1`) {
+		t.Fatalf("expected role id in export response, got %s", exportRR.Body.String())
+	}
+
+	importReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/persistence/import", strings.NewReader(`{"operator":"security.lead","bundle":{"menu_ids":[1],"apis":["GET:/admin/v1/users"],"rules":[{"api":"GET:/admin/v1/users","effect":"allow"}],"data_scope":{"tenant_ids":["tenant-a"],"require_owner_match":true,"cross_tenant_admin_allow":["ops@example.com"]},"permission_contract":{"version":"v2","items":[{"menu_id":1,"route":"/dashboard","buttons":["view"]}]}}}`))
+	importReq.Header.Set("Content-Type", "application/json")
+	importRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(importRR, importReq)
+	if importRR.Code != http.StatusOK {
+		t.Fatalf("expected import status 200, got %d body=%s", importRR.Code, importRR.Body.String())
+	}
+	if !strings.Contains(importRR.Body.String(), `"cross_tenant_admin_allow":["ops@example.com"]`) {
+		t.Fatalf("expected imported cross-tenant allow list, got %s", importRR.Body.String())
+	}
+
+	invalidImportReq := httptest.NewRequest(http.MethodPost, "/admin/v1/roles/1/policies/persistence/import", strings.NewReader(`{"bundle":{"apis":["GET:/admin/v1/users"]}}`))
+	invalidImportReq.Header.Set("Content-Type", "application/json")
+	invalidImportRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidImportRR, invalidImportReq)
+	if invalidImportRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected import operator-required status 400, got %d", invalidImportRR.Code)
 	}
 }
 

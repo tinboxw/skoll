@@ -219,6 +219,8 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("GET /admin/v1/roles/{id}/policies/snapshots", listRolePolicySnapshotsHandler(services.Roles, services.RBAC))
 	handle("POST /admin/v1/roles/{id}/permissions/diff", diffRolePermissionsHandler(services.Roles, services.RBAC))
 	handle("POST /admin/v1/roles/{id}/permissions/check", checkRolePermissionsHandler(services.Roles, services.RBAC))
+	handle("GET /admin/v1/roles/{id}/policies/persistence/export", exportRolePolicyPersistenceHandler(services.Roles, services.RBAC))
+	handle("POST /admin/v1/roles/{id}/policies/persistence/import", importRolePolicyPersistenceHandler(services.Roles, services.Menus, services.RBAC, services.APIs, services.Audit))
 	handle("POST /admin/v1/roles/{id}/policies/rollback", rollbackRolePoliciesHandler(services.Roles, services.RBAC, services.Audit))
 	handle("PUT /admin/v1/roles/{id}/data-scope", setRoleDataScopeHandler(services.Roles, services.RBAC))
 	handle("GET /admin/v1/roles/{id}/data-scope", getRoleDataScopeHandler(services.Roles, services.RBAC))
@@ -233,6 +235,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/audit-logs", appendAuditLogHandler(services.Audit))
 	handle("GET /admin/v1/audit-logs", recentAuditLogsHandler(services.Audit))
 	handle("GET /admin/v1/audit-logs/profile", auditQueryProfileHandler())
+	handle("GET /admin/v1/admin-ops/control-profile", adminOpsControlProfileHandler())
 	handle("POST /admin/v1/configs", upsertConfigHandler(services.Configs))
 	handle("POST /admin/v1/configs/bulk", upsertConfigsBulkHandler(services.Configs, services.Audit))
 	handle("GET /admin/v1/configs", listConfigsHandler(services.Configs))
@@ -361,6 +364,13 @@ type auditQueryProfileResponse struct {
 	MaxSize          int      `json:"max_size"`
 	TargetP95Millis  int      `json:"target_p95_millis"`
 	SupportedFilters []string `json:"supported_filters"`
+}
+
+type adminOpsControlProfileResponse struct {
+	AuditRetentionDays int      `json:"audit_retention_days"`
+	AuditArchiveDays   int      `json:"audit_archive_days"`
+	ArchiveBatchSize   int      `json:"archive_batch_size"`
+	RateGuardHints     []string `json:"rate_guard_hints"`
 }
 
 type upsertConfigRequest struct {
@@ -610,6 +620,26 @@ type rolePermissionCheckResponse struct {
 	Blocking bool                       `json:"blocking"`
 	Reasons  []string                   `json:"reasons"`
 	Diff     rolePermissionDiffResponse `json:"diff"`
+}
+
+type rolePolicyPersistenceBundle struct {
+	MenuIDs            []int64                          `json:"menu_ids"`
+	APIs               []string                         `json:"apis"`
+	Rules              []rolePolicyRuleItem             `json:"rules"`
+	DataScope          setRoleDataScopeRequest          `json:"data_scope"`
+	PermissionContract setRolePermissionContractRequest `json:"permission_contract"`
+	Snapshots          []rolePolicySnapshotResponse     `json:"snapshots,omitempty"`
+}
+
+type rolePolicyPersistenceResponse struct {
+	RoleID         int64                       `json:"role_id"`
+	ExportedAtUnix int64                       `json:"exported_at_unix_sec"`
+	Bundle         rolePolicyPersistenceBundle `json:"bundle"`
+}
+
+type importRolePolicyPersistenceRequest struct {
+	Operator string                      `json:"operator"`
+	Bundle   rolePolicyPersistenceBundle `json:"bundle"`
 }
 
 type rolePermissionContractItem struct {
@@ -1596,6 +1626,167 @@ func checkRolePermissionsHandler(roleSvc RoleService, rbacSvc RBACService) http.
 	}
 }
 
+func exportRolePolicyPersistenceHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		bundle := rbacSvc.PermissionBundle(roleID)
+		rawSnapshots := rbacSvc.ListRolePolicySnapshots(roleID)
+		snapshots := make([]rolePolicySnapshotResponse, 0, len(rawSnapshots))
+		for _, item := range rawSnapshots {
+			snapshots = append(snapshots, rolePolicySnapshotResponse{RoleID: item.RoleID, Version: item.Version, Rules: toRolePolicyRuleItems(item.Rules)})
+		}
+
+		respondJSON(w, http.StatusOK, rolePolicyPersistenceResponse{
+			RoleID:         roleID,
+			ExportedAtUnix: time.Now().UTC().Unix(),
+			Bundle: rolePolicyPersistenceBundle{
+				MenuIDs: append([]int64(nil), bundle.MenuIDs...),
+				APIs:    append([]string(nil), bundle.APIs...),
+				Rules:   toRolePolicyRuleItems(bundle.Policies),
+				DataScope: setRoleDataScopeRequest{
+					TenantIDs:             append([]string(nil), bundle.DataScope.TenantIDs...),
+					RequireOwnerMatch:     bundle.DataScope.RequireOwnerMatch,
+					CrossTenantAdminAllow: append([]string(nil), bundle.DataScope.CrossTenantAdminAllow...),
+				},
+				PermissionContract: setRolePermissionContractRequest{Version: bundle.RoutePermission.Version, Items: toRolePermissionContractItems(bundle.RoutePermission.Items)},
+				Snapshots:          snapshots,
+			},
+		})
+	}
+}
+
+func importRolePolicyPersistenceHandler(roleSvc RoleService, menuSvc MenuService, rbacSvc RBACService, apiSvc APIRegistryService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		roleID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		if _, err := roleSvc.Get(roleID); err != nil {
+			if err == role.ErrRoleNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusInternalServerError, map[string]string{"error": "internal error"})
+			return
+		}
+
+		var req importRolePolicyPersistenceRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		operator := strings.TrimSpace(req.Operator)
+		if operator == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "operator is required"})
+			return
+		}
+
+		for _, menuID := range req.Bundle.MenuIDs {
+			if menuID <= 0 {
+				continue
+			}
+			if _, err := menuSvc.Get(menuID); err != nil {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("menu id %d not found", menuID)})
+				return
+			}
+		}
+
+		normalizedAPIs := make([]string, 0, len(req.Bundle.APIs))
+		for _, item := range req.Bundle.APIs {
+			n := apiregistry.Normalize(item)
+			if n == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid api format: %q", item)})
+				return
+			}
+			if !apiSvc.Exists(n) {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("api not registered: %s", n)})
+				return
+			}
+			normalizedAPIs = append(normalizedAPIs, n)
+		}
+
+		rules := make([]rbac.PolicyRule, 0, len(req.Bundle.Rules))
+		for _, item := range req.Bundle.Rules {
+			n := apiregistry.Normalize(item.API)
+			if n == "" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid api format: %q", item.API)})
+				return
+			}
+			if !apiSvc.Exists(n) {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("api not registered: %s", n)})
+				return
+			}
+			effect := strings.ToLower(strings.TrimSpace(item.Effect))
+			if effect != "allow" && effect != "deny" {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("invalid policy effect: %q", item.Effect)})
+				return
+			}
+			rules = append(rules, rbac.PolicyRule{
+				API:                  n,
+				Effect:               effect,
+				RequireVerified:      item.RequireVerified,
+				RequireClaimsVersion: strings.ToLower(strings.TrimSpace(item.RequireClaimsVersion)),
+			})
+		}
+
+		contractItems := make([]rbac.RoutePermissionItem, 0, len(req.Bundle.PermissionContract.Items))
+		for _, item := range req.Bundle.PermissionContract.Items {
+			if item.MenuID > 0 {
+				if _, err := menuSvc.Get(item.MenuID); err != nil {
+					respondJSON(w, http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("menu id %d not found", item.MenuID)})
+					return
+				}
+			}
+			contractItems = append(contractItems, rbac.RoutePermissionItem{MenuID: item.MenuID, Route: strings.TrimSpace(item.Route), Buttons: append([]string(nil), item.Buttons...)})
+		}
+
+		rbacSvc.SetRoleMenus(roleID, req.Bundle.MenuIDs)
+		rbacSvc.SetRoleAPIs(roleID, normalizedAPIs)
+		rbacSvc.SetRolePolicies(roleID, rules)
+		rbacSvc.SetRoleDataScope(roleID, rbac.DataScope{
+			TenantIDs:             append([]string(nil), req.Bundle.DataScope.TenantIDs...),
+			RequireOwnerMatch:     req.Bundle.DataScope.RequireOwnerMatch,
+			CrossTenantAdminAllow: append([]string(nil), req.Bundle.DataScope.CrossTenantAdminAllow...),
+		})
+		if req.Bundle.PermissionContract.Version != "" || len(contractItems) > 0 {
+			rbacSvc.SetRoleRoutePermissions(roleID, req.Bundle.PermissionContract.Version, contractItems)
+		}
+
+		auditSvc.Append("rbac", "policy_persistence_import", fmt.Sprintf("role:%d operator:%s", roleID, operator))
+
+		bundle := rbacSvc.PermissionBundle(roleID)
+		respondJSON(w, http.StatusOK, rolePolicyPersistenceResponse{
+			RoleID:         roleID,
+			ExportedAtUnix: time.Now().UTC().Unix(),
+			Bundle: rolePolicyPersistenceBundle{
+				MenuIDs: append([]int64(nil), bundle.MenuIDs...),
+				APIs:    append([]string(nil), bundle.APIs...),
+				Rules:   toRolePolicyRuleItems(bundle.Policies),
+				DataScope: setRoleDataScopeRequest{
+					TenantIDs:             append([]string(nil), bundle.DataScope.TenantIDs...),
+					RequireOwnerMatch:     bundle.DataScope.RequireOwnerMatch,
+					CrossTenantAdminAllow: append([]string(nil), bundle.DataScope.CrossTenantAdminAllow...),
+				},
+				PermissionContract: setRolePermissionContractRequest{Version: bundle.RoutePermission.Version, Items: toRolePermissionContractItems(bundle.RoutePermission.Items)},
+			},
+		})
+	}
+}
+
 func setRoleDataScopeHandler(roleSvc RoleService, rbacSvc RBACService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		roleID, err := parsePathInt64(r, "id")
@@ -1914,6 +2105,21 @@ func auditQueryProfileHandler() http.HandlerFunc {
 				"page",
 				"size",
 				"limit",
+			},
+		})
+	}
+}
+
+func adminOpsControlProfileHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, adminOpsControlProfileResponse{
+			AuditRetentionDays: 180,
+			AuditArchiveDays:   30,
+			ArchiveBatchSize:   1000,
+			RateGuardHints: []string{
+				"actor:security action:policy_snapshot_rollback burst<=2/min",
+				"actor:admin action:users_bulk_create burst<=10/min",
+				"actor:admin action:configs_bulk_upsert burst<=15/min",
 			},
 		})
 	}
