@@ -1543,6 +1543,16 @@ func TestMultiInstanceConsistencyRoutes(t *testing.T) {
 	if !strings.Contains(replayDLQRR.Body.String(), `"status":"replayed"`) {
 		t.Fatalf("expected replayed dead-letter payload, got %s", replayDLQRR.Body.String())
 	}
+
+	reliabilityReq := httptest.NewRequest(http.MethodGet, "/admin/v1/jobs/reliability/metrics", nil)
+	reliabilityRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(reliabilityRR, reliabilityReq)
+	if reliabilityRR.Code != http.StatusOK {
+		t.Fatalf("expected reliability metrics status 200, got %d body=%s", reliabilityRR.Code, reliabilityRR.Body.String())
+	}
+	if !strings.Contains(reliabilityRR.Body.String(), `"retry_schedule_count":1`) || !strings.Contains(reliabilityRR.Body.String(), `"dead_letter_count":1`) {
+		t.Fatalf("expected reliability metrics payload, got %s", reliabilityRR.Body.String())
+	}
 }
 
 func TestReleaseGovernanceRoutes(t *testing.T) {

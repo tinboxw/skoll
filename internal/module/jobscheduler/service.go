@@ -83,6 +83,15 @@ type DeadLetter struct {
 	UpdatedAtUnixSec int64  `json:"updated_at_unix_sec"`
 }
 
+type ReliabilityMetrics struct {
+	ActiveClaims            int   `json:"active_claims"`
+	RetryScheduleCount      int   `json:"retry_schedule_count"`
+	DeadLetterCount         int   `json:"dead_letter_count"`
+	ReplayedDeadLetterCount int   `json:"replayed_dead_letter_count"`
+	TotalReplayActions      int   `json:"total_replay_actions"`
+	GeneratedAtUnixSec      int64 `json:"generated_at_unix_sec"`
+}
+
 type Service struct {
 	mu             sync.RWMutex
 	nextJobID      int64
@@ -392,6 +401,31 @@ func (s *Service) ReplayDeadLetter(executionKey, operator string, now time.Time)
 	item.UpdatedAtUnixSec = now.UTC().Unix()
 	s.deadLetters[executionKey] = item
 	return item, nil
+}
+
+func (s *Service) ReliabilitySnapshot(now time.Time) ReliabilityMetrics {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	retryScheduleCount := 0
+	for _, schedules := range s.retrySchedules {
+		retryScheduleCount += len(schedules)
+	}
+	replayedCount := 0
+	totalReplayActions := 0
+	for _, dlq := range s.deadLetters {
+		totalReplayActions += dlq.ReplayCount
+		if dlq.Status == "replayed" {
+			replayedCount++
+		}
+	}
+	return ReliabilityMetrics{
+		ActiveClaims:            len(s.claims),
+		RetryScheduleCount:      retryScheduleCount,
+		DeadLetterCount:         len(s.deadLetters),
+		ReplayedDeadLetterCount: replayedCount,
+		TotalReplayActions:      totalReplayActions,
+		GeneratedAtUnixSec:      now.UTC().Unix(),
+	}
 }
 
 func toDispatchClaim(executionKey string, rec dispatchClaimRecord, claimed, duplicate bool, message string) DispatchClaim {

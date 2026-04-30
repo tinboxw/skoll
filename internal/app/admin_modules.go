@@ -125,6 +125,7 @@ type JobService interface {
 	MarkDeadLetter(jobID int64, executionKey, reason string, retryCount int, now time.Time) (jobscheduler.DeadLetter, error)
 	ListDeadLetters(limit int) []jobscheduler.DeadLetter
 	ReplayDeadLetter(executionKey, operator string, now time.Time) (jobscheduler.DeadLetter, error)
+	ReliabilitySnapshot(now time.Time) jobscheduler.ReliabilityMetrics
 }
 
 type GeneratorService interface {
@@ -286,6 +287,7 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/jobs/{id}/dead-letters", markJobDeadLetterHandler(services.Jobs, services.Audit))
 	handle("GET /admin/v1/jobs/dead-letters", listJobDeadLettersHandler(services.Jobs))
 	handle("POST /admin/v1/jobs/dead-letters/{execution_key}/replay", replayJobDeadLetterHandler(services.Jobs, services.Audit))
+	handle("GET /admin/v1/jobs/reliability/metrics", jobReliabilityMetricsHandler(services.Jobs))
 	handle("POST /admin/v1/generator/modules", generateModuleHandler(services.Generator))
 	handle("POST /admin/v1/plugins/manifests", installPluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/packages/install", installPluginPackageHandler(services.Plugins))
@@ -2967,6 +2969,12 @@ func replayJobDeadLetterHandler(svc JobService, auditSvc AuditService) http.Hand
 		}
 		auditSvc.Append("scheduler", "dead_letter_replayed", executionKey)
 		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func jobReliabilityMetricsHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		respondJSON(w, http.StatusOK, svc.ReliabilitySnapshot(time.Now().UTC()))
 	}
 }
 

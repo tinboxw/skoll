@@ -109,6 +109,7 @@ type JobRepository interface {
 	MarkDeadLetter(jobID int64, executionKey, reason string, retryCount int, now time.Time) (jobscheduler.DeadLetter, error)
 	ListDeadLetters(limit int) []jobscheduler.DeadLetter
 	ReplayDeadLetter(executionKey, operator string, now time.Time) (jobscheduler.DeadLetter, error)
+	ReliabilitySnapshot(now time.Time) jobscheduler.ReliabilityMetrics
 }
 
 type GeneratorRepository interface {

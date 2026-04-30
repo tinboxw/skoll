@@ -26,6 +26,7 @@ This baseline defines consistency controls for session ownership and job dispatc
 - API: `POST /admin/v1/jobs/{id}/dead-letters`
 - API: `GET /admin/v1/jobs/dead-letters`
 - API: `POST /admin/v1/jobs/dead-letters/{execution_key}/replay`
+- API: `GET /admin/v1/jobs/reliability/metrics`
 - Rules:
   - `execution_key` is treated as an idempotency key.
   - Repeated claims from the same instance are accepted as idempotent.

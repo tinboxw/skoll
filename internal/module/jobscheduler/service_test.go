@@ -132,6 +132,11 @@ func TestServiceRetryPolicyScheduleAndDeadLetterReplay(t *testing.T) {
 	if idempotent.ReplayCount != 1 {
 		t.Fatalf("expected idempotent replay count, got %+v", idempotent)
 	}
+
+	snapshot := svc.ReliabilitySnapshot(now.Add(15 * time.Minute))
+	if snapshot.RetryScheduleCount != 1 || snapshot.DeadLetterCount != 1 || snapshot.ReplayedDeadLetterCount != 1 || snapshot.TotalReplayActions != 1 {
+		t.Fatalf("unexpected reliability snapshot: %+v", snapshot)
+	}
 }
 
 func BenchmarkServiceClaimRunConsistency(b *testing.B) {
