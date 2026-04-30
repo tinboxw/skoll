@@ -119,6 +119,12 @@ type JobService interface {
 	ClaimRun(jobID int64, executionKey, instanceID string, now time.Time) (jobscheduler.DispatchClaim, error)
 	RenewClaimLease(executionKey, instanceID string, leaseTTLSeconds int64, now time.Time) (jobscheduler.DispatchClaim, error)
 	ClaimStatus(executionKey string) jobscheduler.DispatchClaim
+	SetRetryPolicy(jobID int64, policy jobscheduler.RetryPolicy) (jobscheduler.RetryPolicy, error)
+	GetRetryPolicy(jobID int64) (jobscheduler.RetryPolicy, error)
+	ScheduleRetry(jobID int64, executionKey string, attempt int, now time.Time) (jobscheduler.RetrySchedule, error)
+	MarkDeadLetter(jobID int64, executionKey, reason string, retryCount int, now time.Time) (jobscheduler.DeadLetter, error)
+	ListDeadLetters(limit int) []jobscheduler.DeadLetter
+	ReplayDeadLetter(executionKey, operator string, now time.Time) (jobscheduler.DeadLetter, error)
 }
 
 type GeneratorService interface {
@@ -274,6 +280,12 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/jobs/{id}/dispatch-claim", claimJobDispatchHandler(services.Jobs, services.Audit))
 	handle("POST /admin/v1/job-dispatch-claims/{execution_key}/renew", renewJobDispatchClaimHandler(services.Jobs, services.Audit))
 	handle("GET /admin/v1/job-dispatch-claims/{execution_key}", getJobDispatchClaimHandler(services.Jobs))
+	handle("PUT /admin/v1/jobs/{id}/retry-policy", setJobRetryPolicyHandler(services.Jobs, services.Audit))
+	handle("GET /admin/v1/jobs/{id}/retry-policy", getJobRetryPolicyHandler(services.Jobs))
+	handle("POST /admin/v1/jobs/{id}/retries/schedule", scheduleJobRetryHandler(services.Jobs, services.Audit))
+	handle("POST /admin/v1/jobs/{id}/dead-letters", markJobDeadLetterHandler(services.Jobs, services.Audit))
+	handle("GET /admin/v1/jobs/dead-letters", listJobDeadLettersHandler(services.Jobs))
+	handle("POST /admin/v1/jobs/dead-letters/{execution_key}/replay", replayJobDeadLetterHandler(services.Jobs, services.Audit))
 	handle("POST /admin/v1/generator/modules", generateModuleHandler(services.Generator))
 	handle("POST /admin/v1/plugins/manifests", installPluginHandler(services.Plugins))
 	handle("POST /admin/v1/plugins/packages/install", installPluginPackageHandler(services.Plugins))
@@ -475,6 +487,28 @@ type claimJobDispatchRequest struct {
 type renewJobDispatchClaimRequest struct {
 	InstanceID     string `json:"instance_id"`
 	LeaseTTLSecond int64  `json:"lease_ttl_sec"`
+}
+
+type setJobRetryPolicyRequest struct {
+	MaxRetries        int `json:"max_retries"`
+	BackoffBaseMillis int `json:"backoff_base_millis"`
+	BackoffMaxMillis  int `json:"backoff_max_millis"`
+	JitterPercent     int `json:"jitter_percent"`
+}
+
+type scheduleJobRetryRequest struct {
+	ExecutionKey string `json:"execution_key"`
+	Attempt      int    `json:"attempt"`
+}
+
+type markJobDeadLetterRequest struct {
+	ExecutionKey string `json:"execution_key"`
+	Reason       string `json:"reason"`
+	RetryCount   int    `json:"retry_count"`
+}
+
+type replayJobDeadLetterRequest struct {
+	Operator string `json:"operator"`
 }
 
 type generateModuleRequest struct {
@@ -2778,6 +2812,161 @@ func renewJobDispatchClaimHandler(svc JobService, auditSvc AuditService) http.Ha
 		}
 		auditSvc.Append("consistency", "job_dispatch_claim_renew", executionKey)
 		respondJSON(w, http.StatusOK, out)
+	}
+}
+
+func setJobRetryPolicyHandler(svc JobService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jobID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req setJobRetryPolicyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		policy, err := svc.SetRetryPolicy(jobID, jobscheduler.RetryPolicy{
+			MaxRetries:        req.MaxRetries,
+			BackoffBaseMillis: req.BackoffBaseMillis,
+			BackoffMaxMillis:  req.BackoffMaxMillis,
+			JitterPercent:     req.JitterPercent,
+		})
+		if err != nil {
+			if err == jobscheduler.ErrJobNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("scheduler", "retry_policy_set", fmt.Sprintf("job:%d", jobID))
+		respondJSON(w, http.StatusOK, policy)
+	}
+}
+
+func getJobRetryPolicyHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jobID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		policy, err := svc.GetRetryPolicy(jobID)
+		if err != nil {
+			if err == jobscheduler.ErrJobNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		respondJSON(w, http.StatusOK, policy)
+	}
+}
+
+func scheduleJobRetryHandler(svc JobService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jobID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req scheduleJobRetryRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.ExecutionKey = strings.TrimSpace(req.ExecutionKey)
+		if req.ExecutionKey == "" || req.Attempt <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "execution_key and attempt > 0 are required"})
+			return
+		}
+		scheduled, err := svc.ScheduleRetry(jobID, req.ExecutionKey, req.Attempt, time.Now().UTC())
+		if err != nil {
+			if err == jobscheduler.ErrJobNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("scheduler", "retry_scheduled", req.ExecutionKey)
+		respondJSON(w, http.StatusOK, scheduled)
+	}
+}
+
+func markJobDeadLetterHandler(svc JobService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jobID, err := parsePathInt64(r, "id")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req markJobDeadLetterRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.ExecutionKey = strings.TrimSpace(req.ExecutionKey)
+		req.Reason = strings.TrimSpace(req.Reason)
+		if req.ExecutionKey == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "execution_key is required"})
+			return
+		}
+		item, err := svc.MarkDeadLetter(jobID, req.ExecutionKey, req.Reason, req.RetryCount, time.Now().UTC())
+		if err != nil {
+			if err == jobscheduler.ErrJobNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("scheduler", "dead_letter_marked", req.ExecutionKey)
+		respondJSON(w, http.StatusOK, item)
+	}
+}
+
+func listJobDeadLettersHandler(svc JobService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 20
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+				return
+			}
+			limit = parsed
+		}
+		respondJSON(w, http.StatusOK, map[string]any{"items": svc.ListDeadLetters(limit)})
+	}
+}
+
+func replayJobDeadLetterHandler(svc JobService, auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		executionKey, err := parsePathString(r, "execution_key")
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		var req replayJobDeadLetterRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		item, err := svc.ReplayDeadLetter(executionKey, strings.TrimSpace(req.Operator), time.Now().UTC())
+		if err != nil {
+			if err == jobscheduler.ErrDeadLetterNotFound {
+				respondJSON(w, http.StatusNotFound, map[string]string{"error": err.Error()})
+				return
+			}
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+		auditSvc.Append("scheduler", "dead_letter_replayed", executionKey)
+		respondJSON(w, http.StatusOK, item)
 	}
 }
 

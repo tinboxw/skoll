@@ -88,6 +88,52 @@ func TestServiceClaimLeaseRenewal(t *testing.T) {
 	}
 }
 
+func TestServiceRetryPolicyScheduleAndDeadLetterReplay(t *testing.T) {
+	svc := NewService()
+	job := svc.Create("daily-sync", "0 0 * * *")
+	now := time.Unix(1710000000, 0).UTC()
+
+	policy, err := svc.SetRetryPolicy(job.ID, RetryPolicy{MaxRetries: 4, BackoffBaseMillis: 200, BackoffMaxMillis: 1600, JitterPercent: 25})
+	if err != nil {
+		t.Fatalf("set retry policy failed: %v", err)
+	}
+	if policy.MaxRetries != 4 {
+		t.Fatalf("unexpected retry policy: %+v", policy)
+	}
+
+	scheduled, err := svc.ScheduleRetry(job.ID, "job-1:20260426T100000Z", 3, now)
+	if err != nil {
+		t.Fatalf("schedule retry failed: %v", err)
+	}
+	if scheduled.DelayMillis <= 0 || scheduled.Attempt != 3 {
+		t.Fatalf("unexpected retry schedule: %+v", scheduled)
+	}
+
+	dlq, err := svc.MarkDeadLetter(job.ID, "job-1:20260426T100000Z", "retry exhausted", 4, now)
+	if err != nil {
+		t.Fatalf("mark dead-letter failed: %v", err)
+	}
+	if dlq.Status != "dead_lettered" {
+		t.Fatalf("unexpected dead-letter status: %+v", dlq)
+	}
+
+	replayed, err := svc.ReplayDeadLetter("job-1:20260426T100000Z", "ops-a", now.Add(5*time.Minute))
+	if err != nil {
+		t.Fatalf("replay dead-letter failed: %v", err)
+	}
+	if replayed.Status != "replayed" || replayed.ReplayCount != 1 {
+		t.Fatalf("unexpected replay result: %+v", replayed)
+	}
+
+	idempotent, err := svc.ReplayDeadLetter("job-1:20260426T100000Z", "ops-b", now.Add(10*time.Minute))
+	if err != nil {
+		t.Fatalf("idempotent replay failed: %v", err)
+	}
+	if idempotent.ReplayCount != 1 {
+		t.Fatalf("expected idempotent replay count, got %+v", idempotent)
+	}
+}
+
 func BenchmarkServiceClaimRunConsistency(b *testing.B) {
 	svc := NewService()
 	job := svc.Create("daily-sync", "0 0 * * *")

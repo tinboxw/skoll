@@ -103,6 +103,12 @@ type JobRepository interface {
 	ClaimRun(jobID int64, executionKey, instanceID string, now time.Time) (jobscheduler.DispatchClaim, error)
 	RenewClaimLease(executionKey, instanceID string, leaseTTLSeconds int64, now time.Time) (jobscheduler.DispatchClaim, error)
 	ClaimStatus(executionKey string) jobscheduler.DispatchClaim
+	SetRetryPolicy(jobID int64, policy jobscheduler.RetryPolicy) (jobscheduler.RetryPolicy, error)
+	GetRetryPolicy(jobID int64) (jobscheduler.RetryPolicy, error)
+	ScheduleRetry(jobID int64, executionKey string, attempt int, now time.Time) (jobscheduler.RetrySchedule, error)
+	MarkDeadLetter(jobID int64, executionKey, reason string, retryCount int, now time.Time) (jobscheduler.DeadLetter, error)
+	ListDeadLetters(limit int) []jobscheduler.DeadLetter
+	ReplayDeadLetter(executionKey, operator string, now time.Time) (jobscheduler.DeadLetter, error)
 }
 
 type GeneratorRepository interface {

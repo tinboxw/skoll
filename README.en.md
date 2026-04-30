@@ -119,6 +119,11 @@ curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: app
 curl -X POST http://localhost:8080/admin/v1/sessions/consistency/heartbeat -H "Content-Type: application/json" -d '{"session_id":"sess-1","instance_id":"node-a","version":10}'
 curl -X POST http://localhost:8080/admin/v1/jobs/1/dispatch-claim -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","instance_id":"node-a"}'
 curl -X POST http://localhost:8080/admin/v1/job-dispatch-claims/job-1:20260426T100000Z/renew -H "Content-Type: application/json" -d '{"instance_id":"node-a","lease_ttl_sec":60}'
+curl -X PUT http://localhost:8080/admin/v1/jobs/1/retry-policy -H "Content-Type: application/json" -d '{"max_retries":4,"backoff_base_millis":200,"backoff_max_millis":1600,"jitter_percent":25}'
+curl -X POST http://localhost:8080/admin/v1/jobs/1/retries/schedule -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","attempt":2}'
+curl -X POST http://localhost:8080/admin/v1/jobs/1/dead-letters -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","reason":"retry exhausted","retry_count":4}'
+curl http://localhost:8080/admin/v1/jobs/dead-letters?limit=20
+curl -X POST http://localhost:8080/admin/v1/jobs/dead-letters/job-1:20260426T100000Z/replay -H "Content-Type: application/json" -d '{"operator":"ops-a"}'
 curl -X GET http://localhost:8080/admin/v1/job-dispatch-claims/job-1:20260426T100000Z
 curl -X POST http://localhost:8080/admin/v1/release-governance/evidence -H "Content-Type: application/json" -d '{"milestone":"E8-step1","go_test_passed":true,"go_race_passed":true,"readme_synced":true,"benchmark_ns_per_op":3300,"baseline_ns_per_op":3000,"benchmark_command":"go test -bench=BenchmarkAdminUsersListEndpoint -benchmem ./internal/app"}'
 curl -X GET "http://localhost:8080/admin/v1/release-governance/scorecard/E8-step1?allowed_regression=0.15"
@@ -311,6 +316,7 @@ go test -bench=. -benchmem ./...
 - E15-step3 controlled SQL classes and destructive dual confirmation record: `docs/milestones/E15-step3-controlled-sql-classes-and-dual-confirmation.md`
 - E15-step4 restore drill evidence query and RPO checks record: `docs/milestones/E15-step4-restore-drill-evidence-query-and-rpo-checks.md`
 - E16-step1 dispatch claim lease renewal baseline record: `docs/milestones/E16-step1-dispatch-claim-lease-renewal-baseline.md`
+- E16-step2 retry/backoff with DLQ and replay baseline record: `docs/milestones/E16-step2-retry-backoff-dead-letter-and-replay-baseline.md`
 - E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

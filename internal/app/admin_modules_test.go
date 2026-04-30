@@ -1495,6 +1495,54 @@ func TestMultiInstanceConsistencyRoutes(t *testing.T) {
 	if !strings.Contains(renewRR.Body.String(), `"lease_renewal_count":1`) {
 		t.Fatalf("expected lease renewal payload, got %s", renewRR.Body.String())
 	}
+
+	retryPolicyReq := httptest.NewRequest(http.MethodPut, "/admin/v1/jobs/1/retry-policy", strings.NewReader(`{"max_retries":4,"backoff_base_millis":200,"backoff_max_millis":1600,"jitter_percent":25}`))
+	retryPolicyReq.Header.Set("Content-Type", "application/json")
+	retryPolicyRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(retryPolicyRR, retryPolicyReq)
+	if retryPolicyRR.Code != http.StatusOK {
+		t.Fatalf("expected retry policy set status 200, got %d body=%s", retryPolicyRR.Code, retryPolicyRR.Body.String())
+	}
+
+	retryScheduleReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs/1/retries/schedule", strings.NewReader(`{"execution_key":"job-1:20260426T100000Z","attempt":2}`))
+	retryScheduleReq.Header.Set("Content-Type", "application/json")
+	retryScheduleRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(retryScheduleRR, retryScheduleReq)
+	if retryScheduleRR.Code != http.StatusOK {
+		t.Fatalf("expected retry schedule status 200, got %d body=%s", retryScheduleRR.Code, retryScheduleRR.Body.String())
+	}
+	if !strings.Contains(retryScheduleRR.Body.String(), `"attempt":2`) {
+		t.Fatalf("expected retry schedule payload, got %s", retryScheduleRR.Body.String())
+	}
+
+	markDLQReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs/1/dead-letters", strings.NewReader(`{"execution_key":"job-1:20260426T100000Z","reason":"retry exhausted","retry_count":4}`))
+	markDLQReq.Header.Set("Content-Type", "application/json")
+	markDLQRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(markDLQRR, markDLQReq)
+	if markDLQRR.Code != http.StatusOK {
+		t.Fatalf("expected mark dead-letter status 200, got %d body=%s", markDLQRR.Code, markDLQRR.Body.String())
+	}
+
+	listDLQReq := httptest.NewRequest(http.MethodGet, "/admin/v1/jobs/dead-letters?limit=10", nil)
+	listDLQRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listDLQRR, listDLQReq)
+	if listDLQRR.Code != http.StatusOK {
+		t.Fatalf("expected list dead-letters status 200, got %d body=%s", listDLQRR.Code, listDLQRR.Body.String())
+	}
+	if !strings.Contains(listDLQRR.Body.String(), `"execution_key":"job-1:20260426T100000Z"`) {
+		t.Fatalf("expected dead-letter entry payload, got %s", listDLQRR.Body.String())
+	}
+
+	replayDLQReq := httptest.NewRequest(http.MethodPost, "/admin/v1/jobs/dead-letters/job-1:20260426T100000Z/replay", strings.NewReader(`{"operator":"ops-a"}`))
+	replayDLQReq.Header.Set("Content-Type", "application/json")
+	replayDLQRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(replayDLQRR, replayDLQReq)
+	if replayDLQRR.Code != http.StatusOK {
+		t.Fatalf("expected replay dead-letter status 200, got %d body=%s", replayDLQRR.Code, replayDLQRR.Body.String())
+	}
+	if !strings.Contains(replayDLQRR.Body.String(), `"status":"replayed"`) {
+		t.Fatalf("expected replayed dead-letter payload, got %s", replayDLQRR.Body.String())
+	}
 }
 
 func TestReleaseGovernanceRoutes(t *testing.T) {

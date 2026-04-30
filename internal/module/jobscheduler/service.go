@@ -13,6 +13,9 @@ var ErrExecutionKeyRequired = errors.New("execution key required")
 var ErrClaimNotFound = errors.New("dispatch claim not found")
 var ErrClaimLeaseOwnerMismatch = errors.New("dispatch claim lease owner mismatch")
 var ErrInvalidLeaseTTL = errors.New("invalid lease ttl")
+var ErrInvalidRetryPolicy = errors.New("invalid retry policy")
+var ErrRetryAttemptOutOfRange = errors.New("retry attempt out of range")
+var ErrDeadLetterNotFound = errors.New("dead-letter record not found")
 
 type Job struct {
 	ID        int64
@@ -53,6 +56,33 @@ type dispatchClaimRecord struct {
 	renewCount  int64
 }
 
+type RetryPolicy struct {
+	MaxRetries        int `json:"max_retries"`
+	BackoffBaseMillis int `json:"backoff_base_millis"`
+	BackoffMaxMillis  int `json:"backoff_max_millis"`
+	JitterPercent     int `json:"jitter_percent"`
+}
+
+type RetrySchedule struct {
+	ExecutionKey        string `json:"execution_key"`
+	JobID               int64  `json:"job_id"`
+	Attempt             int    `json:"attempt"`
+	DelayMillis         int    `json:"delay_millis"`
+	JitterAppliedMillis int    `json:"jitter_applied_millis"`
+	ScheduledAtUnixSec  int64  `json:"scheduled_at_unix_sec"`
+}
+
+type DeadLetter struct {
+	ExecutionKey     string `json:"execution_key"`
+	JobID            int64  `json:"job_id"`
+	Reason           string `json:"reason"`
+	RetryCount       int    `json:"retry_count"`
+	ReplayCount      int    `json:"replay_count"`
+	Status           string `json:"status"`
+	FailedAtUnixSec  int64  `json:"failed_at_unix_sec"`
+	UpdatedAtUnixSec int64  `json:"updated_at_unix_sec"`
+}
+
 type Service struct {
 	mu             sync.RWMutex
 	nextJobID      int64
@@ -60,6 +90,9 @@ type Service struct {
 	jobs           map[int64]Job
 	executionItems map[int64][]Execution
 	claims         map[string]dispatchClaimRecord
+	retryPolicies  map[int64]RetryPolicy
+	retrySchedules map[string][]RetrySchedule
+	deadLetters    map[string]DeadLetter
 }
 
 func NewService() *Service {
@@ -69,6 +102,9 @@ func NewService() *Service {
 		jobs:           make(map[int64]Job),
 		executionItems: make(map[int64][]Execution),
 		claims:         make(map[string]dispatchClaimRecord),
+		retryPolicies:  make(map[int64]RetryPolicy),
+		retrySchedules: make(map[string][]RetrySchedule),
+		deadLetters:    make(map[string]DeadLetter),
 	}
 }
 
@@ -209,6 +245,153 @@ func (s *Service) ClaimStatus(executionKey string) DispatchClaim {
 		return DispatchClaim{ExecutionKey: executionKey, Claimed: false, DuplicateBlocked: false, Message: "not found"}
 	}
 	return toDispatchClaim(executionKey, rec, true, false, "claimed")
+}
+
+func (s *Service) SetRetryPolicy(jobID int64, policy RetryPolicy) (RetryPolicy, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.jobs[jobID]; !ok {
+		return RetryPolicy{}, ErrJobNotFound
+	}
+	if policy.MaxRetries <= 0 || policy.BackoffBaseMillis <= 0 || policy.BackoffMaxMillis <= 0 || policy.BackoffBaseMillis > policy.BackoffMaxMillis || policy.JitterPercent < 0 || policy.JitterPercent > 100 {
+		return RetryPolicy{}, ErrInvalidRetryPolicy
+	}
+	s.retryPolicies[jobID] = policy
+	return policy, nil
+}
+
+func (s *Service) GetRetryPolicy(jobID int64) (RetryPolicy, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.jobs[jobID]; !ok {
+		return RetryPolicy{}, ErrJobNotFound
+	}
+	if p, ok := s.retryPolicies[jobID]; ok {
+		return p, nil
+	}
+	return RetryPolicy{MaxRetries: 3, BackoffBaseMillis: 500, BackoffMaxMillis: 8000, JitterPercent: 20}, nil
+}
+
+func (s *Service) ScheduleRetry(jobID int64, executionKey string, attempt int, now time.Time) (RetrySchedule, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.jobs[jobID]; !ok {
+		return RetrySchedule{}, ErrJobNotFound
+	}
+	executionKey = strings.TrimSpace(executionKey)
+	if executionKey == "" {
+		return RetrySchedule{}, ErrExecutionKeyRequired
+	}
+	policy, ok := s.retryPolicies[jobID]
+	if !ok {
+		policy = RetryPolicy{MaxRetries: 3, BackoffBaseMillis: 500, BackoffMaxMillis: 8000, JitterPercent: 20}
+	}
+	if attempt <= 0 || attempt > policy.MaxRetries {
+		return RetrySchedule{}, ErrRetryAttemptOutOfRange
+	}
+
+	baseDelay := policy.BackoffBaseMillis
+	for i := 1; i < attempt; i++ {
+		if baseDelay >= policy.BackoffMaxMillis {
+			baseDelay = policy.BackoffMaxMillis
+			break
+		}
+		baseDelay *= 2
+		if baseDelay > policy.BackoffMaxMillis {
+			baseDelay = policy.BackoffMaxMillis
+		}
+	}
+	jitter := (baseDelay * policy.JitterPercent) / 100
+	jitterApplied := 0
+	if attempt%2 == 1 {
+		jitterApplied = jitter
+	}
+	delay := baseDelay + jitterApplied
+	schedule := RetrySchedule{
+		ExecutionKey:        executionKey,
+		JobID:               jobID,
+		Attempt:             attempt,
+		DelayMillis:         delay,
+		JitterAppliedMillis: jitterApplied,
+		ScheduledAtUnixSec:  now.UTC().Add(time.Duration(delay) * time.Millisecond).Unix(),
+	}
+	s.retrySchedules[executionKey] = append(s.retrySchedules[executionKey], schedule)
+	return schedule, nil
+}
+
+func (s *Service) MarkDeadLetter(jobID int64, executionKey, reason string, retryCount int, now time.Time) (DeadLetter, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.jobs[jobID]; !ok {
+		return DeadLetter{}, ErrJobNotFound
+	}
+	executionKey = strings.TrimSpace(executionKey)
+	if executionKey == "" {
+		return DeadLetter{}, ErrExecutionKeyRequired
+	}
+	if retryCount < 0 {
+		retryCount = 0
+	}
+	item, exists := s.deadLetters[executionKey]
+	if exists {
+		item.Reason = strings.TrimSpace(reason)
+		item.RetryCount = retryCount
+		item.Status = "dead_lettered"
+		item.UpdatedAtUnixSec = now.UTC().Unix()
+		s.deadLetters[executionKey] = item
+		return item, nil
+	}
+	item = DeadLetter{
+		ExecutionKey:     executionKey,
+		JobID:            jobID,
+		Reason:           strings.TrimSpace(reason),
+		RetryCount:       retryCount,
+		ReplayCount:      0,
+		Status:           "dead_lettered",
+		FailedAtUnixSec:  now.UTC().Unix(),
+		UpdatedAtUnixSec: now.UTC().Unix(),
+	}
+	s.deadLetters[executionKey] = item
+	return item, nil
+}
+
+func (s *Service) ListDeadLetters(limit int) []DeadLetter {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if limit <= 0 {
+		limit = 20
+	}
+	items := make([]DeadLetter, 0, len(s.deadLetters))
+	for _, item := range s.deadLetters {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].UpdatedAtUnixSec > items[j].UpdatedAtUnixSec })
+	if limit < len(items) {
+		items = items[:limit]
+	}
+	return items
+}
+
+func (s *Service) ReplayDeadLetter(executionKey, operator string, now time.Time) (DeadLetter, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	executionKey = strings.TrimSpace(executionKey)
+	if executionKey == "" {
+		return DeadLetter{}, ErrExecutionKeyRequired
+	}
+	item, ok := s.deadLetters[executionKey]
+	if !ok {
+		return DeadLetter{}, ErrDeadLetterNotFound
+	}
+	if item.Status == "replayed" {
+		return item, nil
+	}
+	_ = strings.TrimSpace(operator)
+	item.ReplayCount++
+	item.Status = "replayed"
+	item.UpdatedAtUnixSec = now.UTC().Unix()
+	s.deadLetters[executionKey] = item
+	return item, nil
 }
 
 func toDispatchClaim(executionKey string, rec dispatchClaimRecord, claimed, duplicate bool, message string) DispatchClaim {
