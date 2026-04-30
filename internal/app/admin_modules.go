@@ -232,13 +232,16 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 
 	handle("POST /admin/v1/audit-logs", appendAuditLogHandler(services.Audit))
 	handle("GET /admin/v1/audit-logs", recentAuditLogsHandler(services.Audit))
+	handle("GET /admin/v1/audit-logs/profile", auditQueryProfileHandler())
 	handle("POST /admin/v1/configs", upsertConfigHandler(services.Configs))
 	handle("POST /admin/v1/configs/bulk", upsertConfigsBulkHandler(services.Configs, services.Audit))
 	handle("GET /admin/v1/configs", listConfigsHandler(services.Configs))
+	handle("GET /admin/v1/configs/query", listConfigsQueryHandler(services.Configs))
 	handle("GET /admin/v1/configs/{key}", getConfigHandler(services.Configs))
 	handle("POST /admin/v1/dictionaries", createDictionaryHandler(services.Dictionaries))
 	handle("POST /admin/v1/dictionaries/bulk", createDictionariesBulkHandler(services.Dictionaries, services.Audit))
 	handle("GET /admin/v1/dictionaries", listDictionariesHandler(services.Dictionaries))
+	handle("GET /admin/v1/dictionaries/query", listDictionariesQueryHandler(services.Dictionaries))
 	handle("GET /admin/v1/dictionaries/{id}", getDictionaryHandler(services.Dictionaries))
 	handle("POST /admin/v1/files", uploadFileHandler(services.Files))
 	handle("GET /admin/v1/files", listFilesHandler(services.Files))
@@ -352,6 +355,14 @@ type appendAuditLogRequest struct {
 	Target string `json:"target"`
 }
 
+type auditQueryProfileResponse struct {
+	DefaultPage      int      `json:"default_page"`
+	DefaultSize      int      `json:"default_size"`
+	MaxSize          int      `json:"max_size"`
+	TargetP95Millis  int      `json:"target_p95_millis"`
+	SupportedFilters []string `json:"supported_filters"`
+}
+
 type upsertConfigRequest struct {
 	Key         string `json:"key"`
 	Value       string `json:"value"`
@@ -366,6 +377,14 @@ type upsertConfigsBulkResponse struct {
 	Atomic bool           `json:"atomic"`
 	Count  int            `json:"count"`
 	Items  []config.Entry `json:"items"`
+}
+
+type configQueryResponse struct {
+	Items   []config.Entry `json:"items"`
+	Page    int            `json:"page"`
+	Size    int            `json:"size"`
+	Total   int            `json:"total"`
+	HasNext bool           `json:"has_next"`
 }
 
 type createDictionaryRequest struct {
@@ -384,6 +403,14 @@ type createDictionariesBulkResponse struct {
 	Atomic bool              `json:"atomic"`
 	Count  int               `json:"count"`
 	Items  []dictionary.Item `json:"items"`
+}
+
+type dictionaryQueryResponse struct {
+	Items   []dictionary.Item `json:"items"`
+	Page    int               `json:"page"`
+	Size    int               `json:"size"`
+	Total   int               `json:"total"`
+	HasNext bool              `json:"has_next"`
 }
 
 type createJobRequest struct {
@@ -1872,6 +1899,26 @@ func recentAuditLogsHandler(svc AuditService) http.HandlerFunc {
 	}
 }
 
+func auditQueryProfileHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		respondJSON(w, http.StatusOK, auditQueryProfileResponse{
+			DefaultPage:     audit.DefaultPage,
+			DefaultSize:     audit.DefaultSize,
+			MaxSize:         auditQueryMaxSize,
+			TargetP95Millis: 100,
+			SupportedFilters: []string{
+				"actor",
+				"action",
+				"target",
+				"q",
+				"page",
+				"size",
+				"limit",
+			},
+		})
+	}
+}
+
 func upsertConfigHandler(svc ConfigService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req upsertConfigRequest
@@ -1924,6 +1971,48 @@ func upsertConfigsBulkHandler(svc ConfigService, auditSvc AuditService) http.Han
 func listConfigsHandler(svc ConfigService) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		respondJSON(w, http.StatusOK, svc.List())
+	}
+}
+
+func listConfigsQueryHandler(svc ConfigService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, size, err := parsePageSizeQuery(r, audit.DefaultPage, audit.DefaultSize, auditQueryMaxSize)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		prefix := strings.TrimSpace(r.URL.Query().Get("key_prefix"))
+		keyword := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+		sortMode := strings.TrimSpace(r.URL.Query().Get("sort"))
+
+		items := svc.List()
+		filtered := make([]config.Entry, 0, len(items))
+		for _, item := range items {
+			if prefix != "" && !strings.HasPrefix(item.Key, prefix) {
+				continue
+			}
+			if keyword != "" {
+				blob := strings.ToLower(item.Key + " " + item.Value + " " + item.Description)
+				if !strings.Contains(blob, keyword) {
+					continue
+				}
+			}
+			filtered = append(filtered, item)
+		}
+
+		if sortMode == "key_desc" {
+			sort.Slice(filtered, func(i, j int) bool { return filtered[i].Key > filtered[j].Key })
+		}
+
+		pageItems, total := paginateSlice(filtered, page, size)
+		respondJSON(w, http.StatusOK, configQueryResponse{
+			Items:   pageItems,
+			Page:    page,
+			Size:    size,
+			Total:   total,
+			HasNext: page*size < total,
+		})
 	}
 }
 
@@ -2015,6 +2104,58 @@ func listDictionariesHandler(svc DictionaryService) http.HandlerFunc {
 			return
 		}
 		respondJSON(w, http.StatusOK, svc.ListByType(itemType))
+	}
+}
+
+func listDictionariesQueryHandler(svc DictionaryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, size, err := parsePageSizeQuery(r, audit.DefaultPage, audit.DefaultSize, auditQueryMaxSize)
+		if err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		itemType := strings.TrimSpace(r.URL.Query().Get("type"))
+		keyword := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+		enabledRaw := strings.TrimSpace(r.URL.Query().Get("enabled"))
+		enabledFilter := false
+		enabledValue := false
+		if enabledRaw != "" {
+			enabledFilter = true
+			parsed, parseErr := strconv.ParseBool(enabledRaw)
+			if parseErr != nil {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "enabled must be true or false"})
+				return
+			}
+			enabledValue = parsed
+		}
+
+		items := svc.List()
+		filtered := make([]dictionary.Item, 0, len(items))
+		for _, item := range items {
+			if itemType != "" && item.Type != itemType {
+				continue
+			}
+			if enabledFilter && item.Enabled != enabledValue {
+				continue
+			}
+			if keyword != "" {
+				blob := strings.ToLower(item.Type + " " + item.Label + " " + item.Value)
+				if !strings.Contains(blob, keyword) {
+					continue
+				}
+			}
+			filtered = append(filtered, item)
+		}
+
+		pageItems, total := paginateSlice(filtered, page, size)
+		respondJSON(w, http.StatusOK, dictionaryQueryResponse{
+			Items:   pageItems,
+			Page:    page,
+			Size:    size,
+			Total:   total,
+			HasNext: page*size < total,
+		})
 	}
 }
 
@@ -3187,6 +3328,9 @@ func parseAuditQuery(r *http.Request) (audit.Query, error) {
 		if err != nil || parsed <= 0 {
 			return audit.Query{}, fmt.Errorf("size must be a positive integer")
 		}
+		if parsed > auditQueryMaxSize {
+			return audit.Query{}, fmt.Errorf("size must be <= %d", auditQueryMaxSize)
+		}
 		q.Size = parsed
 	}
 
@@ -3195,9 +3339,61 @@ func parseAuditQuery(r *http.Request) (audit.Query, error) {
 		if err != nil || parsed <= 0 {
 			return audit.Query{}, fmt.Errorf("limit must be a positive integer")
 		}
+		if parsed > auditQueryMaxSize {
+			return audit.Query{}, fmt.Errorf("limit must be <= %d", auditQueryMaxSize)
+		}
 		q.Page = 1
 		q.Size = parsed
 	}
 
 	return q, nil
+}
+
+const auditQueryMaxSize = 200
+
+func parsePageSizeQuery(r *http.Request, defaultPage, defaultSize, maxSize int) (int, int, error) {
+	page := defaultPage
+	size := defaultSize
+	if rawPage := strings.TrimSpace(r.URL.Query().Get("page")); rawPage != "" {
+		parsed, err := strconv.Atoi(rawPage)
+		if err != nil || parsed <= 0 {
+			return 0, 0, fmt.Errorf("page must be a positive integer")
+		}
+		page = parsed
+	}
+	if rawSize := strings.TrimSpace(r.URL.Query().Get("size")); rawSize != "" {
+		parsed, err := strconv.Atoi(rawSize)
+		if err != nil || parsed <= 0 {
+			return 0, 0, fmt.Errorf("size must be a positive integer")
+		}
+		if parsed > maxSize {
+			return 0, 0, fmt.Errorf("size must be <= %d", maxSize)
+		}
+		size = parsed
+	}
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil || parsed <= 0 {
+			return 0, 0, fmt.Errorf("limit must be a positive integer")
+		}
+		if parsed > maxSize {
+			return 0, 0, fmt.Errorf("limit must be <= %d", maxSize)
+		}
+		page = 1
+		size = parsed
+	}
+	return page, size, nil
+}
+
+func paginateSlice[T any](items []T, page, size int) ([]T, int) {
+	total := len(items)
+	start := (page - 1) * size
+	if start >= total {
+		return []T{}, total
+	}
+	end := start + size
+	if end > total {
+		end = total
+	}
+	return items[start:end], total
 }

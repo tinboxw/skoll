@@ -349,6 +349,16 @@ func TestAdminAuditRoutes_RecentWithLimit(t *testing.T) {
 	if !strings.Contains(filteredRR.Body.String(), `"total":3`) {
 		t.Fatalf("expected filtered total field in response, got %s", filteredRR.Body.String())
 	}
+
+	profileReq := httptest.NewRequest(http.MethodGet, "/admin/v1/audit-logs/profile", nil)
+	profileRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(profileRR, profileReq)
+	if profileRR.Code != http.StatusOK {
+		t.Fatalf("expected audit profile status 200, got %d", profileRR.Code)
+	}
+	if !strings.Contains(profileRR.Body.String(), `"max_size":200`) {
+		t.Fatalf("expected audit profile max size field, got %s", profileRR.Body.String())
+	}
 }
 
 func TestAdminRoutes_AuthWrapper(t *testing.T) {
@@ -735,6 +745,26 @@ func TestConfigAndDictionaryRoutes(t *testing.T) {
 	srv.httpServer.Handler.ServeHTTP(bulkDictRR, bulkDictReq)
 	if bulkDictRR.Code != http.StatusCreated {
 		t.Fatalf("expected bulk dictionary create status 201, got %d body=%s", bulkDictRR.Code, bulkDictRR.Body.String())
+	}
+
+	configQueryReq := httptest.NewRequest(http.MethodGet, "/admin/v1/configs/query?key_prefix=feature.&size=1&page=1", nil)
+	configQueryRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(configQueryRR, configQueryReq)
+	if configQueryRR.Code != http.StatusOK {
+		t.Fatalf("expected config query status 200, got %d body=%s", configQueryRR.Code, configQueryRR.Body.String())
+	}
+	if !strings.Contains(configQueryRR.Body.String(), `"total":2`) || !strings.Contains(configQueryRR.Body.String(), `"has_next":true`) {
+		t.Fatalf("expected paged config query payload, got %s", configQueryRR.Body.String())
+	}
+
+	dictQueryReq := httptest.NewRequest(http.MethodGet, "/admin/v1/dictionaries/query?type=status&q=archived&enabled=true", nil)
+	dictQueryRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(dictQueryRR, dictQueryReq)
+	if dictQueryRR.Code != http.StatusOK {
+		t.Fatalf("expected dictionary query status 200, got %d body=%s", dictQueryRR.Code, dictQueryRR.Body.String())
+	}
+	if !strings.Contains(dictQueryRR.Body.String(), `"total":1`) || !strings.Contains(dictQueryRR.Body.String(), `"Label":"Archived"`) {
+		t.Fatalf("expected filtered dictionary query payload, got %s", dictQueryRR.Body.String())
 	}
 }
 
