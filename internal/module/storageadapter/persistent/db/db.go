@@ -14,8 +14,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-
-	"github.com/tinboxw/skoll/internal/module/storageadapter/persistent"
 )
 
 // Supported dialect identifiers. Memory mode is intentionally excluded; the
@@ -56,25 +54,25 @@ func (o Options) withDefaults() Options {
 	return out
 }
 
-// Open creates a *gorm.DB for the supplied bootstrap config.
+// Open creates a *gorm.DB for the given dialect and DSN.
 //
-// The mode field selects the driver dialect. DSN is passed through to the
-// driver. Callers are expected to have produced cfg via persistent.ResolveBootstrapConfig
-// or an equivalent test helper.
-func Open(cfg persistent.BootstrapConfig, opts Options) (*gorm.DB, error) {
-	mode := strings.ToLower(strings.TrimSpace(cfg.Mode))
-	if strings.TrimSpace(cfg.DSN) == "" {
+// mode selects the driver dialect (mysql, postgres, sqlite). DSN is passed
+// through to the driver. Callers typically obtain mode/DSN via
+// persistent.ResolveBootstrapConfig.
+func Open(mode, dsn string, opts Options) (*gorm.DB, error) {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if strings.TrimSpace(dsn) == "" {
 		return nil, fmt.Errorf("db.Open: empty DSN for mode %q", mode)
 	}
 
 	var dialector gorm.Dialector
 	switch mode {
 	case DialectMySQL:
-		dialector = mysql.Open(cfg.DSN)
+		dialector = mysql.Open(dsn)
 	case DialectPostgres:
-		dialector = postgres.Open(cfg.DSN)
+		dialector = postgres.Open(dsn)
 	case DialectSQLite:
-		dialector = sqlite.Open(cfg.DSN)
+		dialector = sqlite.Open(dsn)
 	default:
 		return nil, fmt.Errorf("db.Open: unsupported dialect %q", mode)
 	}
@@ -106,5 +104,5 @@ func OpenSQLite(dsn string, opts Options) (*gorm.DB, error) {
 	if strings.TrimSpace(dsn) == "" {
 		dsn = "file::memory:?cache=shared"
 	}
-	return Open(persistent.BootstrapConfig{Mode: DialectSQLite, DSN: dsn}, opts)
+	return Open(DialectSQLite, dsn, opts)
 }

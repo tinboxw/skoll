@@ -24,28 +24,18 @@ func TestNewByMode(t *testing.T) {
 		t.Fatalf("expected postgres mode to fail when dsn is missing")
 	}
 
-	t.Run("mysql mode succeeds when dsn is provided", func(t *testing.T) {
-		t.Setenv(persistent.EnvStorageMySQLDSN, "mysql://root:secret@tcp(localhost:3306)/skoll")
-		_, err := NewByMode("mysql")
-		if err != nil {
-			if !strings.Contains(err.Error(), "not implemented") {
-				t.Fatalf("expected not implemented error, got %v", err)
-			}
-			return
+	t.Run("mysql mode attempts connection when dsn is provided", func(t *testing.T) {
+		t.Setenv(persistent.EnvStorageMySQLDSN, "root:secret@tcp(127.0.0.1:1)/skoll")
+		if _, err := NewByMode("mysql"); err == nil {
+			t.Fatalf("expected mysql connect error against unreachable DSN")
 		}
-		t.Fatalf("expected mysql mode to return explicit not implemented error")
 	})
 
-	t.Run("postgres mode succeeds when dsn is provided", func(t *testing.T) {
-		t.Setenv(persistent.EnvStoragePostgresDSN, "postgres://postgres:secret@localhost:5432/skoll")
-		_, err := NewByMode("postgres")
-		if err != nil {
-			if !strings.Contains(err.Error(), "not implemented") {
-				t.Fatalf("expected not implemented error, got %v", err)
-			}
-			return
+	t.Run("postgres mode attempts connection when dsn is provided", func(t *testing.T) {
+		t.Setenv(persistent.EnvStoragePostgresDSN, "host=127.0.0.1 port=1 user=postgres password=secret dbname=skoll sslmode=disable connect_timeout=1")
+		if _, err := NewByMode("postgres"); err == nil {
+			t.Fatalf("expected postgres connect error against unreachable DSN")
 		}
-		t.Fatalf("expected postgres mode to return explicit not implemented error")
 	})
 
 	if _, err := NewByMode("unknown"); err == nil {

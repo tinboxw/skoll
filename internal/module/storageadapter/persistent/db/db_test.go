@@ -6,18 +6,16 @@ import (
 	"testing"
 
 	"gorm.io/gorm"
-
-	"github.com/tinboxw/skoll/internal/module/storageadapter/persistent"
 )
 
 func TestOpenRejectsEmptyDSN(t *testing.T) {
-	if _, err := Open(persistent.BootstrapConfig{Mode: DialectMySQL, DSN: ""}, Options{}); err == nil {
+	if _, err := Open(DialectMySQL, "", Options{}); err == nil {
 		t.Fatalf("expected error for empty DSN")
 	}
 }
 
 func TestOpenRejectsUnknownDialect(t *testing.T) {
-	if _, err := Open(persistent.BootstrapConfig{Mode: "oracle", DSN: "x"}, Options{}); err == nil {
+	if _, err := Open("oracle", "x", Options{}); err == nil {
 		t.Fatalf("expected error for unsupported dialect")
 	}
 }
