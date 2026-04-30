@@ -301,7 +301,9 @@ func MountAdminModuleRoutes(mux *http.ServeMux, services AdminModuleServices, wr
 	handle("POST /admin/v1/db/migrations/plan", planDatabaseMigrationHandler(services.Audit))
 	handle("POST /admin/v1/db/migrations/drift-detect", detectDatabaseMigrationDriftHandler(services.Audit))
 	handle("POST /admin/v1/db/backup", backupDatabaseHandler(services.Audit))
+	handle("GET /admin/v1/db/backups/catalog", listBackupCatalogHandler())
 	handle("POST /admin/v1/db/restore", restoreDatabaseHandler(services.Audit))
+	handle("POST /admin/v1/db/restore/drills", executeRestoreDrillHandler(services.Audit))
 	handle("POST /admin/v1/db/sql/execute", executeControlledSQLHandler(services.Audit))
 	handle("GET /admin/v1/system/status", systemStatusHandler(services))
 	handle("GET /admin/v1/system/runtime-metrics", runtimeMetricsHandler())
@@ -592,6 +594,29 @@ type backupResponse struct {
 	CreatedAtSec int64  `json:"created_at_unix_sec"`
 }
 
+type backupCatalogItem struct {
+	BackupID     string `json:"backup_id"`
+	Reason       string `json:"reason,omitempty"`
+	Status       string `json:"status"`
+	CreatedAtSec int64  `json:"created_at_unix_sec"`
+}
+
+type restoreDrillRequest struct {
+	BackupID         string `json:"backup_id"`
+	ConfirmToken     string `json:"confirm_token"`
+	ExpectedMaxRTOms int64  `json:"expected_max_rto_ms"`
+}
+
+type restoreDrillResponse struct {
+	DrillID          string `json:"drill_id"`
+	BackupID         string `json:"backup_id"`
+	Succeeded        bool   `json:"succeeded"`
+	DurationMs       int64  `json:"duration_ms"`
+	ExpectedMaxRTOms int64  `json:"expected_max_rto_ms"`
+	RTOCompliant     bool   `json:"rto_compliant"`
+	PerformedAtSec   int64  `json:"performed_at_unix_sec"`
+}
+
 type restoreRequest struct {
 	BackupID     string `json:"backup_id"`
 	ConfirmToken string `json:"confirm_token"`
@@ -623,10 +648,11 @@ type submitReleaseEvidenceRequest struct {
 type dbOpsState struct {
 	mu      sync.Mutex
 	nextID  int64
-	backups map[string]time.Time
+	backups map[string]backupCatalogItem
+	drills  []restoreDrillResponse
 }
 
-var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]time.Time)}
+var adminDBOpsState = dbOpsState{nextID: 1, backups: make(map[string]backupCatalogItem)}
 
 const dbDangerousConfirmToken = "I_UNDERSTAND"
 
@@ -3164,10 +3190,35 @@ func backupDatabaseHandler(auditSvc AuditService) http.HandlerFunc {
 		}
 		now := time.Now().UTC()
 		adminDBOpsState.mu.Lock()
-		adminDBOpsState.backups[req.BackupID] = now
+		adminDBOpsState.backups[req.BackupID] = backupCatalogItem{BackupID: req.BackupID, Reason: strings.TrimSpace(req.Reason), Status: "ready", CreatedAtSec: now.Unix()}
 		adminDBOpsState.mu.Unlock()
 		auditSvc.Append("dbops", "backup", req.BackupID)
 		respondJSON(w, http.StatusCreated, backupResponse{BackupID: req.BackupID, Status: "ready", CreatedAtSec: now.Unix()})
+	}
+}
+
+func listBackupCatalogHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit := 20
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			parsed, err := strconv.Atoi(raw)
+			if err != nil || parsed <= 0 {
+				respondJSON(w, http.StatusBadRequest, map[string]string{"error": "limit must be a positive integer"})
+				return
+			}
+			limit = parsed
+		}
+		adminDBOpsState.mu.Lock()
+		items := make([]backupCatalogItem, 0, len(adminDBOpsState.backups))
+		for _, item := range adminDBOpsState.backups {
+			items = append(items, item)
+		}
+		adminDBOpsState.mu.Unlock()
+		sort.Slice(items, func(i, j int) bool { return items[i].CreatedAtSec > items[j].CreatedAtSec })
+		if limit < len(items) {
+			items = items[:limit]
+		}
+		respondJSON(w, http.StatusOK, map[string]any{"items": items})
 	}
 }
 
@@ -3197,6 +3248,55 @@ func restoreDatabaseHandler(auditSvc AuditService) http.HandlerFunc {
 		}
 		auditSvc.Append("dbops", "restore", req.BackupID)
 		respondJSON(w, http.StatusOK, map[string]any{"backup_id": req.BackupID, "status": "restored", "restored_at_unix_sec": time.Now().UTC().Unix()})
+	}
+}
+
+func executeRestoreDrillHandler(auditSvc AuditService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req restoreDrillRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid json body"})
+			return
+		}
+		req.BackupID = strings.TrimSpace(req.BackupID)
+		req.ConfirmToken = strings.TrimSpace(req.ConfirmToken)
+		if req.BackupID == "" {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "backup_id is required"})
+			return
+		}
+		if req.ConfirmToken != dbDangerousConfirmToken {
+			respondJSON(w, http.StatusForbidden, map[string]string{"error": "confirm_token required for restore drill"})
+			return
+		}
+		if req.ExpectedMaxRTOms <= 0 {
+			respondJSON(w, http.StatusBadRequest, map[string]string{"error": "expected_max_rto_ms must be > 0"})
+			return
+		}
+
+		now := time.Now().UTC()
+		simulatedDurationMs := int64(350)
+		adminDBOpsState.mu.Lock()
+		if _, ok := adminDBOpsState.backups[req.BackupID]; !ok {
+			adminDBOpsState.mu.Unlock()
+			respondJSON(w, http.StatusNotFound, map[string]string{"error": "backup_id not found"})
+			return
+		}
+		drillID := fmt.Sprintf("drill-%06d", adminDBOpsState.nextID)
+		adminDBOpsState.nextID++
+		result := restoreDrillResponse{
+			DrillID:          drillID,
+			BackupID:         req.BackupID,
+			Succeeded:        true,
+			DurationMs:       simulatedDurationMs,
+			ExpectedMaxRTOms: req.ExpectedMaxRTOms,
+			RTOCompliant:     simulatedDurationMs <= req.ExpectedMaxRTOms,
+			PerformedAtSec:   now.Unix(),
+		}
+		adminDBOpsState.drills = append(adminDBOpsState.drills, result)
+		adminDBOpsState.mu.Unlock()
+
+		auditSvc.Append("dbops", "restore_drill", result.DrillID)
+		respondJSON(w, http.StatusOK, result)
 	}
 }
 

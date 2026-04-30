@@ -109,7 +109,9 @@ curl "http://localhost:8080/admin/v1/plugins/upgrade/provenance?limit=20"
 curl -X POST http://localhost:8080/admin/v1/db/migrations/plan -H "Content-Type: application/json" -d '{"from_version":"2026.04","to_version":"2026.05","steps":["add_table_users","add_index_users_email"]}'
 curl -X POST http://localhost:8080/admin/v1/db/migrations/drift-detect -H "Content-Type: application/json" -d '{"from_version":"2026.04","to_version":"2026.05","expected_steps":["add_table_users","add_index_users_email"],"applied_steps":["add_table_users","hotfix_sessions_index"]}'
 curl -X POST http://localhost:8080/admin/v1/db/backup -H "Content-Type: application/json" -d '{"backup_id":"bk-001","reason":"pre-release"}'
+curl "http://localhost:8080/admin/v1/db/backups/catalog?limit=20"
 curl -X POST http://localhost:8080/admin/v1/db/restore -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND"}'
+curl -X POST http://localhost:8080/admin/v1/db/restore/drills -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500}'
 curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"DELETE FROM sessions WHERE expired=1","allow_dangerous":true,"confirm_token":"I_UNDERSTAND"}'
 curl -X POST http://localhost:8080/admin/v1/sessions/consistency/heartbeat -H "Content-Type: application/json" -d '{"session_id":"sess-1","instance_id":"node-a","version":10}'
 curl -X POST http://localhost:8080/admin/v1/jobs/1/dispatch-claim -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","instance_id":"node-a"}'
@@ -301,6 +303,7 @@ go test -bench=. -benchmem ./...
 - E14-step2 依赖求解与冲突诊断记录：`docs/milestones/E14-step2-dependency-solver-and-conflict-diagnostics.md`
 - E14-step3 升级事务检查点与 provenance 保留记录：`docs/milestones/E14-step3-upgrade-transaction-checkpoints-and-provenance.md`
 - E15-step1 迁移漂移检测与影响分级记录：`docs/milestones/E15-step1-migration-drift-detection-impact-grading.md`
+- E15-step2 备份目录与恢复演练证据记录：`docs/milestones/E15-step2-backup-catalog-and-restore-drill-evidence.md`
 - E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 

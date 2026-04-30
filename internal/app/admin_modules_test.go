@@ -1320,6 +1320,35 @@ func TestDatabaseOpsGovernanceRoutes(t *testing.T) {
 		t.Fatalf("expected backup status 201, got %d", backupRR.Code)
 	}
 
+	catalogReq := httptest.NewRequest(http.MethodGet, "/admin/v1/db/backups/catalog?limit=10", nil)
+	catalogRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(catalogRR, catalogReq)
+	if catalogRR.Code != http.StatusOK {
+		t.Fatalf("expected backup catalog status 200, got %d body=%s", catalogRR.Code, catalogRR.Body.String())
+	}
+	if !strings.Contains(catalogRR.Body.String(), `"backup_id":"bk-001"`) {
+		t.Fatalf("expected backup catalog item, got %s", catalogRR.Body.String())
+	}
+
+	restoreDrillForbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore/drills", strings.NewReader(`{"backup_id":"bk-001","confirm_token":"","expected_max_rto_ms":500}`))
+	restoreDrillForbiddenReq.Header.Set("Content-Type", "application/json")
+	restoreDrillForbiddenRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(restoreDrillForbiddenRR, restoreDrillForbiddenReq)
+	if restoreDrillForbiddenRR.Code != http.StatusForbidden {
+		t.Fatalf("expected restore drill forbidden status 403, got %d", restoreDrillForbiddenRR.Code)
+	}
+
+	restoreDrillReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore/drills", strings.NewReader(`{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500}`))
+	restoreDrillReq.Header.Set("Content-Type", "application/json")
+	restoreDrillRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(restoreDrillRR, restoreDrillReq)
+	if restoreDrillRR.Code != http.StatusOK {
+		t.Fatalf("expected restore drill status 200, got %d body=%s", restoreDrillRR.Code, restoreDrillRR.Body.String())
+	}
+	if !strings.Contains(restoreDrillRR.Body.String(), `"rto_compliant":true`) {
+		t.Fatalf("expected restore drill RTO compliance payload, got %s", restoreDrillRR.Body.String())
+	}
+
 	restoreForbiddenReq := httptest.NewRequest(http.MethodPost, "/admin/v1/db/restore", strings.NewReader(`{"backup_id":"bk-001","confirm_token":""}`))
 	restoreForbiddenReq.Header.Set("Content-Type", "application/json")
 	restoreForbiddenRR := httptest.NewRecorder()
