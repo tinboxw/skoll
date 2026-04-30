@@ -901,15 +901,16 @@ type nodeHealthResponse struct {
 }
 
 type dashboardAggregateResponse struct {
-	Contract            dashboardContractDescriptor  `json:"contract"`
-	GeneratedAtUnixSec  int64                        `json:"generated_at_unix_sec"`
-	AuthSession         dashboardAuthSessionContext  `json:"auth_session"`
-	AuthObservability   dashboardAuthObservability   `json:"auth_observability"`
-	AuthActionability   dashboardAuthActionability   `json:"auth_actionability"`
-	JWTSessionBootstrap dashboardJWTSessionBootstrap `json:"jwt_session_bootstrap"`
-	Status              systemStatusResponse         `json:"status"`
-	RuntimeMetrics      runtimeMetricsResponse       `json:"runtime_metrics"`
-	NodeHealth          nodeHealthResponse           `json:"node_health"`
+	Contract             dashboardContractDescriptor     `json:"contract"`
+	GeneratedAtUnixSec   int64                           `json:"generated_at_unix_sec"`
+	AuthSession          dashboardAuthSessionContext     `json:"auth_session"`
+	AuthObservability    dashboardAuthObservability      `json:"auth_observability"`
+	AuthActionability    dashboardAuthActionability      `json:"auth_actionability"`
+	JWTSessionBootstrap  dashboardJWTSessionBootstrap    `json:"jwt_session_bootstrap"`
+	Status               systemStatusResponse            `json:"status"`
+	RuntimeMetrics       runtimeMetricsResponse          `json:"runtime_metrics"`
+	NodeHealth           nodeHealthResponse              `json:"node_health"`
+	SchedulerReliability jobscheduler.ReliabilityMetrics `json:"scheduler_reliability"`
 }
 
 type dashboardContractDescriptor struct {
@@ -3877,15 +3878,16 @@ func dashboardAggregateHandler(services AdminModuleServices) http.HandlerFunc {
 		authObservability := collectDashboardAuthObservability()
 		jwtSession := collectDashboardJWTSessionBootstrap(r, time.Now().UTC())
 		respondJSON(w, http.StatusOK, dashboardAggregateResponse{
-			Contract:            collectDashboardContractDescriptor(),
-			GeneratedAtUnixSec:  time.Now().UTC().Unix(),
-			AuthSession:         authSession,
-			AuthObservability:   authObservability,
-			AuthActionability:   collectDashboardAuthActionability(authSession, authObservability),
-			JWTSessionBootstrap: jwtSession,
-			Status:              collectSystemStatus(services),
-			RuntimeMetrics:      collectRuntimeMetrics(),
-			NodeHealth:          collectNodeHealth(services),
+			Contract:             collectDashboardContractDescriptor(),
+			GeneratedAtUnixSec:   time.Now().UTC().Unix(),
+			AuthSession:          authSession,
+			AuthObservability:    authObservability,
+			AuthActionability:    collectDashboardAuthActionability(authSession, authObservability),
+			JWTSessionBootstrap:  jwtSession,
+			Status:               collectSystemStatus(services),
+			RuntimeMetrics:       collectRuntimeMetrics(),
+			NodeHealth:           collectNodeHealth(services),
+			SchedulerReliability: services.Jobs.ReliabilitySnapshot(time.Now().UTC()),
 		})
 	}
 }
@@ -3903,6 +3905,7 @@ func collectDashboardContractDescriptor() dashboardContractDescriptor {
 			"status",
 			"runtime_metrics",
 			"node_health",
+			"scheduler_reliability",
 		},
 	}
 }

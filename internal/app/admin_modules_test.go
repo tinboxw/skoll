@@ -1658,8 +1658,8 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 		t.Fatalf("expected contract.version=v1, got %v", contract["version"])
 	}
 	sections, ok := contract["required_sections"].([]any)
-	if !ok || len(sections) < 7 {
-		t.Fatalf("expected contract.required_sections with 7 entries, got %v", contract["required_sections"])
+	if !ok || len(sections) < 8 {
+		t.Fatalf("expected contract.required_sections with 8 entries, got %v", contract["required_sections"])
 	}
 	authSession, ok := payload["auth_session"].(map[string]any)
 	if !ok {
@@ -1765,6 +1765,13 @@ func TestDashboardAggregateRoute_ReturnsUnifiedSnapshot(t *testing.T) {
 	}
 	if got, ok := nodeHealth["node_status"].(string); !ok || got == "" {
 		t.Fatalf("expected node_health.node_status, got %v", nodeHealth["node_status"])
+	}
+	schedulerReliability, ok := payload["scheduler_reliability"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected scheduler_reliability object, got %v", payload["scheduler_reliability"])
+	}
+	if _, ok := schedulerReliability["retry_schedule_count"].(float64); !ok {
+		t.Fatalf("expected scheduler_reliability.retry_schedule_count field, got %v", schedulerReliability["retry_schedule_count"])
 	}
 }
 
