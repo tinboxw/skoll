@@ -1623,6 +1623,69 @@ func TestSystemAlertProfilesRoutes(t *testing.T) {
 	}
 }
 
+func TestSystemIncidentRunbooksAndFaultDrillsRoutes(t *testing.T) {
+	srv := New(":0", "test-version")
+	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
+
+	invalidRunbookReq := httptest.NewRequest(http.MethodPut, "/admin/v1/system/hardening/incident-runbooks", strings.NewReader(`{"profiles":[{"domain":"scheduler","severity":"p1","runbook":"docs/runbooks/scheduler.md","owner":"platform-ops","escalation":"pagerduty:platform","mitigation_sla_seconds":0}]}`))
+	invalidRunbookReq.Header.Set("Content-Type", "application/json")
+	invalidRunbookRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidRunbookRR, invalidRunbookReq)
+	if invalidRunbookRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid runbook status 400, got %d body=%s", invalidRunbookRR.Code, invalidRunbookRR.Body.String())
+	}
+
+	runbookReq := httptest.NewRequest(http.MethodPut, "/admin/v1/system/hardening/incident-runbooks", strings.NewReader(`{"profiles":[{"domain":"auth","severity":"p1","runbook":"docs/runbooks/auth-outage.md","owner":"security-ops","escalation":"pagerduty:security","mitigation_sla_seconds":600},{"domain":"scheduler","severity":"p2","runbook":"docs/runbooks/scheduler.md","owner":"platform-ops","escalation":"pagerduty:platform","mitigation_sla_seconds":900}]}`))
+	runbookReq.Header.Set("Content-Type", "application/json")
+	runbookRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(runbookRR, runbookReq)
+	if runbookRR.Code != http.StatusOK {
+		t.Fatalf("expected set runbooks status 200, got %d body=%s", runbookRR.Code, runbookRR.Body.String())
+	}
+	if !strings.Contains(runbookRR.Body.String(), `"domain":"auth"`) || !strings.Contains(runbookRR.Body.String(), `"mitigation_sla_seconds":600`) {
+		t.Fatalf("expected runbook payload in response, got %s", runbookRR.Body.String())
+	}
+
+	listRunbookReq := httptest.NewRequest(http.MethodGet, "/admin/v1/system/hardening/incident-runbooks", nil)
+	listRunbookRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listRunbookRR, listRunbookReq)
+	if listRunbookRR.Code != http.StatusOK {
+		t.Fatalf("expected list runbooks status 200, got %d body=%s", listRunbookRR.Code, listRunbookRR.Body.String())
+	}
+	if !strings.Contains(listRunbookRR.Body.String(), `"domain":"scheduler"`) {
+		t.Fatalf("expected scheduler runbook payload, got %s", listRunbookRR.Body.String())
+	}
+
+	invalidDrillReq := httptest.NewRequest(http.MethodPost, "/admin/v1/system/hardening/fault-drills", strings.NewReader(`{"scenario":"","domain":"scheduler","injector":"chaos-mesh","mitigation_evidence":"rolled back worker","residual_risk":"low"}`))
+	invalidDrillReq.Header.Set("Content-Type", "application/json")
+	invalidDrillRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(invalidDrillRR, invalidDrillReq)
+	if invalidDrillRR.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid fault drill status 400, got %d body=%s", invalidDrillRR.Code, invalidDrillRR.Body.String())
+	}
+
+	createDrillReq := httptest.NewRequest(http.MethodPost, "/admin/v1/system/hardening/fault-drills", strings.NewReader(`{"scenario":"scheduler worker timeout storm","domain":"scheduler","injector":"chaos-mesh","mitigation_evidence":"retry policy tightened and unhealthy worker drained","residual_risk":"pending queue burst under peak load"}`))
+	createDrillReq.Header.Set("Content-Type", "application/json")
+	createDrillRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(createDrillRR, createDrillReq)
+	if createDrillRR.Code != http.StatusCreated {
+		t.Fatalf("expected create fault drill status 201, got %d body=%s", createDrillRR.Code, createDrillRR.Body.String())
+	}
+	if !strings.Contains(createDrillRR.Body.String(), `"drill_id":"drill-`) || !strings.Contains(createDrillRR.Body.String(), `"domain":"scheduler"`) {
+		t.Fatalf("expected fault drill response payload, got %s", createDrillRR.Body.String())
+	}
+
+	listDrillReq := httptest.NewRequest(http.MethodGet, "/admin/v1/system/hardening/fault-drills?limit=5", nil)
+	listDrillRR := httptest.NewRecorder()
+	srv.httpServer.Handler.ServeHTTP(listDrillRR, listDrillReq)
+	if listDrillRR.Code != http.StatusOK {
+		t.Fatalf("expected list fault drills status 200, got %d body=%s", listDrillRR.Code, listDrillRR.Body.String())
+	}
+	if !strings.Contains(listDrillRR.Body.String(), `"scenario":"scheduler worker timeout storm"`) || !strings.Contains(listDrillRR.Body.String(), `"mitigation_evidence":"retry policy tightened and unhealthy worker drained"`) {
+		t.Fatalf("expected fault drill list payload, got %s", listDrillRR.Body.String())
+	}
+}
+
 func TestReleaseGovernanceRoutes(t *testing.T) {
 	srv := New(":0", "test-version")
 	srv.MountAdminModuleRoutes(testAdminModuleServices(), nil)
