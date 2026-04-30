@@ -142,3 +142,4 @@ Deliver a minimal baseline that can be built, run, tested, and benchmarked.
 90. [ ] E16-distributed-scheduler-and-job-reliability-parity: Deliver distributed scheduling reliability and replay parity.
 91. [ ] E17-observability-and-operational-hardening-parity: Deliver control-plane hardening and fault-drill parity.
 92. [ ] E18-release-governance-and-parity-closure: Complete parity closure checklist and evidence report.
+93. [x] E11-E18-plan-closure: Complete executable planning package for all remaining post-E10 parity milestones.

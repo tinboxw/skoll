@@ -155,6 +155,14 @@ go test -bench=. -benchmem ./...
 - E9-step3 benchmark regression governance policy: `docs/planning/E9_STEP3_BENCHMARK_REGRESSION_POLICY.md`
 - E10 auth and session parity plan: `docs/planning/E10_AUTH_AND_SESSION_PARITY_PLAN.md`
 - E11-step1 policy snapshot and rollback baseline: `docs/planning/E11_STEP1_POLICY_SNAPSHOT_AND_ROLLBACK_BASELINE.md`
+- E11-step2 permission diff and audit linkage plan: `docs/planning/E11_STEP2_PERMISSION_DIFF_AND_AUDIT_LINKAGE_PLAN.md`
+- E12 admin domain operational parity plan: `docs/planning/E12_ADMIN_DOMAIN_OPERATIONAL_PARITY_PLAN.md`
+- E13 hook and module governance parity plan: `docs/planning/E13_HOOK_AND_MODULE_GOVERNANCE_PARITY_PLAN.md`
+- E14 plugin marketplace depth parity plan: `docs/planning/E14_PLUGIN_MARKETPLACE_DEPTH_PARITY_PLAN.md`
+- E15 database management depth parity plan: `docs/planning/E15_DATABASE_MANAGEMENT_DEPTH_PARITY_PLAN.md`
+- E16 distributed scheduler and job reliability parity plan: `docs/planning/E16_DISTRIBUTED_SCHEDULER_AND_JOB_RELIABILITY_PARITY_PLAN.md`
+- E17 observability and operational hardening parity plan: `docs/planning/E17_OBSERVABILITY_AND_OPERATIONAL_HARDENING_PARITY_PLAN.md`
+- E18 release governance and parity closure plan: `docs/planning/E18_RELEASE_GOVERNANCE_AND_PARITY_CLOSURE_PLAN.md`
 - Post-E9 full parity version plan: `docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - Code structure framework: `docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - Production deployment env template: `docs/planning/PRODUCTION_ENV_TEMPLATE.md`
@@ -278,6 +286,7 @@ go test -bench=. -benchmem ./...
 - E9-step3 benchmark regression governance policy record: `docs/milestones/E9-step3-benchmark-regression-policy.md`
 - E10 auth and session parity record: `docs/milestones/E10-auth-and-session-parity.md`
 - E11-step1 policy snapshot and rollback baseline record: `docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
+- E11-E18 remaining plan closure record: `docs/milestones/E11-E18-plan-closure.md`
 - Milestone template: `docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## Contribution

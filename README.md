@@ -155,6 +155,14 @@ go test -bench=. -benchmem ./...
 - E9-step3 基准回归治理策略：`docs/planning/E9_STEP3_BENCHMARK_REGRESSION_POLICY.md`
 - E10 鉴权与会话对等能力计划：`docs/planning/E10_AUTH_AND_SESSION_PARITY_PLAN.md`
 - E11-step1 策略快照与回滚基线：`docs/planning/E11_STEP1_POLICY_SNAPSHOT_AND_ROLLBACK_BASELINE.md`
+- E11-step2 权限差异检查与审计联动计划：`docs/planning/E11_STEP2_PERMISSION_DIFF_AND_AUDIT_LINKAGE_PLAN.md`
+- E12 管理域运维对等计划：`docs/planning/E12_ADMIN_DOMAIN_OPERATIONAL_PARITY_PLAN.md`
+- E13 Hook 与模块治理对等计划：`docs/planning/E13_HOOK_AND_MODULE_GOVERNANCE_PARITY_PLAN.md`
+- E14 插件市场深度对等计划：`docs/planning/E14_PLUGIN_MARKETPLACE_DEPTH_PARITY_PLAN.md`
+- E15 数据库管理深度对等计划：`docs/planning/E15_DATABASE_MANAGEMENT_DEPTH_PARITY_PLAN.md`
+- E16 分布式调度可靠性对等计划：`docs/planning/E16_DISTRIBUTED_SCHEDULER_AND_JOB_RELIABILITY_PARITY_PLAN.md`
+- E17 可观测性与运维加固对等计划：`docs/planning/E17_OBSERVABILITY_AND_OPERATIONAL_HARDENING_PARITY_PLAN.md`
+- E18 发布治理与对等收口计划：`docs/planning/E18_RELEASE_GOVERNANCE_AND_PARITY_CLOSURE_PLAN.md`
 - E9 后完整对等版本路线：`docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
 - 代码结构框架：`docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
 - 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
@@ -278,6 +286,7 @@ go test -bench=. -benchmem ./...
 - E9-step3 基准回归治理策略记录：`docs/milestones/E9-step3-benchmark-regression-policy.md`
 - E10 鉴权与会话对等能力记录：`docs/milestones/E10-auth-and-session-parity.md`
 - E11-step1 策略快照与回滚基线记录：`docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
+- E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
 - 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
 
 ## 参与贡献
