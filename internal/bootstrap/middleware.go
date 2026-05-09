@@ -14,8 +14,6 @@ import (
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
-type authClaimsContextKey struct{}
-
 type PermissionPolicy struct {
 	PathPrefix string
 	Resource   string
@@ -56,7 +54,7 @@ func authGuardMiddleware(policy AuthPolicy, jwtSecret string, checker permission
 			apperrors.WriteHTTP(w, apperrors.New("unauthorized", "invalid access token", nil))
 			return
 		}
-		r = r.WithContext(withAuthClaims(r.Context(), claims))
+		r = r.WithContext(security.WithJWTClaimsContext(r.Context(), claims))
 
 		if claims != nil && !isRoleBypass(claims.Role) {
 			resource, action, guarded := requiredPermission(r.Method, r.URL.Path)
@@ -137,21 +135,6 @@ func parseBearerToken(raw string) (string, error) {
 		return "", errors.New("missing bearer token")
 	}
 	return token, nil
-}
-
-func withAuthClaims(ctx context.Context, claims *security.JWTClaims) context.Context {
-	if claims == nil {
-		return ctx
-	}
-	return context.WithValue(ctx, authClaimsContextKey{}, *claims)
-}
-
-func authClaimsFromContext(ctx context.Context) (security.JWTClaims, bool) {
-	if ctx == nil {
-		return security.JWTClaims{}, false
-	}
-	v, ok := ctx.Value(authClaimsContextKey{}).(security.JWTClaims)
-	return v, ok
 }
 
 func accessLogMiddleware(logger logging.Logger, next http.Handler) http.Handler {

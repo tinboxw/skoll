@@ -1,11 +1,14 @@
 package v1
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type UserHandler struct {
@@ -71,7 +74,7 @@ func (h *UserHandler) updateEmail(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	entity, err := h.service.UpdateEmail(r.Context(), usersvc.UpdateEmailInput{ID: r.PathValue("id"), Email: req.Email, ActorID: req.ActorID})
+	entity, err := h.service.UpdateEmail(r.Context(), usersvc.UpdateEmailInput{ID: r.PathValue("id"), Email: req.Email, ActorID: actorIDFromRequest(r.Context(), req.ActorID)})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -84,9 +87,20 @@ func (h *UserHandler) disable(w http.ResponseWriter, r *http.Request) {
 		ActorID string `json:"actorId"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
-	if err := h.service.Disable(r.Context(), r.PathValue("id"), req.ActorID); err != nil {
+	if err := h.service.Disable(r.Context(), r.PathValue("id"), actorIDFromRequest(r.Context(), req.ActorID)); err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
 	writeMessage(w, http.StatusOK, "ok", "disabled")
+}
+
+func actorIDFromRequest(ctx context.Context, raw string) string {
+	if actorID := strings.TrimSpace(raw); actorID != "" {
+		return actorID
+	}
+	claims, ok := security.JWTClaimsFromContext(ctx)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(claims.Subject)
 }

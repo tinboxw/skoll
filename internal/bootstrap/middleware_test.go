@@ -88,7 +88,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 		"user:alice:user:read": true,
 	}}
 	h := authGuardMiddleware(policy, "test-secret", checker, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if claims, ok := authClaimsFromContext(r.Context()); !ok || claims.Subject == "" {
+		if claims, ok := security.JWTClaimsFromContext(r.Context()); !ok || claims.Subject == "" {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
