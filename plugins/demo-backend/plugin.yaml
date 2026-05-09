@@ -1,0 +1,8 @@
+id: demo-backend
+name: Demo Backend Plugin
+version: 0.1.0
+description: Example plugin with backend-only architecture.
+ui_mode: backend_only
+
+permissions:
+  - data.read

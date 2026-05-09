@@ -112,12 +112,12 @@ func TestPluginManagerWithExtensionsBuiltinFallback(t *testing.T) {
 		t.Fatalf("unexpected item id: %s", item.ID)
 	}
 
-	if err := mgr.Disable("builtin-logger"); err != nil {
-		t.Fatalf("disable builtin logger: %v", err)
+	if err := mgr.Disable("builtin-logger"); err == nil {
+		t.Fatalf("expected disable builtin logger to be blocked")
 	}
 	item, _ = mgr.Get("builtin-logger")
-	if item.State != plugin.StateDisabled {
-		t.Fatalf("expected disabled state, got %s", item.State)
+	if item.State != plugin.StateEnabled {
+		t.Fatalf("expected state unchanged for builtin logger, got %s", item.State)
 	}
 
 	if err := mgr.Enable("builtin-logger"); err != nil {
@@ -128,12 +128,12 @@ func TestPluginManagerWithExtensionsBuiltinFallback(t *testing.T) {
 		t.Fatalf("expected enabled state, got %s", item.State)
 	}
 
-	if err := mgr.Uninstall("builtin-logger"); err != nil {
-		t.Fatalf("uninstall builtin logger: %v", err)
+	if err := mgr.Uninstall("builtin-logger"); err == nil {
+		t.Fatalf("expected uninstall builtin logger to be blocked")
 	}
 	item, _ = mgr.Get("builtin-logger")
-	if item.State != plugin.StateUninstalled {
-		t.Fatalf("expected uninstalled state, got %s", item.State)
+	if item.State != plugin.StateEnabled {
+		t.Fatalf("expected state unchanged after uninstall attempt, got %s", item.State)
 	}
 
 	snapshot, ok := mgr.GetExtensionSnapshot("builtin-dashboard")

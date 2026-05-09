@@ -18,6 +18,8 @@ dependencies:
 permissions:
   - "user:read"
   - "role:manage"
+ui_mode: "separated"
+frontend_entry: "/plugins/sample-plugin"
 `
 
 	path := filepath.Join(dir, "plugin.yaml")
@@ -39,5 +41,11 @@ permissions:
 	}
 	if len(info.Permissions) != 2 {
 		t.Fatalf("unexpected permissions: %+v", info.Permissions)
+	}
+	if info.UIMode != UIModeSeparated {
+		t.Fatalf("unexpected ui mode: %s", info.UIMode)
+	}
+	if info.FrontendEntry != "/plugins/sample-plugin" {
+		t.Fatalf("unexpected frontend entry: %s", info.FrontendEntry)
 	}
 }

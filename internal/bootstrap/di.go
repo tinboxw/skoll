@@ -222,14 +222,11 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	item, ok := m.builtinInfos[pluginID]
+	_, ok := m.builtinInfos[pluginID]
 	if !ok {
 		return plugin.ErrPluginNotFound
 	}
-	item.State = plugin.StateDisabled
-	item.EnabledAt = nil
-	m.builtinInfos[pluginID] = item
-	return nil
+	return plugin.ErrPluginSystemProtected
 }
 
 func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
@@ -241,14 +238,11 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	item, ok := m.builtinInfos[pluginID]
+	_, ok := m.builtinInfos[pluginID]
 	if !ok {
 		return plugin.ErrPluginNotFound
 	}
-	item.State = plugin.StateUninstalled
-	item.EnabledAt = nil
-	m.builtinInfos[pluginID] = item
-	return nil
+	return plugin.ErrPluginSystemProtected
 }
 
 func registerBuiltinPluginExtensions(logger logging.Logger, jwtSecret string) (map[string]plugin.Info, map[string]plugin.RegistrySnapshot, map[string]http.HandlerFunc) {
@@ -268,14 +262,23 @@ func registerBuiltinPluginExtensions(logger logging.Logger, jwtSecret string) (m
 	handlers := make(map[string]http.HandlerFunc, len(builtinPlugins))
 	for _, p := range builtinPlugins {
 		now := time.Now().UTC()
+		uiMode := plugin.UIModeBackendOnly
+		frontendEntry := ""
+		if p.ID() == "builtin-auth" {
+			uiMode = plugin.UIModeSeparated
+			frontendEntry = "/plugins/auth"
+		}
 		infos[p.ID()] = plugin.Info{
-			ID:          p.ID(),
-			Name:        p.Name(),
-			Version:     p.Version(),
-			State:       plugin.StateEnabled,
-			InstalledAt: now,
-			EnabledAt:   &now,
-			Source:      "builtin",
+			ID:            p.ID(),
+			Name:          p.Name(),
+			Version:       p.Version(),
+			State:         plugin.StateEnabled,
+			InstalledAt:   now,
+			EnabledAt:     &now,
+			Source:        "builtin",
+			UIMode:        uiMode,
+			FrontendEntry: frontendEntry,
+			SystemBuiltin: true,
 		}
 
 		registry := plugin.NewMemoryRegistry()

@@ -16,7 +16,7 @@ const { t } = useI18n();
 const loading = ref(false);
 const operating = ref(false);
 const error = ref<string | null>(null);
-const showOnlyEnabled = ref(true);
+const showOnlyEnabled = ref(false);
 const debugText = ref("");
 const logText = ref("");
 const operationText = ref("");
@@ -42,7 +42,10 @@ async function refreshPlugins(): Promise<void> {
 				id: item.id,
 				name: item.name,
 				version: item.version,
-				enabled: item.enabled
+				enabled: item.enabled,
+				uiMode: item.uiMode,
+				entryPath: item.frontendEntry,
+				systemBuiltin: item.systemBuiltin
 			}))
 		);
 		for (const item of records) {
@@ -50,7 +53,10 @@ async function refreshPlugins(): Promise<void> {
 				id: item.id,
 				name: item.name,
 				version: item.version,
-				enabled: item.enabled
+				enabled: item.enabled,
+				uiMode: item.uiMode,
+				entryPath: item.frontendEntry,
+				systemBuiltin: item.systemBuiltin
 			});
 		}
 		pluginStore.markSynced(null);
@@ -149,7 +155,15 @@ function pluginEntryPath(pluginID: string): string {
 	if (!plugin) {
 		return "";
 	}
+	if (plugin.uiMode === "backend_only") {
+		return "";
+	}
 	return resolvePluginEntryPath(plugin);
+}
+
+function isSystemBuiltin(pluginID: string): boolean {
+	const plugin = pluginStore.items.find((item) => item.id === pluginID);
+	return plugin?.systemBuiltin === true;
 }
 
 async function visitPlugin(pluginID: string): Promise<void> {
@@ -222,11 +236,11 @@ function setAsDefaultHome(pluginID: string): void {
 						</span>
 					</td>
 					<td class="action-cell">
-						<button type="button" :disabled="operating || !pluginEntryPath(item.id)" @click="visitPlugin(item.id)">{{ t("plugin.action.visit") }}</button>
-						<button type="button" :disabled="operating || !pluginEntryPath(item.id)" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
+						<button v-if="pluginEntryPath(item.id)" type="button" :disabled="operating" @click="visitPlugin(item.id)">{{ t("plugin.action.visit") }}</button>
+						<button v-if="pluginEntryPath(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
 						<button type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
-						<button type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
-						<button type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
+						<button v-if="!isSystemBuiltin(item.id)" type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
+						<button v-if="!isSystemBuiltin(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
 						<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
 						<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
 						<span v-if="activeDefaultHome === pluginEntryPath(item.id) && pluginEntryPath(item.id)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>

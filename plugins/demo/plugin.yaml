@@ -1,7 +1,9 @@
 id: demo
-name: Demo Plugin
-version: 0.1.0
-description: Demo plugin used for plugin CLI validate/debug flow.
+name: Demo Separated Plugin
+version: 0.2.0
+description: Example plugin using separated backend and frontend workspaces.
+ui_mode: separated
+frontend_entry: /plugins/demo
 
 permissions:
   - menu.read

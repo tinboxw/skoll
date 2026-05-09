@@ -1,0 +1,10 @@
+id: demo-monolith
+name: Demo Monolith Plugin
+version: 0.1.0
+description: Example plugin using non-separated backend+static layout.
+ui_mode: monolith
+frontend_entry: /plugins/demo-monolith
+
+permissions:
+  - menu.read
+  - route.read

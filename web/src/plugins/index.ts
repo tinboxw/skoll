@@ -24,17 +24,38 @@ export async function bootstrapPlugins(
 
 	try {
 		const records = await syncPluginsFromBackend(fetcher);
+		store.setBackendRecords(
+			records.map((record) => ({
+				id: record.id,
+				name: record.name,
+				version: record.version,
+				enabled: record.enabled,
+				uiMode: record.uiMode,
+				entryPath: record.frontendEntry,
+				systemBuiltin: record.systemBuiltin
+			}))
+		);
 		for (const record of records) {
+			const hasFrontend = record.uiMode !== "backend_only";
+			const routePath = typeof record.frontendEntry === "string" && record.frontendEntry.trim().startsWith("/")
+				? record.frontendEntry.trim()
+				: `/plugins/${record.id}`;
 			registerPlugin(
 				{
 					id: record.id,
 					name: record.name,
 					version: record.version,
-					route: {
-						path: `/plugins/${record.id}`,
-						name: `plugin-${record.id}`,
-						component: createRemotePluginView(record)
-					}
+					enabled: record.enabled,
+					uiMode: record.uiMode,
+					entryPath: record.frontendEntry,
+					systemBuiltin: record.systemBuiltin,
+					route: hasFrontend
+						? {
+							path: routePath,
+							name: `plugin-${record.id}`,
+							component: createRemotePluginView(record)
+						}
+						: undefined
 				},
 				router,
 				store
@@ -43,6 +64,7 @@ export async function bootstrapPlugins(
 		store.markSynced(null);
 	} catch (error) {
 		const msg = error instanceof Error ? error.message : "plugin sync failed";
+		store.setBackendRecords([]);
 		store.markSynced(msg);
 	}
 }
@@ -62,7 +84,7 @@ function addRouteIfMissing(route: RouteRecordRaw, router: Router): void {
 }
 
 async function syncPluginsFromBackend(fetcher: typeof fetch): Promise<BackendPluginRecord[]> {
-	const resp = await fetcher("/v1/plugins?enabled=true");
+	const resp = await fetcher("/v1/plugins");
 	if (!resp.ok) {
 		throw new Error(`plugin sync failed with status ${resp.status}`);
 	}
@@ -75,7 +97,13 @@ function createRemotePluginView(record: BackendPluginRecord) {
 	return defineComponent({
 		name: `RemotePluginView_${record.id}`,
 		setup() {
-			return () => h("div", `${record.name} (${record.version})`);
+			return () =>
+				h("section", { class: "remote-plugin-card" }, [
+					h("h3", `${record.name} (${record.id})`),
+					h("p", `Version: ${record.version}`),
+					h("p", `Enabled: ${record.enabled === false ? "no" : "yes"}`),
+					h("p", "This page is loaded from backend plugin metadata and can be replaced by real plugin bundle loader.")
+				]);
 		}
 	});
 }

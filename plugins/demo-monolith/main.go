@@ -3,5 +3,5 @@ package main
 import "fmt"
 
 func main() {
-	fmt.Println("demo plugin entry")
+	fmt.Println("demo monolith plugin entry")
 }

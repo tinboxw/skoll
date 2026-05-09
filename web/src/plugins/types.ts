@@ -7,6 +7,8 @@ export type FrontendPluginManifest = {
   enabled?: boolean;
   description?: string;
   entryPath?: string;
+  uiMode?: "backend_only" | "monolith" | "separated";
+  systemBuiltin?: boolean;
   route?: RouteRecordRaw;
   backendEndpoint?: string;
 };
@@ -26,4 +28,7 @@ export type BackendPluginRecord = {
   name: string;
   version: string;
   enabled?: boolean;
+  uiMode?: "backend_only" | "monolith" | "separated";
+  frontendEntry?: string;
+  systemBuiltin?: boolean;
 };

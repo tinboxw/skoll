@@ -1,0 +1,17 @@
+{
+  "name": "demo-plugin-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "vue": "^3.4.38"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^1.10.2",
+    "vite": "^2.9.18"
+  }
+}

@@ -6,11 +6,12 @@ import (
 )
 
 var (
-	ErrPluginNotFound       = errors.New("plugin not found")
-	ErrPluginAlreadyExists  = errors.New("plugin already exists")
-	ErrPluginInvalidState   = errors.New("plugin state transition is invalid")
-	ErrPluginManifestBroken = errors.New("plugin manifest is invalid")
-	ErrPluginDependency     = errors.New("plugin dependency error")
+	ErrPluginNotFound        = errors.New("plugin not found")
+	ErrPluginAlreadyExists   = errors.New("plugin already exists")
+	ErrPluginInvalidState    = errors.New("plugin state transition is invalid")
+	ErrPluginManifestBroken  = errors.New("plugin manifest is invalid")
+	ErrPluginDependency      = errors.New("plugin dependency error")
+	ErrPluginSystemProtected = errors.New("system builtin plugin cannot be disabled or uninstalled")
 )
 
 type State string
@@ -27,17 +28,28 @@ type Dependency struct {
 	Version string
 }
 
+type UIMode string
+
+const (
+	UIModeBackendOnly UIMode = "backend_only"
+	UIModeMonolith    UIMode = "monolith"
+	UIModeSeparated   UIMode = "separated"
+)
+
 type Info struct {
-	ID           string
-	Name         string
-	Version      string
-	Description  string
-	Dependencies []Dependency
-	Permissions  []string
-	State        State
-	InstalledAt  time.Time
-	EnabledAt    *time.Time
-	Source       string
+	ID            string
+	Name          string
+	Version       string
+	Description   string
+	Dependencies  []Dependency
+	Permissions   []string
+	State         State
+	InstalledAt   time.Time
+	EnabledAt     *time.Time
+	Source        string
+	UIMode        UIMode
+	FrontendEntry string
+	SystemBuiltin bool
 }
 
 func (i Info) ValidateManifest() error {
@@ -49,6 +61,14 @@ func (i Info) ValidateManifest() error {
 		if dep.ID == "" {
 			return ErrPluginManifestBroken
 		}
+	}
+
+	mode := i.UIMode
+	if mode == "" {
+		mode = UIModeBackendOnly
+	}
+	if mode != UIModeBackendOnly && mode != UIModeMonolith && mode != UIModeSeparated {
+		return ErrPluginManifestBroken
 	}
 
 	return nil

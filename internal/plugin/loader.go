@@ -149,6 +149,10 @@ func parseManifest(raw []byte) (Info, error) {
 			}
 		case "description":
 			info.Description = value
+		case "ui_mode":
+			info.UIMode = UIMode(value)
+		case "frontend_entry":
+			info.FrontendEntry = value
 		}
 	}
 
@@ -158,6 +162,9 @@ func parseManifest(raw []byte) (Info, error) {
 
 	if currentDep != nil {
 		info.Dependencies = append(info.Dependencies, *currentDep)
+	}
+	if info.UIMode == "" {
+		info.UIMode = UIModeBackendOnly
 	}
 
 	return info, nil
