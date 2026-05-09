@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	v1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	"github.com/tinboxw/skoll/internal/plugin"
@@ -19,6 +20,14 @@ type Dependencies struct {
 
 type Middleware func(http.Handler) http.Handler
 
+type pluginExtensionSnapshotProvider interface {
+	GetExtensionSnapshot(pluginID string) (plugin.RegistrySnapshot, bool)
+}
+
+type pluginRouteExecutor interface {
+	HandlePluginRoute(pluginID, method, path string, w http.ResponseWriter, r *http.Request) bool
+}
+
 func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	mux := http.NewServeMux()
 
@@ -30,10 +39,87 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	v1.RegisterRoleRoutes(mux, deps.RoleService)
 	v1.RegisterRBACRoutes(mux, deps.RBACService)
 	v1.RegisterPluginRoutes(mux, deps.PluginManager)
+	registerPluginExtensionRoutes(mux, deps.PluginManager)
 
 	var h http.Handler = mux
 	for i := len(middleware) - 1; i >= 0; i-- {
 		h = middleware[i](h)
 	}
 	return h
+}
+
+func registerPluginExtensionRoutes(mux *http.ServeMux, manager plugin.Manager) {
+	if mux == nil || manager == nil {
+		return
+	}
+
+	provider, ok := manager.(pluginExtensionSnapshotProvider)
+	if !ok {
+		return
+	}
+
+	registered := map[string]struct{}{}
+	for _, item := range manager.List() {
+		if item.State != plugin.StateEnabled {
+			continue
+		}
+		snapshot, exists := provider.GetExtensionSnapshot(item.ID)
+		if !exists {
+			continue
+		}
+		for _, route := range snapshot.Routes {
+			method := strings.ToUpper(strings.TrimSpace(route.Method))
+			path := strings.TrimSpace(route.Path)
+			if !isAllowedPluginRoute(method, path) {
+				continue
+			}
+
+			pattern := method + " " + path
+			if _, seen := registered[pattern]; seen {
+				continue
+			}
+			if !safeHandleFunc(mux, pattern, pluginRouteHandler(manager, item.ID, method, path)) {
+				continue
+			}
+			registered[pattern] = struct{}{}
+		}
+	}
+}
+
+func pluginRouteHandler(manager plugin.Manager, pluginID, method, path string) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if executor, ok := manager.(pluginRouteExecutor); ok {
+			if executor.HandlePluginRoute(pluginID, method, path, w, r) {
+				return
+			}
+		}
+		WriteJSON(w, http.StatusOK, map[string]string{
+			"plugin": pluginID,
+			"method": method,
+			"route":  path,
+			"status": "registered",
+		})
+	}
+}
+
+func isAllowedPluginRoute(method, path string) bool {
+	if !strings.HasPrefix(path, "/") || strings.Contains(path, "{") || strings.Contains(path, "}") {
+		return false
+	}
+	switch method {
+	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func safeHandleFunc(mux *http.ServeMux, pattern string, handler func(http.ResponseWriter, *http.Request)) (ok bool) {
+	defer func() {
+		if recover() != nil {
+			ok = false
+		}
+	}()
+	mux.HandleFunc(pattern, handler)
+	return true
 }

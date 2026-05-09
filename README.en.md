@@ -51,3 +51,11 @@ go test -race ./...
 ## API
 
 - `GET /health`
+- `GET /v1/plugins`
+- `POST /v1/plugins/install` (body: `{ "path": "plugins/demo" }`)
+- `POST /v1/plugins/validate` (body: `{ "path": "plugins/demo" }`)
+- `POST /v1/plugins/{id}/enable`
+- `POST /v1/plugins/{id}/disable`
+- `DELETE /v1/plugins/{id}`
+- `GET /v1/plugins/{id}/debug`
+- `GET /v1/plugins/{id}/logs`

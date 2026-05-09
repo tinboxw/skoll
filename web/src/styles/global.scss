@@ -1,1 +1,152 @@
-﻿
+﻿* {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+	margin: 0;
+	padding: 0;
+	min-height: 100%;
+	font-family: "IBM Plex Sans", "Segoe UI", "PingFang SC", sans-serif;
+	color: var(--color-text);
+	background: var(--color-bg);
+	line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+p {
+	margin-top: 0;
+}
+
+a {
+	color: var(--color-primary);
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+.auth-plugin {
+	max-width: 720px;
+}
+
+.auth-plugin .desc {
+	color: var(--color-text-muted);
+	margin-bottom: 12px;
+}
+
+.auth-plugin .error {
+	color: var(--color-danger);
+	margin-bottom: 10px;
+}
+
+.auth-plugin .panel {
+	padding: 16px;
+	border-radius: var(--radius-lg);
+	border: 1px solid var(--color-border);
+	background: var(--color-surface);
+	box-shadow: 0 8px 22px -20px var(--color-shadow);
+	display: grid;
+	gap: 10px;
+}
+
+.auth-plugin .field {
+	display: grid;
+	gap: 6px;
+	font-size: 0.92rem;
+}
+
+.auth-plugin input {
+	height: 36px;
+	padding: 0 10px;
+	border-radius: 8px;
+	border: 1px solid var(--color-border);
+	background: var(--color-surface-soft);
+}
+
+.auth-plugin .actions {
+	display: flex;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.auth-plugin button.secondary {
+	background: transparent;
+	color: var(--color-primary);
+	border: 1px solid var(--color-border-strong);
+}
+
+.auth-plugin .status {
+	margin: 4px 0 2px;
+	font-weight: 600;
+	color: var(--color-tag-text);
+}
+
+.auth-plugin .session-grid {
+	padding: 10px;
+	border-radius: 8px;
+	background: var(--color-surface-soft);
+	border: 1px solid var(--color-border);
+	display: grid;
+	gap: 4px;
+	font-size: 0.88rem;
+}
+
+.auth-plugin .session-grid p {
+	margin: 0;
+	word-break: break-all;
+}
+
+.auth-plugin .copy-token {
+	margin-left: 8px;
+	padding: 2px 8px;
+	font-size: 0.76rem;
+	border-radius: 999px;
+	border: 1px solid var(--color-border-strong);
+	background: var(--color-surface);
+	color: var(--color-primary-strong);
+}
+
+.auth-plugin .copy-token:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.auth-plugin .permissions {
+	padding: 10px;
+	border-radius: 8px;
+	border: 1px dashed var(--color-border-strong);
+	background: #fcfdfd;
+}
+
+.auth-plugin .perm-title {
+	margin: 0 0 8px;
+	font-weight: 600;
+}
+
+.auth-plugin .perm-list {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.auth-plugin .perm-item {
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: var(--color-tag-bg);
+	color: var(--color-tag-text);
+	font-size: 0.8rem;
+}
+
+.auth-plugin .perm-empty {
+	margin: 0;
+	color: var(--color-text-muted);
+	font-size: 0.86rem;
+}
+
