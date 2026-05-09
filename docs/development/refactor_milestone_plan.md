@@ -1,4 +1,4 @@
-# 重构后续里程碑计划（M1-M7）
+# 重构后续里程碑计划（M1-M11）
 
 ## 说明
 本计划基于 [docs/refactor.md](../refactor.md) 的分阶段实施章节整理，当前默认 M0 已完成，以下为后续执行里程碑清单。
@@ -17,6 +17,10 @@
 - [x] T6 完成 M6 事件总线与异步处理。✓
 - [x] T7 完成 M7 集成测试与优化。✓
 - [x] T8 每阶段完成后执行并记录门禁（`go fmt ./...`、`go test ./...`、`go test -race ./...`）。✓
+- [x] T9 完成 M8 插件化架构基础（插件管理器、加载器、依赖解析）。✓
+- [ ] T10 完成 M9 插件扩展点实现（route/middleware/event/menu/widget/setting）。（已启动）
+- [ ] T11 完成 M10 前端插件系统（注册、通信、状态集成）。
+- [ ] T12 完成 M11 插件开发工具（调试、校验、示例与文档）。
 
 ## 里程碑总览
 
@@ -29,6 +33,10 @@
 | M5 | 第18-20周 | API 接口层开发 | HTTP v1、中间件、CLI |
 | M6 | 第21-22周 | 事件总线与异步处理 | bus/publisher/subscriber/events |
 | M7 | 第23-24周 | 集成测试与优化 | 覆盖率、性能基线、部署配置与文档 |
+| M8 | 第25-27周 | 插件化架构基础 | plugin manager/loader/resolver |
+| M9 | 第28-30周 | 插件扩展点实现 | route/middleware/event/menu/widget/setting 扩展点 |
+| M10 | 第31-33周 | 前端插件系统 | 前端插件框架与通信机制 |
+| M11 | 第34-35周 | 插件开发工具 | 调试命令、校验命令、示例与文档 |
 
 ## M1 核心领域模型与仓储设计
 ### 目标
@@ -146,6 +154,65 @@
 - 性能基线报告可复现。
 - Docker/K8s/Compose 配置可用。
 - 文档完整并与实现一致。
+
+## M8 插件化架构基础
+### 目标
+实现插件管理器、加载器、依赖解析器三项基础能力，形成安装/启停/卸载最小闭环。
+
+### 目录范围
+- internal/plugin/manager.go
+- internal/plugin/loader.go
+- internal/plugin/resolver.go
+- internal/plugin/types.go
+- internal/plugin/permission.go
+
+### 退出标准
+- 插件元数据可加载并校验。
+- 插件依赖关系可解析并具备循环检测。
+- 插件状态（installed/enabled/disabled/uninstalled）可流转。
+- `go fmt ./...`、`go test ./...`、`go test -race ./...` 通过。
+
+## M9 插件扩展点实现
+### 目标
+实现可注册扩展点与插件注册机制，覆盖路由、中间件、事件、菜单、仪表盘组件、设置页。
+
+### 目录范围
+- internal/plugin/registry.go
+- internal/plugin/types.go
+- internal/plugin/builtin
+
+### 退出标准
+- 扩展点注册 API 可用。
+- 至少一个内置插件完成扩展点注册示例。
+- 门禁测试通过。
+
+## M10 前端插件系统
+### 目标
+建立前端插件注册、通信和状态协同机制。
+
+### 目录范围
+- web/src/plugins
+- web/src/stores/plugins.ts
+- web/src/router
+
+### 退出标准
+- 前端插件可被动态注册。
+- 前后端插件通信路径打通（HTTP 或 WebSocket）。
+- 构建与联调通过。
+
+## M11 插件开发工具
+### 目标
+提供插件调试、校验、示例和文档，形成可复用的第三方开发流程。
+
+### 目录范围
+- internal/handler/cli
+- docs/development
+- internal/plugin/builtin
+
+### 退出标准
+- 具备 `list/debug/logs/validate` 等最小工具能力。
+- 示例插件可完成端到端安装与启用。
+- 文档完整并可复现。
 
 ## 阶段门禁（每个里程碑都执行）
 ```bash
