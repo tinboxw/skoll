@@ -84,7 +84,14 @@ function addRouteIfMissing(route: RouteRecordRaw, router: Router): void {
 }
 
 async function syncPluginsFromBackend(fetcher: typeof fetch): Promise<BackendPluginRecord[]> {
-	const resp = await fetcher("/v1/plugins");
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 2500);
+	let resp: Response;
+	try {
+		resp = await fetcher("/v1/plugins", { signal: controller.signal });
+	} finally {
+		clearTimeout(timeout);
+	}
 	if (!resp.ok) {
 		throw new Error(`plugin sync failed with status ${resp.status}`);
 	}

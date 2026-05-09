@@ -2,6 +2,8 @@
 import { createPinia } from "pinia";
 
 import App from "./App.vue";
+import "./styles/variables.scss";
+import "./styles/global.scss";
 import { router } from "./router";
 import { bootstrapPlugins } from "./plugins";
 import { usePluginStore } from "./stores/plugins";
@@ -12,11 +14,13 @@ async function start(): Promise<void> {
 
 	app.use(pinia);
 	app.use(router);
+	app.mount("#app");
 
 	const pluginStore = usePluginStore(pinia);
-	await bootstrapPlugins(router, pluginStore);
-
-	app.mount("#app");
+	void bootstrapPlugins(router, pluginStore).catch((error) => {
+		// eslint-disable-next-line no-console
+		console.error("plugin bootstrap failed", error);
+	});
 }
 
 start().catch((error) => {
