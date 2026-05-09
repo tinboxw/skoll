@@ -1,6 +1,7 @@
 ﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
 import { getDefaultHomePath } from "../stores/plugins";
+import { getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
 import DashboardPage from "../views/Dashboard/index.vue";
 import LoginPage from "../views/Login/index.vue";
@@ -98,7 +99,7 @@ router.beforeEach((to) => {
 
 	const requiredRoles = Array.isArray(to.meta.roles) ? to.meta.roles : null;
 	if (requiredRoles && requiredRoles.length > 0) {
-		const currentRole = "super_admin";
+		const currentRole = getStoredUserRole();
 		if (!requiredRoles.includes(currentRole)) {
 			return getDefaultHomePath("/dashboard");
 		}

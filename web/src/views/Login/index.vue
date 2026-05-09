@@ -1,0 +1,145 @@
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+
+import { useI18n } from "../../i18n";
+import { useUserStore } from "../../stores/user";
+import { apiPost, type ApiResponse } from "../../utils/api";
+import { toErrorMessage } from "../../utils/common";
+
+const route = useRoute();
+const router = useRouter();
+const userStore = useUserStore();
+const { t } = useI18n();
+
+const username = ref("admin");
+const password = ref("skoll");
+const loading = ref(false);
+const error = ref("");
+
+const redirectTo = computed(() => {
+	const q = route.query.redirect;
+	if (typeof q === "string" && q.trim() !== "") {
+		return q;
+	}
+	return "/dashboard";
+});
+
+type LoginPayload = {
+	token: string;
+	permissions?: string[];
+	user?: {
+		username?: string;
+		role?: string;
+	};
+};
+
+async function login(): Promise<void> {
+	error.value = "";
+	loading.value = true;
+	try {
+		const payload = await apiPost<ApiResponse<LoginPayload>>("/v1/auth/login", {
+			username: username.value,
+			password: password.value
+		});
+		const token = payload.data?.token?.trim() ?? "";
+		if (token === "") {
+			throw new Error("missing token in login response");
+		}
+		const profileName = payload.data?.user?.username?.trim() || username.value.trim() || "admin";
+		userStore.setSession(token, {
+			id: profileName,
+			name: profileName,
+			role: payload.data?.user?.role?.trim() || "super_admin"
+		}, Array.isArray(payload.data?.permissions) ? payload.data.permissions : []);
+		await router.replace(redirectTo.value);
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		loading.value = false;
+	}
+}
+</script>
+
+<template>
+	<section class="login-page">
+		<div class="card">
+			<h1>{{ t("login.title") }}</h1>
+			<p>{{ t("login.subtitle") }}</p>
+
+			<label>
+				<span>{{ t("login.username") }}</span>
+				<input v-model="username" type="text" :placeholder="t('login.usernamePlaceholder')" :disabled="loading" />
+			</label>
+
+			<label>
+				<span>{{ t("login.password") }}</span>
+				<input v-model="password" type="password" :placeholder="t('login.passwordPlaceholder')" :disabled="loading" @keydown.enter="login" />
+			</label>
+
+			<p v-if="error" class="error">{{ error }}</p>
+
+			<button type="button" :disabled="loading" @click="login">{{ loading ? t("login.loading") : t("login.submit") }}</button>
+		</div>
+	</section>
+</template>
+
+<style scoped>
+.login-page {
+	min-height: calc(100vh - 48px);
+	display: grid;
+	place-items: center;
+}
+
+.card {
+	width: min(420px, 92vw);
+	padding: 20px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-lg);
+	background: var(--color-surface);
+	box-shadow: 0 20px 36px -30px var(--color-shadow);
+	display: grid;
+	gap: 12px;
+}
+
+h1 {
+	margin: 0;
+	font-size: 1.3rem;
+}
+
+p {
+	margin: 0;
+	color: var(--color-text-muted);
+}
+
+label {
+	display: grid;
+	gap: 6px;
+}
+
+input {
+	height: 38px;
+	padding: 0 10px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--color-border);
+	background: var(--color-surface-soft);
+}
+
+button {
+	height: 38px;
+	border: none;
+	border-radius: var(--radius-md);
+	background: var(--color-primary);
+	color: var(--color-on-primary);
+	cursor: pointer;
+}
+
+button:disabled {
+	opacity: 0.65;
+	cursor: default;
+}
+
+.error {
+	color: var(--color-danger);
+}
+</style>
