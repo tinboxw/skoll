@@ -1,7 +1,7 @@
 ﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
 import { getDefaultHomePath } from "../stores/plugins";
-import { getStoredUserRole } from "../stores/user";
+import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
 import DashboardPage from "../views/Dashboard/index.vue";
 import LoginPage from "../views/Login/index.vue";
@@ -64,13 +64,13 @@ const routes: RouteRecordRaw[] = [
 		path: "/permission",
 		name: "permission",
 		component: PermissionPage,
-		meta: { roles: ["super_admin"] }
+		meta: { permissions: ["permission.manage"] }
 	},
 	{
 		path: "/setting",
 		name: "setting",
 		component: SettingPage,
-		meta: { roles: ["super_admin"] }
+		meta: { permissions: ["role.manage"] }
 	}
 ];
 
@@ -98,10 +98,22 @@ router.beforeEach((to) => {
 	}
 
 	const requiredRoles = Array.isArray(to.meta.roles) ? to.meta.roles : null;
+	const requiredPermissions = Array.isArray(to.meta.permissions) ? to.meta.permissions : null;
 	if (requiredRoles && requiredRoles.length > 0) {
 		const currentRole = getStoredUserRole();
 		if (!requiredRoles.includes(currentRole)) {
 			return getDefaultHomePath("/dashboard");
+		}
+	}
+
+	if (requiredPermissions && requiredPermissions.length > 0) {
+		const currentRole = getStoredUserRole();
+		if (currentRole !== "super_admin") {
+			const permissions = getStoredPermissions();
+			const allowed = requiredPermissions.every((item) => permissions.includes(item));
+			if (!allowed) {
+				return getDefaultHomePath("/dashboard");
+			}
 		}
 	}
 
@@ -112,6 +124,7 @@ declare module "vue-router" {
 	interface RouteMeta {
 		public?: boolean;
 		roles?: string[];
+		permissions?: string[];
 	}
 }
 

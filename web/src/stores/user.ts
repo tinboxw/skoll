@@ -69,6 +69,24 @@ export function getStoredUserRole(): string {
 	return session?.profile.role?.trim() ?? "";
 }
 
+export function getStoredPermissions(): string[] {
+	const session = loadPersistedSession();
+	return Array.isArray(session?.permissions) ? session!.permissions : [];
+}
+
+export function hasStoredPermission(permission: string): boolean {
+	const required = permission.trim();
+	if (required === "") {
+		return true;
+	}
+	for (const item of getStoredPermissions()) {
+		if (item === required) {
+			return true;
+		}
+	}
+	return false;
+}
+
 const persistedSession = loadPersistedSession();
 
 export const useUserStore = defineStore("user", {

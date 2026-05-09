@@ -18,14 +18,40 @@ const router = useRouter();
 
 const pluginCount = computed(() => pluginStore.items.length);
 const isLoginRoute = computed(() => route.path === "/login");
-const sidebarItems = computed(() => [
-	{ label: t("menu.dashboard"), to: "/dashboard" },
-	{ label: t("menu.users"), to: "/user" },
-	{ label: t("menu.roles"), to: "/role" },
-	{ label: t("menu.permissions"), to: "/permission" },
-	{ label: t("menu.plugins"), to: "/plugin" },
-	{ label: t("menu.settings"), to: "/setting" }
-]);
+
+type SidebarItem = {
+	label: string;
+	to: string;
+	requiredRoles?: string[];
+	requiredPermissions?: string[];
+};
+
+const sidebarItems = computed(() => {
+	const allItems: SidebarItem[] = [
+		{ label: t("menu.dashboard"), to: "/dashboard" },
+		{ label: t("menu.users"), to: "/user" },
+		{ label: t("menu.roles"), to: "/role" },
+		{ label: t("menu.permissions"), to: "/permission", requiredPermissions: ["permission.manage"] },
+		{ label: t("menu.plugins"), to: "/plugin" },
+		{ label: t("menu.settings"), to: "/setting", requiredPermissions: ["role.manage"] }
+	];
+
+	const currentRole = userStore.profile?.role ?? "";
+	const permissionSet = new Set(userStore.permissions);
+
+	return allItems.filter((item) => {
+		if (currentRole === "super_admin") {
+			return true;
+		}
+		if (Array.isArray(item.requiredRoles) && item.requiredRoles.length > 0 && !item.requiredRoles.includes(currentRole)) {
+			return false;
+		}
+		if (Array.isArray(item.requiredPermissions) && item.requiredPermissions.length > 0) {
+			return item.requiredPermissions.every((permission) => permissionSet.has(permission));
+		}
+		return true;
+	});
+});
 
 async function handleLogout(): Promise<void> {
 	userStore.logout();
