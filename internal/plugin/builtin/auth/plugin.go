@@ -26,6 +26,7 @@ func (p *Plugin) Register(registry plugin.ExtensionRegistry) error {
 	registry.RegisterMiddleware("auth.jwt")
 	registry.RegisterEventHandler("user.login")
 	registry.RegisterMenuItem(plugin.MenuExtension{Name: "认证管理", Path: "/auth"})
+	registry.RegisterWidget(plugin.WidgetExtension{Name: "auth-login-metrics"})
 	registry.RegisterSettingPage(plugin.SettingExtension{Name: "认证配置", Path: "/settings/auth"})
 	return nil
 }

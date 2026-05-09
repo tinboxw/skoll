@@ -18,7 +18,7 @@
 - [x] T7 完成 M7 集成测试与优化。✓
 - [x] T8 每阶段完成后执行并记录门禁（`go fmt ./...`、`go test ./...`、`go test -race ./...`）。✓
 - [x] T9 完成 M8 插件化架构基础（插件管理器、加载器、依赖解析）。✓
-- [ ] T10 完成 M9 插件扩展点实现（route/middleware/event/menu/widget/setting）。（已启动）
+- [x] T10 完成 M9 插件扩展点实现（route/middleware/event/menu/widget/setting）。✓
 - [ ] T11 完成 M10 前端插件系统（注册、通信、状态集成）。
 - [ ] T12 完成 M11 插件开发工具（调试、校验、示例与文档）。
 

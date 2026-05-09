@@ -27,6 +27,9 @@ func TestBuiltinAuthPluginRegister(t *testing.T) {
 	if len(snapshot.Menus) != 1 {
 		t.Fatalf("unexpected menu count: %d", len(snapshot.Menus))
 	}
+	if len(snapshot.Widgets) != 1 {
+		t.Fatalf("unexpected widget count: %d", len(snapshot.Widgets))
+	}
 	if len(snapshot.Settings) != 1 {
 		t.Fatalf("unexpected setting count: %d", len(snapshot.Settings))
 	}
