@@ -16,7 +16,7 @@ func NewMySQLAdapter(cfg BootstrapConfig) (contracts.Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewAdapter(gdb, "")
+	return newOwnedAdapter(gdb, "")
 }
 
 // NewPostgresAdapter creates a Postgres-backed adapter.
@@ -28,5 +28,5 @@ func NewPostgresAdapter(cfg BootstrapConfig) (contracts.Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewAdapter(gdb, "")
+	return newOwnedAdapter(gdb, "")
 }

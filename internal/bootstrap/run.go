@@ -17,6 +17,7 @@ import (
 	"github.com/tinboxw/skoll/internal/integration/adminauth"
 	"github.com/tinboxw/skoll/internal/integration/goadmin"
 	"github.com/tinboxw/skoll/internal/module/storageadapter"
+	storagecontracts "github.com/tinboxw/skoll/internal/module/storageadapter/contracts"
 	"github.com/tinboxw/skoll/pkg/version"
 )
 
@@ -69,10 +70,11 @@ func (r *Runner) Run() error {
 		return err
 	}
 
-	srv, err := r.buildServer(opts, adminVerifier, adminAuthEnabled, goAdminBootstrap)
+	srv, storage, err := r.buildServer(opts, adminVerifier, adminAuthEnabled, goAdminBootstrap)
 	if err != nil {
 		return err
 	}
+	defer r.closeStorageAdapter(storage)
 
 	return r.serveUntilShutdown(srv, opts.drainTime, opts.shutdownTimeout)
 }
@@ -132,14 +134,14 @@ func (r *Runner) initGoAdminBootstrap(opts runOptions) (*goadmin.Bootstrap, erro
 	return goAdminBootstrap, nil
 }
 
-func (r *Runner) buildServer(opts runOptions, adminVerifier adminauth.Verifier, adminAuthEnabled bool, goAdminBootstrap *goadmin.Bootstrap) (*app.Server, error) {
+func (r *Runner) buildServer(opts runOptions, adminVerifier adminauth.Verifier, adminAuthEnabled bool, goAdminBootstrap *goadmin.Bootstrap) (*app.Server, storagecontracts.Adapter, error) {
 	srv := app.New(opts.addr, version.String())
 	srv.AddMetricsCollector(adminauth.MetricsPrometheus)
 	srv.SetReady(true)
 
 	storage, err := storageadapter.NewByMode(opts.storageAdapterMode)
 	if err != nil {
-		return nil, fmt.Errorf("invalid storage adapter configuration: %w", err)
+		return nil, nil, fmt.Errorf("invalid storage adapter configuration: %w", err)
 	}
 	if opts.storageAdapterMode == storageadapter.ModeMemory && opts.goAdminMode == "prod" {
 		log.Printf("WARNING: storage-adapter=memory selected in go-admin-mode=prod; data is volatile and will be lost on restart. Set SKOLL_STORAGE_ADAPTER=mysql|postgres for production deployments.")
@@ -155,10 +157,22 @@ func (r *Runner) buildServer(opts runOptions, adminVerifier adminauth.Verifier, 
 	r.mountAdminModules(srv, storage, adminWrapper)
 	r.mountGoAdminPing(srv, goAdminBootstrap, adminWrapper)
 
-	return srv, nil
+	return srv, storage, nil
 }
 
-func (r *Runner) mountAdminModules(srv *app.Server, storage storageadapter.Adapter, adminWrapper func(http.Handler) http.Handler) {
+func (r *Runner) closeStorageAdapter(storage storagecontracts.Adapter) {
+	lifecycle, ok := storage.(storagecontracts.Lifecycle)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := lifecycle.Close(ctx); err != nil {
+		log.Printf("storage adapter close error: %v", err)
+	}
+}
+
+func (r *Runner) mountAdminModules(srv *app.Server, storage storagecontracts.Adapter, adminWrapper func(http.Handler) http.Handler) {
 	srv.MountAdminModuleRoutes(admincontracts.AdminModuleServices{
 		Users:        storage.Users(),
 		Roles:        storage.Roles(),

@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"context"
 	"time"
 
 	"github.com/tinboxw/skoll/internal/module/apiregistry"
@@ -33,6 +34,12 @@ type Adapter interface {
 	RBAC() RBACRepository
 	APIs() APIRegistryRepository
 	Releases() ReleaseRepository
+}
+
+// Lifecycle is an optional extension for adapters that own external
+// resources (for example SQL connection pools) and need explicit shutdown.
+type Lifecycle interface {
+	Close(ctx context.Context) error
 }
 
 type UserRepository interface {

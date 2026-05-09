@@ -1,9 +1,13 @@
 package storageadapter
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/tinboxw/skoll/internal/module/storageadapter/contracts"
+	"github.com/tinboxw/skoll/internal/module/storageadapter/memory"
 	"github.com/tinboxw/skoll/internal/module/storageadapter/persistent"
 )
 
@@ -92,6 +96,40 @@ func TestResolvePersistentBootstrapConfig(t *testing.T) {
 		_, err := persistent.ResolveBootstrapConfig("sqlite", func(string) string { return "dsn" })
 		if err == nil {
 			t.Fatalf("expected unsupported mode error")
+		}
+	})
+}
+
+func TestRegisterMode(t *testing.T) {
+	t.Run("validates mode and constructor", func(t *testing.T) {
+		if err := RegisterMode("", func() (contracts.Adapter, error) { return nil, nil }); err == nil {
+			t.Fatalf("expected empty mode validation error")
+		}
+		if err := RegisterMode("custom", nil); err == nil {
+			t.Fatalf("expected nil constructor validation error")
+		}
+	})
+
+	t.Run("rejects duplicate mode", func(t *testing.T) {
+		if err := RegisterMode(ModeMemory, func() (contracts.Adapter, error) { return nil, nil }); err == nil {
+			t.Fatalf("expected duplicate mode registration error")
+		}
+	})
+
+	t.Run("registered mode is resolved by NewByMode", func(t *testing.T) {
+		mode := fmt.Sprintf("custom-%d", time.Now().UnixNano())
+		if err := RegisterMode(mode, func() (contracts.Adapter, error) {
+			return memory.NewAdapter()
+		}); err != nil {
+			t.Fatalf("register custom mode: %v", err)
+		}
+
+		adapter, err := NewByMode(strings.ToUpper(mode))
+		if err != nil {
+			t.Fatalf("resolve custom mode: %v", err)
+		}
+		if adapter == nil {
+			t.Fatalf("expected non-nil adapter for custom mode")
 		}
 	})
 }

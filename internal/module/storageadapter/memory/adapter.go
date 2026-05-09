@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
@@ -71,3 +72,5 @@ func (a *Adapter) Plugins() contracts.PluginRepository          { return a.plugi
 func (a *Adapter) RBAC() contracts.RBACRepository               { return a.rbac }
 func (a *Adapter) APIs() contracts.APIRegistryRepository        { return a.apis }
 func (a *Adapter) Releases() contracts.ReleaseRepository        { return a.releases }
+
+func (a *Adapter) Close(context.Context) error { return nil }

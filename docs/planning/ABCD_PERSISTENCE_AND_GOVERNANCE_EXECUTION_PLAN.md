@@ -8,6 +8,8 @@
   - persistent adapters (`mysql`, `postgres`) are still planned-only.
   - release-governance checkpoint/policy state is in-memory.
   - external plugin marketplace compatibility snapshot matrix is not yet published.
+- Redesign reference:
+  - `docs/planning/STORAGEADAPTER_STANDARD_FRAMEWORK_REDESIGN_PLAN.md`
 
 ## Iteration Plan (A/B/C/D)
 
@@ -137,6 +139,9 @@
   - Removed root-level compatibility wrappers (`memory_adapter.go`, `persistent_config.go`, `persistent_factory_stub.go`).
   - Persistent factory no longer silently delegates to memory; mysql/postgres now return explicit not-implemented errors until E-slices ship.
   - Tests reference subpackage symbols directly; full suite green.
+- 2026-05-09: standard framework redesign planning started.
+  - Added `STORAGEADAPTER_STANDARD_FRAMEWORK_REDESIGN_PLAN.md` and defined R1-R5 roadmap.
+  - R1 (port and assembly cleanup) marked complete; R2-R5 queued for implementation.
 
 ## Iteration E - MySQL/Postgres repository implementation slices (P0 follow-up to A)
 
