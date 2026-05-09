@@ -4,6 +4,9 @@ export type FrontendPluginManifest = {
   id: string;
   name: string;
   version: string;
+  enabled?: boolean;
+  description?: string;
+  entryPath?: string;
   route?: RouteRecordRaw;
   backendEndpoint?: string;
 };
@@ -22,4 +25,5 @@ export type BackendPluginRecord = {
   id: string;
   name: string;
   version: string;
+  enabled?: boolean;
 };
