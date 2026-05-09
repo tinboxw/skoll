@@ -12,6 +12,10 @@
 - .gitkeep
 - refactor_milestone_plan.md
 - plugin_dev_tools.md
+- refactor_milestone_plan_detailed.md
+- refactor_stage_review_log.md
+- p12_integration_report.md
+- p12_regression_checklist.md
 
 ## 后续待补充实现
 - [ ] 按目录职责补齐核心实现代码。

@@ -3,7 +3,7 @@ package middleware
 import "net/http"
 
 func Auth(skipPaths ...string) func(http.Handler) http.Handler {
-	skip := map[string]struct{}{"/health": {}, "/ready": {}}
+	skip := map[string]struct{}{"/health": {}, "/ready": {}, "/v1/plugins": {}}
 	for _, p := range skipPaths {
 		skip[p] = struct{}{}
 	}

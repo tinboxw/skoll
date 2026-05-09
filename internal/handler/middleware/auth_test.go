@@ -24,4 +24,11 @@ func TestAuthMiddleware(t *testing.T) {
 	if resp2.Code != http.StatusOK {
 		t.Fatalf("health should bypass auth, got %d", resp2.Code)
 	}
+
+	req3 := httptest.NewRequest(http.MethodGet, "/v1/plugins?enabled=true", nil)
+	resp3 := httptest.NewRecorder()
+	h.ServeHTTP(resp3, req3)
+	if resp3.Code != http.StatusOK {
+		t.Fatalf("plugin sync path should bypass auth, got %d", resp3.Code)
+	}
 }

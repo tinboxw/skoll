@@ -14,7 +14,7 @@ type AuthPolicy struct {
 func loadAuthPolicyFromEnv() AuthPolicy {
 	policy := AuthPolicy{
 		Enabled:   parseBoolEnv("SKOLL_AUTH_ENABLED", true),
-		SkipPaths: map[string]struct{}{"/health": {}, "/ready": {}},
+		SkipPaths: map[string]struct{}{"/health": {}, "/ready": {}, "/v1/plugins": {}},
 	}
 
 	for _, p := range strings.Split(os.Getenv("SKOLL_AUTH_SKIP_PATHS"), ",") {

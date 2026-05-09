@@ -17,3 +17,4 @@
 # web installed packages
 web/node_modules
 web/package-lock.json
+web/dist

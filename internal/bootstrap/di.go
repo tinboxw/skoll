@@ -3,12 +3,15 @@ package bootstrap
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/tinboxw/skoll/internal/event"
 	events2 "github.com/tinboxw/skoll/internal/event/events"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/handler/middleware"
+	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
@@ -44,11 +47,13 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	userService := user.NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
 	roleService := role.NewService(bundle.Roles)
 	rbacService := rbac.NewService(bundle.RBAC)
+	pluginManager := newPluginManager(logger)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
-		UserService: userService,
-		RoleService: roleService,
-		RBACService: rbacService,
+		UserService:   userService,
+		RoleService:   roleService,
+		RBACService:   rbacService,
+		PluginManager: pluginManager,
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),
@@ -67,4 +72,31 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 
 	return &dependencies{logger: logger, handler: h, server: server}, nil
+}
+
+func newPluginManager(logger logging.Logger) plugin.Manager {
+	m := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
+
+	entries, err := os.ReadDir("plugins")
+	if err != nil {
+		logger.Warn("load plugins directory failed", "error", err)
+		return m
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		path := filepath.Join("plugins", entry.Name())
+		info, installErr := m.Install(path)
+		if installErr != nil {
+			logger.Warn("plugin install failed", "path", path, "error", installErr)
+			continue
+		}
+		if enableErr := m.Enable(info.ID); enableErr != nil {
+			logger.Warn("plugin enable failed", "plugin", info.ID, "error", enableErr)
+		}
+	}
+
+	return m
 }
