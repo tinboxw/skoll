@@ -15,4 +15,5 @@
 # vendor/
 
 # web installed packages
-node_modules
+web/node_modules
+web/package-lock.json

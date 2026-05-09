@@ -1,1 +1,13 @@
-﻿
+﻿id: demo
+name: Demo Plugin
+version: 0.1.0
+description: Demo plugin used for plugin CLI validate/debug flow.
+
+dependencies:
+	- id: builtin-auth
+		version: 1.0.0
+
+permissions:
+	- menu.read
+	- route.read
+

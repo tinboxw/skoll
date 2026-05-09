@@ -10,6 +10,8 @@
 
 ## 当前规划文件
 - .gitkeep
+- refactor_milestone_plan.md
+- plugin_dev_tools.md
 
 ## 后续待补充实现
 - [ ] 按目录职责补齐核心实现代码。
