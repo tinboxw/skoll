@@ -1,8 +1,10 @@
 package sql
 
-import "context"
+import (
+	"context"
 
-import "github.com/tinboxw/skoll/internal/repository"
+	"github.com/tinboxw/skoll/internal/repository"
+)
 
 type tx struct {
 	ctx context.Context
