@@ -1,1 +1,15 @@
-﻿
+﻿apiVersion: v1
+kind: Service
+metadata:
+	name: skoll
+	labels:
+		app: skoll
+spec:
+	type: ClusterIP
+	selector:
+		app: skoll
+	ports:
+		- name: http
+			port: 80
+			targetPort: 8080
+

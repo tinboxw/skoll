@@ -1,18 +1,56 @@
-﻿# docs/api
+﻿# API 文档（M7）
 
-## 功能说明
-API 文档目录。
+## 基础信息
+- Base URL: `http://127.0.0.1:8080`
+- 响应格式: JSON，统一字段 `code/message/data`
+- 非健康检查接口默认要求 `Authorization` 请求头。
 
-## 文件组织规范
-- 采用小写与下划线命名，按职责拆分文件。
-- 接口定义与实现分离，避免单文件过大。
-- 变更时同步补充测试与文档。
+## 健康检查
+- `GET /health`
+- 返回示例:
+```json
+{
+	"code": "ok",
+	"message": "ok"
+}
+```
 
-## 当前规划文件
-- .gitkeep
+## 用户接口
+- `POST /v1/users`
+- `GET /v1/users?offset=0&limit=10`
+- `GET /v1/users/{id}`
+- `PATCH /v1/users/{id}/email`
+- `POST /v1/users/{id}/disable`
 
-## 后续待补充实现
-- [ ] 按目录职责补齐核心实现代码。
-- [ ] 补充单元测试与必要的集成测试。
-- [ ] 完善示例、边界条件与错误处理说明。
+`POST /v1/users` 请求示例:
+```json
+{
+	"username": "alice",
+	"displayName": "Alice",
+	"email": "alice@example.com",
+	"passwordHash": "1234567890abcdef",
+	"actorID": "admin-1"
+}
+```
+
+## 角色接口
+- `POST /v1/roles`
+- `GET /v1/roles?offset=0&limit=10`
+- `POST /v1/roles/{id}/grant`
+- `POST /v1/roles/{id}/revoke`
+
+## RBAC 接口
+- `POST /v1/rbac/bind`
+- `PUT /v1/rbac/policies/{roleId}`
+- `POST /v1/rbac/check`
+
+`POST /v1/rbac/check` 请求示例:
+```json
+{
+	"subjectType": "user",
+	"subjectId": "u-1",
+	"resource": "user:profile",
+	"action": "read"
+}
+```
 

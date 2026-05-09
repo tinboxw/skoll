@@ -1,1 +1,17 @@
-﻿
+﻿version: "3.9"
+
+services:
+	skoll:
+		build:
+			context: ../..
+			dockerfile: deploy/docker/Dockerfile
+		image: skoll:local
+		container_name: skoll
+		ports:
+			- "8080:8080"
+		environment:
+			SKOLL_SERVER_ADDRESS: ":8080"
+			SKOLL_STORE_MODE: "memory"
+			SKOLL_JWT_SECRET: "compose-dev-secret"
+		restart: unless-stopped
+

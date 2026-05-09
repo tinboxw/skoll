@@ -1,1 +1,42 @@
-﻿
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+	name: skoll
+	labels:
+		app: skoll
+spec:
+	replicas: 1
+	selector:
+		matchLabels:
+			app: skoll
+	template:
+		metadata:
+			labels:
+				app: skoll
+		spec:
+			containers:
+				- name: skoll
+					image: skoll:latest
+					imagePullPolicy: IfNotPresent
+					ports:
+						- containerPort: 8080
+					env:
+						- name: SKOLL_SERVER_ADDRESS
+							value: ":8080"
+						- name: SKOLL_STORE_MODE
+							value: "memory"
+						- name: SKOLL_JWT_SECRET
+							value: "k8s-dev-secret"
+					readinessProbe:
+						httpGet:
+							path: /health
+							port: 8080
+						initialDelaySeconds: 2
+						periodSeconds: 5
+					livenessProbe:
+						httpGet:
+							path: /health
+							port: 8080
+						initialDelaySeconds: 5
+						periodSeconds: 10
+
