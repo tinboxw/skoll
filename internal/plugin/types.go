@@ -31,9 +31,10 @@ type Dependency struct {
 type UIMode string
 
 const (
-	UIModeBackendOnly UIMode = "backend_only"
-	UIModeMonolith    UIMode = "monolith"
-	UIModeSeparated   UIMode = "separated"
+	UIModeBackendOnly  UIMode = "backend_only"
+	UIModeFrontendOnly UIMode = "frontend_only"
+	UIModeMonolith     UIMode = "monolith"
+	UIModeSeparated    UIMode = "separated"
 )
 
 type Info struct {
@@ -67,7 +68,7 @@ func (i Info) ValidateManifest() error {
 	if mode == "" {
 		mode = UIModeBackendOnly
 	}
-	if mode != UIModeBackendOnly && mode != UIModeMonolith && mode != UIModeSeparated {
+	if mode != UIModeBackendOnly && mode != UIModeFrontendOnly && mode != UIModeMonolith && mode != UIModeSeparated {
 		return ErrPluginManifestBroken
 	}
 
