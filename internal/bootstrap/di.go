@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/event"
+	events2 "github.com/tinboxw/skoll/internal/event/events"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/handler/middleware"
 	"github.com/tinboxw/skoll/internal/service/audit"
@@ -34,6 +36,11 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 
 	_ = audit.NewService(bundle.Audit)
+	bus := event.NewInMemoryBus()
+	_ = event.NewPublisher(bus)
+	_ = event.NewSubscriber(bus)
+	_ = bus.Publish
+	_ = events2.UserCreatedEventName
 	userService := user.NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
 	roleService := role.NewService(bundle.Roles)
 	rbacService := rbac.NewService(bundle.RBAC)
