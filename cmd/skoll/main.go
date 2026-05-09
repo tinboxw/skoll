@@ -1,13 +1,17 @@
 package main
 
-import (
-	"log"
-
-	"github.com/tinboxw/skoll/internal/bootstrap"
-)
+import "log"
 
 func main() {
-	if err := bootstrap.Run(); err != nil {
-		log.Fatalf("startup failed: %v", err)
+	ctx, stop := withShutdownSignalContext()
+	defer stop()
+
+	runner, err := newServerRunner()
+	if err != nil {
+		log.Fatalf("bootstrap config error: %v", err)
+	}
+
+	if err := runner.Run(ctx); err != nil {
+		log.Fatalf("runner error: %v", err)
 	}
 }

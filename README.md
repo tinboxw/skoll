@@ -1,341 +1,53 @@
-# Skoll
+﻿# Skoll
 
-Skoll 北欧・巨狼｜Go 高性能、高并发
+Skoll v2 是一个按分层架构重新实现的 Go 框架基线，强调职责清晰、低耦合高内聚、可测试与可扩展。
 
-## 项目定位
+## 架构分层
 
-Skoll 当前完成 M4 发布准备，已启动 M5 首批通用模块脚手架（用户/角色/菜单/审计日志），并完成 M6、M7 基础能力、M8（文件/任务/生成器）、M9（插件生命周期/打包/生态文档）、M10（仪表盘聚合与 UI 启动契约）、M11（仪表盘鉴权会话能力）、M12（仪表盘 JWT 会话桥接能力）、M13-step3（JWT 声明来源溯源字段）、M14-step1（JWT 溯源审计导出字段）、M14-step2（JWT 溯源审计导出文档与 SIEM 映射）、M15-step1（JWT 溯源导出运维指标与告警提示）、M15-step2（JWT 溯源运维 Runbook 与告警分诊）、M16-step1（JWT 溯源 SLO 看板与错误预算策略）、M16-step2（JWT 溯源 SLO 告警规则模板与发布护栏）、M17-step1（JWT 溯源基线重校准工作流与评审节奏）、M17-step2（JWT 溯源重校准证据模板与审批清单）、M18-step1（JWT 溯源阈值变更日志与月度归档流程）、M18-step2（JWT 溯源月度归档样例与审查清单执行示例）、M19-step1（JWT 溯源月度审查自动化清单与轮值负责人指引）、M19-step2（JWT 溯源季度轮值样例与升级交接模板）、M20-step1（JWT 溯源例外治理矩阵与到期复核流程）、M20-step2（JWT 溯源例外样例记录与复核决策日志模板）、M21-step1（JWT 溯源例外治理指标与月度趋势看板字段）、M21-step2（JWT 溯源治理指标告警画像与升级阈值）、M22-step1（JWT 溯源治理评分卡模板与决策就绪度指标）、M22-step2（JWT 溯源治理评分卡样例与评审签收示例）、E1-step1（策略引擎与数据范围授权基线）、E2-step1（动态路由/菜单/按钮权限契约版本化基线）、E3-step1（账户/会话安全加固基线）、E4-step1（生成器表单 schema 与模板兼容治理基线）、E5-step1（插件签名校验/依赖预检/升级回滚基线）、E6-step1（数据库运维治理基线）、E7-step1（多实例一致性加固基线）、E8-step1（发布治理闭环评分卡基线）、E9-step0（增强阶段待办优先级与迭代规划基线）、E9-step1（持久化适配器滚动设计基线）、E9-step2（生产加固方案基线）、E9-step3（基准回归治理策略基线）与 E10（鉴权与会话对等能力基线），并已完成后续增强阶段计划与启动封装重构。
+- `cmd/skoll`：进程入口
+- `internal/bootstrap`：配置与运行时装配
+- `pkg/config`：配置加载、校验与变更通知
+- `pkg/logging`：结构化日志抽象
+- `pkg/errors`：统一错误模型与 HTTP 映射
+- `pkg/security`：JWT、密码哈希与加密工具
 
-## 目录结构
+## 快速启动
 
-```text
-.
-├── cmd/skoll/                 # 可执行入口
-├── internal/app/              # HTTP 传输与启动编排
-├── internal/bootstrap/        # 启动配置解析、依赖装配与优雅关停编排
-├── internal/domain/           # 核心领域模型
-├── internal/service/          # 核心服务层
-├── pkg/version/               # 公共版本信息
-├── docs/planning/             # 规划文档
-├── examples/                  # 用法与集成示例
-└── docs/milestones/           # 里程碑记录
+1. 内存模式（默认）
+
+```powershell
+go run ./cmd/skoll
 ```
 
-## 快速开始
+2. MySQL 模式
 
-### 运行服务
-
-```bash
-go run ./cmd/skoll -addr :8080
-# 可选：启用 go-admin 最小接入
-go run ./cmd/skoll -addr :8080 -go-admin-enabled -go-admin-mode dev
-# 可选：关停前先置 not_ready 并排空 3 秒
-go run ./cmd/skoll -addr :8080 -drain-time 3s
-# 可选：通过环境变量统一下发排空/关停超时默认值
-SKOLL_DRAIN_TIME=3s SKOLL_SHUTDOWN_TIMEOUT=12s go run ./cmd/skoll -addr :8080
-# 可选：为 admin 路由启用可替换鉴权骨架（当前实现: static-token）
-SKOLL_ADMIN_AUTH_MODE=static-token SKOLL_ADMIN_AUTH_TOKEN=secret go run ./cmd/skoll -addr :8080 -go-admin-enabled
-# 可选：启用 HMAC 签名鉴权模式
-SKOLL_ADMIN_AUTH_MODE=hmac-sha256 SKOLL_ADMIN_AUTH_HMAC_SECRET=secret go run ./cmd/skoll -addr :8080 -go-admin-enabled
-# 可选：若必须在 prod 模式下使用 static-token，需要显式放行（默认禁止）
-SKOLL_ADMIN_AUTH_MODE=static-token SKOLL_ADMIN_AUTH_TOKEN=secret SKOLL_ADMIN_AUTH_ALLOW_STATIC_TOKEN_IN_PROD=true go run ./cmd/skoll -addr :8080 -go-admin-enabled -go-admin-mode prod
-# 可选：在多实例场景将 nonce 防重放存储切换到 Redis 共享存储
-SKOLL_ADMIN_AUTH_MODE=hmac-sha256 SKOLL_ADMIN_AUTH_HMAC_SECRET=secret SKOLL_ADMIN_AUTH_NONCE_STORE=redis SKOLL_ADMIN_AUTH_NONCE_REDIS_ADDR=127.0.0.1:6379 go run ./cmd/skoll -addr :8080 -go-admin-enabled
-# 可选：显式声明存储适配器模式（当前可用 memory；mysql/postgres 为规划中）
-SKOLL_STORAGE_ADAPTER=memory go run ./cmd/skoll -addr :8080
-# 推荐：使用生产环境模板作为部署基线
-# 模板文件：.env.production.example
-# 参数约束：shutdown-timeout 必须 > 0，drain-time 必须在 [0s, 30s]
-# 行为说明：第一次终止信号触发优雅下线，第二次终止信号可中断排空等待并立即进入 shutdown
-# 行为说明：go-admin prod 模式下默认拒绝 static-token，除非显式设置 admin-auth-allow-static-token-in-prod
-# 可观测性：启动时会输出 runtime config 快照日志
+```powershell
+$env:SKOLL_STORE_MODE="mysql"
+$env:SKOLL_STORE_DSN="user:pass@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local"
+go run ./cmd/skoll
 ```
 
-### 健康检查
+3. PostgreSQL 模式
 
-```bash
-curl http://localhost:8080/health
-curl http://localhost:8080/ready
-curl http://localhost:8080/metrics
-# 若启用 admin 鉴权，/metrics 额外包含 skoll_admin_auth_verifications_total 与 skoll_admin_auth_failures_total
-# M6: admin 模块 API（支持 user/role/menu/audit 的最小可用读写）
-curl -X POST http://localhost:8080/admin/v1/users -H "Content-Type: application/json" -d '{"name":"alice","email":"alice@example.com"}'
-curl http://localhost:8080/admin/v1/users
-curl http://localhost:8080/admin/v1/users/1
-curl -X POST http://localhost:8080/admin/v1/roles -H "Content-Type: application/json" -d '{"name":"ops","permissions":["user.read"]}'
-curl -X PUT http://localhost:8080/admin/v1/roles/1/menus -H "Content-Type: application/json" -d '{"menu_ids":[1,2]}'
-curl http://localhost:8080/admin/v1/roles/1/menus
-curl -X PUT http://localhost:8080/admin/v1/roles/1/apis -H "Content-Type: application/json" -d '{"apis":["GET:/admin/v1/users","POST:/admin/v1/users"]}'
-curl http://localhost:8080/admin/v1/roles/1/apis
-curl -X PUT http://localhost:8080/admin/v1/roles/1/permission-contract -H "Content-Type: application/json" -d '{"version":"v2","items":[{"menu_id":1,"route":"/dashboard","buttons":["view"]}]}'
-curl http://localhost:8080/admin/v1/roles/1/permission-contract
-curl -X POST http://localhost:8080/admin/v1/roles/1/permission-contract/consistency-check
-curl -X POST http://localhost:8080/admin/v1/users/1/password/rotate -H "Content-Type: application/json" -d '{"min_interval_minutes":0}'
-curl -X POST http://localhost:8080/admin/v1/users/1/login-failures -H "Content-Type: application/json" -d '{"lock_threshold":3,"lock_duration_minutes":30}'
-curl -X POST http://localhost:8080/admin/v1/users/1/mfa -H "Content-Type: application/json" -d '{"enabled":true,"provider":"totp"}'
-curl -X POST http://localhost:8080/admin/v1/sessions/revoke -H "Content-Type: application/json" -d '{"session_id":"sess-1","reason":"manual"}'
-curl http://localhost:8080/admin/v1/sessions/sess-1/status
-curl -X POST http://localhost:8080/admin/v1/sessions/anomalies -H "Content-Type: application/json" -d '{"session_id":"sess-1","category":"geo_jump","detail":"ip changed"}'
-curl http://localhost:8080/admin/v1/apis
-curl -X POST http://localhost:8080/admin/v1/menus -H "Content-Type: application/json" -d '{"title":"Dashboard","path":"/dashboard","order":1}'
-curl -X POST http://localhost:8080/admin/v1/audit-logs -H "Content-Type: application/json" -d '{"actor":"system","action":"create","target":"user"}'
-curl http://localhost:8080/admin/v1/audit-logs?limit=20
-curl "http://localhost:8080/admin/v1/audit-logs?page=1&size=20&actor=system&action=create&q=user"
-curl -X POST http://localhost:8080/admin/v1/configs -H "Content-Type: application/json" -d '{"key":"system.theme","value":"aurora","description":"ui theme"}'
-curl http://localhost:8080/admin/v1/configs
-curl http://localhost:8080/admin/v1/configs/system.theme
-curl -X POST http://localhost:8080/admin/v1/dictionaries -H "Content-Type: application/json" -d '{"type":"status","label":"Enabled","value":"1","sort":10}'
-curl http://localhost:8080/admin/v1/dictionaries
-curl http://localhost:8080/admin/v1/dictionaries?type=status
-curl -X POST http://localhost:8080/admin/v1/files -F "file=@./README.md"
-curl http://localhost:8080/admin/v1/files
-curl http://localhost:8080/admin/v1/files/1
-curl -L http://localhost:8080/admin/v1/files/1/download -o downloaded.bin
-curl -X POST http://localhost:8080/admin/v1/jobs -H "Content-Type: application/json" -d '{"name":"daily-sync","schedule":"0 0 * * *"}'
-curl http://localhost:8080/admin/v1/jobs
-curl -X POST http://localhost:8080/admin/v1/jobs/1/run
-curl http://localhost:8080/admin/v1/jobs/1/history?limit=20
-curl -X POST http://localhost:8080/admin/v1/generator/modules -H "Content-Type: application/json" -d '{"module":"billing","template_version":"v2","form_schema":{"version":"v2","fields":[{"name":"name","type":"string","required":true},{"name":"status","type":"select"}]}}'
-curl -X POST http://localhost:8080/admin/v1/plugins/manifests -H "Content-Type: application/json" -d '{"name":"audit-ext","version":"1.0.0","hooks":["on_boot"]}'
-curl http://localhost:8080/admin/v1/plugins
-curl http://localhost:8080/admin/v1/plugins/audit-ext
-curl -X POST http://localhost:8080/admin/v1/plugins/packages/install -H "Content-Type: application/json" -d '{"name":"audit-ext","version":"1.1.0","package_url":"https://example.com/plugins/audit-ext-1.1.0.tgz","package_hash":"sha256:abcd","signature":"sig:sha256:abcd","hooks":["on_boot"]}'
-curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/disable
-curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/enable
-curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/version-check -H "Content-Type: application/json" -d '{"latest_version":"1.2.0"}'
-curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/upgrade -H "Content-Type: application/json" -d '{"target_version":"1.2.0","package_url":"https://example.com/plugins/audit-ext-1.2.0.tgz","package_hash":"sha256:efgh","signature":"sig:sha256:efgh"}'
-curl -X POST http://localhost:8080/admin/v1/plugins/audit-ext/upgrade/transaction -H "Content-Type: application/json" -d '{"transaction_id":"tx-001","target_version":"1.3.0","package_url":"https://example.com/plugins/audit-ext-1.3.0.tgz","package_hash":"sha256:hijk","signature":"sig:sha256:hijk"}'
-curl "http://localhost:8080/admin/v1/plugins/upgrade/provenance?limit=20"
-curl -X POST http://localhost:8080/admin/v1/db/migrations/plan -H "Content-Type: application/json" -d '{"from_version":"2026.04","to_version":"2026.05","steps":["add_table_users","add_index_users_email"]}'
-curl -X POST http://localhost:8080/admin/v1/db/migrations/drift-detect -H "Content-Type: application/json" -d '{"from_version":"2026.04","to_version":"2026.05","expected_steps":["add_table_users","add_index_users_email"],"applied_steps":["add_table_users","hotfix_sessions_index"]}'
-curl -X POST http://localhost:8080/admin/v1/db/backup -H "Content-Type: application/json" -d '{"backup_id":"bk-001","reason":"pre-release"}'
-curl "http://localhost:8080/admin/v1/db/backups/catalog?limit=20"
-curl -X POST http://localhost:8080/admin/v1/db/restore -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND"}'
-curl -X POST http://localhost:8080/admin/v1/db/restore/drills -H "Content-Type: application/json" -d '{"backup_id":"bk-001","confirm_token":"I_UNDERSTAND","expected_max_rto_ms":500,"expected_max_rpo_ms":300}'
-curl "http://localhost:8080/admin/v1/db/restore/drills?limit=20"
-curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"SELECT 1","sql_class":"read_only"}'
-curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"UPDATE users SET status=''ok''","sql_class":"write_guarded","confirm_token":"I_UNDERSTAND"}'
-curl -X POST http://localhost:8080/admin/v1/db/sql/execute -H "Content-Type: application/json" -d '{"sql":"DELETE FROM sessions WHERE expired=1","sql_class":"destructive_confirmed","allow_dangerous":true,"confirm_token":"I_UNDERSTAND","confirm_token_dual":"CONFIRM_DESTRUCTIVE_SQL"}'
-curl -X POST http://localhost:8080/admin/v1/sessions/consistency/heartbeat -H "Content-Type: application/json" -d '{"session_id":"sess-1","instance_id":"node-a","version":10}'
-curl -X POST http://localhost:8080/admin/v1/jobs/1/dispatch-claim -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","instance_id":"node-a"}'
-curl -X POST http://localhost:8080/admin/v1/job-dispatch-claims/job-1:20260426T100000Z/renew -H "Content-Type: application/json" -d '{"instance_id":"node-a","lease_ttl_sec":60}'
-curl -X PUT http://localhost:8080/admin/v1/jobs/1/retry-policy -H "Content-Type: application/json" -d '{"max_retries":4,"backoff_base_millis":200,"backoff_max_millis":1600,"jitter_percent":25}'
-curl -X POST http://localhost:8080/admin/v1/jobs/1/retries/schedule -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","attempt":2}'
-curl -X POST http://localhost:8080/admin/v1/jobs/1/dead-letters -H "Content-Type: application/json" -d '{"execution_key":"job-1:20260426T100000Z","reason":"retry exhausted","retry_count":4}'
-curl http://localhost:8080/admin/v1/jobs/dead-letters?limit=20
-curl -X POST http://localhost:8080/admin/v1/jobs/dead-letters/job-1:20260426T100000Z/replay -H "Content-Type: application/json" -d '{"operator":"ops-a"}'
-curl http://localhost:8080/admin/v1/jobs/reliability/metrics
-curl -X GET http://localhost:8080/admin/v1/job-dispatch-claims/job-1:20260426T100000Z
-# 聚合看板同时包含 scheduler_reliability 区块
-curl http://localhost:8080/admin/v1/system/dashboard
-curl -X POST http://localhost:8080/admin/v1/release-governance/evidence -H "Content-Type: application/json" -d '{"milestone":"E8-step1","go_test_passed":true,"go_race_passed":true,"readme_synced":true,"benchmark_ns_per_op":3300,"baseline_ns_per_op":3000,"benchmark_command":"go test -bench=BenchmarkAdminUsersListEndpoint -benchmem ./internal/app"}'
-curl -X GET "http://localhost:8080/admin/v1/release-governance/scorecard/E8-step1?allowed_regression=0.15"
-curl http://localhost:8080/admin/v1/system/status
-curl http://localhost:8080/admin/v1/system/runtime-metrics
-curl http://localhost:8080/admin/v1/system/node-health
-curl http://localhost:8080/admin/v1/system/dashboard
-curl -H "X-Admin-Token: secret" -H "X-Admin-Role-ID: 1" http://localhost:8080/admin/v1/system/dashboard
-# 仅在启用 go-admin 最小接入时可用
-curl http://localhost:8080/admin/ping
-# 若启用 admin 鉴权骨架，需要传入头
-curl -H "X-Admin-Token: secret" http://localhost:8080/admin/ping
-# 若启用 hmac-sha256，需要传入 X-Admin-Timestamp(Unix 秒)、X-Admin-Nonce、X-Admin-Signature(HMAC-SHA256 hex)
-# 可选：X-Admin-Body-SHA256（请求体 sha256 hex）
+```powershell
+$env:SKOLL_STORE_MODE="postgres"
+$env:SKOLL_STORE_DSN="host=127.0.0.1 user=postgres password=postgres dbname=skoll port=5432 sslmode=disable"
+go run ./cmd/skoll
 ```
 
-## 质量门禁与阶段要求
+## 测试
 
-1. 里程碑标签固定为 `M0/M1/M2/M3-简短内容`（示例：`M1-鉴权RBAC`）。
-2. PR 必须包含性能对比数据（基线、当前、变化百分比、采样命令）。
-3. 基线验证命令：`go test ./...`。
-4. 并发相关改动额外执行：`go test -race ./...`。
-5. 性能快照建议执行：`go test -bench=. -benchmem ./...`。
-6. CI 位于 `.github/workflows/ci.yml`，在模块初始化后自动执行门禁检查。
-
-## 本地开发命令
-
-```bash
+```powershell
 go fmt ./...
 go test ./...
 go test -race ./...
-go test -bench=. -benchmem ./...
 ```
 
-## 文档
+## 设计文档
 
-- 规划路线：`docs/planning/IMPLEMENTATION_ROADMAP.md`
-- 对标功能规划：`docs/planning/FEATURE_PARITY_PLAN.md`
-- 完全对等增强阶段计划：`docs/planning/PARITY_ENHANCEMENT_PHASE_PLAN.md`
-- E9 增强迭代计划：`docs/planning/E9_ENHANCEMENT_ITERATION_PLAN.md`
-- E9-step1 持久化适配器滚动设计：`docs/planning/E9_STEP1_PERSISTENCE_ADAPTER_ROLLOUT_DESIGN.md`
-- E9-step2 生产加固方案：`docs/planning/E9_STEP2_PRODUCTION_HARDENING_PLAN.md`
-- E9-step3 基准回归治理策略：`docs/planning/E9_STEP3_BENCHMARK_REGRESSION_POLICY.md`
-- E10 鉴权与会话对等能力计划：`docs/planning/E10_AUTH_AND_SESSION_PARITY_PLAN.md`
-- E11-step1 策略快照与回滚基线：`docs/planning/E11_STEP1_POLICY_SNAPSHOT_AND_ROLLBACK_BASELINE.md`
-- E11-step2 权限差异检查与审计联动计划：`docs/planning/E11_STEP2_PERMISSION_DIFF_AND_AUDIT_LINKAGE_PLAN.md`
-- E12 管理域运维对等计划：`docs/planning/E12_ADMIN_DOMAIN_OPERATIONAL_PARITY_PLAN.md`
-- E13 Hook 与模块治理对等计划：`docs/planning/E13_HOOK_AND_MODULE_GOVERNANCE_PARITY_PLAN.md`
-- E14 插件市场深度对等计划：`docs/planning/E14_PLUGIN_MARKETPLACE_DEPTH_PARITY_PLAN.md`
-- E15 数据库管理深度对等计划：`docs/planning/E15_DATABASE_MANAGEMENT_DEPTH_PARITY_PLAN.md`
-- E16 分布式调度可靠性对等计划：`docs/planning/E16_DISTRIBUTED_SCHEDULER_AND_JOB_RELIABILITY_PARITY_PLAN.md`
-- E17 可观测性与运维加固对等计划：`docs/planning/E17_OBSERVABILITY_AND_OPERATIONAL_HARDENING_PARITY_PLAN.md`
-- E18 发布治理与对等收口计划：`docs/planning/E18_RELEASE_GOVERNANCE_AND_PARITY_CLOSURE_PLAN.md`
-- E18 对等收口公开报告：`docs/releases/E18_PARITY_CLOSURE_REPORT.md`
-- E9 后完整对等版本路线：`docs/planning/POST_E9_FULL_PARITY_VERSION_PLAN.md`
-- 代码结构框架：`docs/planning/CODE_STRUCTURE_FRAMEWORK.md`
-- 生产部署环境模板：`docs/planning/PRODUCTION_ENV_TEMPLATE.md`
-- 基准工具链策略：`docs/planning/BENCHMARK_TOOLCHAIN_POLICY.md`
-- Admin HMAC 签名规范：`docs/planning/ADMIN_AUTH_SIGNATURE_CONTRACT.md`
-- Admin 鉴权安全运行手册：`docs/planning/ADMIN_AUTH_SECURITY_RUNBOOK.md`
-- 开源发布说明（M4）：`docs/releases/M4_OPEN_SOURCE_RELEASE_NOTE.md`
-- 版本策略：`docs/community/VERSIONING_POLICY.md`
-- 变更日志流程：`docs/community/CHANGELOG_PROCESS.md`
-- 扩展开发指南：`docs/community/EXTENSION_DEVELOPER_GUIDE.md`
-- 扩展兼容性策略：`docs/community/EXTENSION_COMPATIBILITY_POLICY.md`
-- 仪表盘 UI 启动契约：`docs/community/DASHBOARD_UI_BOOTSTRAP_CONTRACT.md`
-- 仪表盘鉴权会话策略：`docs/community/DASHBOARD_AUTH_SESSION_POLICY.md`
-- 仪表盘 JWT 中间件桥接合同：`docs/community/DASHBOARD_JWT_MIDDLEWARE_BRIDGE_CONTRACT.md`
-- 仪表盘 JWT 声明归一化策略：`docs/community/DASHBOARD_JWT_CLAIMS_NORMALIZATION_POLICY.md`
-- 仪表盘 JWT 溯源审计导出指南：`docs/community/DASHBOARD_JWT_PROVENANCE_AUDIT_EXPORT_GUIDE.md`
-- 仪表盘 JWT 溯源运维 Runbook：`docs/community/DASHBOARD_JWT_PROVENANCE_OPS_RUNBOOK.md`
-- 仪表盘 JWT 溯源 SLO 策略：`docs/community/DASHBOARD_JWT_PROVENANCE_SLO_POLICY.md`
-- 仪表盘 JWT 溯源 SLO 告警规则：`docs/community/DASHBOARD_JWT_PROVENANCE_SLO_ALERT_RULES.md`
-- 仪表盘 JWT 溯源基线重校准流程：`docs/community/DASHBOARD_JWT_PROVENANCE_BASELINE_RECALIBRATION.md`
-- 仪表盘 JWT 溯源重校准证据模板：`docs/community/DASHBOARD_JWT_PROVENANCE_RECALIBRATION_EVIDENCE_TEMPLATE.md`
-- 仪表盘 JWT 溯源阈值变更日志：`docs/community/DASHBOARD_JWT_PROVENANCE_THRESHOLD_CHANGE_LOG.md`
-- 仪表盘 JWT 溯源月度审查自动化：`docs/community/DASHBOARD_JWT_PROVENANCE_REVIEW_AUTOMATION.md`
-- 仪表盘 JWT 溯源例外治理矩阵：`docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_GOVERNANCE.md`
-- 仪表盘 JWT 溯源例外治理指标：`docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_METRICS.md`
-- 仪表盘 JWT 溯源例外治理告警画像：`docs/community/DASHBOARD_JWT_PROVENANCE_EXCEPTION_ALERT_PROFILES.md`
-- 仪表盘 JWT 溯源治理评分卡模板：`docs/community/DASHBOARD_JWT_PROVENANCE_GOVERNANCE_SCORECARD_TEMPLATE.md`
-- 仪表盘 JWT 溯源治理评分卡样例：`docs/milestones/JWT_PROVENANCE_GOVERNANCE_SCORECARD_2026-06.md`
-- Admin RBAC 策略与数据范围授权基线：`docs/community/ADMIN_RBAC_POLICY_DATA_SCOPE_BASELINE.md`
-- Admin 动态路由/菜单/按钮权限契约：`docs/community/ADMIN_DYNAMIC_PERMISSION_CONTRACT.md`
-- Admin 账户与会话安全加固基线：`docs/community/ADMIN_ACCOUNT_SESSION_SECURITY_BASELINE.md`
-- 生成器表单 schema 与模板兼容策略：`docs/community/GENERATOR_FORM_SCHEMA_COMPATIBILITY_POLICY.md`
-- 插件升级安全基线：`docs/community/PLUGIN_UPGRADE_SAFETY_BASELINE.md`
-- 数据库运维治理基线：`docs/community/DATABASE_OPS_GOVERNANCE_BASELINE.md`
-- 多实例一致性加固基线：`docs/community/MULTI_INSTANCE_CONSISTENCY_BASELINE.md`
-- 发布治理评分卡基线：`docs/community/RELEASE_GOVERNANCE_SCORECARD_BASELINE.md`
-- 仪表盘 JWT 溯源例外样例记录：`docs/milestones/JWT_PROVENANCE_EXCEPTION_RECORDS_2026-05.md`
-- 仪表盘 JWT 溯源月度归档样例：`docs/milestones/JWT_PROVENANCE_THRESHOLD_CHANGE_ARCHIVE_2026-04.md`
-- 仪表盘 JWT 溯源季度轮值样例：`docs/milestones/JWT_PROVENANCE_REVIEW_ROTATION_2026-Q2.md`
-- 贡献指南：`CONTRIBUTING.md`
-- M0 基线记录：`docs/milestones/M0-project-baseline.md`
-- M1 核心域记录：`docs/milestones/M1-core-domain.md`
-- M2 并发与性能记录：`docs/milestones/M2-concurrency-and-performance.md`
-- M3 可观测性与加固记录：`docs/milestones/M3-observability-and-hardening.md`
-- M3 go-admin 最小接入记录：`docs/milestones/M3-go-admin-minimal-integration.md`
-- M3 go-admin 探针接入记录：`docs/milestones/M3-go-admin-probe-hook.md`
-- M3 优雅下线排空记录：`docs/milestones/M3-graceful-drain-readiness.md`
-- M3 排空参数守卫记录：`docs/milestones/M3-drain-config-guard.md`
-- M3 运行时环境变量覆盖记录：`docs/milestones/M3-runtime-env-overrides.md`
-- M3 信号感知排空与关停时序记录：`docs/milestones/M3-shutdown-sequence-and-signal-aware-drain.md`
-- M3 metrics 路由模板记录：`docs/milestones/M3-metrics-route-template.md`
-- M4 admin 鉴权骨架记录：`docs/milestones/M4-admin-auth-skeleton.md`
-- M4 admin 可替换鉴权接口记录：`docs/milestones/M4-admin-auth-pluggable-interface.md`
-- M4 admin HMAC 鉴权记录：`docs/milestones/M4-admin-auth-hmac-sha256.md`
-- M4 admin nonce 存储接口记录：`docs/milestones/M4-admin-auth-nonce-store-interface.md`
-- M4 admin 共享 nonce 存储接线记录：`docs/milestones/M4-admin-auth-shared-nonce-store-wiring.md`
-- M4 admin 鉴权可观测性记录：`docs/milestones/M4-admin-auth-observability.md`
-- M4 admin 鉴权安全运行手册记录：`docs/milestones/M4-admin-auth-security-runbook.md`
-- M4 admin prod static-token 守卫记录：`docs/milestones/M4-admin-auth-prod-static-token-guard.md`
-- M4 发布清单记录：`docs/milestones/M4-release-checklist.md`
-- M5 首批模块脚手架记录：`docs/milestones/M5-initial-module-scaffolds.md`
-- M6 admin 模块 API 基线记录：`docs/milestones/M6-admin-module-api-baseline.md`
-- M6 角色绑定能力记录：`docs/milestones/M6-role-bindings.md`
-- M6 API 注册表与权限分配记录：`docs/milestones/M6-api-registry-and-permission-assignment.md`
-- M6 RBAC 端到端冒烟记录：`docs/milestones/M6-rbac-e2e-smoke.md`
-- M7 存储适配器契约记录：`docs/milestones/M7-storage-adapter-contract.md`
-- M7 配置中心与字典记录：`docs/milestones/M7-config-and-dictionary.md`
-- M7 审计日志分页过滤记录：`docs/milestones/M7-durable-audit-log.md`
-- M8 文件服务基线记录：`docs/milestones/M8-file-service-baseline.md`
-- M8 调度任务基线记录：`docs/milestones/M8-job-scheduler-baseline.md`
-- M8 模块生成器记录：`docs/milestones/M8-module-generator.md`
-- M9 插件清单生命周期记录：`docs/milestones/M9-plugin-manifest-lifecycle.md`
-- M9 扩展打包与版本检查记录：`docs/milestones/M9-extension-packaging.md`
-- M9 生态文档与兼容性策略记录：`docs/milestones/M9-ecosystem-docs.md`
-- M10 系统状态 API 记录：`docs/milestones/M10-system-status-api.md`
-- M10 运行时指标快照 API 记录：`docs/milestones/M10-dashboard-runtime-metrics.md`
-- M10 节点与依赖健康摘要 API 记录：`docs/milestones/M10-dashboard-node-health.md`
-- M10 仪表盘聚合 API 记录：`docs/milestones/M10-dashboard-aggregation.md`
-- M10 仪表盘 UI 启动契约记录：`docs/milestones/M10-dashboard-ui-bootstrap-contract.md`
-- M11 仪表盘鉴权会话对齐记录：`docs/milestones/M11-dashboard-auth-session-alignment.md`
-- M11 仪表盘鉴权会话策略文档记录：`docs/milestones/M11-dashboard-auth-session-policy-docs.md`
-- M11 仪表盘鉴权会话可观测性记录：`docs/milestones/M11-dashboard-auth-session-observability.md`
-- M11 仪表盘鉴权会话可执行指引记录：`docs/milestones/M11-dashboard-auth-session-actionability.md`
-- M12 仪表盘 JWT 会话启动字段记录：`docs/milestones/M12-dashboard-jwt-session-bootstrap.md`
-- M12 仪表盘 JWT 刷新/过期提示记录：`docs/milestones/M12-dashboard-jwt-session-refresh-hints.md`
-- M12 仪表盘 JWT 校验态提示记录：`docs/milestones/M12-dashboard-jwt-session-verification-state.md`
-- M12 仪表盘 JWT 中间件桥接字段记录：`docs/milestones/M12-dashboard-jwt-session-middleware-bridge.md`
-- M12 仪表盘 JWT 中间件桥接合同文档记录：`docs/milestones/M12-dashboard-jwt-session-bridge-contract-docs.md`
-- M13 仪表盘 JWT 已验证声明适配器对齐记录：`docs/milestones/M13-dashboard-jwt-session-verified-claims-adapter.md`
-- M13 仪表盘 JWT 声明归一化策略记录：`docs/milestones/M13-dashboard-jwt-session-claims-normalization.md`
-- M13 仪表盘 JWT 声明来源溯源记录：`docs/milestones/M13-dashboard-jwt-session-source-provenance.md`
-- M14 仪表盘 JWT 溯源审计导出字段记录：`docs/milestones/M14-dashboard-jwt-session-provenance-audit-export.md`
-- M14 仪表盘 JWT 溯源审计导出文档与 SIEM 映射记录：`docs/milestones/M14-dashboard-jwt-session-provenance-audit-docs.md`
-- M15 仪表盘 JWT 溯源运维指标与告警提示记录：`docs/milestones/M15-dashboard-jwt-session-provenance-ops-metrics.md`
-- M15 仪表盘 JWT 溯源运维 Runbook 与告警分诊记录：`docs/milestones/M15-dashboard-jwt-session-provenance-ops-runbook.md`
-- M16 仪表盘 JWT 溯源 SLO 看板与错误预算策略记录：`docs/milestones/M16-dashboard-jwt-session-provenance-slo-dashboards.md`
-- M16 仪表盘 JWT 溯源 SLO 告警规则模板与发布护栏记录：`docs/milestones/M16-dashboard-jwt-session-provenance-slo-alert-rules.md`
-- M17 仪表盘 JWT 溯源基线重校准工作流与评审节奏记录：`docs/milestones/M17-dashboard-jwt-session-provenance-baseline-recalibration.md`
-- M17 仪表盘 JWT 溯源重校准证据模板与审批清单记录：`docs/milestones/M17-dashboard-jwt-session-provenance-recalibration-evidence-template.md`
-- M18 仪表盘 JWT 溯源阈值变更日志与月度归档流程记录：`docs/milestones/M18-dashboard-jwt-session-provenance-threshold-change-log.md`
-- M18 仪表盘 JWT 溯源月度归档样例与审查清单执行示例记录：`docs/milestones/M18-dashboard-jwt-session-provenance-archive-sample.md`
-- M19 仪表盘 JWT 溯源月度审查自动化清单与轮值负责人指引记录：`docs/milestones/M19-dashboard-jwt-session-provenance-review-automation.md`
-- M19 仪表盘 JWT 溯源季度轮值样例与升级交接模板记录：`docs/milestones/M19-dashboard-jwt-session-provenance-rotation-roster-sample.md`
-- M20 仪表盘 JWT 溯源例外治理矩阵与到期复核流程记录：`docs/milestones/M20-dashboard-jwt-session-provenance-exception-governance.md`
-- M20 仪表盘 JWT 溯源例外样例记录与复核决策日志模板记录：`docs/milestones/M20-dashboard-jwt-session-provenance-exception-sample-log.md`
-- M21 仪表盘 JWT 溯源例外治理指标与月度趋势看板字段记录：`docs/milestones/M21-dashboard-jwt-session-provenance-exception-metrics.md`
-- M21 仪表盘 JWT 溯源治理指标告警画像与升级阈值记录：`docs/milestones/M21-dashboard-jwt-session-provenance-exception-alert-profiles.md`
-- M22 仪表盘 JWT 溯源治理评分卡模板与决策就绪度指标记录：`docs/milestones/M22-dashboard-jwt-session-provenance-governance-scorecard-template.md`
-- M22 仪表盘 JWT 溯源治理评分卡样例与评审签收示例记录：`docs/milestones/M22-dashboard-jwt-session-provenance-governance-scorecard-sample.md`
-- E1 策略引擎与数据范围授权基线记录：`docs/milestones/E1-policy-engine-and-data-scope.md`
-- E2 动态路由/菜单/按钮权限契约记录：`docs/milestones/E2-dynamic-route-menu-button-permission.md`
-- E3 账户与会话安全加固记录：`docs/milestones/E3-account-session-security-hardening.md`
-- E4 生成器生态深度增强记录：`docs/milestones/E4-generator-ecosystem-depth.md`
-- E5 插件市场与在线升级安全记录：`docs/milestones/E5-plugin-market-and-online-upgrade-safety.md`
-- E6 数据库运维治理记录：`docs/milestones/E6-database-ops-governance.md`
-- E7 多实例一致性加固记录：`docs/milestones/E7-multi-instance-consistency-hardening.md`
-- E8 发布治理闭环记录：`docs/milestones/E8-release-governance-closure.md`
-- E9 增强待办优先级与规划记录：`docs/milestones/E9-enhancement-backlog-prioritization.md`
-- E9-step1 持久化适配器滚动设计记录：`docs/milestones/E9-step1-persistence-adapter-rollout-design.md`
-- E9-step2 生产加固方案记录：`docs/milestones/E9-step2-production-hardening-plan.md`
-- E9-step3 基准回归治理策略记录：`docs/milestones/E9-step3-benchmark-regression-policy.md`
-- E10 鉴权与会话对等能力记录：`docs/milestones/E10-auth-and-session-parity.md`
-- E11-step1 策略快照与回滚基线记录：`docs/milestones/E11-step1-policy-snapshot-and-rollback-baseline.md`
-- E11-step2 权限差异检查与审计联动记录：`docs/milestones/E11-step2-permission-diff-and-audit-linkage.md`
-- E11-step3 RBAC 策略持久化治理基线记录：`docs/milestones/E11-step3-policy-persistence-governance-baseline.md`
-- E12-step1 管理域批量原子操作基线记录：`docs/milestones/E12-step1-bulk-atomic-operations-baseline.md`
-- E12-step2 管理域查询契约与审计分页 SLA 画像记录：`docs/milestones/E12-step2-admin-query-contract-and-audit-sla-profile.md`
-- E12-step3 管理域运维控制画像基线记录：`docs/milestones/E12-step3-admin-operational-controls-profile.md`
-- E13-step1 Hook 注册治理基线记录：`docs/milestones/E13-step1-hook-registry-governance-baseline.md`
-- E13-step2 模块生命周期与兼容性治理记录：`docs/milestones/E13-step2-module-lifecycle-and-compatibility-governance.md`
-- E13-step3 运行时隔离与死信诊断记录：`docs/milestones/E13-step3-runtime-isolation-and-dead-letter-diagnostics.md`
-- E14-step1 市场信任根与签名索引基线记录：`docs/milestones/E14-step1-marketplace-trust-root-and-signed-index-baseline.md`
-- E14-step2 依赖求解与冲突诊断记录：`docs/milestones/E14-step2-dependency-solver-and-conflict-diagnostics.md`
-- E14-step3 升级事务检查点与 provenance 保留记录：`docs/milestones/E14-step3-upgrade-transaction-checkpoints-and-provenance.md`
-- E15-step1 迁移漂移检测与影响分级记录：`docs/milestones/E15-step1-migration-drift-detection-impact-grading.md`
-- E15-step2 备份目录与恢复演练证据记录：`docs/milestones/E15-step2-backup-catalog-and-restore-drill-evidence.md`
-- E15-step3 SQL 分级策略与 destructive 双确认记录：`docs/milestones/E15-step3-controlled-sql-classes-and-dual-confirmation.md`
-- E15-step4 恢复演练证据查询与 RPO 校验记录：`docs/milestones/E15-step4-restore-drill-evidence-query-and-rpo-checks.md`
-- E16-step1 分布式调度 claim 租约续租基线记录：`docs/milestones/E16-step1-dispatch-claim-lease-renewal-baseline.md`
-- E16-step2 重试退避与 DLQ/回放基线记录：`docs/milestones/E16-step2-retry-backoff-dead-letter-and-replay-baseline.md`
-- E16-step3 调度可靠性指标快照 API 记录：`docs/milestones/E16-step3-reliability-metrics-snapshot-api.md`
-- E16-step4 调度可靠性看板信号收口记录：`docs/milestones/E16-step4-dashboard-reliability-signals-and-closure.md`
-- E17-step1 控制面端点 Guardrails 基线记录：`docs/milestones/E17-step1-control-plane-endpoint-guardrails-baseline.md`
-- E17-step2 关键路径告警画像基线记录：`docs/milestones/E17-step2-critical-path-alert-profiles-baseline.md`
-- E17-step3 事件 Runbook 与故障演练证据基线记录：`docs/milestones/E17-step3-incident-runbook-and-fault-drill-evidence-baseline.md`
-- E17-step4 Dashboard 加固画像收口记录：`docs/milestones/E17-step4-dashboard-hardening-posture-closure.md`
-- E18-step1 对等闭环清单与证据报告基线记录：`docs/milestones/E18-step1-parity-closure-checkpoints-and-evidence-report-baseline.md`
-- E18-step2 发布阻断策略与自动决策基线记录：`docs/milestones/E18-step2-release-blocking-policy-and-automated-decision-baseline.md`
-- E18-step3 对等收口公开报告与兼容性声明记录：`docs/milestones/E18-step3-public-closure-report-and-compatibility-statement.md`
-- E11-E18 后续计划收口记录：`docs/milestones/E11-E18-plan-closure.md`
-- 里程碑模板：`docs/milestones/MILESTONE_LOG_TEMPLATE.md`
+- `docs/planning/FRAMEWORK_REDESIGN_BLUEPRINT_2026-05-09.md`
+- `docs/planning/FRAMEWORK_REDESIGN_EXECUTION_PLAN_2026-05-09.md`
 
-## 参与贡献
+## API
 
-1. Fork 本仓库
-2. 新建特性分支
-3. 提交代码与验证结果
-4. 发起 Pull Request
+- `GET /health`
