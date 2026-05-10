@@ -1,1 +1,92 @@
-body { font-family: sans-serif; margin: 24px; color: #1f2937; }
+body {
+	margin: 0;
+	font-family: "Segoe UI", sans-serif;
+	color: #1f2937;
+	background: linear-gradient(145deg, #eef4ff, #f7fbff);
+}
+
+.container {
+	max-width: 880px;
+	margin: 24px auto;
+	padding: 0 16px 24px;
+}
+
+header {
+	margin-bottom: 14px;
+}
+
+h1 {
+	margin: 0;
+}
+
+.panel {
+	background: #ffffff;
+	border: 1px solid #d8e1f3;
+	border-radius: 12px;
+	padding: 14px;
+	margin-bottom: 12px;
+	box-shadow: 0 10px 25px -22px #4f46e5;
+}
+
+input {
+	width: 100%;
+	max-width: 360px;
+	border: 1px solid #c7d2fe;
+	border-radius: 8px;
+	padding: 8px 10px;
+	margin-top: 4px;
+	margin-bottom: 10px;
+}
+
+#release-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.release-item,
+.empty {
+	border: 1px solid #e2e8f0;
+	border-radius: 8px;
+	padding: 9px 10px;
+	margin-bottom: 8px;
+	background: #f8fafc;
+}
+
+.release-head {
+	display: flex;
+	justify-content: space-between;
+}
+
+.release-item p {
+	margin: 6px 0;
+}
+
+.commands {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+button {
+	border: none;
+	border-radius: 8px;
+	padding: 8px 12px;
+	background: #4f46e5;
+	color: #ffffff;
+	cursor: pointer;
+}
+
+button:hover {
+	background: #4338ca;
+}
+
+pre {
+	margin-top: 10px;
+	background: #0f172a;
+	color: #e2e8f0;
+	border-radius: 8px;
+	padding: 10px;
+	min-height: 70px;
+	white-space: pre-wrap;
+}

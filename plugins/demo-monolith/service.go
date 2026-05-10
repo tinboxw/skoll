@@ -1,7 +1,64 @@
 package main
 
+import (
+	"fmt"
+	"strconv"
+	"time"
+)
+
+// Widget represents one dashboard widget item exposed by monolith plugin.
+type Widget struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
+	Status string `json:"status"`
+}
+
+// PageManifest describes frontend assets and mount path in monolith mode.
+type PageManifest struct {
+	EntryPath string   `json:"entryPath"`
+	Assets    []string `json:"assets"`
+	Title     string   `json:"title"`
+}
+
+// Service provides monolith plugin runtime data and UI metadata.
 type Service struct{}
 
-func (s *Service) Ping() string {
-	return "pong"
+// NewService creates a monolith demo service.
+func NewService() *Service {
+	return &Service{}
+}
+
+// Ping returns a textual heartbeat with current timestamp.
+func (s *Service) Ping(now time.Time) string {
+	return "pong@" + now.Format(time.RFC3339)
+}
+
+// BuildWidgets returns health and usage widgets for monolith demo page.
+//
+// Parameters:
+// - visitors: current page visitor count.
+// - errorRate: current error rate in percentage.
+func (s *Service) BuildWidgets(visitors int, errorRate float64) []Widget {
+	status := "ok"
+	if errorRate >= 2 {
+		status = "warn"
+	}
+	return []Widget{
+		{Name: "visitors", Value: strconv.Itoa(visitors), Status: "ok"},
+		{Name: "error_rate", Value: floatToPercent(errorRate), Status: status},
+		{Name: "heartbeat", Value: s.Ping(time.Now().UTC()), Status: "ok"},
+	}
+}
+
+// BuildManifest returns static asset metadata for monolith frontend rendering.
+func (s *Service) BuildManifest() PageManifest {
+	return PageManifest{
+		EntryPath: "/plugins/demo-monolith",
+		Assets:    []string{"/plugins/demo-monolith/static/style.css", "/plugins/demo-monolith/static/app.js"},
+		Title:     "Demo Monolith Plugin",
+	}
+}
+
+func floatToPercent(v float64) string {
+	return fmt.Sprintf("%.2f%%", v)
 }

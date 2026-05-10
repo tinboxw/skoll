@@ -2,12 +2,36 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Demo Frontend Plugin</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <h1>Demo Frontend Plugin</h1>
-  <p>This plugin has frontend assets only.</p>
+  <main class="container">
+    <header>
+      <h1>Demo Frontend Plugin</h1>
+      <p>Frontend-only plugin modules for release tracking and operation rehearsal.</p>
+    </header>
+
+    <section class="panel">
+      <h2>Module A: Release Feed</h2>
+      <label for="release-filter">Filter release notes</label>
+      <input id="release-filter" type="text" placeholder="Try: ux / 0.2.0 / demo" />
+      <ul id="release-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h2>Module B: Command Simulator</h2>
+      <p>Simulate plugin lifecycle operations without backend dependency.</p>
+      <div class="commands">
+        <button data-command="plugin.validate">Validate</button>
+        <button data-command="plugin.install">Install</button>
+        <button data-command="plugin.enable">Enable</button>
+        <button data-command="plugin.disable">Disable</button>
+      </div>
+      <pre id="command-output">Click a command to see simulated execution output.</pre>
+    </section>
+  </main>
   <script src="./app.js"></script>
 </body>
 </html>
