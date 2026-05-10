@@ -3,7 +3,6 @@ package system
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +22,7 @@ func NewService(repo repository.SystemRepository) Service {
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
-			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+			return shared.ID("new")
 		},
 	}
 }

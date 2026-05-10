@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
@@ -22,6 +23,22 @@ func (s *UserStore) GetByID(_ context.Context, id shared.ID) (*user.User, error)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.items[id], nil
+}
+
+func (s *UserStore) GetByAccount(_ context.Context, account string) (*user.User, error) {
+	target := strings.TrimSpace(strings.ToLower(account))
+	if target == "" {
+		return nil, nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, u := range s.items {
+		if u != nil && strings.ToLower(strings.TrimSpace(u.Account)) == target {
+			return u, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *UserStore) GetByEmail(_ context.Context, email user.Email) (*user.User, error) {

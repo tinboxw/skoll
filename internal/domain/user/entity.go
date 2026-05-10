@@ -16,23 +16,23 @@ const (
 )
 
 type User struct {
-	ID          shared.ID
-	Username    string
-	DisplayName string
-	Email       Email
-	Status      Status
-	Password    PasswordHash
-	Meta        shared.AuditMeta
+	ID       shared.ID
+	Account  string
+	Name     string
+	Email    Email
+	Status   Status
+	Password PasswordHash
+	Meta     shared.AuditMeta
 }
 
-func New(id shared.ID, username, displayName, email string, now time.Time) (*User, error) {
+func New(id shared.ID, account, name, email string, now time.Time) (*User, error) {
 	if id.IsZero() {
 		return nil, fmt.Errorf("id is required")
 	}
-	if err := ValidateUsername(username); err != nil {
+	if err := ValidateAccount(account); err != nil {
 		return nil, err
 	}
-	if err := ValidateDisplayName(displayName); err != nil {
+	if err := ValidateName(name); err != nil {
 		return nil, err
 	}
 	e, err := NewEmail(email)
@@ -41,11 +41,11 @@ func New(id shared.ID, username, displayName, email string, now time.Time) (*Use
 	}
 
 	u := &User{
-		ID:          id,
-		Username:    strings.TrimSpace(username),
-		DisplayName: strings.TrimSpace(displayName),
-		Email:       e,
-		Status:      StatusActive,
+		ID:      id,
+		Account: strings.TrimSpace(account),
+		Name:    strings.TrimSpace(name),
+		Email:   e,
+		Status:  StatusActive,
 	}
 	u.Meta.Touch(now)
 	return u, nil
@@ -70,11 +70,11 @@ func (u *User) ChangeEmail(email string, now time.Time) error {
 	return nil
 }
 
-func (u *User) Rename(displayName string, now time.Time) error {
-	if err := ValidateDisplayName(displayName); err != nil {
+func (u *User) Rename(name string, now time.Time) error {
+	if err := ValidateName(name); err != nil {
 		return err
 	}
-	u.DisplayName = strings.TrimSpace(displayName)
+	u.Name = strings.TrimSpace(name)
 	u.Meta.Touch(now)
 	return nil
 }

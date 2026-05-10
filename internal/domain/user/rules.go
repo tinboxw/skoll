@@ -6,26 +6,26 @@ import (
 	"strings"
 )
 
-var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}$`)
+var accountPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]{2,31}$`)
 
-func ValidateUsername(username string) error {
-	v := strings.TrimSpace(username)
+func ValidateAccount(account string) error {
+	v := strings.TrimSpace(account)
 	if v == "" {
-		return fmt.Errorf("username is required")
+		return fmt.Errorf("account is required")
 	}
-	if !usernamePattern.MatchString(v) {
-		return fmt.Errorf("username must match %s", usernamePattern.String())
+	if !accountPattern.MatchString(v) {
+		return fmt.Errorf("account must match %s", accountPattern.String())
 	}
 	return nil
 }
 
-func ValidateDisplayName(name string) error {
+func ValidateName(name string) error {
 	v := strings.TrimSpace(name)
 	if v == "" {
-		return fmt.Errorf("display name is required")
+		return fmt.Errorf("name is required")
 	}
 	if len([]rune(v)) > 64 {
-		return fmt.Errorf("display name is too long")
+		return fmt.Errorf("name is too long")
 	}
 	return nil
 }

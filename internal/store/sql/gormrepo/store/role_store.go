@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/tinboxw/skoll/internal/domain/role"
 	"github.com/tinboxw/skoll/internal/domain/shared"
@@ -23,7 +25,11 @@ func NewRoleStore(db *gorm.DB, normalizeKey model.Normalizer) *RoleStore {
 }
 
 func (s *RoleStore) GetByID(ctx context.Context, id shared.ID) (*role.Role, error) {
-	row, err := storesql.FirstWhere[model.RoleModel](ctx, s.db, "id = ?", id.String())
+	idValue, err := strconv.ParseUint(strings.TrimSpace(id.String()), 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	row, err := storesql.FirstWhere[model.RoleModel](ctx, s.db, "id = ?", idValue)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +40,7 @@ func (s *RoleStore) GetByID(ctx context.Context, id shared.ID) (*role.Role, erro
 }
 
 func (s *RoleStore) GetByKey(ctx context.Context, key string) (*role.Role, error) {
-	row, err := storesql.FirstWhere[model.RoleModel](ctx, s.db, "key = ?", s.normalizeKey(key))
+	row, err := storesql.FirstWhere[model.RoleModel](ctx, s.db, map[string]any{"key": s.normalizeKey(key)})
 	if err != nil {
 		return nil, err
 	}
@@ -58,9 +64,24 @@ func (s *RoleStore) List(ctx context.Context, offset, limit int) ([]*role.Role, 
 
 func (s *RoleStore) Save(ctx context.Context, entity *role.Role) error {
 	row := model.RoleModelFromDomain(entity, s.normalizeKey)
-	return storesql.SaveModel(ctx, s.db, &row)
+	if row.ID == 0 {
+		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+			return err
+		}
+		entity.ID = shared.ID(strconv.FormatUint(row.ID, 10))
+		return nil
+	}
+	if err := storesql.SaveModel(ctx, s.db, &row); err != nil {
+		return err
+	}
+	entity.ID = shared.ID(strconv.FormatUint(row.ID, 10))
+	return nil
 }
 
 func (s *RoleStore) Delete(ctx context.Context, id shared.ID) error {
-	return storesql.DeleteByID[model.RoleModel](ctx, s.db, id.String())
+	idValue, err := strconv.ParseUint(strings.TrimSpace(id.String()), 10, 64)
+	if err != nil {
+		return nil
+	}
+	return storesql.DeleteByID[model.RoleModel](ctx, s.db, idValue)
 }

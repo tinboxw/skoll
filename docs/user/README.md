@@ -22,8 +22,8 @@ curl -X POST http://127.0.0.1:8080/v1/users \
 	-H "Content-Type: application/json" \
 	-H "Authorization: Bearer dev-token" \
 	-d '{
-		"username":"alice",
-		"displayName":"Alice",
+		"account":"alice",
+		"name":"Alice",
 		"email":"alice@example.com",
 		"passwordHash":"1234567890abcdef",
 		"actorID":"admin-1"

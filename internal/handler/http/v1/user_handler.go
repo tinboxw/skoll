@@ -16,15 +16,8 @@ type UserHandler struct {
 }
 
 type batchCreateUsersRequest struct {
-	Items []usersvc.CreateUserInput `json:"items"`
-}
-
-type batchCreateUsersResult struct {
-	Index   int    `json:"index"`
-	Account string `json:"account"`
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	ID      string `json:"id,omitempty"`
+	Items  []usersvc.CreateUserInput `json:"items"`
+	Atomic bool                      `json:"atomic"`
 }
 
 func RegisterUserRoutes(mux *http.ServeMux, service usersvc.Service) {
@@ -67,32 +60,17 @@ func (h *UserHandler) createBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results := make([]batchCreateUsersResult, 0, len(req.Items))
+	results, err := h.service.CreateBatch(r.Context(), usersvc.BatchCreateInput{Items: req.Items, Atomic: req.Atomic})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	successCount := 0
-	for idx, item := range req.Items {
-		account := strings.TrimSpace(item.Account)
-		entity, err := h.service.Create(r.Context(), item)
-		if err != nil {
-			results = append(results, batchCreateUsersResult{
-				Index:   idx,
-				Account: account,
-				Success: false,
-				Message: err.Error(),
-			})
-			continue
+	for _, item := range results {
+		if item.Success {
+			successCount++
 		}
-		createdID := ""
-		if entity != nil {
-			createdID = entity.ID.String()
-		}
-		results = append(results, batchCreateUsersResult{
-			Index:   idx,
-			Account: account,
-			Success: true,
-			Message: "ok",
-			ID:      createdID,
-		})
-		successCount++
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

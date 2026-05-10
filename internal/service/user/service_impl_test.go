@@ -15,8 +15,8 @@ func TestUserServiceCreateAndDisable(t *testing.T) {
 
 	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
 	created, err := svc.Create(context.Background(), CreateUserInput{
-		Username:     "svc_user",
-		DisplayName:  "Service User",
+		Account:      "svc_user",
+		Name:         "Service User",
 		Email:        "svc@example.com",
 		PasswordHash: "1234567890abcdef",
 		ActorID:      "admin-1",

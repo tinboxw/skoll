@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainsystem "github.com/tinboxw/skoll/internal/domain/system"
@@ -24,7 +26,11 @@ func NewSystemStore(db *gorm.DB, normalizeKey model.Normalizer) *SystemStore {
 }
 
 func (s *SystemStore) GetSettingByID(ctx context.Context, id shared.ID) (*domainsystem.Setting, error) {
-	row, err := storesql.FirstWhere[model.SystemSettingModel](ctx, s.db, "id = ?", id.String())
+	idValue, err := strconv.ParseUint(strings.TrimSpace(id.String()), 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	row, err := storesql.FirstWhere[model.SystemSettingModel](ctx, s.db, "id = ?", idValue)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +41,7 @@ func (s *SystemStore) GetSettingByID(ctx context.Context, id shared.ID) (*domain
 }
 
 func (s *SystemStore) GetSettingByKey(ctx context.Context, key string) (*domainsystem.Setting, error) {
-	row, err := storesql.FirstWhere[model.SystemSettingModel](ctx, s.db, "key = ?", s.normalizeKey(key))
+	row, err := storesql.FirstWhere[model.SystemSettingModel](ctx, s.db, map[string]any{"key": s.normalizeKey(key)})
 	if err != nil {
 		return nil, err
 	}
@@ -64,9 +70,24 @@ func (s *SystemStore) ListSettings(ctx context.Context, offset, limit int) ([]*d
 
 func (s *SystemStore) SaveSetting(ctx context.Context, setting *domainsystem.Setting) error {
 	row := model.SystemSettingModelFromDomain(setting, s.normalizeKey)
-	return storesql.SaveModel(ctx, s.db, &row)
+	if row.ID == 0 {
+		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+			return err
+		}
+		setting.ID = shared.ID(strconv.FormatUint(row.ID, 10))
+		return nil
+	}
+	if err := storesql.SaveModel(ctx, s.db, &row); err != nil {
+		return err
+	}
+	setting.ID = shared.ID(strconv.FormatUint(row.ID, 10))
+	return nil
 }
 
 func (s *SystemStore) DeleteSetting(ctx context.Context, id shared.ID) error {
-	return storesql.DeleteByID[model.SystemSettingModel](ctx, s.db, id.String())
+	idValue, err := strconv.ParseUint(strings.TrimSpace(id.String()), 10, 64)
+	if err != nil {
+		return nil
+	}
+	return storesql.DeleteByID[model.SystemSettingModel](ctx, s.db, idValue)
 }

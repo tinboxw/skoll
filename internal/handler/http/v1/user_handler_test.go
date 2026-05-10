@@ -18,8 +18,9 @@ import (
 
 type fakeUserService struct {
 	createInputs []usersvc.CreateUserInput
-	lastUpdate  usersvc.UpdateEmailInput
-	lastDisable struct {
+	batchInput   usersvc.BatchCreateInput
+	lastUpdate   usersvc.UpdateEmailInput
+	lastDisable  struct {
 		id      string
 		actorID string
 	}
@@ -31,6 +32,22 @@ func (f *fakeUserService) Create(_ context.Context, in usersvc.CreateUserInput) 
 		return nil, fmt.Errorf("invalid account")
 	}
 	return &domainuser.User{ID: shared.ID("1"), Account: in.Account, Name: in.Name, Email: domainuser.Email(in.Email)}, nil
+}
+
+func (f *fakeUserService) CreateBatch(_ context.Context, in usersvc.BatchCreateInput) ([]usersvc.BatchCreateResult, error) {
+	f.batchInput = in
+	out := make([]usersvc.BatchCreateResult, 0, len(in.Items))
+	for idx, item := range in.Items {
+		if strings.EqualFold(strings.TrimSpace(item.Account), "bad") {
+			out = append(out, usersvc.BatchCreateResult{Index: idx, Account: item.Account, Success: false, Message: "invalid account"})
+			if in.Atomic {
+				return out, nil
+			}
+			continue
+		}
+		out = append(out, usersvc.BatchCreateResult{Index: idx, Account: item.Account, Success: true, Message: "ok", ID: "1"})
+	}
+	return out, nil
 }
 
 func (f *fakeUserService) Get(_ context.Context, _ string) (*domainuser.User, error) {
@@ -159,5 +176,22 @@ func TestUserHandlerCreateBatch(t *testing.T) {
 	}
 	if len(body.Data.Results) != 2 {
 		t.Fatalf("unexpected results length: %d", len(body.Data.Results))
+	}
+}
+
+func TestUserHandlerCreateBatchAtomicFlag(t *testing.T) {
+	svc := &fakeUserService{}
+	h := &UserHandler{service: svc}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/users/batch", bytes.NewBufferString(`{"atomic":true,"items":[{"account":"u1","name":"U1","email":"u1@example.com","passwordHash":"password-1234"}]}`))
+	resp := httptest.NewRecorder()
+
+	h.createBatch(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if !svc.batchInput.Atomic {
+		t.Fatalf("expected atomic batch flag to be true")
 	}
 }

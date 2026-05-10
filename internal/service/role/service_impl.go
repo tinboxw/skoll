@@ -3,7 +3,7 @@ package role
 import (
 	"context"
 	"fmt"
-	"strconv"
+	"strings"
 	"time"
 
 	domainrole "github.com/tinboxw/skoll/internal/domain/role"
@@ -22,7 +22,7 @@ func NewService(repo repository.RoleRepository) Service {
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
-			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+			return shared.ID("new")
 		},
 	}
 }
@@ -53,6 +53,43 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]*domainrole.Rol
 	return s.repo.List(ctx, in.Offset, in.Limit)
 }
 
+func (s *serviceImpl) Update(ctx context.Context, in UpdateRoleInput) (*domainrole.Role, error) {
+	id := strings.TrimSpace(in.ID)
+	if id == "" {
+		return nil, fmt.Errorf("id is required")
+	}
+	entity, err := s.repo.GetByID(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
+	if entity == nil {
+		return nil, fmt.Errorf("role not found")
+	}
+
+	if name := strings.TrimSpace(in.Name); name != "" {
+		if err := domainrole.ValidateName(name); err != nil {
+			return nil, err
+		}
+		entity.Name = name
+	}
+	if key := strings.TrimSpace(strings.ToLower(in.Key)); key != "" {
+		if err := domainrole.ValidateKey(key); err != nil {
+			return nil, err
+		}
+		entity.Key = key
+	}
+	if in.Permissions != nil {
+		entity.Permissions = domainrole.NormalizePermissions(in.Permissions)
+	}
+	entity.Description = strings.TrimSpace(in.Description)
+	entity.Meta.Touch(s.nowFn())
+
+	if err := s.repo.Save(ctx, entity); err != nil {
+		return nil, err
+	}
+	return entity, nil
+}
+
 func (s *serviceImpl) Grant(ctx context.Context, id, permission string) (*domainrole.Role, error) {
 	r, err := s.Get(ctx, id)
 	if err != nil {
@@ -81,4 +118,22 @@ func (s *serviceImpl) Revoke(ctx context.Context, id, permission string) (*domai
 		return nil, err
 	}
 	return r, nil
+}
+
+func (s *serviceImpl) Delete(ctx context.Context, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+	entity, err := s.repo.GetByID(ctx, shared.ID(id))
+	if err != nil {
+		return err
+	}
+	if entity == nil {
+		return fmt.Errorf("role not found")
+	}
+	if entity.BuiltIn {
+		return fmt.Errorf("built-in role cannot be deleted")
+	}
+	return s.repo.Delete(ctx, shared.ID(id))
 }

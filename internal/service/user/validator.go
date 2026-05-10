@@ -8,10 +8,10 @@ import (
 )
 
 func validateCreateInput(in CreateUserInput) error {
-	if err := domainuser.ValidateUsername(in.Username); err != nil {
+	if err := domainuser.ValidateAccount(in.Account); err != nil {
 		return err
 	}
-	if err := domainuser.ValidateDisplayName(in.DisplayName); err != nil {
+	if err := domainuser.ValidateName(in.Name); err != nil {
 		return err
 	}
 	if _, err := domainuser.NewEmail(in.Email); err != nil {

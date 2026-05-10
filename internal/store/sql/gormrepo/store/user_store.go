@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	"github.com/tinboxw/skoll/internal/domain/user"
@@ -19,7 +21,26 @@ func NewUserStore(db *gorm.DB) *UserStore {
 }
 
 func (s *UserStore) GetByID(ctx context.Context, id shared.ID) (*user.User, error) {
-	row, err := storesql.FirstWhere[model.UserModel](ctx, s.db, "id = ?", id.String())
+	idValue, err := strconv.ParseUint(strings.TrimSpace(id.String()), 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	row, err := storesql.FirstWhere[model.UserModel](ctx, s.db, "id = ?", idValue)
+	if err != nil {
+		return nil, err
+	}
+	if row == nil {
+		return nil, nil
+	}
+	return row.ToDomain(), nil
+}
+
+func (s *UserStore) GetByAccount(ctx context.Context, account string) (*user.User, error) {
+	target := strings.TrimSpace(strings.ToLower(account))
+	if target == "" {
+		return nil, nil
+	}
+	row, err := storesql.FirstWhere[model.UserModel](ctx, s.db, "LOWER(account) = ?", target)
 	if err != nil {
 		return nil, err
 	}
@@ -54,9 +75,24 @@ func (s *UserStore) List(ctx context.Context, offset, limit int) ([]*user.User, 
 
 func (s *UserStore) Save(ctx context.Context, entity *user.User) error {
 	row := model.UserModelFromDomain(entity)
-	return storesql.SaveModel(ctx, s.db, &row)
+	if row.ID == 0 {
+		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
+			return err
+		}
+		entity.ID = shared.ID(strconv.FormatUint(row.ID, 10))
+		return nil
+	}
+	if err := storesql.SaveModel(ctx, s.db, &row); err != nil {
+		return err
+	}
+	entity.ID = shared.ID(strconv.FormatUint(row.ID, 10))
+	return nil
 }
 
 func (s *UserStore) Delete(ctx context.Context, id shared.ID) error {
-	return storesql.DeleteByID[model.UserModel](ctx, s.db, id.String())
+	idValue, err := strconv.ParseUint(strings.TrimSpace(id.String()), 10, 64)
+	if err != nil {
+		return nil
+	}
+	return storesql.DeleteByID[model.UserModel](ctx, s.db, idValue)
 }

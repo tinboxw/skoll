@@ -69,6 +69,6 @@ func SaveModel[M any](ctx context.Context, db *gorm.DB, model *M) error {
 }
 
 // DeleteByID removes one record by id column value.
-func DeleteByID[M any](ctx context.Context, db *gorm.DB, id string) error {
+func DeleteByID[M any](ctx context.Context, db *gorm.DB, id any) error {
 	return db.WithContext(ctx).Delete(new(M), "id = ?", id).Error
 }

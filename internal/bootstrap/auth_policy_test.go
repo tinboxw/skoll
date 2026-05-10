@@ -11,7 +11,7 @@ func TestLoadAuthPolicyFromEnvDefaults(t *testing.T) {
 		t.Fatalf("expected auth policy enabled by default")
 	}
 
-	for _, path := range []string{"/health", "/ready", "/v1/plugins", "/v1/auth"} {
+	for _, path := range []string{"/health", "/ready", "/v1/plugins", "/v1/auth/login"} {
 		if _, ok := policy.SkipPaths[path]; !ok {
 			t.Fatalf("expected default skip path %s", path)
 		}

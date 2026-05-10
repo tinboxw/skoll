@@ -9,10 +9,10 @@ import (
 )
 
 type BindingModel struct {
-	ID          string `gorm:"primaryKey;size:128"`
+	ID          uint64 `gorm:"primaryKey;autoIncrement"`
 	SubjectType string `gorm:"size:32;index:idx_subject"`
-	SubjectID   string `gorm:"size:128;index:idx_subject"`
-	RoleID      string `gorm:"size:128;index"`
+	SubjectID   uint64 `gorm:"index:idx_subject"`
+	RoleID      uint64 `gorm:"index"`
 	Scope       string `gorm:"size:32"`
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -22,10 +22,10 @@ func (BindingModel) TableName() string { return "sk_rbac_bindings" }
 
 func BindingModelFromDomain(entity *rbac.Binding) BindingModel {
 	return BindingModel{
-		ID:          entity.ID.String(),
+		ID:          parseUintID(entity.ID.String()),
 		SubjectType: string(entity.SubjectType),
-		SubjectID:   entity.SubjectID.String(),
-		RoleID:      entity.RoleID.String(),
+		SubjectID:   parseUintID(entity.SubjectID.String()),
+		RoleID:      parseUintID(entity.RoleID.String()),
 		Scope:       string(entity.Scope),
 		CreatedAt:   entity.Meta.CreatedAt,
 		UpdatedAt:   entity.Meta.UpdatedAt,
@@ -34,10 +34,10 @@ func BindingModelFromDomain(entity *rbac.Binding) BindingModel {
 
 func (m BindingModel) ToDomain() *rbac.Binding {
 	return &rbac.Binding{
-		ID:          shared.ID(m.ID),
+		ID:          shared.ID(formatUintID(m.ID)),
 		SubjectType: rbac.SubjectType(m.SubjectType),
-		SubjectID:   shared.ID(m.SubjectID),
-		RoleID:      shared.ID(m.RoleID),
+		SubjectID:   shared.ID(formatUintID(m.SubjectID)),
+		RoleID:      shared.ID(formatUintID(m.RoleID)),
 		Scope:       rbac.DataScope(m.Scope),
 		Meta: shared.AuditMeta{
 			CreatedAt: m.CreatedAt,
@@ -48,7 +48,7 @@ func (m BindingModel) ToDomain() *rbac.Binding {
 
 type PolicyRuleModel struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
-	RoleID   string `gorm:"size:128;index"`
+	RoleID   uint64 `gorm:"index"`
 	Resource string `gorm:"size:256"`
 	Action   string `gorm:"size:128"`
 	Effect   string `gorm:"size:16"`
@@ -59,7 +59,7 @@ func (PolicyRuleModel) TableName() string { return "sk_rbac_policy_rules" }
 
 func PolicyRuleModelFromDomain(roleID shared.ID, rule rbac.PolicyRule) PolicyRuleModel {
 	return PolicyRuleModel{
-		RoleID:   roleID.String(),
+		RoleID:   parseUintID(roleID.String()),
 		Resource: strings.TrimSpace(rule.Resource),
 		Action:   strings.TrimSpace(rule.Action),
 		Effect:   string(rule.Effect),

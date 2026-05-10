@@ -23,6 +23,10 @@ func (p *Plugin) Version() string {
 
 func (p *Plugin) Register(registry plugin.ExtensionRegistry) error {
 	registry.RegisterRoute(plugin.RouteExtension{Method: "POST", Path: "/v1/auth/login"})
+	registry.RegisterRoute(plugin.RouteExtension{Method: "POST", Path: "/v1/auth/logout"})
+	registry.RegisterRoute(plugin.RouteExtension{Method: "GET", Path: "/v1/auth/me"})
+	registry.RegisterRoute(plugin.RouteExtension{Method: "PUT", Path: "/v1/auth/me/profile"})
+	registry.RegisterRoute(plugin.RouteExtension{Method: "PATCH", Path: "/v1/auth/me/password"})
 	registry.RegisterMiddleware("auth.jwt")
 	registry.RegisterEventHandler("user.login")
 	registry.RegisterMenuItem(plugin.MenuExtension{Name: "认证管理", Path: "/auth"})

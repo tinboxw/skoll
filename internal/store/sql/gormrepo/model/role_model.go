@@ -10,7 +10,7 @@ import (
 )
 
 type RoleModel struct {
-	ID          string `gorm:"primaryKey;size:128"`
+	ID          uint64 `gorm:"primaryKey;autoIncrement"`
 	Name        string `gorm:"size:128"`
 	Key         string `gorm:"size:128;uniqueIndex"`
 	Description string `gorm:"size:512"`
@@ -25,7 +25,7 @@ func (RoleModel) TableName() string { return "sk_roles" }
 func RoleModelFromDomain(entity *domainrole.Role, normalizeKey Normalizer) RoleModel {
 	payload, _ := json.Marshal(entity.Permissions)
 	return RoleModel{
-		ID:          entity.ID.String(),
+		ID:          parseUintID(entity.ID.String()),
 		Name:        entity.Name,
 		Key:         normalizeKey(entity.Key),
 		Description: entity.Description,
@@ -42,7 +42,7 @@ func (m RoleModel) ToDomain(normalizeKey Normalizer) *domainrole.Role {
 		_ = json.Unmarshal([]byte(m.Permissions), &perms)
 	}
 	return &domainrole.Role{
-		ID:          shared.ID(m.ID),
+		ID:          shared.ID(formatUintID(m.ID)),
 		Name:        m.Name,
 		Key:         normalizeKey(m.Key),
 		Description: m.Description,

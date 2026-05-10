@@ -25,8 +25,8 @@
 `POST /v1/users` 请求示例:
 ```json
 {
-	"username": "alice",
-	"displayName": "Alice",
+	"account": "alice",
+	"name": "Alice",
 	"email": "alice@example.com",
 	"passwordHash": "1234567890abcdef",
 	"actorID": "admin-1"

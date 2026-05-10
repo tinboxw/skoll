@@ -67,7 +67,7 @@ func (m *fakeManager) Get(pluginID string) (plugin.Info, error) {
 }
 
 func TestRegisterBuiltinPluginExtensions(t *testing.T) {
-	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret")
+	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret", nil)
 
 	for _, id := range []string{"builtin-auth", "builtin-logger", "builtin-dashboard"} {
 		info, ok := infos[id]
@@ -91,7 +91,7 @@ func TestRegisterBuiltinPluginExtensions(t *testing.T) {
 }
 
 func TestPluginManagerWithExtensionsBuiltinFallback(t *testing.T) {
-	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret")
+	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret", nil)
 	mgr := &pluginManagerWithExtensions{
 		Manager:       &fakeManager{items: map[string]plugin.Info{}},
 		builtinInfos:  infos,
@@ -146,7 +146,7 @@ func TestPluginManagerWithExtensionsBuiltinFallback(t *testing.T) {
 }
 
 func TestPluginManagerWithExtensionsBuiltinRouteHandlers(t *testing.T) {
-	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret")
+	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret", nil)
 	mgr := &pluginManagerWithExtensions{
 		Manager:       &fakeManager{items: map[string]plugin.Info{}},
 		builtinInfos:  infos,
@@ -155,7 +155,7 @@ func TestPluginManagerWithExtensionsBuiltinRouteHandlers(t *testing.T) {
 	}
 
 	t.Run("auth login", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewBufferString(`{"username":"admin","password":"pass"}`))
+		req := httptest.NewRequest(http.MethodPost, "/v1/auth/login", bytes.NewBufferString(`{"account":"admin","password":"pass"}`))
 		resp := httptest.NewRecorder()
 		ok := mgr.HandlePluginRoute("builtin-auth", http.MethodPost, "/v1/auth/login", resp, req)
 		if !ok {

@@ -32,8 +32,8 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 	router := NewRouter(Dependencies{UserService: userService, RoleService: roleService, RBACService: rbacService, AuditService: auditService, SystemService: systemService})
 
 	createReq := map[string]any{
-		"username":     "api_user",
-		"displayName":  "API User",
+		"account":      "api_user",
+		"name":         "API User",
 		"email":        "api@example.com",
 		"passwordHash": "1234567890abcdef",
 		"actorID":      "admin-1",

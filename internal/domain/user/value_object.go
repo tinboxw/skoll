@@ -1,6 +1,8 @@
 package user
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/mail"
 	"strings"
@@ -35,4 +37,30 @@ func NewPasswordHash(raw string) (PasswordHash, error) {
 
 func (h PasswordHash) String() string {
 	return string(h)
+}
+
+func HashPassword(raw string) (PasswordHash, error) {
+	v := strings.TrimSpace(raw)
+	if len(v) < 8 {
+		return "", fmt.Errorf("password must be at least 8 characters")
+	}
+	sum := sha256.Sum256([]byte(v))
+	return PasswordHash("sha256:" + hex.EncodeToString(sum[:])), nil
+}
+
+func VerifyPassword(raw string, stored PasswordHash) bool {
+	candidate := strings.TrimSpace(raw)
+	target := strings.TrimSpace(stored.String())
+	if candidate == "" || target == "" {
+		return false
+	}
+	if target == candidate {
+		return true
+	}
+	sum := sha256.Sum256([]byte(candidate))
+	hashValue := hex.EncodeToString(sum[:])
+	if target == hashValue || target == "sha256:"+hashValue {
+		return true
+	}
+	return false
 }

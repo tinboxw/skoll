@@ -2,7 +2,6 @@ package rbac
 
 import (
 	"context"
-	"strconv"
 	"time"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
@@ -21,7 +20,7 @@ func NewService(repo repository.RBACRepository) Service {
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
-			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+			return shared.ID("new")
 		},
 	}
 }
