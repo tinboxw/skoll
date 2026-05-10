@@ -14,6 +14,10 @@
 	- src/
 	- dist/
 
+## 兼容目录说明
+- static/ 已退役，不再作为前端资源目录。
+- 新增或修改前端资源时，仅使用 frontend/ 目录。
+
 ## 快速验证
 - 使用 validate plugins/demo 校验元数据。
 - 使用 debug demo 查看插件状态与扩展信息。
