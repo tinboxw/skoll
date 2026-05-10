@@ -248,6 +248,19 @@ npm run build
 - `internal/store/sql/gormrepo/model` 必须保持“每个表一个模型文件”，避免回归为单一 `models.go` 聚合文件。
 - 新增/变更 SQL 模型时必须同步更新 `model/all_models.go`，确保 MySQL/PostgreSQL 自动迁移清单一致。
 
+### 6.10 B1 阶段任务清单（已完成）
+
+- [x] `pkg/utils` 补齐字符串、时间与类型转换工具函数。
+- [x] `pkg/validator` 补齐规则定义与通用校验器。
+- [x] `pkg/metrics` 补齐内存指标采集与导出（JSON/Text/Prometheus）。
+- [x] 为 `metrics/validator/utils` 新增最小单元测试覆盖。
+- [x] 执行门禁：`go fmt ./...`、`go test ./...`。
+
+### 6.11 B1 阶段验证证据
+
+- `go test ./pkg/utils ./pkg/validator ./pkg/metrics` 通过。
+- `go fmt ./...`、`go test ./...` 通过。
+
 ---
 
 > 说明：本计划是 `docs/refactor.md` 的执行化版本。若里程碑内容变更，必须先更新本计划并通过评审后再执行代码变更。
