@@ -48,9 +48,10 @@ type SecurityConfig struct {
 }
 
 type LogConfig struct {
-	Level string
-	Dir   string
-	File  string
+	Level         string
+	Dir           string
+	File          string
+	PluginPerFile bool
 }
 
 var defaultConfigCandidates = []string{
@@ -84,6 +85,7 @@ func Load() (AppConfig, error) {
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.dir", "log")
 	v.SetDefault("log.file", "")
+	v.SetDefault("log.plugin_per_file", false)
 	v.SetDefault("server.port", "")
 
 	if err := loadConfigFile(v); err != nil {
@@ -134,9 +136,10 @@ func Load() (AppConfig, error) {
 			JWTSecret: strings.TrimSpace(v.GetString("security.jwt_secret")),
 		},
 		Log: LogConfig{
-			Level: strings.ToLower(strings.TrimSpace(v.GetString("log.level"))),
-			Dir:   strings.TrimSpace(v.GetString("log.dir")),
-			File:  strings.TrimSpace(v.GetString("log.file")),
+			Level:         strings.ToLower(strings.TrimSpace(v.GetString("log.level"))),
+			Dir:           strings.TrimSpace(v.GetString("log.dir")),
+			File:          strings.TrimSpace(v.GetString("log.file")),
+			PluginPerFile: v.GetBool("log.plugin_per_file"),
 		},
 	}, nil
 }

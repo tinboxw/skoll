@@ -272,7 +272,7 @@ func TestPluginHandlerDebugAndLogs(t *testing.T) {
 		},
 	}}
 	mux := http.NewServeMux()
-	RegisterPluginRoutes(mux, mgr)
+	RegisterPluginRoutes(mux, mgr, WithPluginLogTarget("info", "log", "", true))
 
 	debugReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo/debug", nil)
 	debugResp := httptest.NewRecorder()
@@ -328,7 +328,7 @@ func TestPluginHandlerLogsFromUnifiedFile(t *testing.T) {
 		"demo": {ID: "demo", Name: "Demo", Version: "0.1.0", State: plugin.StateEnabled},
 	}}
 	mux := http.NewServeMux()
-	RegisterPluginRoutes(mux, mgr, WithPluginLogTarget(filepath.Dir(logFile), filepath.Base(logFile)))
+	RegisterPluginRoutes(mux, mgr, WithPluginLogTarget("info", filepath.Dir(logFile), filepath.Base(logFile), false))
 
 	logsReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo/logs", nil)
 	logsResp := httptest.NewRecorder()

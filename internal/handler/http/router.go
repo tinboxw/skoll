@@ -15,14 +15,16 @@ import (
 )
 
 type Dependencies struct {
-	UserService   user.Service
-	RoleService   role.Service
-	RBACService   rbac.Service
-	AuditService  audit.Service
-	SystemService system.Service
-	PluginManager plugin.Manager
-	LogDir        string
-	LogFile       string
+	UserService      user.Service
+	RoleService      role.Service
+	RBACService      rbac.Service
+	AuditService     audit.Service
+	SystemService    system.Service
+	PluginManager    plugin.Manager
+	LogLevel         string
+	LogDir           string
+	LogFile          string
+	LogPluginPerFile bool
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -48,7 +50,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	v1.RegisterRBACRoutes(mux, deps.RBACService)
 	v1.RegisterAuditRoutes(mux, deps.AuditService)
 	v1.RegisterSystemRoutes(mux, deps.SystemService)
-	v1.RegisterPluginRoutes(mux, deps.PluginManager, v1.WithPluginLogTarget(deps.LogDir, deps.LogFile))
+	v1.RegisterPluginRoutes(mux, deps.PluginManager, v1.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile))
 	registerPluginExtensionRoutes(mux, deps.PluginManager)
 
 	var h http.Handler = mux

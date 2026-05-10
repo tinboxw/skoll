@@ -25,3 +25,4 @@ log:
   level: "info"
   dir: "log"
   file: ""
+  plugin_per_file: false

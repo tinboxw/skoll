@@ -35,3 +35,6 @@ log:
   dir: "log"
   # When set, all logs (including plugin logs) are written to this file under log.dir.
   file: ""
+  # If true and log.file is empty, plugin logs are written to per-plugin files (log/<pluginId>.log).
+  # If false and log.file is empty, plugin logs are written to stdout with plugin_id field.
+  plugin_per_file: false

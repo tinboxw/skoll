@@ -99,6 +99,27 @@ go run ./cmd/skoll
 
 When `SKOLL_LOG_FILE` is set, both application logs and plugin operation logs are written to `log/skoll.log`.
 
+9. Default stdout mode (no log file)
+
+```powershell
+$env:SKOLL_LOG_FILE=""
+$env:SKOLL_LOG_PLUGIN_PER_FILE="false"
+go run ./cmd/skoll
+```
+
+By default logs go to stdout, and plugin logs include the `plugin_id` field.
+
+10. Per-plugin log files
+
+```powershell
+$env:SKOLL_LOG_FILE=""
+$env:SKOLL_LOG_PLUGIN_PER_FILE="true"
+$env:SKOLL_LOG_DIR="log"
+go run ./cmd/skoll
+```
+
+Plugin logs are written to `log/<pluginId>.log`.
+
 ## Tests
 
 ```powershell

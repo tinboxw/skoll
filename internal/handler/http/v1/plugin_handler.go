@@ -38,16 +38,21 @@ type PluginHandler struct {
 	manager           PluginManager
 	extensionProvider PluginExtensionSnapshotProvider
 	loader            plugin.MetadataLoader
+	logger            logging.Logger
+	logLevel          string
 	logDir            string
 	logFile           string
+	pluginPerFile     bool
 }
 
 type PluginRouteOption func(*PluginHandler)
 
-func WithPluginLogTarget(logDir, logFile string) PluginRouteOption {
+func WithPluginLogTarget(logLevel, logDir, logFile string, pluginPerFile bool) PluginRouteOption {
 	return func(h *PluginHandler) {
+		h.logLevel = strings.TrimSpace(logLevel)
 		h.logDir = strings.TrimSpace(logDir)
 		h.logFile = strings.TrimSpace(logFile)
+		h.pluginPerFile = pluginPerFile
 	}
 }
 
@@ -102,6 +107,10 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	if provider, ok := manager.(PluginExtensionSnapshotProvider); ok {
 		h.extensionProvider = provider
 	}
+	if h.logLevel == "" {
+		h.logLevel = "info"
+	}
+	h.logger = logging.New(h.logLevel)
 	mux.HandleFunc("GET /v1/plugins", h.list)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
 	mux.HandleFunc("POST /v1/plugins/link", h.createLink)
@@ -640,6 +649,21 @@ func (h *PluginHandler) appendPluginLog(pluginID, action, result, message string
 	if pluginID == "" {
 		return
 	}
+
+	if !h.shouldWritePluginFile() {
+		if h.logger == nil {
+			h.logger = logging.New("info")
+		}
+		h.logger.Info(
+			"plugin_operation",
+			"plugin_id", pluginID,
+			"action", strings.TrimSpace(action),
+			"result", strings.TrimSpace(result),
+			"message", strings.TrimSpace(message),
+		)
+		return
+	}
+
 	logPath := h.logPathForPlugin(pluginID)
 	if logPath == "" {
 		return
@@ -660,11 +684,18 @@ func (h *PluginHandler) logPathForPlugin(pluginID string) string {
 	if output := logging.ResolveLogFilePath(h.logDir, h.logFile); output != "" {
 		return output
 	}
+	if !h.pluginPerFile {
+		return ""
+	}
 	logDir := strings.TrimSpace(h.logDir)
 	if logDir == "" {
 		logDir = "log"
 	}
 	return filepath.Join(logDir, pluginID+".log")
+}
+
+func (h *PluginHandler) shouldWritePluginFile() bool {
+	return strings.TrimSpace(h.logFile) != "" || h.pluginPerFile
 }
 
 func (h *PluginHandler) readPluginLogContent(pluginID string) ([]byte, error) {
@@ -674,6 +705,9 @@ func (h *PluginHandler) readPluginLogContent(pluginID string) ([]byte, error) {
 	}
 
 	if strings.TrimSpace(h.logFile) == "" {
+		if !h.pluginPerFile {
+			return nil, os.ErrNotExist
+		}
 		return os.ReadFile(logPath)
 	}
 

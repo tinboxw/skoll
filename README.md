@@ -99,6 +99,27 @@ go run ./cmd/skoll
 
 说明：设置 `SKOLL_LOG_FILE` 后，应用日志与插件操作日志会统一写入 `log/skoll.log`。
 
+9. 默认 stdout（不指定日志文件）
+
+```powershell
+$env:SKOLL_LOG_FILE=""
+$env:SKOLL_LOG_PLUGIN_PER_FILE="false"
+go run ./cmd/skoll
+```
+
+说明：默认会输出到 stdout，插件日志带 `plugin_id` 字段，便于区分来源。
+
+10. 插件按插件ID输出到各自文件
+
+```powershell
+$env:SKOLL_LOG_FILE=""
+$env:SKOLL_LOG_PLUGIN_PER_FILE="true"
+$env:SKOLL_LOG_DIR="log"
+go run ./cmd/skoll
+```
+
+说明：插件日志将写入 `log/<pluginId>.log`。
+
 ## 测试
 
 ```powershell

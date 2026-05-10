@@ -324,8 +324,9 @@ func TestRouterPluginPageAndAssetsFlow(t *testing.T) {
 }
 
 func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
+	logDir := t.TempDir()
 	t.Cleanup(func() {
-		_ = os.RemoveAll(filepath.Join("plugins", "logs"))
+		_ = os.RemoveAll(logDir)
 	})
 
 	manager := &fakePluginManager{
@@ -338,7 +339,7 @@ func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
 		}},
 	}
 
-	router := NewRouter(Dependencies{PluginManager: manager})
+	router := NewRouter(Dependencies{PluginManager: manager, LogDir: logDir, LogPluginPerFile: true})
 
 	enableReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/demo-frontend/enable", nil)
 	enableResp := httptest.NewRecorder()
