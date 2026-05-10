@@ -1,7 +1,6 @@
 package logging
 
-// NewZapCompatibleLogger returns the default logger abstraction.
-// It keeps this package API ready for a future Zap-backed implementation.
+// NewZapCompatibleLogger returns a Zap-backed logger abstraction.
 func NewZapCompatibleLogger(level string) Logger {
-	return New(level)
+	return newZapLogger(level)
 }

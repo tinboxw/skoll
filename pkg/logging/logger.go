@@ -2,8 +2,10 @@ package logging
 
 import (
 	"context"
-	"log/slog"
-	"os"
+	"strings"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Logger is a small abstraction over structured logging.
@@ -15,32 +17,36 @@ type Logger interface {
 }
 
 func New(level string) Logger {
-	return newSlogLogger(level)
+	return newZapLogger(level)
 }
 
-func newSlogLogger(level string) Logger {
-	opts := &slog.HandlerOptions{Level: parseLevel(level)}
-	h := slog.NewJSONHandler(os.Stdout, opts)
-	return slog.New(h)
+func newZapLogger(level string) Logger {
+	cfg := zap.NewProductionConfig()
+	cfg.Encoding = "json"
+	cfg.Level = zap.NewAtomicLevelAt(parseLevel(level))
+	core, err := cfg.Build()
+	if err != nil {
+		return &zapLogger{base: zap.NewNop()}
+	}
+	return &zapLogger{base: core}
 }
 
-func parseLevel(level string) slog.Level {
-	switch level {
+func parseLevel(level string) zapcore.Level {
+	switch strings.ToLower(strings.TrimSpace(level)) {
 	case "debug":
-		return slog.LevelDebug
+		return zapcore.DebugLevel
 	case "warn":
-		return slog.LevelWarn
+		return zapcore.WarnLevel
 	case "error":
-		return slog.LevelError
+		return zapcore.ErrorLevel
 	default:
-		return slog.LevelInfo
+		return zapcore.InfoLevel
 	}
 }
 
 // Discard returns a logger that drops all output.
 func Discard() Logger {
-	h := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError + 100})
-	return slog.New(h)
+	return &zapLogger{base: zap.NewNop()}
 }
 
 // ContextWithLogger stores logger in context for optional downstream usage.
@@ -56,6 +62,54 @@ func FromContext(ctx context.Context, fallback Logger) Logger {
 		}
 	}
 	return fallback
+}
+
+type zapLogger struct {
+	base *zap.Logger
+}
+
+func (l *zapLogger) Debug(msg string, attrs ...any) {
+	if l == nil || l.base == nil {
+		return
+	}
+	l.base.Debug(msg, toFields(attrs...)...)
+}
+
+func (l *zapLogger) Info(msg string, attrs ...any) {
+	if l == nil || l.base == nil {
+		return
+	}
+	l.base.Info(msg, toFields(attrs...)...)
+}
+
+func (l *zapLogger) Warn(msg string, attrs ...any) {
+	if l == nil || l.base == nil {
+		return
+	}
+	l.base.Warn(msg, toFields(attrs...)...)
+}
+
+func (l *zapLogger) Error(msg string, attrs ...any) {
+	if l == nil || l.base == nil {
+		return
+	}
+	l.base.Error(msg, toFields(attrs...)...)
+}
+
+func toFields(attrs ...any) []zap.Field {
+	fields := make([]zap.Field, 0, len(attrs)/2+1)
+	for i := 0; i < len(attrs); i += 2 {
+		key, ok := attrs[i].(string)
+		if !ok || strings.TrimSpace(key) == "" {
+			continue
+		}
+		if i+1 >= len(attrs) {
+			fields = append(fields, zap.Any(key, nil))
+			continue
+		}
+		fields = append(fields, zap.Any(key, attrs[i+1]))
+	}
+	return fields
 }
 
 type contextKeyLogger struct{}
