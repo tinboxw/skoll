@@ -1,6 +1,7 @@
 package http
 
 import (
+	_ "embed"
 	"net/http"
 	"strings"
 
@@ -38,6 +39,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		WriteMessage(w, http.StatusOK, "ok", "ok")
 	})
+	registerDocumentationRoutes(mux)
 
 	v1.RegisterUserRoutes(mux, deps.UserService)
 	v1.RegisterRoleRoutes(mux, deps.RoleService)
@@ -129,3 +131,46 @@ func safeHandleFunc(mux *http.ServeMux, pattern string, handler func(http.Respon
 	mux.HandleFunc(pattern, handler)
 	return true
 }
+
+func registerDocumentationRoutes(mux *http.ServeMux) {
+	if mux == nil {
+		return
+	}
+	mux.HandleFunc("GET /docs/openapi.yaml", serveOpenAPIYAML)
+	mux.HandleFunc("GET /docs/swagger", serveSwaggerUI)
+}
+
+func serveOpenAPIYAML(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(openAPIYAMLDocument))
+}
+
+func serveSwaggerUI(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Skoll Swagger UI</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.onload = function () {
+      SwaggerUIBundle({
+        url: '/docs/openapi.yaml',
+        dom_id: '#swagger-ui'
+      });
+    };
+  </script>
+</body>
+</html>`))
+}
+
+//go:embed openapi.yaml
+var openAPIYAMLDocument string

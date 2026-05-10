@@ -1,0 +1,89 @@
+openapi: 3.0.3
+info:
+  title: Skoll API
+  version: 1.0.0
+  description: OpenAPI document for Skoll core HTTP endpoints.
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /v1/users:
+    get:
+      summary: List users
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create user
+      responses:
+        '201':
+          description: Created
+  /v1/users/{id}:
+    get:
+      summary: Get user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/roles:
+    get:
+      summary: List roles
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create role
+      responses:
+        '201':
+          description: Created
+  /v1/rbac/check:
+    post:
+      summary: Check authorization
+      responses:
+        '200':
+          description: OK
+  /v1/plugins:
+    get:
+      summary: List plugins
+      responses:
+        '200':
+          description: OK
+  /v1/system/settings:
+    get:
+      summary: List system settings
+      responses:
+        '200':
+          description: OK
+components: {}

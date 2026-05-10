@@ -21,6 +21,30 @@ import (
 	"github.com/tinboxw/skoll/internal/store"
 )
 
+func TestRouterDocumentationRoutes(t *testing.T) {
+	router := NewRouter(Dependencies{})
+
+	openAPIReq := httptest.NewRequest(http.MethodGet, "/docs/openapi.yaml", nil)
+	openAPIResp := httptest.NewRecorder()
+	router.ServeHTTP(openAPIResp, openAPIReq)
+	if openAPIResp.Code != http.StatusOK {
+		t.Fatalf("openapi status=%d body=%s", openAPIResp.Code, openAPIResp.Body.String())
+	}
+	if !strings.Contains(openAPIResp.Body.String(), "openapi:") {
+		t.Fatalf("unexpected openapi payload: %s", openAPIResp.Body.String())
+	}
+
+	swaggerReq := httptest.NewRequest(http.MethodGet, "/docs/swagger", nil)
+	swaggerResp := httptest.NewRecorder()
+	router.ServeHTTP(swaggerResp, swaggerReq)
+	if swaggerResp.Code != http.StatusOK {
+		t.Fatalf("swagger status=%d body=%s", swaggerResp.Code, swaggerResp.Body.String())
+	}
+	if !strings.Contains(swaggerResp.Body.String(), "SwaggerUIBundle") {
+		t.Fatalf("unexpected swagger html")
+	}
+}
+
 func TestRouterUserCreateAndGet(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
 	if err != nil {

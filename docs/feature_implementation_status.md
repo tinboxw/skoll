@@ -41,11 +41,11 @@
 - ✅ 前端项目基础结构已搭建
 
 **主要缺失项**：
-- ❌ Viper配置管理（使用自定义环境变量加载替代）
+- ✅ Viper配置管理（已完成）
 - ❌ goqu SQL Builder（未集成）
-- ❌ Redis Pub/Sub事件总线（仅内存实现）
+- ✅ Redis Pub/Sub事件总线（已实现）
 - ❌ Element Plus UI组件库（使用原生Vue替代）
-- ❌ Swagger API文档（未实现）
+- ✅ Swagger API文档（已实现）
 - ❌ 性能基准测试（仅存在简单benchmark）
 - ❌ 完整测试覆盖率统计
 
@@ -59,7 +59,7 @@
 |-------|---------|---------|---------|---------|
 | Go Module初始化 | go.mod/go.sum | ✅ 已完成 | `go.mod` | 无差异 |
 | 目录结构 | 按规范创建 | ✅ 已完成 | 项目根目录 | 无差异 |
-| 配置管理（Viper） | 使用Viper库 | ⚠️ 部分实现 | `pkg/config/loader.go` | 使用自定义环境变量加载，未使用Viper |
+| 配置管理（Viper） | 使用Viper库 | ✅ 已完成 | `pkg/config/loader.go` | 已切换为Viper环境变量配置加载 |
 | 日志模块（Zap） | 集成Zap | ❌ 未实现 | `pkg/logging/` | 目录存在但为空或实现不完整 |
 | 错误处理模块 | 统一错误类型 | ✅ 已完成 | `pkg/errors/` | 无差异 |
 | 依赖注入 | DI容器 | ✅ 已完成 | `internal/bootstrap/di.go` | 无差异 |
@@ -130,7 +130,7 @@
 | 事件发布者 | 发布机制 | ✅ 已完成 | `internal/event/publisher.go` | 无差异 |
 | 事件订阅者 | 订阅机制 | ✅ 已完成 | `internal/event/subscriber.go` | 无差异 |
 | 领域事件 | 核心事件定义 | ✅ 已完成 | `internal/event/events/` | 无差异 |
-| Redis Pub/Sub | 分布式事件 | ❌ 未实现 | - | 仅内存实现，缺少Redis适配 |
+| Redis Pub/Sub | 分布式事件 | ✅ 已完成 | `internal/event/redis_bus.go` | 已支持Redis分布式事件发布订阅 |
 
 ### 2.8 M7 测试与部署模块
 
@@ -266,8 +266,8 @@
 **规划要求**：使用 Swagger 生成 API 文档。
 
 **实际实现**：
-- 代码中无 Swagger 注解
-- `docs/api/` 目录为空
+- 提供 `docs/api/openapi.yaml` 作为 OpenAPI 规范
+- 提供 `GET /docs/openapi.yaml` 与 `GET /docs/swagger` 文档访问端点
 
 **影响分析**：
 - API 文档缺失
@@ -349,9 +349,7 @@ docs/
 
 | 功能ID | 功能名称 | 所属模块 | 需求描述 | 优先级 | 关联模块 |
 |-------|---------|---------|---------|--------|---------|
-| F001 | Viper配置管理 | 基础设施 | 使用Viper替代自定义环境变量加载，支持多格式配置文件、热更新、环境变量集成 | P0 | pkg/config |
 | F002 | Element Plus UI组件库 | 前端 | 替换原生Vue组件，使用Element Plus构建统一UI | P0 | web/ |
-| F004 | Redis Pub/Sub事件总线 | 事件层 | 实现Redis适配器支持分布式事件 | P0 | internal/event/ |
 
 ### 7.2 中优先级未实现功能
 
@@ -359,7 +357,6 @@ docs/
 |-------|---------|---------|---------|--------|---------|
 | F005 | goqu SQL Builder | 存储层 | 集成goqu库支持类型安全SQL构建 | P1 | internal/store/ |
 | F006 | Zap日志集成 | 基础设施 | 集成Zap实现高性能结构化日志 | P1 | pkg/logging/ |
-| F007 | Swagger API文档 | 文档 | 实现Swagger注解和文档自动生成 | P1 | internal/handler/ |
 | F008 | Lucide图标库 | 前端 | 集成Lucide Vue图标库 | P1 | web/ |
 | F009 | 完整性能基准测试 | 测试 | 使用vegeta/k6进行API压力测试 | P1 | tests/benchmark/ |
 | F010 | 测试覆盖率统计 | 测试 | 运行覆盖率统计，确保≥80% | P1 | 各模块 |
@@ -386,9 +383,6 @@ docs/
 | F009 | 性能基准测试 | 中 | 需搭建测试环境和脚本 |
 | F010 | 测试覆盖率统计 | 中 | 需补充测试用例 |
 | F002 | Element Plus | 高 | 工作量大，涉及所有前端页面 |
-| F001 | Viper配置管理 | 高 | 涉及配置加载逻辑重构 |
-| F004 | Redis Pub/Sub事件 | 高 | 需设计事件分发机制 |
-| F007 | Swagger API文档 | 中 | 需添加注解和生成配置 |
 
 ### 8.2 建议实现顺序
 

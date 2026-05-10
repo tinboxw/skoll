@@ -1,5 +1,10 @@
 ﻿# API 文档（M7）
 
+## Swagger/OpenAPI
+- OpenAPI 规范文件：`docs/api/openapi.yaml`
+- 在线查看（Swagger UI）：`GET /docs/swagger`
+- 原始规范访问：`GET /docs/openapi.yaml`
+
 ## 基础信息
 - Base URL: `http://127.0.0.1:8080`
 - 响应格式: JSON，统一字段 `code/message/data`
