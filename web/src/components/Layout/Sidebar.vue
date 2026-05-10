@@ -7,7 +7,7 @@ defineProps<{
 
 <template>
 	<aside class="sidebar" :class="{ collapsed }">
-		<div class="brand">Skoll</div>
+		<RouterLink to="/" class="brand" title="Home">Skoll</RouterLink>
 		<nav>
 			<RouterLink
 				v-for="item in items"
@@ -31,10 +31,18 @@ defineProps<{
 }
 
 .brand {
+	display: inline-flex;
+	align-items: center;
 	font-size: 1.2rem;
 	font-weight: 700;
 	margin-bottom: 14px;
 	padding-left: 8px;
+	color: var(--color-on-primary);
+	text-decoration: none;
+}
+
+.brand:hover {
+	opacity: 0.9;
 }
 
 nav {
