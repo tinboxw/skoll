@@ -161,9 +161,42 @@ function pluginEntryPath(pluginID: string): string {
 	return resolvePluginEntryPath(plugin);
 }
 
+function getPluginRecord(pluginID: string) {
+	return pluginStore.items.find((item) => item.id === pluginID);
+}
+
 function isSystemBuiltin(pluginID: string): boolean {
-	const plugin = pluginStore.items.find((item) => item.id === pluginID);
+	const plugin = getPluginRecord(pluginID);
 	return plugin?.systemBuiltin === true;
+}
+
+function canVisit(pluginID: string): boolean {
+	const plugin = getPluginRecord(pluginID);
+	if (!plugin || plugin.enabled === false) {
+		return false;
+	}
+	return pluginEntryPath(pluginID) !== "";
+}
+
+function canSetDefault(pluginID: string): boolean {
+	return canVisit(pluginID);
+}
+
+function canEnable(pluginID: string): boolean {
+	const plugin = getPluginRecord(pluginID);
+	return plugin?.enabled === false;
+}
+
+function canDisable(pluginID: string): boolean {
+	const plugin = getPluginRecord(pluginID);
+	if (!plugin || plugin.enabled === false) {
+		return false;
+	}
+	return !isSystemBuiltin(pluginID);
+}
+
+function canUninstall(pluginID: string): boolean {
+	return !isSystemBuiltin(pluginID);
 }
 
 async function visitPlugin(pluginID: string): Promise<void> {
@@ -236,11 +269,16 @@ function setAsDefaultHome(pluginID: string): void {
 						</span>
 					</td>
 					<td class="action-cell">
-						<button v-if="pluginEntryPath(item.id) && item.enabled !== false" type="button" :disabled="operating" @click="visitPlugin(item.id)">{{ t("plugin.action.visit") }}</button>
-						<button v-if="pluginEntryPath(item.id) && item.enabled !== false" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
-						<button v-if="item.enabled === false" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
-						<button v-if="item.enabled !== false && !isSystemBuiltin(item.id)" type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
-						<button v-if="!isSystemBuiltin(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
+						<button v-if="canVisit(item.id)" type="button" :disabled="operating" @click="visitPlugin(item.id)">{{ t("plugin.action.visit") }}</button>
+						<span v-else class="action-placeholder">{{ t("plugin.action.visit") }}</span>
+						<button v-if="canSetDefault(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
+						<span v-else class="action-placeholder">{{ t("plugin.action.setDefault") }}</span>
+						<button v-if="canEnable(item.id)" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
+						<span v-else class="action-placeholder">{{ t("plugin.action.enable") }}</span>
+						<button v-if="canDisable(item.id)" type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
+						<span v-else class="action-placeholder">{{ t("plugin.action.disable") }}</span>
+						<button v-if="canUninstall(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
+						<span v-else class="action-placeholder">{{ t("plugin.action.uninstall") }}</span>
 						<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
 						<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
 						<span v-if="activeDefaultHome === pluginEntryPath(item.id) && pluginEntryPath(item.id)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
@@ -352,9 +390,33 @@ button:disabled {
 }
 
 .action-cell {
-	display: flex;
+	display: grid;
+	grid-template-columns: repeat(7, minmax(86px, 1fr));
 	gap: 6px;
-	flex-wrap: wrap;
+	align-items: center;
+}
+
+.action-cell button,
+.action-placeholder {
+	width: 100%;
+	text-align: center;
+	white-space: nowrap;
+}
+
+.action-placeholder {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 30px;
+	border-radius: var(--radius-md);
+	background: var(--color-surface-soft);
+	border: 1px dashed var(--color-border);
+	color: var(--color-text-muted);
+	font-size: 0.82rem;
+}
+
+.default-home-badge {
+	grid-column: 1 / -1;
 }
 
 .action-cell button {
