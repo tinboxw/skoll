@@ -10,7 +10,6 @@ import (
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo/model"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type SystemStore struct {
@@ -52,14 +51,14 @@ func (s *SystemStore) GetSettingByKey(ctx context.Context, key string) (*domains
 }
 
 func (s *SystemStore) ListSettings(ctx context.Context, offset, limit int) ([]*domainsystem.Setting, error) {
-	var rows []model.SystemSettingModel
-	err := s.db.WithContext(ctx).
-		Order(clause.OrderByColumn{Column: clause.Column{Name: "key"}, Desc: false}).
-		Offset(offset).
-		Limit(limit).
-		Find(&rows).Error
+	query, args, err := storesql.BuildOrderedSelect(s.db.Dialector.Name(), model.SystemSettingModel{}.TableName(), "key", offset, limit)
 	if err != nil {
 		return nil, err
+	}
+	var rows []model.SystemSettingModel
+	tx := s.db.WithContext(ctx).Raw(query, args...).Scan(&rows)
+	if tx.Error != nil {
+		return nil, tx.Error
 	}
 	out := make([]*domainsystem.Setting, 0, len(rows))
 	for i := range rows {

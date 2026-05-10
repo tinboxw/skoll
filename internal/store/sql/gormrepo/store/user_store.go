@@ -40,11 +40,16 @@ func (s *UserStore) GetByAccount(ctx context.Context, account string) (*user.Use
 	if target == "" {
 		return nil, nil
 	}
-	row, err := storesql.FirstWhere[model.UserModel](ctx, s.db, "LOWER(account) = ?", target)
+	query, args, err := storesql.BuildSelectByLower(s.db.Dialector.Name(), model.UserModel{}.TableName(), "account", target, 1)
 	if err != nil {
 		return nil, err
 	}
-	if row == nil {
+	var row model.UserModel
+	tx := s.db.WithContext(ctx).Raw(query, args...).Scan(&row)
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	if tx.RowsAffected == 0 {
 		return nil, nil
 	}
 	return row.ToDomain(), nil

@@ -42,7 +42,7 @@
 
 **主要缺失项**：
 - ✅ Viper配置管理（已完成）
-- ❌ goqu SQL Builder（未集成）
+- ✅ goqu SQL Builder（已完成）
 - ✅ Redis Pub/Sub事件总线（已实现）
 - ❌ Element Plus UI组件库（使用原生Vue替代）
 - ✅ Swagger API文档（已实现）
@@ -84,7 +84,7 @@
 | MySQL存储 | GORM+适配器 | ✅ 已完成 | `internal/store/sql/mysql/` | 无差异 |
 | PostgreSQL存储 | 适配器实现 | ✅ 已完成 | `internal/store/sql/postgres/` | 无差异 |
 | ClickHouse存储 | 时序存储 | ✅ 已完成 | `internal/store/clickhouse/` | 无差异 |
-| SQL Builder (goqu) | 类型安全SQL构建 | ❌ 未实现 | - | 规划中但未集成到项目 |
+| SQL Builder (goqu) | 类型安全SQL构建 | ✅ 已完成 | `internal/store/sql/goqu_builder.go` | 已在 SQL 存储查询路径接入 |
 | 存储工厂 | 多存储支持 | ✅ 已完成 | `internal/store/factory.go` | 无差异 |
 | 数据库迁移 | MySQL/PostgreSQL迁移脚本 | ✅ 已完成 | `migrations/` | 无差异 |
 
@@ -206,12 +206,13 @@
 **规划要求**：集成 goqu 库进行类型安全的复杂 SQL 构建。
 
 **实际实现**：
-- 文档中提及，但 `go.mod` 中无此依赖
-- 未在任何代码中引用
+- 已在 `go.mod` 引入 `github.com/doug-martin/goqu/v9`
+- 新增 `internal/store/sql/goqu_builder.go` 统一构建 SQL
+- 已在用户按账号查询、系统设置列表查询接入 goqu 构建
 
 **影响分析**：
-- 复杂查询场景可能需要手写 SQL
-- 缺少类型安全的 SQL 构建能力
+- 提供了类型化 SQL 构建能力并降低字符串 SQL 拼接风险
+- 为后续复杂查询扩展提供统一构建入口
 
 ### 3.4 事件总线 (internal/event/)
 
@@ -355,7 +356,6 @@ docs/
 
 | 功能ID | 功能名称 | 所属模块 | 需求描述 | 优先级 | 关联模块 |
 |-------|---------|---------|---------|--------|---------|
-| F005 | goqu SQL Builder | 存储层 | 集成goqu库支持类型安全SQL构建 | P1 | internal/store/ |
 | F006 | Zap日志集成 | 基础设施 | 集成Zap实现高性能结构化日志 | P1 | pkg/logging/ |
 | F008 | Lucide图标库 | 前端 | 集成Lucide Vue图标库 | P1 | web/ |
 | F009 | 完整性能基准测试 | 测试 | 使用vegeta/k6进行API压力测试 | P1 | tests/benchmark/ |
@@ -378,7 +378,6 @@ docs/
 | 功能ID | 功能名称 | 难度 | 原因 |
 |-------|---------|------|------|
 | F008 | Lucide图标库 | 低 | 简单依赖添加和替换 |
-| F005 | goqu SQL Builder | 中 | 需要评估集成方式和影响范围 |
 | F006 | Zap日志集成 | 中 | 需要重构现有日志代码 |
 | F009 | 性能基准测试 | 中 | 需搭建测试环境和脚本 |
 | F010 | 测试覆盖率统计 | 中 | 需补充测试用例 |
@@ -393,17 +392,17 @@ docs/
 └── F010: 测试覆盖率统计          [1周]
 
 第二阶段（短期实施，中等难度）:
-├── F005: goqu SQL Builder       [1周]
+├── F005: goqu SQL Builder       [已完成]
 ├── F006: Zap日志集成           [1周]
-├── F007: Swagger API文档       [1周]
+├── F007: Swagger API文档       [已完成]
 └── F009: 性能基准测试           [2周]
 
 第三阶段（中期实施，高难度）:
-├── F001: Viper配置管理         [2周]
+├── F001: Viper配置管理         [已完成]
 └── F002: Element Plus UI      [4周]
 
 第四阶段（长期优化）:
-├── F004: Redis Pub/Sub事件     [2周]
+├── F004: Redis Pub/Sub事件     [已完成]
 └── F011-F013: 文档完善         [持续]
 ```
 
@@ -414,14 +413,14 @@ F001 (Viper配置)
     ↓
 F003 (审计日志API) → 已完成（2026-05-10）
     ↓
-F005 (goqu) → 依赖存储层（已就绪）
+F005 (goqu) → 已完成（2026-05-10）
     ↓
 F006 (Zap日志) → 依赖配置层
     ↓
-F004 (Redis Pub/Sub) → 依赖事件总线接口（已就绪）
+F004 (Redis Pub/Sub) → 已完成（2026-05-10）
 
 F002 (Element Plus) → 可独立实施
-F007 (Swagger) → 可独立实施
+F007 (Swagger) → 已完成（2026-05-10）
 F008 (Lucide) → 可独立实施
 F009 (性能测试) → 依赖API完成
 F010 (覆盖率统计) → 依赖测试用例补充
@@ -436,7 +435,7 @@ F010 (覆盖率统计) → 依赖测试用例补充
 | Go 1.22+ | Go 1.24 | ✅ 符合 |
 | Gin 1.9+ | 使用net/http标准库 | ⚠️ 部分符合（未使用Gin） |
 | GORM 1.25+ | GORM 1.31 | ✅ 符合 |
-| goqu 9.0+ | ❌ 未使用 | ❌ 不符合 |
+| goqu 9.0+ | ✅ 已使用 | ✅ 符合 |
 | Viper 1.18+ | ❌ 自定义实现 | ❌ 不符合 |
 | Zap 1.27+ | ❌ 未集成 | ❌ 不符合 |
 | JWT | ✅ 已实现 | ✅ 符合 |
