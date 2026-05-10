@@ -19,6 +19,7 @@ type Adapter struct {
 	role repository.RoleRepository
 	rbac repository.RBACRepository
 	sys  repository.SystemRepository
+	plg  repository.PluginRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -36,6 +37,8 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		return nil, fmt.Errorf("open mysql connection: %w", err)
 	}
 
+	db = db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
+
 	if err := db.AutoMigrate(gormrepo.AllModels()...); err != nil {
 		return nil, fmt.Errorf("auto migrate mysql schema: %w", err)
 	}
@@ -47,6 +50,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		role: gormrepo.NewRoleStore(db, normalizeRoleKey),
 		rbac: gormrepo.NewRBACStore(db),
 		sys:  gormrepo.NewSystemStore(db, normalizeSettingKey),
+		plg:  gormrepo.NewPluginStore(db),
 	}, nil
 }
 
@@ -63,6 +67,10 @@ func (a *Adapter) RBACRepository() repository.RBACRepository {
 
 func (a *Adapter) SystemRepository() repository.SystemRepository {
 	return a.sys
+}
+
+func (a *Adapter) PluginRepository() repository.PluginRepository {
+	return a.plg
 }
 
 func (a *Adapter) DB() *gorm.DB {

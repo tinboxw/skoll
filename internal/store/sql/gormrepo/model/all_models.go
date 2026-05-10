@@ -7,5 +7,6 @@ func AllModels() []any {
 		&BindingModel{},
 		&PolicyRuleModel{},
 		&SystemSettingModel{},
+		&PluginModel{},
 	}
 }

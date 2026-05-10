@@ -10,6 +10,7 @@ type UserStore = store.UserStore
 type RoleStore = store.RoleStore
 type SystemStore = store.SystemStore
 type RBACStore = store.RBACStore
+type PluginStore = store.PluginStore
 
 func NewUserStore(db *gorm.DB) *UserStore {
 	return store.NewUserStore(db)
@@ -25,6 +26,10 @@ func NewSystemStore(db *gorm.DB, normalizeKey model.Normalizer) *SystemStore {
 
 func NewRBACStore(db *gorm.DB) *RBACStore {
 	return store.NewRBACStore(db)
+}
+
+func NewPluginStore(db *gorm.DB) *PluginStore {
+	return store.NewPluginStore(db)
 }
 
 func AllModels() []any {
