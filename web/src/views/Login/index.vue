@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
 import { waitForPluginBootstrap } from "../../plugins";
-import { getSystemDefaultHomePath } from "../../stores/plugins";
+import { getDefaultHomePath, getSystemDefaultHomePath } from "../../stores/plugins";
 import { useUserStore } from "../../stores/user";
 import { apiPost, type ApiResponse } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -24,7 +24,7 @@ const redirectTo = computed(() => {
 	if (typeof q === "string" && q.trim() !== "") {
 		return q;
 	}
-	return "/dashboard";
+	return getDefaultHomePath(getSystemDefaultHomePath());
 });
 
 type LoginPayload = {
