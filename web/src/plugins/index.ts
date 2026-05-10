@@ -8,6 +8,11 @@ import type { BackendPluginRecord, FrontendPlugin, FrontendPluginManifest } from
 type PluginStore = ReturnType<typeof usePluginStore>;
 
 const builtinPlugins: FrontendPlugin[] = [builtinAuthPlugin];
+let latestPluginSyncTask: Promise<void> = Promise.resolve();
+
+export async function waitForPluginBootstrap(): Promise<void> {
+	await latestPluginSyncTask;
+}
 
 export async function bootstrapPlugins(
 	router: Router,
@@ -30,52 +35,56 @@ export async function syncBackendPlugins(
 	store: PluginStore,
 	fetcher: typeof fetch = fetch
 ): Promise<void> {
-	store.beginSync();
-	try {
-		const records = await syncPluginsFromBackend(fetcher);
-		store.setBackendRecords(
-			records.map((record) => ({
-				id: record.id,
-				name: record.name,
-				version: record.version,
-				enabled: record.enabled,
-				uiMode: record.uiMode,
-				entryPath: record.frontendEntry,
-				systemBuiltin: record.systemBuiltin
-			}))
-		);
-		for (const record of records) {
-			const hasFrontend = record.uiMode !== "backend_only";
-			const routePath = typeof record.frontendEntry === "string" && record.frontendEntry.trim().startsWith("/")
-				? record.frontendEntry.trim()
-				: `/plugins/${record.id}`;
-			registerPlugin(
-				{
+	const task = (async () => {
+		store.beginSync();
+		try {
+			const records = await syncPluginsFromBackend(fetcher);
+			store.setBackendRecords(
+				records.map((record) => ({
 					id: record.id,
 					name: record.name,
 					version: record.version,
 					enabled: record.enabled,
 					uiMode: record.uiMode,
 					entryPath: record.frontendEntry,
-					systemBuiltin: record.systemBuiltin,
-					route: hasFrontend
-						? {
-							path: routePath,
-							name: `plugin-${record.id}`,
-							component: createRemotePluginView(record)
-						}
-						: undefined
-				},
-				router,
-				store
+					systemBuiltin: record.systemBuiltin
+				}))
 			);
+			for (const record of records) {
+				const hasFrontend = record.uiMode !== "backend_only";
+				const routePath = typeof record.frontendEntry === "string" && record.frontendEntry.trim().startsWith("/")
+					? record.frontendEntry.trim()
+					: `/plugins/${record.id}`;
+				registerPlugin(
+					{
+						id: record.id,
+						name: record.name,
+						version: record.version,
+						enabled: record.enabled,
+						uiMode: record.uiMode,
+						entryPath: record.frontendEntry,
+						systemBuiltin: record.systemBuiltin,
+						route: hasFrontend
+							? {
+								path: routePath,
+								name: `plugin-${record.id}`,
+								component: createRemotePluginView(record)
+							}
+							: undefined
+					},
+					router,
+					store
+				);
+			}
+			store.finishSync(null, false);
+		} catch (error) {
+			const msg = normalizeSyncError(error);
+			store.setBackendRecords([]);
+			store.finishSync(msg, true);
 		}
-		store.finishSync(null, false);
-	} catch (error) {
-		const msg = normalizeSyncError(error);
-		store.setBackendRecords([]);
-		store.finishSync(msg, true);
-	}
+	})();
+	latestPluginSyncTask = task.catch(() => undefined);
+	await task;
 }
 
 function normalizeSyncError(error: unknown): string {

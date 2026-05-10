@@ -3,6 +3,8 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
+import { waitForPluginBootstrap } from "../../plugins";
+import { getSystemDefaultHomePath } from "../../stores/plugins";
 import { useUserStore } from "../../stores/user";
 import { apiPost, type ApiResponse } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -37,6 +39,18 @@ type LoginPayload = {
 	};
 };
 
+async function resolvePostLoginTarget(path: string): Promise<string> {
+	const target = path.trim();
+	if (!target.startsWith("/plugins/")) {
+		return target;
+	}
+	await waitForPluginBootstrap();
+	if (router.resolve(target).matched.length > 0) {
+		return target;
+	}
+	return getSystemDefaultHomePath();
+}
+
 async function login(): Promise<void> {
 	error.value = "";
 	loading.value = true;
@@ -57,7 +71,8 @@ async function login(): Promise<void> {
 			email: payload.data?.user?.email?.trim() || ""
 		}, Array.isArray(payload.data?.permissions) ? payload.data.permissions : []);
 		await userStore.hydrateProfile();
-		await router.replace(redirectTo.value);
+		const target = await resolvePostLoginTarget(redirectTo.value);
+		await router.replace(target);
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
