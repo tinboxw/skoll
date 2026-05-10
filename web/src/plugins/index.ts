@@ -2,6 +2,7 @@
 import type { RouteRecordRaw, Router } from "vue-router";
 
 import type { usePluginStore } from "../stores/plugins";
+import { getToken } from "../utils/auth";
 import { builtinAuthPlugin } from "./builtin/auth";
 import type { BackendPluginRecord, FrontendPlugin, FrontendPluginManifest } from "./types";
 
@@ -131,9 +132,18 @@ function addRouteIfMissing(route: RouteRecordRaw, router: Router): void {
 async function syncPluginsFromBackend(fetcher: typeof fetch): Promise<BackendPluginRecord[]> {
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 2500);
+	const headers = new Headers();
+	const token = getToken().trim();
+	if (token !== "") {
+		const authValue = token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`;
+		headers.set("Authorization", authValue);
+	}
 	let resp: Response;
 	try {
-		resp = await fetcher("/v1/plugins", { signal: controller.signal });
+		resp = await fetcher("/v1/plugins", {
+			signal: controller.signal,
+			headers
+		});
 	} finally {
 		clearTimeout(timeout);
 	}

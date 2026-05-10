@@ -3,8 +3,9 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import { waitForPluginBootstrap } from "../../plugins";
+import { syncBackendPlugins, waitForPluginBootstrap } from "../../plugins";
 import { getDefaultHomePath, getSystemDefaultHomePath } from "../../stores/plugins";
+import { usePluginStore } from "../../stores/plugins";
 import { useUserStore } from "../../stores/user";
 import { apiPost, type ApiResponse } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -12,6 +13,7 @@ import { toErrorMessage } from "../../utils/common";
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
+const pluginStore = usePluginStore();
 const { t } = useI18n();
 
 const account = ref("admin");
@@ -71,6 +73,7 @@ async function login(): Promise<void> {
 			email: payload.data?.user?.email?.trim() || ""
 		}, Array.isArray(payload.data?.permissions) ? payload.data.permissions : []);
 		await userStore.hydrateProfile();
+		await syncBackendPlugins(router, pluginStore);
 		const target = await resolvePostLoginTarget(redirectTo.value);
 		await router.replace(target);
 	} catch (e) {
