@@ -1,6 +1,6 @@
 ﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
-import { getDefaultHomePath } from "../stores/plugins";
+import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath } from "../stores/plugins";
 import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
 import DashboardPage from "../views/Dashboard/index.vue";
@@ -91,6 +91,23 @@ export const router = createRouter({
 	routes
 });
 
+function isKnownStaticPath(path: string): boolean {
+	return routes.some((route) => typeof route.path === "string" && route.path === path);
+}
+
+function resolveSafeDefaultHomePath(): string {
+	const fallback = getSystemDefaultHomePath();
+	const target = getDefaultHomePath(fallback);
+	if (target.startsWith("/plugins/")) {
+		return target;
+	}
+	if (isKnownStaticPath(target)) {
+		return target;
+	}
+	clearDefaultHomePath();
+	return fallback;
+}
+
 router.beforeEach((to) => {
 	const token = getToken().trim();
 	const isPublic = to.meta.public === true || to.path.startsWith("/plugins/auth");
@@ -105,7 +122,7 @@ router.beforeEach((to) => {
 	if (token !== "" && to.path === "/login") {
 		const redirect = typeof to.query.redirect === "string" && to.query.redirect.trim() !== ""
 			? to.query.redirect
-			: getDefaultHomePath("/dashboard");
+			: resolveSafeDefaultHomePath();
 		return redirect;
 	}
 
@@ -114,7 +131,7 @@ router.beforeEach((to) => {
 	if (requiredRoles && requiredRoles.length > 0) {
 		const currentRole = getStoredUserRole();
 		if (!requiredRoles.includes(currentRole)) {
-			return getDefaultHomePath("/dashboard");
+			return resolveSafeDefaultHomePath();
 		}
 	}
 
@@ -124,7 +141,7 @@ router.beforeEach((to) => {
 			const permissions = getStoredPermissions();
 			const allowed = requiredPermissions.every((item) => permissions.includes(item));
 			if (!allowed) {
-				return getDefaultHomePath("/dashboard");
+				return resolveSafeDefaultHomePath();
 			}
 		}
 	}

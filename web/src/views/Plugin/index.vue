@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
 import { syncBackendPlugins } from "../../plugins";
-import { getDefaultHomePath, resolvePluginEntryPath, setDefaultHomePath, usePluginStore } from "../../stores/plugins";
+import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePath, resolvePluginEntryPath, setDefaultHomePath, usePluginStore } from "../../stores/plugins";
 import { ApiError, type ApiResponse } from "../../utils/api";
 import { apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -24,6 +24,8 @@ const selectedPlugin = ref("");
 const activeInspectorPanel = ref<"info" | "logs" | "">("");
 const pluginPath = ref("");
 const activeDefaultHome = ref(getDefaultHomePath());
+const systemDefaultHome = getSystemDefaultHomePath();
+const info = ref<string | null>(null);
 
 const visiblePlugins = computed(() => {
 	if (!showOnlyEnabled.value) {
@@ -48,6 +50,7 @@ const syncStatusText = computed(() => {
 async function refreshPlugins(): Promise<void> {
 	loading.value = true;
 	error.value = null;
+	info.value = null;
 	try {
 		await syncBackendPlugins(router, pluginStore);
 	} catch (e) {
@@ -61,11 +64,18 @@ async function refreshPlugins(): Promise<void> {
 async function runAction(action: "enable" | "disable" | "uninstall", pluginID: string): Promise<void> {
 	operating.value = true;
 	error.value = null;
+	info.value = null;
+	const beforeActionEntryPath = pluginEntryPath(pluginID);
 	try {
 		if (action === "uninstall") {
 			await apiDelete<ApiResponse<unknown>>(`/v1/plugins/${pluginID}`);
 		} else {
 			await apiPost<ApiResponse<unknown>>(`/v1/plugins/${pluginID}/${action}`);
+		}
+		if ((action === "disable" || action === "uninstall") && beforeActionEntryPath && isDefaultHomePath(beforeActionEntryPath, systemDefaultHome)) {
+			clearDefaultHomePath();
+			activeDefaultHome.value = getDefaultHomePath(systemDefaultHome);
+			info.value = t("plugin.defaultHomeResetAfterAction");
 		}
 		await refreshPlugins();
 	} catch (e) {
@@ -79,6 +89,7 @@ async function openDebug(pluginID: string): Promise<void> {
 	selectedPlugin.value = pluginID;
 	activeInspectorPanel.value = "info";
 	error.value = null;
+	info.value = null;
 	try {
 		const payload = await apiGet<ApiResponse<unknown>>(`/v1/plugins/${pluginID}/debug`);
 		debugText.value = JSON.stringify(payload.data, null, 2);
@@ -92,6 +103,7 @@ async function openLogs(pluginID: string): Promise<void> {
 	selectedPlugin.value = pluginID;
 	activeInspectorPanel.value = "logs";
 	error.value = null;
+	info.value = null;
 	try {
 		const payload = await apiGet<ApiResponse<{ content?: string }>>(`/v1/plugins/${pluginID}/logs`);
 		logText.value = payload.data?.content ?? "";
@@ -112,6 +124,7 @@ async function validatePluginPath(): Promise<void> {
 	}
 	operating.value = true;
 	error.value = null;
+	info.value = null;
 	try {
 		const payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/validate", {
 			path: pluginPath.value.trim()
@@ -132,6 +145,7 @@ async function installPluginPath(): Promise<void> {
 	}
 	operating.value = true;
 	error.value = null;
+	info.value = null;
 	try {
 		const payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/install", {
 			path: pluginPath.value.trim()
@@ -210,6 +224,13 @@ function setAsDefaultHome(pluginID: string): void {
 	}
 	setDefaultHomePath(entryPath);
 	activeDefaultHome.value = entryPath;
+	info.value = t("plugin.defaultHomeActive");
+}
+
+function resetDefaultHome(): void {
+	clearDefaultHomePath();
+	activeDefaultHome.value = getDefaultHomePath(systemDefaultHome);
+	info.value = t("plugin.defaultHomeResetDone");
 }
 </script>
 
@@ -227,6 +248,9 @@ function setAsDefaultHome(pluginID: string): void {
 					<input v-model="showOnlyEnabled" type="checkbox" />
 					{{ t("plugin.onlyEnabled") }}
 				</label>
+				<button type="button" :disabled="loading || operating || activeDefaultHome === systemDefaultHome" @click="resetDefaultHome">
+					{{ t("plugin.action.resetDefault") }}
+				</button>
 				<button type="button" :disabled="loading || operating || pluginStore.isSyncing" @click="refreshPlugins">
 					{{ loading ? t("plugin.refreshing") : t("plugin.refresh") }}
 				</button>
@@ -234,6 +258,7 @@ function setAsDefaultHome(pluginID: string): void {
 		</header>
 
 		<p v-if="error" class="error">{{ error }}</p>
+		<p v-if="info" class="success">{{ info }}</p>
 
 		<section class="install-panel">
 			<h3>{{ t("plugin.installTitle") }}</h3>
@@ -320,6 +345,11 @@ function setAsDefaultHome(pluginID: string): void {
 .sync-degraded {
 	font-size: 12px;
 	color: #b45309;
+}
+
+.success {
+	color: var(--color-success);
+	margin: 4px 0;
 }
 
 .actions {

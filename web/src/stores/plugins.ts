@@ -3,6 +3,7 @@
 import type { FrontendPluginManifest } from "../plugins/types";
 
 const DEFAULT_HOME_KEY = "skoll.ui.defaultHome";
+const SYSTEM_DEFAULT_HOME = "/dashboard";
 
 type PluginState = {
 	items: FrontendPluginManifest[];
@@ -83,11 +84,27 @@ export function getDefaultHomePath(fallback = "/dashboard"): string {
 	return value;
 }
 
+export function getSystemDefaultHomePath(): string {
+	return SYSTEM_DEFAULT_HOME;
+}
+
 export function setDefaultHomePath(path: string): void {
 	const value = path.trim();
 	if (!value.startsWith("/") || value === "/login") {
 		return;
 	}
 	localStorage.setItem(DEFAULT_HOME_KEY, value);
+}
+
+export function clearDefaultHomePath(): void {
+	localStorage.removeItem(DEFAULT_HOME_KEY);
+}
+
+export function isDefaultHomePath(path: string, fallback = SYSTEM_DEFAULT_HOME): boolean {
+	const value = path.trim();
+	if (!value.startsWith("/") || value === "/login") {
+		return false;
+	}
+	return getDefaultHomePath(fallback) === value;
 }
 
