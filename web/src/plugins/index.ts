@@ -22,6 +22,15 @@ export async function bootstrapPlugins(
 		});
 	}
 
+	await syncBackendPlugins(router, store, fetcher);
+}
+
+export async function syncBackendPlugins(
+	router: Router,
+	store: PluginStore,
+	fetcher: typeof fetch = fetch
+): Promise<void> {
+	store.beginSync();
 	try {
 		const records = await syncPluginsFromBackend(fetcher);
 		store.setBackendRecords(
@@ -61,11 +70,11 @@ export async function bootstrapPlugins(
 				store
 			);
 		}
-		store.markSynced(null);
+		store.finishSync(null, false);
 	} catch (error) {
 		const msg = normalizeSyncError(error);
 		store.setBackendRecords([]);
-		store.markSynced(msg);
+		store.finishSync(msg, true);
 	}
 }
 

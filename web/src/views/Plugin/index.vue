@@ -3,10 +3,10 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import type { BackendPluginRecord } from "../../plugins/types";
+import { syncBackendPlugins } from "../../plugins";
 import { getDefaultHomePath, resolvePluginEntryPath, setDefaultHomePath, usePluginStore } from "../../stores/plugins";
 import { ApiError, type ApiResponse } from "../../utils/api";
-import { apiDelete, apiGet, apiPost } from "../../utils/api";
+import { apiDelete, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 const router = useRouter();
@@ -32,35 +32,24 @@ const visiblePlugins = computed(() => {
 	return pluginStore.items.filter((item) => item.enabled !== false);
 });
 
+const syncStatusText = computed(() => {
+	if (pluginStore.syncStatus === "loading") {
+		return t("plugin.sync.loading");
+	}
+	if (pluginStore.syncStatus === "error") {
+		return t("plugin.sync.error");
+	}
+	if (pluginStore.syncStatus === "success") {
+		return t("plugin.sync.success");
+	}
+	return t("plugin.sync.idle");
+});
+
 async function refreshPlugins(): Promise<void> {
 	loading.value = true;
 	error.value = null;
 	try {
-		const payload = await apiGet<ApiResponse<BackendPluginRecord[]>>("/v1/plugins");
-		const records = Array.isArray(payload.data) ? payload.data : [];
-		pluginStore.setBackendRecords(
-			records.map((item) => ({
-				id: item.id,
-				name: item.name,
-				version: item.version,
-				enabled: item.enabled,
-				uiMode: item.uiMode,
-				entryPath: item.frontendEntry,
-				systemBuiltin: item.systemBuiltin
-			}))
-		);
-		for (const item of records) {
-			pluginStore.registerPlugin({
-				id: item.id,
-				name: item.name,
-				version: item.version,
-				enabled: item.enabled,
-				uiMode: item.uiMode,
-				entryPath: item.frontendEntry,
-				systemBuiltin: item.systemBuiltin
-			});
-		}
-		pluginStore.markSynced(null);
+		await syncBackendPlugins(router, pluginStore);
 	} catch (e) {
 		error.value = toErrorMessage(e);
 		pluginStore.markSynced(error.value);
@@ -230,13 +219,15 @@ function setAsDefaultHome(pluginID: string): void {
 			<div>
 				<h2>{{ t("plugin.title") }}</h2>
 				<p>{{ t("plugin.desc") }}</p>
+				<p class="sync-status">{{ syncStatusText }} · {{ t("plugin.sync.attempts") }} {{ pluginStore.syncAttempts }}</p>
+				<p v-if="pluginStore.degradedMode" class="sync-degraded">{{ t("plugin.sync.degraded") }}</p>
 			</div>
 			<div class="actions">
 				<label>
 					<input v-model="showOnlyEnabled" type="checkbox" />
 					{{ t("plugin.onlyEnabled") }}
 				</label>
-				<button type="button" :disabled="loading || operating" @click="refreshPlugins">
+				<button type="button" :disabled="loading || operating || pluginStore.isSyncing" @click="refreshPlugins">
 					{{ loading ? t("plugin.refreshing") : t("plugin.refresh") }}
 				</button>
 			</div>
@@ -320,6 +311,15 @@ function setAsDefaultHome(pluginID: string): void {
 .topbar p {
 	margin: 4px 0 0;
 	color: var(--color-text-muted);
+}
+
+.sync-status {
+	font-size: 12px;
+}
+
+.sync-degraded {
+	font-size: 12px;
+	color: #b45309;
 }
 
 .actions {

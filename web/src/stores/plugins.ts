@@ -8,6 +8,10 @@ type PluginState = {
 	items: FrontendPluginManifest[];
 	backendRecords: FrontendPluginManifest[];
 	syncedFromServer: boolean;
+	syncStatus: "idle" | "loading" | "success" | "error";
+	syncAttempts: number;
+	lastSyncedAt: string | null;
+	degradedMode: boolean;
 	lastSyncError: string | null;
 };
 
@@ -16,10 +20,16 @@ export const usePluginStore = defineStore("plugins", {
 		items: [],
 		backendRecords: [],
 		syncedFromServer: false,
+		syncStatus: "idle",
+		syncAttempts: 0,
+		lastSyncedAt: null,
+		degradedMode: false,
 		lastSyncError: null
 	}),
 	getters: {
-		enabledItems: (state): FrontendPluginManifest[] => state.items.filter((item) => item.enabled !== false)
+		enabledItems: (state): FrontendPluginManifest[] => state.items.filter((item) => item.enabled !== false),
+		isSyncing: (state): boolean => state.syncStatus === "loading",
+		hasSyncError: (state): boolean => state.syncStatus === "error"
 	},
 	actions: {
 		registerPlugin(plugin: FrontendPluginManifest): void {
@@ -33,9 +43,20 @@ export const usePluginStore = defineStore("plugins", {
 		setBackendRecords(records: FrontendPluginManifest[]): void {
 			this.backendRecords = records;
 		},
-		markSynced(error: string | null = null): void {
+		beginSync(): void {
+			this.syncStatus = "loading";
+			this.syncAttempts += 1;
+			this.lastSyncError = null;
+		},
+		finishSync(error: string | null = null, degradedMode = false): void {
 			this.syncedFromServer = true;
 			this.lastSyncError = error;
+			this.degradedMode = degradedMode;
+			this.syncStatus = error ? "error" : "success";
+			this.lastSyncedAt = new Date().toISOString();
+		},
+		markSynced(error: string | null = null): void {
+			this.finishSync(error, Boolean(error));
 		}
 	}
 });
