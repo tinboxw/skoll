@@ -6,6 +6,9 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tinboxw/skoll/internal/plugin"
@@ -200,5 +203,53 @@ func TestRouterDelegatesToPluginRouteExecutor(t *testing.T) {
 	}
 	if body.Data["status"] != "executed" {
 		t.Fatalf("unexpected executor response: %+v", body.Data)
+	}
+}
+
+func TestRouterPluginPageAndAssetsFlow(t *testing.T) {
+	tmp := t.TempDir()
+	pluginDir := filepath.Join(tmp, "demo-frontend")
+	if err := os.MkdirAll(filepath.Join(pluginDir, "static"), 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "static", "index.html"), []byte("<html><head></head><body><script src=\"./app.js\"></script></body></html>"), 0o644); err != nil {
+		t.Fatalf("write index failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "static", "app.js"), []byte("console.log('ok')"), 0o644); err != nil {
+		t.Fatalf("write app.js failed: %v", err)
+	}
+
+	manager := &fakePluginManager{
+		items: []plugin.Info{{
+			ID:            "demo-frontend",
+			Name:          "Demo Frontend",
+			Version:       "0.1.0",
+			State:         plugin.StateEnabled,
+			Source:        pluginDir,
+			UIMode:        plugin.UIModeFrontendOnly,
+			FrontendEntry: "/plugins/demo-frontend",
+		}},
+	}
+
+	router := NewRouter(Dependencies{PluginManager: manager})
+
+	pageReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/page", nil)
+	pageResp := httptest.NewRecorder()
+	router.ServeHTTP(pageResp, pageReq)
+	if pageResp.Code != http.StatusOK {
+		t.Fatalf("page status=%d body=%s", pageResp.Code, pageResp.Body.String())
+	}
+	if !strings.Contains(pageResp.Body.String(), "/v1/plugins/demo-frontend/assets/") {
+		t.Fatalf("expected injected base href in page body: %s", pageResp.Body.String())
+	}
+
+	assetReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/assets/app.js", nil)
+	assetResp := httptest.NewRecorder()
+	router.ServeHTTP(assetResp, assetReq)
+	if assetResp.Code != http.StatusOK {
+		t.Fatalf("asset status=%d body=%s", assetResp.Code, assetResp.Body.String())
+	}
+	if !strings.Contains(assetResp.Body.String(), "console.log('ok')") {
+		t.Fatalf("unexpected asset body: %s", assetResp.Body.String())
 	}
 }
