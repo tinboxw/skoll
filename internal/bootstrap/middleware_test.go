@@ -4,16 +4,61 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
+	httprouter "github.com/tinboxw/skoll/internal/handler/http"
+	"github.com/tinboxw/skoll/internal/plugin"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
+	"github.com/tinboxw/skoll/pkg/logging"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type fakePermissionChecker struct {
 	allowed map[string]bool
+}
+
+type fakePluginManager struct {
+	items map[string]plugin.Info
+}
+
+func (f *fakePluginManager) Install(path string) (plugin.Info, error) {
+	_ = path
+	return plugin.Info{}, nil
+}
+
+func (f *fakePluginManager) Enable(pluginID string) error {
+	_ = pluginID
+	return nil
+}
+
+func (f *fakePluginManager) Disable(pluginID string) error {
+	_ = pluginID
+	return nil
+}
+
+func (f *fakePluginManager) Uninstall(pluginID string) error {
+	_ = pluginID
+	return nil
+}
+
+func (f *fakePluginManager) List() []plugin.Info {
+	items := make([]plugin.Info, 0, len(f.items))
+	for _, item := range f.items {
+		items = append(items, item)
+	}
+	return items
+}
+
+func (f *fakePluginManager) Get(pluginID string) (plugin.Info, error) {
+	item, ok := f.items[pluginID]
+	if !ok {
+		return plugin.Info{}, plugin.ErrPluginNotFound
+	}
+	return item, nil
 }
 
 func (f *fakePermissionChecker) CheckPermission(_ context.Context, in rbacsvc.CheckPermissionInput) (bool, error) {
@@ -157,4 +202,59 @@ func TestRequiredPermissionMapping(t *testing.T) {
 	}
 
 	_ = domainrbac.SubjectUser
+}
+
+func TestBuildMiddlewareChainPluginPageBypassesAuth(t *testing.T) {
+	tmp := t.TempDir()
+	pluginDir := filepath.Join(tmp, "demo-frontend")
+	if err := os.MkdirAll(filepath.Join(pluginDir, "static"), 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "static", "index.html"), []byte("<html><head></head><body>demo</body></html>"), 0o644); err != nil {
+		t.Fatalf("write index failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "static", "app.js"), []byte("console.log('ok')"), 0o644); err != nil {
+		t.Fatalf("write app.js failed: %v", err)
+	}
+
+	router := httprouter.NewRouter(httprouter.Dependencies{PluginManager: &fakePluginManager{items: map[string]plugin.Info{
+		"demo-frontend": {
+			ID:            "demo-frontend",
+			Name:          "Demo Frontend",
+			Version:       "0.1.0",
+			State:         plugin.StateEnabled,
+			Source:        pluginDir,
+			UIMode:        plugin.UIModeFrontendOnly,
+			FrontendEntry: "/plugins/demo-frontend",
+		},
+	}}})
+
+	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{
+		"/health":        {},
+		"/ready":         {},
+		"/v1/plugins":    {},
+		"/v1/auth/login": {},
+	}}
+	guarded := buildMiddlewareChain(router, logging.Discard(), policy, "test-secret", nil)
+
+	pageReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/page", nil)
+	pageResp := httptest.NewRecorder()
+	guarded.ServeHTTP(pageResp, pageReq)
+	if pageResp.Code != http.StatusOK {
+		t.Fatalf("page status=%d body=%s", pageResp.Code, pageResp.Body.String())
+	}
+
+	assetReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/assets/app.js", nil)
+	assetResp := httptest.NewRecorder()
+	guarded.ServeHTTP(assetResp, assetReq)
+	if assetResp.Code != http.StatusOK {
+		t.Fatalf("asset status=%d body=%s", assetResp.Code, assetResp.Body.String())
+	}
+
+	protectedReq := httptest.NewRequest(http.MethodGet, "/v1/system/settings", nil)
+	protectedResp := httptest.NewRecorder()
+	guarded.ServeHTTP(protectedResp, protectedReq)
+	if protectedResp.Code != http.StatusUnauthorized {
+		t.Fatalf("protected status=%d body=%s", protectedResp.Code, protectedResp.Body.String())
+	}
 }
