@@ -1,4 +1,4 @@
-﻿import { defineComponent, h, onMounted, ref } from "vue";
+﻿import { defineComponent, h, onMounted, onUnmounted, ref } from "vue";
 import type { RouteRecordRaw, Router } from "vue-router";
 
 import type { usePluginStore } from "../stores/plugins";
@@ -161,13 +161,47 @@ function createRemotePluginView(record: BackendPluginRecord) {
 		setup() {
 			const loading = ref(true);
 			const loadError = ref("");
+			const pageError = ref("");
 			const debugPayload = ref<Record<string, unknown> | null>(null);
 			const pageBroken = ref(false);
+			const frameURL = ref("");
 			const pageURL = `/v1/plugins/${record.id}/page`;
+
+			function patchPluginHTML(content: string): string {
+				const basePath = `/v1/plugins/${record.id}/assets/`;
+				const absoluteAssetsBase = `${basePath}assets/`;
+				let patched = content;
+				if (!/<base\s+/i.test(patched)) {
+					patched = patched.replace(/<head>/i, `<head>\n<base href="${basePath}">`);
+				}
+				patched = patched.replace(/(["'])\/assets\//g, `$1${absoluteAssetsBase}`);
+				return patched;
+			}
+
+			async function loadPluginPage(): Promise<void> {
+				pageError.value = "";
+				pageBroken.value = false;
+				try {
+					const resp = await fetch(pageURL);
+					if (!resp.ok) {
+						throw new Error(`plugin page request failed: ${resp.status}`);
+					}
+					const html = await resp.text();
+					const blob = new Blob([patchPluginHTML(html)], { type: "text/html" });
+					if (frameURL.value) {
+						URL.revokeObjectURL(frameURL.value);
+					}
+					frameURL.value = URL.createObjectURL(blob);
+				} catch (error) {
+					pageBroken.value = true;
+					pageError.value = error instanceof Error ? error.message : "failed to load plugin page";
+				}
+			}
 
 			onMounted(async () => {
 				loading.value = true;
 				loadError.value = "";
+				await loadPluginPage();
 				try {
 					const resp = await fetch(`/v1/plugins/${record.id}/debug`);
 					if (!resp.ok) {
@@ -182,20 +216,27 @@ function createRemotePluginView(record: BackendPluginRecord) {
 				}
 			});
 
+			onUnmounted(() => {
+				if (frameURL.value) {
+					URL.revokeObjectURL(frameURL.value);
+				}
+			});
+
 			return () =>
 				h("section", { class: "remote-plugin-card" }, [
 					h("h3", `${record.name} (${record.id})`),
 					h("p", `Version: ${record.version}`),
 					h("p", `Enabled: ${record.enabled === false ? "no" : "yes"}`),
 					pageBroken.value
-						? h("p", { class: "plugin-detail-error" }, "Plugin page failed to load. Fallback details are shown below.")
+						? h("p", { class: "plugin-detail-error" }, `Plugin page failed to load: ${pageError.value || "unknown error"}. Fallback details are shown below.`)
 						: h("iframe", {
 							title: `${record.id}-page`,
-							src: pageURL,
+							src: frameURL.value,
 							class: "plugin-page-frame",
 							style: "width:100%;min-height:360px;border:1px solid var(--color-border);border-radius:8px;background:#fff;",
 							onError: () => {
 								pageBroken.value = true;
+								pageError.value = "iframe render failed";
 							}
 						}),
 					loading.value
