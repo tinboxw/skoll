@@ -3,8 +3,7 @@ import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import { type ApiResponse, apiPost } from "../../utils/api";
-import { apiDelete, apiGet } from "../../utils/api";
+import { type ApiResponse, apiDelete, apiGet } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 type UserRecord = {
@@ -43,15 +42,6 @@ const rows = ref<UserRecord[]>([]);
 const page = ref(1);
 const pageSize = 10;
 const canGoNext = ref(false);
-const lastCreatedAccount = ref("");
-
-const createLoading = ref(false);
-const createError = ref("");
-const createSuccess = ref("");
-const createAccount = ref("");
-const createName = ref("");
-const createEmail = ref("");
-const createPassword = ref("");
 
 const hasRows = computed(() => rows.value.length > 0);
 const returnTo = computed(() => route.fullPath || "/user");
@@ -93,52 +83,6 @@ async function deleteUser(userID: string): Promise<void> {
 		operating.value = false;
 	}
 }
-function validateCreateForm(): string {
-	if (createAccount.value.trim() === "") {
-		return t("user.accountRequired");
-	}
-	if (createEmail.value.trim() === "" || !createEmail.value.includes("@")) {
-		return t("user.emailInvalid");
-	}
-	if (createPassword.value.trim().length < 8) {
-		return t("user.passwordInvalid");
-	}
-	return "";
-}
-
-async function submitCreate(): Promise<void> {
-	createError.value = "";
-	createSuccess.value = "";
-	const msg = validateCreateForm();
-	if (msg !== "") {
-		createError.value = msg;
-		return;
-	}
-	createLoading.value = true;
-	try {
-		await apiPost<ApiResponse<unknown>>("/v1/users", {
-			account: createAccount.value.trim(),
-			name: createName.value.trim() || createAccount.value.trim(),
-			email: createEmail.value.trim(),
-			passwordHash: createPassword.value.trim()
-		});
-		lastCreatedAccount.value = createAccount.value.trim();
-		createSuccess.value = `${t("user.createDone")}: ${lastCreatedAccount.value}`;
-		await loadUsers(page.value);
-		createAccount.value = "";
-		createName.value = "";
-		createEmail.value = "";
-		createPassword.value = "";
-	} catch (e) {
-		createError.value = toErrorMessage(e);
-	} finally {
-		createLoading.value = false;
-	}
-}
-
-function isNewRow(item: UserRecord): boolean {
-	return lastCreatedAccount.value !== "" && item.account === lastCreatedAccount.value;
-}
 
 function prevPage(): void {
 	if (loading.value || page.value <= 1) {
@@ -160,21 +104,10 @@ void loadUsers(1);
 <template>
 	<section>
 		<h2>{{ t("page.users") }}</h2>
-		<section class="create-panel">
-			<h3>{{ t("user.create") }}</h3>
-			<form class="create-form" @submit.prevent="submitCreate">
-				<input v-model="createAccount" type="text" :placeholder="t('user.account')" required :disabled="createLoading" />
-				<input v-model="createName" type="text" :placeholder="t('table.name')" :disabled="createLoading" />
-				<input v-model="createEmail" type="email" :placeholder="t('table.email')" required :disabled="createLoading" />
-				<input v-model="createPassword" type="password" minlength="8" :placeholder="t('profile.newPassword')" required :disabled="createLoading" />
-				<button type="submit" :disabled="createLoading">{{ createLoading ? t("common.loading") : t("user.create") }}</button>
-			</form>
-			<p v-if="createError" class="error">{{ createError }}</p>
-			<p v-if="createSuccess" class="success">{{ createSuccess }}</p>
-		</section>
 		<p v-if="error" class="error">{{ error }}</p>
 		<div class="toolbar">
 			<div class="toolbar-actions">
+				<router-link class="button-link" :to="{ path: '/user/add', query: { returnTo } }">{{ t("user.create") }}</router-link>
 				<router-link class="button-link" :to="{ path: '/user/batch-add', query: { returnTo } }">{{ t("user.batchCreate") }}</router-link>
 				<button type="button" :disabled="loading || operating" @click="loadUsers(page)">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
 			</div>
@@ -195,7 +128,7 @@ void loadUsers(1);
 				</tr>
 			</thead>
 			<tbody v-if="hasRows">
-				<tr v-for="item in rows" :key="item.id" :class="{ highlighted: isNewRow(item) }">
+				<tr v-for="item in rows" :key="item.id">
 					<td>{{ item.id }}</td>
 					<td>{{ item.name || item.account }}</td>
 					<td>{{ item.email }}</td>
@@ -216,31 +149,6 @@ void loadUsers(1);
 </template>
 
 <style scoped>
-.create-panel {
-	margin: 12px 0;
-	padding: 12px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-}
-
-.create-panel h3 {
-	margin: 0 0 8px;
-}
-
-.create-form {
-	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
-	gap: 8px;
-}
-
-.create-form input {
-	height: 32px;
-	padding: 0 8px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
-}
-
 .toolbar {
 	display: flex;
 	justify-content: space-between;
@@ -294,10 +202,6 @@ button {
 	color: inherit;
 }
 
-.highlighted {
-	background: rgba(46, 204, 113, 0.12);
-}
-
 .actions {
 	display: flex;
 	gap: 8px;
@@ -311,11 +215,6 @@ button:disabled {
 
 .error {
 	color: var(--color-danger);
-	margin: 4px 0;
-}
-
-.success {
-	color: var(--color-success);
 	margin: 4px 0;
 }
 </style>
