@@ -107,6 +107,7 @@
 - [x] M15.1 基线覆盖率采集：执行 `go test ./... -cover`。
 - [x] M15.2 第一批集成测试：补充插件页面与静态资源路由链路回归（`internal/handler/http/router_test.go`）。
 - [x] M15.2 第二批集成测试：补充认证中间件与插件页面免鉴权链路回归（`internal/bootstrap/middleware_test.go`）。
+- [x] M15.2 第三批集成测试：补充插件启停卸载与日志查询路由链路回归（`internal/handler/http/router_test.go`）。
 - [ ] M15.2 集成测试编写
 - [ ] M15.3 覆盖率统计与优化（整体 ≥80%）
 - [ ] M15.4 性能基准测试

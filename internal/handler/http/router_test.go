@@ -82,18 +82,39 @@ func (m *fakePluginManager) Install(path string) (plugin.Info, error) {
 }
 
 func (m *fakePluginManager) Enable(pluginID string) error {
-	_ = pluginID
-	return nil
+	for i := range m.items {
+		if m.items[i].ID == pluginID {
+			m.items[i].State = plugin.StateEnabled
+			return nil
+		}
+	}
+	return plugin.ErrPluginNotFound
 }
 
 func (m *fakePluginManager) Disable(pluginID string) error {
-	_ = pluginID
-	return nil
+	for i := range m.items {
+		if m.items[i].ID == pluginID {
+			if m.items[i].SystemBuiltin || strings.EqualFold(m.items[i].Source, "builtin") {
+				return plugin.ErrPluginSystemProtected
+			}
+			m.items[i].State = plugin.StateDisabled
+			return nil
+		}
+	}
+	return plugin.ErrPluginNotFound
 }
 
 func (m *fakePluginManager) Uninstall(pluginID string) error {
-	_ = pluginID
-	return nil
+	for i := range m.items {
+		if m.items[i].ID == pluginID {
+			if m.items[i].SystemBuiltin || strings.EqualFold(m.items[i].Source, "builtin") {
+				return plugin.ErrPluginSystemProtected
+			}
+			m.items[i].State = plugin.StateUninstalled
+			return nil
+		}
+	}
+	return plugin.ErrPluginNotFound
 }
 
 func (m *fakePluginManager) List() []plugin.Info {
@@ -251,5 +272,74 @@ func TestRouterPluginPageAndAssetsFlow(t *testing.T) {
 	}
 	if !strings.Contains(assetResp.Body.String(), "console.log('ok')") {
 		t.Fatalf("unexpected asset body: %s", assetResp.Body.String())
+	}
+}
+
+func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
+	t.Cleanup(func() {
+		_ = os.RemoveAll(filepath.Join("plugins", "logs"))
+	})
+
+	manager := &fakePluginManager{
+		items: []plugin.Info{{
+			ID:      "demo-frontend",
+			Name:    "Demo Frontend",
+			Version: "0.1.0",
+			State:   plugin.StateInstalled,
+			Source:  "plugins/demo-frontend",
+		}},
+	}
+
+	router := NewRouter(Dependencies{PluginManager: manager})
+
+	enableReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/demo-frontend/enable", nil)
+	enableResp := httptest.NewRecorder()
+	router.ServeHTTP(enableResp, enableReq)
+	if enableResp.Code != http.StatusOK {
+		t.Fatalf("enable status=%d body=%s", enableResp.Code, enableResp.Body.String())
+	}
+	if manager.items[0].State != plugin.StateEnabled {
+		t.Fatalf("expected enabled state, got %s", manager.items[0].State)
+	}
+
+	disableReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/demo-frontend/disable", nil)
+	disableResp := httptest.NewRecorder()
+	router.ServeHTTP(disableResp, disableReq)
+	if disableResp.Code != http.StatusOK {
+		t.Fatalf("disable status=%d body=%s", disableResp.Code, disableResp.Body.String())
+	}
+	if manager.items[0].State != plugin.StateDisabled {
+		t.Fatalf("expected disabled state, got %s", manager.items[0].State)
+	}
+
+	uninstallReq := httptest.NewRequest(http.MethodDelete, "/v1/plugins/demo-frontend", nil)
+	uninstallResp := httptest.NewRecorder()
+	router.ServeHTTP(uninstallResp, uninstallReq)
+	if uninstallResp.Code != http.StatusOK {
+		t.Fatalf("uninstall status=%d body=%s", uninstallResp.Code, uninstallResp.Body.String())
+	}
+	if manager.items[0].State != plugin.StateUninstalled {
+		t.Fatalf("expected uninstalled state, got %s", manager.items[0].State)
+	}
+
+	logsReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/logs", nil)
+	logsResp := httptest.NewRecorder()
+	router.ServeHTTP(logsResp, logsReq)
+	if logsResp.Code != http.StatusOK {
+		t.Fatalf("logs status=%d body=%s", logsResp.Code, logsResp.Body.String())
+	}
+
+	var logsBody struct {
+		Data struct {
+			Content string `json:"content"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(logsResp.Body.Bytes(), &logsBody); err != nil {
+		t.Fatalf("decode logs error: %v", err)
+	}
+	for _, marker := range []string{"action=enable", "action=disable", "action=uninstall"} {
+		if !strings.Contains(logsBody.Data.Content, marker) {
+			t.Fatalf("expected logs to contain %q, got %q", marker, logsBody.Data.Content)
+		}
 	}
 }
