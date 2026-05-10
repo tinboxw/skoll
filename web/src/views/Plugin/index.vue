@@ -5,7 +5,7 @@ import { useRouter } from "vue-router";
 import { useI18n } from "../../i18n";
 import type { BackendPluginRecord } from "../../plugins/types";
 import { getDefaultHomePath, resolvePluginEntryPath, setDefaultHomePath, usePluginStore } from "../../stores/plugins";
-import type { ApiResponse } from "../../utils/api";
+import { ApiError, type ApiResponse } from "../../utils/api";
 import { apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -21,6 +21,7 @@ const debugText = ref("");
 const logText = ref("");
 const operationText = ref("");
 const selectedPlugin = ref("");
+const activeInspectorPanel = ref<"info" | "logs" | "">("");
 const pluginPath = ref("");
 const activeDefaultHome = ref(getDefaultHomePath());
 
@@ -87,6 +88,7 @@ async function runAction(action: "enable" | "disable" | "uninstall", pluginID: s
 
 async function openDebug(pluginID: string): Promise<void> {
 	selectedPlugin.value = pluginID;
+	activeInspectorPanel.value = "info";
 	error.value = null;
 	try {
 		const payload = await apiGet<ApiResponse<unknown>>(`/v1/plugins/${pluginID}/debug`);
@@ -99,11 +101,16 @@ async function openDebug(pluginID: string): Promise<void> {
 
 async function openLogs(pluginID: string): Promise<void> {
 	selectedPlugin.value = pluginID;
+	activeInspectorPanel.value = "logs";
 	error.value = null;
 	try {
 		const payload = await apiGet<ApiResponse<{ content?: string }>>(`/v1/plugins/${pluginID}/logs`);
 		logText.value = payload.data?.content ?? "";
 	} catch (e) {
+		if (e instanceof ApiError && e.status === 404) {
+			logText.value = "";
+			return;
+		}
 		error.value = toErrorMessage(e);
 		logText.value = "";
 	}
@@ -270,15 +277,15 @@ function setAsDefaultHome(pluginID: string): void {
 					</td>
 					<td class="action-cell">
 						<button v-if="canVisit(item.id)" type="button" :disabled="operating" @click="visitPlugin(item.id)">{{ t("plugin.action.visit") }}</button>
-						<span v-else class="action-placeholder">{{ t("plugin.action.visit") }}</span>
+						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.visit") }}</button>
 						<button v-if="canSetDefault(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
-						<span v-else class="action-placeholder">{{ t("plugin.action.setDefault") }}</span>
+						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.setDefault") }}</button>
 						<button v-if="canEnable(item.id)" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
-						<span v-else class="action-placeholder">{{ t("plugin.action.enable") }}</span>
+						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.enable") }}</button>
 						<button v-if="canDisable(item.id)" type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
-						<span v-else class="action-placeholder">{{ t("plugin.action.disable") }}</span>
+						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.disable") }}</button>
 						<button v-if="canUninstall(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
-						<span v-else class="action-placeholder">{{ t("plugin.action.uninstall") }}</span>
+						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.uninstall") }}</button>
 						<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
 						<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
 						<span v-if="activeDefaultHome === pluginEntryPath(item.id) && pluginEntryPath(item.id)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
@@ -289,16 +296,14 @@ function setAsDefaultHome(pluginID: string): void {
 
 		<section v-if="selectedPlugin" class="inspector">
 			<h3>{{ t("plugin.inspector") }}: {{ selectedPlugin }}</h3>
-			<div class="panes">
-				<article>
-					<h4>{{ t("plugin.debug") }}</h4>
-					<pre>{{ debugText || t("plugin.noDebug") }}</pre>
-				</article>
-				<article>
-					<h4>{{ t("plugin.logs") }}</h4>
-					<pre>{{ logText || t("plugin.noLogs") }}</pre>
-				</article>
-			</div>
+			<article v-if="activeInspectorPanel === 'info'">
+				<h4>{{ t("plugin.debug") }}</h4>
+				<pre>{{ debugText || t("plugin.noDebug") }}</pre>
+			</article>
+			<article v-else-if="activeInspectorPanel === 'logs'">
+				<h4>{{ t("plugin.logs") }}</h4>
+				<pre>{{ logText || t("plugin.noLogs") }}</pre>
+			</article>
 		</section>
 	</section>
 </template>
@@ -390,33 +395,34 @@ button:disabled {
 }
 
 .action-cell {
-	display: grid;
-	grid-template-columns: repeat(7, minmax(86px, 1fr));
+	display: flex;
+	flex-wrap: wrap;
 	gap: 6px;
 	align-items: center;
 }
 
-.action-cell button,
-.action-placeholder {
-	width: 100%;
+.action-cell button {
+	width: auto;
 	text-align: center;
 	white-space: nowrap;
-}
-
-.action-placeholder {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	height: 30px;
-	border-radius: var(--radius-md);
+	padding: 7px 10px;
+	line-height: 1;
+	box-sizing: border-box;
+}
+
+.action-cell button.is-placeholder {
 	background: var(--color-surface-soft);
-	border: 1px dashed var(--color-border);
 	color: var(--color-text-muted);
-	font-size: 0.82rem;
+	box-shadow: inset 0 0 0 1px var(--color-border);
+	cursor: not-allowed;
+	opacity: 0.9;
 }
 
 .default-home-badge {
-	grid-column: 1 / -1;
+	margin-left: 2px;
 }
 
 .action-cell button {
@@ -455,12 +461,6 @@ button:disabled {
 	padding-top: 10px;
 }
 
-.panes {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 10px;
-}
-
 pre {
 	margin: 0;
 	padding: 10px;
@@ -472,12 +472,6 @@ pre {
 	font-size: 0.78rem;
 	max-height: 220px;
 	overflow: auto;
-}
-
-@media (max-width: 980px) {
-	.panes {
-		grid-template-columns: 1fr;
-	}
 }
 </style>
 
