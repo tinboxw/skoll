@@ -167,6 +167,7 @@ async function importExcel(event: Event): Promise<void> {
 			<p>{{ t("batchUser.desc") }}</p>
 			<p v-if="error" class="error">{{ error }}</p>
 			<div class="toolbar">
+				<button type="button" :disabled="importing" @click="backToList">{{ t("common.backToList") }}</button>
 				<button type="button" :disabled="importing" @click="addRow">{{ t("batchUser.addRow") }}</button>
 				<label class="upload-btn">
 					<span>{{ t("batchUser.importExcel") }}</span>
@@ -177,7 +178,6 @@ async function importExcel(event: Event): Promise<void> {
 					<span>{{ t("batchUser.atomic") }}</span>
 				</label>
 				<button type="button" :disabled="importing" @click="submitBatch">{{ importing ? t("common.loading") : t("batchUser.submit") }}</button>
-				<button type="button" :disabled="importing" @click="backToList">{{ t("common.backToList") }}</button>
 			</div>
 
 			<table>
@@ -230,6 +230,10 @@ async function importExcel(event: Event): Promise<void> {
 	gap: 8px;
 	align-items: center;
 	margin-bottom: 12px;
+}
+
+.toolbar > button:first-child {
+	margin-right: 4px;
 }
 
 .upload-btn {
