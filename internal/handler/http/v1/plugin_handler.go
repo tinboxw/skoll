@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -75,6 +76,8 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager) {
 	mux.HandleFunc("DELETE /v1/plugins/{id}", h.uninstall)
 	mux.HandleFunc("GET /v1/plugins/{id}/debug", h.debug)
 	mux.HandleFunc("GET /v1/plugins/{id}/logs", h.logs)
+	mux.HandleFunc("GET /v1/plugins/{id}/page", h.page)
+	mux.HandleFunc("GET /v1/plugins/{id}/assets/{asset...}", h.asset)
 }
 
 func (h *PluginHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -287,6 +290,159 @@ func (h *PluginHandler) logs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, pluginLogsRecord{PluginID: id, Content: strings.TrimSpace(string(content))})
+}
+
+func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		return
+	}
+
+	info, err := h.getPluginInfo(id)
+	if err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	frontendDir, err := resolvePluginFrontendDir(info)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+
+	indexPath := filepath.Join(frontendDir, "index.html")
+	content, err := os.ReadFile(indexPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeError(w, http.StatusNotFound, errors.New("plugin frontend index not found"))
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	baseTag := []byte("<base href=\"/v1/plugins/" + id + "/assets/\">")
+	if !bytes.Contains(bytes.ToLower(content), []byte("<base ")) {
+		lower := bytes.ToLower(content)
+		headPos := bytes.Index(lower, []byte("<head>"))
+		if headPos >= 0 {
+			insertPos := headPos + len("<head>")
+			patched := make([]byte, 0, len(content)+len(baseTag)+1)
+			patched = append(patched, content[:insertPos]...)
+			patched = append(patched, '\n')
+			patched = append(patched, baseTag...)
+			patched = append(patched, content[insertPos:]...)
+			content = patched
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
+}
+
+func (h *PluginHandler) asset(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		return
+	}
+
+	assetPath := strings.TrimSpace(r.PathValue("asset"))
+	if assetPath == "" {
+		writeError(w, http.StatusBadRequest, errors.New("asset path is required"))
+		return
+	}
+	cleanAsset := filepath.Clean(assetPath)
+	if cleanAsset == "." || strings.HasPrefix(cleanAsset, "..") || strings.Contains(cleanAsset, "..") {
+		writeError(w, http.StatusBadRequest, errors.New("invalid asset path"))
+		return
+	}
+
+	info, err := h.getPluginInfo(id)
+	if err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	frontendDir, err := resolvePluginFrontendDir(info)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err)
+		return
+	}
+
+	assetFile := filepath.Join(frontendDir, cleanAsset)
+	rel, err := filepath.Rel(frontendDir, assetFile)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		writeError(w, http.StatusBadRequest, errors.New("invalid asset target"))
+		return
+	}
+
+	fi, err := os.Stat(assetFile)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writeMessage(w, http.StatusNotFound, "not_found", "plugin asset not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if fi.IsDir() {
+		writeError(w, http.StatusBadRequest, errors.New("asset path points to directory"))
+		return
+	}
+
+	http.ServeFile(w, r, assetFile)
+}
+
+func (h *PluginHandler) getPluginInfo(pluginID string) (plugin.Info, error) {
+	if h == nil || h.manager == nil {
+		return plugin.Info{}, errors.New("plugin manager not configured")
+	}
+	return h.manager.Get(pluginID)
+}
+
+func resolvePluginFrontendDir(info plugin.Info) (string, error) {
+	mode := info.UIMode
+	if mode == "" {
+		mode = plugin.UIModeBackendOnly
+	}
+	if mode == plugin.UIModeBackendOnly {
+		return "", errors.New("backend-only plugin has no frontend page")
+	}
+
+	source := strings.TrimSpace(info.Source)
+	if source == "" || strings.EqualFold(source, "builtin") {
+		return "", errors.New("frontend page unavailable for builtin plugin")
+	}
+
+	candidates := make([]string, 0, 3)
+	switch mode {
+	case plugin.UIModeSeparated:
+		candidates = append(candidates, filepath.Join(source, "frontend", "dist"), filepath.Join(source, "frontend"))
+	case plugin.UIModeMonolith, plugin.UIModeFrontendOnly:
+		candidates = append(candidates, filepath.Join(source, "static"), source)
+	default:
+		candidates = append(candidates, filepath.Join(source, "static"), filepath.Join(source, "frontend", "dist"), source)
+	}
+
+	for _, dir := range candidates {
+		indexFile := filepath.Join(dir, "index.html")
+		if fi, err := os.Stat(indexFile); err == nil && !fi.IsDir() {
+			return dir, nil
+		}
+	}
+
+	return "", errors.New("plugin frontend page not found")
 }
 
 func (h *PluginHandler) install(w http.ResponseWriter, r *http.Request) {

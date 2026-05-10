@@ -124,6 +124,8 @@ function createRemotePluginView(record: BackendPluginRecord) {
 			const loading = ref(true);
 			const loadError = ref("");
 			const debugPayload = ref<Record<string, unknown> | null>(null);
+			const pageBroken = ref(false);
+			const pageURL = `/v1/plugins/${record.id}/page`;
 
 			onMounted(async () => {
 				loading.value = true;
@@ -147,6 +149,17 @@ function createRemotePluginView(record: BackendPluginRecord) {
 					h("h3", `${record.name} (${record.id})`),
 					h("p", `Version: ${record.version}`),
 					h("p", `Enabled: ${record.enabled === false ? "no" : "yes"}`),
+					pageBroken.value
+						? h("p", { class: "plugin-detail-error" }, "Plugin page failed to load. Fallback details are shown below.")
+						: h("iframe", {
+							title: `${record.id}-page`,
+							src: pageURL,
+							class: "plugin-page-frame",
+							style: "width:100%;min-height:360px;border:1px solid var(--color-border);border-radius:8px;background:#fff;",
+							onError: () => {
+								pageBroken.value = true;
+							}
+						}),
 					loading.value
 						? h("p", "Loading plugin runtime details...")
 						: loadError.value

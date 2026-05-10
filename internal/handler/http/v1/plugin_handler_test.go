@@ -341,6 +341,70 @@ func TestPluginHandlerNotFound(t *testing.T) {
 	}
 }
 
+func TestPluginHandlerPageAndAssets(t *testing.T) {
+	tmp := t.TempDir()
+	pluginDir := filepath.Join(tmp, "demo-frontend")
+	if err := os.MkdirAll(filepath.Join(pluginDir, "static"), 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "static", "index.html"), []byte("<html><head></head><body><script src=\"./app.js\"></script></body></html>"), 0o644); err != nil {
+		t.Fatalf("write index failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "static", "app.js"), []byte("console.log('ok')"), 0o644); err != nil {
+		t.Fatalf("write app.js failed: %v", err)
+	}
+
+	mgr := &fakePluginManager{items: map[string]plugin.Info{
+		"demo-frontend": {
+			ID:            "demo-frontend",
+			Name:          "Demo Frontend",
+			Version:       "0.1.0",
+			State:         plugin.StateEnabled,
+			Source:        pluginDir,
+			UIMode:        plugin.UIModeFrontendOnly,
+			FrontendEntry: "/plugins/demo-frontend",
+		},
+	}}
+
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr)
+
+	pageReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/page", nil)
+	pageResp := httptest.NewRecorder()
+	mux.ServeHTTP(pageResp, pageReq)
+	if pageResp.Code != http.StatusOK {
+		t.Fatalf("page status=%d body=%s", pageResp.Code, pageResp.Body.String())
+	}
+	if !strings.Contains(pageResp.Body.String(), "/v1/plugins/demo-frontend/assets/") {
+		t.Fatalf("expected injected base href in page body: %s", pageResp.Body.String())
+	}
+
+	assetReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/assets/app.js", nil)
+	assetResp := httptest.NewRecorder()
+	mux.ServeHTTP(assetResp, assetReq)
+	if assetResp.Code != http.StatusOK {
+		t.Fatalf("asset status=%d body=%s", assetResp.Code, assetResp.Body.String())
+	}
+	if !strings.Contains(assetResp.Body.String(), "console.log('ok')") {
+		t.Fatalf("unexpected asset body: %s", assetResp.Body.String())
+	}
+}
+
+func TestPluginHandlerPageBackendOnlyNotFound(t *testing.T) {
+	mgr := &fakePluginManager{items: map[string]plugin.Info{
+		"demo-backend": {ID: "demo-backend", Name: "Demo Backend", Version: "0.1.0", State: plugin.StateEnabled, Source: "plugins/demo-backend", UIMode: plugin.UIModeBackendOnly},
+	}}
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-backend/page", nil)
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for backend-only page, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
 func TestFakePluginManagerImplementsManager(t *testing.T) {
 	var _ PluginManager = (*fakePluginManager)(nil)
 	var _ PluginExtensionSnapshotProvider = (*fakePluginManager)(nil)
