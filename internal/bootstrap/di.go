@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	builtinAuth "github.com/tinboxw/skoll/internal/plugin/builtin/auth"
 	builtinDashboard "github.com/tinboxw/skoll/internal/plugin/builtin/dashboard"
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
+	"github.com/tinboxw/skoll/internal/repository"
 	"github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
@@ -59,7 +61,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	roleService := role.NewService(bundle.Roles)
 	rbacService := rbac.NewService(bundle.RBAC)
 	systemService := system.NewService(bundle.System)
-	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret)
+	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
 		UserService:   userService,
@@ -85,17 +87,21 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		return nil, fmt.Errorf("server address is empty")
 	}
 
+	ensureBuiltinAuthData(context.Background(), logger, bundle.Users, bundle.Roles, bundle.RBAC)
+
 	return &dependencies{logger: logger, handler: h, server: server}, nil
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string) plugin.Manager {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo repository.UserRepository, rolesRepo repository.RoleRepository, rbacRepo repository.RBACRepository, pluginsRepo repository.PluginRepository) plugin.Manager {
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
-	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret)
+	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo)
+	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
 	m := &pluginManagerWithExtensions{
 		Manager:       runtimeManager,
 		builtinInfos:  builtinInfos,
 		extensions:    extensions,
 		routeHandlers: handlers,
+		pluginsRepo:   pluginsRepo,
 	}
 
 	entries, err := os.ReadDir("plugins")
@@ -119,6 +125,8 @@ func newPluginManager(logger logging.Logger, jwtSecret string) plugin.Manager {
 		}
 	}
 
+	m.persistAll(context.Background())
+
 	return m
 }
 
@@ -128,6 +136,16 @@ type pluginManagerWithExtensions struct {
 	builtinInfos  map[string]plugin.Info
 	extensions    map[string]plugin.RegistrySnapshot
 	routeHandlers map[string]http.HandlerFunc
+	pluginsRepo   repository.PluginRepository
+}
+
+func (m *pluginManagerWithExtensions) Install(path string) (plugin.Info, error) {
+	info, err := m.Manager.Install(path)
+	if err != nil {
+		return plugin.Info{}, err
+	}
+	m.persistOne(context.Background(), info.ID)
+	return info, nil
 }
 
 func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path string, w http.ResponseWriter, r *http.Request) bool {
@@ -154,6 +172,16 @@ func (m *pluginManagerWithExtensions) GetExtensionSnapshot(pluginID string) (plu
 }
 
 func (m *pluginManagerWithExtensions) List() []plugin.Info {
+	if m != nil && m.pluginsRepo != nil {
+		items, err := m.pluginsRepo.List(context.Background())
+		if err == nil && len(items) > 0 {
+			sort.Slice(items, func(i, j int) bool {
+				return items[i].ID < items[j].ID
+			})
+			return items
+		}
+	}
+
 	base := m.Manager.List()
 	merged := make(map[string]plugin.Info, len(base)+len(m.builtinInfos))
 	for _, item := range base {
@@ -180,6 +208,13 @@ func (m *pluginManagerWithExtensions) List() []plugin.Info {
 }
 
 func (m *pluginManagerWithExtensions) Get(pluginID string) (plugin.Info, error) {
+	if m != nil && m.pluginsRepo != nil {
+		item, err := m.pluginsRepo.Get(context.Background(), pluginID)
+		if err == nil && item != nil {
+			return *item, nil
+		}
+	}
+
 	item, err := m.Manager.Get(pluginID)
 	if err == nil {
 		return item, nil
@@ -199,9 +234,21 @@ func (m *pluginManagerWithExtensions) Get(pluginID string) (plugin.Info, error) 
 
 func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	if err := m.Manager.Enable(pluginID); err == nil {
+		m.persistOne(context.Background(), pluginID)
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
 		return err
+	}
+
+	if m.pluginsRepo != nil {
+		stored, storedErr := m.pluginsRepo.Get(context.Background(), pluginID)
+		if storedErr == nil && stored != nil {
+			now := time.Now().UTC()
+			stored.State = plugin.StateEnabled
+			stored.EnabledAt = &now
+			_ = m.pluginsRepo.Save(context.Background(), *stored)
+			return nil
+		}
 	}
 
 	m.mu.Lock()
@@ -214,14 +261,29 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	item.State = plugin.StateEnabled
 	item.EnabledAt = &now
 	m.builtinInfos[pluginID] = item
+	m.persistOne(context.Background(), pluginID)
 	return nil
 }
 
 func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 	if err := m.Manager.Disable(pluginID); err == nil {
+		m.persistOne(context.Background(), pluginID)
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
 		return err
+	}
+
+	if m.pluginsRepo != nil {
+		stored, storedErr := m.pluginsRepo.Get(context.Background(), pluginID)
+		if storedErr == nil && stored != nil {
+			if stored.SystemBuiltin {
+				return plugin.ErrPluginSystemProtected
+			}
+			stored.State = plugin.StateDisabled
+			stored.EnabledAt = nil
+			_ = m.pluginsRepo.Save(context.Background(), *stored)
+			return nil
+		}
 	}
 
 	m.mu.Lock()
@@ -235,9 +297,23 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 
 func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	if err := m.Manager.Uninstall(pluginID); err == nil {
+		if m.pluginsRepo != nil {
+			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
+		}
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
 		return err
+	}
+
+	if m.pluginsRepo != nil {
+		stored, storedErr := m.pluginsRepo.Get(context.Background(), pluginID)
+		if storedErr == nil && stored != nil {
+			if stored.SystemBuiltin {
+				return plugin.ErrPluginSystemProtected
+			}
+			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
+			return nil
+		}
 	}
 
 	m.mu.Lock()
@@ -249,7 +325,99 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	return plugin.ErrPluginSystemProtected
 }
 
-func registerBuiltinPluginExtensions(logger logging.Logger, jwtSecret string) (map[string]plugin.Info, map[string]plugin.RegistrySnapshot, map[string]http.HandlerFunc) {
+func (m *pluginManagerWithExtensions) persistAll(ctx context.Context) {
+	if m == nil || m.pluginsRepo == nil {
+		return
+	}
+	for _, item := range m.collectCurrentItems() {
+		_ = m.pluginsRepo.Save(ctx, item)
+	}
+}
+
+func (m *pluginManagerWithExtensions) RegisterExternalPlugin(info plugin.Info) error {
+	if m == nil || m.pluginsRepo == nil {
+		return errors.New("plugin persistence is not configured")
+	}
+	if strings.TrimSpace(info.ID) == "" || strings.TrimSpace(info.Name) == "" {
+		return errors.New("plugin id and name are required")
+	}
+	now := time.Now().UTC()
+	if info.InstalledAt.IsZero() {
+		info.InstalledAt = now
+	}
+	if info.State == "" {
+		info.State = plugin.StateEnabled
+	}
+	if info.State == plugin.StateEnabled && info.EnabledAt == nil {
+		info.EnabledAt = &now
+	}
+	if info.UIMode == "" {
+		info.UIMode = plugin.UIModeSeparated
+	}
+	return m.pluginsRepo.Save(context.Background(), info)
+}
+
+func (m *pluginManagerWithExtensions) persistOne(ctx context.Context, pluginID string) {
+	if m == nil || m.pluginsRepo == nil {
+		return
+	}
+	item, err := m.getCurrent(pluginID)
+	if err != nil {
+		return
+	}
+	_ = m.pluginsRepo.Save(ctx, item)
+}
+
+func (m *pluginManagerWithExtensions) collectCurrentItems() []plugin.Info {
+	base := m.Manager.List()
+	merged := make(map[string]plugin.Info, len(base)+len(m.builtinInfos))
+	for _, item := range base {
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		merged[item.ID] = item
+	}
+
+	m.mu.RLock()
+	for id, item := range m.builtinInfos {
+		if _, ok := merged[id]; ok {
+			continue
+		}
+		if strings.TrimSpace(item.ID) == "" {
+			continue
+		}
+		merged[id] = item
+	}
+	m.mu.RUnlock()
+
+	items := make([]plugin.Info, 0, len(merged))
+	for _, item := range merged {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].ID < items[j].ID
+	})
+	return items
+}
+
+func (m *pluginManagerWithExtensions) getCurrent(pluginID string) (plugin.Info, error) {
+	item, err := m.Manager.Get(pluginID)
+	if err == nil {
+		return item, nil
+	}
+	if !errors.Is(err, plugin.ErrPluginNotFound) {
+		return plugin.Info{}, err
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	item, ok := m.builtinInfos[pluginID]
+	if !ok {
+		return plugin.Info{}, plugin.ErrPluginNotFound
+	}
+	return item, nil
+}
+
+func registerBuiltinPluginExtensions(logger logging.Logger, jwtSecret string, authHandler *builtinAuthHandler) (map[string]plugin.Info, map[string]plugin.RegistrySnapshot, map[string]http.HandlerFunc) {
 	builtinPlugins := []interface {
 		ID() string
 		Name() string
@@ -292,18 +460,18 @@ func registerBuiltinPluginExtensions(logger logging.Logger, jwtSecret string) (m
 		}
 		snapshot := registry.Snapshot()
 		snapshots[p.ID()] = snapshot
-		registerBuiltinRouteHandlers(p.ID(), snapshot.Routes, handlers, jwtSecret)
+		registerBuiltinRouteHandlers(p.ID(), snapshot.Routes, handlers, jwtSecret, authHandler)
 	}
 
 	return infos, snapshots, handlers
 }
 
-func registerBuiltinRouteHandlers(pluginID string, routes []plugin.RouteExtension, handlers map[string]http.HandlerFunc, jwtSecret string) {
+func registerBuiltinRouteHandlers(pluginID string, routes []plugin.RouteExtension, handlers map[string]http.HandlerFunc, jwtSecret string, authHandler *builtinAuthHandler) {
 	for _, route := range routes {
 		method := strings.ToUpper(strings.TrimSpace(route.Method))
 		path := strings.TrimSpace(route.Path)
 		key := pluginRouteKey(pluginID, method, path)
-		if h, ok := selectBuiltinRouteHandler(pluginID, method, path, jwtSecret); ok {
+		if h, ok := selectBuiltinRouteHandler(pluginID, method, path, jwtSecret, authHandler); ok {
 			handlers[key] = h
 			continue
 		}
@@ -311,10 +479,33 @@ func registerBuiltinRouteHandlers(pluginID string, routes []plugin.RouteExtensio
 	}
 }
 
-func selectBuiltinRouteHandler(pluginID, method, path, jwtSecret string) (http.HandlerFunc, bool) {
+func selectBuiltinRouteHandler(pluginID, method, path, jwtSecret string, authHandler *builtinAuthHandler) (http.HandlerFunc, bool) {
 	switch pluginRouteKey(pluginID, method, path) {
 	case pluginRouteKey("builtin-auth", http.MethodPost, "/v1/auth/login"):
+		if authHandler != nil {
+			return authHandler.handleLogin, true
+		}
 		return handleBuiltinAuthLogin(jwtSecret), true
+	case pluginRouteKey("builtin-auth", http.MethodPost, "/v1/auth/logout"):
+		if authHandler != nil {
+			return authHandler.handleLogout, true
+		}
+		return nil, false
+	case pluginRouteKey("builtin-auth", http.MethodGet, "/v1/auth/me"):
+		if authHandler != nil {
+			return authHandler.handleMe, true
+		}
+		return nil, false
+	case pluginRouteKey("builtin-auth", http.MethodPut, "/v1/auth/me/profile"):
+		if authHandler != nil {
+			return authHandler.handleUpdateProfile, true
+		}
+		return nil, false
+	case pluginRouteKey("builtin-auth", http.MethodPatch, "/v1/auth/me/password"):
+		if authHandler != nil {
+			return authHandler.handleUpdatePassword, true
+		}
+		return nil, false
 	case pluginRouteKey("builtin-logger", http.MethodGet, "/v1/logs"):
 		return handleBuiltinLoggerLogs, true
 	case pluginRouteKey("builtin-dashboard", http.MethodGet, "/v1/dashboard/widgets"):
@@ -338,20 +529,20 @@ func defaultBuiltinRouteHandler(pluginID, method, path string) http.HandlerFunc 
 func handleBuiltinAuthLogin(jwtSecret string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Username string `json:"username"`
+			Account  string `json:"account"`
 			Password string `json:"password"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			httpHandler.WriteError(w, http.StatusBadRequest, err)
 			return
 		}
-		req.Username = strings.TrimSpace(req.Username)
+		req.Account = strings.TrimSpace(req.Account)
 		req.Password = strings.TrimSpace(req.Password)
-		if req.Username == "" || req.Password == "" {
-			httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_credentials", "username and password are required")
+		if req.Account == "" || req.Password == "" {
+			httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_credentials", "account and password are required")
 			return
 		}
-		token, err := security.SignJWT(jwtSecret, req.Username, "super_admin", time.Hour, time.Now().UTC())
+		token, err := security.SignJWT(jwtSecret, req.Account, "super_admin", time.Hour, time.Now().UTC())
 		if err != nil {
 			httpHandler.WriteError(w, http.StatusInternalServerError, err)
 			return
@@ -363,8 +554,9 @@ func handleBuiltinAuthLogin(jwtSecret string) http.HandlerFunc {
 			"expiresIn":   3600,
 			"permissions": []string{"menu.read", "role.manage", "permission.manage"},
 			"user": map[string]string{
-				"username": req.Username,
-				"role":     "super_admin",
+				"account": req.Account,
+				"name":    req.Account,
+				"role":    "super_admin",
 			},
 		})
 	}

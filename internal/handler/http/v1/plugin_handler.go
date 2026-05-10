@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/plugin"
 )
@@ -24,6 +26,10 @@ type PluginManager interface {
 
 type PluginExtensionSnapshotProvider interface {
 	GetExtensionSnapshot(pluginID string) (plugin.RegistrySnapshot, bool)
+}
+
+type PluginExternalRegistrar interface {
+	RegisterExternalPlugin(info plugin.Info) error
 }
 
 type PluginHandler struct {
@@ -63,6 +69,16 @@ type pluginPathRequest struct {
 	Path string `json:"path"`
 }
 
+type externalPluginRequest struct {
+	PluginID  string `json:"pluginId"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	URL       string `json:"url"`
+	OpenMode  string `json:"openMode"`
+	ActorID   string `json:"actorId"`
+	RoutePath string `json:"routePath"`
+}
+
 func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager) {
 	h := &PluginHandler{manager: manager, loader: plugin.NewFileLoader()}
 	if provider, ok := manager.(PluginExtensionSnapshotProvider); ok {
@@ -70,6 +86,8 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager) {
 	}
 	mux.HandleFunc("GET /v1/plugins", h.list)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
+	mux.HandleFunc("POST /v1/plugins/link", h.createLink)
+	mux.HandleFunc("POST /v1/plugins/embed", h.createEmbed)
 	mux.HandleFunc("POST /v1/plugins/validate", h.validate)
 	mux.HandleFunc("POST /v1/plugins/{id}/enable", h.enable)
 	mux.HandleFunc("POST /v1/plugins/{id}/disable", h.disable)
@@ -166,6 +184,7 @@ func (h *PluginHandler) enable(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	appendPluginLog(id, "enable", "ok", "enabled")
 
 	writeMessage(w, http.StatusOK, "ok", "enabled")
 }
@@ -194,6 +213,7 @@ func (h *PluginHandler) disable(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	appendPluginLog(id, "disable", "ok", "disabled")
 
 	writeMessage(w, http.StatusOK, "ok", "disabled")
 }
@@ -222,6 +242,7 @@ func (h *PluginHandler) uninstall(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	appendPluginLog(id, "uninstall", "ok", "uninstalled")
 
 	writeMessage(w, http.StatusOK, "ok", "uninstalled")
 }
@@ -462,12 +483,84 @@ func (h *PluginHandler) install(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
+	appendPluginLog(info.ID, "install", "ok", "installed from path")
 
 	writeJSON(w, http.StatusCreated, pluginRecord{
 		ID:      info.ID,
 		Name:    info.Name,
 		Version: info.Version,
 		Enabled: info.State == plugin.StateEnabled,
+	})
+}
+
+func (h *PluginHandler) createLink(w http.ResponseWriter, r *http.Request) {
+	h.createExternal(w, r, "link")
+}
+
+func (h *PluginHandler) createEmbed(w http.ResponseWriter, r *http.Request) {
+	h.createExternal(w, r, "embed")
+}
+
+func (h *PluginHandler) createExternal(w http.ResponseWriter, r *http.Request, pluginType string) {
+	registrar, ok := h.manager.(PluginExternalRegistrar)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, errors.New("plugin external registration is not configured"))
+		return
+	}
+
+	var req externalPluginRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	req.PluginID = strings.TrimSpace(req.PluginID)
+	req.Name = strings.TrimSpace(req.Name)
+	req.Version = strings.TrimSpace(req.Version)
+	req.URL = strings.TrimSpace(req.URL)
+	req.OpenMode = strings.TrimSpace(req.OpenMode)
+	req.RoutePath = strings.TrimSpace(req.RoutePath)
+	if req.PluginID == "" || req.Name == "" || req.URL == "" {
+		writeMessage(w, http.StatusBadRequest, "invalid_request", "pluginId, name and url are required")
+		return
+	}
+	if req.Version == "" {
+		req.Version = "1.0.0"
+	}
+	if req.OpenMode == "" {
+		req.OpenMode = "new_tab"
+	}
+
+	now := time.Now().UTC()
+	info := plugin.Info{
+		ID:            req.PluginID,
+		Name:          req.Name,
+		Version:       req.Version,
+		Description:   pluginType + " external plugin",
+		State:         plugin.StateEnabled,
+		InstalledAt:   now,
+		EnabledAt:     &now,
+		Source:        req.URL,
+		UIMode:        plugin.UIModeSeparated,
+		FrontendEntry: req.URL,
+		SystemBuiltin: false,
+	}
+
+	if err := registrar.RegisterExternalPlugin(info); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	appendPluginLog(req.PluginID, "create_"+pluginType, "ok", "registered external plugin")
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id":        req.PluginID,
+		"name":      req.Name,
+		"version":   req.Version,
+		"url":       req.URL,
+		"openMode":  req.OpenMode,
+		"routePath": req.RoutePath,
+		"enabled":   true,
+		"type":      pluginType,
 	})
 }
 
@@ -522,4 +615,22 @@ func defaultPluginRecords() []pluginRecord {
 			SystemBuiltin: true,
 		},
 	}
+}
+
+func appendPluginLog(pluginID, action, result, message string) {
+	pluginID = strings.TrimSpace(pluginID)
+	if pluginID == "" {
+		return
+	}
+	logDir := filepath.Join("plugins", "logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return
+	}
+	line := fmt.Sprintf("%s action=%s result=%s message=%s\n", time.Now().UTC().Format(time.RFC3339), strings.TrimSpace(action), strings.TrimSpace(result), strings.TrimSpace(message))
+	f, err := os.OpenFile(filepath.Join(logDir, pluginID+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.WriteString(line)
 }
