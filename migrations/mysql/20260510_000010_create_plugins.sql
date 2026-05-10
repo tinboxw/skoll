@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS sk_plugins (
+	id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+	plugin_id VARCHAR(128) NOT NULL,
+	name VARCHAR(128) NOT NULL,
+	version VARCHAR(64) NOT NULL,
+	description VARCHAR(512) NULL,
+	state VARCHAR(32) NOT NULL,
+	source VARCHAR(512) NULL,
+	ui_mode VARCHAR(64) NULL,
+	frontend_entry VARCHAR(512) NULL,
+	system_builtin TINYINT(1) NOT NULL DEFAULT 0,
+	permissions_json TEXT NULL,
+	dependencies_json TEXT NULL,
+	installed_at DATETIME(3) NULL,
+	enabled_at DATETIME(3) NULL,
+	created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+	updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+	UNIQUE KEY uk_plugin_id (plugin_id),
+	KEY idx_state (state)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

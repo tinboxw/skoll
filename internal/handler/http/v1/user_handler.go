@@ -15,15 +15,30 @@ type UserHandler struct {
 	service usersvc.Service
 }
 
+type batchCreateUsersRequest struct {
+	Items []usersvc.CreateUserInput `json:"items"`
+}
+
+type batchCreateUsersResult struct {
+	Index   int    `json:"index"`
+	Account string `json:"account"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	ID      string `json:"id,omitempty"`
+}
+
 func RegisterUserRoutes(mux *http.ServeMux, service usersvc.Service) {
 	if service == nil {
 		return
 	}
 	h := &UserHandler{service: service}
 	mux.HandleFunc("POST /v1/users", h.create)
+	mux.HandleFunc("POST /v1/users/batch", h.createBatch)
 	mux.HandleFunc("GET /v1/users", h.list)
 	mux.HandleFunc("GET /v1/users/{id}", h.get)
+	mux.HandleFunc("PUT /v1/users/{id}", h.update)
 	mux.HandleFunc("PATCH /v1/users/{id}/email", h.updateEmail)
+	mux.HandleFunc("DELETE /v1/users/{id}", h.delete)
 	mux.HandleFunc("POST /v1/users/{id}/disable", h.disable)
 }
 
@@ -39,6 +54,52 @@ func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, entity)
+}
+
+func (h *UserHandler) createBatch(w http.ResponseWriter, r *http.Request) {
+	var req batchCreateUsersRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if len(req.Items) == 0 {
+		writeMessage(w, http.StatusBadRequest, "invalid_request", "items are required")
+		return
+	}
+
+	results := make([]batchCreateUsersResult, 0, len(req.Items))
+	successCount := 0
+	for idx, item := range req.Items {
+		account := strings.TrimSpace(item.Account)
+		entity, err := h.service.Create(r.Context(), item)
+		if err != nil {
+			results = append(results, batchCreateUsersResult{
+				Index:   idx,
+				Account: account,
+				Success: false,
+				Message: err.Error(),
+			})
+			continue
+		}
+		createdID := ""
+		if entity != nil {
+			createdID = entity.ID.String()
+		}
+		results = append(results, batchCreateUsersResult{
+			Index:   idx,
+			Account: account,
+			Success: true,
+			Message: "ok",
+			ID:      createdID,
+		})
+		successCount++
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"successCount": successCount,
+		"failureCount": len(req.Items) - successCount,
+		"results":      results,
+	})
 }
 
 func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -80,6 +141,37 @@ func (h *UserHandler) updateEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, entity)
+}
+
+func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name   string `json:"name"`
+		Email  string `json:"email"`
+		Status string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	entity, err := h.service.Update(r.Context(), usersvc.UpdateUserInput{
+		ID:     r.PathValue("id"),
+		Name:   req.Name,
+		Email:  req.Email,
+		Status: req.Status,
+	})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entity)
+}
+
+func (h *UserHandler) delete(w http.ResponseWriter, r *http.Request) {
+	if err := h.service.Delete(r.Context(), r.PathValue("id")); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	writeMessage(w, http.StatusOK, "ok", "deleted")
 }
 
 func (h *UserHandler) disable(w http.ResponseWriter, r *http.Request) {

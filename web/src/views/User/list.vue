@@ -68,6 +68,10 @@ type BatchResult = {
 	message: string;
 };
 
+type BatchCreatePayload = {
+	results?: BatchResult[];
+};
+
 const batchOpen = ref(false);
 const batchLoading = ref(false);
 const batchError = ref("");
@@ -216,25 +220,42 @@ async function submitBatch(): Promise<void> {
 	let firstSuccessAccount = "";
 	try {
 		const nextResults: BatchResult[] = [];
+		const validItems: Array<{ account: string; name: string; email: string; passwordHash: string }> = [];
 		for (const item of batchRows.value) {
 			const msg = validateBatchRow(item);
 			if (msg !== "") {
 				nextResults.push({ account: item.account || "-", success: false, message: msg });
 				continue;
 			}
+			validItems.push({
+				account: item.account.trim(),
+				name: item.name.trim(),
+				email: item.email.trim(),
+				passwordHash: item.password.trim()
+			});
+		}
+
+		if (validItems.length > 0) {
 			try {
-				await apiPost<ApiResponse<unknown>>("/v1/users", {
-					account: item.account.trim(),
-					name: item.name.trim(),
-					email: item.email.trim(),
-					passwordHash: item.password.trim()
-				});
-				nextResults.push({ account: item.account.trim(), success: true, message: t("batchUser.createOk") });
-				if (firstSuccessAccount === "") {
-					firstSuccessAccount = item.account.trim();
+				const payload = await apiPost<ApiResponse<BatchCreatePayload>>("/v1/users/batch", { items: validItems });
+				const remoteResults = Array.isArray(payload.data?.results) ? payload.data.results : [];
+				for (const item of remoteResults) {
+					nextResults.push({
+						account: String(item.account ?? "-"),
+						success: Boolean(item.success),
+						message: String(item.message ?? (item.success ? t("batchUser.createOk") : t("error.requestFailed")))
+					});
+					if (firstSuccessAccount === "" && item.success) {
+						firstSuccessAccount = String(item.account ?? "").trim();
+					}
 				}
 			} catch (e) {
-				nextResults.push({ account: item.account.trim(), success: false, message: toErrorMessage(e) });
+				const errMsg = toErrorMessage(e);
+				nextResults.push(...validItems.map((item) => ({
+					account: item.account,
+					success: false,
+					message: errMsg
+				})));
 			}
 		}
 		batchResults.value = nextResults;
