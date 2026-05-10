@@ -162,6 +162,13 @@ npm run build
 - [x] 插件同步降级模式落地：后端同步失败时保留内置插件并展示可重试提示。
 - [x] 插件页刷新动作接入统一后端同步入口，形成“加载/错误/重试/降级”闭环。
 - [x] 前端门禁通过：`npm run build`、`npm run smoke:auth`、`npm run smoke:auth-actor`。
+- [x] Vite 代理支持环境变量切换（联调环境无需改代码即可切换后端地址）。
+- [x] 联调脚本补齐：新增 `smoke:health` 与 `smoke:all` 串行校验入口。
+
+### 当前验证证据（2026-05-10）
+
+- `npm run build` 通过。
+- `npm run smoke:all` 通过（`smoke:health` + `smoke:auth` + `smoke:auth-actor`）。
 
 ### 关键交付物
 - 联调报告

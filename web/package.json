@@ -7,8 +7,10 @@
 		"dev": "vite",
 		"build": "vite build",
 		"preview": "vite preview",
+		"smoke:health": "node scripts/health-smoke.mjs",
 		"smoke:auth": "node scripts/auth-plugin-smoke.mjs",
-		"smoke:auth-actor": "node scripts/auth-actor-fallback-smoke.mjs"
+		"smoke:auth-actor": "node scripts/auth-actor-fallback-smoke.mjs",
+		"smoke:all": "node scripts/run-smoke-suite.mjs"
 	},
 	"dependencies": {
 		"pinia": "^2.1.7",

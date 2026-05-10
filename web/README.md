@@ -19,3 +19,21 @@
 - [ ] 补充单元测试与必要的集成测试。
 - [ ] 完善示例、边界条件与错误处理说明。
 
+## 联调代理与脚本
+
+### Vite 代理环境变量
+- `SKOLL_API_PROXY_TARGET`：后端代理目标地址（默认 `http://127.0.0.1:8080`）。
+- `SKOLL_API_PROXY_TIMEOUT_MS`：代理超时毫秒数（默认 `10000`）。
+
+### Smoke 脚本
+- `npm run smoke:health`：检查 `/health`。
+- `npm run smoke:auth`：检查登录与受保护接口。
+- `npm run smoke:auth-actor`：检查 actorId 回退链路。
+- `npm run smoke:all`：顺序执行 health + auth + auth-actor。
+
+### 常用联调命令
+```powershell
+npm run build
+npm run smoke:all
+```
+
