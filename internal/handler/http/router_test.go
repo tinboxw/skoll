@@ -3,7 +3,6 @@ package http
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -78,7 +77,20 @@ type fakePluginManager struct {
 }
 
 func (m *fakePluginManager) Install(path string) (plugin.Info, error) {
-	return plugin.Info{}, errors.New("not implemented")
+	loader := plugin.NewFileLoader()
+	info, err := loader.Load(path)
+	if err != nil {
+		return plugin.Info{}, err
+	}
+	for _, item := range m.items {
+		if item.ID == info.ID && item.State != plugin.StateUninstalled {
+			return plugin.Info{}, plugin.ErrPluginAlreadyExists
+		}
+	}
+	info.State = plugin.StateInstalled
+	info.Source = path
+	m.items = append(m.items, info)
+	return info, nil
 }
 
 func (m *fakePluginManager) Enable(pluginID string) error {
@@ -140,6 +152,16 @@ func (m *fakePluginManager) HandlePluginRoute(pluginID, method, path string, w h
 		return false
 	}
 	return m.executor(pluginID, method, path, w, r)
+}
+
+func (m *fakePluginManager) RegisterExternalPlugin(info plugin.Info) error {
+	for _, item := range m.items {
+		if item.ID == info.ID && item.State != plugin.StateUninstalled {
+			return plugin.ErrPluginAlreadyExists
+		}
+	}
+	m.items = append(m.items, info)
+	return nil
 }
 
 func TestRouterMountsEnabledPluginExtensionRoutes(t *testing.T) {
@@ -340,6 +362,82 @@ func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
 	for _, marker := range []string{"action=enable", "action=disable", "action=uninstall"} {
 		if !strings.Contains(logsBody.Data.Content, marker) {
 			t.Fatalf("expected logs to contain %q, got %q", marker, logsBody.Data.Content)
+		}
+	}
+}
+
+func TestRouterPluginValidateInstallAndExternalFlow(t *testing.T) {
+	tmp := t.TempDir()
+	manifestDir := filepath.Join(tmp, "sample")
+	if err := os.MkdirAll(manifestDir, 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	manifest := strings.Join([]string{
+		"id: sample",
+		"name: Sample Plugin",
+		"version: 0.1.0",
+		"permissions:",
+		"  - menu.read",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(manifestDir, "plugin.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest failed: %v", err)
+	}
+
+	manager := &fakePluginManager{items: []plugin.Info{}}
+	router := NewRouter(Dependencies{PluginManager: manager})
+
+	validateReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/validate", bytes.NewReader([]byte(`{"path":"`+filepath.ToSlash(manifestDir)+`"}`)))
+	validateResp := httptest.NewRecorder()
+	router.ServeHTTP(validateResp, validateReq)
+	if validateResp.Code != http.StatusOK {
+		t.Fatalf("validate status=%d body=%s", validateResp.Code, validateResp.Body.String())
+	}
+
+	installReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/install", bytes.NewReader([]byte(`{"path":"`+filepath.ToSlash(manifestDir)+`"}`)))
+	installResp := httptest.NewRecorder()
+	router.ServeHTTP(installResp, installReq)
+	if installResp.Code != http.StatusCreated {
+		t.Fatalf("install status=%d body=%s", installResp.Code, installResp.Body.String())
+	}
+	installed, err := manager.Get("sample")
+	if err != nil {
+		t.Fatalf("expected installed plugin, err=%v", err)
+	}
+	if installed.State != plugin.StateInstalled {
+		t.Fatalf("expected installed state, got %s", installed.State)
+	}
+
+	linkBody := `{"pluginId":"ext-link","name":"Ext Link","url":"https://example.com/link"}`
+	linkReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/link", bytes.NewReader([]byte(linkBody)))
+	linkResp := httptest.NewRecorder()
+	router.ServeHTTP(linkResp, linkReq)
+	if linkResp.Code != http.StatusCreated {
+		t.Fatalf("link status=%d body=%s", linkResp.Code, linkResp.Body.String())
+	}
+
+	embedBody := `{"pluginId":"ext-embed","name":"Ext Embed","url":"https://example.com/embed"}`
+	embedReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/embed", bytes.NewReader([]byte(embedBody)))
+	embedResp := httptest.NewRecorder()
+	router.ServeHTTP(embedResp, embedReq)
+	if embedResp.Code != http.StatusCreated {
+		t.Fatalf("embed status=%d body=%s", embedResp.Code, embedResp.Body.String())
+	}
+
+	invalidLinkBody := `{"pluginId":"bad-link","name":"Bad Link"}`
+	invalidLinkReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/link", bytes.NewReader([]byte(invalidLinkBody)))
+	invalidLinkResp := httptest.NewRecorder()
+	router.ServeHTTP(invalidLinkResp, invalidLinkReq)
+	if invalidLinkResp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid link status=%d body=%s", invalidLinkResp.Code, invalidLinkResp.Body.String())
+	}
+
+	for _, pluginID := range []string{"ext-link", "ext-embed"} {
+		ext, getErr := manager.Get(pluginID)
+		if getErr != nil {
+			t.Fatalf("expected external plugin %s, err=%v", pluginID, getErr)
+		}
+		if ext.State != plugin.StateEnabled {
+			t.Fatalf("expected external plugin %s enabled, got %s", pluginID, ext.State)
 		}
 	}
 }
