@@ -1,8 +1,10 @@
 ﻿<script setup lang="ts">
+import { computed } from "vue";
+
 import type { Locale } from "../../i18n";
 import { useI18n } from "../../i18n";
 
-defineProps<{
+const props = defineProps<{
 	title: string;
 	subtitle: string;
 	pluginCount: number;
@@ -18,6 +20,30 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const syncLabel = computed(() => {
+	if (props.error) {
+		return t("header.syncError");
+	}
+	if (props.synced) {
+		return t("header.synced");
+	}
+	return t("header.syncing");
+});
+
+const syncDetail = computed(() => {
+	if (props.error) {
+		const text = props.error.trim();
+		if (!text) {
+			return "";
+		}
+		return text.length > 44 ? `${text.slice(0, 44)}...` : text;
+	}
+	if (!props.synced) {
+		return t("header.syncingHint");
+	}
+	return "";
+});
 </script>
 
 <template>
@@ -29,7 +55,8 @@ const { t } = useI18n();
 		<div class="status-box">
 			<div class="chips">
 				<span class="chip">{{ t("header.plugins") }} {{ pluginCount }}</span>
-				<span class="chip" :class="{ warn: !synced || !!error }">{{ error ? t("header.syncError") : t("header.synced") }}</span>
+				<span class="chip" :class="{ warn: !synced || !!error }" :title="error ?? undefined">{{ syncLabel }}</span>
+				<span v-if="syncDetail" class="chip detail" :class="{ warn: !!error }" :title="error ?? undefined">{{ syncDetail }}</span>
 			</div>
 			<div class="locale-switch" role="group" :aria-label="t('header.language')">
 				<span class="locale-label">{{ t("header.language") }}</span>
@@ -98,6 +125,13 @@ p {
 	border-radius: 999px;
 	background: var(--color-tag-bg);
 	color: var(--color-tag-text);
+}
+
+.chip.detail {
+	max-width: 280px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .chip.warn {

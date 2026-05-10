@@ -63,10 +63,27 @@ export async function bootstrapPlugins(
 		}
 		store.markSynced(null);
 	} catch (error) {
-		const msg = error instanceof Error ? error.message : "plugin sync failed";
+		const msg = normalizeSyncError(error);
 		store.setBackendRecords([]);
 		store.markSynced(msg);
 	}
+}
+
+function normalizeSyncError(error: unknown): string {
+	if (error instanceof DOMException && error.name === "AbortError") {
+		return "backend plugin sync timeout";
+	}
+	if (error instanceof Error) {
+		const message = error.message.trim();
+		if (message.toLowerCase().includes("aborted")) {
+			return "backend plugin sync timeout";
+		}
+		if (message.toLowerCase().includes("failed to fetch")) {
+			return "backend plugin service unavailable";
+		}
+		return message || "plugin sync failed";
+	}
+	return "plugin sync failed";
 }
 
 function registerPlugin(manifest: FrontendPluginManifest, router: Router, store: PluginStore): void {
