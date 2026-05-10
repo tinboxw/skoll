@@ -137,6 +137,14 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo reposit
 			continue
 		}
 		path := filepath.Join("plugins", entry.Name())
+		hasManifest, manifestErr := hasPluginManifest(path)
+		if manifestErr != nil {
+			logger.Warn("inspect plugin directory failed", "path", path, "error", manifestErr)
+			continue
+		}
+		if !hasManifest {
+			continue
+		}
 		info, installErr := m.Install(path)
 		if installErr != nil {
 			logger.Warn("plugin install failed", "path", path, "error", installErr)
@@ -150,6 +158,17 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo reposit
 	m.persistAll(context.Background())
 
 	return m
+}
+
+func hasPluginManifest(path string) (bool, error) {
+	manifestPath := filepath.Join(path, "plugin.yaml")
+	if _, err := os.Stat(manifestPath); err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 type pluginManagerWithExtensions struct {

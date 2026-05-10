@@ -5,11 +5,54 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/pkg/logging"
 )
+
+func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
+	tmp := t.TempDir()
+	pluginsDir := filepath.Join(tmp, "plugins")
+	if err := os.MkdirAll(filepath.Join(pluginsDir, "logs"), 0o755); err != nil {
+		t.Fatalf("create logs dir: %v", err)
+	}
+
+	pluginDir := filepath.Join(pluginsDir, "demo")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("create plugin dir: %v", err)
+	}
+	manifest := "id: demo\nname: Demo Plugin\nversion: 1.0.0\n"
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir to temp: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(cwd)
+	})
+
+	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil).(*pluginManagerWithExtensions)
+	if !ok {
+		t.Fatalf("expected pluginManagerWithExtensions")
+	}
+
+	item, err := mgr.Get("demo")
+	if err != nil {
+		t.Fatalf("expected demo plugin installed: %v", err)
+	}
+	if item.State != plugin.StateEnabled {
+		t.Fatalf("expected demo plugin enabled, got %s", item.State)
+	}
+}
 
 type fakeManager struct {
 	items map[string]plugin.Info
