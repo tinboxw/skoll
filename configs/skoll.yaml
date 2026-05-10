@@ -31,3 +31,7 @@ security:
 log:
   # debug | info | warn | error
   level: "info"
+  # Directory for log files when file output is enabled.
+  dir: "log"
+  # When set, all logs (including plugin logs) are written to this file under log.dir.
+  file: ""

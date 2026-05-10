@@ -89,6 +89,16 @@ $env:SKOLL_CACHE_REDIS_ADDR="10.0.0.5:6379"
 go run ./cmd/skoll
 ```
 
+8. Unified logs to a single file (recommended)
+
+```powershell
+$env:SKOLL_LOG_DIR="log"
+$env:SKOLL_LOG_FILE="skoll.log"
+go run ./cmd/skoll
+```
+
+When `SKOLL_LOG_FILE` is set, both application logs and plugin operation logs are written to `log/skoll.log`.
+
 ## Tests
 
 ```powershell

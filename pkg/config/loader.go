@@ -49,6 +49,8 @@ type SecurityConfig struct {
 
 type LogConfig struct {
 	Level string
+	Dir   string
+	File  string
 }
 
 var defaultConfigCandidates = []string{
@@ -80,6 +82,8 @@ func Load() (AppConfig, error) {
 	v.SetDefault("event.channel_prefix", "skoll.events")
 	v.SetDefault("security.jwt_secret", "dev-secret-change-me")
 	v.SetDefault("log.level", "info")
+	v.SetDefault("log.dir", "log")
+	v.SetDefault("log.file", "")
 	v.SetDefault("server.port", "")
 
 	if err := loadConfigFile(v); err != nil {
@@ -131,6 +135,8 @@ func Load() (AppConfig, error) {
 		},
 		Log: LogConfig{
 			Level: strings.ToLower(strings.TrimSpace(v.GetString("log.level"))),
+			Dir:   strings.TrimSpace(v.GetString("log.dir")),
+			File:  strings.TrimSpace(v.GetString("log.file")),
 		},
 	}, nil
 }

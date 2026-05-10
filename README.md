@@ -89,6 +89,16 @@ $env:SKOLL_CACHE_REDIS_ADDR="10.0.0.5:6379"
 go run ./cmd/skoll
 ```
 
+8. 统一日志输出到单文件（推荐）
+
+```powershell
+$env:SKOLL_LOG_DIR="log"
+$env:SKOLL_LOG_FILE="skoll.log"
+go run ./cmd/skoll
+```
+
+说明：设置 `SKOLL_LOG_FILE` 后，应用日志与插件操作日志会统一写入 `log/skoll.log`。
+
 ## 测试
 
 ```powershell

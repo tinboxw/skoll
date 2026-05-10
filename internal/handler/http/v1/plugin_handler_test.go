@@ -243,13 +243,13 @@ func TestPluginHandlerInstallValidateBadRequest(t *testing.T) {
 
 func TestPluginHandlerDebugAndLogs(t *testing.T) {
 	t.Cleanup(func() {
-		_ = os.RemoveAll(filepath.Join("plugins", "logs"))
+		_ = os.RemoveAll("log")
 	})
 
-	if err := os.MkdirAll(filepath.Join("plugins", "logs"), 0o755); err != nil {
+	if err := os.MkdirAll("log", 0o755); err != nil {
 		t.Fatalf("mkdir log dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join("plugins", "logs", "demo.log"), []byte("line-1\nline-2\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join("log", "demo.log"), []byte("line-1\nline-2\n"), 0o644); err != nil {
 		t.Fatalf("write log file: %v", err)
 	}
 
@@ -309,6 +309,45 @@ func TestPluginHandlerDebugAndLogs(t *testing.T) {
 	}
 	if logsBody.Data.Content != "line-1\nline-2" {
 		t.Fatalf("unexpected logs content: %q", logsBody.Data.Content)
+	}
+}
+
+func TestPluginHandlerLogsFromUnifiedFile(t *testing.T) {
+	tmp := t.TempDir()
+	logFile := filepath.Join(tmp, "skoll.log")
+	content := strings.Join([]string{
+		"2026-01-01T00:00:00Z action=install result=ok plugin_id=demo message=installed",
+		"2026-01-01T00:00:01Z action=enable result=ok plugin_id=other message=enabled",
+		"2026-01-01T00:00:02Z action=disable result=ok plugin_id=demo message=disabled",
+	}, "\n")
+	if err := os.WriteFile(logFile, []byte(content+"\n"), 0o644); err != nil {
+		t.Fatalf("write unified log file: %v", err)
+	}
+
+	mgr := &fakePluginManager{items: map[string]plugin.Info{
+		"demo": {ID: "demo", Name: "Demo", Version: "0.1.0", State: plugin.StateEnabled},
+	}}
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr, WithPluginLogTarget(filepath.Dir(logFile), filepath.Base(logFile)))
+
+	logsReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo/logs", nil)
+	logsResp := httptest.NewRecorder()
+	mux.ServeHTTP(logsResp, logsReq)
+	if logsResp.Code != http.StatusOK {
+		t.Fatalf("logs status=%d body=%s", logsResp.Code, logsResp.Body.String())
+	}
+
+	var logsBody struct {
+		Data pluginLogsRecord `json:"data"`
+	}
+	if err := json.Unmarshal(logsResp.Body.Bytes(), &logsBody); err != nil {
+		t.Fatalf("decode logs error: %v", err)
+	}
+	if !strings.Contains(logsBody.Data.Content, "plugin_id=demo") {
+		t.Fatalf("expected filtered demo logs, got: %q", logsBody.Data.Content)
+	}
+	if strings.Contains(logsBody.Data.Content, "plugin_id=other") {
+		t.Fatalf("unexpected logs from other plugin: %q", logsBody.Data.Content)
 	}
 }
 

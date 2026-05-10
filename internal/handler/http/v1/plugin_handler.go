@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/pkg/logging"
 )
 
 type PluginManager interface {
@@ -36,6 +38,17 @@ type PluginHandler struct {
 	manager           PluginManager
 	extensionProvider PluginExtensionSnapshotProvider
 	loader            plugin.MetadataLoader
+	logDir            string
+	logFile           string
+}
+
+type PluginRouteOption func(*PluginHandler)
+
+func WithPluginLogTarget(logDir, logFile string) PluginRouteOption {
+	return func(h *PluginHandler) {
+		h.logDir = strings.TrimSpace(logDir)
+		h.logFile = strings.TrimSpace(logFile)
+	}
 }
 
 type pluginRecord struct {
@@ -79,8 +92,13 @@ type externalPluginRequest struct {
 	RoutePath string `json:"routePath"`
 }
 
-func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager) {
+func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...PluginRouteOption) {
 	h := &PluginHandler{manager: manager, loader: plugin.NewFileLoader()}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(h)
+		}
+	}
 	if provider, ok := manager.(PluginExtensionSnapshotProvider); ok {
 		h.extensionProvider = provider
 	}
@@ -184,7 +202,7 @@ func (h *PluginHandler) enable(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	appendPluginLog(id, "enable", "ok", "enabled")
+	h.appendPluginLog(id, "enable", "ok", "enabled")
 
 	writeMessage(w, http.StatusOK, "ok", "enabled")
 }
@@ -213,7 +231,7 @@ func (h *PluginHandler) disable(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	appendPluginLog(id, "disable", "ok", "disabled")
+	h.appendPluginLog(id, "disable", "ok", "disabled")
 
 	writeMessage(w, http.StatusOK, "ok", "disabled")
 }
@@ -242,7 +260,7 @@ func (h *PluginHandler) uninstall(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	appendPluginLog(id, "uninstall", "ok", "uninstalled")
+	h.appendPluginLog(id, "uninstall", "ok", "uninstalled")
 
 	writeMessage(w, http.StatusOK, "ok", "uninstalled")
 }
@@ -300,7 +318,7 @@ func (h *PluginHandler) logs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	content, err := os.ReadFile(filepath.Join("plugins", "logs", id+".log"))
+	content, err := h.readPluginLogContent(id)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			writeMessage(w, http.StatusNotFound, "not_found", "plugin log not found")
@@ -483,7 +501,7 @@ func (h *PluginHandler) install(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err)
 		return
 	}
-	appendPluginLog(info.ID, "install", "ok", "installed from path")
+	h.appendPluginLog(info.ID, "install", "ok", "installed from path")
 
 	writeJSON(w, http.StatusCreated, pluginRecord{
 		ID:      info.ID,
@@ -551,7 +569,7 @@ func (h *PluginHandler) createExternal(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	appendPluginLog(req.PluginID, "create_"+pluginType, "ok", "registered external plugin")
+	h.appendPluginLog(req.PluginID, "create_"+pluginType, "ok", "registered external plugin")
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"id":        req.PluginID,
 		"name":      req.Name,
@@ -617,20 +635,73 @@ func defaultPluginRecords() []pluginRecord {
 	}
 }
 
-func appendPluginLog(pluginID, action, result, message string) {
+func (h *PluginHandler) appendPluginLog(pluginID, action, result, message string) {
 	pluginID = strings.TrimSpace(pluginID)
 	if pluginID == "" {
 		return
 	}
-	logDir := filepath.Join("plugins", "logs")
-	if err := os.MkdirAll(logDir, 0o755); err != nil {
+	logPath := h.logPathForPlugin(pluginID)
+	if logPath == "" {
 		return
 	}
-	line := fmt.Sprintf("%s action=%s result=%s message=%s\n", time.Now().UTC().Format(time.RFC3339), strings.TrimSpace(action), strings.TrimSpace(result), strings.TrimSpace(message))
-	f, err := os.OpenFile(filepath.Join(logDir, pluginID+".log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		return
+	}
+	line := fmt.Sprintf("%s action=%s result=%s plugin_id=%s message=%s\n", time.Now().UTC().Format(time.RFC3339), strings.TrimSpace(action), strings.TrimSpace(result), pluginID, strings.TrimSpace(message))
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return
 	}
 	defer f.Close()
 	_, _ = f.WriteString(line)
+}
+
+func (h *PluginHandler) logPathForPlugin(pluginID string) string {
+	if output := logging.ResolveLogFilePath(h.logDir, h.logFile); output != "" {
+		return output
+	}
+	logDir := strings.TrimSpace(h.logDir)
+	if logDir == "" {
+		logDir = "log"
+	}
+	return filepath.Join(logDir, pluginID+".log")
+}
+
+func (h *PluginHandler) readPluginLogContent(pluginID string) ([]byte, error) {
+	logPath := h.logPathForPlugin(pluginID)
+	if logPath == "" {
+		return nil, os.ErrNotExist
+	}
+
+	if strings.TrimSpace(h.logFile) == "" {
+		return os.ReadFile(logPath)
+	}
+
+	f, err := os.Open(logPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	raw, err := io.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+
+	needle := "plugin_id=" + pluginID
+	lines := strings.Split(string(raw), "\n")
+	filtered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if strings.Contains(trimmed, needle) {
+			filtered = append(filtered, trimmed)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil, os.ErrNotExist
+	}
+	return []byte(strings.Join(filtered, "\n")), nil
 }

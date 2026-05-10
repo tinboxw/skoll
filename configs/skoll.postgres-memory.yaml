@@ -23,3 +23,5 @@ security:
 
 log:
   level: "info"
+  dir: "log"
+  file: ""

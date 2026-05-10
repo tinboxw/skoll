@@ -40,7 +40,12 @@ type dependencies struct {
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
-	logger := logging.New(cfg.AppConfig.Log.Level)
+	logging.SetDefaultOutput(cfg.AppConfig.Log.Dir, cfg.AppConfig.Log.File)
+	logger := logging.NewWithOptions(logging.Options{
+		Level: cfg.AppConfig.Log.Level,
+		Dir:   cfg.AppConfig.Log.Dir,
+		File:  cfg.AppConfig.Log.File,
+	})
 
 	bundle, err := store.NewBundle(store.Options{
 		Mode:          store.Mode(cfg.AppConfig.Store.Mode),
@@ -71,6 +76,8 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		AuditService:  auditService,
 		SystemService: systemService,
 		PluginManager: pluginManager,
+		LogDir:        cfg.AppConfig.Log.Dir,
+		LogFile:       cfg.AppConfig.Log.File,
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),

@@ -22,7 +22,7 @@ func NewPluginCommand(manager plugin.Manager, loader plugin.MetadataLoader, logR
 		loader = plugin.NewFileLoader()
 	}
 	if strings.TrimSpace(logRoot) == "" {
-		logRoot = filepath.Join("plugins", "logs")
+		logRoot = "log"
 	}
 	return &PluginCommand{
 		manager: manager,

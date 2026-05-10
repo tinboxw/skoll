@@ -2,6 +2,8 @@ package logging
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"go.uber.org/zap"
@@ -16,14 +18,58 @@ type Logger interface {
 	Error(msg string, attrs ...any)
 }
 
-func New(level string) Logger {
-	return newZapLogger(level)
+type Options struct {
+	Level string
+	Dir   string
+	File  string
 }
 
-func newZapLogger(level string) Logger {
+var defaultOutput Options
+
+func New(level string) Logger {
+	return newZapLogger(Options{
+		Level: level,
+		Dir:   defaultOutput.Dir,
+		File:  defaultOutput.File,
+	})
+}
+
+func NewWithOptions(opts Options) Logger {
+	return newZapLogger(opts)
+}
+
+func SetDefaultOutput(dir, file string) {
+	defaultOutput.Dir = strings.TrimSpace(dir)
+	defaultOutput.File = strings.TrimSpace(file)
+}
+
+func ResolveLogFilePath(dir, file string) string {
+	dir = strings.TrimSpace(dir)
+	file = strings.TrimSpace(file)
+	if file == "" {
+		return ""
+	}
+	if filepath.IsAbs(file) {
+		return file
+	}
+	if dir == "" {
+		dir = "log"
+	}
+	return filepath.Join(dir, file)
+}
+
+func newZapLogger(opts Options) Logger {
 	cfg := zap.NewProductionConfig()
 	cfg.Encoding = "json"
-	cfg.Level = zap.NewAtomicLevelAt(parseLevel(level))
+	cfg.Level = zap.NewAtomicLevelAt(parseLevel(opts.Level))
+
+	if outputPath := ResolveLogFilePath(opts.Dir, opts.File); outputPath != "" {
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err == nil {
+			cfg.OutputPaths = []string{outputPath}
+			cfg.ErrorOutputPaths = []string{outputPath}
+		}
+	}
+
 	core, err := cfg.Build()
 	if err != nil {
 		return &zapLogger{base: zap.NewNop()}

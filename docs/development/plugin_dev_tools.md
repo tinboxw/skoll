@@ -4,7 +4,7 @@
 `internal/handler/cli/plugin_cmd.go` 提供插件开发阶段最小工具集，覆盖：
 - `list`：查看当前插件清单和状态。
 - `debug <pluginId>`：输出插件依赖、权限、来源等调试信息。
-- `logs <pluginId>`：读取插件日志文件（默认目录 `plugins/logs/`）。
+- `logs <pluginId>`：读取插件日志文件（默认目录 `log/`）。
 - `validate <pluginPathOrManifest>`：校验 `plugin.yaml` 元数据格式。
 
 ## 命令行为
@@ -31,7 +31,7 @@ plugins=2
 
 ### logs
 - 输入：`["logs", "demo"]`
-- 行为：读取 `plugins/logs/demo.log`（或构造时传入的自定义日志目录）。
+- 行为：读取 `log/demo.log`（或构造时传入的自定义日志目录）。
 
 ### validate
 - 输入：`["validate", "plugins/demo"]` 或 `plugin.yaml` 的绝对路径。
