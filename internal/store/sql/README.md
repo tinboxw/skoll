@@ -8,12 +8,8 @@ SQL 存储抽象层，放置公共 SQL 逻辑与事务实现。
 - 接口定义与实现分离，避免单文件过大。
 - 变更时同步补充测试与文档。
 
-## 当前规划文件
-- common.go
-- transaction.go
-
-## 后续待补充实现
-- [ ] 按目录职责补齐核心实现代码。
-- [ ] 补充单元测试与必要的集成测试。
-- [ ] 完善示例、边界条件与错误处理说明。
+## 当前实现
+- `common.go`：通用 CRUD/List/NotFound 辅助函数。
+- `transaction.go`：支持真实 GORM 事务边界的 `UnitOfWork`。
+- `gormrepo/`：跨 MySQL/PostgreSQL 的共享仓储实现（user/role/rbac/system）。
 

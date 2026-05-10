@@ -11,6 +11,13 @@ Skoll v2 是一个按分层架构重新实现的 Go 框架基线，强调职责�
 - `pkg/errors`：统一错误模型与 HTTP 映射
 - `pkg/security`：JWT、密码哈希与加密工具
 
+## 存储层说明
+
+- `internal/store/sql/gormrepo`：MySQL/PostgreSQL 共享的 GORM 仓储实现与模型映射。
+- `internal/store/sql/mysql`：MySQL 方言入口（DSN 解析、连接、迁移、键规范化）。
+- `internal/store/sql/postgres`：PostgreSQL 方言入口（连接、迁移、键规范化）。
+- `internal/store/sql/transaction.go`：SQL 模式下的事务边界实现（`UnitOfWork`）。
+
 ## 快速启动
 
 1. 内存模式（默认）
@@ -41,6 +48,10 @@ go run ./cmd/skoll
 go fmt ./...
 go test ./...
 go test -race ./...
+
+# 可选：本地 MySQL 集成验证
+$env:SKOLL_TEST_MYSQL_DSN="root:root@tcp(127.0.0.1:3306)/skoll?parseTime=true"
+go test ./...
 ```
 
 ## 设计文档

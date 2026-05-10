@@ -59,7 +59,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			RBAC:       primary.RBACRepository(),
 			Audit:      audit.AuditRepository(),
 			System:     primary.SystemRepository(),
-			UnitOfWork: sql.NewUnitOfWork(),
+			UnitOfWork: sql.NewUnitOfWorkWithDB(primary.DB()),
 		}, nil
 	case ModePostgres:
 		primary, err := postgres.NewAdapter(opts.PrimaryDSN)
@@ -73,10 +73,10 @@ func NewBundle(opts Options) (*Bundle, error) {
 		return &Bundle{
 			Users:      primary.UserRepository(),
 			Roles:      primary.RoleRepository(),
-			RBAC:       memory.NewRBACStore(),
+			RBAC:       primary.RBACRepository(),
 			Audit:      audit.AuditRepository(),
 			System:     primary.SystemRepository(),
-			UnitOfWork: sql.NewUnitOfWork(),
+			UnitOfWork: sql.NewUnitOfWorkWithDB(primary.DB()),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported store mode: %q", opts.Mode)

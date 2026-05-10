@@ -1,4 +1,4 @@
-package mysql
+package gormrepo
 
 import (
 	"encoding/json"
@@ -12,7 +12,9 @@ import (
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 )
 
-type userModel struct {
+type Normalizer func(string) string
+
+type UserModel struct {
 	ID          string `gorm:"primaryKey;size:128"`
 	Username    string `gorm:"size:128;index"`
 	DisplayName string `gorm:"size:128"`
@@ -23,10 +25,10 @@ type userModel struct {
 	UpdatedAt   time.Time
 }
 
-func (userModel) TableName() string { return "sk_users" }
+func (UserModel) TableName() string { return "sk_users" }
 
-func userModelFromDomain(entity *domainuser.User) userModel {
-	return userModel{
+func UserModelFromDomain(entity *domainuser.User) UserModel {
+	return UserModel{
 		ID:          entity.ID.String(),
 		Username:    entity.Username,
 		DisplayName: entity.DisplayName,
@@ -38,7 +40,7 @@ func userModelFromDomain(entity *domainuser.User) userModel {
 	}
 }
 
-func (m userModel) toDomain() *domainuser.User {
+func (m UserModel) ToDomain() *domainuser.User {
 	return &domainuser.User{
 		ID:          shared.ID(m.ID),
 		Username:    m.Username,
@@ -53,7 +55,7 @@ func (m userModel) toDomain() *domainuser.User {
 	}
 }
 
-type roleModel struct {
+type RoleModel struct {
 	ID          string `gorm:"primaryKey;size:128"`
 	Name        string `gorm:"size:128"`
 	Key         string `gorm:"size:128;uniqueIndex"`
@@ -64,14 +66,14 @@ type roleModel struct {
 	UpdatedAt   time.Time
 }
 
-func (roleModel) TableName() string { return "sk_roles" }
+func (RoleModel) TableName() string { return "sk_roles" }
 
-func roleModelFromDomain(entity *domainrole.Role) roleModel {
+func RoleModelFromDomain(entity *domainrole.Role, normalizeKey Normalizer) RoleModel {
 	payload, _ := json.Marshal(entity.Permissions)
-	return roleModel{
+	return RoleModel{
 		ID:          entity.ID.String(),
 		Name:        entity.Name,
-		Key:         normalizeRoleKey(entity.Key),
+		Key:         normalizeKey(entity.Key),
 		Description: entity.Description,
 		Permissions: string(payload),
 		BuiltIn:     entity.BuiltIn,
@@ -80,7 +82,7 @@ func roleModelFromDomain(entity *domainrole.Role) roleModel {
 	}
 }
 
-func (m roleModel) toDomain() *domainrole.Role {
+func (m RoleModel) ToDomain(normalizeKey Normalizer) *domainrole.Role {
 	perms := make([]string, 0)
 	if strings.TrimSpace(m.Permissions) != "" {
 		_ = json.Unmarshal([]byte(m.Permissions), &perms)
@@ -88,7 +90,7 @@ func (m roleModel) toDomain() *domainrole.Role {
 	return &domainrole.Role{
 		ID:          shared.ID(m.ID),
 		Name:        m.Name,
-		Key:         normalizeRoleKey(m.Key),
+		Key:         normalizeKey(m.Key),
 		Description: m.Description,
 		Permissions: domainrole.NormalizePermissions(perms),
 		BuiltIn:     m.BuiltIn,
@@ -99,7 +101,7 @@ func (m roleModel) toDomain() *domainrole.Role {
 	}
 }
 
-type bindingModel struct {
+type BindingModel struct {
 	ID          string `gorm:"primaryKey;size:128"`
 	SubjectType string `gorm:"size:32;index:idx_subject"`
 	SubjectID   string `gorm:"size:128;index:idx_subject"`
@@ -109,10 +111,10 @@ type bindingModel struct {
 	UpdatedAt   time.Time
 }
 
-func (bindingModel) TableName() string { return "sk_rbac_bindings" }
+func (BindingModel) TableName() string { return "sk_rbac_bindings" }
 
-func bindingModelFromDomain(entity *rbac.Binding) bindingModel {
-	return bindingModel{
+func BindingModelFromDomain(entity *rbac.Binding) BindingModel {
+	return BindingModel{
 		ID:          entity.ID.String(),
 		SubjectType: string(entity.SubjectType),
 		SubjectID:   entity.SubjectID.String(),
@@ -123,7 +125,7 @@ func bindingModelFromDomain(entity *rbac.Binding) bindingModel {
 	}
 }
 
-func (m bindingModel) toDomain() *rbac.Binding {
+func (m BindingModel) ToDomain() *rbac.Binding {
 	return &rbac.Binding{
 		ID:          shared.ID(m.ID),
 		SubjectType: rbac.SubjectType(m.SubjectType),
@@ -137,7 +139,7 @@ func (m bindingModel) toDomain() *rbac.Binding {
 	}
 }
 
-type policyRuleModel struct {
+type PolicyRuleModel struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	RoleID   string `gorm:"size:128;index"`
 	Resource string `gorm:"size:256"`
@@ -146,10 +148,10 @@ type policyRuleModel struct {
 	Scope    string `gorm:"size:32"`
 }
 
-func (policyRuleModel) TableName() string { return "sk_rbac_policy_rules" }
+func (PolicyRuleModel) TableName() string { return "sk_rbac_policy_rules" }
 
-func policyRuleModelFromDomain(roleID shared.ID, rule rbac.PolicyRule) policyRuleModel {
-	return policyRuleModel{
+func PolicyRuleModelFromDomain(roleID shared.ID, rule rbac.PolicyRule) PolicyRuleModel {
+	return PolicyRuleModel{
 		RoleID:   roleID.String(),
 		Resource: strings.TrimSpace(rule.Resource),
 		Action:   strings.TrimSpace(rule.Action),
@@ -158,7 +160,7 @@ func policyRuleModelFromDomain(roleID shared.ID, rule rbac.PolicyRule) policyRul
 	}
 }
 
-func (m policyRuleModel) toDomain() rbac.PolicyRule {
+func (m PolicyRuleModel) ToDomain() rbac.PolicyRule {
 	return rbac.PolicyRule{
 		Resource: m.Resource,
 		Action:   m.Action,
@@ -167,7 +169,7 @@ func (m policyRuleModel) toDomain() rbac.PolicyRule {
 	}
 }
 
-type systemSettingModel struct {
+type SystemSettingModel struct {
 	ID        string `gorm:"primaryKey;size:128"`
 	Key       string `gorm:"size:128;uniqueIndex"`
 	Value     string `gorm:"type:text"`
@@ -176,12 +178,12 @@ type systemSettingModel struct {
 	UpdatedAt time.Time
 }
 
-func (systemSettingModel) TableName() string { return "sk_system_settings" }
+func (SystemSettingModel) TableName() string { return "sk_system_settings" }
 
-func systemSettingModelFromDomain(setting *domainsystem.Setting) systemSettingModel {
-	return systemSettingModel{
+func SystemSettingModelFromDomain(setting *domainsystem.Setting, normalizeKey Normalizer) SystemSettingModel {
+	return SystemSettingModel{
 		ID:        setting.ID.String(),
-		Key:       normalizeSettingKey(setting.Key),
+		Key:       normalizeKey(setting.Key),
 		Value:     setting.Value,
 		Encrypted: setting.Encrypted,
 		CreatedAt: setting.Meta.CreatedAt,
@@ -189,10 +191,10 @@ func systemSettingModelFromDomain(setting *domainsystem.Setting) systemSettingMo
 	}
 }
 
-func (m systemSettingModel) toDomain() *domainsystem.Setting {
+func (m SystemSettingModel) ToDomain(normalizeKey Normalizer) *domainsystem.Setting {
 	return &domainsystem.Setting{
 		ID:        shared.ID(m.ID),
-		Key:       normalizeSettingKey(m.Key),
+		Key:       normalizeKey(m.Key),
 		Value:     m.Value,
 		Encrypted: m.Encrypted,
 		Meta: shared.AuditMeta{
@@ -202,10 +204,12 @@ func (m systemSettingModel) toDomain() *domainsystem.Setting {
 	}
 }
 
-func normalizeRoleKey(key string) string {
-	return strings.ToLower(strings.TrimSpace(key))
-}
-
-func normalizeSettingKey(key string) string {
-	return strings.ToLower(strings.TrimSpace(key))
+func AllModels() []any {
+	return []any{
+		&UserModel{},
+		&RoleModel{},
+		&BindingModel{},
+		&PolicyRuleModel{},
+		&SystemSettingModel{},
+	}
 }

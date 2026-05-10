@@ -11,6 +11,13 @@ Skoll v2 is a Go framework baseline reimplemented with strict layered architectu
 - `pkg/errors`: unified error model and HTTP mapping
 - `pkg/security`: JWT, password hashing, and encryption utilities
 
+## Storage Layer Notes
+
+- `internal/store/sql/gormrepo`: shared GORM repositories and model mapping for MySQL/PostgreSQL.
+- `internal/store/sql/mysql`: MySQL dialect entrypoint (DSN parsing, connection, migration, key normalization).
+- `internal/store/sql/postgres`: PostgreSQL dialect entrypoint (connection, migration, key normalization).
+- `internal/store/sql/transaction.go`: SQL-mode transaction boundary (`UnitOfWork`).
+
 ## Quick Start
 
 1. Memory mode (default)
@@ -41,6 +48,10 @@ go run ./cmd/skoll
 go fmt ./...
 go test ./...
 go test -race ./...
+
+# Optional: local MySQL integration validation
+$env:SKOLL_TEST_MYSQL_DSN="root:root@tcp(127.0.0.1:3306)/skoll?parseTime=true"
+go test ./...
 ```
 
 ## Design Docs

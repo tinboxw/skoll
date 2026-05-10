@@ -189,7 +189,7 @@ npm run build
 
 - 应用层：`system` 业务线缺失 service/handler，`audit` 缺查询 API。
 - 缓存层：`redis/memcached` 适配器仍为本地 LRU 模拟实现。
-- 存储层：`mysql/postgres` 仍复用 memory store，`system repo` 未落地。
+- 存储层：已切换为 `gormrepo` 共享仓储层，`mysql/postgres/system repo` 持久化已打通。
 - 基础能力：`pkg/metrics`、`pkg/validator`、`pkg/utils` 存在空实现文件。
 
 ### 6.2 分层推进顺序（严格串行）
@@ -233,13 +233,15 @@ npm run build
 - [x] MySQL user/role/rbac/system 仓储从 memory 占位替换为持久化实现。
 - [x] MySQL schema 自动迁移已打通（兼容索引长度限制）。
 - [x] 本地 MySQL 直连验证通过（`SKOLL_TEST_MYSQL_DSN`）。
-- [ ] PostgreSQL 仓储持久化实现（当前仍为 memory 占位）。
-- [ ] 事务层从 pass-through 升级为真实 DB transaction 边界。
+- [x] PostgreSQL 仓储持久化实现（切换为真实 GORM adapter + 自动迁移）。
+- [x] 事务层从 pass-through 升级为真实 DB transaction 边界。
+- [x] 提取 `internal/store/sql/gormrepo` 统一 MySQL/PostgreSQL 重复仓储实现。
 
 ### 6.8 S1 阶段验证证据
 
 - `go test ./internal/store -run TestNewBundleMySQLIntegration -count=1` 通过。
 - `go test ./...`（带 `SKOLL_TEST_MYSQL_DSN`）通过。
+- `go fmt ./...`、`go test ./...`（默认环境）通过。
 
 ---
 
