@@ -2,12 +2,12 @@ package config
 
 import "testing"
 
-func TestLoadFromEnv(t *testing.T) {
+func TestLoad(t *testing.T) {
 	t.Setenv("SKOLL_SERVER_ADDRESS", ":9090")
 	t.Setenv("SKOLL_STORE_MODE", "memory")
 	t.Setenv("SKOLL_JWT_SECRET", "secret")
 
-	cfg, err := LoadFromEnv()
+	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("load from env: %v", err)
 	}

@@ -2,10 +2,11 @@ package config
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 // AppConfig stores runtime configuration resolved from environment variables.
@@ -34,48 +35,55 @@ type LogConfig struct {
 	Level string
 }
 
-// LoadFromEnv loads configuration from SKOLL_* environment variables.
-func LoadFromEnv() (AppConfig, error) {
-	cfg := AppConfig{
+// Load loads configuration via Viper using SKOLL_* environment variables.
+func Load() (AppConfig, error) {
+	v := viper.New()
+	v.SetEnvPrefix("SKOLL")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	v.SetDefault("server.address", ":8080")
+	v.SetDefault("server.shutdown_timeout", "10s")
+	v.SetDefault("store.mode", "memory")
+	v.SetDefault("store.dsn", "")
+	v.SetDefault("security.jwt_secret", "dev-secret-change-me")
+	v.SetDefault("log.level", "info")
+	v.SetDefault("server.port", "")
+
+	shutdownRaw := strings.TrimSpace(v.GetString("server.shutdown_timeout"))
+	shutdownTimeout, err := time.ParseDuration(shutdownRaw)
+	if err != nil {
+		return AppConfig{}, fmt.Errorf("invalid SKOLL_SERVER_SHUTDOWN_TIMEOUT: %w", err)
+	}
+
+	address := strings.TrimSpace(v.GetString("server.address"))
+	if address == "" {
+		address = ":8080"
+	}
+
+	portRaw := strings.TrimSpace(v.GetString("server.port"))
+	if portRaw != "" {
+		port, err := strconv.Atoi(portRaw)
+		if err != nil || port <= 0 || port > 65535 {
+			return AppConfig{}, fmt.Errorf("invalid SKOLL_SERVER_PORT: %q", portRaw)
+		}
+		address = fmt.Sprintf(":%d", port)
+	}
+
+	return AppConfig{
 		Server: ServerConfig{
-			Address:         getenvDefault("SKOLL_SERVER_ADDRESS", ":8080"),
-			ShutdownTimeout: 10 * time.Second,
+			Address:         address,
+			ShutdownTimeout: shutdownTimeout,
 		},
 		Store: StoreConfig{
-			Mode: strings.ToLower(getenvDefault("SKOLL_STORE_MODE", "memory")),
-			DSN:  os.Getenv("SKOLL_STORE_DSN"),
+			Mode: strings.ToLower(strings.TrimSpace(v.GetString("store.mode"))),
+			DSN:  strings.TrimSpace(v.GetString("store.dsn")),
 		},
 		Security: SecurityConfig{
-			JWTSecret: getenvDefault("SKOLL_JWT_SECRET", "dev-secret-change-me"),
+			JWTSecret: strings.TrimSpace(v.GetString("security.jwt_secret")),
 		},
 		Log: LogConfig{
-			Level: strings.ToLower(getenvDefault("SKOLL_LOG_LEVEL", "info")),
+			Level: strings.ToLower(strings.TrimSpace(v.GetString("log.level"))),
 		},
-	}
-
-	if raw := os.Getenv("SKOLL_SHUTDOWN_TIMEOUT"); strings.TrimSpace(raw) != "" {
-		d, err := time.ParseDuration(raw)
-		if err != nil {
-			return AppConfig{}, fmt.Errorf("invalid SKOLL_SHUTDOWN_TIMEOUT: %w", err)
-		}
-		cfg.Server.ShutdownTimeout = d
-	}
-
-	if raw := os.Getenv("SKOLL_SERVER_PORT"); strings.TrimSpace(raw) != "" {
-		port, err := strconv.Atoi(raw)
-		if err != nil || port <= 0 || port > 65535 {
-			return AppConfig{}, fmt.Errorf("invalid SKOLL_SERVER_PORT: %q", raw)
-		}
-		cfg.Server.Address = fmt.Sprintf(":%d", port)
-	}
-
-	return cfg, nil
-}
-
-func getenvDefault(key, fallback string) string {
-	v := strings.TrimSpace(os.Getenv(key))
-	if v == "" {
-		return fallback
-	}
-	return v
+	}, nil
 }

@@ -9,7 +9,7 @@ type RuntimeConfig struct {
 }
 
 func loadRuntimeConfigFromEnv() (RuntimeConfig, error) {
-	cfg, err := config.LoadFromEnv()
+	cfg, err := config.Load()
 	if err != nil {
 		return RuntimeConfig{}, err
 	}
