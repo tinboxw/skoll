@@ -2,6 +2,7 @@ package http
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/plugin"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
@@ -439,5 +441,67 @@ func TestRouterPluginValidateInstallAndExternalFlow(t *testing.T) {
 		if ext.State != plugin.StateEnabled {
 			t.Fatalf("expected external plugin %s enabled, got %s", pluginID, ext.State)
 		}
+	}
+}
+
+func TestRouterAuditLogsAPIs(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+	auditService := auditsvc.NewService(bundle.Audit)
+
+	rec1, err := auditService.Append(context.Background(), "actor-a", "create", "user", "u1", map[string]any{"k": "v"})
+	if err != nil {
+		t.Fatalf("append rec1 error: %v", err)
+	}
+	_, err = auditService.Append(context.Background(), "actor-b", "update", "role", "r1", map[string]any{"k": "v2"})
+	if err != nil {
+		t.Fatalf("append rec2 error: %v", err)
+	}
+
+	router := NewRouter(Dependencies{AuditService: auditService})
+
+	listReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs?limit=10", nil)
+	listResp := httptest.NewRecorder()
+	router.ServeHTTP(listResp, listReq)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs/"+rec1.ID.String(), nil)
+	getResp := httptest.NewRecorder()
+	router.ServeHTTP(getResp, getReq)
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("get status=%d body=%s", getResp.Code, getResp.Body.String())
+	}
+
+	exportReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs/export?limit=10", nil)
+	exportResp := httptest.NewRecorder()
+	router.ServeHTTP(exportResp, exportReq)
+	if exportResp.Code != http.StatusOK {
+		t.Fatalf("export status=%d body=%s", exportResp.Code, exportResp.Body.String())
+	}
+	if !strings.Contains(exportResp.Body.String(), "id,actorId,action,resource,resourceId,occurredAt") {
+		t.Fatalf("unexpected export header: %s", exportResp.Body.String())
+	}
+
+	from := rec1.OccurredAt.Add(-time.Second).Format(time.RFC3339)
+	to := rec1.OccurredAt.Add(time.Second).Format(time.RFC3339)
+	clearReq := httptest.NewRequest(http.MethodDelete, "/v1/audit/logs?from="+from+"&to="+to, nil)
+	clearResp := httptest.NewRecorder()
+	router.ServeHTTP(clearResp, clearReq)
+	if clearResp.Code != http.StatusOK {
+		t.Fatalf("clear status=%d body=%s", clearResp.Code, clearResp.Body.String())
+	}
+
+	actorReq := httptest.NewRequest(http.MethodGet, "/v1/audit/actors/actor-a?limit=10", nil)
+	actorResp := httptest.NewRecorder()
+	router.ServeHTTP(actorResp, actorReq)
+	if actorResp.Code != http.StatusOK {
+		t.Fatalf("actor list status=%d body=%s", actorResp.Code, actorResp.Body.String())
+	}
+	if strings.Contains(actorResp.Body.String(), rec1.ID.String()) {
+		t.Fatalf("expected rec1 removed by clear range, body=%s", actorResp.Body.String())
 	}
 }

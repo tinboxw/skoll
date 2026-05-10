@@ -1,12 +1,15 @@
 package audit
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 )
+
+var ErrInvalidTimeRange = errors.New("invalid time range")
 
 type Record struct {
 	ID         shared.ID

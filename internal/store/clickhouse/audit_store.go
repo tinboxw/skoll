@@ -62,3 +62,16 @@ func (s *AuditStore) ListByTimeRange(_ context.Context, tr shared.TimeRange, lim
 	}
 	return out, nil
 }
+
+func (s *AuditStore) DeleteByTimeRange(_ context.Context, tr shared.TimeRange) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	deleted := 0
+	for id, r := range s.items {
+		if (r.OccurredAt.Equal(tr.From) || r.OccurredAt.After(tr.From)) && (r.OccurredAt.Equal(tr.To) || r.OccurredAt.Before(tr.To)) {
+			delete(s.items, id)
+			deleted++
+		}
+	}
+	return deleted, nil
+}

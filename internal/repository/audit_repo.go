@@ -12,4 +12,5 @@ type AuditRepository interface {
 	GetByID(ctx context.Context, id shared.ID) (*audit.Record, error)
 	ListByActor(ctx context.Context, actorID shared.ID, limit int) ([]*audit.Record, error)
 	ListByTimeRange(ctx context.Context, tr shared.TimeRange, limit int) ([]*audit.Record, error)
+	DeleteByTimeRange(ctx context.Context, tr shared.TimeRange) (int, error)
 }

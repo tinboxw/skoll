@@ -40,3 +40,23 @@ func (s *serviceImpl) Append(ctx context.Context, actorID, action, resource, res
 func (s *serviceImpl) ListByActor(ctx context.Context, actorID string, limit int) ([]*domainaudit.Record, error) {
 	return s.repo.ListByActor(ctx, shared.ID(actorID), limit)
 }
+
+func (s *serviceImpl) GetByID(ctx context.Context, id string) (*domainaudit.Record, error) {
+	return s.repo.GetByID(ctx, shared.ID(id))
+}
+
+func (s *serviceImpl) ListByTimeRange(ctx context.Context, from, to time.Time, limit int) ([]*domainaudit.Record, error) {
+	tr := shared.TimeRange{From: from, To: to}
+	if !tr.IsValid() {
+		return nil, domainaudit.ErrInvalidTimeRange
+	}
+	return s.repo.ListByTimeRange(ctx, tr, limit)
+}
+
+func (s *serviceImpl) ClearByTimeRange(ctx context.Context, from, to time.Time) (int, error) {
+	tr := shared.TimeRange{From: from, To: to}
+	if !tr.IsValid() {
+		return 0, domainaudit.ErrInvalidTimeRange
+	}
+	return s.repo.DeleteByTimeRange(ctx, tr)
+}
