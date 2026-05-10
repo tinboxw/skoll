@@ -12,6 +12,7 @@ import (
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	rolesvc "github.com/tinboxw/skoll/internal/service/role"
+	systemsvc "github.com/tinboxw/skoll/internal/service/system"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/internal/store"
 )
@@ -22,11 +23,13 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 		t.Fatalf("store.NewBundle error: %v", err)
 	}
 	_ = auditsvc.NewService(bundle.Audit)
+	auditService := auditsvc.NewService(bundle.Audit)
 	userService := usersvc.NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
 	roleService := rolesvc.NewService(bundle.Roles)
 	rbacService := rbacsvc.NewService(bundle.RBAC)
+	systemService := systemsvc.NewService(bundle.System)
 
-	router := NewRouter(Dependencies{UserService: userService, RoleService: roleService, RBACService: rbacService})
+	router := NewRouter(Dependencies{UserService: userService, RoleService: roleService, RBACService: rbacService, AuditService: auditService, SystemService: systemService})
 
 	createReq := map[string]any{
 		"username":     "api_user",
@@ -48,6 +51,20 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 	router.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
+	}
+
+	settingReq := httptest.NewRequest(http.MethodPut, "/v1/system/settings/demo.flag", bytes.NewReader([]byte(`{"value":"on","encrypted":false}`)))
+	settingResp := httptest.NewRecorder()
+	router.ServeHTTP(settingResp, settingReq)
+	if settingResp.Code != http.StatusOK {
+		t.Fatalf("upsert setting status=%d body=%s", settingResp.Code, settingResp.Body.String())
+	}
+
+	getSettingReq := httptest.NewRequest(http.MethodGet, "/v1/system/settings/demo.flag", nil)
+	getSettingResp := httptest.NewRecorder()
+	router.ServeHTTP(getSettingResp, getSettingReq)
+	if getSettingResp.Code != http.StatusOK {
+		t.Fatalf("get setting status=%d body=%s", getSettingResp.Code, getSettingResp.Body.String())
 	}
 }
 

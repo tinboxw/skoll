@@ -31,6 +31,7 @@ type Bundle struct {
 	Roles      repository.RoleRepository
 	RBAC       repository.RBACRepository
 	Audit      repository.AuditRepository
+	System     repository.SystemRepository
 	UnitOfWork repository.UnitOfWork
 }
 
@@ -41,7 +42,8 @@ func NewBundle(opts Options) (*Bundle, error) {
 		roles := memory.NewRoleStore()
 		rbac := memory.NewRBACStore()
 		audit := clickhouse.NewAuditStore()
-		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, UnitOfWork: sql.NewUnitOfWork()}, nil
+		system := memory.NewSystemStore()
+		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, UnitOfWork: sql.NewUnitOfWork()}, nil
 	case ModeMySQL:
 		primary, err := mysql.NewAdapter(opts.PrimaryDSN)
 		if err != nil {
@@ -56,6 +58,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Roles:      primary.RoleRepository(),
 			RBAC:       primary.RBACRepository(),
 			Audit:      audit.AuditRepository(),
+			System:     primary.SystemRepository(),
 			UnitOfWork: sql.NewUnitOfWork(),
 		}, nil
 	case ModePostgres:
@@ -72,6 +75,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Roles:      primary.RoleRepository(),
 			RBAC:       memory.NewRBACStore(),
 			Audit:      audit.AuditRepository(),
+			System:     primary.SystemRepository(),
 			UnitOfWork: sql.NewUnitOfWork(),
 		}, nil
 	default:

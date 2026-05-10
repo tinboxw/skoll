@@ -6,8 +6,10 @@ import (
 
 	v1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	"github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
+	"github.com/tinboxw/skoll/internal/service/system"
 	"github.com/tinboxw/skoll/internal/service/user"
 )
 
@@ -15,6 +17,8 @@ type Dependencies struct {
 	UserService   user.Service
 	RoleService   role.Service
 	RBACService   rbac.Service
+	AuditService  audit.Service
+	SystemService system.Service
 	PluginManager plugin.Manager
 }
 
@@ -38,6 +42,8 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	v1.RegisterUserRoutes(mux, deps.UserService)
 	v1.RegisterRoleRoutes(mux, deps.RoleService)
 	v1.RegisterRBACRoutes(mux, deps.RBACService)
+	v1.RegisterAuditRoutes(mux, deps.AuditService)
+	v1.RegisterSystemRoutes(mux, deps.SystemService)
 	v1.RegisterPluginRoutes(mux, deps.PluginManager)
 	registerPluginExtensionRoutes(mux, deps.PluginManager)
 

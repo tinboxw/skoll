@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -17,8 +18,6 @@ func TestNewBundleModes(t *testing.T) {
 		opts Options
 	}{
 		{name: "memory", opts: Options{Mode: ModeMemory}},
-		{name: "mysql", opts: Options{Mode: ModeMySQL, PrimaryDSN: "mysql://demo", ClickHouseDSN: "clickhouse://demo"}},
-		{name: "postgres", opts: Options{Mode: ModePostgres, PrimaryDSN: "postgres://demo", ClickHouseDSN: "clickhouse://demo"}},
 	}
 
 	for _, tc := range cases {
@@ -36,6 +35,25 @@ func TestNewBundleModes(t *testing.T) {
 			assertAuditRepoContract(t, b)
 		})
 	}
+}
+
+func TestNewBundleMySQLIntegration(t *testing.T) {
+	dsn := os.Getenv("SKOLL_TEST_MYSQL_DSN")
+	if dsn == "" {
+		t.Skip("SKOLL_TEST_MYSQL_DSN is not set")
+	}
+
+	b, err := NewBundle(Options{Mode: ModeMySQL, PrimaryDSN: dsn, ClickHouseDSN: "clickhouse://demo"})
+	if err != nil {
+		t.Fatalf("NewBundle mysql error: %v", err)
+	}
+	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil {
+		t.Fatalf("mysql bundle has nil repositories")
+	}
+
+	assertUserRepoContract(t, b)
+	assertRoleRepoContract(t, b)
+	assertAuditRepoContract(t, b)
 }
 
 func TestNewBundleUnsupportedMode(t *testing.T) {

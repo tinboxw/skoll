@@ -183,6 +183,64 @@ npm run build
 - P1~P11：对已完成阶段执行“复核评审补证”，补齐证据链。
 - P12：作为当前主推进阶段，重点完成前后端插件同步接口与联调闭环。
 
+## 6. 分层补齐推进计划（2026-05-10 启动）
+
+### 6.1 现状差距基线（来自本轮全仓扫描）
+
+- 应用层：`system` 业务线缺失 service/handler，`audit` 缺查询 API。
+- 缓存层：`redis/memcached` 适配器仍为本地 LRU 模拟实现。
+- 存储层：`mysql/postgres` 仍复用 memory store，`system repo` 未落地。
+- 基础能力：`pkg/metrics`、`pkg/validator`、`pkg/utils` 存在空实现文件。
+
+### 6.2 分层推进顺序（严格串行）
+
+1. A1 应用层接口闭环（当前阶段）
+2. C1 缓存层真实适配（Redis/Memcached）
+3. S1 存储层真实持久化（MySQL/Postgres/SystemRepo）
+4. B1 基础能力补齐（metrics/validator/utils）
+
+### 6.3 A1 阶段任务清单（进行中）
+
+- [x] 将“缺失实现清单”固化到执行计划。
+- [x] 新增 `system` 内存仓储实现并接入 `store.Bundle`。
+- [x] 新增 `internal/service/system`（upsert/get/list）。
+- [x] 新增 `v1/system` HTTP 接口并接入主路由。
+- [x] 新增 `v1/audit` 查询接口并接入主路由。
+- [x] `bootstrap` 注入链路接入 system/audit service。
+- [x] 执行门禁：`go fmt ./...`、`go test ./...`（`-race` 留在并发专项阶段执行）。
+
+### 6.4 A1 阶段验收标准
+
+- `memory` 模式下 system/audit API 可直接调用并返回结构化结果。
+- 新增路由不影响既有 `user/role/rbac/plugin` 路径行为。
+- 门禁通过且无新增阻塞回归。
+
+### 6.5 C1 阶段任务清单（进行中）
+
+- [x] Redis 适配器接入真实客户端（保留本地回退保障）。
+- [x] Memcached 适配器接入真实协议实现（保留本地回退保障）。
+- [x] 保持 `cache.Bundle` 对外接口不变，避免应用层改造耦合。
+- [x] 执行门禁：`go mod tidy`、`go fmt ./...`、`go test ./...`。
+
+### 6.6 C1 阶段说明
+
+- 当前策略为“远端优先 + 本地降级”，用于在开发环境无 Redis/Memcached 服务时保持可运行。
+- 下一阶段（S1）完成后，再评估是否切换为“严格远端依赖”模式。
+
+### 6.7 S1 阶段任务清单（进行中）
+
+- [x] MySQL adapter 切换为真实 GORM 连接，并完成 DSN 解析。
+- [x] MySQL user/role/rbac/system 仓储从 memory 占位替换为持久化实现。
+- [x] MySQL schema 自动迁移已打通（兼容索引长度限制）。
+- [x] 本地 MySQL 直连验证通过（`SKOLL_TEST_MYSQL_DSN`）。
+- [ ] PostgreSQL 仓储持久化实现（当前仍为 memory 占位）。
+- [ ] 事务层从 pass-through 升级为真实 DB transaction 边界。
+
+### 6.8 S1 阶段验证证据
+
+- `go test ./internal/store -run TestNewBundleMySQLIntegration -count=1` 通过。
+- `go test ./...`（带 `SKOLL_TEST_MYSQL_DSN`）通过。
+
 ---
 
 > 说明：本计划是 `docs/refactor.md` 的执行化版本。若里程碑内容变更，必须先更新本计划并通过评审后再执行代码变更。

@@ -12,6 +12,7 @@ type Adapter struct {
 	dsn  string
 	user repository.UserRepository
 	role repository.RoleRepository
+	sys  repository.SystemRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -22,6 +23,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		dsn:  dsn,
 		user: memory.NewUserStore(),
 		role: memory.NewRoleStore(),
+		sys:  memory.NewSystemStore(),
 	}, nil
 }
 
@@ -31,4 +33,8 @@ func (a *Adapter) UserRepository() repository.UserRepository {
 }
 func (a *Adapter) RoleRepository() repository.RoleRepository {
 	return a.role
+}
+
+func (a *Adapter) SystemRepository() repository.SystemRepository {
+	return a.sys
 }

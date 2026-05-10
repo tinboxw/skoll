@@ -24,6 +24,7 @@ import (
 	"github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
+	"github.com/tinboxw/skoll/internal/service/system"
 	"github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/internal/store"
 	"github.com/tinboxw/skoll/pkg/logging"
@@ -48,7 +49,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		return nil, err
 	}
 
-	_ = audit.NewService(bundle.Audit)
+	auditService := audit.NewService(bundle.Audit)
 	bus := event.NewInMemoryBus()
 	_ = event.NewPublisher(bus)
 	_ = event.NewSubscriber(bus)
@@ -57,12 +58,15 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	userService := user.NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
 	roleService := role.NewService(bundle.Roles)
 	rbacService := rbac.NewService(bundle.RBAC)
+	systemService := system.NewService(bundle.System)
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
 		UserService:   userService,
 		RoleService:   roleService,
 		RBACService:   rbacService,
+		AuditService:  auditService,
+		SystemService: systemService,
 		PluginManager: pluginManager,
 	},
 		middleware.Logger(),
