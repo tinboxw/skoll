@@ -9,22 +9,22 @@ import (
 )
 
 type PluginModel struct {
-	ID              uint64 `gorm:"primaryKey;autoIncrement"`
-	PluginID        string `gorm:"size:128;uniqueIndex"`
-	Name            string `gorm:"size:128"`
-	Version         string `gorm:"size:64"`
-	Description     string `gorm:"size:512"`
-	State           string `gorm:"size:32;index"`
-	Source          string `gorm:"size:512"`
-	UIMode          string `gorm:"size:64"`
-	FrontendEntry   string `gorm:"size:512"`
-	SystemBuiltin   bool
-	PermissionsJSON string `gorm:"type:text"`
+	ID               uint64 `gorm:"primaryKey;autoIncrement"`
+	PluginID         string `gorm:"size:128;uniqueIndex"`
+	Name             string `gorm:"size:128"`
+	Version          string `gorm:"size:64"`
+	Description      string `gorm:"size:512"`
+	State            string `gorm:"size:32;index"`
+	Source           string `gorm:"size:512"`
+	UIMode           string `gorm:"size:64"`
+	FrontendEntry    string `gorm:"size:512"`
+	SystemBuiltin    bool
+	PermissionsJSON  string `gorm:"type:text"`
 	DependenciesJSON string `gorm:"type:text"`
-	InstalledAt     time.Time
-	EnabledAt       *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	InstalledAt      time.Time
+	EnabledAt        *time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 func (PluginModel) TableName() string { return "sk_plugins" }
