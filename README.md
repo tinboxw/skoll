@@ -32,7 +32,13 @@ Skoll v2 是一个按分层架构重新实现的 Go 框架基线，强调职责�
 - `./configs/skoll.yaml`
 - `./configs/skoll.yml`
 
-仓库已提供示例配置：`configs/skoll.yaml`。
+仓库默认配置为 `mysql + memory cache`（见 `configs/skoll.yaml`）。
+
+可直接选择以下组合（你提到的 1/2/3/4）：
+1. `configs/skoll.mysql-memory.yaml`
+2. `configs/skoll.mysql-redis.yaml`
+3. `configs/skoll.postgres-memory.yaml`
+4. `configs/skoll.postgres-redis.yaml`
 
 1. 配置文件模式（推荐本地开发）
 
@@ -47,35 +53,39 @@ $env:SKOLL_CONFIG_FILE="D:/workspace/3rdsrc/tinbox/skoll/configs/skoll.yaml"
 go run ./cmd/skoll
 ```
 
-3. 内存模式（环境变量覆盖配置）
+3. 使用组合 1（mysql + memory cache）
 
 ```powershell
+$env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-memory.yaml"
 go run ./cmd/skoll
 ```
 
-4. MySQL 模式
+4. 使用组合 2（mysql + redis cache）
 
 ```powershell
-$env:SKOLL_STORE_MODE="mysql"
-$env:SKOLL_STORE_DSN="user:pass@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local"
+$env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-redis.yaml"
 go run ./cmd/skoll
 ```
 
-5. PostgreSQL 模式
+5. 使用组合 3（postgres + memory cache）
 
 ```powershell
-$env:SKOLL_STORE_MODE="postgres"
-$env:SKOLL_STORE_DSN="host=127.0.0.1 user=postgres password=postgres dbname=skoll port=5432 sslmode=disable"
+$env:SKOLL_CONFIG_FILE="./configs/skoll.postgres-memory.yaml"
 go run ./cmd/skoll
 ```
 
-6. Redis 事件总线（可选，分布式事件）
+6. 使用组合 4（postgres + redis cache）
 
 ```powershell
-$env:SKOLL_EVENT_MODE="redis"
-$env:SKOLL_EVENT_REDIS_ADDR="127.0.0.1:6379"
-# 可选：默认 skoll.events
-$env:SKOLL_EVENT_CHANNEL_PREFIX="skoll.events"
+$env:SKOLL_CONFIG_FILE="./configs/skoll.postgres-redis.yaml"
+go run ./cmd/skoll
+```
+
+7. 按环境变量覆盖任意组合（例如覆盖 Redis 地址）
+
+```powershell
+$env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-redis.yaml"
+$env:SKOLL_CACHE_REDIS_ADDR="10.0.0.5:6379"
 go run ./cmd/skoll
 ```
 

@@ -32,7 +32,13 @@ The loader checks these config files automatically (in order):
 - `./configs/skoll.yaml`
 - `./configs/skoll.yml`
 
-This repository already includes a starter config: `configs/skoll.yaml`.
+The default profile is `mysql + memory cache` (see `configs/skoll.yaml`).
+
+You can switch between these preset combinations (1/2/3/4):
+1. `configs/skoll.mysql-memory.yaml`
+2. `configs/skoll.mysql-redis.yaml`
+3. `configs/skoll.postgres-memory.yaml`
+4. `configs/skoll.postgres-redis.yaml`
 
 1. Config-file mode (recommended for local development)
 
@@ -47,35 +53,39 @@ $env:SKOLL_CONFIG_FILE="D:/workspace/3rdsrc/tinbox/skoll/configs/skoll.yaml"
 go run ./cmd/skoll
 ```
 
-3. Memory mode (env overrides config)
+3. Use profile 1 (mysql + memory cache)
 
 ```powershell
+$env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-memory.yaml"
 go run ./cmd/skoll
 ```
 
-4. MySQL mode
+4. Use profile 2 (mysql + redis cache)
 
 ```powershell
-$env:SKOLL_STORE_MODE="mysql"
-$env:SKOLL_STORE_DSN="user:pass@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local"
+$env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-redis.yaml"
 go run ./cmd/skoll
 ```
 
-5. PostgreSQL mode
+5. Use profile 3 (postgres + memory cache)
 
 ```powershell
-$env:SKOLL_STORE_MODE="postgres"
-$env:SKOLL_STORE_DSN="host=127.0.0.1 user=postgres password=postgres dbname=skoll port=5432 sslmode=disable"
+$env:SKOLL_CONFIG_FILE="./configs/skoll.postgres-memory.yaml"
 go run ./cmd/skoll
 ```
 
-6. Redis Event Bus (optional, distributed events)
+6. Use profile 4 (postgres + redis cache)
 
 ```powershell
-$env:SKOLL_EVENT_MODE="redis"
-$env:SKOLL_EVENT_REDIS_ADDR="127.0.0.1:6379"
-# Optional: defaults to skoll.events
-$env:SKOLL_EVENT_CHANNEL_PREFIX="skoll.events"
+$env:SKOLL_CONFIG_FILE="./configs/skoll.postgres-redis.yaml"
+go run ./cmd/skoll
+```
+
+7. Override any profile via env (example: override Redis address)
+
+```powershell
+$env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-redis.yaml"
+$env:SKOLL_CACHE_REDIS_ADDR="10.0.0.5:6379"
 go run ./cmd/skoll
 ```
 

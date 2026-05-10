@@ -1,0 +1,25 @@
+# Profile 4: PostgreSQL + Redis Cache
+server:
+  address: ":8080"
+  shutdown_timeout: "10s"
+
+store:
+  mode: "postgres"
+  dsn: "host=127.0.0.1 user=postgres password=postgres dbname=skoll port=5432 sslmode=disable"
+
+cache:
+  mode: "redis"
+  redis_addr: "127.0.0.1:6379"
+  memcached_addr: "127.0.0.1:11211"
+  local_size: 4096
+
+event:
+  mode: "redis"
+  redis_addr: "127.0.0.1:6379"
+  channel_prefix: "skoll.events"
+
+security:
+  jwt_secret: "dev-secret-change-me"
+
+log:
+  level: "info"

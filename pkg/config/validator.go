@@ -22,6 +22,22 @@ func Validate(cfg AppConfig) error {
 	if (cfg.Store.Mode == "mysql" || cfg.Store.Mode == "postgres") && strings.TrimSpace(cfg.Store.DSN) == "" {
 		return errors.New("store dsn is required for sql modes")
 	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Cache.Mode)) {
+	case "", "memory", "local":
+		if cfg.Cache.LocalSize <= 0 {
+			cfg.Cache.LocalSize = 4096
+		}
+	case "redis":
+		if strings.TrimSpace(cfg.Cache.RedisAddr) == "" {
+			return errors.New("cache redis addr is required for redis mode")
+		}
+	case "memcached":
+		if strings.TrimSpace(cfg.Cache.MemcachedAddr) == "" {
+			return errors.New("cache memcached addr is required for memcached mode")
+		}
+	default:
+		return fmt.Errorf("unsupported cache mode: %q", cfg.Cache.Mode)
+	}
 	switch strings.ToLower(strings.TrimSpace(cfg.Event.Mode)) {
 	case "", "memory":
 	case "redis":

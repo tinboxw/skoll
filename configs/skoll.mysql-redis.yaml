@@ -1,0 +1,25 @@
+# Profile 2: MySQL + Redis Cache
+server:
+  address: ":8080"
+  shutdown_timeout: "10s"
+
+store:
+  mode: "mysql"
+  dsn: "root:root@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local"
+
+cache:
+  mode: "redis"
+  redis_addr: "127.0.0.1:6379"
+  memcached_addr: "127.0.0.1:11211"
+  local_size: 4096
+
+event:
+  mode: "redis"
+  redis_addr: "127.0.0.1:6379"
+  channel_prefix: "skoll.events"
+
+security:
+  jwt_secret: "dev-secret-change-me"
+
+log:
+  level: "info"

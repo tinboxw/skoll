@@ -1,33 +1,25 @@
-# Skoll runtime configuration
-# Precedence: SKOLL_* environment variables > this file > built-in defaults.
-
+# Profile 1: MySQL + Memory Cache
 server:
-  # Address format: ":8080" or "127.0.0.1:8080"
   address: ":8080"
   shutdown_timeout: "10s"
 
 store:
-  # memory | mysql | postgres
   mode: "mysql"
   dsn: "root:root@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local"
 
 cache:
-  # memory(local) | redis | memcached
   mode: "memory"
   redis_addr: "127.0.0.1:6379"
   memcached_addr: "127.0.0.1:11211"
   local_size: 4096
 
 event:
-  # memory | redis
   mode: "memory"
   redis_addr: ""
   channel_prefix: "skoll.events"
 
 security:
-  # Change this in non-local environments.
   jwt_secret: "dev-secret-change-me"
 
 log:
-  # debug | info | warn | error
   level: "info"

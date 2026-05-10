@@ -14,6 +14,7 @@ import (
 type AppConfig struct {
 	Server   ServerConfig
 	Store    StoreConfig
+	Cache    CacheConfig
 	Event    EventConfig
 	Security SecurityConfig
 	Log      LogConfig
@@ -27,6 +28,13 @@ type ServerConfig struct {
 type StoreConfig struct {
 	Mode string
 	DSN  string
+}
+
+type CacheConfig struct {
+	Mode          string
+	RedisAddr     string
+	MemcachedAddr string
+	LocalSize     int
 }
 
 type EventConfig struct {
@@ -61,8 +69,12 @@ func Load() (AppConfig, error) {
 
 	v.SetDefault("server.address", ":8080")
 	v.SetDefault("server.shutdown_timeout", "10s")
-	v.SetDefault("store.mode", "memory")
-	v.SetDefault("store.dsn", "")
+	v.SetDefault("store.mode", "mysql")
+	v.SetDefault("store.dsn", "root:root@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local")
+	v.SetDefault("cache.mode", "memory")
+	v.SetDefault("cache.redis_addr", "127.0.0.1:6379")
+	v.SetDefault("cache.memcached_addr", "127.0.0.1:11211")
+	v.SetDefault("cache.local_size", 4096)
 	v.SetDefault("event.mode", "memory")
 	v.SetDefault("event.redis_addr", "")
 	v.SetDefault("event.channel_prefix", "skoll.events")
@@ -102,6 +114,12 @@ func Load() (AppConfig, error) {
 		Store: StoreConfig{
 			Mode: strings.ToLower(strings.TrimSpace(v.GetString("store.mode"))),
 			DSN:  strings.TrimSpace(v.GetString("store.dsn")),
+		},
+		Cache: CacheConfig{
+			Mode:          strings.ToLower(strings.TrimSpace(v.GetString("cache.mode"))),
+			RedisAddr:     strings.TrimSpace(v.GetString("cache.redis_addr")),
+			MemcachedAddr: strings.TrimSpace(v.GetString("cache.memcached_addr")),
+			LocalSize:     v.GetInt("cache.local_size"),
 		},
 		Event: EventConfig{
 			Mode:          strings.ToLower(strings.TrimSpace(v.GetString("event.mode"))),

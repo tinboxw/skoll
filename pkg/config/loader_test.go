@@ -30,11 +30,14 @@ func TestLoad(t *testing.T) {
 	if cfg.Event.ChannelPrefix != "skoll.test.events" {
 		t.Fatalf("unexpected event channel prefix: %s", cfg.Event.ChannelPrefix)
 	}
+	if cfg.Cache.Mode != "memory" {
+		t.Fatalf("unexpected cache mode: %s", cfg.Cache.Mode)
+	}
 }
 
 func TestLoadFromConfigFile(t *testing.T) {
 	configFile := filepath.Join(t.TempDir(), "skoll.yaml")
-	content := []byte("server:\n  address: :7000\nevent:\n  mode: redis\n  redis_addr: 127.0.0.1:6379\n  channel_prefix: skoll.cfg.events\nsecurity:\n  jwt_secret: cfg-secret\n")
+	content := []byte("server:\n  address: :7000\ncache:\n  mode: redis\n  redis_addr: 127.0.0.1:6379\nevent:\n  mode: redis\n  redis_addr: 127.0.0.1:6379\n  channel_prefix: skoll.cfg.events\nsecurity:\n  jwt_secret: cfg-secret\n")
 	if err := os.WriteFile(configFile, content, 0o644); err != nil {
 		t.Fatalf("write config file: %v", err)
 	}
@@ -54,6 +57,9 @@ func TestLoadFromConfigFile(t *testing.T) {
 	if cfg.Event.RedisAddr != "127.0.0.1:6379" {
 		t.Fatalf("unexpected event redis addr: %s", cfg.Event.RedisAddr)
 	}
+	if cfg.Cache.Mode != "redis" {
+		t.Fatalf("unexpected cache mode: %s", cfg.Cache.Mode)
+	}
 }
 
 func TestLoadEnvOverridesConfigFile(t *testing.T) {
@@ -72,6 +78,25 @@ func TestLoadEnvOverridesConfigFile(t *testing.T) {
 	}
 	if cfg.Server.Address != ":7001" {
 		t.Fatalf("env should override config file, got: %s", cfg.Server.Address)
+	}
+}
+
+func TestLoadEnvOverridesCacheModeFromConfigFile(t *testing.T) {
+	configFile := filepath.Join(t.TempDir(), "skoll.yaml")
+	content := []byte("cache:\n  mode: redis\n  redis_addr: 127.0.0.1:6379\nsecurity:\n  jwt_secret: cfg-secret\n")
+	if err := os.WriteFile(configFile, content, 0o644); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	t.Setenv("SKOLL_CONFIG_FILE", configFile)
+	t.Setenv("SKOLL_CACHE_MODE", "memory")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load with env override: %v", err)
+	}
+	if cfg.Cache.Mode != "memory" {
+		t.Fatalf("env should override cache mode, got: %s", cfg.Cache.Mode)
 	}
 }
 
@@ -98,6 +123,7 @@ func TestValidate(t *testing.T) {
 	cfg := AppConfig{
 		Server:   ServerConfig{Address: ":8080", ShutdownTimeout: 1},
 		Store:    StoreConfig{Mode: "memory"},
+		Cache:    CacheConfig{Mode: "memory", LocalSize: 256},
 		Event:    EventConfig{Mode: "memory"},
 		Security: SecurityConfig{JWTSecret: "s"},
 	}
@@ -110,6 +136,7 @@ func TestValidateRedisEventModeRequiresAddr(t *testing.T) {
 	cfg := AppConfig{
 		Server:   ServerConfig{Address: ":8080", ShutdownTimeout: 1},
 		Store:    StoreConfig{Mode: "memory"},
+		Cache:    CacheConfig{Mode: "memory", LocalSize: 256},
 		Event:    EventConfig{Mode: "redis"},
 		Security: SecurityConfig{JWTSecret: "s"},
 	}
