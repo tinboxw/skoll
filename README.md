@@ -13,7 +13,9 @@ Skoll v2 是一个按分层架构重新实现的 Go 框架基线，强调职责�
 
 ## 存储层说明
 
-- `internal/store/sql/gormrepo`：MySQL/PostgreSQL 共享的 GORM 仓储实现与模型映射。
+- `internal/store/sql/gormrepo/model`：MySQL/PostgreSQL 共享模型定义与映射（每表独立文件）。
+- `internal/store/sql/gormrepo/store`：MySQL/PostgreSQL 共享仓储实现（按 user/role/system/rbac 分文件）。
+- `internal/store/sql/gormrepo/stores.go`：根包门面导出，保持上层调用稳定。
 - `internal/store/sql/mysql`：MySQL 方言入口（DSN 解析、连接、迁移、键规范化）。
 - `internal/store/sql/postgres`：PostgreSQL 方言入口（连接、迁移、键规范化）。
 - `internal/store/sql/transaction.go`：SQL 模式下的事务边界实现（`UnitOfWork`）。

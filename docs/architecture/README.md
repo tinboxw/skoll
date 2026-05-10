@@ -5,7 +5,7 @@
 - `internal/bootstrap`: 配置加载、依赖装配、HTTP 服务器生命周期。
 - `internal/domain`: 领域实体与规则。
 - `internal/repository`: 仓储契约。
-- `internal/store`: memory/mysql/postgres/clickhouse 实现（SQL 持久化公共层在 `internal/store/sql/gormrepo`）。
+- `internal/store`: memory/mysql/postgres/clickhouse 实现（SQL 持久化公共层为 `internal/store/sql/gormrepo/model` + `internal/store/sql/gormrepo/store`，并由 `gormrepo/stores.go` 提供稳定门面）。
 - `internal/cache`: local/redis/memcached 缓存实现与工厂。
 - `internal/service`: 业务服务编排与事务管理。
 - `internal/handler`: HTTP v1、CLI、中间件。

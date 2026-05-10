@@ -243,6 +243,11 @@ npm run build
 - `go test ./...`（带 `SKOLL_TEST_MYSQL_DSN`）通过。
 - `go fmt ./...`、`go test ./...`（默认环境）通过。
 
+### 6.9 注意事项（存储层扩展约束）
+
+- `internal/store/sql/gormrepo/model` 必须保持“每个表一个模型文件”，避免回归为单一 `models.go` 聚合文件。
+- 新增/变更 SQL 模型时必须同步更新 `model/all_models.go`，确保 MySQL/PostgreSQL 自动迁移清单一致。
+
 ---
 
 > 说明：本计划是 `docs/refactor.md` 的执行化版本。若里程碑内容变更，必须先更新本计划并通过评审后再执行代码变更。

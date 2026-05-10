@@ -13,7 +13,9 @@ Skoll v2 is a Go framework baseline reimplemented with strict layered architectu
 
 ## Storage Layer Notes
 
-- `internal/store/sql/gormrepo`: shared GORM repositories and model mapping for MySQL/PostgreSQL.
+- `internal/store/sql/gormrepo/model`: shared model definitions and mapping for MySQL/PostgreSQL (one file per table).
+- `internal/store/sql/gormrepo/store`: shared repositories for MySQL/PostgreSQL (split by user/role/system/rbac).
+- `internal/store/sql/gormrepo/stores.go`: root facade exports to keep upper-layer calls stable.
 - `internal/store/sql/mysql`: MySQL dialect entrypoint (DSN parsing, connection, migration, key normalization).
 - `internal/store/sql/postgres`: PostgreSQL dialect entrypoint (connection, migration, key normalization).
 - `internal/store/sql/transaction.go`: SQL-mode transaction boundary (`UnitOfWork`).
