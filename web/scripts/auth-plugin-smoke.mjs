@@ -4,7 +4,7 @@ async function main() {
   const resp = await fetch(`${baseUrl}/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "admin", password: "skoll" })
+    body: JSON.stringify({ account: "admin", password: "admin" })
   });
 
   if (!resp.ok) {

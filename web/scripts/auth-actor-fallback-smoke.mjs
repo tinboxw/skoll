@@ -4,7 +4,7 @@ async function login() {
   const resp = await fetch(`${baseUrl}/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: "admin", password: "skoll" })
+    body: JSON.stringify({ account: "admin", password: "admin" })
   });
   if (!resp.ok) {
     throw new Error(`auth login failed with status ${resp.status}`);
@@ -20,11 +20,11 @@ async function login() {
 async function createUser(token) {
   const suffix = `${Date.now()}`;
   const body = {
-    username: `smoke_${suffix}`,
-    displayName: `Smoke ${suffix}`,
+    account: `smoke_${suffix}`,
+    name: `Smoke ${suffix}`,
     email: `smoke_${suffix}@example.com`,
     passwordHash: "smoke-password-hash-12345",
-    actorId: "smoke-seed"
+    actorID: "smoke-seed"
   };
 
   const resp = await fetch(`${baseUrl}/v1/users`, {
