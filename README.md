@@ -22,13 +22,38 @@ Skoll v2 是一个按分层架构重新实现的 Go 框架基线，强调职责�
 
 ## 快速启动
 
-1. 内存模式（默认）
+默认读取优先级：`SKOLL_* 环境变量 > 配置文件 > 内置默认值`。
+
+默认会自动查找以下配置文件（按顺序）：
+- `./skoll.yaml`
+- `./skoll.yml`
+- `./config/skoll.yaml`
+- `./config/skoll.yml`
+- `./configs/skoll.yaml`
+- `./configs/skoll.yml`
+
+仓库已提供示例配置：`configs/skoll.yaml`。
+
+1. 配置文件模式（推荐本地开发）
 
 ```powershell
 go run ./cmd/skoll
 ```
 
-2. MySQL 模式
+2. 指定配置文件路径
+
+```powershell
+$env:SKOLL_CONFIG_FILE="D:/workspace/3rdsrc/tinbox/skoll/configs/skoll.yaml"
+go run ./cmd/skoll
+```
+
+3. 内存模式（环境变量覆盖配置）
+
+```powershell
+go run ./cmd/skoll
+```
+
+4. MySQL 模式
 
 ```powershell
 $env:SKOLL_STORE_MODE="mysql"
@@ -36,7 +61,7 @@ $env:SKOLL_STORE_DSN="user:pass@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseT
 go run ./cmd/skoll
 ```
 
-3. PostgreSQL 模式
+5. PostgreSQL 模式
 
 ```powershell
 $env:SKOLL_STORE_MODE="postgres"
@@ -44,7 +69,7 @@ $env:SKOLL_STORE_DSN="host=127.0.0.1 user=postgres password=postgres dbname=skol
 go run ./cmd/skoll
 ```
 
-4. Redis 事件总线（可选，分布式事件）
+6. Redis 事件总线（可选，分布式事件）
 
 ```powershell
 $env:SKOLL_EVENT_MODE="redis"

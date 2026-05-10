@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -42,7 +43,16 @@ type LogConfig struct {
 	Level string
 }
 
-// Load loads configuration via Viper using SKOLL_* environment variables.
+var defaultConfigCandidates = []string{
+	"skoll.yaml",
+	"skoll.yml",
+	"config/skoll.yaml",
+	"config/skoll.yml",
+	"configs/skoll.yaml",
+	"configs/skoll.yml",
+}
+
+// Load loads configuration with precedence: environment variables > config file > defaults.
 func Load() (AppConfig, error) {
 	v := viper.New()
 	v.SetEnvPrefix("SKOLL")
@@ -59,6 +69,10 @@ func Load() (AppConfig, error) {
 	v.SetDefault("security.jwt_secret", "dev-secret-change-me")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("server.port", "")
+
+	if err := loadConfigFile(v); err != nil {
+		return AppConfig{}, err
+	}
 
 	shutdownRaw := strings.TrimSpace(v.GetString("server.shutdown_timeout"))
 	shutdownTimeout, err := time.ParseDuration(shutdownRaw)
@@ -101,4 +115,27 @@ func Load() (AppConfig, error) {
 			Level: strings.ToLower(strings.TrimSpace(v.GetString("log.level"))),
 		},
 	}, nil
+}
+
+func loadConfigFile(v *viper.Viper) error {
+	configFile := strings.TrimSpace(v.GetString("config.file"))
+	if configFile != "" {
+		v.SetConfigFile(configFile)
+		if err := v.ReadInConfig(); err != nil {
+			return fmt.Errorf("read config file %q: %w", configFile, err)
+		}
+		return nil
+	}
+
+	for _, candidate := range defaultConfigCandidates {
+		if _, err := os.Stat(candidate); err == nil {
+			v.SetConfigFile(candidate)
+			if readErr := v.ReadInConfig(); readErr != nil {
+				return fmt.Errorf("read config file %q: %w", candidate, readErr)
+			}
+			return nil
+		}
+	}
+
+	return nil
 }

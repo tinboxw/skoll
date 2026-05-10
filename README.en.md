@@ -22,13 +22,38 @@ Skoll v2 is a Go framework baseline reimplemented with strict layered architectu
 
 ## Quick Start
 
-1. Memory mode (default)
+Default load precedence: `SKOLL_* environment variables > config file > built-in defaults`.
+
+The loader checks these config files automatically (in order):
+- `./skoll.yaml`
+- `./skoll.yml`
+- `./config/skoll.yaml`
+- `./config/skoll.yml`
+- `./configs/skoll.yaml`
+- `./configs/skoll.yml`
+
+This repository already includes a starter config: `configs/skoll.yaml`.
+
+1. Config-file mode (recommended for local development)
 
 ```powershell
 go run ./cmd/skoll
 ```
 
-2. MySQL mode
+2. Specify a config file path
+
+```powershell
+$env:SKOLL_CONFIG_FILE="D:/workspace/3rdsrc/tinbox/skoll/configs/skoll.yaml"
+go run ./cmd/skoll
+```
+
+3. Memory mode (env overrides config)
+
+```powershell
+go run ./cmd/skoll
+```
+
+4. MySQL mode
 
 ```powershell
 $env:SKOLL_STORE_MODE="mysql"
@@ -36,7 +61,7 @@ $env:SKOLL_STORE_DSN="user:pass@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseT
 go run ./cmd/skoll
 ```
 
-3. PostgreSQL mode
+5. PostgreSQL mode
 
 ```powershell
 $env:SKOLL_STORE_MODE="postgres"
@@ -44,7 +69,7 @@ $env:SKOLL_STORE_DSN="host=127.0.0.1 user=postgres password=postgres dbname=skol
 go run ./cmd/skoll
 ```
 
-4. Redis Event Bus (optional, distributed events)
+6. Redis Event Bus (optional, distributed events)
 
 ```powershell
 $env:SKOLL_EVENT_MODE="redis"
