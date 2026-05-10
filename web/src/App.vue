@@ -23,18 +23,19 @@ const isLoginRoute = computed(() => route.path === "/login");
 type SidebarItem = {
 	label: string;
 	to: string;
+	icon: string;
 	requiredRoles?: string[];
 	requiredPermissions?: string[];
 };
 
 const sidebarItems = computed(() => {
 	const allItems: SidebarItem[] = [
-		{ label: t("menu.dashboard"), to: "/dashboard" },
-		{ label: t("menu.users"), to: "/user" },
-		{ label: t("menu.roles"), to: "/role" },
-		{ label: t("menu.permissions"), to: "/permission", requiredPermissions: ["permission.manage"] },
-		{ label: t("menu.plugins"), to: "/plugin" },
-		{ label: t("menu.settings"), to: "/setting", requiredPermissions: ["role.manage"] }
+		{ label: t("menu.dashboard"), to: "/dashboard", icon: "dashboard" },
+		{ label: t("menu.users"), to: "/user", icon: "users" },
+		{ label: t("menu.roles"), to: "/role", icon: "roles" },
+		{ label: t("menu.permissions"), to: "/permission", icon: "permissions", requiredPermissions: ["permission.manage"] },
+		{ label: t("menu.plugins"), to: "/plugin", icon: "plugins" },
+		{ label: t("menu.settings"), to: "/setting", icon: "settings", requiredPermissions: ["role.manage"] }
 	];
 
 	const currentRole = userStore.profile?.role ?? "";

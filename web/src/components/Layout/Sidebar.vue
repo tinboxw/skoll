@@ -1,8 +1,19 @@
 ﻿<script setup lang="ts">
+import { LayoutDashboard, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
+
 defineProps<{
 	collapsed: boolean;
-	items: Array<{ label: string; to: string }>;
+	items: Array<{ label: string; to: string; icon: string }>;
 }>();
+
+const iconMap = {
+	dashboard: LayoutDashboard,
+	users: Users,
+	roles: UserRoundCog,
+	permissions: ShieldCheck,
+	plugins: Puzzle,
+	settings: Settings2
+} as const;
 </script>
 
 <template>
@@ -16,7 +27,8 @@ defineProps<{
 				class="link"
 				active-class="active"
 			>
-				{{ collapsed ? item.label.slice(0, 1) : item.label }}
+				<component :is="iconMap[item.icon as keyof typeof iconMap]" class="icon" :stroke-width="1.8" aria-hidden="true" />
+				<span v-if="!collapsed">{{ item.label }}</span>
 			</RouterLink>
 		</nav>
 	</aside>
@@ -51,11 +63,20 @@ nav {
 }
 
 .link {
+	display: flex;
+	align-items: center;
+	gap: 10px;
 	padding: 8px 10px;
 	border-radius: 8px;
 	text-decoration: none;
 	color: var(--color-sidebar-link);
 	font-size: 0.95rem;
+}
+
+.icon {
+	width: 16px;
+	height: 16px;
+	flex-shrink: 0;
 }
 
 .link.active,
@@ -66,6 +87,11 @@ nav {
 
 .collapsed {
 	width: 72px;
+}
+
+.collapsed .link {
+	justify-content: center;
+	padding: 8px;
 }
 
 @media (max-width: 860px) {
