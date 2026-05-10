@@ -44,6 +44,16 @@ $env:SKOLL_STORE_DSN="host=127.0.0.1 user=postgres password=postgres dbname=skol
 go run ./cmd/skoll
 ```
 
+4. Redis 事件总线（可选，分布式事件）
+
+```powershell
+$env:SKOLL_EVENT_MODE="redis"
+$env:SKOLL_EVENT_REDIS_ADDR="127.0.0.1:6379"
+# 可选：默认 skoll.events
+$env:SKOLL_EVENT_CHANNEL_PREFIX="skoll.events"
+go run ./cmd/skoll
+```
+
 ## 测试
 
 ```powershell

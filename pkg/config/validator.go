@@ -22,6 +22,15 @@ func Validate(cfg AppConfig) error {
 	if (cfg.Store.Mode == "mysql" || cfg.Store.Mode == "postgres") && strings.TrimSpace(cfg.Store.DSN) == "" {
 		return errors.New("store dsn is required for sql modes")
 	}
+	switch strings.ToLower(strings.TrimSpace(cfg.Event.Mode)) {
+	case "", "memory":
+	case "redis":
+		if strings.TrimSpace(cfg.Event.RedisAddr) == "" {
+			return errors.New("event redis addr is required for redis mode")
+		}
+	default:
+		return fmt.Errorf("unsupported event mode: %q", cfg.Event.Mode)
+	}
 	if strings.TrimSpace(cfg.Security.JWTSecret) == "" {
 		return errors.New("jwt secret is required")
 	}

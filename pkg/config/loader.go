@@ -13,6 +13,7 @@ import (
 type AppConfig struct {
 	Server   ServerConfig
 	Store    StoreConfig
+	Event    EventConfig
 	Security SecurityConfig
 	Log      LogConfig
 }
@@ -25,6 +26,12 @@ type ServerConfig struct {
 type StoreConfig struct {
 	Mode string
 	DSN  string
+}
+
+type EventConfig struct {
+	Mode          string
+	RedisAddr     string
+	ChannelPrefix string
 }
 
 type SecurityConfig struct {
@@ -46,6 +53,9 @@ func Load() (AppConfig, error) {
 	v.SetDefault("server.shutdown_timeout", "10s")
 	v.SetDefault("store.mode", "memory")
 	v.SetDefault("store.dsn", "")
+	v.SetDefault("event.mode", "memory")
+	v.SetDefault("event.redis_addr", "")
+	v.SetDefault("event.channel_prefix", "skoll.events")
 	v.SetDefault("security.jwt_secret", "dev-secret-change-me")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("server.port", "")
@@ -78,6 +88,11 @@ func Load() (AppConfig, error) {
 		Store: StoreConfig{
 			Mode: strings.ToLower(strings.TrimSpace(v.GetString("store.mode"))),
 			DSN:  strings.TrimSpace(v.GetString("store.dsn")),
+		},
+		Event: EventConfig{
+			Mode:          strings.ToLower(strings.TrimSpace(v.GetString("event.mode"))),
+			RedisAddr:     strings.TrimSpace(v.GetString("event.redis_addr")),
+			ChannelPrefix: strings.TrimSpace(v.GetString("event.channel_prefix")),
 		},
 		Security: SecurityConfig{
 			JWTSecret: strings.TrimSpace(v.GetString("security.jwt_secret")),

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/tinboxw/skoll/internal/event"
-	events2 "github.com/tinboxw/skoll/internal/event/events"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/handler/middleware"
 	"github.com/tinboxw/skoll/internal/plugin"
@@ -29,6 +28,7 @@ import (
 	"github.com/tinboxw/skoll/internal/service/system"
 	"github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/internal/store"
+	"github.com/tinboxw/skoll/pkg/config"
 	"github.com/tinboxw/skoll/pkg/logging"
 	"github.com/tinboxw/skoll/pkg/security"
 )
@@ -52,11 +52,12 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 
 	auditService := audit.NewService(bundle.Audit)
-	bus := event.NewInMemoryBus()
+	bus, err := buildEventBus(cfg.AppConfig.Event)
+	if err != nil {
+		return nil, err
+	}
 	_ = event.NewPublisher(bus)
 	_ = event.NewSubscriber(bus)
-	_ = bus.Publish
-	_ = events2.UserCreatedEventName
 	userService := user.NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
 	roleService := role.NewService(bundle.Roles)
 	rbacService := rbac.NewService(bundle.RBAC)
@@ -90,6 +91,18 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	ensureBuiltinAuthData(context.Background(), logger, bundle.Users, bundle.Roles, bundle.RBAC)
 
 	return &dependencies{logger: logger, handler: h, server: server}, nil
+}
+
+func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
+	mode := strings.ToLower(strings.TrimSpace(cfg.Mode))
+	switch mode {
+	case "", "memory":
+		return event.NewInMemoryBus(), nil
+	case "redis":
+		return event.NewRedisBus(cfg.RedisAddr, cfg.ChannelPrefix)
+	default:
+		return nil, fmt.Errorf("unsupported event mode: %q", cfg.Mode)
+	}
 }
 
 func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo repository.UserRepository, rolesRepo repository.RoleRepository, rbacRepo repository.RBACRepository, pluginsRepo repository.PluginRepository) plugin.Manager {
