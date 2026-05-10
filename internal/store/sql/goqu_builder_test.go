@@ -13,6 +13,9 @@ func TestBuildSelectByLower(t *testing.T) {
 	if !strings.Contains(strings.ToLower(query), "from") || !strings.Contains(strings.ToLower(query), "where") {
 		t.Fatalf("unexpected query: %s", query)
 	}
+	if strings.Contains(query, `"sk_users"`) || strings.Contains(query, `"account"`) {
+		t.Fatalf("mysql query should not use double-quoted identifiers: %s", query)
+	}
 	if len(args) < 1 || args[0] != "alice" {
 		t.Fatalf("unexpected args: %+v", args)
 	}

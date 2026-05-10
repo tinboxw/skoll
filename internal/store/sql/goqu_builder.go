@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/doug-martin/goqu/v9"
+	_ "github.com/doug-martin/goqu/v9/dialect/mysql"
+	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 )
 
 func BuildSelectByLower(dialect, table, column, value string, limit uint) (string, []any, error) {
