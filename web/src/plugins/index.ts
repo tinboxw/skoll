@@ -9,8 +9,13 @@ type PluginStore = ReturnType<typeof usePluginStore>;
 
 const builtinPlugins: FrontendPlugin[] = [builtinAuthPlugin];
 let latestPluginSyncTask: Promise<void> = Promise.resolve();
+let markInitialBootstrapDone: (() => void) | null = null;
+const initialBootstrapTask = new Promise<void>((resolve) => {
+	markInitialBootstrapDone = resolve;
+});
 
 export async function waitForPluginBootstrap(): Promise<void> {
+	await initialBootstrapTask;
 	await latestPluginSyncTask;
 }
 
@@ -19,15 +24,20 @@ export async function bootstrapPlugins(
 	store: PluginStore,
 	fetcher: typeof fetch = fetch
 ): Promise<void> {
-	for (const plugin of builtinPlugins) {
-		registerPlugin(plugin.manifest, router, store);
-		plugin.setup({
-			router,
-			registerRoute: (route: RouteRecordRaw) => addRouteIfMissing(route, router)
-		});
-	}
+	try {
+		for (const plugin of builtinPlugins) {
+			registerPlugin(plugin.manifest, router, store);
+			plugin.setup({
+				router,
+				registerRoute: (route: RouteRecordRaw) => addRouteIfMissing(route, router)
+			});
+		}
 
-	await syncBackendPlugins(router, store, fetcher);
+		await syncBackendPlugins(router, store, fetcher);
+	} finally {
+		markInitialBootstrapDone?.();
+		markInitialBootstrapDone = null;
+	}
 }
 
 export async function syncBackendPlugins(

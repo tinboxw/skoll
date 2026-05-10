@@ -1,5 +1,6 @@
 ﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
+import { waitForPluginBootstrap } from "../plugins";
 import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath } from "../stores/plugins";
 import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
@@ -25,7 +26,7 @@ const routes: RouteRecordRaw[] = [
 	},
 	{
 		path: "/",
-		redirect: () => getDefaultHomePath("/dashboard")
+		redirect: () => resolveSafeDefaultHomePath()
 	},
 	{
 		path: "/dashboard",
@@ -108,7 +109,22 @@ function resolveSafeDefaultHomePath(): string {
 	return fallback;
 }
 
-router.beforeEach((to) => {
+async function resolveSafeTargetPath(path: string): Promise<string> {
+	if (!path.startsWith("/plugins/")) {
+		return path;
+	}
+	await waitForPluginBootstrap();
+	if (router.resolve(path).matched.length > 0) {
+		return path;
+	}
+	const fallback = getSystemDefaultHomePath();
+	if (getDefaultHomePath(fallback) === path) {
+		clearDefaultHomePath();
+	}
+	return fallback;
+}
+
+router.beforeEach(async (to) => {
 	const token = getToken().trim();
 	const isPublic = to.meta.public === true || to.path.startsWith("/plugins/auth");
 
@@ -123,7 +139,14 @@ router.beforeEach((to) => {
 		const redirect = typeof to.query.redirect === "string" && to.query.redirect.trim() !== ""
 			? to.query.redirect
 			: resolveSafeDefaultHomePath();
-		return redirect;
+		return await resolveSafeTargetPath(redirect);
+	}
+
+	if (to.path.startsWith("/plugins/")) {
+		const safePath = await resolveSafeTargetPath(to.path);
+		if (safePath !== to.path) {
+			return safePath;
+		}
 	}
 
 	const requiredRoles = Array.isArray(to.meta.roles) ? to.meta.roles : null;
