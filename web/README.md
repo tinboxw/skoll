@@ -28,8 +28,9 @@
 ### Smoke 脚本
 - `npm run smoke:health`：检查 `/health`。
 - `npm run smoke:auth`：检查登录与受保护接口。
+- `npm run smoke:plugins`：检查插件列表、详情与 404 回退行为。
 - `npm run smoke:auth-actor`：检查 actorId 回退链路。
-- `npm run smoke:all`：顺序执行 health + auth + auth-actor。
+- `npm run smoke:all`：顺序执行 health + auth + plugins + auth-actor。
 
 ### 常用联调命令
 ```powershell

@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 
 import type { Locale } from "../../i18n";
 import { useI18n } from "../../i18n";
@@ -7,11 +7,14 @@ import { useI18n } from "../../i18n";
 const props = defineProps<{
 	title: string;
 	subtitle: string;
+	userName: string;
+	userAvatarUrl: string;
 	pluginCount: number;
 	synced: boolean;
 	error: string | null;
 	locale: Locale;
 	setLocale: (value: Locale) => void;
+	onOpenProfile: () => void | Promise<void>;
 	onLogout: () => void | Promise<void>;
 }>();
 
@@ -20,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const menuOpen = ref(false);
 
 const syncLabel = computed(() => {
 	if (props.error) {
@@ -44,6 +48,28 @@ const syncDetail = computed(() => {
 	}
 	return "";
 });
+
+const avatarFallback = computed(() => {
+	const source = props.userName.trim();
+	if (source === "") {
+		return "U";
+	}
+	return source.slice(0, 1).toUpperCase();
+});
+
+function toggleMenu(): void {
+	menuOpen.value = !menuOpen.value;
+}
+
+async function openProfile(): Promise<void> {
+	menuOpen.value = false;
+	await props.onOpenProfile();
+}
+
+async function logout(): Promise<void> {
+	menuOpen.value = false;
+	await props.onLogout();
+}
 </script>
 
 <template>
@@ -77,7 +103,17 @@ const syncDetail = computed(() => {
 					{{ t("locale.en-US") }}
 				</button>
 			</div>
-			<button type="button" class="secondary" @click="onLogout">{{ t("header.logout") }}</button>
+			<div class="user-menu">
+				<button type="button" class="avatar-btn" @click="toggleMenu">
+					<img v-if="userAvatarUrl" :src="userAvatarUrl" :alt="userName" class="avatar-img" />
+					<span v-else class="avatar-text">{{ avatarFallback }}</span>
+				</button>
+				<div v-if="menuOpen" class="menu-panel">
+					<p class="menu-user">{{ userName }}</p>
+					<button type="button" class="menu-item" @click="openProfile">{{ t("header.profile") }}</button>
+					<button type="button" class="menu-item danger" @click="logout">{{ t("header.logout") }}</button>
+				</div>
+			</div>
 			<button type="button" @click="emit('toggle-sidebar')">{{ t("header.toggleMenu") }}</button>
 		</div>
 	</header>
@@ -112,6 +148,71 @@ p {
 	display: flex;
 	align-items: center;
 	gap: 10px;
+}
+
+.user-menu {
+	position: relative;
+}
+
+.avatar-btn {
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	border-radius: 999px;
+	border: 1px solid var(--color-border-strong);
+	background: var(--color-surface);
+	overflow: hidden;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.avatar-img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.avatar-text {
+	font-size: 0.8rem;
+	font-weight: 700;
+	color: var(--color-text);
+}
+
+.menu-panel {
+	position: absolute;
+	top: 40px;
+	right: 0;
+	min-width: 170px;
+	background: var(--color-surface);
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	box-shadow: 0 12px 24px -16px var(--color-shadow);
+	padding: 8px;
+	display: grid;
+	gap: 6px;
+	z-index: 10;
+}
+
+.menu-user {
+	margin: 0;
+	padding: 4px 6px;
+	font-size: 0.78rem;
+	color: var(--color-text-muted);
+}
+
+.menu-item {
+	background: var(--color-surface-soft);
+	border: 1px solid var(--color-border);
+	color: var(--color-text);
+	padding: 7px 8px;
+	border-radius: var(--radius-sm);
+	text-align: left;
+	font-size: 0.82rem;
+}
+
+.menu-item.danger {
+	color: var(--color-danger);
 }
 
 .chips {

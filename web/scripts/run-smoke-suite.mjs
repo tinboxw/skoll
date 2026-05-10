@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-const scripts = ["smoke:health", "smoke:auth", "smoke:auth-actor"];
+const scripts = ["smoke:health", "smoke:auth", "smoke:plugins", "smoke:auth-actor"];
 
 function runScript(name) {
   return new Promise((resolve, reject) => {

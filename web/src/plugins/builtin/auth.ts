@@ -12,7 +12,7 @@ type SessionMeta = {
   tokenType: string;
   expiresIn: number;
   permissions: string[];
-  username: string;
+  account: string;
 };
 
 const AuthPage = defineComponent({
@@ -20,7 +20,7 @@ const AuthPage = defineComponent({
   setup() {
     const { t } = useI18n();
     const userStore = useUserStore();
-    const username = ref("admin");
+    const account = ref("admin");
     const password = ref("skoll");
     const loading = ref(false);
     const error = ref("");
@@ -28,7 +28,7 @@ const AuthPage = defineComponent({
     const copyState = ref<"idle" | "ok" | "fail">("idle");
 
     const isAuthenticated = computed(() => userStore.isAuthenticated);
-    const profileName = computed(() => sessionMeta.value?.username || userStore.profile?.name || "-");
+    const profileName = computed(() => sessionMeta.value?.account || userStore.profile?.name || "-");
     const profileRole = computed(() => userStore.profile?.role ?? "-");
     const maskedToken = computed(() => maskToken(userStore.token));
     const tokenPrefix = computed(() => extractTokenPrefix(maskedToken.value));
@@ -39,7 +39,10 @@ const AuthPage = defineComponent({
       expiresIn?: number;
       permissions?: string[];
       user?: {
-        username?: string;
+        id?: string;
+        account?: string;
+        name?: string;
+        email?: string;
         role?: string;
       };
     };
@@ -54,24 +57,26 @@ const AuthPage = defineComponent({
       loading.value = true;
       try {
         const payload = await apiPost<ApiResponse<LoginPayload>>("/v1/auth/login", {
-          username: username.value,
+          account: account.value,
           password: password.value
         });
         const token = payload.data?.token?.trim() ?? "";
         if (token === "") {
           throw new Error("missing token in login response");
         }
-        const profileName = payload.data?.user?.username?.trim() || username.value.trim() || "admin";
+        const profileName = payload.data?.user?.name?.trim() || payload.data?.user?.account?.trim() || account.value.trim() || "admin";
         userStore.setSession(token, {
-          id: profileName,
+          id: payload.data?.user?.id?.trim() || profileName,
           name: profileName,
-          role: payload.data?.user?.role?.trim() || "super_admin"
+          role: payload.data?.user?.role?.trim() || "user",
+          email: payload.data?.user?.email?.trim() || ""
         }, Array.isArray(payload.data?.permissions) ? payload.data.permissions : []);
+        await userStore.hydrateProfile();
         sessionMeta.value = {
           tokenType: payload.data?.tokenType?.trim() || "Bearer",
           expiresIn: typeof payload.data?.expiresIn === "number" ? payload.data.expiresIn : 0,
           permissions: Array.isArray(payload.data?.permissions) ? payload.data.permissions : [],
-          username: profileName
+          account: profileName
         };
         saveSessionMeta(sessionMeta.value);
         copyState.value = "idle";
@@ -116,14 +121,14 @@ const AuthPage = defineComponent({
         error.value ? h("p", { class: "error" }, error.value) : null,
         h("div", { class: "panel" }, [
           h("label", { class: "field" }, [
-            h("span", t("plugin.auth.username")),
+            h("span", t("plugin.auth.account")),
             h("input", {
-              value: username.value,
+              value: account.value,
               onInput: (e: Event) => {
-                username.value = (e.target as HTMLInputElement).value;
+                account.value = (e.target as HTMLInputElement).value;
               },
               disabled: loading.value,
-              placeholder: t("plugin.auth.usernamePlaceholder")
+              placeholder: t("plugin.auth.accountPlaceholder")
             })
           ]),
           h("label", { class: "field" }, [
@@ -237,7 +242,7 @@ function loadSessionMeta(): SessionMeta | null {
       tokenType: typeof parsed.tokenType === "string" && parsed.tokenType.trim() ? parsed.tokenType.trim() : "Bearer",
       expiresIn: typeof parsed.expiresIn === "number" ? parsed.expiresIn : 0,
       permissions: Array.isArray(parsed.permissions) ? parsed.permissions.filter((v): v is string => typeof v === "string") : [],
-      username: typeof parsed.username === "string" && parsed.username.trim() ? parsed.username.trim() : "Admin"
+      account: typeof parsed.account === "string" && parsed.account.trim() ? parsed.account.trim() : "Admin"
     };
   } catch {
     return null;

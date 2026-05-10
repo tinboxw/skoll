@@ -9,13 +9,15 @@
 		"preview": "vite preview",
 		"smoke:health": "node scripts/health-smoke.mjs",
 		"smoke:auth": "node scripts/auth-plugin-smoke.mjs",
+		"smoke:plugins": "node scripts/plugin-sync-smoke.mjs",
 		"smoke:auth-actor": "node scripts/auth-actor-fallback-smoke.mjs",
 		"smoke:all": "node scripts/run-smoke-suite.mjs"
 	},
 	"dependencies": {
 		"pinia": "^2.1.7",
 		"vue": "^3.4.38",
-		"vue-router": "^4.4.3"
+		"vue-router": "^4.4.3",
+		"xlsx": "^0.18.5"
 	},
 	"devDependencies": {
 		"@vitejs/plugin-vue": "^1.10.2",

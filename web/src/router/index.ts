@@ -7,10 +7,12 @@ import DashboardPage from "../views/Dashboard/index.vue";
 import LoginPage from "../views/Login/index.vue";
 import PermissionPage from "../views/Permission/index.vue";
 import PluginPage from "../views/Plugin/index.vue";
+import ProfilePage from "../views/Profile/index.vue";
 import RoleEditPage from "../views/Role/edit.vue";
 import RoleListPage from "../views/Role/list.vue";
 import SettingPage from "../views/Setting/index.vue";
 import UserAddPage from "../views/User/add.vue";
+import UserBatchPage from "../views/User/batch.vue";
 import UserEditPage from "../views/User/edit.vue";
 import UserListPage from "../views/User/list.vue";
 
@@ -46,9 +48,19 @@ const routes: RouteRecordRaw[] = [
 		component: UserAddPage
 	},
 	{
+		path: "/user/batch-add",
+		name: "user-batch-add",
+		component: UserBatchPage
+	},
+	{
 		path: "/user/:id/edit",
 		name: "user-edit",
 		component: UserEditPage
+	},
+	{
+		path: "/profile",
+		name: "profile",
+		component: ProfilePage
 	},
 	{
 		path: "/role",

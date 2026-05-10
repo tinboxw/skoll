@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import HeaderBar from "./components/Layout/Header.vue";
 import MainContent from "./components/Layout/MainContent.vue";
@@ -8,6 +8,7 @@ import { useI18n } from "./i18n";
 import { useAppStore } from "./stores/app";
 import { usePluginStore } from "./stores/plugins";
 import { useUserStore } from "./stores/user";
+import { apiPost } from "./utils/api";
 
 const appStore = useAppStore();
 const pluginStore = usePluginStore();
@@ -54,9 +55,24 @@ const sidebarItems = computed(() => {
 });
 
 async function handleLogout(): Promise<void> {
+	try {
+		await apiPost("/v1/auth/logout");
+	} catch {
+		// Ignore API errors and clear local session regardless.
+	}
 	userStore.logout();
 	await router.replace("/login");
 }
+
+async function handleOpenProfile(): Promise<void> {
+	await router.push("/profile");
+}
+
+onMounted(() => {
+	if (userStore.isAuthenticated) {
+		void userStore.hydrateProfile();
+	}
+});
 </script>
 
 <template>
@@ -69,12 +85,15 @@ async function handleLogout(): Promise<void> {
 			<HeaderBar
 				:title="t('app.title')"
 				:subtitle="t('app.subtitle')"
+				:user-name="userStore.profile?.name || 'User'"
+				:user-avatar-url="userStore.profile?.avatarUrl || ''"
 				:plugin-count="pluginCount"
 				:synced="pluginStore.syncedFromServer"
 				:error="pluginStore.lastSyncError"
 				:locale="locale"
 				:set-locale="setLocale"
 				:on-logout="handleLogout"
+				:on-open-profile="handleOpenProfile"
 				@toggle-sidebar="appStore.toggleSidebar"
 			/>
 			<MainContent>

@@ -32,6 +32,7 @@ const rows = ref<BatchUserRow[]>([{ id: crypto.randomUUID(), account: "", name: 
 const importing = ref(false);
 const error = ref("");
 const results = ref<ImportResult[]>([]);
+const atomic = ref(false);
 
 function resolveReturnTo(): string {
 	const value = route.query.returnTo;
@@ -95,7 +96,7 @@ async function submitBatch(): Promise<void> {
 
 		if (validItems.length > 0) {
 			try {
-				const payload = await apiPost<ApiResponse<BatchCreatePayload>>("/v1/users/batch", { items: validItems });
+				const payload = await apiPost<ApiResponse<BatchCreatePayload>>("/v1/users/batch", { items: validItems, atomic: atomic.value });
 				const remoteResults = Array.isArray(payload.data?.results) ? payload.data.results : [];
 				nextResults.push(...remoteResults.map((item) => ({
 					account: String(item.account ?? "-"),
@@ -149,7 +150,7 @@ async function importExcel(event: Event): Promise<void> {
 				password: String(kv.get("password") ?? kv.get("密码") ?? "").trim()
 			};
 		});
-			rows.value = parsed.length > 0 ? parsed : [{ id: crypto.randomUUID(), account: "", name: "", email: "", password: "" }];
+		rows.value = parsed.length > 0 ? parsed : [{ id: crypto.randomUUID(), account: "", name: "", email: "", password: "" }];
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -161,62 +162,74 @@ async function importExcel(event: Event): Promise<void> {
 <template>
 	<section>
 		<h2>{{ t("page.userBatch") }}</h2>
-		<p>{{ t("batchUser.desc") }}</p>
-		<div class="toolbar toolbar-top">
-			<button type="button" :disabled="importing" @click="backToList">{{ t("common.backToList") }}</button>
-		</div>
-		<p v-if="error" class="error">{{ error }}</p>
-		<div class="toolbar">
-			<button type="button" :disabled="importing" @click="addRow">{{ t("batchUser.addRow") }}</button>
-			<label class="upload-btn">
-				<span>{{ t("batchUser.importExcel") }}</span>
-				<input type="file" accept=".xlsx,.xls" @change="importExcel" />
-			</label>
-			<button type="button" :disabled="importing" @click="submitBatch">{{ importing ? t("common.loading") : t("batchUser.submit") }}</button>
-		</div>
+		<section class="create-panel">
+			<h3>{{ t("batchUser.submit") }}</h3>
+			<p>{{ t("batchUser.desc") }}</p>
+			<p v-if="error" class="error">{{ error }}</p>
+			<div class="toolbar">
+				<button type="button" :disabled="importing" @click="addRow">{{ t("batchUser.addRow") }}</button>
+				<label class="upload-btn">
+					<span>{{ t("batchUser.importExcel") }}</span>
+					<input type="file" accept=".xlsx,.xls" @change="importExcel" />
+				</label>
+				<label class="atomic-flag">
+					<input v-model="atomic" type="checkbox" :disabled="importing" />
+					<span>{{ t("batchUser.atomic") }}</span>
+				</label>
+				<button type="button" :disabled="importing" @click="submitBatch">{{ importing ? t("common.loading") : t("batchUser.submit") }}</button>
+				<button type="button" :disabled="importing" @click="backToList">{{ t("common.backToList") }}</button>
+			</div>
 
-		<table>
-			<thead>
-				<tr>
-					<th>{{ t("user.account") }}</th>
-					<th>{{ t("table.name") }}</th>
-					<th>{{ t("table.email") }}</th>
-					<th>{{ t("profile.newPassword") }}</th>
-					<th>{{ t("table.actions") }}</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr v-for="item in rows" :key="item.id">
-					<td><input v-model="item.account" type="text" :disabled="importing" /></td>
-					<td><input v-model="item.name" type="text" :disabled="importing" /></td>
-					<td><input v-model="item.email" type="email" :disabled="importing" /></td>
-					<td><input v-model="item.password" type="text" :disabled="importing" /></td>
-					<td><button type="button" :disabled="importing || rows.length <= 1" @click="removeRow(item.id)">{{ t("common.delete") }}</button></td>
-				</tr>
-			</tbody>
-		</table>
+			<table>
+				<thead>
+					<tr>
+						<th>{{ t("user.account") }}</th>
+						<th>{{ t("table.name") }}</th>
+						<th>{{ t("table.email") }}</th>
+						<th>{{ t("profile.newPassword") }}</th>
+						<th>{{ t("table.actions") }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="item in rows" :key="item.id">
+						<td><input v-model="item.account" type="text" :disabled="importing" /></td>
+						<td><input v-model="item.name" type="text" :disabled="importing" /></td>
+						<td><input v-model="item.email" type="email" :disabled="importing" /></td>
+						<td><input v-model="item.password" type="text" :disabled="importing" /></td>
+						<td><button type="button" :disabled="importing || rows.length <= 1" @click="removeRow(item.id)">{{ t("common.delete") }}</button></td>
+					</tr>
+				</tbody>
+			</table>
 
-		<section v-if="results.length > 0" class="result-panel">
-			<h3>{{ t("batchUser.result") }}</h3>
-			<ul>
-				<li v-for="item in results" :key="`${item.account}-${item.message}`" :class="item.success ? 'ok' : 'fail'">
-					{{ item.account }} - {{ item.message }}
-				</li>
-			</ul>
+			<section v-if="results.length > 0" class="result-panel">
+				<h3>{{ t("batchUser.result") }}</h3>
+				<ul>
+					<li v-for="item in results" :key="`${item.account}-${item.message}`" :class="item.success ? 'ok' : 'fail'">
+						{{ item.account }} - {{ item.message }}
+					</li>
+				</ul>
+			</section>
 		</section>
 	</section>
 </template>
 
 <style scoped>
+.create-panel {
+	margin: 12px 0;
+	padding: 12px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+}
+
+.create-panel h3 {
+	margin: 0 0 8px;
+}
+
 .toolbar {
 	display: flex;
 	gap: 8px;
 	align-items: center;
 	margin-bottom: 12px;
-}
-
-.toolbar-top {
-	margin-bottom: 8px;
 }
 
 .upload-btn {
@@ -227,6 +240,22 @@ async function importExcel(event: Event): Promise<void> {
 	border: 1px solid var(--color-border);
 	background: var(--color-surface-soft);
 	cursor: pointer;
+}
+
+.atomic-flag {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 32px;
+	padding: 0 8px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+}
+
+.atomic-flag input {
+	width: 14px;
+	height: 14px;
 }
 
 .upload-btn input {
@@ -240,7 +269,7 @@ async function importExcel(event: Event): Promise<void> {
 }
 
 button {
-	height: 34px;
+	height: 32px;
 	padding: 0 10px;
 	border-radius: var(--radius-md);
 	border: 1px solid var(--color-border);

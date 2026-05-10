@@ -164,11 +164,13 @@ npm run build
 - [x] 前端门禁通过：`npm run build`、`npm run smoke:auth`、`npm run smoke:auth-actor`。
 - [x] Vite 代理支持环境变量切换（联调环境无需改代码即可切换后端地址）。
 - [x] 联调脚本补齐：新增 `smoke:health` 与 `smoke:all` 串行校验入口。
+- [x] 插件联调用例补齐：`/v1/plugins` 列表、`/debug` 详情、`/logs` 与不存在插件 `404` 回退断言。
 
 ### 当前验证证据（2026-05-10）
 
 - `npm run build` 通过。
-- `npm run smoke:all` 通过（`smoke:health` + `smoke:auth` + `smoke:auth-actor`）。
+- `npm run smoke:plugins` 通过（列表/详情/日志/404 回退）。
+- `npm run smoke:all` 通过（`smoke:health` + `smoke:auth` + `smoke:plugins` + `smoke:auth-actor`）。
 
 ### 关键交付物
 - 联调报告

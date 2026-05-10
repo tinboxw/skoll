@@ -12,7 +12,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const { t } = useI18n();
 
-const username = ref("admin");
+const account = ref("admin");
 const password = ref("skoll");
 const loading = ref(false);
 const error = ref("");
@@ -29,7 +29,10 @@ type LoginPayload = {
 	token: string;
 	permissions?: string[];
 	user?: {
-		username?: string;
+		id?: string;
+		account?: string;
+		name?: string;
+		email?: string;
 		role?: string;
 	};
 };
@@ -39,19 +42,21 @@ async function login(): Promise<void> {
 	loading.value = true;
 	try {
 		const payload = await apiPost<ApiResponse<LoginPayload>>("/v1/auth/login", {
-			username: username.value,
+			account: account.value,
 			password: password.value
 		});
 		const token = payload.data?.token?.trim() ?? "";
 		if (token === "") {
 			throw new Error("missing token in login response");
 		}
-		const profileName = payload.data?.user?.username?.trim() || username.value.trim() || "admin";
+		const profileName = payload.data?.user?.name?.trim() || payload.data?.user?.account?.trim() || account.value.trim() || "admin";
 		userStore.setSession(token, {
-			id: profileName,
+			id: payload.data?.user?.id?.trim() || profileName,
 			name: profileName,
-			role: payload.data?.user?.role?.trim() || "super_admin"
+			role: payload.data?.user?.role?.trim() || "user",
+			email: payload.data?.user?.email?.trim() || ""
 		}, Array.isArray(payload.data?.permissions) ? payload.data.permissions : []);
+		await userStore.hydrateProfile();
 		await router.replace(redirectTo.value);
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -68,8 +73,8 @@ async function login(): Promise<void> {
 			<p>{{ t("login.subtitle") }}</p>
 
 			<label>
-				<span>{{ t("login.username") }}</span>
-				<input v-model="username" type="text" :placeholder="t('login.usernamePlaceholder')" :disabled="loading" />
+				<span>{{ t("login.account") }}</span>
+				<input v-model="account" type="text" :placeholder="t('login.accountPlaceholder')" :disabled="loading" />
 			</label>
 
 			<label>

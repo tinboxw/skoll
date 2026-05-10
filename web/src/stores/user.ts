@@ -1,5 +1,6 @@
 ﻿import { defineStore } from "pinia";
 
+import { apiGet, type ApiResponse } from "../utils/api";
 import { clearToken, getToken, hasToken, setToken } from "../utils/auth";
 
 const USER_SESSION_KEY = "skoll.auth.userSession";
@@ -8,6 +9,8 @@ type UserProfile = {
 	id: string;
 	name: string;
 	role: string;
+	email?: string;
+	avatarUrl?: string;
 };
 
 type UserState = {
@@ -39,7 +42,9 @@ function loadPersistedSession(): UserSessionSnapshot | null {
 			profile: {
 				id: profile.id,
 				name: profile.name,
-				role: profile.role
+				role: profile.role,
+				email: typeof profile.email === "string" ? profile.email : "",
+				avatarUrl: typeof profile.avatarUrl === "string" ? profile.avatarUrl : ""
 			},
 			permissions: Array.isArray(parsed.permissions)
 				? parsed.permissions.filter((item): item is string => typeof item === "string" && item.trim() !== "")
@@ -92,25 +97,56 @@ const persistedSession = loadPersistedSession();
 export const useUserStore = defineStore("user", {
 	state: (): UserState => ({
 		token: getToken(),
-		profile: hasToken()
-			? persistedSession?.profile ?? {
-				id: "local-admin",
-				name: "Admin",
-				role: "super_admin"
-			}
-			: null,
+		profile: hasToken() ? persistedSession?.profile ?? null : null,
 		permissions: hasToken() ? persistedSession?.permissions ?? [] : []
 	}),
 	getters: {
 		isAuthenticated: (state): boolean => state.token.trim() !== ""
 	},
 	actions: {
+		setProfile(profile: UserProfile): void {
+			this.profile = profile;
+			if (this.profile) {
+				persistSession(this.profile, this.permissions);
+			}
+		},
 		setSession(token: string, profile: UserProfile, permissions: string[] = []): void {
 			this.token = token;
 			this.profile = profile;
 			this.permissions = permissions;
 			setToken(token);
 			persistSession(profile, permissions);
+		},
+		async hydrateProfile(): Promise<void> {
+			if (!this.isAuthenticated) {
+				return;
+			}
+			type MePayload = {
+				id: string;
+				account?: string;
+				name?: string;
+				email?: string;
+				role?: string;
+				permissions?: string[];
+			};
+			try {
+				const payload = await apiGet<ApiResponse<MePayload>>("/v1/auth/me");
+				const data = payload.data;
+				const profile: UserProfile = {
+					id: String(data?.id ?? this.profile?.id ?? ""),
+					name: String(data?.name ?? data?.account ?? this.profile?.name ?? "").trim() || "User",
+					role: String(data?.role ?? this.profile?.role ?? "user").trim() || "user",
+					email: String(data?.email ?? this.profile?.email ?? ""),
+					avatarUrl: this.profile?.avatarUrl ?? ""
+				};
+				this.profile = profile;
+				this.permissions = Array.isArray(data?.permissions)
+					? data.permissions.filter((item): item is string => typeof item === "string" && item.trim() !== "")
+					: this.permissions;
+				persistSession(profile, this.permissions);
+			} catch {
+				// Keep existing local session if /auth/me is temporarily unavailable.
+			}
 		},
 		logout(): void {
 			this.token = "";
