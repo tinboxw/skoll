@@ -6,7 +6,7 @@ import { useI18n } from "../../i18n";
 import { syncBackendPlugins } from "../../plugins";
 import { getDefaultHomePath, resolvePluginEntryPath, setDefaultHomePath, usePluginStore } from "../../stores/plugins";
 import { ApiError, type ApiResponse } from "../../utils/api";
-import { apiDelete, apiPost } from "../../utils/api";
+import { apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 const router = useRouter();

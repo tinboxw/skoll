@@ -53,6 +53,9 @@ export function toErrorMessage(error: unknown): string {
 		if (error.message.toLowerCase() === "failed to fetch") {
 			return translate("error.network");
 		}
+		if (error instanceof ReferenceError || /is not defined/i.test(error.message)) {
+			return translate("error.clientRuntime");
+		}
 		return error.message;
 	}
 
