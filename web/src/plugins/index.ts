@@ -1,4 +1,4 @@
-﻿import { defineComponent, h } from "vue";
+﻿import { defineComponent, h, onMounted, ref } from "vue";
 import type { RouteRecordRaw, Router } from "vue-router";
 
 import type { usePluginStore } from "../stores/plugins";
@@ -121,12 +121,37 @@ function createRemotePluginView(record: BackendPluginRecord) {
 	return defineComponent({
 		name: `RemotePluginView_${record.id}`,
 		setup() {
+			const loading = ref(true);
+			const loadError = ref("");
+			const debugPayload = ref<Record<string, unknown> | null>(null);
+
+			onMounted(async () => {
+				loading.value = true;
+				loadError.value = "";
+				try {
+					const resp = await fetch(`/v1/plugins/${record.id}/debug`);
+					if (!resp.ok) {
+						throw new Error(`debug request failed: ${resp.status}`);
+					}
+					const payload = await resp.json() as { data?: Record<string, unknown> };
+					debugPayload.value = payload.data ?? null;
+				} catch (error) {
+					loadError.value = error instanceof Error ? error.message : "failed to load plugin details";
+				} finally {
+					loading.value = false;
+				}
+			});
+
 			return () =>
 				h("section", { class: "remote-plugin-card" }, [
 					h("h3", `${record.name} (${record.id})`),
 					h("p", `Version: ${record.version}`),
 					h("p", `Enabled: ${record.enabled === false ? "no" : "yes"}`),
-					h("p", "This page is loaded from backend plugin metadata and can be replaced by real plugin bundle loader.")
+					loading.value
+						? h("p", "Loading plugin runtime details...")
+						: loadError.value
+							? h("p", { class: "plugin-detail-error" }, `Failed to load plugin details: ${loadError.value}`)
+							: h("pre", { class: "plugin-detail-pre" }, JSON.stringify(debugPayload.value, null, 2))
 				]);
 		}
 	});
