@@ -43,3 +43,35 @@ func TestUnitOfWorkDoPropagatesCallbackError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestUnitOfWorkDoWithNilReceiver(t *testing.T) {
+	var uow *UnitOfWork
+	called := false
+
+	err := uow.Do(context.Background(), func(_ repository.Tx) error {
+		called = true
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if !called {
+		t.Fatalf("expected callback to be called")
+	}
+}
+
+func TestNewUnitOfWorkWithNilDBFallsBackToNoDBPath(t *testing.T) {
+	uow := NewUnitOfWorkWithDB(nil)
+	called := false
+
+	err := uow.Do(context.Background(), func(_ repository.Tx) error {
+		called = true
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if !called {
+		t.Fatalf("expected callback to be called")
+	}
+}

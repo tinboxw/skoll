@@ -86,6 +86,14 @@ go test ./tests/benchmark -run ^$ -bench BenchmarkLocalCacheSetGet -benchmem -co
 - 当前包覆盖率：100.0%（`go test ./internal/service/rbac/... -cover`）
 - 覆盖点：deny 优先策略、空绑定与空用户输入、策略校验失败、仓储层错误透传。
 
+### 2.12 本轮增量（store/sql）
+
+- 本轮新增测试：
+  - `internal/store/sql/common_test.go`
+  - `internal/store/sql/transaction_test.go`
+- 当前包覆盖率：79.0%（`go test ./internal/store/sql -cover`）
+- 覆盖点：FirstWhere/ListOrdered/SaveModel/DeleteByID 通用函数行为，nil UnitOfWork 与无 DB 回调路径。
+
 ### 2.3 性能基线
 
 - BenchmarkLocalCacheSetGet
