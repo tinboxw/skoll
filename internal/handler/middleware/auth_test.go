@@ -15,12 +15,23 @@ func TestAuthMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign valid token: %v", err)
 	}
+	wrongSecretToken, err := security.SignJWT("wrong-secret", "u1", "admin", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign wrong-secret token: %v", err)
+	}
 	expiredToken, err := security.SignJWT(jwtSecret, "u1", "admin", time.Second, time.Now().UTC().Add(-2*time.Second))
 	if err != nil {
 		t.Fatalf("sign expired token: %v", err)
 	}
 
-	h := Auth(jwtSecret)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := Auth(jwtSecret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/users" {
+			claims, ok := security.JWTClaimsFromContext(r.Context())
+			if !ok || claims.Subject == "" {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -53,6 +64,14 @@ func TestAuthMiddleware(t *testing.T) {
 	h.ServeHTTP(respExpired, reqExpired)
 	if respExpired.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for expired token, got %d", respExpired.Code)
+	}
+
+	reqWrongSecret := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	reqWrongSecret.Header.Set("Authorization", "Bearer "+wrongSecretToken)
+	respWrongSecret := httptest.NewRecorder()
+	h.ServeHTTP(respWrongSecret, reqWrongSecret)
+	if respWrongSecret.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for wrong-signature token, got %d", respWrongSecret.Code)
 	}
 
 	req2 := httptest.NewRequest(http.MethodGet, "/health", nil)
