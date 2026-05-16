@@ -68,6 +68,12 @@ go test ./tests/benchmark -run ^$ -bench BenchmarkLocalCacheSetGet -benchmem -co
 - 当前包覆盖率：48.4%（`go test ./internal/store/sql -cover`）
 - 覆盖点：SQL 方言解析、DSN 规范化、无 DB UnitOfWork 回调与错误透传路径。
 
+### 2.9 本轮增量（service/audit）
+
+- 本轮新增测试：`internal/service/audit/service_impl_test.go`
+- 当前包覆盖率：100.0%（`go test ./internal/service/audit/... -cover`）
+- 覆盖点：Append 参数校验、仓储错误透传、时间区间非法校验、查询与清理失败路径。
+
 ### 2.3 性能基线
 
 - BenchmarkLocalCacheSetGet
