@@ -74,6 +74,47 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/audit:
+    get:
+      summary: List audit records
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Clear audit records by time range
+      responses:
+        '200':
+          description: OK
+  /v1/audit/{id}:
+    get:
+      summary: Get audit record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/audit/export:
+    get:
+      summary: Export audit records as CSV
+      responses:
+        '200':
+          description: OK
+  /v1/audit/actors/{actorId}:
+    get:
+      summary: List audit records by actor
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
   /v1/plugins:
     get:
       summary: List plugins

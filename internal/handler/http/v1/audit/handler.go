@@ -21,10 +21,10 @@ func RegisterAuditRoutes(mux *http.ServeMux, service auditsvc.Service) {
 		return
 	}
 	h := &AuditHandler{service: service}
-	mux.HandleFunc("GET /v1/audit/logs", h.list)
-	mux.HandleFunc("GET /v1/audit/logs/export", h.export)
-	mux.HandleFunc("GET /v1/audit/logs/{id}", h.get)
-	mux.HandleFunc("DELETE /v1/audit/logs", h.clear)
+	mux.HandleFunc("GET /v1/audit", h.list)
+	mux.HandleFunc("GET /v1/audit/export", h.export)
+	mux.HandleFunc("GET /v1/audit/{id}", h.get)
+	mux.HandleFunc("DELETE /v1/audit", h.clear)
 	mux.HandleFunc("GET /v1/audit/actors/{actorId}", h.listByActor)
 }
 

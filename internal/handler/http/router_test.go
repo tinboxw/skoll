@@ -487,21 +487,21 @@ func TestRouterAuditLogsAPIs(t *testing.T) {
 
 	router := NewRouter(Dependencies{AuditService: auditService})
 
-	listReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs?limit=10", nil)
+	listReq := httptest.NewRequest(http.MethodGet, "/v1/audit?limit=10", nil)
 	listResp := httptest.NewRecorder()
 	router.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs/"+rec1.ID.String(), nil)
+	getReq := httptest.NewRequest(http.MethodGet, "/v1/audit/"+rec1.ID.String(), nil)
 	getResp := httptest.NewRecorder()
 	router.ServeHTTP(getResp, getReq)
 	if getResp.Code != http.StatusOK {
 		t.Fatalf("get status=%d body=%s", getResp.Code, getResp.Body.String())
 	}
 
-	exportReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs/export?limit=10", nil)
+	exportReq := httptest.NewRequest(http.MethodGet, "/v1/audit/export?limit=10", nil)
 	exportResp := httptest.NewRecorder()
 	router.ServeHTTP(exportResp, exportReq)
 	if exportResp.Code != http.StatusOK {
@@ -513,7 +513,7 @@ func TestRouterAuditLogsAPIs(t *testing.T) {
 
 	from := rec1.OccurredAt.Add(-time.Second).Format(time.RFC3339)
 	to := rec1.OccurredAt.Add(time.Second).Format(time.RFC3339)
-	clearReq := httptest.NewRequest(http.MethodDelete, "/v1/audit/logs?from="+from+"&to="+to, nil)
+	clearReq := httptest.NewRequest(http.MethodDelete, "/v1/audit?from="+from+"&to="+to, nil)
 	clearResp := httptest.NewRecorder()
 	router.ServeHTTP(clearResp, clearReq)
 	if clearResp.Code != http.StatusOK {
