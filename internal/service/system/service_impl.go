@@ -80,3 +80,24 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]*domainsystem.S
 	}
 	return s.repo.ListSettings(ctx, in.Offset, in.Limit)
 }
+
+func (s *serviceImpl) Reset(ctx context.Context) (int, error) {
+	if s == nil || s.repo == nil {
+		return 0, fmt.Errorf("system repository is not configured")
+	}
+	items, err := s.repo.ListSettings(ctx, 0, 0)
+	if err != nil {
+		return 0, err
+	}
+	deleted := 0
+	for _, item := range items {
+		if item == nil || item.ID.IsZero() {
+			continue
+		}
+		if err := s.repo.DeleteSetting(ctx, item.ID); err != nil {
+			return deleted, err
+		}
+		deleted++
+	}
+	return deleted, nil
+}

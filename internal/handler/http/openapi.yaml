@@ -152,4 +152,10 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/system/settings/reset:
+    post:
+      summary: Reset system settings
+      responses:
+        '200':
+          description: OK
 components: {}

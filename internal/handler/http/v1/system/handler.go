@@ -21,6 +21,7 @@ func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service) {
 	mux.HandleFunc("GET /v1/system/settings", h.list)
 	mux.HandleFunc("GET /v1/system/settings/{key}", h.getByKey)
 	mux.HandleFunc("PUT /v1/system/settings/{key}", h.upsert)
+	mux.HandleFunc("POST /v1/system/settings/reset", h.reset)
 }
 
 func (h *SystemHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -66,4 +67,13 @@ func (h *SystemHandler) upsert(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, item)
+}
+
+func (h *SystemHandler) reset(w http.ResponseWriter, r *http.Request) {
+	count, err := h.service.Reset(r.Context())
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]int{"reset": count})
 }

@@ -108,6 +108,23 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 	if invalidSettingResp.Code != http.StatusBadRequest {
 		t.Fatalf("invalid upsert setting status=%d body=%s", invalidSettingResp.Code, invalidSettingResp.Body.String())
 	}
+
+	resetReq := httptest.NewRequest(http.MethodPost, "/v1/system/settings/reset", nil)
+	resetResp := httptest.NewRecorder()
+	router.ServeHTTP(resetResp, resetReq)
+	if resetResp.Code != http.StatusOK {
+		t.Fatalf("reset setting status=%d body=%s", resetResp.Code, resetResp.Body.String())
+	}
+
+	listAfterResetReq := httptest.NewRequest(http.MethodGet, "/v1/system/settings?offset=0&limit=10", nil)
+	listAfterResetResp := httptest.NewRecorder()
+	router.ServeHTTP(listAfterResetResp, listAfterResetReq)
+	if listAfterResetResp.Code != http.StatusOK {
+		t.Fatalf("list after reset status=%d body=%s", listAfterResetResp.Code, listAfterResetResp.Body.String())
+	}
+	if strings.Contains(listAfterResetResp.Body.String(), "demo.flag") {
+		t.Fatalf("setting should be removed after reset, body=%s", listAfterResetResp.Body.String())
+	}
 }
 
 type fakePluginManager struct {

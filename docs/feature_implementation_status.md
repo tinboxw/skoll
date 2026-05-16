@@ -513,7 +513,7 @@ F010 (覆盖率统计) → 依赖测试用例补充
 | 获取系统配置 | GET | /v1/system/settings | ✅ 已实现 | internal/handler/http/v1/system/handler.go |
 | 获取单个配置 | GET | /v1/system/settings/{key} | ✅ 已实现 | internal/handler/http/v1/system/handler.go |
 | 更新单个配置 | PUT | /v1/system/settings/{key} | ✅ 已实现 | internal/handler/http/v1/system/handler.go |
-| 重置配置 | POST | /v1/system/settings/reset | ❌ 未实现 | - |
+| 重置配置 | POST | /v1/system/settings/reset | ✅ 已实现 | internal/handler/http/v1/system/handler.go |
 
 ### B.6 审计日志API
 
