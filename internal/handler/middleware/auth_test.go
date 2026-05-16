@@ -4,10 +4,23 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 func TestAuthMiddleware(t *testing.T) {
-	h := Auth()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	const jwtSecret = "test-secret"
+	validToken, err := security.SignJWT(jwtSecret, "u1", "admin", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign valid token: %v", err)
+	}
+	expiredToken, err := security.SignJWT(jwtSecret, "u1", "admin", time.Second, time.Now().UTC().Add(-2*time.Second))
+	if err != nil {
+		t.Fatalf("sign expired token: %v", err)
+	}
+
+	h := Auth(jwtSecret)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -27,11 +40,19 @@ func TestAuthMiddleware(t *testing.T) {
 	}
 
 	reqBearer := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
-	reqBearer.Header.Set("Authorization", "Bearer test-token")
+	reqBearer.Header.Set("Authorization", "Bearer "+validToken)
 	respBearer := httptest.NewRecorder()
 	h.ServeHTTP(respBearer, reqBearer)
 	if respBearer.Code != http.StatusOK {
 		t.Fatalf("expected 200 for bearer auth, got %d", respBearer.Code)
+	}
+
+	reqExpired := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	reqExpired.Header.Set("Authorization", "Bearer "+expiredToken)
+	respExpired := httptest.NewRecorder()
+	h.ServeHTTP(respExpired, reqExpired)
+	if respExpired.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for expired token, got %d", respExpired.Code)
 	}
 
 	req2 := httptest.NewRequest(http.MethodGet, "/health", nil)
