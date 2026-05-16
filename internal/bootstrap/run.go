@@ -7,6 +7,10 @@ import (
 	"net/http"
 )
 
+type closeable interface {
+	Close() error
+}
+
 // Runner holds process-level runtime dependencies and startup configuration.
 type Runner struct {
 	config RuntimeConfig
@@ -41,6 +45,11 @@ func (r *Runner) Run(ctx context.Context) error {
 	if r == nil || r.deps == nil || r.deps.server == nil {
 		return errors.New("runner is not initialized")
 	}
+	defer func() {
+		if bus, ok := r.deps.eventBus.(closeable); ok && bus != nil {
+			_ = bus.Close()
+		}
+	}()
 
 	errCh := make(chan error, 1)
 	go func() {

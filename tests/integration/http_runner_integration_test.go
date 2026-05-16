@@ -13,14 +13,14 @@ import (
 func TestRunnerHealthAndAuth(t *testing.T) {
 	cfg := bootstrap.RuntimeConfig{
 		AppConfig: config.AppConfig{
-			Server: config.ServerConfig{Address: "127.0.0.1:18091", ShutdownTimeout: 2 * time.Second},
+			Server: config.ServerConfig{Address: "127.0.0.1:18091", APIPrefix: "/api", ShutdownTimeout: 2 * time.Second},
 			Store:  config.StoreConfig{Mode: "memory"},
 			Security: config.SecurityConfig{
 				JWTSecret: "integration-secret",
 			},
 			Log: config.LogConfig{Level: "error"},
 		},
-		AuthPolicy: bootstrap.AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/health": {}, "/ready": {}}},
+		AuthPolicy: bootstrap.AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/api/health": {}, "/api/ready": {}}},
 	}
 
 	runner, err := bootstrap.NewRunner(cfg)
@@ -43,25 +43,25 @@ func TestRunnerHealthAndAuth(t *testing.T) {
 		}
 	})
 
-	waitForUp(t, "http://127.0.0.1:18091/health")
+	waitForUp(t, "http://127.0.0.1:18091/api/health")
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	resp1, err := client.Get("http://127.0.0.1:18091/health")
+	resp1, err := client.Get("http://127.0.0.1:18091/api/health")
 	if err != nil {
-		t.Fatalf("GET /health error: %v", err)
+		t.Fatalf("GET /api/health error: %v", err)
 	}
 	defer resp1.Body.Close()
 	if resp1.StatusCode != http.StatusOK {
-		t.Fatalf("/health status=%d", resp1.StatusCode)
+		t.Fatalf("/api/health status=%d", resp1.StatusCode)
 	}
 
-	resp2, err := client.Get("http://127.0.0.1:18091/v1/users")
+	resp2, err := client.Get("http://127.0.0.1:18091/api/v1/users")
 	if err != nil {
-		t.Fatalf("GET /v1/users error: %v", err)
+		t.Fatalf("GET /api/v1/users error: %v", err)
 	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("/v1/users expected 401, got %d", resp2.StatusCode)
+		t.Fatalf("/api/v1/users expected 401, got %d", resp2.StatusCode)
 	}
 }
 

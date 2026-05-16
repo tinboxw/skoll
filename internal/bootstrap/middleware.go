@@ -20,9 +20,9 @@ type PermissionPolicy struct {
 }
 
 var defaultPermissionPolicies = []PermissionPolicy{
-	{PathPrefix: "/v1/users", Resource: "user"},
-	{PathPrefix: "/v1/roles", Resource: "role"},
-	{PathPrefix: "/v1/rbac", Resource: "permission"},
+	{PathPrefix: "/api/v1/users", Resource: "user"},
+	{PathPrefix: "/api/v1/roles", Resource: "role"},
+	{PathPrefix: "/api/v1/rbac", Resource: "permission"},
 }
 
 type permissionChecker interface {

@@ -29,7 +29,7 @@ func TestRunReturnsAfterCancel(t *testing.T) {
 		AppConfig: appConfigForTest("127.0.0.1:18081"),
 		AuthPolicy: AuthPolicy{
 			Enabled:   false,
-			SkipPaths: map[string]struct{}{"/health": {}},
+			SkipPaths: map[string]struct{}{"/api/health": {}},
 		},
 	}
 
@@ -54,7 +54,7 @@ func TestHealthEndpointNoAuth(t *testing.T) {
 		AppConfig: appConfigForTest("127.0.0.1:18082"),
 		AuthPolicy: AuthPolicy{
 			Enabled:   true,
-			SkipPaths: map[string]struct{}{"/health": {}},
+			SkipPaths: map[string]struct{}{"/api/health": {}},
 		},
 	}
 
@@ -68,13 +68,13 @@ func TestHealthEndpointNoAuth(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() { done <- r.Run(ctx) }()
-	waitForServer(t, "http://127.0.0.1:18082/health")
+	waitForServer(t, "http://127.0.0.1:18082/api/health")
 
 	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get("http://127.0.0.1:18082/health")
+	resp, err := client.Get("http://127.0.0.1:18082/api/health")
 	if err != nil {
 		cancel()
-		t.Fatalf("GET /health: %v", err)
+		t.Fatalf("GET /api/health: %v", err)
 	}
 	t.Cleanup(func() { _ = resp.Body.Close() })
 
@@ -95,7 +95,7 @@ func TestProtectedEndpointRequiresAuth(t *testing.T) {
 		AppConfig: appConfigForTest("127.0.0.1:18083"),
 		AuthPolicy: AuthPolicy{
 			Enabled:   true,
-			SkipPaths: map[string]struct{}{"/health": {}},
+			SkipPaths: map[string]struct{}{"/api/health": {}},
 		},
 	}
 
@@ -109,7 +109,7 @@ func TestProtectedEndpointRequiresAuth(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() { done <- r.Run(ctx) }()
-	waitForServer(t, "http://127.0.0.1:18083/health")
+	waitForServer(t, "http://127.0.0.1:18083/api/health")
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get("http://127.0.0.1:18083/protected")
@@ -134,6 +134,7 @@ func appConfigForTest(addr string) config.AppConfig {
 	return config.AppConfig{
 		Server: config.ServerConfig{
 			Address:         addr,
+			APIPrefix:       "/api",
 			ShutdownTimeout: 2 * time.Second,
 		},
 		Store: config.StoreConfig{Mode: "memory"},

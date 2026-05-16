@@ -489,7 +489,15 @@ func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseTag := []byte("<base href=\"/v1/plugins/" + id + "/assets/\">")
+	baseHref := strings.TrimSuffix(strings.TrimSpace(r.URL.Path), "/page") + "/assets/"
+	if apiPrefix := strings.TrimRight(strings.TrimSpace(r.Header.Get("X-Skoll-Api-Prefix")), "/"); apiPrefix != "" {
+		if strings.HasPrefix(baseHref, "/") {
+			baseHref = apiPrefix + baseHref
+		} else {
+			baseHref = apiPrefix + "/" + baseHref
+		}
+	}
+	baseTag := []byte("<base href=\"" + baseHref + "\">")
 	if !bytes.Contains(bytes.ToLower(content), []byte("<base ")) {
 		lower := bytes.ToLower(content)
 		headPos := bytes.Index(lower, []byte("<head>"))

@@ -9,7 +9,7 @@ import (
 )
 
 func Auth(jwtSecret string, skipPaths ...string) func(http.Handler) http.Handler {
-	skip := map[string]struct{}{"/health": {}, "/ready": {}, "/v1/plugins": {}, "/v1/auth": {}}
+	skip := map[string]struct{}{"/api/health": {}, "/api/ready": {}, "/api/v1/plugins": {}, "/api/v1/auth": {}}
 	for _, p := range skipPaths {
 		skip[p] = struct{}{}
 	}

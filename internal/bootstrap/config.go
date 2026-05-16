@@ -16,7 +16,7 @@ func loadRuntimeConfigFromEnv() (RuntimeConfig, error) {
 
 	runtimeCfg := RuntimeConfig{
 		AppConfig:  cfg,
-		AuthPolicy: loadAuthPolicyFromEnv(),
+		AuthPolicy: loadAuthPolicyFromEnv().WithAPIPrefix(cfg.Server.APIPrefix),
 	}
 
 	if err := validateRuntimeConfig(runtimeCfg); err != nil {

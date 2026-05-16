@@ -94,19 +94,19 @@ func TestParseBearerToken(t *testing.T) {
 }
 
 func TestAuthGuardMiddlewareValidatesJWT(t *testing.T) {
-	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/health": {}}}
+	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/api/health": {}}}
 	h := authGuardMiddleware(policy, "test-secret", nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	noAuthReq := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	noAuthReq := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 	noAuthResp := httptest.NewRecorder()
 	h.ServeHTTP(noAuthResp, noAuthReq)
 	if noAuthResp.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401 for missing auth, got %d", noAuthResp.Code)
 	}
 
-	badReq := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	badReq := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 	badReq.Header.Set("Authorization", "Bearer invalid.token")
 	badResp := httptest.NewRecorder()
 	h.ServeHTTP(badResp, badReq)
@@ -118,7 +118,7 @@ func TestAuthGuardMiddlewareValidatesJWT(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign jwt: %v", err)
 	}
-	okReq := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	okReq := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 	okReq.Header.Set("Authorization", "Bearer "+token)
 	okResp := httptest.NewRecorder()
 	h.ServeHTTP(okResp, okReq)
@@ -128,7 +128,7 @@ func TestAuthGuardMiddlewareValidatesJWT(t *testing.T) {
 }
 
 func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
-	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/health": {}}}
+	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/api/health": {}}}
 	checker := &fakePermissionChecker{allowed: map[string]bool{
 		"user:alice:user:read": true,
 	}}
@@ -144,7 +144,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign jwt alice: %v", err)
 	}
-	reqAllowed := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	reqAllowed := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 	reqAllowed.Header.Set("Authorization", "Bearer "+tokenAlice)
 	respAllowed := httptest.NewRecorder()
 	h.ServeHTTP(respAllowed, reqAllowed)
@@ -156,7 +156,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign jwt bob: %v", err)
 	}
-	reqDenied := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	reqDenied := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 	reqDenied.Header.Set("Authorization", "Bearer "+tokenBob)
 	respDenied := httptest.NewRecorder()
 	h.ServeHTTP(respDenied, reqDenied)
@@ -168,7 +168,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign jwt super: %v", err)
 	}
-	reqBypass := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	reqBypass := httptest.NewRequest(http.MethodGet, "/api/v1/users", nil)
 	reqBypass.Header.Set("Authorization", "Bearer "+tokenSuper)
 	respBypass := httptest.NewRecorder()
 	h.ServeHTTP(respBypass, reqBypass)
@@ -178,17 +178,17 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 }
 
 func TestRequiredPermissionMapping(t *testing.T) {
-	resource, action, guarded := requiredPermission(http.MethodDelete, "/v1/roles/abc")
+	resource, action, guarded := requiredPermission(http.MethodDelete, "/api/v1/roles/abc")
 	if !guarded || resource != "role" || action != "delete" {
 		t.Fatalf("unexpected mapping got guarded=%v resource=%s action=%s", guarded, resource, action)
 	}
 
-	resource, action, guarded = requiredPermission(http.MethodPost, "/v1/rbac/check")
+	resource, action, guarded = requiredPermission(http.MethodPost, "/api/v1/rbac/check")
 	if !guarded || resource != "permission" || action != "check" {
 		t.Fatalf("unexpected rbac mapping got guarded=%v resource=%s action=%s", guarded, resource, action)
 	}
 
-	resource, action, guarded = requiredPermission(http.MethodGet, "/v1/plugins")
+	resource, action, guarded = requiredPermission(http.MethodGet, "/api/v1/plugins")
 	if guarded || resource != "" || action != "" {
 		t.Fatalf("plugin endpoint should not be guarded by RBAC mapping")
 	}
@@ -230,28 +230,28 @@ func TestBuildMiddlewareChainPluginPageBypassesAuth(t *testing.T) {
 	}}})
 
 	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{
-		"/health":        {},
-		"/ready":         {},
-		"/v1/plugins":    {},
-		"/v1/auth/login": {},
+		"/api/health":        {},
+		"/api/ready":         {},
+		"/api/v1/plugins":    {},
+		"/api/v1/auth/login": {},
 	}}
 	guarded := buildMiddlewareChain(router, logging.Discard(), policy, "test-secret", nil)
 
-	pageReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/page", nil)
+	pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend/page", nil)
 	pageResp := httptest.NewRecorder()
 	guarded.ServeHTTP(pageResp, pageReq)
 	if pageResp.Code != http.StatusOK {
 		t.Fatalf("page status=%d body=%s", pageResp.Code, pageResp.Body.String())
 	}
 
-	assetReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/assets/app.js", nil)
+	assetReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend/assets/app.js", nil)
 	assetResp := httptest.NewRecorder()
 	guarded.ServeHTTP(assetResp, assetReq)
 	if assetResp.Code != http.StatusOK {
 		t.Fatalf("asset status=%d body=%s", assetResp.Code, assetResp.Body.String())
 	}
 
-	protectedReq := httptest.NewRequest(http.MethodGet, "/v1/system/settings", nil)
+	protectedReq := httptest.NewRequest(http.MethodGet, "/api/v1/system/settings", nil)
 	protectedResp := httptest.NewRecorder()
 	guarded.ServeHTTP(protectedResp, protectedReq)
 	if protectedResp.Code != http.StatusUnauthorized {

@@ -37,9 +37,10 @@ import (
 )
 
 type dependencies struct {
-	logger  logging.Logger
-	handler http.Handler
-	server  *http.Server
+	logger   logging.Logger
+	handler  http.Handler
+	server   *http.Server
+	eventBus event.Bus
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
@@ -79,6 +80,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		AuditService:     auditService,
 		SystemService:    systemService,
 		PluginManager:    pluginManager,
+		APIPrefix:        cfg.AppConfig.Server.APIPrefix,
 		LogLevel:         cfg.AppConfig.Log.Level,
 		LogDir:           cfg.AppConfig.Log.Dir,
 		LogFile:          cfg.AppConfig.Log.File,
@@ -101,7 +103,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 
 	ensureBuiltinAuthData(context.Background(), logger, bundle.Users, bundle.Roles, bundle.RBAC)
 
-	return &dependencies{logger: logger, handler: h, server: server}, nil
+	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus}, nil
 }
 
 func buildEventBus(cfg config.EventConfig) (event.Bus, error) {

@@ -19,6 +19,8 @@ import (
 	"github.com/tinboxw/skoll/internal/service/user"
 )
 
+const defaultAPIPrefix = "/api"
+
 type Dependencies struct {
 	UserService      user.Service
 	RoleService      role.Service
@@ -26,6 +28,7 @@ type Dependencies struct {
 	AuditService     audit.Service
 	SystemService    system.Service
 	PluginManager    plugin.Manager
+	APIPrefix        string
 	LogLevel         string
 	LogDir           string
 	LogFile          string
@@ -43,26 +46,49 @@ type pluginRouteExecutor interface {
 }
 
 func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
-	mux := http.NewServeMux()
+	apiPrefix := normalizeAPIPrefix(deps.APIPrefix)
+	apiMux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
+	apiMux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		WriteMessage(w, http.StatusOK, "ok", "ok")
 	})
-	registerDocumentationRoutes(mux)
+	registerDocumentationRoutes(apiMux, apiPrefix)
 
-	userhttp.RegisterUserRoutes(mux, deps.UserService, deps.RBACService)
-	rolehttp.RegisterRoleRoutes(mux, deps.RoleService, deps.UserService, deps.RBACService)
-	rbachttp.RegisterRBACRoutes(mux, deps.RBACService)
-	audithttp.RegisterAuditRoutes(mux, deps.AuditService)
-	systemhttp.RegisterSystemRoutes(mux, deps.SystemService)
-	pluginhttp.RegisterPluginRoutes(mux, deps.PluginManager, pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile))
-	registerPluginExtensionRoutes(mux, deps.PluginManager)
+	userhttp.RegisterUserRoutes(apiMux, deps.UserService, deps.RBACService)
+	rolehttp.RegisterRoleRoutes(apiMux, deps.RoleService, deps.UserService, deps.RBACService)
+	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService)
+	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService)
+	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService)
+	pluginhttp.RegisterPluginRoutes(apiMux, deps.PluginManager, pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile))
+	registerPluginExtensionRoutes(apiMux, deps.PluginManager)
 
-	var h http.Handler = mux
+	rootMux := http.NewServeMux()
+	stripped := http.StripPrefix(apiPrefix, apiMux)
+	rootMux.Handle(apiPrefix+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Header.Set("X-Skoll-Api-Prefix", apiPrefix)
+		stripped.ServeHTTP(w, r)
+	}))
+
+	var h http.Handler = rootMux
 	for i := len(middleware) - 1; i >= 0; i-- {
 		h = middleware[i](h)
 	}
 	return h
+}
+
+func normalizeAPIPrefix(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return defaultAPIPrefix
+	}
+	if !strings.HasPrefix(v, "/") {
+		v = "/" + v
+	}
+	v = strings.TrimRight(v, "/")
+	if v == "" {
+		return defaultAPIPrefix
+	}
+	return v
 }
 
 func registerPluginExtensionRoutes(mux *http.ServeMux, manager plugin.Manager) {
@@ -141,12 +167,14 @@ func safeHandleFunc(mux *http.ServeMux, pattern string, handler func(http.Respon
 	return true
 }
 
-func registerDocumentationRoutes(mux *http.ServeMux) {
+func registerDocumentationRoutes(mux *http.ServeMux, apiPrefix string) {
 	if mux == nil {
 		return
 	}
 	mux.HandleFunc("GET /docs/openapi.yaml", serveOpenAPIYAML)
-	mux.HandleFunc("GET /docs/swagger", serveSwaggerUI)
+	mux.HandleFunc("GET /docs/swagger", func(w http.ResponseWriter, r *http.Request) {
+		serveSwaggerUI(w, r, apiPrefix)
+	})
 }
 
 func serveOpenAPIYAML(w http.ResponseWriter, _ *http.Request) {
@@ -155,9 +183,10 @@ func serveOpenAPIYAML(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(openAPIYAMLDocument))
 }
 
-func serveSwaggerUI(w http.ResponseWriter, _ *http.Request) {
+func serveSwaggerUI(w http.ResponseWriter, _ *http.Request, apiPrefix string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
+	openAPIURL := apiPrefix + "/docs/openapi.yaml"
 	_, _ = w.Write([]byte(`<!doctype html>
 <html lang="en">
 <head>
@@ -172,7 +201,7 @@ func serveSwaggerUI(w http.ResponseWriter, _ *http.Request) {
   <script>
     window.onload = function () {
       SwaggerUIBundle({
-        url: '/docs/openapi.yaml',
+				url: '` + openAPIURL + `',
         dom_id: '#swagger-ui'
       });
     };
