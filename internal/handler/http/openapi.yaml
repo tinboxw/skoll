@@ -12,6 +12,62 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/auth/login:
+    post:
+      summary: Login with account and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - account
+                - password
+              properties:
+                account:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /v1/auth/logout:
+    post:
+      summary: Logout current user
+      responses:
+        '200':
+          description: OK
+  /v1/auth/me:
+    get:
+      summary: Get current user profile
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /v1/auth/me/profile:
+    put:
+      summary: Update current user profile
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /v1/auth/me/password:
+    patch:
+      summary: Update current user password
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
   /v1/users:
     get:
       summary: List users

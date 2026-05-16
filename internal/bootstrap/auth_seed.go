@@ -41,7 +41,7 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 
 	roles := []seedRole{
 		{
-			id:          "new",
+			id:          "seed-role-super-admin",
 			name:        "Super Admin",
 			key:         "super_admin",
 			description: "system super administrator",
@@ -50,7 +50,7 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 			rules:       []domainrbac.PolicyRule{},
 		},
 		{
-			id:          "new",
+			id:          "seed-role-dept-admin",
 			name:        "Department Admin",
 			key:         "dept_admin",
 			description: "department level administrator",
@@ -63,7 +63,7 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 			},
 		},
 		{
-			id:          "new",
+			id:          "seed-role-operator",
 			name:        "System Operator",
 			key:         "operator",
 			description: "system operation account",
@@ -75,7 +75,7 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 			},
 		},
 		{
-			id:          "new",
+			id:          "seed-role-user",
 			name:        "Standard User",
 			key:         "user",
 			description: "standard business user",
@@ -88,10 +88,10 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 	}
 
 	users := []seedUser{
-		{id: "new", account: "admin", name: "System Admin", email: "admin@skoll.local", password: "Admin@123456", roleKey: "super_admin"},
-		{id: "new", account: "dept_admin", name: "Dept Admin", email: "dept_admin@skoll.local", password: "Dept@123456", roleKey: "dept_admin"},
-		{id: "new", account: "sys_operator", name: "System Operator", email: "operator@skoll.local", password: "Ops@123456", roleKey: "operator"},
-		{id: "new", account: "normal_user", name: "Normal User", email: "user@skoll.local", password: "User@123456", roleKey: "user"},
+		{id: "seed-user-admin", account: "admin", name: "System Admin", email: "admin@skoll.local", password: "Admin@123456", roleKey: "super_admin"},
+		{id: "seed-user-dept-admin", account: "dept_admin", name: "Dept Admin", email: "dept_admin@skoll.local", password: "Dept@123456", roleKey: "dept_admin"},
+		{id: "seed-user-operator", account: "sys_operator", name: "System Operator", email: "operator@skoll.local", password: "Ops@123456", roleKey: "operator"},
+		{id: "seed-user-normal", account: "normal_user", name: "Normal User", email: "user@skoll.local", password: "User@123456", roleKey: "user"},
 	}
 
 	roleByKey := map[string]*domainrole.Role{}
@@ -194,7 +194,7 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 		}
 
 		binding, err := domainrbac.NewBinding(
-			shared.ID("new"),
+			shared.ID("seed-binding-"+item.account+"-"+item.roleKey),
 			domainrbac.SubjectUser,
 			current.ID,
 			role.ID,
