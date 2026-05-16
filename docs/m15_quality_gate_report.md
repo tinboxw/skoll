@@ -74,6 +74,12 @@ go test ./tests/benchmark -run ^$ -bench BenchmarkLocalCacheSetGet -benchmem -co
 - 当前包覆盖率：100.0%（`go test ./internal/service/audit/... -cover`）
 - 覆盖点：Append 参数校验、仓储错误透传、时间区间非法校验、查询与清理失败路径。
 
+### 2.10 本轮增量（service/user）
+
+- 本轮新增测试：`internal/service/user/service_impl_test.go`
+- 当前包覆盖率：68.6%（`go test ./internal/service/user/... -cover`）
+- 覆盖点：空批次创建、Get/List 参数校验、UpdateEmail/Disable/Delete 的必填与 not-found 分支。
+
 ### 2.3 性能基线
 
 - BenchmarkLocalCacheSetGet

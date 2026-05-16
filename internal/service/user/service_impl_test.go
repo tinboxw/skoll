@@ -154,3 +154,139 @@ func TestUserServiceUpdateNotFound(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestUserServiceCreateBatchEmptyItems(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	results, err := svc.CreateBatch(context.Background(), BatchCreateInput{Atomic: true, Items: nil})
+	if err != nil {
+		t.Fatalf("CreateBatch error: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected empty results, got %d", len(results))
+	}
+}
+
+func TestUserServiceGetRequiresID(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	_, err = svc.Get(context.Background(), "")
+	if err == nil {
+		t.Fatalf("expected id required error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "id is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUserServiceListRejectsNegativePaging(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	_, err = svc.List(context.Background(), ListInput{Offset: -1, Limit: 10})
+	if err == nil {
+		t.Fatalf("expected offset validation error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "offset") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	_, err = svc.List(context.Background(), ListInput{Offset: 0, Limit: -1})
+	if err == nil {
+		t.Fatalf("expected limit validation error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "limit") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUserServiceUpdateEmailRequiresID(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	_, err = svc.UpdateEmail(context.Background(), UpdateEmailInput{ID: "", Email: "x@example.com"})
+	if err == nil {
+		t.Fatalf("expected id required error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "id is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUserServiceUpdateEmailNotFound(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	_, err = svc.UpdateEmail(context.Background(), UpdateEmailInput{ID: "missing", Email: "x@example.com"})
+	if err == nil {
+		t.Fatalf("expected user not found error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "user not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUserServiceDisableRequiresID(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	err = svc.Disable(context.Background(), "", "admin-1")
+	if err == nil {
+		t.Fatalf("expected id required error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "id is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUserServiceDisableNotFound(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	err = svc.Disable(context.Background(), "missing", "admin-1")
+	if err == nil {
+		t.Fatalf("expected user not found error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "user not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestUserServiceDeleteNotFound(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	err = svc.Delete(context.Background(), "missing")
+	if err == nil {
+		t.Fatalf("expected user not found error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "user not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
