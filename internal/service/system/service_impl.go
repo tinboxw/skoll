@@ -8,16 +8,16 @@ import (
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainsystem "github.com/tinboxw/skoll/internal/domain/system"
-	"github.com/tinboxw/skoll/internal/repository"
+	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
 )
 
 type serviceImpl struct {
-	repo  repository.SystemRepository
+	repo  systemrepo.SystemRepository
 	nowFn func() time.Time
 	idFn  func(prefix string) shared.ID
 }
 
-func NewService(repo repository.SystemRepository) Service {
+func NewService(repo systemrepo.SystemRepository) Service {
 	return &serviceImpl{
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },

@@ -13,18 +13,20 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
-	"github.com/tinboxw/skoll/internal/repository"
+	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
+	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
+	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type builtinAuthHandler struct {
 	jwtSecret string
-	usersRepo repository.UserRepository
-	rolesRepo repository.RoleRepository
-	rbacRepo  repository.RBACRepository
+	usersRepo userrepo.UserRepository
+	rolesRepo rolerepo.RoleRepository
+	rbacRepo  rbacrepo.RBACRepository
 }
 
-func newBuiltinAuthHandler(jwtSecret string, usersRepo repository.UserRepository, rolesRepo repository.RoleRepository, rbacRepo repository.RBACRepository) *builtinAuthHandler {
+func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository) *builtinAuthHandler {
 	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil {
 		return nil
 	}

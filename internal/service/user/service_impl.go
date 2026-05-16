@@ -12,12 +12,14 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 	"github.com/tinboxw/skoll/internal/repository"
+	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
+	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	servicecommon "github.com/tinboxw/skoll/internal/service/common"
 )
 
 type serviceImpl struct {
-	repo  repository.UserRepository
-	audit repository.AuditRepository
+	repo  userrepo.UserRepository
+	audit auditrepo.AuditRepository
 	tx    *servicecommon.TransactionManager
 	nowFn func() time.Time
 	idFn  func(prefix string) shared.ID
@@ -25,7 +27,7 @@ type serviceImpl struct {
 
 var sha256HexPattern = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
 
-func NewService(repo repository.UserRepository, auditRepo repository.AuditRepository, tx repository.UnitOfWork) Service {
+func NewService(repo userrepo.UserRepository, auditRepo auditrepo.AuditRepository, tx repository.UnitOfWork) Service {
 	return &serviceImpl{
 		repo:  repo,
 		audit: auditRepo,

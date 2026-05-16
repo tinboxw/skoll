@@ -8,16 +8,16 @@ import (
 
 	domainrole "github.com/tinboxw/skoll/internal/domain/role"
 	"github.com/tinboxw/skoll/internal/domain/shared"
-	"github.com/tinboxw/skoll/internal/repository"
+	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 )
 
 type serviceImpl struct {
-	repo  repository.RoleRepository
+	repo  rolerepo.RoleRepository
 	nowFn func() time.Time
 	idFn  func(prefix string) shared.ID
 }
 
-func NewService(repo repository.RoleRepository) Service {
+func NewService(repo rolerepo.RoleRepository) Service {
 	return &serviceImpl{
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },

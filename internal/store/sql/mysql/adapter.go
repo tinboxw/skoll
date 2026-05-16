@@ -5,7 +5,11 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/tinboxw/skoll/internal/repository"
+	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
+	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
+	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
+	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
+	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"gorm.io/driver/mysql"
@@ -15,11 +19,11 @@ import (
 type Adapter struct {
 	dsn  string
 	db   *gorm.DB
-	user repository.UserRepository
-	role repository.RoleRepository
-	rbac repository.RBACRepository
-	sys  repository.SystemRepository
-	plg  repository.PluginRepository
+	user userrepo.UserRepository
+	role rolerepo.RoleRepository
+	rbac rbacrepo.RBACRepository
+	sys  systemrepo.SystemRepository
+	plg  pluginrepo.PluginRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -55,21 +59,21 @@ func NewAdapter(dsn string) (*Adapter, error) {
 }
 
 func (a *Adapter) DSN() string { return a.dsn }
-func (a *Adapter) UserRepository() repository.UserRepository {
+func (a *Adapter) UserRepository() userrepo.UserRepository {
 	return a.user
 }
-func (a *Adapter) RoleRepository() repository.RoleRepository {
+func (a *Adapter) RoleRepository() rolerepo.RoleRepository {
 	return a.role
 }
-func (a *Adapter) RBACRepository() repository.RBACRepository {
+func (a *Adapter) RBACRepository() rbacrepo.RBACRepository {
 	return a.rbac
 }
 
-func (a *Adapter) SystemRepository() repository.SystemRepository {
+func (a *Adapter) SystemRepository() systemrepo.SystemRepository {
 	return a.sys
 }
 
-func (a *Adapter) PluginRepository() repository.PluginRepository {
+func (a *Adapter) PluginRepository() pluginrepo.PluginRepository {
 	return a.plg
 }
 

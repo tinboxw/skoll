@@ -7,16 +7,16 @@ import (
 
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	"github.com/tinboxw/skoll/internal/domain/shared"
-	"github.com/tinboxw/skoll/internal/repository"
+	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 )
 
 type serviceImpl struct {
-	repo  repository.AuditRepository
+	repo  auditrepo.AuditRepository
 	nowFn func() time.Time
 	idFn  func(prefix string) shared.ID
 }
 
-func NewService(repo repository.AuditRepository) Service {
+func NewService(repo auditrepo.AuditRepository) Service {
 	return &serviceImpl{
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },

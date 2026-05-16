@@ -6,16 +6,16 @@ import (
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
-	"github.com/tinboxw/skoll/internal/repository"
+	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 )
 
 type serviceImpl struct {
-	repo  repository.RBACRepository
+	repo  rbacrepo.RBACRepository
 	nowFn func() time.Time
 	idFn  func(prefix string) shared.ID
 }
 
-func NewService(repo repository.RBACRepository) Service {
+func NewService(repo rbacrepo.RBACRepository) Service {
 	return &serviceImpl{
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },

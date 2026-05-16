@@ -5,6 +5,12 @@ import (
 	"strings"
 
 	"github.com/tinboxw/skoll/internal/repository"
+	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
+	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
+	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
+	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
+	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
+	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/internal/store/clickhouse"
 	"github.com/tinboxw/skoll/internal/store/memory"
 	"github.com/tinboxw/skoll/internal/store/sql"
@@ -27,12 +33,12 @@ type Options struct {
 }
 
 type Bundle struct {
-	Users      repository.UserRepository
-	Roles      repository.RoleRepository
-	RBAC       repository.RBACRepository
-	Audit      repository.AuditRepository
-	System     repository.SystemRepository
-	Plugins    repository.PluginRepository
+	Users      userrepo.UserRepository
+	Roles      rolerepo.RoleRepository
+	RBAC       rbacrepo.RBACRepository
+	Audit      auditrepo.AuditRepository
+	System     systemrepo.SystemRepository
+	Plugins    pluginrepo.PluginRepository
 	UnitOfWork repository.UnitOfWork
 }
 

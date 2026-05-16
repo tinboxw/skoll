@@ -21,7 +21,10 @@ import (
 	builtinAuth "github.com/tinboxw/skoll/internal/plugin/builtin/auth"
 	builtinDashboard "github.com/tinboxw/skoll/internal/plugin/builtin/dashboard"
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
-	"github.com/tinboxw/skoll/internal/repository"
+	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
+	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
+	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
+	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
@@ -114,7 +117,7 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo repository.UserRepository, rolesRepo repository.RoleRepository, rbacRepo repository.RBACRepository, pluginsRepo repository.PluginRepository) plugin.Manager {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, pluginsRepo pluginrepo.PluginRepository) plugin.Manager {
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
 	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo)
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
@@ -177,7 +180,7 @@ type pluginManagerWithExtensions struct {
 	builtinInfos  map[string]plugin.Info
 	extensions    map[string]plugin.RegistrySnapshot
 	routeHandlers map[string]http.HandlerFunc
-	pluginsRepo   repository.PluginRepository
+	pluginsRepo   pluginrepo.PluginRepository
 }
 
 func (m *pluginManagerWithExtensions) Install(path string) (plugin.Info, error) {

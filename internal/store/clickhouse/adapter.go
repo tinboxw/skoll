@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tinboxw/skoll/internal/repository"
+	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 )
 
 type Adapter struct {
 	dsn     string
-	audit   repository.AuditRepository
+	audit   auditrepo.AuditRepository
 	metrics *MetricsStore
 }
 
@@ -25,7 +25,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 }
 
 func (a *Adapter) DSN() string { return a.dsn }
-func (a *Adapter) AuditRepository() repository.AuditRepository {
+func (a *Adapter) AuditRepository() auditrepo.AuditRepository {
 	return a.audit
 }
 func (a *Adapter) MetricsStore() *MetricsStore {

@@ -9,7 +9,9 @@ import (
 	domainrole "github.com/tinboxw/skoll/internal/domain/role"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
-	"github.com/tinboxw/skoll/internal/repository"
+	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
+	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
+	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/pkg/logging"
 )
 
@@ -32,7 +34,7 @@ type seedUser struct {
 	roleKey  string
 }
 
-func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo repository.UserRepository, rolesRepo repository.RoleRepository, rbacRepo repository.RBACRepository) {
+func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository) {
 	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil {
 		return
 	}
