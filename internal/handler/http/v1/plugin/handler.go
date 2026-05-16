@@ -1,4 +1,4 @@
-package v1
+package plugin
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/pkg/logging"
 )
@@ -130,7 +131,7 @@ func (h *PluginHandler) list(w http.ResponseWriter, r *http.Request) {
 	if raw := r.URL.Query().Get("enabled"); raw != "" {
 		v, err := strconv.ParseBool(raw)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, err)
+			apiv1.WriteError(w, http.StatusBadRequest, err)
 			return
 		}
 		onlyEnabled = v
@@ -151,7 +152,7 @@ func (h *PluginHandler) list(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, records)
+	apiv1.WriteJSON(w, http.StatusOK, records)
 }
 
 func (h *PluginHandler) records() []pluginRecord {
@@ -193,110 +194,110 @@ func (h *PluginHandler) records() []pluginRecord {
 
 func (h *PluginHandler) enable(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.manager == nil {
-		writeError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
 		return
 	}
 
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
 		return
 	}
 
 	if err := h.manager.Enable(id); err != nil {
 		if errors.Is(err, plugin.ErrPluginNotFound) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
 		}
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	h.appendPluginLog(id, "enable", "ok", "enabled")
 
-	writeMessage(w, http.StatusOK, "ok", "enabled")
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "enabled")
 }
 
 func (h *PluginHandler) disable(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.manager == nil {
-		writeError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
 		return
 	}
 
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
 		return
 	}
 
 	if err := h.manager.Disable(id); err != nil {
 		if errors.Is(err, plugin.ErrPluginNotFound) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
 		}
 		if errors.Is(err, plugin.ErrPluginSystemProtected) {
-			writeMessage(w, http.StatusForbidden, "forbidden", "system builtin plugin cannot be disabled")
+			apiv1.WriteMessage(w, http.StatusForbidden, "forbidden", "system builtin plugin cannot be disabled")
 			return
 		}
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	h.appendPluginLog(id, "disable", "ok", "disabled")
 
-	writeMessage(w, http.StatusOK, "ok", "disabled")
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "disabled")
 }
 
 func (h *PluginHandler) uninstall(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.manager == nil {
-		writeError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
 		return
 	}
 
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
 		return
 	}
 
 	if err := h.manager.Uninstall(id); err != nil {
 		if errors.Is(err, plugin.ErrPluginNotFound) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
 		}
 		if errors.Is(err, plugin.ErrPluginSystemProtected) {
-			writeMessage(w, http.StatusForbidden, "forbidden", "system builtin plugin cannot be uninstalled")
+			apiv1.WriteMessage(w, http.StatusForbidden, "forbidden", "system builtin plugin cannot be uninstalled")
 			return
 		}
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	h.appendPluginLog(id, "uninstall", "ok", "uninstalled")
 
-	writeMessage(w, http.StatusOK, "ok", "uninstalled")
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "uninstalled")
 }
 
 func (h *PluginHandler) debug(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.manager == nil {
-		writeError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
 		return
 	}
 
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
 		return
 	}
 
 	item, err := h.manager.Get(id)
 	if err != nil {
 		if errors.Is(err, plugin.ErrPluginNotFound) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
 		}
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, pluginDebugRecord{
+	apiv1.WriteJSON(w, http.StatusOK, pluginDebugRecord{
 		ID:           item.ID,
 		Name:         item.Name,
 		Version:      item.Version,
@@ -323,43 +324,43 @@ func (h *PluginHandler) extensions(pluginID string) any {
 func (h *PluginHandler) logs(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
 		return
 	}
 
 	content, err := h.readPluginLogContent(id)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin log not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin log not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, err)
+		apiv1.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, pluginLogsRecord{PluginID: id, Content: strings.TrimSpace(string(content))})
+	apiv1.WriteJSON(w, http.StatusOK, pluginLogsRecord{PluginID: id, Content: strings.TrimSpace(string(content))})
 }
 
 func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
 		return
 	}
 
 	info, err := h.getPluginInfo(id)
 	if err != nil {
 		if errors.Is(err, plugin.ErrPluginNotFound) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
 		}
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	frontendDir, err := resolvePluginFrontendDir(info)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err)
+		apiv1.WriteError(w, http.StatusNotFound, err)
 		return
 	}
 
@@ -367,10 +368,10 @@ func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {
 	content, err := os.ReadFile(indexPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			writeError(w, http.StatusNotFound, errors.New("plugin frontend index not found"))
+			apiv1.WriteError(w, http.StatusNotFound, errors.New("plugin frontend index not found"))
 			return
 		}
-		writeError(w, http.StatusInternalServerError, err)
+		apiv1.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -397,55 +398,55 @@ func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {
 func (h *PluginHandler) asset(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
 		return
 	}
 
 	assetPath := strings.TrimSpace(r.PathValue("asset"))
 	if assetPath == "" {
-		writeError(w, http.StatusBadRequest, errors.New("asset path is required"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("asset path is required"))
 		return
 	}
 	cleanAsset := filepath.Clean(assetPath)
 	if cleanAsset == "." || strings.HasPrefix(cleanAsset, "..") || strings.Contains(cleanAsset, "..") {
-		writeError(w, http.StatusBadRequest, errors.New("invalid asset path"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("invalid asset path"))
 		return
 	}
 
 	info, err := h.getPluginInfo(id)
 	if err != nil {
 		if errors.Is(err, plugin.ErrPluginNotFound) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
 		}
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	frontendDir, err := resolvePluginFrontendDir(info)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err)
+		apiv1.WriteError(w, http.StatusNotFound, err)
 		return
 	}
 
 	assetFile := filepath.Join(frontendDir, cleanAsset)
 	rel, err := filepath.Rel(frontendDir, assetFile)
 	if err != nil || strings.HasPrefix(rel, "..") {
-		writeError(w, http.StatusBadRequest, errors.New("invalid asset target"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("invalid asset target"))
 		return
 	}
 
 	fi, err := os.Stat(assetFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			writeMessage(w, http.StatusNotFound, "not_found", "plugin asset not found")
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin asset not found")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, err)
+		apiv1.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
 	if fi.IsDir() {
-		writeError(w, http.StatusBadRequest, errors.New("asset path points to directory"))
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("asset path points to directory"))
 		return
 	}
 
@@ -495,24 +496,24 @@ func resolvePluginFrontendDir(info plugin.Info) (string, error) {
 
 func (h *PluginHandler) install(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.manager == nil {
-		writeError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
 		return
 	}
 
 	req, err := decodePluginPathRequest(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	info, err := h.manager.Install(req.Path)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	h.appendPluginLog(info.ID, "install", "ok", "installed from path")
 
-	writeJSON(w, http.StatusCreated, pluginRecord{
+	apiv1.WriteJSON(w, http.StatusCreated, pluginRecord{
 		ID:      info.ID,
 		Name:    info.Name,
 		Version: info.Version,
@@ -531,13 +532,13 @@ func (h *PluginHandler) createEmbed(w http.ResponseWriter, r *http.Request) {
 func (h *PluginHandler) createExternal(w http.ResponseWriter, r *http.Request, pluginType string) {
 	registrar, ok := h.manager.(PluginExternalRegistrar)
 	if !ok {
-		writeError(w, http.StatusServiceUnavailable, errors.New("plugin external registration is not configured"))
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin external registration is not configured"))
 		return
 	}
 
 	var req externalPluginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -548,7 +549,7 @@ func (h *PluginHandler) createExternal(w http.ResponseWriter, r *http.Request, p
 	req.OpenMode = strings.TrimSpace(req.OpenMode)
 	req.RoutePath = strings.TrimSpace(req.RoutePath)
 	if req.PluginID == "" || req.Name == "" || req.URL == "" {
-		writeMessage(w, http.StatusBadRequest, "invalid_request", "pluginId, name and url are required")
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "pluginId, name and url are required")
 		return
 	}
 	if req.Version == "" {
@@ -574,12 +575,12 @@ func (h *PluginHandler) createExternal(w http.ResponseWriter, r *http.Request, p
 	}
 
 	if err := registrar.RegisterExternalPlugin(info); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	h.appendPluginLog(req.PluginID, "create_"+pluginType, "ok", "registered external plugin")
-	writeJSON(w, http.StatusCreated, map[string]any{
+	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{
 		"id":        req.PluginID,
 		"name":      req.Name,
 		"version":   req.Version,
@@ -593,23 +594,23 @@ func (h *PluginHandler) createExternal(w http.ResponseWriter, r *http.Request, p
 
 func (h *PluginHandler) validate(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.loader == nil {
-		writeError(w, http.StatusServiceUnavailable, errors.New("plugin loader not configured"))
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin loader not configured"))
 		return
 	}
 
 	req, err := decodePluginPathRequest(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	info, err := h.loader.Load(req.Path)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{
 		"id":           info.ID,
 		"name":         info.Name,
 		"version":      info.Version,

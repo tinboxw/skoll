@@ -5,7 +5,12 @@ import (
 	"net/http"
 	"strings"
 
-	v1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	audithttp "github.com/tinboxw/skoll/internal/handler/http/v1/audit"
+	pluginhttp "github.com/tinboxw/skoll/internal/handler/http/v1/plugin"
+	rbachttp "github.com/tinboxw/skoll/internal/handler/http/v1/rbac"
+	rolehttp "github.com/tinboxw/skoll/internal/handler/http/v1/role"
+	systemhttp "github.com/tinboxw/skoll/internal/handler/http/v1/system"
+	userhttp "github.com/tinboxw/skoll/internal/handler/http/v1/user"
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/internal/service/rbac"
@@ -45,12 +50,12 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	})
 	registerDocumentationRoutes(mux)
 
-	v1.RegisterUserRoutes(mux, deps.UserService)
-	v1.RegisterRoleRoutes(mux, deps.RoleService)
-	v1.RegisterRBACRoutes(mux, deps.RBACService)
-	v1.RegisterAuditRoutes(mux, deps.AuditService)
-	v1.RegisterSystemRoutes(mux, deps.SystemService)
-	v1.RegisterPluginRoutes(mux, deps.PluginManager, v1.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile))
+	userhttp.RegisterUserRoutes(mux, deps.UserService)
+	rolehttp.RegisterRoleRoutes(mux, deps.RoleService)
+	rbachttp.RegisterRBACRoutes(mux, deps.RBACService)
+	audithttp.RegisterAuditRoutes(mux, deps.AuditService)
+	systemhttp.RegisterSystemRoutes(mux, deps.SystemService)
+	pluginhttp.RegisterPluginRoutes(mux, deps.PluginManager, pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile))
 	registerPluginExtensionRoutes(mux, deps.PluginManager)
 
 	var h http.Handler = mux

@@ -1,4 +1,4 @@
-package v1
+package audit
 
 import (
 	"encoding/csv"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
+	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -31,43 +32,43 @@ func (h *AuditHandler) listByActor(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	items, err := h.service.ListByActor(r.Context(), r.PathValue("actorId"), limit)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	apiv1.WriteJSON(w, http.StatusOK, items)
 }
 
 func (h *AuditHandler) list(w http.ResponseWriter, r *http.Request) {
 	items, err := h.queryRecords(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	apiv1.WriteJSON(w, http.StatusOK, items)
 }
 
 func (h *AuditHandler) get(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
-		writeMessage(w, http.StatusBadRequest, "invalid_request", "id is required")
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "id is required")
 		return
 	}
 	item, err := h.service.GetByID(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	if item == nil {
-		writeMessage(w, http.StatusNotFound, "not_found", "audit record not found")
+		apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "audit record not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, item)
+	apiv1.WriteJSON(w, http.StatusOK, item)
 }
 
 func (h *AuditHandler) export(w http.ResponseWriter, r *http.Request) {
 	items, err := h.queryRecords(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
@@ -91,15 +92,15 @@ func (h *AuditHandler) export(w http.ResponseWriter, r *http.Request) {
 func (h *AuditHandler) clear(w http.ResponseWriter, r *http.Request) {
 	from, to, err := parseTimeRange(r)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	deleted, err := h.service.ClearByTimeRange(r.Context(), from, to)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"deleted": deleted})
+	apiv1.WriteJSON(w, http.StatusOK, map[string]int{"deleted": deleted})
 }
 
 func (h *AuditHandler) queryRecords(r *http.Request) ([]*domainaudit.Record, error) {

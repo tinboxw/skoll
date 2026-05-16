@@ -1,4 +1,4 @@
-package v1
+package user
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
+	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/pkg/security"
 )
@@ -132,7 +133,7 @@ func TestUserHandlerDisableActorIDFallback(t *testing.T) {
 		t.Fatalf("expected jwt actor id, got %q", svc.lastDisable.actorID)
 	}
 
-	var body response
+	var body apiv1.Response
 	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}

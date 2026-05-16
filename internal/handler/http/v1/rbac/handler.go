@@ -1,10 +1,11 @@
-package v1
+package rbac
 
 import (
 	"encoding/json"
 	"net/http"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
+	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 )
 
@@ -30,7 +31,7 @@ func (h *RBACHandler) bind(w http.ResponseWriter, r *http.Request) {
 		Scope       string `json:"scope"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	entity, err := h.service.BindRole(r.Context(), rbacsvc.BindRoleInput{
@@ -40,10 +41,10 @@ func (h *RBACHandler) bind(w http.ResponseWriter, r *http.Request) {
 		Scope:       domainrbac.DataScope(req.Scope),
 	})
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, entity)
+	apiv1.WriteJSON(w, http.StatusCreated, entity)
 }
 
 func (h *RBACHandler) setPolicies(w http.ResponseWriter, r *http.Request) {
@@ -51,14 +52,14 @@ func (h *RBACHandler) setPolicies(w http.ResponseWriter, r *http.Request) {
 		Rules []domainrbac.PolicyRule `json:"rules"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	if err := h.service.SetRolePolicies(r.Context(), rbacsvc.SetRolePoliciesInput{RoleID: r.PathValue("roleId"), Rules: req.Rules}); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeMessage(w, http.StatusOK, "ok", "updated")
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "updated")
 }
 
 func (h *RBACHandler) check(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +70,7 @@ func (h *RBACHandler) check(w http.ResponseWriter, r *http.Request) {
 		Action      string `json:"action"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	ok, err := h.service.CheckPermission(r.Context(), rbacsvc.CheckPermissionInput{
@@ -79,8 +80,8 @@ func (h *RBACHandler) check(w http.ResponseWriter, r *http.Request) {
 		Action:      req.Action,
 	})
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]bool{"allowed": ok})
+	apiv1.WriteJSON(w, http.StatusOK, map[string]bool{"allowed": ok})
 }

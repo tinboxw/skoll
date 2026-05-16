@@ -1,4 +1,4 @@
-package v1
+package user
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/pkg/security"
 )
@@ -38,31 +39,31 @@ func RegisterUserRoutes(mux *http.ServeMux, service usersvc.Service) {
 func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req usersvc.CreateUserInput
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	entity, err := h.service.Create(r.Context(), req)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, entity)
+	apiv1.WriteJSON(w, http.StatusCreated, entity)
 }
 
 func (h *UserHandler) createBatch(w http.ResponseWriter, r *http.Request) {
 	var req batchCreateUsersRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	if len(req.Items) == 0 {
-		writeMessage(w, http.StatusBadRequest, "invalid_request", "items are required")
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "items are required")
 		return
 	}
 
 	results, err := h.service.CreateBatch(r.Context(), usersvc.BatchCreateInput{Items: req.Items, Atomic: req.Atomic})
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -73,7 +74,7 @@ func (h *UserHandler) createBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{
 		"successCount": successCount,
 		"failureCount": len(req.Items) - successCount,
 		"results":      results,
@@ -85,23 +86,23 @@ func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	items, err := h.service.List(r.Context(), usersvc.ListInput{Offset: offset, Limit: limit})
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	apiv1.WriteJSON(w, http.StatusOK, items)
 }
 
 func (h *UserHandler) get(w http.ResponseWriter, r *http.Request) {
 	entity, err := h.service.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	if entity == nil {
-		writeMessage(w, http.StatusNotFound, "not_found", "user not found")
+		apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "user not found")
 		return
 	}
-	writeJSON(w, http.StatusOK, entity)
+	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 
 func (h *UserHandler) updateEmail(w http.ResponseWriter, r *http.Request) {
@@ -110,15 +111,15 @@ func (h *UserHandler) updateEmail(w http.ResponseWriter, r *http.Request) {
 		ActorID string `json:"actorId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	entity, err := h.service.UpdateEmail(r.Context(), usersvc.UpdateEmailInput{ID: r.PathValue("id"), Email: req.Email, ActorID: actorIDFromRequest(r.Context(), req.ActorID)})
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, entity)
+	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 
 func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +129,7 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		Status string `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	entity, err := h.service.Update(r.Context(), usersvc.UpdateUserInput{
@@ -138,18 +139,18 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		Status: req.Status,
 	})
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, entity)
+	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 
 func (h *UserHandler) delete(w http.ResponseWriter, r *http.Request) {
 	if err := h.service.Delete(r.Context(), r.PathValue("id")); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeMessage(w, http.StatusOK, "ok", "deleted")
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "deleted")
 }
 
 func (h *UserHandler) disable(w http.ResponseWriter, r *http.Request) {
@@ -158,10 +159,10 @@ func (h *UserHandler) disable(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
 	if err := h.service.Disable(r.Context(), r.PathValue("id"), actorIDFromRequest(r.Context(), req.ActorID)); err != nil {
-		writeError(w, http.StatusBadRequest, err)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	writeMessage(w, http.StatusOK, "ok", "disabled")
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "disabled")
 }
 
 func actorIDFromRequest(ctx context.Context, raw string) string {
