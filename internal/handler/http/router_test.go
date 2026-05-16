@@ -469,7 +469,7 @@ func TestRouterPluginValidateInstallAndExternalFlow(t *testing.T) {
 	}
 }
 
-func TestRouterAuditLogsAPIs(t *testing.T) {
+func TestRouterAuditAPIs(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
 	if err != nil {
 		t.Fatalf("store.NewBundle error: %v", err)
@@ -528,5 +528,19 @@ func TestRouterAuditLogsAPIs(t *testing.T) {
 	}
 	if strings.Contains(actorResp.Body.String(), rec1.ID.String()) {
 		t.Fatalf("expected rec1 removed by clear range, body=%s", actorResp.Body.String())
+	}
+
+	legacyListReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs?limit=10", nil)
+	legacyListResp := httptest.NewRecorder()
+	router.ServeHTTP(legacyListResp, legacyListReq)
+	if legacyListResp.Code != http.StatusNotFound {
+		t.Fatalf("legacy list route should be unavailable, got %d body=%s", legacyListResp.Code, legacyListResp.Body.String())
+	}
+
+	legacyExportReq := httptest.NewRequest(http.MethodGet, "/v1/audit/logs/export?limit=10", nil)
+	legacyExportResp := httptest.NewRecorder()
+	router.ServeHTTP(legacyExportResp, legacyExportReq)
+	if legacyExportResp.Code != http.StatusNotFound {
+		t.Fatalf("legacy export route should be unavailable, got %d body=%s", legacyExportResp.Code, legacyExportResp.Body.String())
 	}
 }

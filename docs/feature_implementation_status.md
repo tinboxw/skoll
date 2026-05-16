@@ -229,19 +229,19 @@
 - 无法支持分布式部署场景的事件同步
 - 事件仅在单实例内有效
 
-### 3.5 审计日志API (internal/handler/http/v1/audit_handler.go)
+### 3.5 审计日志API (internal/handler/http/v1/audit/handler.go)
 
 **规划要求**：
-- 获取日志列表 (GET /v1/audit/logs)
-- 获取日志详情 (GET /v1/audit/logs/{id})
-- 导出日志 (GET /v1/audit/logs/export)
-- 清理日志 (DELETE /v1/audit/logs)
+- 获取日志列表 (GET /v1/audit)
+- 获取日志详情 (GET /v1/audit/{id})
+- 导出日志 (GET /v1/audit/export)
+- 清理日志 (DELETE /v1/audit)
 
 **实际实现**：
-- `GET /v1/audit/logs` 日志列表查询（支持 actorId/from/to/limit）
-- `GET /v1/audit/logs/{id}` 日志详情查询
-- `GET /v1/audit/logs/export` 日志 CSV 导出
-- `DELETE /v1/audit/logs` 按时间范围清理日志
+- `GET /v1/audit` 日志列表查询（支持 actorId/from/to/limit）
+- `GET /v1/audit/{id}` 日志详情查询
+- `GET /v1/audit/export` 日志 CSV 导出
+- `DELETE /v1/audit` 按时间范围清理日志
 - `GET /v1/audit/actors/{actorId}` 按操作者查询
 
 **影响分析**：
@@ -520,10 +520,10 @@ F010 (覆盖率统计) → 依赖测试用例补充
 
 | 规划接口 | 方法 | 路径 | 实现状态 | 实现文件 |
 |---------|------|------|---------|---------|
-| 获取日志列表 | GET | /v1/audit/logs | ❌ 未实现 | - |
-| 获取日志详情 | GET | /v1/audit/logs/{id} | ❌ 未实现 | - |
-| 导出日志 | GET | /v1/audit/logs/export | ❌ 未实现 | - |
-| 清理日志 | DELETE | /v1/audit/logs | ❌ 未实现 | - |
+| 获取日志列表 | GET | /v1/audit | ✅ 已实现 | internal/handler/http/v1/audit/handler.go |
+| 获取日志详情 | GET | /v1/audit/{id} | ✅ 已实现 | internal/handler/http/v1/audit/handler.go |
+| 导出日志 | GET | /v1/audit/export | ✅ 已实现 | internal/handler/http/v1/audit/handler.go |
+| 清理日志 | DELETE | /v1/audit | ✅ 已实现 | internal/handler/http/v1/audit/handler.go |
 
 ---
 

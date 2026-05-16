@@ -2219,10 +2219,10 @@ const pluginComponent = defineAsyncComponent(() =>
 
 | 接口     | 方法     | 路径                          | 描述       |
 | ------ | ------ | --------------------------- | -------- |
-| 获取日志列表 | GET    | `/api/v1/audit/logs`        | 分页查询日志   |
-| 获取日志详情 | GET    | `/api/v1/audit/logs/{id}`   | 根据ID获取日志 |
-| 导出日志   | GET    | `/api/v1/audit/logs/export` | 导出日志文件   |
-| 清理日志   | DELETE | `/api/v1/audit/logs`        | 清理历史日志   |
+| 获取日志列表 | GET    | `/api/v1/audit`             | 分页查询日志   |
+| 获取日志详情 | GET    | `/api/v1/audit/{id}`        | 根据ID获取日志 |
+| 导出日志   | GET    | `/api/v1/audit/export`      | 导出日志文件   |
+| 清理日志   | DELETE | `/api/v1/audit`             | 清理历史日志   |
 
 ### 14.2 前端功能实现计划
 
