@@ -1,4 +1,4 @@
-package store
+package gormrepo
 
 import (
 	"context"
@@ -8,16 +8,15 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainsystem "github.com/tinboxw/skoll/internal/domain/system"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
-	"github.com/tinboxw/skoll/internal/store/sql/gormrepo/model"
 	"gorm.io/gorm"
 )
 
 type SystemStore struct {
 	db           *gorm.DB
-	normalizeKey model.Normalizer
+	normalizeKey Normalizer
 }
 
-func NewSystemStore(db *gorm.DB, normalizeKey model.Normalizer) *SystemStore {
+func NewSystemStore(db *gorm.DB, normalizeKey Normalizer) *SystemStore {
 	if normalizeKey == nil {
 		normalizeKey = defaultNormalize
 	}
@@ -29,7 +28,7 @@ func (s *SystemStore) GetSettingByID(ctx context.Context, id shared.ID) (*domain
 	if err != nil {
 		return nil, nil
 	}
-	row, err := storesql.FirstWhere[model.SystemSettingModel](ctx, s.db, "id = ?", idValue)
+	row, err := storesql.FirstWhere[SystemSettingModel](ctx, s.db, "id = ?", idValue)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,7 @@ func (s *SystemStore) GetSettingByID(ctx context.Context, id shared.ID) (*domain
 }
 
 func (s *SystemStore) GetSettingByKey(ctx context.Context, key string) (*domainsystem.Setting, error) {
-	row, err := storesql.FirstWhere[model.SystemSettingModel](ctx, s.db, map[string]any{"key": s.normalizeKey(key)})
+	row, err := storesql.FirstWhere[SystemSettingModel](ctx, s.db, map[string]any{"key": s.normalizeKey(key)})
 	if err != nil {
 		return nil, err
 	}
@@ -51,11 +50,11 @@ func (s *SystemStore) GetSettingByKey(ctx context.Context, key string) (*domains
 }
 
 func (s *SystemStore) ListSettings(ctx context.Context, offset, limit int) ([]*domainsystem.Setting, error) {
-	query, args, err := storesql.BuildOrderedSelect(s.db.Dialector.Name(), model.SystemSettingModel{}.TableName(), "key", offset, limit)
+	query, args, err := storesql.BuildOrderedSelect(s.db.Dialector.Name(), SystemSettingModel{}.TableName(), "key", offset, limit)
 	if err != nil {
 		return nil, err
 	}
-	var rows []model.SystemSettingModel
+	var rows []SystemSettingModel
 	tx := s.db.WithContext(ctx).Raw(query, args...).Scan(&rows)
 	if tx.Error != nil {
 		return nil, tx.Error
@@ -68,7 +67,7 @@ func (s *SystemStore) ListSettings(ctx context.Context, offset, limit int) ([]*d
 }
 
 func (s *SystemStore) SaveSetting(ctx context.Context, setting *domainsystem.Setting) error {
-	row := model.SystemSettingModelFromDomain(setting, s.normalizeKey)
+	row := SystemSettingModelFromDomain(setting, s.normalizeKey)
 	if row.ID == 0 {
 		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 			return err
@@ -88,5 +87,5 @@ func (s *SystemStore) DeleteSetting(ctx context.Context, id shared.ID) error {
 	if err != nil {
 		return nil
 	}
-	return storesql.DeleteByID[model.SystemSettingModel](ctx, s.db, idValue)
+	return storesql.DeleteByID[SystemSettingModel](ctx, s.db, idValue)
 }

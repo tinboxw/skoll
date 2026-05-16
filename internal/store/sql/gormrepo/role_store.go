@@ -1,4 +1,4 @@
-package store
+package gormrepo
 
 import (
 	"context"
@@ -8,16 +8,15 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/role"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
-	"github.com/tinboxw/skoll/internal/store/sql/gormrepo/model"
 	"gorm.io/gorm"
 )
 
 type RoleStore struct {
 	db           *gorm.DB
-	normalizeKey model.Normalizer
+	normalizeKey Normalizer
 }
 
-func NewRoleStore(db *gorm.DB, normalizeKey model.Normalizer) *RoleStore {
+func NewRoleStore(db *gorm.DB, normalizeKey Normalizer) *RoleStore {
 	if normalizeKey == nil {
 		normalizeKey = defaultNormalize
 	}
@@ -29,7 +28,7 @@ func (s *RoleStore) GetByID(ctx context.Context, id shared.ID) (*role.Role, erro
 	if err != nil {
 		return nil, nil
 	}
-	row, err := storesql.FirstWhere[model.RoleModel](ctx, s.db, "id = ?", idValue)
+	row, err := storesql.FirstWhere[RoleModel](ctx, s.db, "id = ?", idValue)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +39,7 @@ func (s *RoleStore) GetByID(ctx context.Context, id shared.ID) (*role.Role, erro
 }
 
 func (s *RoleStore) GetByKey(ctx context.Context, key string) (*role.Role, error) {
-	row, err := storesql.FirstWhere[model.RoleModel](ctx, s.db, map[string]any{"key": s.normalizeKey(key)})
+	row, err := storesql.FirstWhere[RoleModel](ctx, s.db, map[string]any{"key": s.normalizeKey(key)})
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +50,7 @@ func (s *RoleStore) GetByKey(ctx context.Context, key string) (*role.Role, error
 }
 
 func (s *RoleStore) List(ctx context.Context, offset, limit int) ([]*role.Role, error) {
-	rows, err := storesql.ListOrdered[model.RoleModel](ctx, s.db, "id asc", offset, limit)
+	rows, err := storesql.ListOrdered[RoleModel](ctx, s.db, "id asc", offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +62,7 @@ func (s *RoleStore) List(ctx context.Context, offset, limit int) ([]*role.Role, 
 }
 
 func (s *RoleStore) Save(ctx context.Context, entity *role.Role) error {
-	row := model.RoleModelFromDomain(entity, s.normalizeKey)
+	row := RoleModelFromDomain(entity, s.normalizeKey)
 	if row.ID == 0 {
 		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 			return err
@@ -83,5 +82,5 @@ func (s *RoleStore) Delete(ctx context.Context, id shared.ID) error {
 	if err != nil {
 		return nil
 	}
-	return storesql.DeleteByID[model.RoleModel](ctx, s.db, idValue)
+	return storesql.DeleteByID[RoleModel](ctx, s.db, idValue)
 }

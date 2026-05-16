@@ -1,4 +1,4 @@
-package model
+package gormrepo
 
 func AllModels() []any {
 	return []any{

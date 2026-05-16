@@ -1,4 +1,4 @@
-package store
+package gormrepo
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
-	"github.com/tinboxw/skoll/internal/store/sql/gormrepo/model"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +20,7 @@ func NewRBACStore(db *gorm.DB) *RBACStore {
 }
 
 func (s *RBACStore) CreateBinding(ctx context.Context, binding *rbac.Binding) error {
-	row := model.BindingModelFromDomain(binding)
+	row := BindingModelFromDomain(binding)
 	if row.ID == 0 {
 		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 			return err
@@ -41,7 +40,7 @@ func (s *RBACStore) DeleteBinding(ctx context.Context, id shared.ID) error {
 	if err != nil {
 		return nil
 	}
-	return storesql.DeleteByID[model.BindingModel](ctx, s.db, idValue)
+	return storesql.DeleteByID[BindingModel](ctx, s.db, idValue)
 }
 
 func (s *RBACStore) ListBindingsBySubject(ctx context.Context, subjectType rbac.SubjectType, subjectID shared.ID) ([]*rbac.Binding, error) {
@@ -49,7 +48,7 @@ func (s *RBACStore) ListBindingsBySubject(ctx context.Context, subjectType rbac.
 	if err != nil {
 		return []*rbac.Binding{}, nil
 	}
-	var rows []model.BindingModel
+	var rows []BindingModel
 	err = s.db.WithContext(ctx).
 		Where("subject_type = ? AND subject_id = ?", string(subjectType), subjectIDValue).
 		Find(&rows).Error
@@ -68,7 +67,7 @@ func (s *RBACStore) ListPolicyRulesByRoleID(ctx context.Context, roleID shared.I
 	if err != nil {
 		return []rbac.PolicyRule{}, nil
 	}
-	var rows []model.PolicyRuleModel
+	var rows []PolicyRuleModel
 	err = s.db.WithContext(ctx).
 		Where("role_id = ?", roleIDValue).
 		Order("id asc").
@@ -92,12 +91,12 @@ func (s *RBACStore) ReplacePolicyRules(ctx context.Context, roleID shared.ID, ru
 	if tx.Error != nil {
 		return tx.Error
 	}
-	if err := tx.Where("role_id = ?", roleIDValue).Delete(&model.PolicyRuleModel{}).Error; err != nil {
+	if err := tx.Where("role_id = ?", roleIDValue).Delete(&PolicyRuleModel{}).Error; err != nil {
 		_ = tx.Rollback().Error
 		return err
 	}
 	for i := range rules {
-		row := model.PolicyRuleModelFromDomain(roleID, rules[i])
+		row := PolicyRuleModelFromDomain(roleID, rules[i])
 		if err := tx.Create(&row).Error; err != nil {
 			_ = tx.Rollback().Error
 			return err

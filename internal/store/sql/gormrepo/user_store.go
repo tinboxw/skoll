@@ -1,4 +1,4 @@
-package store
+package gormrepo
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	"github.com/tinboxw/skoll/internal/domain/user"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
-	"github.com/tinboxw/skoll/internal/store/sql/gormrepo/model"
 	"gorm.io/gorm"
 )
 
@@ -25,7 +24,7 @@ func (s *UserStore) GetByID(ctx context.Context, id shared.ID) (*user.User, erro
 	if err != nil {
 		return nil, nil
 	}
-	row, err := storesql.FirstWhere[model.UserModel](ctx, s.db, "id = ?", idValue)
+	row, err := storesql.FirstWhere[UserModel](ctx, s.db, "id = ?", idValue)
 	if err != nil {
 		return nil, err
 	}
@@ -40,11 +39,11 @@ func (s *UserStore) GetByAccount(ctx context.Context, account string) (*user.Use
 	if target == "" {
 		return nil, nil
 	}
-	query, args, err := storesql.BuildSelectByLower(s.db.Dialector.Name(), model.UserModel{}.TableName(), "account", target, 1)
+	query, args, err := storesql.BuildSelectByLower(s.db.Dialector.Name(), UserModel{}.TableName(), "account", target, 1)
 	if err != nil {
 		return nil, err
 	}
-	var row model.UserModel
+	var row UserModel
 	tx := s.db.WithContext(ctx).Raw(query, args...).Scan(&row)
 	if tx.Error != nil {
 		return nil, tx.Error
@@ -56,7 +55,7 @@ func (s *UserStore) GetByAccount(ctx context.Context, account string) (*user.Use
 }
 
 func (s *UserStore) GetByEmail(ctx context.Context, email user.Email) (*user.User, error) {
-	row, err := storesql.FirstWhere[model.UserModel](ctx, s.db, "email = ?", email.String())
+	row, err := storesql.FirstWhere[UserModel](ctx, s.db, "email = ?", email.String())
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +66,7 @@ func (s *UserStore) GetByEmail(ctx context.Context, email user.Email) (*user.Use
 }
 
 func (s *UserStore) List(ctx context.Context, offset, limit int) ([]*user.User, error) {
-	rows, err := storesql.ListOrdered[model.UserModel](ctx, s.db, "id asc", offset, limit)
+	rows, err := storesql.ListOrdered[UserModel](ctx, s.db, "id asc", offset, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +78,7 @@ func (s *UserStore) List(ctx context.Context, offset, limit int) ([]*user.User, 
 }
 
 func (s *UserStore) Save(ctx context.Context, entity *user.User) error {
-	row := model.UserModelFromDomain(entity)
+	row := UserModelFromDomain(entity)
 	if row.ID == 0 {
 		if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 			return err
@@ -99,5 +98,5 @@ func (s *UserStore) Delete(ctx context.Context, id shared.ID) error {
 	if err != nil {
 		return nil
 	}
-	return storesql.DeleteByID[model.UserModel](ctx, s.db, idValue)
+	return storesql.DeleteByID[UserModel](ctx, s.db, idValue)
 }

@@ -1,11 +1,10 @@
-package store
+package gormrepo
 
 import (
 	"context"
 	"strings"
 
 	"github.com/tinboxw/skoll/internal/plugin"
-	"github.com/tinboxw/skoll/internal/store/sql/gormrepo/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -23,7 +22,7 @@ func (s *PluginStore) Get(ctx context.Context, pluginID string) (*plugin.Info, e
 	if key == "" {
 		return nil, nil
 	}
-	var row model.PluginModel
+	var row PluginModel
 	err := s.db.WithContext(ctx).Where("plugin_id = ?", key).First(&row).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -36,7 +35,7 @@ func (s *PluginStore) Get(ctx context.Context, pluginID string) (*plugin.Info, e
 }
 
 func (s *PluginStore) List(ctx context.Context) ([]plugin.Info, error) {
-	var rows []model.PluginModel
+	var rows []PluginModel
 	if err := s.db.WithContext(ctx).Order("plugin_id asc").Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -48,7 +47,7 @@ func (s *PluginStore) List(ctx context.Context) ([]plugin.Info, error) {
 }
 
 func (s *PluginStore) Save(ctx context.Context, info plugin.Info) error {
-	row := model.PluginModelFromInfo(info)
+	row := PluginModelFromInfo(info)
 	if strings.TrimSpace(row.PluginID) == "" {
 		return nil
 	}
@@ -63,5 +62,5 @@ func (s *PluginStore) Delete(ctx context.Context, pluginID string) error {
 	if key == "" {
 		return nil
 	}
-	return s.db.WithContext(ctx).Delete(&model.PluginModel{}, "plugin_id = ?", key).Error
+	return s.db.WithContext(ctx).Delete(&PluginModel{}, "plugin_id = ?", key).Error
 }
