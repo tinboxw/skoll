@@ -35,6 +35,10 @@ type PluginExternalRegistrar interface {
 	RegisterExternalPlugin(info plugin.Info) error
 }
 
+type PluginConfigUpdater interface {
+	SavePluginConfig(pluginID string, config map[string]any) error
+}
+
 type PluginHandler struct {
 	manager           PluginManager
 	extensionProvider PluginExtensionSnapshotProvider
@@ -122,6 +126,8 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	mux.HandleFunc("DELETE /v1/plugins/{id}", h.uninstall)
 	mux.HandleFunc("GET /v1/plugins/{id}/debug", h.debug)
 	mux.HandleFunc("GET /v1/plugins/{id}/logs", h.logs)
+	mux.HandleFunc("GET /v1/plugins/{id}/config", h.getConfig)
+	mux.HandleFunc("PUT /v1/plugins/{id}/config", h.updateConfig)
 	mux.HandleFunc("GET /v1/plugins/{id}/page", h.page)
 	mux.HandleFunc("GET /v1/plugins/{id}/assets/{asset...}", h.asset)
 }
@@ -339,6 +345,80 @@ func (h *PluginHandler) logs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiv1.WriteJSON(w, http.StatusOK, pluginLogsRecord{PluginID: id, Content: strings.TrimSpace(string(content))})
+}
+
+func (h *PluginHandler) getConfig(w http.ResponseWriter, r *http.Request) {
+	if h == nil || h.manager == nil {
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		return
+	}
+
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		return
+	}
+
+	info, err := h.manager.Get(id)
+	if err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			return
+		}
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	config := map[string]any{}
+	if raw := strings.TrimSpace(info.ConfigJSON); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &config); err != nil {
+			apiv1.WriteError(w, http.StatusInternalServerError, err)
+			return
+		}
+	}
+
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"pluginId": id, "config": config})
+}
+
+func (h *PluginHandler) updateConfig(w http.ResponseWriter, r *http.Request) {
+	if h == nil || h.manager == nil {
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		return
+	}
+
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		return
+	}
+
+	var req struct {
+		Config map[string]any `json:"config"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Config == nil {
+		req.Config = map[string]any{}
+	}
+
+	updater, ok := h.manager.(PluginConfigUpdater)
+	if !ok {
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin config persistence is not configured"))
+		return
+	}
+	if err := updater.SavePluginConfig(id, req.Config); err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			return
+		}
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	h.appendPluginLog(id, "update_config", "ok", "config updated")
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"pluginId": id, "config": req.Config})
 }
 
 func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {

@@ -400,6 +400,22 @@ func (m *pluginManagerWithExtensions) RegisterExternalPlugin(info plugin.Info) e
 	return m.pluginsRepo.Save(context.Background(), info)
 }
 
+func (m *pluginManagerWithExtensions) SavePluginConfig(pluginID string, config map[string]any) error {
+	if m == nil || m.pluginsRepo == nil {
+		return errors.New("plugin persistence is not configured")
+	}
+	item, err := m.getCurrent(strings.TrimSpace(pluginID))
+	if err != nil {
+		return err
+	}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	item.ConfigJSON = string(raw)
+	return m.pluginsRepo.Save(context.Background(), item)
+}
+
 func (m *pluginManagerWithExtensions) persistOne(ctx context.Context, pluginID string) {
 	if m == nil || m.pluginsRepo == nil {
 		return

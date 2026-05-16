@@ -133,6 +133,20 @@ type fakePluginManager struct {
 	executor  func(pluginID, method, path string, w http.ResponseWriter, r *http.Request) bool
 }
 
+func (m *fakePluginManager) SavePluginConfig(pluginID string, config map[string]any) error {
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	for i := range m.items {
+		if m.items[i].ID == pluginID {
+			m.items[i].ConfigJSON = string(raw)
+			return nil
+		}
+	}
+	return plugin.ErrPluginNotFound
+}
+
 func (m *fakePluginManager) Install(path string) (plugin.Info, error) {
 	loader := plugin.NewFileLoader()
 	info, err := loader.Load(path)
@@ -421,6 +435,50 @@ func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
 		if !strings.Contains(logsBody.Data.Content, marker) {
 			t.Fatalf("expected logs to contain %q, got %q", marker, logsBody.Data.Content)
 		}
+	}
+}
+
+func TestRouterPluginConfigFlow(t *testing.T) {
+	manager := &fakePluginManager{
+		items: []plugin.Info{{
+			ID:      "demo-frontend",
+			Name:    "Demo Frontend",
+			Version: "0.1.0",
+			State:   plugin.StateEnabled,
+			Source:  "plugins/demo-frontend",
+		}},
+	}
+	router := NewRouter(Dependencies{PluginManager: manager})
+
+	getEmptyReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/config", nil)
+	getEmptyResp := httptest.NewRecorder()
+	router.ServeHTTP(getEmptyResp, getEmptyReq)
+	if getEmptyResp.Code != http.StatusOK {
+		t.Fatalf("get empty config status=%d body=%s", getEmptyResp.Code, getEmptyResp.Body.String())
+	}
+
+	updateReq := httptest.NewRequest(http.MethodPut, "/v1/plugins/demo-frontend/config", bytes.NewReader([]byte(`{"config":{"featureX":true,"threshold":3}}`)))
+	updateResp := httptest.NewRecorder()
+	router.ServeHTTP(updateResp, updateReq)
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("update config status=%d body=%s", updateResp.Code, updateResp.Body.String())
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend/config", nil)
+	getResp := httptest.NewRecorder()
+	router.ServeHTTP(getResp, getReq)
+	if getResp.Code != http.StatusOK {
+		t.Fatalf("get config status=%d body=%s", getResp.Code, getResp.Body.String())
+	}
+	if !strings.Contains(getResp.Body.String(), "featureX") || !strings.Contains(getResp.Body.String(), "threshold") {
+		t.Fatalf("unexpected config payload: %s", getResp.Body.String())
+	}
+
+	notFoundReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/not-found/config", nil)
+	notFoundResp := httptest.NewRecorder()
+	router.ServeHTTP(notFoundResp, notFoundReq)
+	if notFoundResp.Code != http.StatusNotFound {
+		t.Fatalf("not found plugin config status=%d body=%s", notFoundResp.Code, notFoundResp.Body.String())
 	}
 }
 

@@ -503,8 +503,8 @@ F010 (覆盖率统计) → 依赖测试用例补充
 | 启用插件 | POST | /v1/plugins/{id}/enable | ✅ 已实现 | plugin_handler.go |
 | 禁用插件 | POST | /v1/plugins/{id}/disable | ✅ 已实现 | plugin_handler.go |
 | 卸载插件 | DELETE | /v1/plugins/{id} | ✅ 已实现 | plugin_handler.go |
-| 获取插件配置 | GET | /v1/plugins/{id}/config | ❌ 未实现 | - |
-| 更新插件配置 | PUT | /v1/plugins/{id}/config | ❌ 未实现 | - |
+| 获取插件配置 | GET | /v1/plugins/{id}/config | ✅ 已实现 | internal/handler/http/v1/plugin/handler.go |
+| 更新插件配置 | PUT | /v1/plugins/{id}/config | ✅ 已实现 | internal/handler/http/v1/plugin/handler.go |
 
 ### B.5 系统设置API
 

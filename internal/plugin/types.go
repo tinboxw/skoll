@@ -42,6 +42,7 @@ type Info struct {
 	Name          string
 	Version       string
 	Description   string
+	ConfigJSON    string
 	Dependencies  []Dependency
 	Permissions   []string
 	State         State

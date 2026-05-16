@@ -121,6 +121,31 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/plugins/{id}/config:
+    get:
+      summary: Get plugin config
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+    put:
+      summary: Update plugin config
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
   /v1/system/settings:
     get:
       summary: List system settings

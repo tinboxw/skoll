@@ -14,6 +14,7 @@ type PluginModel struct {
 	Name             string `gorm:"size:128"`
 	Version          string `gorm:"size:64"`
 	Description      string `gorm:"size:512"`
+	ConfigJSON       string `gorm:"type:text"`
 	State            string `gorm:"size:32;index"`
 	Source           string `gorm:"size:512"`
 	UIMode           string `gorm:"size:64"`
@@ -37,6 +38,7 @@ func PluginModelFromInfo(info plugin.Info) PluginModel {
 		Name:             strings.TrimSpace(info.Name),
 		Version:          strings.TrimSpace(info.Version),
 		Description:      strings.TrimSpace(info.Description),
+		ConfigJSON:       strings.TrimSpace(info.ConfigJSON),
 		State:            string(info.State),
 		Source:           strings.TrimSpace(info.Source),
 		UIMode:           string(info.UIMode),
@@ -63,6 +65,7 @@ func (m PluginModel) ToInfo() plugin.Info {
 		Name:          strings.TrimSpace(m.Name),
 		Version:       strings.TrimSpace(m.Version),
 		Description:   strings.TrimSpace(m.Description),
+		ConfigJSON:    strings.TrimSpace(m.ConfigJSON),
 		Dependencies:  dependencies,
 		Permissions:   permissions,
 		State:         plugin.State(strings.TrimSpace(m.State)),
