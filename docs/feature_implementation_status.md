@@ -510,11 +510,10 @@ F010 (覆盖率统计) → 依赖测试用例补充
 
 | 规划接口 | 方法 | 路径 | 实现状态 | 实现文件 |
 |---------|------|------|---------|---------|
-| 获取系统配置 | GET | /v1/settings | ✅ 已实现 | system_handler.go |
-| 更新系统配置 | PUT | /v1/settings | ✅ 已实现 | system_handler.go |
-| 获取单个配置 | GET | /v1/settings/{key} | ❌ 未实现 | - |
-| 更新单个配置 | PUT | /v1/settings/{key} | ❌ 未实现 | - |
-| 重置配置 | POST | /v1/settings/reset | ❌ 未实现 | - |
+| 获取系统配置 | GET | /v1/system/settings | ✅ 已实现 | internal/handler/http/v1/system/handler.go |
+| 获取单个配置 | GET | /v1/system/settings/{key} | ✅ 已实现 | internal/handler/http/v1/system/handler.go |
+| 更新单个配置 | PUT | /v1/system/settings/{key} | ✅ 已实现 | internal/handler/http/v1/system/handler.go |
+| 重置配置 | POST | /v1/system/settings/reset | ❌ 未实现 | - |
 
 ### B.6 审计日志API
 

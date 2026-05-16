@@ -127,4 +127,29 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/system/settings/{key}:
+    get:
+      summary: Get system setting by key
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+    put:
+      summary: Upsert system setting by key
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
 components: {}

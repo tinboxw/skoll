@@ -94,6 +94,20 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 	if getSettingResp.Code != http.StatusOK {
 		t.Fatalf("get setting status=%d body=%s", getSettingResp.Code, getSettingResp.Body.String())
 	}
+
+	missingSettingReq := httptest.NewRequest(http.MethodGet, "/v1/system/settings/missing.key", nil)
+	missingSettingResp := httptest.NewRecorder()
+	router.ServeHTTP(missingSettingResp, missingSettingReq)
+	if missingSettingResp.Code != http.StatusNotFound {
+		t.Fatalf("missing setting status=%d body=%s", missingSettingResp.Code, missingSettingResp.Body.String())
+	}
+
+	invalidSettingReq := httptest.NewRequest(http.MethodPut, "/v1/system/settings/demo.flag", bytes.NewReader([]byte("{")))
+	invalidSettingResp := httptest.NewRecorder()
+	router.ServeHTTP(invalidSettingResp, invalidSettingReq)
+	if invalidSettingResp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid upsert setting status=%d body=%s", invalidSettingResp.Code, invalidSettingResp.Body.String())
+	}
 }
 
 type fakePluginManager struct {

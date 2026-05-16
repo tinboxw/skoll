@@ -2209,11 +2209,10 @@ const pluginComponent = defineAsyncComponent(() =>
 
 | 接口     | 方法   | 路径                       | 描述      |
 | ------ | ---- | ------------------------ | ------- |
-| 获取系统配置 | GET  | `/api/v1/settings`       | 获取所有配置  |
-| 更新系统配置 | PUT  | `/api/v1/settings`       | 更新配置    |
-| 获取单个配置 | GET  | `/api/v1/settings/{key}` | 根据键获取配置 |
-| 更新单个配置 | PUT  | `/api/v1/settings/{key}` | 更新单个配置  |
-| 重置配置   | POST | `/api/v1/settings/reset` | 重置为默认配置 |
+| 获取系统配置 | GET  | `/api/v1/system/settings`       | 获取所有配置  |
+| 获取单个配置 | GET  | `/api/v1/system/settings/{key}` | 根据键获取配置 |
+| 更新单个配置 | PUT  | `/api/v1/system/settings/{key}` | 更新单个配置  |
+| 重置配置   | POST | `/api/v1/system/settings/reset` | 重置为默认配置 |
 
 #### 14.1.6 审计日志接口
 
