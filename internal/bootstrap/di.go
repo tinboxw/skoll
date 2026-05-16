@@ -86,7 +86,6 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),
-		middleware.Auth(cfg.AppConfig.Security.JWTSecret),
 	)
 
 	h := buildMiddlewareChain(router, logger, cfg.AuthPolicy, cfg.AppConfig.Security.JWTSecret, rbacService)
