@@ -130,6 +130,12 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 			continue
 		}
 
+		hash, err := domainuser.HashPassword(item.password)
+		if err != nil {
+			logger.Warn("seed user password failed", "account", item.account, "error", err)
+			continue
+		}
+
 		current, err := usersRepo.GetByAccount(ctx, item.account)
 		if err != nil {
 			logger.Warn("seed user load failed", "account", item.account, "error", err)
@@ -139,11 +145,6 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 			entity, err := domainuser.New(shared.ID(item.id), item.account, item.name, item.email, time.Now().UTC())
 			if err != nil {
 				logger.Warn("seed user build failed", "account", item.account, "error", err)
-				continue
-			}
-			hash, err := domainuser.HashPassword(item.password)
-			if err != nil {
-				logger.Warn("seed user password failed", "account", item.account, "error", err)
 				continue
 			}
 			if err := entity.SetPasswordHash(hash.String()); err != nil {
@@ -157,9 +158,23 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 			current = entity
 		}
 
+		shouldSave := false
+		if !strings.EqualFold(strings.TrimSpace(current.Password.String()), strings.TrimSpace(hash.String())) {
+			if err := current.SetPasswordHash(hash.String()); err != nil {
+				logger.Warn("seed user password reset failed", "account", item.account, "error", err)
+				continue
+			}
+			shouldSave = true
+		}
 		if current.Status != domainuser.StatusActive {
 			current.Activate(time.Now().UTC())
-			_ = usersRepo.Save(ctx, current)
+			shouldSave = true
+		}
+		if shouldSave {
+			if err := usersRepo.Save(ctx, current); err != nil {
+				logger.Warn("seed user update failed", "account", item.account, "error", err)
+				continue
+			}
 		}
 
 		bindings, err := rbacRepo.ListBindingsBySubject(ctx, domainrbac.SubjectUser, current.ID)

@@ -17,7 +17,7 @@ const pluginStore = usePluginStore();
 const { t } = useI18n();
 
 const account = ref("admin");
-const password = ref("skoll");
+const password = ref("Admin@123456");
 const loading = ref(false);
 const error = ref("");
 

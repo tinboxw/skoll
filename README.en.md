@@ -120,6 +120,13 @@ go run ./cmd/skoll
 
 Plugin logs are written to `log/<pluginId>.log`.
 
+## Default Login Account
+
+- Built-in admin account: `admin`
+- Default password: `Admin@123456`
+- The built-in seed password policy requires at least 8 characters, so `admin/admin` is not supported.
+- With persistent MySQL data, startup now reconciles built-in accounts to the defaults above (change the password after first login).
+
 ## Tests
 
 ```powershell
