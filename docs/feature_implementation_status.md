@@ -480,7 +480,7 @@ F010 (覆盖率统计) → 依赖测试用例补充
 | 更新角色 | PUT | /v1/roles/{id} | ✅ 已实现 | role_handler.go |
 | 删除角色 | DELETE | /v1/roles/{id} | ✅ 已实现 | role_handler.go |
 | 角色权限配置 | POST | /v1/roles/{id}/permissions | ✅ 已实现 | role_handler.go |
-| 获取角色用户 | GET | /v1/roles/{id}/users | ❌ 未实现 | - |
+| 获取角色用户 | GET | /v1/roles/{id}/users | ✅ 已实现 | internal/handler/http/v1/role/handler.go |
 
 ### B.3 权限管理API
 

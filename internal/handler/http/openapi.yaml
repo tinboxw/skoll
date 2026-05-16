@@ -80,6 +80,20 @@ paths:
       responses:
         '201':
           description: Created
+  /v1/roles/{id}/users:
+    get:
+      summary: List users by role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
   /v1/rbac/check:
     post:
       summary: Check authorization

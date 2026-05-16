@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
@@ -80,4 +81,12 @@ func (s *serviceImpl) CheckPermission(ctx context.Context, in CheckPermissionInp
 	}
 
 	return allowed, nil
+}
+
+func (s *serviceImpl) ListBindingsByUser(ctx context.Context, userID string) ([]*domainrbac.Binding, error) {
+	target := strings.TrimSpace(userID)
+	if target == "" {
+		return []*domainrbac.Binding{}, nil
+	}
+	return s.repo.ListBindingsBySubject(ctx, domainrbac.SubjectUser, shared.ID(target))
 }

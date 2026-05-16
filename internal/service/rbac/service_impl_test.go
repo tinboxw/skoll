@@ -45,3 +45,26 @@ func TestRBACServiceCheckPermission(t *testing.T) {
 		t.Fatalf("expected permission allowed")
 	}
 }
+
+func TestRBACServiceListBindingsByUser(t *testing.T) {
+	repo := memory.NewRBACStore()
+	svc := NewService(repo)
+
+	_, err := svc.BindRole(context.Background(), BindRoleInput{
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-2",
+		RoleID:      "r-2",
+		Scope:       domainrbac.DataScopeSelf,
+	})
+	if err != nil {
+		t.Fatalf("BindRole error: %v", err)
+	}
+
+	bindings, err := svc.ListBindingsByUser(context.Background(), "u-2")
+	if err != nil {
+		t.Fatalf("ListBindingsByUser error: %v", err)
+	}
+	if len(bindings) != 1 {
+		t.Fatalf("expected one binding, got %d", len(bindings))
+	}
+}

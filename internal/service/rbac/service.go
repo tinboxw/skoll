@@ -10,4 +10,5 @@ type Service interface {
 	BindRole(ctx context.Context, in BindRoleInput) (*domainrbac.Binding, error)
 	SetRolePolicies(ctx context.Context, in SetRolePoliciesInput) error
 	CheckPermission(ctx context.Context, in CheckPermissionInput) (bool, error)
+	ListBindingsByUser(ctx context.Context, userID string) ([]*domainrbac.Binding, error)
 }

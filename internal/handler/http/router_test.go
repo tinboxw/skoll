@@ -91,11 +91,21 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 		t.Fatalf("create role error: %v", err)
 	}
 
-	assignReq := httptest.NewRequest(http.MethodPost, "/v1/users/1/roles", bytes.NewReader([]byte(`{"roleId":"`+roleEntity.ID.String()+`","scope":"self"}`)))
+	assignReq := httptest.NewRequest(http.MethodPost, "/v1/users/new/roles", bytes.NewReader([]byte(`{"roleId":"`+roleEntity.ID.String()+`","scope":"self"}`)))
 	assignResp := httptest.NewRecorder()
 	router.ServeHTTP(assignResp, assignReq)
 	if assignResp.Code != http.StatusOK {
 		t.Fatalf("assign role status=%d body=%s", assignResp.Code, assignResp.Body.String())
+	}
+
+	roleUsersReq := httptest.NewRequest(http.MethodGet, "/v1/roles/"+roleEntity.ID.String()+"/users", nil)
+	roleUsersResp := httptest.NewRecorder()
+	router.ServeHTTP(roleUsersResp, roleUsersReq)
+	if roleUsersResp.Code != http.StatusOK {
+		t.Fatalf("role users status=%d body=%s", roleUsersResp.Code, roleUsersResp.Body.String())
+	}
+	if !strings.Contains(roleUsersResp.Body.String(), "api_user") {
+		t.Fatalf("expected assigned user in role users payload: %s", roleUsersResp.Body.String())
 	}
 
 	settingReq := httptest.NewRequest(http.MethodPut, "/v1/system/settings/demo.flag", bytes.NewReader([]byte(`{"value":"on","encrypted":false}`)))
