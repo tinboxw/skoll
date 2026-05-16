@@ -117,6 +117,7 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	}
 	h.logger = logging.New(h.logLevel)
 	mux.HandleFunc("GET /v1/plugins", h.list)
+	mux.HandleFunc("GET /v1/plugins/{id}", h.get)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
 	mux.HandleFunc("POST /v1/plugins/link", h.createLink)
 	mux.HandleFunc("POST /v1/plugins/embed", h.createEmbed)
@@ -159,6 +160,39 @@ func (h *PluginHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiv1.WriteJSON(w, http.StatusOK, records)
+}
+
+func (h *PluginHandler) get(w http.ResponseWriter, r *http.Request) {
+	if h == nil || h.manager == nil {
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		return
+	}
+
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("plugin id is required"))
+		return
+	}
+
+	item, err := h.manager.Get(id)
+	if err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
+			return
+		}
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	apiv1.WriteJSON(w, http.StatusOK, pluginRecord{
+		ID:            item.ID,
+		Name:          item.Name,
+		Version:       item.Version,
+		Enabled:       item.State == plugin.StateEnabled,
+		UIMode:        string(item.UIMode),
+		FrontendEntry: strings.TrimSpace(item.FrontendEntry),
+		SystemBuiltin: item.SystemBuiltin || strings.EqualFold(strings.TrimSpace(item.Source), "builtin"),
+	})
 }
 
 func (h *PluginHandler) records() []pluginRecord {

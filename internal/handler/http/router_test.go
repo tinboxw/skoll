@@ -457,6 +457,16 @@ func TestRouterPluginConfigFlow(t *testing.T) {
 		t.Fatalf("get empty config status=%d body=%s", getEmptyResp.Code, getEmptyResp.Body.String())
 	}
 
+	detailReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-frontend", nil)
+	detailResp := httptest.NewRecorder()
+	router.ServeHTTP(detailResp, detailReq)
+	if detailResp.Code != http.StatusOK {
+		t.Fatalf("get plugin detail status=%d body=%s", detailResp.Code, detailResp.Body.String())
+	}
+	if !strings.Contains(detailResp.Body.String(), "demo-frontend") {
+		t.Fatalf("unexpected plugin detail payload: %s", detailResp.Body.String())
+	}
+
 	updateReq := httptest.NewRequest(http.MethodPut, "/v1/plugins/demo-frontend/config", bytes.NewReader([]byte(`{"config":{"featureX":true,"threshold":3}}`)))
 	updateResp := httptest.NewRecorder()
 	router.ServeHTTP(updateResp, updateReq)
@@ -479,6 +489,13 @@ func TestRouterPluginConfigFlow(t *testing.T) {
 	router.ServeHTTP(notFoundResp, notFoundReq)
 	if notFoundResp.Code != http.StatusNotFound {
 		t.Fatalf("not found plugin config status=%d body=%s", notFoundResp.Code, notFoundResp.Body.String())
+	}
+
+	notFoundDetailReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/not-found", nil)
+	notFoundDetailResp := httptest.NewRecorder()
+	router.ServeHTTP(notFoundDetailResp, notFoundDetailReq)
+	if notFoundDetailResp.Code != http.StatusNotFound {
+		t.Fatalf("not found plugin detail status=%d body=%s", notFoundDetailResp.Code, notFoundDetailResp.Body.String())
 	}
 }
 

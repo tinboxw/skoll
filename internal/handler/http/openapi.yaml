@@ -121,6 +121,20 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/plugins/{id}:
+    get:
+      summary: Get plugin detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
   /v1/plugins/{id}/config:
     get:
       summary: Get plugin config
