@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainrole "github.com/tinboxw/skoll/internal/domain/role"
+	"github.com/tinboxw/skoll/internal/domain/shared"
 	"github.com/tinboxw/skoll/internal/store/memory"
 )
 
