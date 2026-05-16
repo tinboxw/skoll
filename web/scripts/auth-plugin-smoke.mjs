@@ -1,7 +1,7 @@
 const baseUrl = (process.env.SKOLL_API_BASE || "http://127.0.0.1:8080").replace(/\/$/, "");
 
 async function main() {
-  const resp = await fetch(`${baseUrl}/v1/auth/login`, {
+  const resp = await fetch(`${baseUrl}/api/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ account: "admin", password: "admin" })
@@ -30,22 +30,22 @@ async function main() {
     throw new Error("missing permissions array in response payload");
   }
 
-  const protectedNoAuth = await fetch(`${baseUrl}/v1/users`);
+  const protectedNoAuth = await fetch(`${baseUrl}/api/v1/users`);
   if (protectedNoAuth.status !== 401) {
-    throw new Error(`expected /v1/users without auth to return 401, got ${protectedNoAuth.status}`);
+	throw new Error(`expected /api/v1/users without auth to return 401, got ${protectedNoAuth.status}`);
   }
 
-  const protectedWithAuth = await fetch(`${baseUrl}/v1/users`, {
+  const protectedWithAuth = await fetch(`${baseUrl}/api/v1/users`, {
     headers: {
       Authorization: `Bearer ${token}`
     }
   });
   if (protectedWithAuth.status === 401) {
-    throw new Error("expected /v1/users with bearer token to pass auth middleware");
+    throw new Error("expected /api/v1/users with bearer token to pass auth middleware");
   }
 
   console.log("auth smoke passed", {
-    endpoint: `${baseUrl}/v1/auth/login`,
+    endpoint: `${baseUrl}/api/v1/auth/login`,
     tokenType,
     expiresIn,
     permissionsCount: permissions.length,

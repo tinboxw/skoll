@@ -24,9 +24,10 @@
 ### Vite 代理环境变量
 - `SKOLL_API_PROXY_TARGET`：后端代理目标地址（默认 `http://127.0.0.1:8080`）。
 - `SKOLL_API_PROXY_TIMEOUT_MS`：代理超时毫秒数（默认 `10000`）。
+- 默认代理前缀：`/api`（后端接口统一挂载到 `/api/v1/*`）。
 
 ### Smoke 脚本
-- `npm run smoke:health`：检查 `/health`。
+- `npm run smoke:health`：检查 `/api/health`。
 - `npm run smoke:auth`：检查登录与受保护接口。
 - `npm run smoke:plugins`：检查插件列表、详情与 404 回退行为。
 - `npm run smoke:auth-actor`：检查 actorId 回退链路。

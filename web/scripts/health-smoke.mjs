@@ -1,7 +1,7 @@
 const baseUrl = (process.env.SKOLL_API_BASE || process.env.SKOLL_API_PROXY_TARGET || "http://127.0.0.1:8080").replace(/\/$/, "");
 
 async function main() {
-  const resp = await fetch(`${baseUrl}/health`);
+  const resp = await fetch(`${baseUrl}/api/health`);
   if (!resp.ok) {
     throw new Error(`health check failed with status ${resp.status}`);
   }
@@ -14,7 +14,7 @@ async function main() {
   }
 
   console.log("health smoke passed", {
-    endpoint: `${baseUrl}/health`,
+    endpoint: `${baseUrl}/api/health`,
     status: resp.status,
     payload
   });

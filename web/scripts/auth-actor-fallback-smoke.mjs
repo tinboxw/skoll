@@ -1,7 +1,7 @@
 const baseUrl = (process.env.SKOLL_API_BASE || "http://127.0.0.1:8080").replace(/\/$/, "");
 
 async function login() {
-  const resp = await fetch(`${baseUrl}/v1/auth/login`, {
+  const resp = await fetch(`${baseUrl}/api/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ account: "admin", password: "admin" })
@@ -27,7 +27,7 @@ async function createUser(token) {
     actorID: "smoke-seed"
   };
 
-  const resp = await fetch(`${baseUrl}/v1/users`, {
+  const resp = await fetch(`${baseUrl}/api/v1/users`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -50,7 +50,7 @@ async function createUser(token) {
 }
 
 async function patchEmailWithoutActor(token, userId, suffix) {
-  const resp = await fetch(`${baseUrl}/v1/users/${userId}/email`, {
+  const resp = await fetch(`${baseUrl}/api/v1/users/${userId}/email`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -76,7 +76,7 @@ async function main() {
   const patchStatus = await patchEmailWithoutActor(token, id, suffix);
 
   console.log("auth actor fallback smoke passed", {
-    endpoint: `${baseUrl}/v1/users/${id}/email`,
+    endpoint: `${baseUrl}/api/v1/users/${id}/email`,
     patchStatus,
     actorMode: "empty-body-actorId"
   });

@@ -12,9 +12,9 @@ async function getJSON(path) {
 }
 
 async function main() {
-  const listAll = await getJSON("/v1/plugins");
+  const listAll = await getJSON("/api/v1/plugins");
   if (!listAll.resp.ok) {
-    throw new Error(`GET /v1/plugins failed with status ${listAll.resp.status}`);
+    throw new Error(`GET /api/v1/plugins failed with status ${listAll.resp.status}`);
   }
 
   const allItems = Array.isArray(listAll.payload?.data) ? listAll.payload.data : [];
@@ -22,39 +22,39 @@ async function main() {
     throw new Error("plugin list is empty");
   }
 
-  const listEnabled = await getJSON("/v1/plugins?enabled=true");
+  const listEnabled = await getJSON("/api/v1/plugins?enabled=true");
   if (!listEnabled.resp.ok) {
-    throw new Error(`GET /v1/plugins?enabled=true failed with status ${listEnabled.resp.status}`);
+    throw new Error(`GET /api/v1/plugins?enabled=true failed with status ${listEnabled.resp.status}`);
   }
 
   const selected = allItems.find((item) => typeof item?.id === "string" && item.id.trim() !== "") || allItems[0];
   const pluginId = String(selected.id);
 
-  const debugResp = await getJSON(`/v1/plugins/${pluginId}/debug`);
+  const debugResp = await getJSON(`/api/v1/plugins/${pluginId}/debug`);
   if (!debugResp.resp.ok) {
-    throw new Error(`GET /v1/plugins/${pluginId}/debug failed with status ${debugResp.resp.status}`);
+    throw new Error(`GET /api/v1/plugins/${pluginId}/debug failed with status ${debugResp.resp.status}`);
   }
   if (String(debugResp.payload?.data?.id || "") !== pluginId) {
     throw new Error(`debug payload id mismatch, expected ${pluginId}`);
   }
 
-  const logsResp = await fetch(`${baseUrl}/v1/plugins/${pluginId}/logs`);
+  const logsResp = await fetch(`${baseUrl}/api/v1/plugins/${pluginId}/logs`);
   if (logsResp.status !== 200 && logsResp.status !== 404) {
-    throw new Error(`GET /v1/plugins/${pluginId}/logs expected 200 or 404, got ${logsResp.status}`);
+    throw new Error(`GET /api/v1/plugins/${pluginId}/logs expected 200 or 404, got ${logsResp.status}`);
   }
 
-  const notFoundDebug = await fetch(`${baseUrl}/v1/plugins/skoll-smoke-not-found/debug`);
+  const notFoundDebug = await fetch(`${baseUrl}/api/v1/plugins/skoll-smoke-not-found/debug`);
   if (notFoundDebug.status !== 404) {
     throw new Error(`expected 404 for unknown plugin debug, got ${notFoundDebug.status}`);
   }
 
-  const notFoundLogs = await fetch(`${baseUrl}/v1/plugins/skoll-smoke-not-found/logs`);
+  const notFoundLogs = await fetch(`${baseUrl}/api/v1/plugins/skoll-smoke-not-found/logs`);
   if (notFoundLogs.status !== 404) {
     throw new Error(`expected 404 for unknown plugin logs, got ${notFoundLogs.status}`);
   }
 
   console.log("plugin sync smoke passed", {
-    endpoint: `${baseUrl}/v1/plugins`,
+    endpoint: `${baseUrl}/api/v1/plugins`,
     totalPlugins: allItems.length,
     enabledPlugins: Array.isArray(listEnabled.payload?.data) ? listEnabled.payload.data.length : 0,
     inspectedPlugin: pluginId,

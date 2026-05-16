@@ -19,13 +19,34 @@ export class ApiError extends Error {
 }
 
 const USER_SESSION_KEY = "skoll.auth.userSession";
+const API_PREFIX = "/api";
+
+function withAPIPrefix(url: string): string {
+	const normalized = url.trim();
+	if (normalized === "") {
+		return API_PREFIX;
+	}
+	if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+		return normalized;
+	}
+	if (normalized.startsWith(`${API_PREFIX}/`)) {
+		return normalized;
+	}
+	if (normalized === API_PREFIX) {
+		return normalized;
+	}
+	if (normalized.startsWith("/")) {
+		return `${API_PREFIX}${normalized}`;
+	}
+	return `${API_PREFIX}/${normalized}`;
+}
 
 function handleUnauthorized(url: string): void {
 	if (typeof window === "undefined") {
 		return;
 	}
-	const normalizedURL = url.trim().toLowerCase();
-	if (normalizedURL.startsWith("/v1/auth/login")) {
+	const normalizedURL = withAPIPrefix(url).toLowerCase();
+	if (normalizedURL.startsWith("/api/v1/auth/login")) {
 		return;
 	}
 
@@ -41,6 +62,7 @@ function handleUnauthorized(url: string): void {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
+	const requestURL = withAPIPrefix(url);
 	const token = getToken().trim();
 	const headers = new Headers(init?.headers ?? {});
 	if (!headers.has("Content-Type")) {
@@ -53,7 +75,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 	let resp: Response;
 	try {
-		resp = await fetch(url, {
+		resp = await fetch(requestURL, {
 			headers,
 			...init
 		});
@@ -73,7 +95,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 			: `request failed: ${resp.status}`;
 		const code = typeof payload?.code === "string" ? payload.code : "";
 		if (resp.status === 401) {
-			handleUnauthorized(url);
+			handleUnauthorized(requestURL);
 		}
 		throw new ApiError(message, resp.status, code);
 	}

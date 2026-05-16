@@ -12,12 +12,7 @@ export default defineConfig(({ mode }) => {
 			host: "0.0.0.0",
 			port: 5173,
 			proxy: {
-				"/v1": {
-					target: proxyTarget,
-					changeOrigin: true,
-					timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
-				},
-				"/health": {
+				"/api": {
 					target: proxyTarget,
 					changeOrigin: true,
 					timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000

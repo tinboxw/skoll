@@ -277,7 +277,7 @@ export const builtinAuthPlugin: FrontendPlugin = {
     enabled: true,
     uiMode: "frontend_only",
     systemBuiltin: true,
-    backendEndpoint: "/v1/auth/login",
+    backendEndpoint: "/api/v1/auth/login",
     route: {
       path: "/plugins/auth",
       name: "plugin-auth",

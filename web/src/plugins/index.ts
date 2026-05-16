@@ -7,6 +7,7 @@ import { builtinAuthPlugin } from "./builtin/auth";
 import type { BackendPluginRecord, FrontendPlugin, FrontendPluginManifest } from "./types";
 
 type PluginStore = ReturnType<typeof usePluginStore>;
+const API_PREFIX = "/api";
 
 const builtinPlugins: FrontendPlugin[] = [builtinAuthPlugin];
 let latestPluginSyncTask: Promise<void> = Promise.resolve();
@@ -140,7 +141,7 @@ async function syncPluginsFromBackend(fetcher: typeof fetch): Promise<BackendPlu
 	}
 	let resp: Response;
 	try {
-		resp = await fetcher("/v1/plugins", {
+		resp = await fetcher(`${API_PREFIX}/v1/plugins`, {
 			signal: controller.signal,
 			headers
 		});
@@ -165,10 +166,10 @@ function createRemotePluginView(record: BackendPluginRecord) {
 			const debugPayload = ref<Record<string, unknown> | null>(null);
 			const pageBroken = ref(false);
 			const frameURL = ref("");
-			const pageURL = `/v1/plugins/${record.id}/page`;
+			const pageURL = `${API_PREFIX}/v1/plugins/${record.id}/page`;
 
 			function patchPluginHTML(content: string): string {
-				const basePath = `/v1/plugins/${record.id}/assets/`;
+				const basePath = `${API_PREFIX}/v1/plugins/${record.id}/assets/`;
 				const absoluteAssetsBase = `${basePath}assets/`;
 				let patched = content;
 				if (!/<base\s+/i.test(patched)) {
@@ -203,7 +204,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 				loadError.value = "";
 				await loadPluginPage();
 				try {
-					const resp = await fetch(`/v1/plugins/${record.id}/debug`);
+					const resp = await fetch(`${API_PREFIX}/v1/plugins/${record.id}/debug`);
 					if (!resp.ok) {
 						throw new Error(`debug request failed: ${resp.status}`);
 					}
