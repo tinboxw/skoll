@@ -54,6 +54,12 @@ go test ./tests/benchmark -run ^$ -bench BenchmarkLocalCacheSetGet -benchmem -co
 - 当前包覆盖率：73.5%（`go test ./internal/service/role -cover`）
 - 覆盖点：分页参数校验、更新/删除失败路径、内置角色删除保护、更新规范化行为。
 
+### 2.7 本轮增量（service/system）
+
+- 本轮新增测试：`internal/service/system/service_impl_test.go`
+- 当前包覆盖率：85.4%（`go test ./internal/service/system -cover`）
+- 覆盖点：仓储未配置保护、键与分页校验、reset 删除计数与错误中断路径。
+
 ### 2.3 性能基线
 
 - BenchmarkLocalCacheSetGet
