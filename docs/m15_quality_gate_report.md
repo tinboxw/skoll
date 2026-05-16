@@ -48,6 +48,12 @@ go test ./tests/benchmark -run ^$ -bench BenchmarkLocalCacheSetGet -benchmem -co
 - 当前包覆盖率：42.9%（`go test ./internal/handler/http/v1/user -cover`）
 - 覆盖点：批量创建参数校验、角色分配失败路径、空 service 路由注册保护。
 
+### 2.6 本轮增量（service/role）
+
+- 本轮新增测试：`internal/service/role/service_impl_test.go`
+- 当前包覆盖率：73.5%（`go test ./internal/service/role -cover`）
+- 覆盖点：分页参数校验、更新/删除失败路径、内置角色删除保护、更新规范化行为。
+
 ### 2.3 性能基线
 
 - BenchmarkLocalCacheSetGet
