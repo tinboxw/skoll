@@ -57,6 +57,18 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/users/{id}/roles:
+    post:
+      summary: Assign role to user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
   /v1/roles:
     get:
       summary: List roles

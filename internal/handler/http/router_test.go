@@ -81,6 +81,23 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
 	}
 
+	roleEntity, err := roleService.Create(context.Background(), rolesvc.CreateRoleInput{
+		Name:        "Operator",
+		Key:         "operator",
+		Description: "Operator role",
+		Permissions: []string{"user.read"},
+	})
+	if err != nil {
+		t.Fatalf("create role error: %v", err)
+	}
+
+	assignReq := httptest.NewRequest(http.MethodPost, "/v1/users/1/roles", bytes.NewReader([]byte(`{"roleId":"`+roleEntity.ID.String()+`","scope":"self"}`)))
+	assignResp := httptest.NewRecorder()
+	router.ServeHTTP(assignResp, assignReq)
+	if assignResp.Code != http.StatusOK {
+		t.Fatalf("assign role status=%d body=%s", assignResp.Code, assignResp.Body.String())
+	}
+
 	settingReq := httptest.NewRequest(http.MethodPut, "/v1/system/settings/demo.flag", bytes.NewReader([]byte(`{"value":"on","encrypted":false}`)))
 	settingResp := httptest.NewRecorder()
 	router.ServeHTTP(settingResp, settingReq)

@@ -3,17 +3,21 @@ package user
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
+	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type UserHandler struct {
-	service usersvc.Service
+	service     usersvc.Service
+	rbacService rbacsvc.Service
 }
 
 type batchCreateUsersRequest struct {
@@ -21,16 +25,17 @@ type batchCreateUsersRequest struct {
 	Atomic bool                      `json:"atomic"`
 }
 
-func RegisterUserRoutes(mux *http.ServeMux, service usersvc.Service) {
+func RegisterUserRoutes(mux *http.ServeMux, service usersvc.Service, rbacService rbacsvc.Service) {
 	if service == nil {
 		return
 	}
-	h := &UserHandler{service: service}
+	h := &UserHandler{service: service, rbacService: rbacService}
 	mux.HandleFunc("POST /v1/users", h.create)
 	mux.HandleFunc("POST /v1/users/batch", h.createBatch)
 	mux.HandleFunc("GET /v1/users", h.list)
 	mux.HandleFunc("GET /v1/users/{id}", h.get)
 	mux.HandleFunc("PUT /v1/users/{id}", h.update)
+	mux.HandleFunc("POST /v1/users/{id}/roles", h.assignRole)
 	mux.HandleFunc("PATCH /v1/users/{id}/email", h.updateEmail)
 	mux.HandleFunc("DELETE /v1/users/{id}", h.delete)
 	mux.HandleFunc("POST /v1/users/{id}/disable", h.disable)
@@ -163,6 +168,44 @@ func (h *UserHandler) disable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "disabled")
+}
+
+func (h *UserHandler) assignRole(w http.ResponseWriter, r *http.Request) {
+	if h.rbacService == nil {
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("rbac service is not configured"))
+		return
+	}
+
+	var req struct {
+		RoleID string `json:"roleId"`
+		Scope  string `json:"scope"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	roleID := strings.TrimSpace(req.RoleID)
+	if roleID == "" {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "roleId is required")
+		return
+	}
+	scope := domainrbac.DataScope(strings.TrimSpace(req.Scope))
+	if scope == "" {
+		scope = domainrbac.DataScopeSelf
+	}
+
+	binding, err := h.rbacService.BindRole(r.Context(), rbacsvc.BindRoleInput{
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   strings.TrimSpace(r.PathValue("id")),
+		RoleID:      roleID,
+		Scope:       scope,
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, binding)
 }
 
 func actorIDFromRequest(ctx context.Context, raw string) string {

@@ -50,7 +50,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	})
 	registerDocumentationRoutes(mux)
 
-	userhttp.RegisterUserRoutes(mux, deps.UserService)
+	userhttp.RegisterUserRoutes(mux, deps.UserService, deps.RBACService)
 	rolehttp.RegisterRoleRoutes(mux, deps.RoleService)
 	rbachttp.RegisterRBACRoutes(mux, deps.RBACService)
 	audithttp.RegisterAuditRoutes(mux, deps.AuditService)

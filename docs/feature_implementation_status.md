@@ -468,7 +468,7 @@ F010 (覆盖率统计) → 依赖测试用例补充
 | 删除用户 | DELETE | /v1/users/{id} | ✅ 已实现 | user_handler.go |
 | 批量删除 | DELETE | /v1/users/batch | ✅ 已实现 | user_handler.go |
 | 用户状态切换 | POST | /v1/users/{id}/status | ⚠️ 部分实现 | 合并在update中 |
-| 用户角色分配 | POST | /v1/users/{id}/roles | ❌ 未实现 | - |
+| 用户角色分配 | POST | /v1/users/{id}/roles | ✅ 已实现 | internal/handler/http/v1/user/handler.go |
 
 ### B.2 角色管理API
 
