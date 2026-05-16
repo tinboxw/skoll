@@ -14,6 +14,9 @@ func Validate(cfg AppConfig) error {
 	if cfg.Server.ShutdownTimeout <= 0 {
 		return errors.New("shutdown timeout must be > 0")
 	}
+	if strings.TrimSpace(cfg.Server.APIPrefix) != "" && !strings.HasPrefix(strings.TrimSpace(cfg.Server.APIPrefix), "/") {
+		return errors.New("server api prefix must start with /")
+	}
 	switch cfg.Store.Mode {
 	case "memory", "mysql", "postgres":
 	default:

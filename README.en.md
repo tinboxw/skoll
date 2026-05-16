@@ -146,12 +146,20 @@ go test ./...
 
 ## API
 
-- `GET /health`
-- `GET /v1/plugins`
-- `POST /v1/plugins/install` (body: `{ "path": "plugins/demo" }`)
-- `POST /v1/plugins/validate` (body: `{ "path": "plugins/demo" }`)
-- `POST /v1/plugins/{id}/enable`
-- `POST /v1/plugins/{id}/disable`
-- `DELETE /v1/plugins/{id}`
-- `GET /v1/plugins/{id}/debug`
-- `GET /v1/plugins/{id}/logs`
+- `GET /api/health`
+- `GET /api/v1/plugins`
+- `POST /api/v1/plugins/install` (body: `{ "path": "plugins/demo" }`)
+- `POST /api/v1/plugins/validate` (body: `{ "path": "plugins/demo" }`)
+- `POST /api/v1/plugins/{id}/enable`
+- `POST /api/v1/plugins/{id}/disable`
+- `DELETE /api/v1/plugins/{id}`
+- `GET /api/v1/plugins/{id}/debug`
+- `GET /api/v1/plugins/{id}/logs`
+
+## Infrastructure Additions
+
+- API prefix: `SKOLL_SERVER_API_PREFIX` (default: `/api`)
+- Event bus mode: `SKOLL_EVENT_MODE` (`memory` or `redis`)
+- Redis Pub/Sub address: `SKOLL_EVENT_REDIS_ADDR` (required when `SKOLL_EVENT_MODE=redis`)
+- Swagger UI: `GET /api/docs/swagger`
+- OpenAPI document: `GET /api/docs/openapi.yaml`

@@ -146,12 +146,20 @@ go test ./...
 
 ## API
 
-- `GET /health`
-- `GET /v1/plugins`
-- `POST /v1/plugins/install`（请求体：`{ "path": "plugins/demo" }`）
-- `POST /v1/plugins/validate`（请求体：`{ "path": "plugins/demo" }`）
-- `POST /v1/plugins/{id}/enable`
-- `POST /v1/plugins/{id}/disable`
-- `DELETE /v1/plugins/{id}`
-- `GET /v1/plugins/{id}/debug`
-- `GET /v1/plugins/{id}/logs`
+- `GET /api/health`
+- `GET /api/v1/plugins`
+- `POST /api/v1/plugins/install`（请求体：`{ "path": "plugins/demo" }`）
+- `POST /api/v1/plugins/validate`（请求体：`{ "path": "plugins/demo" }`）
+- `POST /api/v1/plugins/{id}/enable`
+- `POST /api/v1/plugins/{id}/disable`
+- `DELETE /api/v1/plugins/{id}`
+- `GET /api/v1/plugins/{id}/debug`
+- `GET /api/v1/plugins/{id}/logs`
+
+## 基础设施配置补充
+
+- API 前缀：`SKOLL_SERVER_API_PREFIX`（默认 `/api`）
+- 事件总线模式：`SKOLL_EVENT_MODE`（`memory` 或 `redis`）
+- Redis Pub/Sub 地址：`SKOLL_EVENT_REDIS_ADDR`（当 `SKOLL_EVENT_MODE=redis` 时必填）
+- Swagger UI：`GET /api/docs/swagger`
+- OpenAPI：`GET /api/docs/openapi.yaml`

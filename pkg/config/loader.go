@@ -22,6 +22,7 @@ type AppConfig struct {
 
 type ServerConfig struct {
 	Address         string
+	APIPrefix       string
 	ShutdownTimeout time.Duration
 }
 
@@ -71,6 +72,7 @@ func Load() (AppConfig, error) {
 	v.AutomaticEnv()
 
 	v.SetDefault("server.address", ":8080")
+	v.SetDefault("server.api_prefix", "/api")
 	v.SetDefault("server.shutdown_timeout", "10s")
 	v.SetDefault("store.mode", "mysql")
 	v.SetDefault("store.dsn", "root:root@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local")
@@ -115,6 +117,7 @@ func Load() (AppConfig, error) {
 	return AppConfig{
 		Server: ServerConfig{
 			Address:         address,
+			APIPrefix:       normalizeAPIPrefix(v.GetString("server.api_prefix")),
 			ShutdownTimeout: shutdownTimeout,
 		},
 		Store: StoreConfig{
@@ -142,6 +145,21 @@ func Load() (AppConfig, error) {
 			PluginPerFile: v.GetBool("log.plugin_per_file"),
 		},
 	}, nil
+}
+
+func normalizeAPIPrefix(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return "/api"
+	}
+	if !strings.HasPrefix(v, "/") {
+		v = "/" + v
+	}
+	v = strings.TrimRight(v, "/")
+	if v == "" {
+		return "/api"
+	}
+	return v
 }
 
 func loadConfigFile(v *viper.Viper) error {
