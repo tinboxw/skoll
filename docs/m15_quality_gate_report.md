@@ -42,6 +42,12 @@ go test ./tests/benchmark -run ^$ -bench BenchmarkLocalCacheSetGet -benchmem -co
 - 当前包覆盖率：58.1%（`go test ./internal/service/user -cover`）
 - 结论：关键业务包覆盖率有提升，但总覆盖率尚未出现显著变化，下一轮需继续补充 handler 层与 store/sql 层测试。
 
+### 2.5 本轮增量（handler/http/v1/user）
+
+- 本轮新增测试：`internal/handler/http/v1/user/handler_test.go`
+- 当前包覆盖率：42.9%（`go test ./internal/handler/http/v1/user -cover`）
+- 覆盖点：批量创建参数校验、角色分配失败路径、空 service 路由注册保护。
+
 ### 2.3 性能基线
 
 - BenchmarkLocalCacheSetGet

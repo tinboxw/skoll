@@ -10,9 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/pkg/security"
 )
@@ -25,6 +27,34 @@ type fakeUserService struct {
 		id      string
 		actorID string
 	}
+}
+
+type fakeRBACService struct {
+	lastBind rbacsvc.BindRoleInput
+}
+
+func (f *fakeRBACService) CheckPermission(_ context.Context, _ rbacsvc.CheckPermissionInput) (bool, error) {
+	return false, nil
+}
+
+func (f *fakeRBACService) SetRolePolicies(_ context.Context, _ rbacsvc.SetRolePoliciesInput) error {
+	return nil
+}
+
+func (f *fakeRBACService) BindRole(_ context.Context, in rbacsvc.BindRoleInput) (*domainrbac.Binding, error) {
+	f.lastBind = in
+	if strings.TrimSpace(in.RoleID) == "" {
+		return nil, fmt.Errorf("role id is required")
+	}
+	return &domainrbac.Binding{ID: shared.ID("1"), SubjectID: shared.ID(in.SubjectID), RoleID: shared.ID(in.RoleID), Scope: in.Scope}, nil
+}
+
+func (f *fakeRBACService) UnbindRole(_ context.Context, _ string) error {
+	return nil
+}
+
+func (f *fakeRBACService) ListBindingsByUser(_ context.Context, _ string) ([]*domainrbac.Binding, error) {
+	return nil, nil
 }
 
 func (f *fakeUserService) Create(_ context.Context, in usersvc.CreateUserInput) (*domainuser.User, error) {
@@ -194,5 +224,90 @@ func TestUserHandlerCreateBatchAtomicFlag(t *testing.T) {
 	}
 	if !svc.batchInput.Atomic {
 		t.Fatalf("expected atomic batch flag to be true")
+	}
+}
+
+func TestUserHandlerCreateBatchValidationErrors(t *testing.T) {
+	svc := &fakeUserService{}
+	h := &UserHandler{service: svc}
+
+	t.Run("invalid json", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/v1/users/batch", bytes.NewBufferString(`{"items":`))
+		resp := httptest.NewRecorder()
+
+		h.createBatch(resp, req)
+
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("empty items", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/v1/users/batch", bytes.NewBufferString(`{"items":[]}`))
+		resp := httptest.NewRecorder()
+
+		h.createBatch(resp, req)
+
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+}
+
+func TestUserHandlerAssignRoleValidations(t *testing.T) {
+	t.Run("rbac service not configured", func(t *testing.T) {
+		h := &UserHandler{service: &fakeUserService{}, rbacService: nil}
+		req := httptest.NewRequest(http.MethodPost, "/v1/users/u-1/roles", bytes.NewBufferString(`{"roleId":"r1"}`))
+		req.SetPathValue("id", "u-1")
+		resp := httptest.NewRecorder()
+
+		h.assignRole(resp, req)
+
+		if resp.Code != http.StatusServiceUnavailable {
+			t.Fatalf("expected 503, got %d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("missing role id", func(t *testing.T) {
+		h := &UserHandler{service: &fakeUserService{}, rbacService: &fakeRBACService{}}
+		req := httptest.NewRequest(http.MethodPost, "/v1/users/u-1/roles", bytes.NewBufferString(`{"scope":"self"}`))
+		req.SetPathValue("id", "u-1")
+		resp := httptest.NewRecorder()
+
+		h.assignRole(resp, req)
+
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("success with default scope", func(t *testing.T) {
+		rbac := &fakeRBACService{}
+		h := &UserHandler{service: &fakeUserService{}, rbacService: rbac}
+		req := httptest.NewRequest(http.MethodPost, "/v1/users/u-1/roles", bytes.NewBufferString(`{"roleId":"r-1"}`))
+		req.SetPathValue("id", "u-1")
+		resp := httptest.NewRecorder()
+
+		h.assignRole(resp, req)
+
+		if resp.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+		}
+		if rbac.lastBind.Scope != domainrbac.DataScopeSelf {
+			t.Fatalf("expected default self scope, got %q", rbac.lastBind.Scope)
+		}
+	})
+}
+
+func TestRegisterUserRoutesNilServiceNoRegistration(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterUserRoutes(mux, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when service is nil, got %d", resp.Code)
 	}
 }
