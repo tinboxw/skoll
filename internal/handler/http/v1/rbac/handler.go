@@ -3,6 +3,7 @@ package rbac
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
@@ -19,6 +20,8 @@ func RegisterRBACRoutes(mux *http.ServeMux, service rbacsvc.Service) {
 	}
 	h := &RBACHandler{service: service}
 	mux.HandleFunc("POST /v1/rbac/bind", h.bind)
+	mux.HandleFunc("GET /v1/rbac/bindings", h.listBindings)
+	mux.HandleFunc("DELETE /v1/rbac/bindings/{id}", h.unbind)
 	mux.HandleFunc("PUT /v1/rbac/policies/{roleId}", h.setPolicies)
 	mux.HandleFunc("POST /v1/rbac/check", h.check)
 }
@@ -84,4 +87,28 @@ func (h *RBACHandler) check(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, map[string]bool{"allowed": ok})
+}
+
+func (h *RBACHandler) listBindings(w http.ResponseWriter, r *http.Request) {
+	subjectType := domainrbac.SubjectType(strings.TrimSpace(r.URL.Query().Get("subjectType")))
+	subjectID := strings.TrimSpace(r.URL.Query().Get("subjectId"))
+	items, err := h.service.ListBindings(r.Context(), subjectType, subjectID)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, items)
+}
+
+func (h *RBACHandler) unbind(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "binding id is required")
+		return
+	}
+	if err := h.service.UnbindBinding(r.Context(), id); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "unbound")
 }

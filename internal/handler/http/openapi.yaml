@@ -156,6 +156,35 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/rbac/bindings:
+    get:
+      summary: List role bindings by subject
+      parameters:
+        - name: subjectType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: subjectId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/rbac/bindings/{id}:
+    delete:
+      summary: Delete a role binding
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
   /v1/audit:
     get:
       summary: List audit records

@@ -49,8 +49,12 @@ func (f *fakeRBACService) BindRole(_ context.Context, in rbacsvc.BindRoleInput) 
 	return &domainrbac.Binding{ID: shared.ID("1"), SubjectID: shared.ID(in.SubjectID), RoleID: shared.ID(in.RoleID), Scope: in.Scope}, nil
 }
 
-func (f *fakeRBACService) UnbindRole(_ context.Context, _ string) error {
+func (f *fakeRBACService) UnbindBinding(_ context.Context, _ string) error {
 	return nil
+}
+
+func (f *fakeRBACService) ListBindings(_ context.Context, _ domainrbac.SubjectType, _ string) ([]*domainrbac.Binding, error) {
+	return nil, nil
 }
 
 func (f *fakeRBACService) ListBindingsByUser(_ context.Context, _ string) ([]*domainrbac.Binding, error) {

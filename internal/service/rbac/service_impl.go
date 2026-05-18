@@ -44,6 +44,25 @@ func (s *serviceImpl) BindRole(ctx context.Context, in BindRoleInput) (*domainrb
 	return b, nil
 }
 
+func (s *serviceImpl) UnbindBinding(ctx context.Context, bindingID string) error {
+	target := strings.TrimSpace(bindingID)
+	if target == "" {
+		return nil
+	}
+	return s.repo.DeleteBinding(ctx, shared.ID(target))
+}
+
+func (s *serviceImpl) ListBindings(ctx context.Context, subjectType domainrbac.SubjectType, subjectID string) ([]*domainrbac.Binding, error) {
+	targetID := strings.TrimSpace(subjectID)
+	if targetID == "" {
+		return []*domainrbac.Binding{}, nil
+	}
+	if subjectType != domainrbac.SubjectUser && subjectType != domainrbac.SubjectRole {
+		subjectType = domainrbac.SubjectUser
+	}
+	return s.repo.ListBindingsBySubject(ctx, subjectType, shared.ID(targetID))
+}
+
 func (s *serviceImpl) SetRolePolicies(ctx context.Context, in SetRolePoliciesInput) error {
 	for _, rule := range in.Rules {
 		if err := rule.Validate(); err != nil {
@@ -88,5 +107,5 @@ func (s *serviceImpl) ListBindingsByUser(ctx context.Context, userID string) ([]
 	if target == "" {
 		return []*domainrbac.Binding{}, nil
 	}
-	return s.repo.ListBindingsBySubject(ctx, domainrbac.SubjectUser, shared.ID(target))
+	return s.ListBindings(ctx, domainrbac.SubjectUser, target)
 }

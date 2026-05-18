@@ -13,6 +13,13 @@ type RoleRecord = {
 	permissions?: string[];
 };
 
+type UserRecord = {
+	id: string;
+	account: string;
+	name?: string;
+	email?: string;
+};
+
 function normalizeRoleRecord(item: unknown): RoleRecord | null {
 	if (!item || typeof item !== "object") {
 		return null;
@@ -30,6 +37,23 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 		permissions: Array.isArray(permissionsRaw)
 			? permissionsRaw.filter((item): item is string => typeof item === "string")
 			: []
+	};
+}
+
+function normalizeUserRecord(item: unknown): UserRecord | null {
+	if (!item || typeof item !== "object") {
+		return null;
+	}
+	const row = item as Record<string, unknown>;
+	const id = String(row.id ?? row.ID ?? "").trim();
+	if (!id) {
+		return null;
+	}
+	return {
+		id,
+		account: String(row.account ?? row.Account ?? "").trim(),
+		name: String(row.name ?? row.Name ?? "").trim(),
+		email: String(row.email ?? row.Email ?? "").trim()
 	};
 }
 
@@ -56,6 +80,9 @@ const error = ref("");
 const success = ref("");
 const selectedPermission = ref(permissionOptions[0]);
 const permissions = ref<string[]>([]);
+const users = ref<UserRecord[]>([]);
+const usersLoading = ref(false);
+const usersError = ref("");
 
 async function loadRole(): Promise<void> {
 	if (!roleId.value) {
@@ -104,6 +131,25 @@ async function saveRole(): Promise<void> {
 	}
 }
 
+async function loadRoleUsers(): Promise<void> {
+	if (!roleId.value) {
+		return;
+	}
+	usersLoading.value = true;
+	usersError.value = "";
+	try {
+		const payload = await apiGet<ApiResponse<UserRecord[]>>(`/v1/roles/${roleId.value}/users`);
+		users.value = Array.isArray(payload.data)
+			? payload.data.map((item) => normalizeUserRecord(item)).filter((item): item is UserRecord => item !== null)
+			: [];
+	} catch (e) {
+		usersError.value = toErrorMessage(e);
+		users.value = [];
+	} finally {
+		usersLoading.value = false;
+	}
+}
+
 async function grantPermission(): Promise<void> {
 	const permission = selectedPermission.value.trim().toLowerCase();
 	if (!roleId.value || !permission) {
@@ -145,6 +191,7 @@ async function revokePermission(permission: string): Promise<void> {
 
 onMounted(() => {
 	void loadRole();
+	void loadRoleUsers();
 });
 </script>
 
@@ -186,6 +233,38 @@ onMounted(() => {
 			</li>
 			<li v-if="permissions.length === 0" class="empty">{{ t("common.empty") }}</li>
 		</ul>
+		<section class="role-users">
+			<div class="role-users-header">
+				<h3>{{ t("role.usersTitle") }}</h3>
+				<button type="button" :disabled="usersLoading || saving" @click="loadRoleUsers">{{ usersLoading ? t("common.loading") : t("common.refresh") }}</button>
+			</div>
+			<p v-if="usersError" class="error">{{ usersError }}</p>
+			<table>
+				<thead>
+					<tr>
+						<th>{{ t("table.id") }}</th>
+						<th>{{ t("table.name") }}</th>
+						<th>{{ t("table.email") }}</th>
+						<th>{{ t("table.actions") }}</th>
+					</tr>
+				</thead>
+				<tbody v-if="users.length > 0">
+					<tr v-for="item in users" :key="item.id">
+						<td>{{ item.id }}</td>
+						<td>{{ item.name || item.account || "-" }}</td>
+						<td>{{ item.email || "-" }}</td>
+						<td>
+							<router-link :to="`/skoll/user/${item.id}/edit`">{{ t("common.edit") }}</router-link>
+						</td>
+					</tr>
+				</tbody>
+				<tbody v-else>
+					<tr>
+						<td colspan="4">{{ usersLoading ? t("common.loading") : t("common.empty") }}</td>
+					</tr>
+				</tbody>
+			</table>
+		</section>
 	</section>
 </template>
 
@@ -247,6 +326,29 @@ button {
 
 .empty {
 	color: var(--color-text-muted);
+}
+
+.role-users {
+	margin-top: 12px;
+}
+
+.role-users-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+th,
+td {
+	text-align: left;
+	padding: 8px;
+	border-bottom: 1px solid var(--color-border);
 }
 </style>
 

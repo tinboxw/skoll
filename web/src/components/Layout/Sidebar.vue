@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { LayoutDashboard, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
+import { ClipboardList, LayoutDashboard, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
 
 defineProps<{
 	collapsed: boolean;
@@ -11,6 +11,7 @@ const iconMap = {
 	users: Users,
 	roles: UserRoundCog,
 	permissions: ShieldCheck,
+	audit: ClipboardList,
 	plugins: Puzzle,
 	settings: Settings2
 } as const;

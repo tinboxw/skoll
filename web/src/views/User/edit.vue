@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
+import { type ApiResponse, apiDelete, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 type UserRecord = {
@@ -18,6 +18,12 @@ type RoleRecord = {
 	id: string;
 	name: string;
 	key?: string;
+};
+
+type BindingRecord = {
+	id: string;
+	roleId: string;
+	scope: string;
 };
 
 function normalizeUserRecord(item: unknown): UserRecord | null {
@@ -54,6 +60,22 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 	};
 }
 
+function normalizeBindingRecord(item: unknown): BindingRecord | null {
+	if (!item || typeof item !== "object") {
+		return null;
+	}
+	const row = item as Record<string, unknown>;
+	const id = String(row.id ?? row.ID ?? "").trim();
+	if (!id) {
+		return null;
+	}
+	return {
+		id,
+		roleId: String(row.roleId ?? row.RoleID ?? "").trim(),
+		scope: String(row.scope ?? row.Scope ?? "").trim()
+	};
+}
+
 const route = useRoute();
 const { t } = useI18n();
 
@@ -71,6 +93,8 @@ const selectedRoleID = ref("");
 const binding = ref(false);
 const bindError = ref("");
 const bindSuccess = ref("");
+const bindings = ref<BindingRecord[]>([]);
+const selectedBindingIDs = ref<string[]>([]);
 
 async function loadUser(): Promise<void> {
 	if (!userId.value) {
@@ -105,6 +129,21 @@ async function loadRoles(): Promise<void> {
 		if (!selectedRoleID.value && roles.value.length > 0) {
 			selectedRoleID.value = roles.value[0].id;
 		}
+	} catch (e) {
+		bindError.value = toErrorMessage(e);
+	}
+}
+
+async function loadBindings(): Promise<void> {
+	if (!userId.value) {
+		return;
+	}
+	try {
+		const payload = await apiGet<ApiResponse<BindingRecord[]>>(`/v1/rbac/bindings?subjectType=user&subjectId=${encodeURIComponent(userId.value)}`);
+		bindings.value = Array.isArray(payload.data)
+			? payload.data.map((item) => normalizeBindingRecord(item)).filter((item): item is BindingRecord => item !== null)
+			: [];
+		selectedBindingIDs.value = [];
 	} catch (e) {
 		bindError.value = toErrorMessage(e);
 	}
@@ -147,6 +186,7 @@ async function bindRole(): Promise<void> {
 			scope: "all"
 		});
 		bindSuccess.value = t("user.roleAssignDone");
+		await loadBindings();
 	} catch (e) {
 		bindError.value = toErrorMessage(e);
 	} finally {
@@ -154,9 +194,52 @@ async function bindRole(): Promise<void> {
 	}
 }
 
+function roleNameByID(roleID: string): string {
+	const matched = roles.value.find((item) => item.id === roleID);
+	return matched ? `${matched.name} (${matched.key || matched.id})` : roleID;
+}
+
+function toggleBinding(bindingID: string): void {
+	if (selectedBindingIDs.value.includes(bindingID)) {
+		selectedBindingIDs.value = selectedBindingIDs.value.filter((id) => id !== bindingID);
+		return;
+	}
+	selectedBindingIDs.value = [...selectedBindingIDs.value, bindingID];
+}
+
+async function unbindBindings(targetIDs: string[]): Promise<void> {
+	if (targetIDs.length === 0) {
+		return;
+	}
+	binding.value = true;
+	bindError.value = "";
+	bindSuccess.value = "";
+	let successCount = 0;
+	for (const id of targetIDs) {
+		try {
+			await apiDelete<ApiResponse<unknown>>(`/v1/rbac/bindings/${id}`);
+		} catch {
+			continue;
+		}
+		successCount += 1;
+	}
+	bindSuccess.value = `${t("user.roleUnbindDone")}: ${successCount}/${targetIDs.length}`;
+	await loadBindings();
+	binding.value = false;
+}
+
+async function unbindOne(bindingID: string): Promise<void> {
+	await unbindBindings([bindingID]);
+}
+
+async function unbindSelected(): Promise<void> {
+	await unbindBindings([...selectedBindingIDs.value]);
+}
+
 onMounted(() => {
 	void loadUser();
 	void loadRoles();
+	void loadBindings();
 });
 </script>
 
@@ -202,6 +285,36 @@ onMounted(() => {
 				{{ binding ? t("common.loading") : t("user.assignRole") }}
 			</button>
 			<p class="hint">{{ t("user.roleAssignHint") }}</p>
+			<section class="binding-list">
+				<div class="binding-actions">
+					<button type="button" :disabled="binding || selectedBindingIDs.length === 0" @click="unbindSelected">{{ t("user.unbindSelected") }}</button>
+				</div>
+				<table>
+					<thead>
+						<tr>
+							<th></th>
+							<th>{{ t("table.role") }}</th>
+							<th>{{ t("table.scope") }}</th>
+							<th>{{ t("table.actions") }}</th>
+						</tr>
+					</thead>
+					<tbody v-if="bindings.length > 0">
+						<tr v-for="item in bindings" :key="item.id">
+							<td><input type="checkbox" :checked="selectedBindingIDs.includes(item.id)" :disabled="binding" @change="toggleBinding(item.id)" /></td>
+							<td>{{ roleNameByID(item.roleId) }}</td>
+							<td>{{ item.scope || "-" }}</td>
+							<td>
+								<button type="button" :disabled="binding" @click="unbindOne(item.id)">{{ t("user.unbind") }}</button>
+							</td>
+						</tr>
+					</tbody>
+					<tbody v-else>
+						<tr>
+							<td colspan="4">{{ t("common.empty") }}</td>
+						</tr>
+					</tbody>
+				</table>
+			</section>
 		</section>
 	</section>
 </template>
@@ -261,6 +374,26 @@ button {
 
 .hint {
 	font-size: 13px;
+}
+
+.binding-list {
+	margin-top: 8px;
+}
+
+.binding-actions {
+	margin-bottom: 6px;
+}
+
+table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+th,
+td {
+	text-align: left;
+	padding: 8px;
+	border-bottom: 1px solid var(--color-border);
 }
 </style>
 

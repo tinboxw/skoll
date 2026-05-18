@@ -6,6 +6,7 @@ import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
 import DashboardPage from "../views/Dashboard/index.vue";
 import LoginPage from "../views/Login/index.vue";
+import AuditPage from "../views/Audit/index.vue";
 import PermissionPage from "../views/Permission/index.vue";
 import PluginPage from "../views/Plugin/index.vue";
 import ProfilePage from "../views/Profile/index.vue";
@@ -89,6 +90,12 @@ const routes: RouteRecordRaw[] = [
 		name: "permission",
 		component: PermissionPage,
 		meta: { permissions: ["permission.manage"] }
+	},
+	{
+		path: `${ADMIN_PREFIX}/audit`,
+		name: "audit",
+		component: AuditPage,
+		meta: { permissions: ["audit.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/setting`,

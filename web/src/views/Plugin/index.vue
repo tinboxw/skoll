@@ -6,7 +6,7 @@ import { useI18n } from "../../i18n";
 import { syncBackendPlugins } from "../../plugins";
 import { clearDefaultHomePath, createDefaultHomeTarget, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePlugin, resolvePluginEntryPath, setDefaultHomeTarget, usePluginStore } from "../../stores/plugins";
 import { ApiError, type ApiResponse } from "../../utils/api";
-import { apiDelete, apiGet, apiPost } from "../../utils/api";
+import { apiDelete, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 const router = useRouter();
@@ -19,9 +19,10 @@ const error = ref<string | null>(null);
 const showOnlyEnabled = ref(false);
 const debugText = ref("");
 const logText = ref("");
+const configText = ref("{}");
 const operationText = ref("");
 const selectedPlugin = ref("");
-const activeInspectorPanel = ref<"info" | "logs" | "">("");
+const activeInspectorPanel = ref<"info" | "logs" | "config" | "">("");
 const pluginPath = ref("");
 const activeDefaultHome = ref(getDefaultHomePath());
 const systemDefaultHome = getSystemDefaultHomePath();
@@ -135,6 +136,44 @@ async function openLogs(pluginID: string): Promise<void> {
 		}
 		error.value = toErrorMessage(e);
 		logText.value = "";
+	}
+}
+
+async function openConfig(pluginID: string): Promise<void> {
+	selectedPlugin.value = pluginID;
+	activeInspectorPanel.value = "config";
+	error.value = null;
+	info.value = null;
+	try {
+		const payload = await apiGet<ApiResponse<{ pluginId?: string; config?: Record<string, unknown> }>>(`/v1/plugins/${pluginID}/config`);
+		configText.value = JSON.stringify(payload.data?.config ?? {}, null, 2);
+	} catch (e) {
+		error.value = toErrorMessage(e);
+		configText.value = "{}";
+	}
+}
+
+async function saveConfig(): Promise<void> {
+	if (!selectedPlugin.value) {
+		return;
+	}
+	operating.value = true;
+	error.value = null;
+	info.value = null;
+	try {
+		const parsed = JSON.parse(configText.value || "{}") as Record<string, unknown>;
+		await apiPut<ApiResponse<unknown>>(`/v1/plugins/${selectedPlugin.value}/config`, {
+			config: parsed
+		});
+		info.value = t("plugin.config.saved");
+	} catch (e) {
+		if (e instanceof SyntaxError) {
+			error.value = t("plugin.config.invalidJson");
+		} else {
+			error.value = toErrorMessage(e);
+		}
+	} finally {
+		operating.value = false;
 	}
 }
 
@@ -362,6 +401,7 @@ function resetDefaultHome(): void {
 						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.disable") }}</button>
 						<button v-if="canUninstall(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
 						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.uninstall") }}</button>
+						<button type="button" :disabled="operating" @click="openConfig(item.id)">{{ t("plugin.action.config") }}</button>
 						<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
 						<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
 						<span v-if="activeDefaultHome === pluginEntryPath(item.id) && pluginEntryPath(item.id)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
@@ -401,6 +441,7 @@ function resetDefaultHome(): void {
 							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.disable") }}</button>
 							<button v-if="canUninstall(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
 							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.uninstall") }}</button>
+							<button type="button" :disabled="operating" @click="openConfig(item.id)">{{ t("plugin.action.config") }}</button>
 							<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
 							<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
 							<span v-if="isDefaultHomePlugin(item)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
@@ -415,6 +456,13 @@ function resetDefaultHome(): void {
 			<article v-if="activeInspectorPanel === 'info'">
 				<h4>{{ t("plugin.debug") }}</h4>
 				<pre>{{ debugText || t("plugin.noDebug") }}</pre>
+			</article>
+			<article v-else-if="activeInspectorPanel === 'config'">
+				<h4>{{ t("plugin.action.config") }}</h4>
+				<textarea v-model="configText" :disabled="operating" rows="12" />
+				<div class="config-actions">
+					<button type="button" :disabled="operating" @click="saveConfig">{{ t("plugin.action.saveConfig") }}</button>
+				</div>
 			</article>
 			<article v-else-if="activeInspectorPanel === 'logs'">
 				<h4>{{ t("plugin.logs") }}</h4>
@@ -656,6 +704,22 @@ pre {
 	font-size: 0.78rem;
 	max-height: 220px;
 	overflow: auto;
+}
+
+textarea {
+	width: 100%;
+	padding: 10px;
+	border-radius: var(--radius-md);
+	border: 1px solid var(--color-border);
+	background: var(--color-surface-soft);
+	color: var(--color-text);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
+	line-height: 1.4;
+	box-sizing: border-box;
+}
+
+.config-actions {
+	margin-top: 8px;
 }
 </style>
 

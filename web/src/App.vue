@@ -47,6 +47,7 @@ const sidebarItems = computed(() => {
 		{ label: t("menu.users"), to: `${ADMIN_BASE}/user`, icon: "users" },
 		{ label: t("menu.roles"), to: `${ADMIN_BASE}/role`, icon: "roles" },
 		{ label: t("menu.permissions"), to: `${ADMIN_BASE}/permission`, icon: "permissions", requiredPermissions: ["permission.manage"] },
+		{ label: t("menu.audit"), to: `${ADMIN_BASE}/audit`, icon: "audit", requiredPermissions: ["audit.read"] },
 		{ label: t("menu.plugins"), to: `${ADMIN_BASE}/plugin`, icon: "plugins" },
 		{ label: t("menu.settings"), to: `${ADMIN_BASE}/setting`, icon: "settings", requiredPermissions: ["role.manage"] }
 	];
