@@ -305,7 +305,7 @@ func TestUserHandlerAssignRoleValidations(t *testing.T) {
 
 func TestRegisterUserRoutesNilServiceNoRegistration(t *testing.T) {
 	mux := http.NewServeMux()
-	RegisterUserRoutes(mux, nil, nil)
+	RegisterUserRoutes(mux, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/users", nil)
 	resp := httptest.NewRecorder()

@@ -8,22 +8,25 @@ import (
 	"strings"
 
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	rolesvc "github.com/tinboxw/skoll/internal/service/role"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type RoleHandler struct {
 	service     rolesvc.Service
 	userService usersvc.Service
 	rbacService rbacsvc.Service
+	audit       auditsvc.Service
 }
 
-func RegisterRoleRoutes(mux *http.ServeMux, service rolesvc.Service, userService usersvc.Service, rbacService rbacsvc.Service) {
+func RegisterRoleRoutes(mux *http.ServeMux, service rolesvc.Service, userService usersvc.Service, rbacService rbacsvc.Service, auditSvc auditsvc.Service) {
 	if service == nil {
 		return
 	}
-	h := &RoleHandler{service: service, userService: userService, rbacService: rbacService}
+	h := &RoleHandler{service: service, userService: userService, rbacService: rbacService, audit: auditSvc}
 	mux.HandleFunc("POST /v1/roles", h.create)
 	mux.HandleFunc("GET /v1/roles", h.list)
 	mux.HandleFunc("GET /v1/roles/{id}", h.get)
@@ -45,6 +48,7 @@ func (h *RoleHandler) create(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "create", "role", entity.ID.String(), map[string]any{"key": entity.Key})
 	apiv1.WriteJSON(w, http.StatusCreated, entity)
 }
 
@@ -153,14 +157,17 @@ func (h *RoleHandler) update(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "update", "role", entity.ID.String(), map[string]any{"permissions": len(entity.Permissions)})
 	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 
 func (h *RoleHandler) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.service.Delete(r.Context(), r.PathValue("id")); err != nil {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if err := h.service.Delete(r.Context(), id); err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "delete", "role", id, nil)
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "deleted")
 }
 
@@ -177,6 +184,7 @@ func (h *RoleHandler) grant(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "grant", "role", entity.ID.String(), map[string]any{"permission": req.Permission})
 	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 
@@ -193,5 +201,20 @@ func (h *RoleHandler) revoke(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "revoke", "role", entity.ID.String(), map[string]any{"permission": req.Permission})
 	apiv1.WriteJSON(w, http.StatusOK, entity)
+}
+
+func (h *RoleHandler) appendAudit(r *http.Request, action, resource, resourceID string, detail map[string]any) {
+	if h == nil || h.audit == nil || r == nil {
+		return
+	}
+	actorID := ""
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+		actorID = strings.TrimSpace(claims.Subject)
+	}
+	if actorID == "" {
+		actorID = "system"
+	}
+	_, _ = h.audit.Append(r.Context(), actorID, action, resource, strings.TrimSpace(resourceID), detail)
 }

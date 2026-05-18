@@ -10,6 +10,7 @@ import (
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/pkg/security"
@@ -18,6 +19,7 @@ import (
 type UserHandler struct {
 	service     usersvc.Service
 	rbacService rbacsvc.Service
+	audit       auditsvc.Service
 }
 
 type batchCreateUsersRequest struct {
@@ -25,11 +27,11 @@ type batchCreateUsersRequest struct {
 	Atomic bool                      `json:"atomic"`
 }
 
-func RegisterUserRoutes(mux *http.ServeMux, service usersvc.Service, rbacService rbacsvc.Service) {
+func RegisterUserRoutes(mux *http.ServeMux, service usersvc.Service, rbacService rbacsvc.Service, auditSvc auditsvc.Service) {
 	if service == nil {
 		return
 	}
-	h := &UserHandler{service: service, rbacService: rbacService}
+	h := &UserHandler{service: service, rbacService: rbacService, audit: auditSvc}
 	mux.HandleFunc("POST /v1/users", h.create)
 	mux.HandleFunc("POST /v1/users/batch", h.createBatch)
 	mux.HandleFunc("GET /v1/users", h.list)
@@ -52,6 +54,7 @@ func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "create", "user", entity.ID.String(), map[string]any{"account": entity.Account})
 	apiv1.WriteJSON(w, http.StatusCreated, entity)
 }
 
@@ -84,6 +87,7 @@ func (h *UserHandler) createBatch(w http.ResponseWriter, r *http.Request) {
 		"failureCount": len(req.Items) - successCount,
 		"results":      results,
 	})
+	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "batch_create", "user", "", map[string]any{"count": len(req.Items), "successCount": successCount, "atomic": req.Atomic})
 }
 
 func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -147,14 +151,17 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "update", "user", entity.ID.String(), map[string]any{"status": entity.Status})
 	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 
 func (h *UserHandler) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.service.Delete(r.Context(), r.PathValue("id")); err != nil {
+	id := strings.TrimSpace(r.PathValue("id"))
+	if err := h.service.Delete(r.Context(), id); err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "delete", "user", id, nil)
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "deleted")
 }
 
@@ -163,10 +170,13 @@ func (h *UserHandler) disable(w http.ResponseWriter, r *http.Request) {
 		ActorID string `json:"actorId"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
-	if err := h.service.Disable(r.Context(), r.PathValue("id"), actorIDFromRequest(r.Context(), req.ActorID)); err != nil {
+	actorID := actorIDFromRequest(r.Context(), req.ActorID)
+	id := strings.TrimSpace(r.PathValue("id"))
+	if err := h.service.Disable(r.Context(), id, actorID); err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, actorID, "disable", "user", id, nil)
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "disabled")
 }
 
@@ -205,7 +215,19 @@ func (h *UserHandler) assignRole(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "assign_role", "user", strings.TrimSpace(r.PathValue("id")), map[string]any{"roleId": roleID, "scope": string(scope)})
 	apiv1.WriteJSON(w, http.StatusOK, binding)
+}
+
+func (h *UserHandler) appendAudit(r *http.Request, actorID, action, resource, resourceID string, detail map[string]any) {
+	if h == nil || h.audit == nil || r == nil {
+		return
+	}
+	actor := strings.TrimSpace(actorID)
+	if actor == "" {
+		actor = "system"
+	}
+	_, _ = h.audit.Append(r.Context(), actor, action, resource, strings.TrimSpace(resourceID), detail)
 }
 
 func actorIDFromRequest(ctx context.Context, raw string) string {

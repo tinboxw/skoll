@@ -55,8 +55,8 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	})
 	registerDocumentationRoutes(apiMux, apiPrefix)
 
-	userhttp.RegisterUserRoutes(apiMux, deps.UserService, deps.RBACService)
-	rolehttp.RegisterRoleRoutes(apiMux, deps.RoleService, deps.UserService, deps.RBACService)
+	userhttp.RegisterUserRoutes(apiMux, deps.UserService, deps.RBACService, deps.AuditService)
+	rolehttp.RegisterRoleRoutes(apiMux, deps.RoleService, deps.UserService, deps.RBACService, deps.AuditService)
 	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService, deps.AuditService)
 	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService)
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
