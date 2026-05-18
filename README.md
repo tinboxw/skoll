@@ -1,30 +1,30 @@
-ï»¿# Skoll
+# Skoll
 
-Skoll v2 æ˜¯ä¸€ä¸ªæŒ‰åˆ†å±‚æ¶æ„é‡æ–°å®ç°çš„ Go æ¡†æ¶åŸºçº¿ï¼Œå¼ºè°ƒèŒè´£æ¸…æ™°ã€ä½è€¦åˆé«˜å†…èšã€å¯æµ‹è¯•ä¸å¯æ‰©å±•ã€‚
+Skoll v2 ÊÇÒ»¸ö°´·Ö²ã¼Ü¹¹ÖØĞÂÊµÏÖµÄ Go ¿ò¼Ü»ùÏß£¬Ç¿µ÷Ö°ÔğÇåÎú¡¢µÍñîºÏ¸ßÄÚ¾Û¡¢¿É²âÊÔÓë¿ÉÀ©Õ¹¡£
 
-## æ¶æ„åˆ†å±‚
+## ¼Ü¹¹·Ö²ã
 
-- `cmd/skoll`ï¼šè¿›ç¨‹å…¥å£
-- `internal/bootstrap`ï¼šé…ç½®ä¸è¿è¡Œæ—¶è£…é…
-- `pkg/config`ï¼šé…ç½®åŠ è½½ã€æ ¡éªŒä¸å˜æ›´é€šçŸ¥
-- `pkg/logging`ï¼šç»“æ„åŒ–æ—¥å¿—æŠ½è±¡
-- `pkg/errors`ï¼šç»Ÿä¸€é”™è¯¯æ¨¡å‹ä¸ HTTP æ˜ å°„
-- `pkg/security`ï¼šJWTã€å¯†ç å“ˆå¸Œä¸åŠ å¯†å·¥å…·
+- `cmd/skoll`£º½ø³ÌÈë¿Ú
+- `internal/bootstrap`£ºÅäÖÃÓëÔËĞĞÊ±×°Åä
+- `pkg/config`£ºÅäÖÃ¼ÓÔØ¡¢Ğ£ÑéÓë±ä¸üÍ¨Öª
+- `pkg/logging`£º½á¹¹»¯ÈÕÖ¾³éÏó
+- `pkg/errors`£ºÍ³Ò»´íÎóÄ£ĞÍÓë HTTP Ó³Éä
+- `pkg/security`£ºJWT¡¢ÃÜÂë¹şÏ£Óë¼ÓÃÜ¹¤¾ß
 
-## å­˜å‚¨å±‚è¯´æ˜
+## ´æ´¢²ãËµÃ÷
 
-- `internal/store/sql/gormrepo/model`ï¼šMySQL/PostgreSQL å…±äº«æ¨¡å‹å®šä¹‰ä¸æ˜ å°„ï¼ˆæ¯è¡¨ç‹¬ç«‹æ–‡ä»¶ï¼‰ã€‚
-- `internal/store/sql/gormrepo/store`ï¼šMySQL/PostgreSQL å…±äº«ä»“å‚¨å®ç°ï¼ˆæŒ‰ user/role/system/rbac åˆ†æ–‡ä»¶ï¼‰ã€‚
-- `internal/store/sql/gormrepo/stores.go`ï¼šæ ¹åŒ…é—¨é¢å¯¼å‡ºï¼Œä¿æŒä¸Šå±‚è°ƒç”¨ç¨³å®šã€‚
-- `internal/store/sql/mysql`ï¼šMySQL æ–¹è¨€å…¥å£ï¼ˆDSN è§£æã€è¿æ¥ã€è¿ç§»ã€é”®è§„èŒƒåŒ–ï¼‰ã€‚
-- `internal/store/sql/postgres`ï¼šPostgreSQL æ–¹è¨€å…¥å£ï¼ˆè¿æ¥ã€è¿ç§»ã€é”®è§„èŒƒåŒ–ï¼‰ã€‚
-- `internal/store/sql/transaction.go`ï¼šSQL æ¨¡å¼ä¸‹çš„äº‹åŠ¡è¾¹ç•Œå®ç°ï¼ˆ`UnitOfWork`ï¼‰ã€‚
+- `internal/store/sql/gormrepo/model`£ºMySQL/PostgreSQL ¹²ÏíÄ£ĞÍ¶¨ÒåÓëÓ³Éä£¨Ã¿±í¶ÀÁ¢ÎÄ¼ş£©¡£
+- `internal/store/sql/gormrepo/store`£ºMySQL/PostgreSQL ¹²Ïí²Ö´¢ÊµÏÖ£¨°´ user/role/system/rbac ·ÖÎÄ¼ş£©¡£
+- `internal/store/sql/gormrepo/stores.go`£º¸ù°üÃÅÃæµ¼³ö£¬±£³ÖÉÏ²ãµ÷ÓÃÎÈ¶¨¡£
+- `internal/store/sql/mysql`£ºMySQL ·½ÑÔÈë¿Ú£¨DSN ½âÎö¡¢Á¬½Ó¡¢Ç¨ÒÆ¡¢¼ü¹æ·¶»¯£©¡£
+- `internal/store/sql/postgres`£ºPostgreSQL ·½ÑÔÈë¿Ú£¨Á¬½Ó¡¢Ç¨ÒÆ¡¢¼ü¹æ·¶»¯£©¡£
+- `internal/store/sql/transaction.go`£ºSQL Ä£Ê½ÏÂµÄÊÂÎñ±ß½çÊµÏÖ£¨`UnitOfWork`£©¡£
 
-## å¿«é€Ÿå¯åŠ¨
+## ¿ìËÙÆô¶¯
 
-é»˜è®¤è¯»å–ä¼˜å…ˆçº§ï¼š`SKOLL_* ç¯å¢ƒå˜é‡ > é…ç½®æ–‡ä»¶ > å†…ç½®é»˜è®¤å€¼`ã€‚
+Ä¬ÈÏ¶ÁÈ¡ÓÅÏÈ¼¶£º`SKOLL_* »·¾³±äÁ¿ > ÅäÖÃÎÄ¼ş > ÄÚÖÃÄ¬ÈÏÖµ`¡£
 
-é»˜è®¤ä¼šè‡ªåŠ¨æŸ¥æ‰¾ä»¥ä¸‹é…ç½®æ–‡ä»¶ï¼ˆæŒ‰é¡ºåºï¼‰ï¼š
+Ä¬ÈÏ»á×Ô¶¯²éÕÒÒÔÏÂÅäÖÃÎÄ¼ş£¨°´Ë³Ğò£©£º
 - `./skoll.yaml`
 - `./skoll.yml`
 - `./config/skoll.yaml`
@@ -32,56 +32,56 @@ Skoll v2 æ˜¯ä¸€ä¸ªæŒ‰åˆ†å±‚æ¶æ„é‡æ–°å®ç°çš„ Go æ¡†æ¶åŸºçº¿ï¼Œå¼ºè°ƒèŒè´£æ
 - `./configs/skoll.yaml`
 - `./configs/skoll.yml`
 
-ä»“åº“é»˜è®¤é…ç½®ä¸º `mysql + memory cache`ï¼ˆè§ `configs/skoll.yaml`ï¼‰ã€‚
+²Ö¿âÄ¬ÈÏÅäÖÃÎª `mysql + memory cache`£¨¼û `configs/skoll.yaml`£©¡£
 
-å¯ç›´æ¥é€‰æ‹©ä»¥ä¸‹ç»„åˆï¼ˆä½ æåˆ°çš„ 1/2/3/4ï¼‰ï¼š
+¿ÉÖ±½ÓÑ¡ÔñÒÔÏÂ×éºÏ£¨ÄãÌáµ½µÄ 1/2/3/4£©£º
 1. `configs/skoll.mysql-memory.yaml`
 2. `configs/skoll.mysql-redis.yaml`
 3. `configs/skoll.postgres-memory.yaml`
 4. `configs/skoll.postgres-redis.yaml`
 
-1. é…ç½®æ–‡ä»¶æ¨¡å¼ï¼ˆæ¨èæœ¬åœ°å¼€å‘ï¼‰
+1. ÅäÖÃÎÄ¼şÄ£Ê½£¨ÍÆ¼ö±¾µØ¿ª·¢£©
 
 ```powershell
 go run ./cmd/skoll
 ```
 
-2. æŒ‡å®šé…ç½®æ–‡ä»¶è·¯å¾„
+2. Ö¸¶¨ÅäÖÃÎÄ¼şÂ·¾¶
 
 ```powershell
 $env:SKOLL_CONFIG_FILE="D:/workspace/3rdsrc/tinbox/skoll/configs/skoll.yaml"
 go run ./cmd/skoll
 ```
 
-3. ä½¿ç”¨ç»„åˆ 1ï¼ˆmysql + memory cacheï¼‰
+3. Ê¹ÓÃ×éºÏ 1£¨mysql + memory cache£©
 
 ```powershell
 $env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-memory.yaml"
 go run ./cmd/skoll
 ```
 
-4. ä½¿ç”¨ç»„åˆ 2ï¼ˆmysql + redis cacheï¼‰
+4. Ê¹ÓÃ×éºÏ 2£¨mysql + redis cache£©
 
 ```powershell
 $env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-redis.yaml"
 go run ./cmd/skoll
 ```
 
-5. ä½¿ç”¨ç»„åˆ 3ï¼ˆpostgres + memory cacheï¼‰
+5. Ê¹ÓÃ×éºÏ 3£¨postgres + memory cache£©
 
 ```powershell
 $env:SKOLL_CONFIG_FILE="./configs/skoll.postgres-memory.yaml"
 go run ./cmd/skoll
 ```
 
-6. ä½¿ç”¨ç»„åˆ 4ï¼ˆpostgres + redis cacheï¼‰
+6. Ê¹ÓÃ×éºÏ 4£¨postgres + redis cache£©
 
 ```powershell
 $env:SKOLL_CONFIG_FILE="./configs/skoll.postgres-redis.yaml"
 go run ./cmd/skoll
 ```
 
-7. æŒ‰ç¯å¢ƒå˜é‡è¦†ç›–ä»»æ„ç»„åˆï¼ˆä¾‹å¦‚è¦†ç›– Redis åœ°å€ï¼‰
+7. °´»·¾³±äÁ¿¸²¸ÇÈÎÒâ×éºÏ£¨ÀıÈç¸²¸Ç Redis µØÖ·£©
 
 ```powershell
 $env:SKOLL_CONFIG_FILE="./configs/skoll.mysql-redis.yaml"
@@ -89,7 +89,7 @@ $env:SKOLL_CACHE_REDIS_ADDR="10.0.0.5:6379"
 go run ./cmd/skoll
 ```
 
-8. ç»Ÿä¸€æ—¥å¿—è¾“å‡ºåˆ°å•æ–‡ä»¶ï¼ˆæ¨èï¼‰
+8. Í³Ò»ÈÕÖ¾Êä³öµ½µ¥ÎÄ¼ş£¨ÍÆ¼ö£©
 
 ```powershell
 $env:SKOLL_LOG_DIR="log"
@@ -97,9 +97,9 @@ $env:SKOLL_LOG_FILE="skoll.log"
 go run ./cmd/skoll
 ```
 
-è¯´æ˜ï¼šè®¾ç½® `SKOLL_LOG_FILE` åï¼Œåº”ç”¨æ—¥å¿—ä¸æ’ä»¶æ“ä½œæ—¥å¿—ä¼šç»Ÿä¸€å†™å…¥ `log/skoll.log`ã€‚
+ËµÃ÷£ºÉèÖÃ `SKOLL_LOG_FILE` ºó£¬Ó¦ÓÃÈÕÖ¾Óë²å¼ş²Ù×÷ÈÕÖ¾»áÍ³Ò»Ğ´Èë `log/skoll.log`¡£
 
-9. é»˜è®¤ stdoutï¼ˆä¸æŒ‡å®šæ—¥å¿—æ–‡ä»¶ï¼‰
+9. Ä¬ÈÏ stdout£¨²»Ö¸¶¨ÈÕÖ¾ÎÄ¼ş£©
 
 ```powershell
 $env:SKOLL_LOG_FILE=""
@@ -107,9 +107,9 @@ $env:SKOLL_LOG_PLUGIN_PER_FILE="false"
 go run ./cmd/skoll
 ```
 
-è¯´æ˜ï¼šé»˜è®¤ä¼šè¾“å‡ºåˆ° stdoutï¼Œæ’ä»¶æ—¥å¿—å¸¦ `plugin_id` å­—æ®µï¼Œä¾¿äºåŒºåˆ†æ¥æºã€‚
+ËµÃ÷£ºÄ¬ÈÏ»áÊä³öµ½ stdout£¬²å¼şÈÕÖ¾´ø `plugin_id` ×Ö¶Î£¬±ãÓÚÇø·ÖÀ´Ô´¡£
 
-10. æ’ä»¶æŒ‰æ’ä»¶IDè¾“å‡ºåˆ°å„è‡ªæ–‡ä»¶
+10. ²å¼ş°´²å¼şIDÊä³öµ½¸÷×ÔÎÄ¼ş
 
 ```powershell
 $env:SKOLL_LOG_FILE=""
@@ -118,48 +118,51 @@ $env:SKOLL_LOG_DIR="log"
 go run ./cmd/skoll
 ```
 
-è¯´æ˜ï¼šæ’ä»¶æ—¥å¿—å°†å†™å…¥ `log/<pluginId>.log`ã€‚
+ËµÃ÷£º²å¼şÈÕÖ¾½«Ğ´Èë `log/<pluginId>.log`¡£
 
-## é»˜è®¤ç™»å½•è´¦å·
+## Ä¬ÈÏµÇÂ¼ÕËºÅ
 
-- é»˜è®¤å†…ç½®ç®¡ç†å‘˜è´¦å·ï¼š`admin`
-- é»˜è®¤å¯†ç ï¼š`Admin@123456`
-- å†…ç½®ç§å­è´¦å·å¯†ç é•¿åº¦ç­–ç•¥ä¸ºè‡³å°‘ 8 ä½ï¼Œå› æ­¤ä¸æ”¯æŒ `admin/admin`ã€‚
-- å¦‚æœä½ ä½¿ç”¨æŒä¹…åŒ– MySQL æ•°æ®ï¼ŒæœåŠ¡å¯åŠ¨æ—¶ä¼šè‡ªåŠ¨æ ¡å‡†å†…ç½®è´¦å·åˆ°ä¸Šè¿°é»˜è®¤å¯†ç ï¼ˆå»ºè®®é¦–æ¬¡ç™»å½•åç«‹å³ä¿®æ”¹ï¼‰ã€‚
+- Ä¬ÈÏÄÚÖÃ¹ÜÀíÔ±ÕËºÅ£º`admin`
+- Ä¬ÈÏÃÜÂë£º`Admin@123456`
+- ÄÚÖÃÖÖ×ÓÕËºÅÃÜÂë³¤¶È²ßÂÔÎªÖÁÉÙ 8 Î»£¬Òò´Ë²»Ö§³Ö `admin/admin`¡£
+- Èç¹ûÄãÊ¹ÓÃ³Ö¾Ã»¯ MySQL Êı¾İ£¬·şÎñÆô¶¯Ê±»á×Ô¶¯Ğ£×¼ÄÚÖÃÕËºÅµ½ÉÏÊöÄ¬ÈÏÃÜÂë£¨½¨ÒéÊ×´ÎµÇÂ¼ºóÁ¢¼´ĞŞ¸Ä£©¡£
 
-## æµ‹è¯•
+## ²âÊÔ
 
 ```powershell
 go fmt ./...
 go test ./...
 go test -race ./...
 
-# å¯é€‰ï¼šæœ¬åœ° MySQL é›†æˆéªŒè¯
+# ¿ÉÑ¡£º±¾µØ MySQL ¼¯³ÉÑéÖ¤
 $env:SKOLL_TEST_MYSQL_DSN="root:root@tcp(127.0.0.1:3306)/skoll?parseTime=true"
 go test ./...
 ```
 
-## è®¾è®¡æ–‡æ¡£
+## Éè¼ÆÎÄµµ
 
 - `docs/planning/FRAMEWORK_REDESIGN_BLUEPRINT_2026-05-09.md`
 - `docs/planning/FRAMEWORK_REDESIGN_EXECUTION_PLAN_2026-05-09.md`
 
 ## API
 
-- `GET /api/health`
-- `GET /api/v1/plugins`
-- `POST /api/v1/plugins/install`ï¼ˆè¯·æ±‚ä½“ï¼š`{ "path": "plugins/demo" }`ï¼‰
-- `POST /api/v1/plugins/validate`ï¼ˆè¯·æ±‚ä½“ï¼š`{ "path": "plugins/demo" }`ï¼‰
-- `POST /api/v1/plugins/{id}/enable`
-- `POST /api/v1/plugins/{id}/disable`
-- `DELETE /api/v1/plugins/{id}`
-- `GET /api/v1/plugins/{id}/debug`
-- `GET /api/v1/plugins/{id}/logs`
+- `GET /skoll/health`
+- `GET /skoll/v1/plugins`
+- `POST /skoll/v1/plugins/install`£¨ÇëÇóÌå£º`{ "path": "plugins/demo" }`£©
+- `POST /skoll/v1/plugins/validate`£¨ÇëÇóÌå£º`{ "path": "plugins/demo" }`£©
+- `POST /skoll/v1/plugins/{id}/enable`
+- `POST /skoll/v1/plugins/{id}/disable`
+- `DELETE /skoll/v1/plugins/{id}`
+- `GET /skoll/v1/plugins/{id}/debug`
+- `GET /skoll/v1/plugins/{id}/logs`
 
-## åŸºç¡€è®¾æ–½é…ç½®è¡¥å……
+## »ù´¡ÉèÊ©ÅäÖÃ²¹³ä
 
-- API å‰ç¼€ï¼š`SKOLL_SERVER_API_PREFIX`ï¼ˆé»˜è®¤ `/api`ï¼‰
-- äº‹ä»¶æ€»çº¿æ¨¡å¼ï¼š`SKOLL_EVENT_MODE`ï¼ˆ`memory` æˆ– `redis`ï¼‰
-- Redis Pub/Sub åœ°å€ï¼š`SKOLL_EVENT_REDIS_ADDR`ï¼ˆå½“ `SKOLL_EVENT_MODE=redis` æ—¶å¿…å¡«ï¼‰
-- Swagger UIï¼š`GET /api/docs/swagger`
-- OpenAPIï¼š`GET /api/docs/openapi.yaml`
+- Í³Ò» API »ù´¡Ç°×º£º`SKOLL_API_BASE_PREFIX`£¨Ä¬ÈÏ `/skoll`£¬Ç°¶Ë¹¹½¨Ê±×¢Èë£¬ºó¶ËÔËĞĞÊ±¶ÁÈ¡£©
+- Ç°¶ËÒ³Ãæ»ù´¡Â·¾¶£º`SKOLL_WEB_BASE_PATH`£¨Ä¬ÈÏ `/skoll`£¬Ç°¶ËÒ³ÃæÈë¿ÚÄ¬ÈÏ¹ÒÔØµ½¸ÃÂ·¾¶£©
+- ¼æÈİ±£Áô£º`SKOLL_SERVER_API_PREFIX` ÈÔ¿É×÷Îª»ØÍËÅäÖÃ
+- ÊÂ¼ş×ÜÏßÄ£Ê½£º`SKOLL_EVENT_MODE`£¨`memory` »ò `redis`£©
+- Redis Pub/Sub µØÖ·£º`SKOLL_EVENT_REDIS_ADDR`£¨µ± `SKOLL_EVENT_MODE=redis` Ê±±ØÌî£©
+- Swagger UI£º`GET {API_BASE_PREFIX}/docs/swagger`
+- OpenAPI£º`GET {API_BASE_PREFIX}/docs/openapi.yaml`£¨`servers.url` »á°´µ±Ç°Ç°×º¶¯Ì¬Éú³É£©
+

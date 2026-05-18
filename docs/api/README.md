@@ -2,11 +2,12 @@
 
 ## Swagger/OpenAPI
 - OpenAPI 规范文件：`docs/api/openapi.yaml`
-- 在线查看（Swagger UI）：`GET /docs/swagger`
-- 原始规范访问：`GET /docs/openapi.yaml`
+- 在线查看（Swagger UI）：`GET {API_BASE_PREFIX}/docs/swagger`
+- 原始规范访问：`GET {API_BASE_PREFIX}/docs/openapi.yaml`
 
 ## 基础信息
-- Base URL: `http://127.0.0.1:8080`
+- Base URL: `http://127.0.0.1:8080{API_BASE_PREFIX}`
+- API_BASE_PREFIX 来自统一配置 `SKOLL_API_BASE_PREFIX`（默认 `/skoll`）
 - 响应格式: JSON，统一字段 `code/message/data`
 - 非健康检查接口默认要求 `Authorization` 请求头。
 

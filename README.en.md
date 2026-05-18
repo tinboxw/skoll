@@ -1,4 +1,4 @@
-﻿# Skoll
+# Skoll
 
 Skoll v2 is a Go framework baseline reimplemented with strict layered architecture, focusing on clear responsibilities, low coupling, high cohesion, testability, and extensibility.
 
@@ -146,20 +146,23 @@ go test ./...
 
 ## API
 
-- `GET /api/health`
-- `GET /api/v1/plugins`
-- `POST /api/v1/plugins/install` (body: `{ "path": "plugins/demo" }`)
-- `POST /api/v1/plugins/validate` (body: `{ "path": "plugins/demo" }`)
-- `POST /api/v1/plugins/{id}/enable`
-- `POST /api/v1/plugins/{id}/disable`
-- `DELETE /api/v1/plugins/{id}`
-- `GET /api/v1/plugins/{id}/debug`
-- `GET /api/v1/plugins/{id}/logs`
+- `GET /skoll/health`
+- `GET /skoll/v1/plugins`
+- `POST /skoll/v1/plugins/install` (body: `{ "path": "plugins/demo" }`)
+- `POST /skoll/v1/plugins/validate` (body: `{ "path": "plugins/demo" }`)
+- `POST /skoll/v1/plugins/{id}/enable`
+- `POST /skoll/v1/plugins/{id}/disable`
+- `DELETE /skoll/v1/plugins/{id}`
+- `GET /skoll/v1/plugins/{id}/debug`
+- `GET /skoll/v1/plugins/{id}/logs`
 
 ## Infrastructure Additions
 
-- API prefix: `SKOLL_SERVER_API_PREFIX` (default: `/api`)
+- Unified API base prefix: `SKOLL_API_BASE_PREFIX` (default: `/skoll`, injected to frontend at build time and used by backend at runtime)
+- Frontend page base path: `SKOLL_WEB_BASE_PATH` (default: `/skoll`, admin UI is mounted under this path)
+- Legacy compatibility: `SKOLL_SERVER_API_PREFIX` is still accepted as a fallback
 - Event bus mode: `SKOLL_EVENT_MODE` (`memory` or `redis`)
 - Redis Pub/Sub address: `SKOLL_EVENT_REDIS_ADDR` (required when `SKOLL_EVENT_MODE=redis`)
-- Swagger UI: `GET /api/docs/swagger`
-- OpenAPI document: `GET /api/docs/openapi.yaml`
+- Swagger UI: `GET {API_BASE_PREFIX}/docs/swagger`
+- OpenAPI document: `GET {API_BASE_PREFIX}/docs/openapi.yaml` (`servers.url` is generated from the current prefix)
+

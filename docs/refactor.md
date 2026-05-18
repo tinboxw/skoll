@@ -1139,212 +1139,170 @@ docs/
 
 ## 10. 插件化架构设计
 
-### 10.1 插件化架构目标
+### 10.1 设计目标（完整方案）
 
-为框架提供高度可扩展的插件机制，支持：
+插件体系从“可安装模块”升级为“可治理的平台能力层”，核心目标：
 
-- 动态加载/卸载功能模块
-- 前后端协同扩展
-- 灵活的依赖管理
-- 细粒度权限控制
+- 支持系统级插件与应用级插件并存，且具备不同前端访问路径与隔离边界
+- 后端、前端、权限、路由、配置、依赖统一由插件元数据驱动
+- 保证默认安全（deny-by-default）、可观测（日志/审计）、可演进（兼容旧清单）
+- 在项目初期完成基础设施建设，避免后期大规模返工
 
-### 10.2 插件核心特性
+### 10.2 三层架构
 
-#### 10.2.1 插件注册与管理机制
+#### 10.2.1 控制面（Control Plane）
 
-**插件生命周期状态**：
+负责插件清单解析、安装/启停、依赖校验、策略校验、审计记录。
 
-| 状态            | 说明        |
-| ------------- | --------- |
-| `installed`   | 插件已安装但未启用 |
-| `enabled`     | 插件已启用并运行  |
-| `disabled`    | 插件已禁用     |
-| `uninstalled` | 插件已卸载     |
+- 清单入口：`plugin.yaml`
+- 生命周期状态：`installed` / `enabled` / `disabled` / `uninstalled`
+- 治理能力：版本策略、来源校验、风险分级、灰度启用
 
-**管理接口**：
+#### 10.2.2 运行面（Runtime Plane）
 
-```go
-type PluginManager interface {
-    Install(pluginPath string) error
-    Enable(pluginID string) error
-    Disable(pluginID string) error
-    Uninstall(pluginID string) error
-    List() []PluginInfo
-    Get(pluginID string) (PluginInfo, error)
-}
-```
+负责路由挂载、扩展点注册、事件分发、资源隔离。
 
-#### 10.2.2 前后端插件通信接口
+- 后端扩展点：route、middleware、event、permission
+- 前端扩展点：menu、dashboard_widget、setting_page、embedded_page
+- 路由映射由插件级别与挂载策略共同决定
 
-**后端插件接口**：
+#### 10.2.3 体验面（Experience Plane）
 
-```go
-type BackendPlugin interface {
-    ID() string
-    Name() string
-    Version() string
-    Init(ctx context.Context, app *App) error
-    Routes() []RouteDefinition
-    APIs() []APIEndpoint
-    Events() []EventListener
-    Destroy(ctx context.Context) error
-}
-```
+负责插件管理 UI、插件市场、开发脚手架、诊断工具。
 
-**前端插件通信协议**：
+- 管理 API 统一返回插件级别与挂载元数据
+- 前端可按插件级别做分组展示与导航编排
 
-| 通信方式      | 用途     | 格式   |
-| --------- | ------ | ---- |
-| HTTP API  | 同步数据请求 | JSON |
-| WebSocket | 实时消息推送 | JSON |
-| Event Bus | 内部事件通知 | 事件对象 |
+### 10.3 插件级别模型（System vs App）
 
-#### 10.2.3 插件生命周期管理
+#### 10.3.1 元数据字段
 
-```
-安装 → 初始化(Init) → 注册扩展点 → 运行中 → 接收事件 → 销毁(Destroy) → 卸载
-```
+| 字段 | 说明 | 示例 |
+| --- | --- | --- |
+| `level` | 插件级别，`system` 或 `app` | `system` |
+| `app_id` | 应用级插件归属应用（仅 `level=app` 必填） | `crm` |
+| `mount_policy` | 前端挂载策略：`admin` / `user` / `mixed` | `admin` |
+| `ui_mode` | UI 交付模式（已有） | `separated` |
+| `frontend_entry` | 前端入口路径（可省略，由策略推导） | `/plugins/auth` |
 
-**生命周期钩子**：
+#### 10.3.2 路径策略
 
-| 阶段  | 钩子方法         | 说明             |
-| --- | ------------ | -------------- |
-| 初始化 | `Init()`     | 插件加载时调用，初始化资源  |
-| 注册  | `Register()` | 注册路由、API、事件监听器 |
-| 运行中 | `Handle()`   | 处理请求和事件        |
-| 销毁  | `Destroy()`  | 清理资源、保存状态      |
+默认推导规则：
 
-#### 10.2.4 插件间依赖管理
+- 系统级插件：`/plugins/{plugin_id}`
+- 应用级插件：`/apps/{app_id}/plugins/{plugin_id}`
+- 若显式配置 `frontend_entry`，优先使用显式值
 
-**依赖声明格式**：
+说明：页面真实访问前缀由 `SKOLL_WEB_BASE_PATH` 统一注入，插件入口是站内路由路径，不重复硬编码页面基础前缀。
+
+### 10.4 插件清单契约（兼容演进）
 
 ```yaml
-# plugin.yaml
-id: "example-plugin"
-name: "示例插件"
+id: "crm-report"
+name: "CRM Report"
 version: "1.0.0"
+level: "app"
+app_id: "crm"
+mount_policy: "user"
+ui_mode: "frontend_only"
+# frontend_entry 可省略，系统将自动推导为 /apps/crm/plugins/crm-report
 dependencies:
   - id: "base-auth"
-    version: ">=2.0.0"
-  - id: "logger"
-    version: "*"
+  version: ">=2.0.0"
+permissions:
+  - "report:read"
+  - "report:export"
 ```
 
-**依赖解析策略**：
+兼容策略：
 
-1. 拓扑排序解析依赖顺序
-2. 版本语义化匹配（SemVer）
-3. 循环依赖检测
-4. 依赖缺失报错
+- 未声明 `level` 时，默认 `system`
+- 未声明 `mount_policy` 时，默认 `admin`
+- 未声明 `frontend_entry` 时，按级别自动推导
 
-#### 10.2.5 插件权限控制
+### 10.5 生命周期与治理
 
-**权限模型**：
+#### 10.5.1 生命周期
 
-```go
-type PluginPermission struct {
-    PluginID   string
-    RoleID     string
-    AllowedAPIs []string
-    DeniedAPIs  []string
-    Scope      PermissionScope
-}
-```
+`安装 -> 校验 -> 注册 -> 启用 -> 运行 -> 停用 -> 卸载`
 
-**权限粒度**：
+关键校验：
 
-- 插件级：允许/禁止整个插件
-- API级：允许/禁止特定API端点
-- 操作级：允许/禁止特定操作
+- Manifest 完整性（id/name/version/ui/level/app_id）
+- 依赖与版本约束（SemVer）
+- 路径与命名规范（防冲突、防越权）
 
-#### 10.2.6 插件扩展点设计
+#### 10.5.2 安全治理
 
-**核心扩展点**：
+- 权限最小化：插件声明权限仅可申请，不可自动生效
+- 路由隔离：系统级与应用级插件路由空间隔离
+- 审计留痕：安装/启停/卸载/配置变更均写审计日志
+- 系统内置插件保护：不可误卸载（保持现有约束）
 
-| 扩展点                | 类型     | 用途         |
-| ------------------ | ------ | ---------- |
-| `route`            | HTTP路由 | 注册自定义API端点 |
-| `middleware`       | 中间件    | 添加请求处理中间件  |
-| `event_handler`    | 事件处理   | 订阅系统事件     |
-| `menu_item`        | 菜单     | 注册后台菜单     |
-| `dashboard_widget` | 仪表板组件  | 添加仪表盘小部件   |
-| `setting_page`     | 设置页    | 添加配置页面     |
-
-**扩展点注册方式**：
-
-```go
-func (p *MyPlugin) Register(ext ExtensionRegistry) error {
-    ext.RegisterRoute("/api/myplugin", p.handleRequest)
-    ext.RegisterMenuItem(MenuItem{
-        Name: "我的插件",
-        Path: "/myplugin",
-        Icon: "plugin",
-    })
-    ext.SubscribeEvent("user.created", p.onUserCreated)
-    return nil
-}
-```
-
-### 10.3 插件目录结构
+### 10.6 目录与模块边界
 
 ```
 internal/plugin/
-├── manager.go              # 插件管理器
-├── registry.go             # 扩展点注册中心
-├── loader.go               # 插件加载器
-├── resolver.go             # 依赖解析器
-├── permission.go           # 权限控制
-├── types.go                # 类型定义
-└── builtin/                # 内置插件
-    ├── auth/               # 认证插件
-    ├── logger/             # 日志插件
-    └── dashboard/          # 仪表盘插件
+├── types.go                 # 插件元模型（level/app_id/mount_policy/ui_mode）
+├── loader.go                # 清单解析与兼容策略
+├── manager.go               # 生命周期与状态管理
+├── registry.go              # 运行时扩展点注册
+├── resolver.go              # 依赖与装配解析
+├── permission.go            # 插件权限模型
+└── builtin/                 # 系统内置插件
 ```
 
-### 10.4 插件开发支持
+### 10.7 分阶段落地（开始重构推进）
 
-#### 10.4.1 插件开发文档
+#### 10.7.1 P1（✅ 已完成）
 
-| 文档                    | 内容      |
-| --------------------- | ------- |
-| `plugin_dev_guide.md` | 插件开发指南  |
-| `api_reference.md`    | API参考文档 |
-| `extension_points.md` | 扩展点说明   |
-| `examples.md`         | 示例插件    |
+- 扩展插件元模型：`level`、`app_id`、`mount_policy`
+- Loader 支持新字段解析 + 兼容默认值
+- 新增前端入口推导策略（按级别自动生成）
+- 插件管理 API 对外暴露新字段
+- 单元测试补齐（解析、校验、路径推导）
 
-#### 10.4.2 示例插件
+**状态**：✅ 完成（后端+类型+测试）
 
-```go
-// 示例插件结构
-type HelloWorldPlugin struct{}
+#### 10.7.2 P2（✅ 已完成）
 
-func (p *HelloWorldPlugin) ID() string { return "hello-world" }
-func (p *HelloWorldPlugin) Name() string { return "Hello World" }
-func (p *HelloWorldPlugin) Version() string { return "1.0.0" }
+- 扩展仓储持久化字段与迁移策略
+- 前端插件中心按级别分组与过滤
+- 应用级插件导航装配（`/apps/{app_id}/...`）
+- i18n 国际化支持
+- 数据库迁移文档
 
-func (p *HelloWorldPlugin) Init(ctx context.Context, app *App) error {
-    return nil
-}
+**状态**：✅ 完成（前端UI+store+分组+迁移方案）
 
-func (p *HelloWorldPlugin) Routes() []RouteDefinition {
-    return []RouteDefinition{
-        {Path: "/hello", Method: "GET", Handler: p.helloHandler},
-    }
-}
+#### 10.7.3 P3（🚀 当前已启动）
 
-func (p *HelloWorldPlugin) Destroy(ctx context.Context) error {
-    return nil
-}
-```
+**P3a（✅ 已完成）：插件签名校验**
+- RSA-SHA256 签名验证实现
+- 清单签名字段支持（sign_algo, sign_timestamp, sign_value, vendor_pubkey）
+- SignatureChecker 高级 API + 日志
+- 数据库序列化（signature_json 字段）
+- 完整单元测试（9个测试全部通过）
 
-#### 10.4.3 插件调试工具
+**P3b（📋 规划中）：插件风险分级**
+- 风险评分引擎（来源、权限、UI 模式、维护度）
+- 风险等级分类（low/medium/high/restricted）
+- 清单风险自评与依赖传递
 
-| 工具                             | 功能      |
-| ------------------------------ | ------- |
-| `skoll plugin list`            | 列出已安装插件 |
-| `skoll plugin debug <id>`      | 调试指定插件  |
-| `skoll plugin logs <id>`       | 查看插件日志  |
-| `skoll plugin validate <path>` | 验证插件包   |
+**P3c（📋 规划中）：策略引擎与决策**
+- 组织安全策略定义
+- 策略评估与自动决策
+- 手动审批流程
+- 审计日志与合规报告
+
+**参考文档**：
+- [PLUGIN_SECURITY_DESIGN.md](PLUGIN_SECURITY_DESIGN.md) - 完整安全设计
+- [PLUGIN_DB_MIGRATION.md](PLUGIN_DB_MIGRATION.md) - 数据库升级
+
+#### 10.7.4 P4（📋 规划中）：扩展与生态
+
+- 租户级策略（tenant-level）隔离
+- 插件市场与分发
+- 性能与安全基准
 
 ***
 
@@ -1373,20 +1331,49 @@ func (p *HelloWorldPlugin) Destroy(ctx context.Context) error {
 #### 11.1.3 `plugin.yaml` 配置规范
 
 ```yaml
+# 基本信息
 id: "example-plugin"              # 插件唯一标识（必需）
 name: "示例插件"                   # 插件名称（必需）
 version: "1.0.0"                  # 版本号（必需，遵循SemVer）
 description: "这是一个示例插件"     # 插件描述（可选）
 author: "Author Name"             # 作者信息（可选）
 homepage: "https://example.com"   # 插件主页（可选）
+
+# 级别与挂载策略（P1+）
+level: "system"                   # 级别：system | app（默认 system）
+app_id: "crm"                     # 应用 ID（level=app 时必需）
+mount_policy: "admin"             # 挂载策略：admin | user | mixed（默认 admin）
+
+# 供应链安全（P3a+）
+vendor: "example-corp"            # 厂商标识（可选）
+vendor_url: "https://example.com" # 厂商主页（可选）
+sign_algo: "RSA-SHA256"           # 签名算法（可选）
+sign_timestamp: "2025-05-18T10:30:00Z"  # 签名时间（可选，RFC3339 格式）
+sign_value: "base64-encoded-signature"  # 签名值（可选）
+vendor_pubkey: "base64-encoded-pubkey"  # 公钥（PEM PKIX 格式，base64 编码）
+
+# 风险自评（P3b+）
+risk:
+  level: "medium"                 # 自评风险等级
+  reason: "Requires authentication API access"
+  dependencies:
+    - id: "auth"
+      notes: "Uses JWT token validation"
+
+# 功能声明
 dependencies:                     # 依赖声明（可选）
   - id: "base-auth"
     version: ">=2.0.0"
   - id: "logger"
     version: "*"
+    
 permissions:                      # 所需权限（可选）
   - "user:read"
   - "role:manage"
+
+# UI 配置
+ui_mode: "monolith"              # UI 模式：backend_only | frontend_only | monolith | separated
+frontend_entry: "/plugins/example/dashboard"  # 前端入口（若无，按 level 自动推导）
 ```
 
 #### 11.1.4 安装方式
