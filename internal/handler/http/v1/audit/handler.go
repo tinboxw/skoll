@@ -106,14 +106,64 @@ func (h *AuditHandler) clear(w http.ResponseWriter, r *http.Request) {
 func (h *AuditHandler) queryRecords(r *http.Request) ([]*domainaudit.Record, error) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	actorID := strings.TrimSpace(r.URL.Query().Get("actorId"))
-	if actorID != "" {
-		return h.service.ListByActor(r.Context(), actorID, limit)
+	action := strings.TrimSpace(r.URL.Query().Get("action"))
+	resource := strings.TrimSpace(r.URL.Query().Get("resource"))
+	if actorID != "" && action == "" && resource == "" && r.URL.Query().Get("from") == "" && r.URL.Query().Get("to") == "" {
+		items, err := h.service.ListByActor(r.Context(), actorID, limit)
+		if err != nil {
+			return nil, err
+		}
+		return filterRecords(items, actorID, action, resource, limit), nil
 	}
 	from, to, err := parseTimeRange(r)
 	if err != nil {
 		return nil, err
 	}
-	return h.service.ListByTimeRange(r.Context(), from, to, limit)
+	items, err := h.service.ListByTimeRange(r.Context(), from, to, 5000)
+	if err != nil {
+		return nil, err
+	}
+	return filterRecords(items, actorID, action, resource, limit), nil
+}
+
+func filterRecords(items []*domainaudit.Record, actorID, action, resource string, limit int) []*domainaudit.Record {
+	if len(items) == 0 {
+		return []*domainaudit.Record{}
+	}
+	wantActor := strings.TrimSpace(actorID)
+	wantAction := strings.TrimSpace(action)
+	wantResource := strings.TrimSpace(resource)
+	max := limit
+	if max <= 0 {
+		max = len(items)
+	}
+	result := make([]*domainaudit.Record, 0, min(max, len(items)))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		if wantActor != "" && item.ActorID.String() != wantActor {
+			continue
+		}
+		if wantAction != "" && !strings.EqualFold(strings.TrimSpace(item.Action), wantAction) {
+			continue
+		}
+		if wantResource != "" && !strings.EqualFold(strings.TrimSpace(item.Resource), wantResource) {
+			continue
+		}
+		result = append(result, item)
+		if len(result) >= max {
+			break
+		}
+	}
+	return result
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func parseTimeRange(r *http.Request) (time.Time, time.Time, error) {

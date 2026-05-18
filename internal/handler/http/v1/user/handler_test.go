@@ -9,11 +9,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	usersvc "github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/pkg/security"
@@ -23,10 +26,20 @@ type fakeUserService struct {
 	createInputs []usersvc.CreateUserInput
 	batchInput   usersvc.BatchCreateInput
 	lastUpdate   usersvc.UpdateEmailInput
+	getReturn    *domainuser.User
+	updateReturn *domainuser.User
+	emailReturn  *domainuser.User
 	lastDisable  struct {
 		id      string
 		actorID string
 	}
+}
+
+type fakeAuditService struct {
+	lastActorID  string
+	lastAction   string
+	lastResource string
+	lastDetail   map[string]any
 }
 
 type fakeRBACService struct {
@@ -61,6 +74,32 @@ func (f *fakeRBACService) ListBindingsByUser(_ context.Context, _ string) ([]*do
 	return nil, nil
 }
 
+func (f *fakeAuditService) Append(_ context.Context, actorID, action, resource, _ string, detail map[string]any) (*domainaudit.Record, error) {
+	f.lastActorID = actorID
+	f.lastAction = action
+	f.lastResource = resource
+	f.lastDetail = detail
+	return &domainaudit.Record{ID: shared.ID("audit-1")}, nil
+}
+
+func (f *fakeAuditService) GetByID(context.Context, string) (*domainaudit.Record, error) {
+	return nil, nil
+}
+
+func (f *fakeAuditService) ListByActor(context.Context, string, int) ([]*domainaudit.Record, error) {
+	return nil, nil
+}
+
+func (f *fakeAuditService) ListByTimeRange(context.Context, time.Time, time.Time, int) ([]*domainaudit.Record, error) {
+	return nil, nil
+}
+
+func (f *fakeAuditService) ClearByTimeRange(context.Context, time.Time, time.Time) (int, error) {
+	return 0, nil
+}
+
+var _ auditsvc.Service = (*fakeAuditService)(nil)
+
 func (f *fakeUserService) Create(_ context.Context, in usersvc.CreateUserInput) (*domainuser.User, error) {
 	f.createInputs = append(f.createInputs, in)
 	if strings.EqualFold(strings.TrimSpace(in.Account), "bad") {
@@ -86,7 +125,7 @@ func (f *fakeUserService) CreateBatch(_ context.Context, in usersvc.BatchCreateI
 }
 
 func (f *fakeUserService) Get(_ context.Context, _ string) (*domainuser.User, error) {
-	return nil, nil
+	return f.getReturn, nil
 }
 
 func (f *fakeUserService) List(_ context.Context, _ usersvc.ListInput) ([]*domainuser.User, error) {
@@ -94,12 +133,12 @@ func (f *fakeUserService) List(_ context.Context, _ usersvc.ListInput) ([]*domai
 }
 
 func (f *fakeUserService) Update(_ context.Context, _ usersvc.UpdateUserInput) (*domainuser.User, error) {
-	return nil, nil
+	return f.updateReturn, nil
 }
 
 func (f *fakeUserService) UpdateEmail(_ context.Context, in usersvc.UpdateEmailInput) (*domainuser.User, error) {
 	f.lastUpdate = in
-	return nil, nil
+	return f.emailReturn, nil
 }
 
 func (f *fakeUserService) Disable(_ context.Context, id, actorID string) error {
@@ -313,5 +352,66 @@ func TestRegisterUserRoutesNilServiceNoRegistration(t *testing.T) {
 
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 when service is nil, got %d", resp.Code)
+	}
+}
+
+func TestUserHandlerUpdateEmailAuditDetail(t *testing.T) {
+	audit := &fakeAuditService{}
+	svc := &fakeUserService{
+		getReturn:   &domainuser.User{ID: shared.ID("u-1"), Email: domainuser.Email("old@example.com")},
+		emailReturn: &domainuser.User{ID: shared.ID("u-1"), Email: domainuser.Email("new@example.com")},
+	}
+	h := &UserHandler{service: svc, audit: audit}
+
+	req := httptest.NewRequest(http.MethodPatch, "/v1/users/u-1/email", bytes.NewBufferString(`{"email":"new@example.com","actorId":""}`))
+	req.SetPathValue("id", "u-1")
+	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{Subject: "actor-1"}))
+	resp := httptest.NewRecorder()
+
+	h.updateEmail(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if audit.lastAction != "update_email" || audit.lastResource != "user" || audit.lastActorID != "actor-1" {
+		t.Fatalf("unexpected audit metadata: actor=%q action=%q resource=%q", audit.lastActorID, audit.lastAction, audit.lastResource)
+	}
+	before, ok := audit.lastDetail["before"].(map[string]any)
+	if !ok || strings.TrimSpace(fmt.Sprint(before["email"])) != "old@example.com" {
+		t.Fatalf("unexpected before detail: %+v", audit.lastDetail)
+	}
+	after, ok := audit.lastDetail["after"].(map[string]any)
+	if !ok || strings.TrimSpace(fmt.Sprint(after["email"])) != "new@example.com" {
+		t.Fatalf("unexpected after detail: %+v", audit.lastDetail)
+	}
+}
+
+func TestUserHandlerUpdateAuditDetail(t *testing.T) {
+	audit := &fakeAuditService{}
+	svc := &fakeUserService{
+		getReturn:    &domainuser.User{ID: shared.ID("u-2"), Name: "old", Email: domainuser.Email("old@example.com"), Status: "active"},
+		updateReturn: &domainuser.User{ID: shared.ID("u-2"), Name: "new", Email: domainuser.Email("new@example.com"), Status: "disabled"},
+	}
+	h := &UserHandler{service: svc, audit: audit}
+
+	req := httptest.NewRequest(http.MethodPut, "/v1/users/u-2", bytes.NewBufferString(`{"name":"new","email":"new@example.com","status":"disabled"}`))
+	req.SetPathValue("id", "u-2")
+	resp := httptest.NewRecorder()
+
+	h.update(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if audit.lastAction != "update" || audit.lastResource != "user" {
+		t.Fatalf("unexpected audit metadata: action=%q resource=%q", audit.lastAction, audit.lastResource)
+	}
+	before, ok := audit.lastDetail["before"].(map[string]any)
+	if !ok || strings.TrimSpace(fmt.Sprint(before["name"])) != "old" || strings.TrimSpace(fmt.Sprint(before["status"])) != "active" {
+		t.Fatalf("unexpected before detail: %+v", audit.lastDetail)
+	}
+	after, ok := audit.lastDetail["after"].(map[string]any)
+	if !ok || strings.TrimSpace(fmt.Sprint(after["name"])) != "new" || strings.TrimSpace(fmt.Sprint(after["status"])) != "disabled" {
+		t.Fatalf("unexpected after detail: %+v", audit.lastDetail)
 	}
 }

@@ -13,6 +13,7 @@ type AuditRecord = {
 	action: string;
 	resource: string;
 	resourceId?: string;
+	detail?: Record<string, unknown>;
 	occurredAt: string;
 };
 
@@ -31,6 +32,7 @@ function normalizeAuditRecord(item: unknown): AuditRecord | null {
 		action: String(row.action ?? row.Action ?? "").trim(),
 		resource: String(row.resource ?? row.Resource ?? "").trim(),
 		resourceId: String(row.resourceId ?? row.ResourceID ?? "").trim(),
+		detail: row.detail && typeof row.detail === "object" ? (row.detail as Record<string, unknown>) : undefined,
 		occurredAt: String(row.occurredAt ?? row.OccurredAt ?? "").trim()
 	};
 }
@@ -59,6 +61,8 @@ const operating = ref(false);
 const error = ref("");
 const success = ref("");
 const actorId = ref("");
+const action = ref("");
+const resource = ref("");
 const from = ref(initialRange.from);
 const to = ref(initialRange.to);
 const limit = ref(50);
@@ -92,6 +96,12 @@ function buildQuery(): string {
 	if (actorId.value.trim() !== "") {
 		params.set("actorId", actorId.value.trim());
 	}
+	if (action.value.trim() !== "") {
+		params.set("action", action.value.trim());
+	}
+	if (resource.value.trim() !== "") {
+		params.set("resource", resource.value.trim());
+	}
 	if (from.value.trim() !== "") {
 		params.set("from", new Date(from.value).toISOString());
 	}
@@ -113,7 +123,7 @@ async function loadAuditLogs(): Promise<void> {
 			? payload.data.map((item) => normalizeAuditRecord(item)).filter((item): item is AuditRecord => item !== null)
 			: [];
 		page.value = 1;
-		selected.value = items.value.length > 0 ? items.value[0] : null;
+		selected.value = null;
 	} catch (e) {
 		error.value = toErrorMessage(e);
 		items.value = [];
@@ -144,6 +154,16 @@ function setQuickActor(actor: string): void {
 
 function clearQuickActor(): void {
 	actorId.value = "";
+	void loadAuditLogs();
+}
+
+function clearActionFilter(): void {
+	action.value = "";
+	void loadAuditLogs();
+}
+
+function clearResourceFilter(): void {
+	resource.value = "";
 	void loadAuditLogs();
 }
 
@@ -218,6 +238,14 @@ void loadAuditLogs();
 				<input v-model="actorId" type="text" :disabled="loading || operating" />
 			</label>
 			<label>
+				<span>{{ t("audit.action") }}</span>
+				<input v-model="action" type="text" :disabled="loading || operating" />
+			</label>
+			<label>
+				<span>{{ t("audit.resource") }}</span>
+				<input v-model="resource" type="text" :disabled="loading || operating" />
+			</label>
+			<label>
 				<span>{{ t("audit.from") }}</span>
 				<input v-model="from" type="datetime-local" :disabled="loading || operating" />
 			</label>
@@ -236,6 +264,8 @@ void loadAuditLogs();
 			<button type="button" :disabled="loading || operating" @click="exportCSV">{{ t("audit.export") }}</button>
 			<button type="button" :disabled="loading || operating" @click="clearByRange">{{ t("audit.clear") }}</button>
 			<button v-if="actorId.trim() !== ''" type="button" :disabled="loading || operating" @click="clearQuickActor">{{ t("audit.clearActor") }}</button>
+			<button v-if="action.trim() !== ''" type="button" :disabled="loading || operating" @click="clearActionFilter">{{ t("audit.clearAction") }}</button>
+			<button v-if="resource.trim() !== ''" type="button" :disabled="loading || operating" @click="clearResourceFilter">{{ t("audit.clearResource") }}</button>
 		</div>
 
 		<div v-if="quickActors.length > 0" class="quick-actors">
@@ -314,7 +344,7 @@ p {
 
 .filters {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: repeat(6, minmax(0, 1fr));
 	gap: 8px;
 	margin: 8px 0;
 }
@@ -457,11 +487,17 @@ pre {
 
 @media (max-width: 960px) {
 	.filters {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 	}
 
 	.pager {
 		flex-wrap: wrap;
+	}
+}
+
+@media (max-width: 640px) {
+	.filters {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 </style>
