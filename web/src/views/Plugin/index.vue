@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
 import { syncBackendPlugins } from "../../plugins";
-import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePath, resolvePluginEntryPath, setDefaultHomePath, usePluginStore } from "../../stores/plugins";
+import { clearDefaultHomePath, createDefaultHomeTarget, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePlugin, resolvePluginEntryPath, setDefaultHomeTarget, usePluginStore } from "../../stores/plugins";
 import { ApiError, type ApiResponse } from "../../utils/api";
 import { apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -32,6 +32,26 @@ const visiblePlugins = computed(() => {
 		return pluginStore.items;
 	}
 	return pluginStore.items.filter((item) => item.enabled !== false);
+});
+
+const systemPlugins = computed(() => {
+	return visiblePlugins.value.filter((item) => item.level !== "app");
+});
+
+const appPlugins = computed(() => {
+	return visiblePlugins.value.filter((item) => item.level === "app");
+});
+
+const appPluginsGrouped = computed(() => {
+	const grouped: Record<string, typeof appPlugins.value> = {};
+	for (const plugin of appPlugins.value) {
+		const appId = plugin.appId || "unknown";
+		if (!grouped[appId]) {
+			grouped[appId] = [];
+		}
+		grouped[appId].push(plugin);
+	}
+	return grouped;
 });
 
 const syncStatusText = computed(() => {
@@ -66,13 +86,14 @@ async function runAction(action: "enable" | "disable" | "uninstall", pluginID: s
 	error.value = null;
 	info.value = null;
 	const beforeActionEntryPath = pluginEntryPath(pluginID);
+	const beforeActionPlugin = getPluginRecord(pluginID);
 	try {
 		if (action === "uninstall") {
 			await apiDelete<ApiResponse<unknown>>(`/v1/plugins/${pluginID}`);
 		} else {
 			await apiPost<ApiResponse<unknown>>(`/v1/plugins/${pluginID}/${action}`);
 		}
-		if ((action === "disable" || action === "uninstall") && beforeActionEntryPath && isDefaultHomePath(beforeActionEntryPath, systemDefaultHome)) {
+		if ((action === "disable" || action === "uninstall") && beforeActionEntryPath && beforeActionPlugin && isDefaultHomePlugin(beforeActionPlugin)) {
 			clearDefaultHomePath();
 			activeDefaultHome.value = getDefaultHomePath(systemDefaultHome);
 			info.value = t("plugin.defaultHomeResetAfterAction");
@@ -192,6 +213,24 @@ function canSetDefault(pluginID: string): boolean {
 	return canVisit(pluginID);
 }
 
+function canVisitApp(appId: string, plugins: Array<{ id: string; enabled?: boolean }>): boolean {
+	if (appId.trim() === "") {
+		return false;
+	}
+	return plugins.some((item) => canVisit(item.id));
+}
+
+async function visitApp(appId: string): Promise<void> {
+	if (appId.trim() === "") {
+		return;
+	}
+	await router.push(`/${appId}`);
+}
+
+async function visitSystemConsole(): Promise<void> {
+	await router.push("/skoll/dashboard");
+}
+
 function canEnable(pluginID: string): boolean {
 	const plugin = getPluginRecord(pluginID);
 	return plugin?.enabled === false;
@@ -218,12 +257,16 @@ async function visitPlugin(pluginID: string): Promise<void> {
 }
 
 function setAsDefaultHome(pluginID: string): void {
-	const entryPath = pluginEntryPath(pluginID);
-	if (!entryPath) {
+	const plugin = getPluginRecord(pluginID);
+	if (!plugin) {
 		return;
 	}
-	setDefaultHomePath(entryPath);
-	activeDefaultHome.value = entryPath;
+	const target = createDefaultHomeTarget(plugin);
+	if (!target) {
+		return;
+	}
+	setDefaultHomeTarget(target);
+	activeDefaultHome.value = target.path;
 	info.value = t("plugin.defaultHomeActive");
 }
 
@@ -240,6 +283,8 @@ function resetDefaultHome(): void {
 			<div>
 				<h2>{{ t("plugin.title") }}</h2>
 				<p>{{ t("plugin.desc") }}</p>
+				<p>{{ t("plugin.defaultHomeHint") }}</p>
+				<p class="current-default-home">{{ t("plugin.currentDefaultHome") }}: {{ activeDefaultHome }}</p>
 				<p class="sync-status">{{ syncStatusText }} · {{ t("plugin.sync.attempts") }} {{ pluginStore.syncAttempts }}</p>
 				<p v-if="pluginStore.degradedMode" class="sync-degraded">{{ t("plugin.sync.degraded") }}</p>
 			</div>
@@ -274,6 +319,7 @@ function resetDefaultHome(): void {
 		<table class="plugin-table">
 			<thead>
 				<tr>
+					<th>App</th>
 					<th>{{ t("plugin.table.id") }}</th>
 					<th>{{ t("plugin.table.name") }}</th>
 					<th>{{ t("plugin.table.version") }}</th>
@@ -282,7 +328,21 @@ function resetDefaultHome(): void {
 				</tr>
 			</thead>
 			<tbody>
-				<tr v-for="item in visiblePlugins" :key="item.id">
+				<!-- System Level Plugins -->
+				<tr v-for="(item, index) in systemPlugins" :key="item.id" :class="{ 'group-first': index === 0 }">
+					<td v-if="index === 0" :rowspan="systemPlugins.length" class="group-cell merge-cell">
+						<div class="group-inline">
+							<div class="group-label">system</div>
+							<button
+								type="button"
+								title="/skoll"
+								:disabled="operating"
+								@click="visitSystemConsole"
+							>
+								{{ t("plugin.action.visit") }}
+							</button>
+						</div>
+					</td>
 					<td>{{ item.id }}</td>
 					<td>{{ item.name }}</td>
 					<td>{{ item.version }}</td>
@@ -307,6 +367,46 @@ function resetDefaultHome(): void {
 						<span v-if="activeDefaultHome === pluginEntryPath(item.id) && pluginEntryPath(item.id)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
 					</td>
 				</tr>
+
+				<!-- App Level Plugins -->
+				<template v-for="(plugins, appId) in appPluginsGrouped" :key="appId">
+					<tr v-for="(item, index) in plugins" :key="item.id" :class="{ 'group-first': index === 0 }">
+						<td v-if="index === 0" :rowspan="plugins.length" class="group-cell merge-cell">
+							<div class="group-inline">
+								<div class="group-label">{{ appId }}</div>
+								<button
+									type="button"
+									:title="`/${String(appId)}`"
+									:disabled="operating || !canVisitApp(String(appId), plugins)"
+									@click="visitApp(String(appId))"
+								>
+									{{ t("plugin.action.visit") }}
+								</button>
+							</div>
+						</td>
+						<td>{{ item.id }}</td>
+						<td>{{ item.name }}</td>
+						<td>{{ item.version }}</td>
+						<td>
+							<span :class="item.enabled === false ? 'disabled' : 'enabled'">
+								{{ item.enabled === false ? t("plugin.status.disabled") : t("plugin.status.enabled") }}
+							</span>
+						</td>
+						<td class="action-cell">
+							<button v-if="canSetDefault(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
+							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.setDefault") }}</button>
+							<button v-if="canEnable(item.id)" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
+							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.enable") }}</button>
+							<button v-if="canDisable(item.id)" type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
+							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.disable") }}</button>
+							<button v-if="canUninstall(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
+							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.uninstall") }}</button>
+							<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
+							<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
+							<span v-if="isDefaultHomePlugin(item)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
+						</td>
+					</tr>
+				</template>
 			</tbody>
 		</table>
 
@@ -340,6 +440,11 @@ function resetDefaultHome(): void {
 
 .sync-status {
 	font-size: 12px;
+}
+
+.current-default-home {
+	font-size: 12px;
+	font-weight: 600;
 }
 
 .sync-degraded {
@@ -422,6 +527,55 @@ button:disabled {
 	text-align: left;
 	padding: 8px;
 	border-bottom: 1px solid var(--color-border);
+}
+
+.plugin-table tr.section-header {
+	background: var(--color-surface-soft);
+	font-weight: bold;
+	color: var(--color-text-muted);
+}
+
+.plugin-table tr.section-header td {
+	padding: 12px 8px;
+	border-bottom: 2px solid var(--color-border);
+}
+
+.group-cell {
+	font-size: 0.82rem;
+	color: var(--color-text-muted);
+	white-space: nowrap;
+	vertical-align: top;
+}
+
+.group-first td {
+	border-top: 2px solid var(--color-border);
+}
+
+.merge-cell {
+	min-width: 96px;
+	display: table-cell;
+}
+
+.group-label {
+	font-size: 0.82rem;
+	font-weight: 600;
+	display: inline-flex;
+	color: var(--color-text-muted);
+	margin: 0;
+}
+
+.group-inline {
+	display: flex;
+	width: 100%;
+	justify-content: space-between;
+	align-items: center;
+	gap: 6px;
+}
+
+.group-cell button {
+	padding: 5px 8px;
+	font-size: 0.78rem;
+	line-height: 1;
 }
 
 .action-cell {

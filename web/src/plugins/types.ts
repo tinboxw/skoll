@@ -8,6 +8,9 @@ export type FrontendPluginManifest = {
   description?: string;
   entryPath?: string;
   uiMode?: "backend_only" | "frontend_only" | "monolith" | "separated";
+  level?: "system" | "app";
+  appId?: string;
+  mountPolicy?: "admin" | "user" | "mixed";
   systemBuiltin?: boolean;
   route?: RouteRecordRaw;
   backendEndpoint?: string;
@@ -29,6 +32,9 @@ export type BackendPluginRecord = {
   version: string;
   enabled?: boolean;
   uiMode?: "backend_only" | "frontend_only" | "monolith" | "separated";
+  level?: "system" | "app";
+  appId?: string;
+  mountPolicy?: "admin" | "user" | "mixed";
   frontendEntry?: string;
   systemBuiltin?: boolean;
 };

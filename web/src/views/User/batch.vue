@@ -39,7 +39,7 @@ function resolveReturnTo(): string {
 	if (typeof value === "string" && value.trim() !== "") {
 		return value;
 	}
-	return "/user";
+	return "/skoll/user";
 }
 
 async function backToList(): Promise<void> {

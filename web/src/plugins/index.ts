@@ -1,13 +1,13 @@
-﻿import { defineComponent, h, onMounted, onUnmounted, ref } from "vue";
+﻿import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch } from "vue";
 import type { RouteRecordRaw, Router } from "vue-router";
 
-import type { usePluginStore } from "../stores/plugins";
+import { getDefaultHomeTarget, type DefaultHomeTarget, type usePluginStore } from "../stores/plugins";
 import { getToken } from "../utils/auth";
+import { API_BASE_PREFIX } from "../utils/api-base-prefix";
 import { builtinAuthPlugin } from "./builtin/auth";
 import type { BackendPluginRecord, FrontendPlugin, FrontendPluginManifest } from "./types";
 
 type PluginStore = ReturnType<typeof usePluginStore>;
-const API_PREFIX = "/api";
 
 const builtinPlugins: FrontendPlugin[] = [builtinAuthPlugin];
 let latestPluginSyncTask: Promise<void> = Promise.resolve();
@@ -15,6 +15,14 @@ let markInitialBootstrapDone: (() => void) | null = null;
 const initialBootstrapTask = new Promise<void>((resolve) => {
 	markInitialBootstrapDone = resolve;
 });
+
+function normalizePluginRoutePath(path: string): string {
+	const value = path.trim();
+	if (value.startsWith("/plugins/")) {
+		return `/skoll${value}`;
+	}
+	return value;
+}
 
 export async function waitForPluginBootstrap(): Promise<void> {
 	await initialBootstrapTask;
@@ -51,6 +59,7 @@ export async function syncBackendPlugins(
 		store.beginSync();
 		try {
 			const records = await syncPluginsFromBackend(fetcher);
+			const appIds = new Set<string>();
 			store.setBackendRecords(
 				records.map((record) => ({
 					id: record.id,
@@ -58,15 +67,24 @@ export async function syncBackendPlugins(
 					version: record.version,
 					enabled: record.enabled,
 					uiMode: record.uiMode,
-					entryPath: record.frontendEntry,
+					level: record.level,
+					appId: record.appId,
+					mountPolicy: record.mountPolicy,
+					entryPath: typeof record.frontendEntry === "string" ? normalizePluginRoutePath(record.frontendEntry) : record.frontendEntry,
 					systemBuiltin: record.systemBuiltin
 				}))
 			);
 			for (const record of records) {
 				const hasFrontend = record.uiMode !== "backend_only";
+				if (record.level === "app") {
+					const appId = (record.appId || "").trim();
+					if (appId !== "" && hasFrontend) {
+						appIds.add(appId);
+					}
+				}
 				const routePath = typeof record.frontendEntry === "string" && record.frontendEntry.trim().startsWith("/")
-					? record.frontendEntry.trim()
-					: `/plugins/${record.id}`;
+					? normalizePluginRoutePath(record.frontendEntry)
+					: `/skoll/plugins/${record.id}`;
 				registerPlugin(
 					{
 						id: record.id,
@@ -74,9 +92,12 @@ export async function syncBackendPlugins(
 						version: record.version,
 						enabled: record.enabled,
 						uiMode: record.uiMode,
-						entryPath: record.frontendEntry,
+						level: record.level,
+						appId: record.appId,
+						mountPolicy: record.mountPolicy,
+						entryPath: typeof record.frontendEntry === "string" ? normalizePluginRoutePath(record.frontendEntry) : record.frontendEntry,
 						systemBuiltin: record.systemBuiltin,
-						route: hasFrontend
+						route: hasFrontend && record.level !== "app"
 							? {
 								path: routePath,
 								name: `plugin-${record.id}`,
@@ -87,6 +108,13 @@ export async function syncBackendPlugins(
 					router,
 					store
 				);
+			}
+			for (const appId of appIds) {
+				addRouteIfMissing({
+					path: `/${appId}`,
+					name: `app-home-${appId}`,
+					component: createAppHomeView(appId, store)
+				}, router);
 			}
 			store.finishSync(null, false);
 		} catch (error) {
@@ -141,7 +169,7 @@ async function syncPluginsFromBackend(fetcher: typeof fetch): Promise<BackendPlu
 	}
 	let resp: Response;
 	try {
-		resp = await fetcher(`${API_PREFIX}/v1/plugins`, {
+		resp = await fetcher(`${API_BASE_PREFIX}/v1/plugins`, {
 			signal: controller.signal,
 			headers
 		});
@@ -160,16 +188,13 @@ function createRemotePluginView(record: BackendPluginRecord) {
 	return defineComponent({
 		name: `RemotePluginView_${record.id}`,
 		setup() {
-			const loading = ref(true);
-			const loadError = ref("");
 			const pageError = ref("");
-			const debugPayload = ref<Record<string, unknown> | null>(null);
 			const pageBroken = ref(false);
 			const frameURL = ref("");
-			const pageURL = `${API_PREFIX}/v1/plugins/${record.id}/page`;
+			const pageURL = `${API_BASE_PREFIX}/v1/plugins/${record.id}/page`;
 
 			function patchPluginHTML(content: string): string {
-				const basePath = `${API_PREFIX}/v1/plugins/${record.id}/assets/`;
+				const basePath = `${API_BASE_PREFIX}/v1/plugins/${record.id}/assets/`;
 				const absoluteAssetsBase = `${basePath}assets/`;
 				let patched = content;
 				if (!/<base\s+/i.test(patched)) {
@@ -200,21 +225,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 			}
 
 			onMounted(async () => {
-				loading.value = true;
-				loadError.value = "";
 				await loadPluginPage();
-				try {
-					const resp = await fetch(`${API_PREFIX}/v1/plugins/${record.id}/debug`);
-					if (!resp.ok) {
-						throw new Error(`debug request failed: ${resp.status}`);
-					}
-					const payload = await resp.json() as { data?: Record<string, unknown> };
-					debugPayload.value = payload.data ?? null;
-				} catch (error) {
-					loadError.value = error instanceof Error ? error.message : "failed to load plugin details";
-				} finally {
-					loading.value = false;
-				}
 			});
 
 			onUnmounted(() => {
@@ -224,27 +235,131 @@ function createRemotePluginView(record: BackendPluginRecord) {
 			});
 
 			return () =>
-				h("section", { class: "remote-plugin-card" }, [
-					h("h3", `${record.name} (${record.id})`),
-					h("p", `Version: ${record.version}`),
-					h("p", `Enabled: ${record.enabled === false ? "no" : "yes"}`),
+				h("section", { class: "remote-plugin-fullpage", style: "min-height:100vh;background:#fff;" }, [
 					pageBroken.value
-						? h("p", { class: "plugin-detail-error" }, `Plugin page failed to load: ${pageError.value || "unknown error"}. Fallback details are shown below.`)
+						? h("p", { class: "plugin-detail-error", style: "padding:20px;" }, `Plugin page failed to load: ${pageError.value || "unknown error"}.`)
 						: h("iframe", {
 							title: `${record.id}-page`,
 							src: frameURL.value,
 							class: "plugin-page-frame",
-							style: "width:100%;min-height:360px;border:1px solid var(--color-border);border-radius:8px;background:#fff;",
+							style: "width:100%;min-height:100vh;border:0;display:block;background:#fff;",
 							onError: () => {
 								pageBroken.value = true;
 								pageError.value = "iframe render failed";
 							}
-						}),
-					loading.value
-						? h("p", "Loading plugin runtime details...")
-						: loadError.value
-							? h("p", { class: "plugin-detail-error" }, `Failed to load plugin details: ${loadError.value}`)
-							: h("pre", { class: "plugin-detail-pre" }, JSON.stringify(debugPayload.value, null, 2))
+						})
+				]);
+		}
+	});
+}
+
+function pickAppHomePlugin(appId: string, store: PluginStore): FrontendPluginManifest | null {
+	const candidates = store.items.filter((item) => {
+		if (item.level !== "app") {
+			return false;
+		}
+		if ((item.appId || "").trim() !== appId) {
+			return false;
+		}
+		if (item.enabled === false || item.uiMode === "backend_only") {
+			return false;
+		}
+		return true;
+	});
+	if (candidates.length === 0) {
+		return null;
+	}
+	const target = getDefaultHomeTarget();
+	if (isAppDefaultTargetFor(target, appId)) {
+		const preferred = candidates.find((item) => item.id === target.pluginId);
+		if (preferred) {
+			return preferred;
+		}
+	}
+	return candidates[0];
+}
+
+function isAppDefaultTargetFor(target: DefaultHomeTarget | null, appId: string): target is DefaultHomeTarget {
+	return Boolean(target && target.level === "app" && target.appId === appId);
+}
+
+function createAppHomeView(appId: string, store: PluginStore) {
+	return defineComponent({
+		name: `AppHomeView_${appId}`,
+		setup() {
+			const pageError = ref("");
+			const pageBroken = ref(false);
+			const frameURL = ref("");
+			const selectedPlugin = computed(() => pickAppHomePlugin(appId, store));
+
+			function patchPluginHTML(content: string, pluginID: string): string {
+				const basePath = `${API_BASE_PREFIX}/v1/plugins/${pluginID}/assets/`;
+				const absoluteAssetsBase = `${basePath}assets/`;
+				let patched = content;
+				if (!/<base\s+/i.test(patched)) {
+					patched = patched.replace(/<head>/i, `<head>\n<base href="${basePath}">`);
+				}
+				patched = patched.replace(/(["'])\/assets\//g, `$1${absoluteAssetsBase}`);
+				return patched;
+			}
+
+			async function loadPluginPage(pluginID: string): Promise<void> {
+				pageError.value = "";
+				pageBroken.value = false;
+				try {
+					const resp = await fetch(`${API_BASE_PREFIX}/v1/plugins/${pluginID}/page`);
+					if (!resp.ok) {
+						throw new Error(`plugin page request failed: ${resp.status}`);
+					}
+					const html = await resp.text();
+					const blob = new Blob([patchPluginHTML(html, pluginID)], { type: "text/html" });
+					if (frameURL.value) {
+						URL.revokeObjectURL(frameURL.value);
+					}
+					frameURL.value = URL.createObjectURL(blob);
+				} catch (error) {
+					pageBroken.value = true;
+					pageError.value = error instanceof Error ? error.message : "failed to load plugin page";
+				}
+			}
+
+			watch(
+				() => selectedPlugin.value?.id || "",
+				async (pluginID) => {
+					if (!pluginID) {
+						pageBroken.value = true;
+						pageError.value = `no enabled app plugin found for app '${appId}'`;
+						if (frameURL.value) {
+							URL.revokeObjectURL(frameURL.value);
+							frameURL.value = "";
+						}
+						return;
+					}
+					await loadPluginPage(pluginID);
+				},
+				{ immediate: true }
+			);
+
+			onUnmounted(() => {
+				if (frameURL.value) {
+					URL.revokeObjectURL(frameURL.value);
+				}
+			});
+
+			return () =>
+				h("section", { class: "remote-plugin-fullpage", style: "min-height:100vh;background:#fff;" }, [
+					pageBroken.value
+						? h("p", { class: "plugin-detail-error", style: "padding:20px;" }, `Plugin page failed to load: ${pageError.value || "unknown error"}.`)
+						: h("iframe", {
+							title: `${appId}-home-page`,
+							src: frameURL.value,
+							class: "plugin-page-frame",
+							style: "width:100%;min-height:100vh;border:0;display:block;background:#fff;",
+							onError: () => {
+								pageBroken.value = true;
+								pageError.value = "iframe render failed";
+							}
+						})
 				]);
 		}
 	});

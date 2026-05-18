@@ -2,6 +2,7 @@ import { computed, defineComponent, h, ref } from "vue";
 
 import { useI18n } from "../../i18n";
 import { useUserStore } from "../../stores/user";
+import { API_BASE_PREFIX } from "../../utils/api-base-prefix";
 import { apiPost, type ApiResponse } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 import type { FrontendPlugin } from "../types";
@@ -277,9 +278,9 @@ export const builtinAuthPlugin: FrontendPlugin = {
     enabled: true,
     uiMode: "frontend_only",
     systemBuiltin: true,
-    backendEndpoint: "/api/v1/auth/login",
+    backendEndpoint: `${API_BASE_PREFIX}/v1/auth/login`,
     route: {
-      path: "/plugins/auth",
+      path: "/skoll/plugins/auth",
       name: "plugin-auth",
       component: AuthPage
     }
@@ -290,3 +291,4 @@ export const builtinAuthPlugin: FrontendPlugin = {
     }
   }
 };
+

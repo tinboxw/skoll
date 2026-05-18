@@ -44,7 +44,7 @@ const pageSize = 10;
 const canGoNext = ref(false);
 
 const hasRows = computed(() => rows.value.length > 0);
-const returnTo = computed(() => route.fullPath || "/user");
+const returnTo = computed(() => route.fullPath || "/skoll/user");
 
 async function loadUsers(targetPage = page.value): Promise<void> {
 	loading.value = true;

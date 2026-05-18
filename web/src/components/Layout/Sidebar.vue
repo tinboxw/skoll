@@ -18,7 +18,7 @@ const iconMap = {
 
 <template>
 	<aside class="sidebar" :class="{ collapsed }">
-		<RouterLink to="/" class="brand" title="Home">Skoll</RouterLink>
+		<RouterLink to="/skoll/" class="brand" title="Home">Skoll</RouterLink>
 		<nav>
 			<RouterLink
 				v-for="item in items"

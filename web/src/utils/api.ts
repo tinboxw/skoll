@@ -1,4 +1,6 @@
 ﻿import { clearToken, getToken } from "./auth";
+import { API_BASE_PREFIX } from "./api-base-prefix";
+import { stripWebBasePath, withWebBasePath } from "./web-base-path";
 
 export type ApiResponse<T> = {
 	code: string;
@@ -19,26 +21,24 @@ export class ApiError extends Error {
 }
 
 const USER_SESSION_KEY = "skoll.auth.userSession";
-const API_PREFIX = "/api";
-
 function withAPIPrefix(url: string): string {
 	const normalized = url.trim();
 	if (normalized === "") {
-		return API_PREFIX;
+		return API_BASE_PREFIX;
 	}
 	if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
 		return normalized;
 	}
-	if (normalized.startsWith(`${API_PREFIX}/`)) {
+	if (normalized.startsWith(`${API_BASE_PREFIX}/`)) {
 		return normalized;
 	}
-	if (normalized === API_PREFIX) {
+	if (normalized === API_BASE_PREFIX) {
 		return normalized;
 	}
 	if (normalized.startsWith("/")) {
-		return `${API_PREFIX}${normalized}`;
+		return `${API_BASE_PREFIX}${normalized}`;
 	}
-	return `${API_PREFIX}/${normalized}`;
+	return `${API_BASE_PREFIX}/${normalized}`;
 }
 
 function handleUnauthorized(url: string): void {
@@ -46,19 +46,21 @@ function handleUnauthorized(url: string): void {
 		return;
 	}
 	const normalizedURL = withAPIPrefix(url).toLowerCase();
-	if (normalizedURL.startsWith("/api/v1/auth/login")) {
+	if (normalizedURL.startsWith(`${API_BASE_PREFIX.toLowerCase()}/v1/auth/login`)) {
 		return;
 	}
 
 	clearToken();
 	window.localStorage.removeItem(USER_SESSION_KEY);
 
-	const path = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-	if (window.location.pathname === "/login") {
+	const loginPath = withWebBasePath("/login");
+	if (window.location.pathname === loginPath) {
 		return;
 	}
+	const appPath = stripWebBasePath(window.location.pathname);
+	const path = `${appPath}${window.location.search}${window.location.hash}`;
 	const redirect = encodeURIComponent(path || "/");
-	window.location.assign(`/login?redirect=${redirect}`);
+	window.location.assign(`${loginPath}?redirect=${redirect}`);
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {

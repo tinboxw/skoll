@@ -1,7 +1,7 @@
 ﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
 import { waitForPluginBootstrap } from "../plugins";
-import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath } from "../stores/plugins";
+import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, resolveValidatedDefaultHomePath, usePluginStore } from "../stores/plugins";
 import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
 import DashboardPage from "../views/Dashboard/index.vue";
@@ -17,9 +17,12 @@ import UserBatchPage from "../views/User/batch.vue";
 import UserEditPage from "../views/User/edit.vue";
 import UserListPage from "../views/User/list.vue";
 
+const ADMIN_PREFIX = "/skoll";
+const ADMIN_LOGIN_PATH = `${ADMIN_PREFIX}/login`;
+
 const routes: RouteRecordRaw[] = [
 	{
-		path: "/login",
+		path: ADMIN_LOGIN_PATH,
 		name: "login",
 		component: LoginPage,
 		meta: { public: true }
@@ -29,58 +32,66 @@ const routes: RouteRecordRaw[] = [
 		redirect: () => resolveSafeDefaultHomePath()
 	},
 	{
-		path: "/dashboard",
+		path: `${ADMIN_PREFIX}`,
+		redirect: () => resolveSafeDefaultHomePath()
+	},
+	{
+		path: `${ADMIN_PREFIX}/`,
+		redirect: () => resolveSafeDefaultHomePath()
+	},
+	{
+		path: `${ADMIN_PREFIX}/dashboard`,
 		name: "dashboard",
 		component: DashboardPage
 	},
 	{
-		path: "/plugin",
+		path: `${ADMIN_PREFIX}/plugin`,
 		name: "plugin",
 		component: PluginPage
 	},
 	{
-		path: "/user",
+		path: `${ADMIN_PREFIX}/user`,
 		name: "user-list",
 		component: UserListPage
 	},
 	{
-		path: "/user/add",
+		path: `${ADMIN_PREFIX}/user/add`,
 		name: "user-add",
 		component: UserAddPage
 	},
 	{
-		path: "/user/batch-add",
+		path: `${ADMIN_PREFIX}/user/batch-add`,
 		name: "user-batch-add",
 		component: UserBatchPage
 	},
 	{
-		path: "/user/:id/edit",
+		path: `${ADMIN_PREFIX}/user/:id/edit`,
 		name: "user-edit",
 		component: UserEditPage
 	},
 	{
-		path: "/profile",
+		path: `${ADMIN_PREFIX}/profile`,
 		name: "profile",
 		component: ProfilePage
 	},
 	{
-		path: "/role",
+		path: `${ADMIN_PREFIX}/role`,
 		name: "role-list",
 		component: RoleListPage
 	},
 	{
-		path: "/role/:id/edit",
+		path: `${ADMIN_PREFIX}/role/:id/edit`,
 		name: "role-edit",
 		component: RoleEditPage
 	},
 	{
-		path: "/permission",
+		path: `${ADMIN_PREFIX}/permission`,
 		name: "permission",
 		component: PermissionPage,
 		meta: { permissions: ["permission.manage"] }
 	},
 	{
-		path: "/setting",
+		path: `${ADMIN_PREFIX}/setting`,
 		name: "setting",
 		component: SettingPage,
 		meta: { permissions: ["role.manage"] }
@@ -88,7 +99,7 @@ const routes: RouteRecordRaw[] = [
 ];
 
 export const router = createRouter({
-	history: createWebHistory(),
+	history: createWebHistory("/"),
 	routes
 });
 
@@ -96,10 +107,17 @@ function isKnownStaticPath(path: string): boolean {
 	return routes.some((route) => typeof route.path === "string" && route.path === path);
 }
 
+function isPluginHomePath(path: string): boolean {
+	if (path.startsWith(`${ADMIN_PREFIX}/plugins/`)) {
+		return true;
+	}
+	return /^\/(?!skoll(?:\/|$))[^/]+\/?$/.test(path);
+}
+
 function resolveSafeDefaultHomePath(): string {
 	const fallback = getSystemDefaultHomePath();
 	const target = getDefaultHomePath(fallback);
-	if (target.startsWith("/plugins/")) {
+	if (isPluginHomePath(target)) {
 		return target;
 	}
 	if (isKnownStaticPath(target)) {
@@ -110,42 +128,79 @@ function resolveSafeDefaultHomePath(): string {
 }
 
 async function resolveSafeTargetPath(path: string): Promise<string> {
-	if (!path.startsWith("/plugins/")) {
+	if (!isPluginHomePath(path)) {
 		return path;
 	}
 	await waitForPluginBootstrap();
+	const pluginStore = usePluginStore();
+	const fallback = getSystemDefaultHomePath();
+	if (getDefaultHomePath(fallback) === path) {
+		const validated = resolveValidatedDefaultHomePath(pluginStore.items, fallback);
+		if (validated !== path) {
+			clearDefaultHomePath();
+			return validated;
+		}
+	}
 	if (router.resolve(path).matched.length > 0) {
 		return path;
 	}
-	const fallback = getSystemDefaultHomePath();
 	if (getDefaultHomePath(fallback) === path) {
 		clearDefaultHomePath();
 	}
 	return fallback;
 }
 
+
+function normalizeRedirectPath(raw: string): string {
+	const normalized = raw.trim();
+	const withSlash = normalized.startsWith("/") ? normalized : `/${normalized}`;
+	if (withSlash.startsWith("/plugins/")) {
+		return `${ADMIN_PREFIX}${withSlash}`;
+	}
+	if (
+		withSlash === "/dashboard" || withSlash.startsWith("/dashboard/") ||
+		withSlash === "/plugin" || withSlash.startsWith("/plugin/") ||
+		withSlash === "/user" || withSlash.startsWith("/user/") ||
+		withSlash === "/role" || withSlash.startsWith("/role/") ||
+		withSlash === "/permission" || withSlash.startsWith("/permission/") ||
+		withSlash === "/setting" || withSlash.startsWith("/setting/") ||
+		withSlash === "/profile" || withSlash.startsWith("/profile/") ||
+		withSlash === "/login" || withSlash.startsWith("/login/")
+	) {
+		return `${ADMIN_PREFIX}${withSlash}`;
+	}
+	return withSlash;
+}
+
 router.beforeEach(async (to) => {
 	const token = getToken().trim();
-	const isPublic = to.meta.public === true || to.path.startsWith("/plugins/auth");
+	const isPublic = to.meta.public === true || to.path.startsWith(`${ADMIN_PREFIX}/plugins/auth`);
 
 	if (token === "" && !isPublic) {
 		return {
-			path: "/login",
+			path: ADMIN_LOGIN_PATH,
 			query: { redirect: to.fullPath }
 		};
 	}
 
-	if (token !== "" && to.path === "/login") {
+	if (token !== "" && to.path === ADMIN_LOGIN_PATH) {
 		const redirect = typeof to.query.redirect === "string" && to.query.redirect.trim() !== ""
-			? to.query.redirect
+			? normalizeRedirectPath(to.query.redirect)
 			: resolveSafeDefaultHomePath();
 		return await resolveSafeTargetPath(redirect);
 	}
 
-	if (to.path.startsWith("/plugins/")) {
+	if (isPluginHomePath(to.path)) {
 		const safePath = await resolveSafeTargetPath(to.path);
 		if (safePath !== to.path) {
 			return safePath;
+		}
+		// If the target plugin route was added during bootstrap, rematch the same URL once.
+		if (to.matched.length === 0 && router.resolve(to.path).matched.length > 0) {
+			return {
+				path: to.fullPath,
+				replace: true
+			};
 		}
 	}
 

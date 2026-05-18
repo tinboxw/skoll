@@ -16,9 +16,22 @@ const userStore = useUserStore();
 const { locale, setLocale, t } = useI18n();
 const route = useRoute();
 const router = useRouter();
+const ADMIN_BASE = "/skoll";
 
 const pluginCount = computed(() => pluginStore.items.length);
-const isLoginRoute = computed(() => route.path === "/login");
+const isLoginRoute = computed(() => route.path === `${ADMIN_BASE}/login`);
+const isPluginStandaloneRoute = computed(() => {
+	if (/^\/(?!skoll(?:\/|$))[^/]+\/?$/.test(route.path)) {
+		return true;
+	}
+	if (/^\/(?!skoll(?:\/|$))[^/]+\/plugins\//.test(route.path)) {
+		return true;
+	}
+	if (route.path.startsWith(`${ADMIN_BASE}/plugins/`) && !route.path.startsWith(`${ADMIN_BASE}/plugins/auth`)) {
+		return true;
+	}
+	return false;
+});
 
 type SidebarItem = {
 	label: string;
@@ -30,12 +43,12 @@ type SidebarItem = {
 
 const sidebarItems = computed(() => {
 	const allItems: SidebarItem[] = [
-		{ label: t("menu.dashboard"), to: "/dashboard", icon: "dashboard" },
-		{ label: t("menu.users"), to: "/user", icon: "users" },
-		{ label: t("menu.roles"), to: "/role", icon: "roles" },
-		{ label: t("menu.permissions"), to: "/permission", icon: "permissions", requiredPermissions: ["permission.manage"] },
-		{ label: t("menu.plugins"), to: "/plugin", icon: "plugins" },
-		{ label: t("menu.settings"), to: "/setting", icon: "settings", requiredPermissions: ["role.manage"] }
+		{ label: t("menu.dashboard"), to: `${ADMIN_BASE}/dashboard`, icon: "dashboard" },
+		{ label: t("menu.users"), to: `${ADMIN_BASE}/user`, icon: "users" },
+		{ label: t("menu.roles"), to: `${ADMIN_BASE}/role`, icon: "roles" },
+		{ label: t("menu.permissions"), to: `${ADMIN_BASE}/permission`, icon: "permissions", requiredPermissions: ["permission.manage"] },
+		{ label: t("menu.plugins"), to: `${ADMIN_BASE}/plugin`, icon: "plugins" },
+		{ label: t("menu.settings"), to: `${ADMIN_BASE}/setting`, icon: "settings", requiredPermissions: ["role.manage"] }
 	];
 
 	const currentRole = userStore.profile?.role ?? "";
@@ -62,11 +75,11 @@ async function handleLogout(): Promise<void> {
 		// Ignore API errors and clear local session regardless.
 	}
 	userStore.logout();
-	await router.replace("/login");
+	await router.replace(`${ADMIN_BASE}/login`);
 }
 
 async function handleOpenProfile(): Promise<void> {
-	await router.push("/profile");
+	await router.push(`${ADMIN_BASE}/profile`);
 }
 
 onMounted(() => {
@@ -78,6 +91,9 @@ onMounted(() => {
 
 <template>
 	<main v-if="isLoginRoute" class="login-shell">
+		<RouterView />
+	</main>
+	<main v-else-if="isPluginStandaloneRoute" class="plugin-standalone-shell">
 		<RouterView />
 	</main>
 	<main v-else class="app-shell">
@@ -116,6 +132,11 @@ onMounted(() => {
 	min-height: 100vh;
 	padding: 24px;
 	background: radial-gradient(circle at 20% 10%, var(--color-bg-accent) 0%, var(--color-bg) 55%);
+}
+
+.plugin-standalone-shell {
+	min-height: 100vh;
+	background: var(--color-bg);
 }
 
 .content-area {

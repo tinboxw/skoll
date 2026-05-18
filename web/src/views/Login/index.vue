@@ -4,8 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
 import { syncBackendPlugins, waitForPluginBootstrap } from "../../plugins";
-import { getDefaultHomePath, getSystemDefaultHomePath } from "../../stores/plugins";
-import { usePluginStore } from "../../stores/plugins";
+import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, resolveValidatedDefaultHomePath, usePluginStore } from "../../stores/plugins";
 import { useUserStore } from "../../stores/user";
 import { apiPost, type ApiResponse } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -42,15 +41,27 @@ type LoginPayload = {
 };
 
 async function resolvePostLoginTarget(path: string): Promise<string> {
-	const target = path.trim();
-	if (!target.startsWith("/plugins/")) {
+	const raw = path.trim();
+	if (raw === "") {
+		return getSystemDefaultHomePath();
+	}
+	const target = raw.startsWith("/") ? raw : `/${raw}`;
+	if (!target.startsWith("/skoll/plugins/") && !/^\/(?!skoll(?:\/|$))[^/]+\/?$/.test(target)) {
 		return target;
 	}
 	await waitForPluginBootstrap();
+	const fallback = getSystemDefaultHomePath();
+	if (getDefaultHomePath(fallback) === target) {
+		const validated = resolveValidatedDefaultHomePath(pluginStore.items, fallback);
+		if (validated !== target) {
+			clearDefaultHomePath();
+			return validated;
+		}
+	}
 	if (router.resolve(target).matched.length > 0) {
 		return target;
 	}
-	return getSystemDefaultHomePath();
+	return fallback;
 }
 
 async function login(): Promise<void> {
