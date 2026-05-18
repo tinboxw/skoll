@@ -90,6 +90,32 @@ const quickActors = computed(() => {
 	}
 	return Array.from(actorSet);
 });
+const quickActions = computed(() => {
+	const actionSet = new Set<string>();
+	for (const item of items.value) {
+		const value = item.action.trim();
+		if (value !== "") {
+			actionSet.add(value);
+		}
+		if (actionSet.size >= 8) {
+			break;
+		}
+	}
+	return Array.from(actionSet);
+});
+const quickResources = computed(() => {
+	const resourceSet = new Set<string>();
+	for (const item of items.value) {
+		const value = item.resource.trim();
+		if (value !== "") {
+			resourceSet.add(value);
+		}
+		if (resourceSet.size >= 8) {
+			break;
+		}
+	}
+	return Array.from(resourceSet);
+});
 
 function buildQuery(): string {
 	const params = new URLSearchParams();
@@ -149,6 +175,16 @@ function nextPage(): void {
 
 function setQuickActor(actor: string): void {
 	actorId.value = actor;
+	void loadAuditLogs();
+}
+
+function setQuickAction(value: string): void {
+	action.value = value;
+	void loadAuditLogs();
+}
+
+function setQuickResource(value: string): void {
+	resource.value = value;
 	void loadAuditLogs();
 }
 
@@ -280,6 +316,36 @@ void loadAuditLogs();
 				@click="setQuickActor(actor)"
 			>
 				{{ actor }}
+			</button>
+		</div>
+
+		<div v-if="quickActions.length > 0" class="quick-actors">
+			<span>{{ t("audit.quickActions") }}</span>
+			<button
+				v-for="value in quickActions"
+				:key="`action-${value}`"
+				type="button"
+				class="chip"
+				:class="{ active: action === value }"
+				:disabled="loading || operating"
+				@click="setQuickAction(value)"
+			>
+				{{ value }}
+			</button>
+		</div>
+
+		<div v-if="quickResources.length > 0" class="quick-actors">
+			<span>{{ t("audit.quickResources") }}</span>
+			<button
+				v-for="value in quickResources"
+				:key="`resource-${value}`"
+				type="button"
+				class="chip"
+				:class="{ active: resource === value }"
+				:disabled="loading || operating"
+				@click="setQuickResource(value)"
+			>
+				{{ value }}
 			</button>
 		</div>
 
