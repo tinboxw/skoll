@@ -53,6 +53,7 @@ func (h *SystemHandler) getByKey(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SystemHandler) upsert(w http.ResponseWriter, r *http.Request) {
+	key := r.PathValue("key")
 	var req struct {
 		Value     string `json:"value"`
 		Encrypted bool   `json:"encrypted"`
@@ -61,8 +62,9 @@ func (h *SystemHandler) upsert(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	before, _ := h.service.GetByKey(r.Context(), key)
 	item, err := h.service.Upsert(r.Context(), systemsvc.UpsertInput{
-		Key:       r.PathValue("key"),
+		Key:       key,
 		Value:     req.Value,
 		Encrypted: req.Encrypted,
 	})
@@ -70,7 +72,11 @@ func (h *SystemHandler) upsert(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	h.appendAudit(r, "upsert", "system_setting", r.PathValue("key"), map[string]any{"encrypted": req.Encrypted})
+	detail := map[string]any{"after": map[string]any{"value": item.Value, "encrypted": item.Encrypted}}
+	if before != nil {
+		detail["before"] = map[string]any{"value": before.Value, "encrypted": before.Encrypted}
+	}
+	h.appendAudit(r, "upsert", "system_setting", key, detail)
 	apiv1.WriteJSON(w, http.StatusOK, item)
 }
 

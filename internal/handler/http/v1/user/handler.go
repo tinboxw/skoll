@@ -123,11 +123,23 @@ func (h *UserHandler) updateEmail(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	entity, err := h.service.UpdateEmail(r.Context(), usersvc.UpdateEmailInput{ID: r.PathValue("id"), Email: req.Email, ActorID: actorIDFromRequest(r.Context(), req.ActorID)})
+	before, _ := h.service.Get(r.Context(), r.PathValue("id"))
+	actorID := actorIDFromRequest(r.Context(), req.ActorID)
+	entity, err := h.service.UpdateEmail(r.Context(), usersvc.UpdateEmailInput{ID: r.PathValue("id"), Email: req.Email, ActorID: actorID})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	targetID := strings.TrimSpace(r.PathValue("id"))
+	detail := map[string]any{"after": map[string]any{"email": req.Email}}
+	if entity != nil {
+		targetID = entity.ID.String()
+		detail["after"] = map[string]any{"email": entity.Email}
+	}
+	if before != nil {
+		detail["before"] = map[string]any{"email": before.Email}
+	}
+	h.appendAudit(r, actorID, "update_email", "user", targetID, detail)
 	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 
@@ -141,6 +153,7 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	before, _ := h.service.Get(r.Context(), r.PathValue("id"))
 	entity, err := h.service.Update(r.Context(), usersvc.UpdateUserInput{
 		ID:     r.PathValue("id"),
 		Name:   req.Name,
@@ -151,7 +164,16 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "update", "user", entity.ID.String(), map[string]any{"status": entity.Status})
+	targetID := strings.TrimSpace(r.PathValue("id"))
+	detail := map[string]any{"after": map[string]any{"name": req.Name, "email": req.Email, "status": req.Status}}
+	if entity != nil {
+		targetID = entity.ID.String()
+		detail["after"] = map[string]any{"name": entity.Name, "email": entity.Email, "status": entity.Status}
+	}
+	if before != nil {
+		detail["before"] = map[string]any{"name": before.Name, "email": before.Email, "status": before.Status}
+	}
+	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "update", "user", targetID, detail)
 	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 

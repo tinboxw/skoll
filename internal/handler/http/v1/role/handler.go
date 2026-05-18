@@ -146,6 +146,7 @@ func (h *RoleHandler) update(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	before, _ := h.service.Get(r.Context(), r.PathValue("id"))
 	entity, err := h.service.Update(r.Context(), rolesvc.UpdateRoleInput{
 		ID:          r.PathValue("id"),
 		Name:        req.Name,
@@ -157,7 +158,11 @@ func (h *RoleHandler) update(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	h.appendAudit(r, "update", "role", entity.ID.String(), map[string]any{"permissions": len(entity.Permissions)})
+	detail := map[string]any{"after": map[string]any{"name": entity.Name, "key": entity.Key, "permissions": len(entity.Permissions)}}
+	if before != nil {
+		detail["before"] = map[string]any{"name": before.Name, "key": before.Key, "permissions": len(before.Permissions)}
+	}
+	h.appendAudit(r, "update", "role", entity.ID.String(), detail)
 	apiv1.WriteJSON(w, http.StatusOK, entity)
 }
 

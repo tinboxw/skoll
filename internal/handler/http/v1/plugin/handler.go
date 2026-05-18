@@ -428,6 +428,12 @@ func (h *PluginHandler) updateConfig(w http.ResponseWriter, r *http.Request) {
 	if req.Config == nil {
 		req.Config = map[string]any{}
 	}
+	beforeConfig := map[string]any{}
+	if info, err := h.manager.Get(id); err == nil {
+		if raw := strings.TrimSpace(info.ConfigJSON); raw != "" {
+			_ = json.Unmarshal([]byte(raw), &beforeConfig)
+		}
+	}
 
 	updater, ok := h.manager.(PluginConfigUpdater)
 	if !ok {
@@ -444,7 +450,10 @@ func (h *PluginHandler) updateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.appendPluginLog(id, "update_config", "ok", "config updated")
-	h.appendAudit(r, "update_config", "plugin", id, map[string]any{"configKeys": len(req.Config)})
+	h.appendAudit(r, "update_config", "plugin", id, map[string]any{
+		"before": map[string]any{"configKeys": len(beforeConfig)},
+		"after":  map[string]any{"configKeys": len(req.Config)},
+	})
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"pluginId": id, "config": req.Config})
 }
 
