@@ -7,18 +7,21 @@ import (
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type RBACHandler struct {
 	service rbacsvc.Service
+	audit   auditsvc.Service
 }
 
-func RegisterRBACRoutes(mux *http.ServeMux, service rbacsvc.Service) {
+func RegisterRBACRoutes(mux *http.ServeMux, service rbacsvc.Service, auditSvc auditsvc.Service) {
 	if service == nil {
 		return
 	}
-	h := &RBACHandler{service: service}
+	h := &RBACHandler{service: service, audit: auditSvc}
 	mux.HandleFunc("POST /v1/rbac/bind", h.bind)
 	mux.HandleFunc("GET /v1/rbac/bindings", h.listBindings)
 	mux.HandleFunc("DELETE /v1/rbac/bindings/{id}", h.unbind)
@@ -47,6 +50,7 @@ func (h *RBACHandler) bind(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "bind", "rbac", req.RoleID, map[string]any{"subjectType": req.SubjectType, "subjectId": req.SubjectID, "scope": req.Scope})
 	apiv1.WriteJSON(w, http.StatusCreated, entity)
 }
 
@@ -62,6 +66,7 @@ func (h *RBACHandler) setPolicies(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "set_policies", "rbac", r.PathValue("roleId"), map[string]any{"ruleCount": len(req.Rules)})
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "updated")
 }
 
@@ -110,5 +115,20 @@ func (h *RBACHandler) unbind(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "unbind", "rbac", id, nil)
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "unbound")
+}
+
+func (h *RBACHandler) appendAudit(r *http.Request, action, resource, resourceID string, detail map[string]any) {
+	if h == nil || h.audit == nil || r == nil {
+		return
+	}
+	actorID := ""
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+		actorID = strings.TrimSpace(claims.Subject)
+	}
+	if actorID == "" {
+		actorID = "system"
+	}
+	_, _ = h.audit.Append(r.Context(), actorID, action, resource, strings.TrimSpace(resourceID), detail)
 }

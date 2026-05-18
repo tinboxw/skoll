@@ -4,20 +4,24 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	systemsvc "github.com/tinboxw/skoll/internal/service/system"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type SystemHandler struct {
 	service systemsvc.Service
+	audit   auditsvc.Service
 }
 
-func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service) {
+func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service, auditSvc auditsvc.Service) {
 	if service == nil {
 		return
 	}
-	h := &SystemHandler{service: service}
+	h := &SystemHandler{service: service, audit: auditSvc}
 	mux.HandleFunc("GET /v1/system/settings", h.list)
 	mux.HandleFunc("GET /v1/system/settings/{key}", h.getByKey)
 	mux.HandleFunc("PUT /v1/system/settings/{key}", h.upsert)
@@ -66,6 +70,7 @@ func (h *SystemHandler) upsert(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "upsert", "system_setting", r.PathValue("key"), map[string]any{"encrypted": req.Encrypted})
 	apiv1.WriteJSON(w, http.StatusOK, item)
 }
 
@@ -75,5 +80,20 @@ func (h *SystemHandler) reset(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	h.appendAudit(r, "reset", "system_setting", "", map[string]any{"count": count})
 	apiv1.WriteJSON(w, http.StatusOK, map[string]int{"reset": count})
+}
+
+func (h *SystemHandler) appendAudit(r *http.Request, action, resource, resourceID string, detail map[string]any) {
+	if h == nil || h.audit == nil || r == nil {
+		return
+	}
+	actorID := ""
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+		actorID = strings.TrimSpace(claims.Subject)
+	}
+	if actorID == "" {
+		actorID = "system"
+	}
+	_, _ = h.audit.Append(r.Context(), actorID, action, resource, strings.TrimSpace(resourceID), detail)
 }

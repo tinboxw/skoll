@@ -57,10 +57,10 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 
 	userhttp.RegisterUserRoutes(apiMux, deps.UserService, deps.RBACService)
 	rolehttp.RegisterRoleRoutes(apiMux, deps.RoleService, deps.UserService, deps.RBACService)
-	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService)
+	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService, deps.AuditService)
 	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService)
-	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService)
-	pluginhttp.RegisterPluginRoutes(apiMux, deps.PluginManager, pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile))
+	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
+	pluginhttp.RegisterPluginRoutes(apiMux, deps.PluginManager, pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile), pluginhttp.WithPluginAuditService(deps.AuditService))
 	registerPluginExtensionRoutes(apiMux, deps.PluginManager)
 
 	rootMux := http.NewServeMux()

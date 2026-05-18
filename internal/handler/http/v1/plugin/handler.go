@@ -15,7 +15,9 @@ import (
 
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	"github.com/tinboxw/skoll/internal/plugin"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/pkg/logging"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type PluginManager interface {
@@ -44,6 +46,7 @@ type PluginHandler struct {
 	extensionProvider PluginExtensionSnapshotProvider
 	loader            plugin.MetadataLoader
 	logger            logging.Logger
+	auditSvc          auditsvc.Service
 	logLevel          string
 	logDir            string
 	logFile           string
@@ -58,6 +61,12 @@ func WithPluginLogTarget(logLevel, logDir, logFile string, pluginPerFile bool) P
 		h.logDir = strings.TrimSpace(logDir)
 		h.logFile = strings.TrimSpace(logFile)
 		h.pluginPerFile = pluginPerFile
+	}
+}
+
+func WithPluginAuditService(auditSvc auditsvc.Service) PluginRouteOption {
+	return func(h *PluginHandler) {
+		h.auditSvc = auditSvc
 	}
 }
 
@@ -435,7 +444,22 @@ func (h *PluginHandler) updateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.appendPluginLog(id, "update_config", "ok", "config updated")
+	h.appendAudit(r, "update_config", "plugin", id, map[string]any{"configKeys": len(req.Config)})
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"pluginId": id, "config": req.Config})
+}
+
+func (h *PluginHandler) appendAudit(r *http.Request, action, resource, resourceID string, detail map[string]any) {
+	if h == nil || h.auditSvc == nil || r == nil {
+		return
+	}
+	actorID := ""
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+		actorID = strings.TrimSpace(claims.Subject)
+	}
+	if actorID == "" {
+		actorID = "system"
+	}
+	_, _ = h.auditSvc.Append(r.Context(), actorID, action, resource, strings.TrimSpace(resourceID), detail)
 }
 
 func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {
