@@ -39,6 +39,72 @@ function normalizeAuditRecord(item: unknown): AuditRecord | null {
 
 const { t } = useI18n();
 
+const ACTION_HISTORY_KEY = "skoll.audit.action.history";
+const RESOURCE_HISTORY_KEY = "skoll.audit.resource.history";
+
+function readHistory(key: string): string[] {
+	if (typeof window === "undefined") {
+		return [];
+	}
+	try {
+		const raw = window.localStorage.getItem(key);
+		if (!raw) {
+			return [];
+		}
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+		return parsed
+			.map((item) => String(item ?? "").trim())
+			.filter((item) => item !== "")
+			.slice(0, 12);
+	} catch {
+		return [];
+	}
+}
+
+function writeHistory(key: string, values: string[]): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	const normalized = values
+		.map((item) => item.trim())
+		.filter((item) => item !== "")
+		.slice(0, 12);
+	window.localStorage.setItem(key, JSON.stringify(normalized));
+}
+
+function mergeHistory(existing: string[], incoming: string[]): string[] {
+	const merged = [...incoming, ...existing]
+		.map((item) => item.trim())
+		.filter((item) => item !== "");
+	const set = new Set<string>();
+	const out: string[] = [];
+	for (const item of merged) {
+		if (set.has(item)) {
+			continue;
+		}
+		set.add(item);
+		out.push(item);
+		if (out.length >= 12) {
+			break;
+		}
+	}
+	return out;
+}
+
+function readInitialQuery(): URLSearchParams {
+	if (typeof window === "undefined") {
+		return new URLSearchParams();
+	}
+	return new URLSearchParams(window.location.search);
+}
+
+function readQueryValue(params: URLSearchParams, key: string): string {
+	return (params.get(key) ?? "").trim();
+}
+
 function toDateTimeLocalInput(value: Date): string {
 	const adjusted = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
 	return adjusted.toISOString().slice(0, 16);
@@ -55,21 +121,24 @@ function defaultTimeRange(): { from: string; to: string } {
 }
 
 const initialRange = defaultTimeRange();
+const initialQuery = readInitialQuery();
 
 const loading = ref(false);
 const operating = ref(false);
 const error = ref("");
 const success = ref("");
-const actorId = ref("");
-const action = ref("");
-const resource = ref("");
-const from = ref(initialRange.from);
-const to = ref(initialRange.to);
-const limit = ref(50);
+const actorId = ref(readQueryValue(initialQuery, "actorId"));
+const action = ref(readQueryValue(initialQuery, "action"));
+const resource = ref(readQueryValue(initialQuery, "resource"));
+const from = ref(readQueryValue(initialQuery, "fromLocal") || initialRange.from);
+const to = ref(readQueryValue(initialQuery, "toLocal") || initialRange.to);
+const limit = ref(Number.parseInt(readQueryValue(initialQuery, "limit") || "50", 10) || 50);
 const page = ref(1);
-const pageSize = ref(10);
+const pageSize = ref(Number.parseInt(readQueryValue(initialQuery, "pageSize") || "10", 10) || 10);
 const items = ref<AuditRecord[]>([]);
 const selected = ref<AuditRecord | null>(null);
+const actionHistory = ref<string[]>(readHistory(ACTION_HISTORY_KEY));
+const resourceHistory = ref<string[]>(readHistory(RESOURCE_HISTORY_KEY));
 
 const hasRows = computed(() => items.value.length > 0);
 const totalPages = computed(() => Math.max(1, Math.ceil(items.value.length / pageSize.value)));
@@ -90,6 +159,41 @@ const quickActors = computed(() => {
 	}
 	return Array.from(actorSet);
 });
+function syncQueryToURL(): void {
+	if (typeof window === "undefined") {
+		return;
+	}
+	const params = new URLSearchParams();
+	if (actorId.value.trim() !== "") {
+		params.set("actorId", actorId.value.trim());
+	}
+	if (action.value.trim() !== "") {
+		params.set("action", action.value.trim());
+	}
+	if (resource.value.trim() !== "") {
+		params.set("resource", resource.value.trim());
+	}
+	if (from.value.trim() !== "") {
+		params.set("fromLocal", from.value.trim());
+	}
+	if (to.value.trim() !== "") {
+		params.set("toLocal", to.value.trim());
+	}
+	params.set("limit", String(Math.max(1, limit.value || 50)));
+	params.set("pageSize", String(Math.max(1, pageSize.value || 10)));
+	const query = params.toString();
+	const target = query === "" ? window.location.pathname : `${window.location.pathname}?${query}`;
+	window.history.replaceState({}, "", target);
+}
+
+function updateSuggestionHistory(): void {
+	const nextAction = mergeHistory(actionHistory.value, [...quickActions.value, action.value]);
+	const nextResource = mergeHistory(resourceHistory.value, [...quickResources.value, resource.value]);
+	actionHistory.value = nextAction;
+	resourceHistory.value = nextResource;
+	writeHistory(ACTION_HISTORY_KEY, nextAction);
+	writeHistory(RESOURCE_HISTORY_KEY, nextResource);
+}
 const quickActions = computed(() => {
 	const actionSet = new Set<string>();
 	for (const item of items.value) {
@@ -116,6 +220,8 @@ const quickResources = computed(() => {
 	}
 	return Array.from(resourceSet);
 });
+const actionSuggestions = computed(() => mergeHistory(actionHistory.value, quickActions.value));
+const resourceSuggestions = computed(() => mergeHistory(resourceHistory.value, quickResources.value));
 
 function buildQuery(): string {
 	const params = new URLSearchParams();
@@ -143,6 +249,7 @@ async function loadAuditLogs(): Promise<void> {
 	loading.value = true;
 	error.value = "";
 	success.value = "";
+	syncQueryToURL();
 	try {
 		const payload = await apiGet<ApiResponse<AuditRecord[]>>(`/v1/audit${buildQuery()}`);
 		items.value = Array.isArray(payload.data)
@@ -150,6 +257,7 @@ async function loadAuditLogs(): Promise<void> {
 			: [];
 		page.value = 1;
 		selected.value = null;
+		updateSuggestionHistory();
 	} catch (e) {
 		error.value = toErrorMessage(e);
 		items.value = [];
@@ -275,11 +383,17 @@ void loadAuditLogs();
 			</label>
 			<label>
 				<span>{{ t("audit.action") }}</span>
-				<input v-model="action" type="text" :disabled="loading || operating" />
+				<input v-model="action" type="text" list="audit-action-suggestions" :disabled="loading || operating" />
+				<datalist id="audit-action-suggestions">
+					<option v-for="value in actionSuggestions" :key="`action-option-${value}`" :value="value" />
+				</datalist>
 			</label>
 			<label>
 				<span>{{ t("audit.resource") }}</span>
-				<input v-model="resource" type="text" :disabled="loading || operating" />
+				<input v-model="resource" type="text" list="audit-resource-suggestions" :disabled="loading || operating" />
+				<datalist id="audit-resource-suggestions">
+					<option v-for="value in resourceSuggestions" :key="`resource-option-${value}`" :value="value" />
+				</datalist>
 			</label>
 			<label>
 				<span>{{ t("audit.from") }}</span>
