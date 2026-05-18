@@ -1,8 +1,8 @@
 ﻿<script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 import { useI18n } from "../../i18n";
-import { type ApiResponse, apiGet, apiPut } from "../../utils/api";
+import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 type SettingRecord = {
@@ -30,34 +30,50 @@ function normalizeSettingRecord(item: unknown): SettingRecord | null {
 	};
 }
 
-const SETTING_AUDIT_RETENTION_DAYS = "audit.retention.days";
-const SETTING_PLUGIN_AUTO_ENABLE = "plugin.auto_enable";
-
 const { t } = useI18n();
 
 const loading = ref(false);
 const saving = ref(false);
+const resetting = ref(false);
 const error = ref("");
 const success = ref("");
-const auditRetentionDays = ref(90);
-const pluginAutoEnable = ref(true);
+const searchKey = ref("");
 const allSettings = ref<SettingRecord[]>([]);
+const editorKey = ref("");
+const editorValue = ref("");
+const editorEncrypted = ref(false);
+
+const filteredSettings = computed(() => {
+	const keyword = searchKey.value.trim().toLowerCase();
+	if (keyword === "") {
+		return allSettings.value;
+	}
+	return allSettings.value.filter((item) => item.key.toLowerCase().includes(keyword));
+});
+
+const groupedSettings = computed(() => {
+	const grouped: Record<string, SettingRecord[]> = {};
+	for (const item of filteredSettings.value) {
+		const namespace = item.key.includes(".") ? item.key.split(".")[0] : "misc";
+		if (!grouped[namespace]) {
+			grouped[namespace] = [];
+		}
+		grouped[namespace].push(item);
+	}
+	return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
+});
 
 async function loadSettings(): Promise<void> {
 	loading.value = true;
 	error.value = "";
 	try {
-		const payload = await apiGet<ApiResponse<SettingRecord[]>>("/v1/system/settings?offset=0&limit=200");
-		const list = Array.isArray(payload.data)
+		const payload = await apiGet<ApiResponse<SettingRecord[]>>("/v1/system/settings?offset=0&limit=500");
+		allSettings.value = Array.isArray(payload.data)
 			? payload.data.map((item) => normalizeSettingRecord(item)).filter((item): item is SettingRecord => item !== null)
 			: [];
-		allSettings.value = list;
-
-		const retention = list.find((item) => item.key === SETTING_AUDIT_RETENTION_DAYS);
-		const autoEnable = list.find((item) => item.key === SETTING_PLUGIN_AUTO_ENABLE);
-
-		auditRetentionDays.value = Number.parseInt(retention?.value ?? "90", 10) || 90;
-		pluginAutoEnable.value = (autoEnable?.value ?? "true").toLowerCase() === "true";
+		if (editorKey.value === "" && allSettings.value.length > 0) {
+			selectSetting(allSettings.value[0]);
+		}
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -65,18 +81,44 @@ async function loadSettings(): Promise<void> {
 	}
 }
 
-async function saveSettings(): Promise<void> {
+function selectSetting(item: SettingRecord): void {
+	editorKey.value = item.key;
+	editorValue.value = item.value;
+	editorEncrypted.value = item.encrypted;
+}
+
+async function fetchByKey(): Promise<void> {
+	if (editorKey.value.trim() === "") {
+		return;
+	}
 	saving.value = true;
 	error.value = "";
 	success.value = "";
 	try {
-		await apiPut<ApiResponse<SettingRecord>>(`/v1/system/settings/${SETTING_AUDIT_RETENTION_DAYS}`, {
-			value: String(Math.max(1, auditRetentionDays.value)),
-			encrypted: false
-		});
-		await apiPut<ApiResponse<SettingRecord>>(`/v1/system/settings/${SETTING_PLUGIN_AUTO_ENABLE}`, {
-			value: String(pluginAutoEnable.value),
-			encrypted: false
+		const payload = await apiGet<ApiResponse<SettingRecord>>(`/v1/system/settings/${encodeURIComponent(editorKey.value.trim())}`);
+		const record = normalizeSettingRecord(payload.data);
+		if (record) {
+			selectSetting(record);
+			success.value = t("settings.fetchDone");
+		}
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		saving.value = false;
+	}
+}
+
+async function saveSetting(): Promise<void> {
+	if (editorKey.value.trim() === "") {
+		return;
+	}
+	saving.value = true;
+	error.value = "";
+	success.value = "";
+	try {
+		await apiPut<ApiResponse<SettingRecord>>(`/v1/system/settings/${encodeURIComponent(editorKey.value.trim())}`, {
+			value: editorValue.value,
+			encrypted: editorEncrypted.value
 		});
 		success.value = t("settings.saveDone");
 		await loadSettings();
@@ -84,6 +126,21 @@ async function saveSettings(): Promise<void> {
 		error.value = toErrorMessage(e);
 	} finally {
 		saving.value = false;
+	}
+}
+
+async function resetSettings(): Promise<void> {
+	resetting.value = true;
+	error.value = "";
+	success.value = "";
+	try {
+		const payload = await apiPost<ApiResponse<{ reset?: number }>>("/v1/system/settings/reset");
+		success.value = `${t("settings.resetDone")}: ${payload.data?.reset ?? 0}`;
+		await loadSettings();
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		resetting.value = false;
 	}
 }
 
@@ -98,52 +155,73 @@ onMounted(() => {
 		<p>{{ t("settings.desc") }}</p>
 		<p v-if="error" class="error">{{ error }}</p>
 		<p v-if="success" class="success">{{ success }}</p>
-		<div class="grid">
-			<label>
-				<span>{{ t("settings.auditRetention") }}</span>
-				<input v-model.number="auditRetentionDays" type="number" min="1" :disabled="loading || saving" />
-			</label>
-			<label class="toggle">
-				<input v-model="pluginAutoEnable" type="checkbox" :disabled="loading || saving" />
-				<span>{{ t("settings.autoEnable") }}</span>
-			</label>
+		<div class="toolbar">
+			<input v-model="searchKey" type="text" :placeholder="t('settings.searchPlaceholder')" :disabled="loading || saving || resetting" />
 			<div class="actions">
-				<button type="button" :disabled="loading || saving" @click="loadSettings">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
-				<button type="button" :disabled="saving" @click="saveSettings">{{ saving ? t("common.loading") : t("common.save") }}</button>
+				<button type="button" :disabled="loading || saving || resetting" @click="loadSettings">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
+				<button type="button" :disabled="loading || saving || resetting" @click="resetSettings">{{ resetting ? t("common.loading") : t("settings.reset") }}</button>
 			</div>
 		</div>
+
+		<section class="editor">
+			<h3>{{ t("settings.editor") }}</h3>
+			<div class="editor-grid">
+				<label>
+					<span>{{ t("table.key") }}</span>
+					<input v-model="editorKey" type="text" :disabled="saving || resetting" />
+				</label>
+				<label>
+					<span>{{ t("table.value") }}</span>
+					<textarea v-model="editorValue" rows="5" :disabled="saving || resetting" />
+				</label>
+				<label class="toggle">
+					<input v-model="editorEncrypted" type="checkbox" :disabled="saving || resetting" />
+					<span>{{ t("settings.encrypted") }}</span>
+				</label>
+			</div>
+			<div class="actions">
+				<button type="button" :disabled="saving || resetting || editorKey.trim() === ''" @click="fetchByKey">{{ t("settings.fetchByKey") }}</button>
+				<button type="button" :disabled="saving || resetting || editorKey.trim() === ''" @click="saveSetting">{{ saving ? t("common.loading") : t("common.save") }}</button>
+			</div>
+		</section>
+
 		<section class="raw-list">
 			<h3>{{ t("settings.rawList") }}</h3>
-			<table>
-				<thead>
-					<tr>
-						<th>{{ t("table.key") }}</th>
-						<th>{{ t("table.value") }}</th>
-						<th>{{ t("table.status") }}</th>
-					</tr>
-				</thead>
-				<tbody v-if="allSettings.length > 0">
-					<tr v-for="item in allSettings" :key="item.id">
-						<td>{{ item.key }}</td>
-						<td>{{ item.value }}</td>
-						<td>{{ item.encrypted ? t("settings.encrypted") : t("settings.plain") }}</td>
-					</tr>
-				</tbody>
-				<tbody v-else>
-					<tr>
-						<td colspan="3">{{ loading ? t("common.loading") : t("common.empty") }}</td>
-					</tr>
-				</tbody>
-			</table>
+			<div v-if="groupedSettings.length > 0" class="group-list">
+				<section v-for="[groupName, items] in groupedSettings" :key="groupName" class="group-panel">
+					<h4>{{ groupName }}</h4>
+					<table>
+						<thead>
+							<tr>
+								<th>{{ t("table.key") }}</th>
+								<th>{{ t("table.value") }}</th>
+								<th>{{ t("table.status") }}</th>
+								<th>{{ t("table.actions") }}</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr v-for="item in items" :key="item.id">
+								<td>{{ item.key }}</td>
+								<td>{{ item.value }}</td>
+								<td>{{ item.encrypted ? t("settings.encrypted") : t("settings.plain") }}</td>
+								<td><button type="button" :disabled="saving || resetting" @click="selectSetting(item)">{{ t("common.edit") }}</button></td>
+							</tr>
+						</tbody>
+					</table>
+				</section>
+			</div>
+			<p v-else>{{ loading ? t("common.loading") : t("common.empty") }}</p>
 		</section>
 	</section>
 </template>
 
 <style scoped>
-.grid {
-	display: grid;
-	gap: 12px;
-	max-width: 380px;
+.toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 10px 0;
 }
 
 label {
@@ -152,11 +230,17 @@ label {
 	color: var(--color-text-muted);
 }
 
-input[type="number"] {
+input[type="text"],
+textarea {
 	padding: 8px;
 	border-radius: var(--radius-md);
 	border: 1px solid var(--color-border);
 	background: var(--color-surface-soft);
+}
+
+textarea {
+	resize: vertical;
+	min-height: 120px;
 }
 
 .actions {
@@ -178,8 +262,43 @@ button {
 	column-gap: 8px;
 }
 
+.editor {
+	margin-top: 10px;
+	padding: 10px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+}
+
+.editor h3 {
+	margin: 0 0 10px;
+}
+
+.editor-grid {
+	display: grid;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+
 .raw-list {
 	margin-top: 12px;
+}
+
+.group-list {
+	display: grid;
+	gap: 10px;
+}
+
+.group-panel {
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	padding: 8px;
+}
+
+.group-panel h4 {
+	margin: 0 0 8px;
+	text-transform: uppercase;
+	font-size: 0.85rem;
+	color: var(--color-text-muted);
 }
 
 table {
@@ -200,6 +319,13 @@ td {
 
 .success {
 	color: var(--color-success);
+}
+
+@media (max-width: 900px) {
+	.toolbar {
+		flex-direction: column;
+		align-items: stretch;
+	}
 }
 </style>
 
