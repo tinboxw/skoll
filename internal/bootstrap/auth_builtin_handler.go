@@ -17,6 +17,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
+	"github.com/tinboxw/skoll/pkg/logging"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
@@ -26,9 +27,10 @@ type builtinAuthHandler struct {
 	rolesRepo rolerepo.RoleRepository
 	rbacRepo  rbacrepo.RBACRepository
 	auditSvc  auditsvc.Service
+	logger    logging.Logger
 }
 
-func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, auditSvc auditsvc.Service) *builtinAuthHandler {
+func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, auditSvc auditsvc.Service, logger logging.Logger) *builtinAuthHandler {
 	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil {
 		return nil
 	}
@@ -38,6 +40,7 @@ func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, 
 		rolesRepo: rolesRepo,
 		rbacRepo:  rbacRepo,
 		auditSvc:  auditSvc,
+		logger:    logger,
 	}
 }
 
@@ -117,7 +120,11 @@ func (h *builtinAuthHandler) appendAuthAudit(ctx context.Context, actorID, actio
 	if targetActor == "" {
 		targetActor = "anonymous"
 	}
-	_, _ = h.auditSvc.Append(ctx, targetActor, action, resource, "", detail)
+	if _, err := h.auditSvc.Append(ctx, targetActor, action, resource, "", detail); err != nil {
+		if h.logger != nil {
+			h.logger.Warn("append auth audit failed", "actor", targetActor, "action", action, "resource", resource, "error", err)
+		}
+	}
 }
 
 func (h *builtinAuthHandler) handleMe(w http.ResponseWriter, r *http.Request) {

@@ -32,7 +32,7 @@ func newSeededAuthHandler(t *testing.T) (*builtinAuthHandler, *memory.UserStore)
 	rbac := memory.NewRBACStore()
 	ensureBuiltinAuthData(context.Background(), logging.Discard(), users, roles, rbac)
 
-	h := newBuiltinAuthHandler("test-secret", users, roles, rbac, nil)
+	h := newBuiltinAuthHandler("test-secret", users, roles, rbac, nil, logging.Discard())
 	if h == nil {
 		t.Fatal("expected builtin auth handler")
 	}
