@@ -15,6 +15,8 @@ import (
 type fakeAuditService struct {
 	byActorItems []*domainaudit.Record
 	byRangeItems []*domainaudit.Record
+	byActorCalls int
+	byRangeCalls int
 }
 
 func (f *fakeAuditService) Append(context.Context, string, string, string, string, map[string]any) (*domainaudit.Record, error) {
@@ -26,10 +28,12 @@ func (f *fakeAuditService) GetByID(context.Context, string) (*domainaudit.Record
 }
 
 func (f *fakeAuditService) ListByActor(context.Context, string, int) ([]*domainaudit.Record, error) {
+	f.byActorCalls++
 	return f.byActorItems, nil
 }
 
 func (f *fakeAuditService) ListByTimeRange(context.Context, time.Time, time.Time, int) ([]*domainaudit.Record, error) {
+	f.byRangeCalls++
 	return f.byRangeItems, nil
 }
 
@@ -74,5 +78,25 @@ func TestFilterRecordsLimit(t *testing.T) {
 	}
 	if got[0].ID.String() != "a1" || got[1].ID.String() != "a2" {
 		t.Fatalf("unexpected order/items: %+v", got)
+	}
+}
+
+func TestAuditHandlerListActorOnlyUsesActorPath(t *testing.T) {
+	svc := &fakeAuditService{byActorItems: []*domainaudit.Record{{ID: shared.ID("a1"), ActorID: shared.ID("1"), Action: "login", Resource: "auth"}}}
+	h := &AuditHandler{service: svc}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit?actorId=1&limit=10", nil)
+	resp := httptest.NewRecorder()
+
+	h.list(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	if svc.byActorCalls != 1 {
+		t.Fatalf("expected ListByActor to be called once, got %d", svc.byActorCalls)
+	}
+	if svc.byRangeCalls != 0 {
+		t.Fatalf("expected ListByTimeRange not called, got %d", svc.byRangeCalls)
 	}
 }
