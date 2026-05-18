@@ -16,6 +16,7 @@ import (
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
@@ -24,9 +25,10 @@ type builtinAuthHandler struct {
 	usersRepo userrepo.UserRepository
 	rolesRepo rolerepo.RoleRepository
 	rbacRepo  rbacrepo.RBACRepository
+	auditSvc  auditsvc.Service
 }
 
-func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository) *builtinAuthHandler {
+func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, auditSvc auditsvc.Service) *builtinAuthHandler {
 	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil {
 		return nil
 	}
@@ -35,6 +37,7 @@ func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, 
 		usersRepo: usersRepo,
 		rolesRepo: rolesRepo,
 		rbacRepo:  rbacRepo,
+		auditSvc:  auditSvc,
 	}
 }
 
@@ -44,12 +47,14 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.appendAuthAudit(r.Context(), "anonymous", "login_failed", "auth", map[string]any{"reason": "invalid_payload"})
 		httpHandler.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	account := strings.TrimSpace(req.Account)
 	password := strings.TrimSpace(req.Password)
 	if account == "" || password == "" {
+		h.appendAuthAudit(r.Context(), account, "login_failed", "auth", map[string]any{"reason": "missing_credentials", "account": account})
 		httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_credentials", "account and password are required")
 		return
 	}
@@ -60,6 +65,7 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if entity == nil || entity.Status != domainuser.StatusActive || !domainuser.VerifyPassword(password, entity.Password) {
+		h.appendAuthAudit(r.Context(), account, "login_failed", "auth", map[string]any{"account": account})
 		httpHandler.WriteMessage(w, http.StatusUnauthorized, "invalid_credentials", "invalid account or password")
 		return
 	}
@@ -89,10 +95,29 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 			"role":    roleKey,
 		},
 	})
+	h.appendAuthAudit(r.Context(), entity.ID.String(), "login", "auth", map[string]any{"account": entity.Account, "role": roleKey})
 }
 
-func (h *builtinAuthHandler) handleLogout(w http.ResponseWriter, _ *http.Request) {
+func (h *builtinAuthHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
+	actorID := "anonymous"
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+		if subject := strings.TrimSpace(claims.Subject); subject != "" {
+			actorID = subject
+		}
+	}
+	h.appendAuthAudit(r.Context(), actorID, "logout", "auth", map[string]any{"source": "builtin-auth"})
 	httpHandler.WriteMessage(w, http.StatusOK, "ok", "logout success")
+}
+
+func (h *builtinAuthHandler) appendAuthAudit(ctx context.Context, actorID, action, resource string, detail map[string]any) {
+	if h == nil || h.auditSvc == nil {
+		return
+	}
+	targetActor := strings.TrimSpace(actorID)
+	if targetActor == "" {
+		targetActor = "anonymous"
+	}
+	_, _ = h.auditSvc.Append(ctx, targetActor, action, resource, "", detail)
 }
 
 func (h *builtinAuthHandler) handleMe(w http.ResponseWriter, r *http.Request) {
