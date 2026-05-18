@@ -2,6 +2,20 @@ package main
 
 import "time"
 
+type MetricCard struct {
+	Label  string `json:"label"`
+	Value  string `json:"value"`
+	Change string `json:"change"`
+	Tone   string `json:"tone"`
+}
+
+type FocusArea struct {
+	Title   string `json:"title"`
+	Summary string `json:"summary"`
+	Region  string `json:"region"`
+	Stage   string `json:"stage"`
+}
+
 // Overview summarizes runtime signals for the separated demo plugin.
 //
 // Usage example:
@@ -10,10 +24,14 @@ import "time"
 //	overview := svc.BuildOverview("demo", time.Now().UTC())
 //	// overview.Highlights can be rendered directly in a dashboard card.
 type Overview struct {
-	PluginID    string    `json:"pluginId"`
-	GeneratedAt time.Time `json:"generatedAt"`
-	Status      string    `json:"status"`
-	Highlights  []string  `json:"highlights"`
+	Company     string       `json:"company"`
+	Headline    string       `json:"headline"`
+	PluginID    string       `json:"pluginId"`
+	GeneratedAt time.Time    `json:"generatedAt"`
+	Status      string       `json:"status"`
+	Highlights  []string     `json:"highlights"`
+	Stats       []MetricCard `json:"stats"`
+	FocusAreas  []FocusArea  `json:"focusAreas"`
 }
 
 // DashboardContext captures the key runtime inputs for recommendation scoring.
@@ -33,6 +51,8 @@ type Recommendation struct {
 	Title    string `json:"title"`
 	Reason   string `json:"reason"`
 	Priority string `json:"priority"`
+	Owner    string `json:"owner"`
+	Window   string `json:"window"`
 }
 
 // DemoService provides runtime summary and recommendation capabilities.
@@ -60,6 +80,16 @@ func (s *DemoService) BuildOverview(pluginID string, now time.Time) Overview {
 		"plugin routes are available for runtime probing",
 		"plugin permissions declared and validated",
 	}
+	stats := []MetricCard{
+		{Label: "Pipeline Value", Value: "$12.4M", Change: "+18% quarter-on-quarter", Tone: "accent"},
+		{Label: "Live Regions", Value: "06", Change: "APAC launch unlocked", Tone: "calm"},
+		{Label: "Studio Utilization", Value: "92%", Change: "Two new lab sprints added", Tone: "warm"},
+	}
+	focusAreas := []FocusArea{
+		{Title: "Retail Atelier", Summary: "Convert flagship stores into low-friction pickup lounges with guided discovery walls.", Region: "Shanghai", Stage: "prototype"},
+		{Title: "Field Service Kit", Summary: "Bundle diagnostics, repair scripts, and concierge messaging into one tablet workflow.", Region: "Shenzhen", Stage: "pilot"},
+		{Title: "Executive Briefing Deck", Summary: "Turn weekly platform signals into a board-ready narrative with market and risk framing.", Region: "Global", Stage: "active"},
+	}
 	if pluginID == "" {
 		pluginID = "unknown"
 		status = "degraded"
@@ -67,10 +97,14 @@ func (s *DemoService) BuildOverview(pluginID string, now time.Time) Overview {
 	}
 
 	return Overview{
+		Company:     "Aurora Forge",
+		Headline:    "A sample child-application homepage that feels like a real company studio, not a plugin placeholder.",
 		PluginID:    pluginID,
 		GeneratedAt: now,
 		Status:      status,
 		Highlights:  highlights,
+		Stats:       stats,
+		FocusAreas:  focusAreas,
 	}
 }
 
@@ -87,6 +121,8 @@ func (s *DemoService) RecommendActions(ctx DashboardContext) []Recommendation {
 			Title:    "Review plugin error traces",
 			Reason:   "error_count is greater than zero",
 			Priority: "high",
+			Owner:    "Platform Reliability",
+			Window:   "today",
 		})
 	}
 
@@ -95,6 +131,8 @@ func (s *DemoService) RecommendActions(ctx DashboardContext) []Recommendation {
 			Title:    "Enable cache for plugin dashboard endpoints",
 			Reason:   "high request throughput detected",
 			Priority: "medium",
+			Owner:    "Edge Delivery",
+			Window:   "this sprint",
 		})
 	}
 
@@ -103,6 +141,8 @@ func (s *DemoService) RecommendActions(ctx DashboardContext) []Recommendation {
 			Title:    "Promote plugin entry in navigation",
 			Reason:   "active user count is below expected demo traffic",
 			Priority: "low",
+			Owner:    "Growth Design",
+			Window:   "next week",
 		})
 	}
 
@@ -111,6 +151,8 @@ func (s *DemoService) RecommendActions(ctx DashboardContext) []Recommendation {
 			Title:    "Keep current plugin rollout policy",
 			Reason:   "runtime metrics are within expected threshold",
 			Priority: "low",
+			Owner:    "Program Office",
+			Window:   "monitor",
 		})
 	}
 

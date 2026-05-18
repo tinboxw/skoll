@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-// registerRoutes mounts backend-only demo endpoints focused on analytics outputs.
+// registerRoutes mounts analytics demo endpoints focused on backend signals.
 //
 // Routes:
 // - GET /demo-backend/metrics?api=120&jobs=32&errors=2
@@ -14,8 +14,16 @@ import (
 func registerRoutes(mux *http.ServeMux) {
 	service := NewMetricsService()
 
-	mux.HandleFunc("/demo-backend/metrics", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, service.Snapshot(map[string]int{"api": 120, "jobs": 32}, 2))
+	mux.HandleFunc("/demo-backend/metrics", func(w http.ResponseWriter, r *http.Request) {
+		routeHit := map[string]int{
+			"api":  parseIntParam(r, "api", 120),
+			"jobs": parseIntParam(r, "jobs", 32),
+		}
+		cacheHits := parseIntParam(r, "cache", 0)
+		if cacheHits > 0 {
+			routeHit["cache"] = cacheHits
+		}
+		writeJSON(w, http.StatusOK, service.Snapshot(routeHit, parseIntParam(r, "errors", 2)))
 	})
 
 	mux.HandleFunc("/demo-backend/audit/report", func(w http.ResponseWriter, r *http.Request) {

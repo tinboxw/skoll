@@ -2,18 +2,28 @@ package main
 
 import "sort"
 
-// MetricsSnapshot represents aggregated backend-only runtime metrics.
+type QueueLoad struct {
+	Name   string `json:"name"`
+	Depth  int    `json:"depth"`
+	Status string `json:"status"`
+}
+
+// MetricsSnapshot represents aggregated runtime metrics for the analytics demo plugin.
 type MetricsSnapshot struct {
 	AvailabilityScore int            `json:"availabilityScore"`
 	TotalRequests     int            `json:"totalRequests"`
 	ErrorRequests     int            `json:"errorRequests"`
 	RouteHit          map[string]int `json:"routeHit"`
+	Queues            []QueueLoad    `json:"queues"`
+	Narrative         []string       `json:"narrative"`
 }
 
 // AuditDigest contains the top event categories from audit logs.
 type AuditDigest struct {
 	TopCategories []CategoryCount `json:"topCategories"`
 	TotalEvents   int             `json:"totalEvents"`
+	Window        string          `json:"window"`
+	Actions       []string        `json:"actions"`
 }
 
 // CategoryCount binds one event category to its count.
@@ -51,11 +61,24 @@ func (s *MetricsService) Snapshot(routeHit map[string]int, errorRequests int) Me
 		score = 0
 	}
 
+	queues := []QueueLoad{
+		{Name: "ingest", Depth: routeHit["api"] / 6, Status: "steady"},
+		{Name: "jobs", Depth: routeHit["jobs"] / 4, Status: "watch"},
+	}
+	if cacheCount, ok := routeHit["cache"]; ok {
+		queues = append(queues, QueueLoad{Name: "cache", Depth: cacheCount / 3, Status: "fast"})
+	}
+
 	return MetricsSnapshot{
 		AvailabilityScore: score,
 		TotalRequests:     total,
 		ErrorRequests:     errorRequests,
 		RouteHit:          routeHit,
+		Queues:            queues,
+		Narrative: []string{
+			"Backend analytics is shaping a narrative homepage rather than a blank diagnostics screen.",
+			"Route traffic remains balanced enough to demonstrate queue pressure and audit priority in one view.",
+		},
 	}
 }
 
@@ -91,5 +114,10 @@ func (s *MetricsService) BuildAuditDigest(events []string, limit int) AuditDiges
 		top = top[:limit]
 	}
 
-	return AuditDigest{TopCategories: top, TotalEvents: len(events)}
+	actions := make([]string, 0, len(top))
+	for _, item := range top {
+		actions = append(actions, "Review "+item.Category+" because it dominates the current audit window")
+	}
+
+	return AuditDigest{TopCategories: top, TotalEvents: len(events), Window: "last 24 hours", Actions: actions}
 }

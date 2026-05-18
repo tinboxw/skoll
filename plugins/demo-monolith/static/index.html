@@ -2,11 +2,35 @@
 <html>
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Demo Monolith Plugin</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <h1>Demo Monolith Plugin Static Page</h1>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">Monolith Experience</p>
+      <h1>Helios Works Operations Studio</h1>
+      <p class="lead">A full demo homepage delivered by one plugin package: editorial storytelling, operational widgets, and backend-backed data views.</p>
+      <div class="hero-actions">
+        <button id="load-widgets">Refresh Widgets</button>
+        <button id="load-manifest" class="ghost">Inspect Manifest</button>
+      </div>
+    </header>
+
+    <section class="grid" id="widget-grid"></section>
+
+    <section class="section two-col">
+      <article class="card">
+        <h2>Studio Programs</h2>
+        <ul id="program-list" class="program-list"></ul>
+      </article>
+      <article class="card">
+        <h2>Runtime Output</h2>
+        <pre id="output">Press a button to load live monolith data.</pre>
+      </article>
+    </section>
+  </main>
   <script src="./app.js"></script>
 </body>
 </html>

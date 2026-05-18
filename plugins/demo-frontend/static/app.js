@@ -36,6 +36,34 @@ const commandMatrix = {
 	"plugin.disable": "Plugin state switched to DISABLED"
 };
 
+const launchPrograms = [
+	{
+		title: "Smart Cabin Demo",
+		summary: "Showcase in-cabin assistant interactions with low-latency route planning narratives."
+	},
+	{
+		title: "Fleet Command Lite",
+		summary: "A compact operations console used by city-level dispatch managers during peak windows."
+	},
+	{
+		title: "Design Partner Lab",
+		summary: "Co-create branded journeys with enterprise partners using reusable plugin cards."
+	}
+];
+
+function renderLaunchPrograms() {
+	const list = document.querySelector("#launch-list");
+	if (!list) {
+		return;
+	}
+	list.innerHTML = "";
+	launchPrograms.forEach((item) => {
+		const li = document.createElement("li");
+		li.innerHTML = `<strong>${item.title}</strong><p>${item.summary}</p>`;
+		list.appendChild(li);
+	});
+}
+
 /**
  * Renders release items by keyword.
  * @param {string} keyword - Search text against title/version/tags.
@@ -116,3 +144,4 @@ function bindEvents() {
 
 bindEvents();
 renderReleaseFeed("");
+renderLaunchPrograms();

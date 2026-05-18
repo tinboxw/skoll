@@ -8,13 +8,26 @@
 </head>
 <body>
   <main class="container">
-    <h1>Demo Separated Plugin</h1>
-    <p>This is the real plugin frontend page served from separated plugin artifacts.</p>
+    <header>
+      <p class="eyebrow">Separated Architecture Demo</p>
+      <h1>Aurora Forge Child Application</h1>
+      <p>This is a richer child-app homepage demo backed by separated plugin APIs.</p>
+    </header>
+    <section class="stats" id="stats"></section>
+    <section class="content-grid">
+      <article class="panel">
+        <h2>Focus Areas</h2>
+        <ul id="focus-list"></ul>
+      </article>
+      <article class="panel">
+        <h2>Output</h2>
+        <pre id="output">Click one action to fetch plugin runtime data.</pre>
+      </article>
+    </section>
     <div class="actions">
       <button id="load-overview">Load Overview</button>
       <button id="load-recommend">Load Recommendations</button>
     </div>
-    <pre id="output">Click one action to fetch plugin runtime data.</pre>
   </main>
   <script src="./app.js"></script>
 </body>

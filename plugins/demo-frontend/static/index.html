@@ -8,20 +8,33 @@
 </head>
 <body>
   <main class="container">
-    <header>
-      <h1>Demo Frontend Plugin</h1>
-      <p>Frontend-only plugin modules for release tracking and operation rehearsal.</p>
+    <header class="hero">
+      <p class="eyebrow">Child App Homepage</p>
+      <h1>Asteria Mobility Studio</h1>
+      <p>Use this plugin as a polished child-application landing page: product highlights, release stories, and an interactive operation sandbox.</p>
+      <div class="hero-actions">
+        <button data-command="plugin.validate">Validate Build</button>
+        <button data-command="plugin.install">Promote Release</button>
+        <button data-command="plugin.enable">Enable Campaign</button>
+      </div>
     </header>
 
-    <section class="panel">
-      <h2>Module A: Release Feed</h2>
+    <section class="panel split">
+      <article>
+        <h2>Release Feed</h2>
       <label for="release-filter">Filter release notes</label>
       <input id="release-filter" type="text" placeholder="Try: ux / 0.2.0 / demo" />
       <ul id="release-list"></ul>
+      </article>
+
+      <article>
+        <h2>Launch Programs</h2>
+        <ul id="launch-list" class="launch-list"></ul>
+      </article>
     </section>
 
     <section class="panel">
-      <h2>Module B: Command Simulator</h2>
+      <h2>Command Simulator</h2>
       <p>Simulate plugin lifecycle operations without backend dependency.</p>
       <div class="commands">
         <button data-command="plugin.validate">Validate</button>
