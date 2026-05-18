@@ -1,0 +1,133 @@
+body {
+  margin: 0;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #10202b;
+  background: radial-gradient(circle at 90% 10%, #d8f8ef 0, transparent 35%), #edf4f8;
+}
+
+.container {
+  max-width: 980px;
+  margin: 24px auto;
+  padding: 0 16px 24px;
+}
+
+.hero {
+  margin-bottom: 14px;
+  border: 1px solid #c6d5df;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f9fcff, #ecf8f2);
+  padding: 18px;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4a5d69;
+}
+
+h1 {
+  margin: 8px 0;
+}
+
+.hero-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #d3dde4;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 10px 25px -22px #1f4860;
+}
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.kv-grid div {
+  border: 1px solid #dde6ea;
+  border-radius: 8px;
+  padding: 10px;
+  background: #f6fbff;
+}
+
+.kv-grid span {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.kv-grid strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.commands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #0f766e;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #0c5b55;
+}
+
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.board-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.board-list li {
+  border: 1px dashed #c4d6de;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.board-list p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #50616c;
+}
+
+pre {
+  margin-top: 10px;
+  background: #10232b;
+  color: #dceaf0;
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 70px;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 840px) {
+  .split {
+    grid-template-columns: 1fr;
+  }
+}

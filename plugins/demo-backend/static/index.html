@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo Backend Plugin</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">Backend + Homepage Demo</p>
+      <h1>Atlas Signal Center</h1>
+      <p>Originally backend-only, now upgraded as a full child-application demo with analytics-led homepage content and backend APIs.</p>
+      <div class="hero-actions">
+        <button id="load-metrics">Load Metrics Snapshot</button>
+        <button id="load-audit" class="ghost">Load Audit Digest</button>
+      </div>
+    </header>
+
+    <section class="layout">
+      <article class="panel">
+        <h2>Queue and Traffic Story</h2>
+        <div id="metrics-cards" class="cards"></div>
+      </article>
+      <article class="panel">
+        <h2>Output</h2>
+        <pre id="output">Click one action to load data from backend plugin routes.</pre>
+      </article>
+    </section>
+
+    <section class="panel">
+      <h2>Operational Guidelines</h2>
+      <ul class="guidelines">
+        <li><strong>Observe:</strong> Watch the queue depth trend before enabling a traffic campaign.</li>
+        <li><strong>Respond:</strong> Route repeated audit events to the owning team in under 15 minutes.</li>
+        <li><strong>Recover:</strong> Keep fallback actions visible so operators can execute without context switching.</li>
+      </ul>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>

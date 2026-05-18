@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo System Plugin</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p class="eyebrow">System Console</p>
+      <h1>Northstar Control Deck</h1>
+      <p>System-level homepage sample with operational pulse, governance board, and command rehearsal for administrators.</p>
+      <div class="hero-actions">
+        <button data-command="system.check">Run Health Sweep</button>
+        <button data-command="system.sync">Sync Registry</button>
+        <button data-command="system.audit">Build Audit Digest</button>
+      </div>
+    </header>
+
+    <section class="panel">
+      <h2>System Snapshot</h2>
+      <div class="kv-grid">
+        <div><span>Scope</span><strong>system</strong></div>
+        <div><span>Mount Policy</span><strong>admin</strong></div>
+        <div><span>Plugin ID</span><strong>demo-system</strong></div>
+        <div><span>Mode</span><strong>frontend_only</strong></div>
+        <div><span>Control Plane</span><strong>running</strong></div>
+        <div><span>Audit Lag</span><strong>42 sec</strong></div>
+      </div>
+    </section>
+
+    <section class="panel split">
+      <article>
+        <h2>Governance Board</h2>
+        <ul id="board-list" class="board-list"></ul>
+      </article>
+      <article>
+        <h2>Command Output</h2>
+        <pre id="command-output">Click a command to run simulated system actions.</pre>
+      </article>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>
