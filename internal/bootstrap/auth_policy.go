@@ -3,6 +3,8 @@ package bootstrap
 import (
 	"os"
 	"strings"
+
+	"github.com/tinboxw/skoll/pkg/config"
 )
 
 // AuthPolicy defines route-level auth decisions for bootstrap middleware.
@@ -13,7 +15,7 @@ type AuthPolicy struct {
 
 func (p AuthPolicy) WithAPIPrefix(prefix string) AuthPolicy {
 	normalizedPrefix := normalizePolicyPrefix(prefix)
-	if normalizedPrefix == "/api" {
+	if normalizedPrefix == config.DefaultAPIBasePrefix {
 		return p
 	}
 	next := AuthPolicy{Enabled: p.Enabled, SkipPaths: map[string]struct{}{}}
@@ -25,8 +27,13 @@ func (p AuthPolicy) WithAPIPrefix(prefix string) AuthPolicy {
 
 func loadAuthPolicyFromEnv() AuthPolicy {
 	policy := AuthPolicy{
-		Enabled:   parseBoolEnv("SKOLL_AUTH_ENABLED", true),
-		SkipPaths: map[string]struct{}{"/api/health": {}, "/api/ready": {}, "/api/v1/plugins": {}, "/api/v1/auth/login": {}},
+		Enabled: parseBoolEnv("SKOLL_AUTH_ENABLED", true),
+		SkipPaths: map[string]struct{}{
+			config.DefaultAPIBasePrefix + "/health":        {},
+			config.DefaultAPIBasePrefix + "/ready":         {},
+			config.DefaultAPIBasePrefix + "/v1/plugins":    {},
+			config.DefaultAPIBasePrefix + "/v1/auth/login": {},
+		},
 	}
 
 	for _, p := range strings.Split(os.Getenv("SKOLL_AUTH_SKIP_PATHS"), ",") {
@@ -71,21 +78,11 @@ func parseBoolEnv(key string, fallback bool) bool {
 }
 
 func normalizePolicyPrefix(prefix string) string {
-	v := strings.TrimSpace(prefix)
-	if v == "" {
-		return "/api"
-	}
-	if !strings.HasPrefix(v, "/") {
-		v = "/" + v
-	}
-	v = strings.TrimRight(v, "/")
-	if v == "" {
-		return "/api"
-	}
-	return v
+	return config.NormalizeAPIPrefix(prefix)
 }
 
 func rewriteAPIPrefix(path, prefix string) string {
+	basePrefix := config.DefaultAPIBasePrefix
 	clean := strings.TrimSpace(path)
 	if clean == "" {
 		return prefix
@@ -93,11 +90,11 @@ func rewriteAPIPrefix(path, prefix string) string {
 	if !strings.HasPrefix(clean, "/") {
 		clean = "/" + clean
 	}
-	if clean == "/api" {
+	if clean == basePrefix {
 		return prefix
 	}
-	if strings.HasPrefix(clean, "/api/") {
-		return prefix + strings.TrimPrefix(clean, "/api")
+	if strings.HasPrefix(clean, basePrefix+"/") {
+		return prefix + strings.TrimPrefix(clean, basePrefix)
 	}
 	return clean
 }

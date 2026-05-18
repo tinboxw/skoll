@@ -9,6 +9,7 @@ import (
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
+	"github.com/tinboxw/skoll/pkg/config"
 	apperrors "github.com/tinboxw/skoll/pkg/errors"
 	"github.com/tinboxw/skoll/pkg/logging"
 	"github.com/tinboxw/skoll/pkg/security"
@@ -19,24 +20,18 @@ type PermissionPolicy struct {
 	Resource   string
 }
 
-var defaultPermissionPolicies = []PermissionPolicy{
-	{PathPrefix: "/api/v1/users", Resource: "user"},
-	{PathPrefix: "/api/v1/roles", Resource: "role"},
-	{PathPrefix: "/api/v1/rbac", Resource: "permission"},
-}
-
 type permissionChecker interface {
 	CheckPermission(ctx context.Context, in rbacsvc.CheckPermissionInput) (bool, error)
 }
 
-func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthPolicy, jwtSecret string, checker permissionChecker) http.Handler {
+func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker) http.Handler {
 	h := recoverMiddleware(logger, next)
 	h = accessLogMiddleware(logger, h)
-	h = authGuardMiddleware(policy, jwtSecret, checker, h)
+	h = authGuardMiddleware(policy, apiPrefix, jwtSecret, checker, h)
 	return h
 }
 
-func authGuardMiddleware(policy AuthPolicy, jwtSecret string, checker permissionChecker, next http.Handler) http.Handler {
+func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !policy.ShouldAuthenticate(r.URL.Path) {
 			next.ServeHTTP(w, r)
@@ -57,7 +52,7 @@ func authGuardMiddleware(policy AuthPolicy, jwtSecret string, checker permission
 		r = r.WithContext(security.WithJWTClaimsContext(r.Context(), claims))
 
 		if claims != nil && !isRoleBypass(claims.Role) {
-			resource, action, guarded := requiredPermission(r.Method, r.URL.Path)
+			resource, action, guarded := requiredPermission(r.Method, r.URL.Path, apiPrefix)
 			if guarded {
 				if checker == nil {
 					apperrors.WriteHTTP(w, apperrors.New("forbidden", "permission denied", nil))
@@ -88,16 +83,24 @@ func isRoleBypass(role string) bool {
 	return strings.EqualFold(strings.TrimSpace(role), "super_admin")
 }
 
-func requiredPermission(method, path string) (resource, action string, guarded bool) {
+func requiredPermission(method, path, apiPrefix string) (resource, action string, guarded bool) {
 	cleanMethod := strings.ToUpper(strings.TrimSpace(method))
 	cleanPath := strings.TrimSpace(path)
 
-	for _, policy := range defaultPermissionPolicies {
+	for _, policy := range defaultPermissionPolicies(config.NormalizeAPIPrefix(apiPrefix)) {
 		if strings.HasPrefix(cleanPath, policy.PathPrefix) {
 			return policy.Resource, mapAction(cleanMethod, cleanPath), true
 		}
 	}
 	return "", "", false
+}
+
+func defaultPermissionPolicies(apiPrefix string) []PermissionPolicy {
+	return []PermissionPolicy{
+		{PathPrefix: apiPrefix + "/v1/users", Resource: "user"},
+		{PathPrefix: apiPrefix + "/v1/roles", Resource: "role"},
+		{PathPrefix: apiPrefix + "/v1/rbac", Resource: "permission"},
+	}
 }
 
 func mapAction(method, path string) string {

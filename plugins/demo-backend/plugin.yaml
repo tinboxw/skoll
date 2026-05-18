@@ -1,8 +1,12 @@
 id: demo-backend
 name: Demo Backend Plugin
 version: 0.1.0
-description: Example plugin with backend-only architecture.
-ui_mode: backend_only
+description: Example analytics plugin with a homepage and backend-focused datasets.
+level: app
+app_id: demo2
+mount_policy: admin
+ui_mode: monolith
 
 permissions:
+  - menu.read
   - data.read

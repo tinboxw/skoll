@@ -90,7 +90,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		middleware.RateLimit(100, 100),
 	)
 
-	h := buildMiddlewareChain(router, logger, cfg.AuthPolicy, cfg.AppConfig.Security.JWTSecret, rbacService)
+	h := buildMiddlewareChain(router, logger, cfg.AuthPolicy, cfg.AppConfig.Server.APIPrefix, cfg.AppConfig.Security.JWTSecret, rbacService)
 	server := &http.Server{
 		Addr:              cfg.AppConfig.Server.Address,
 		Handler:           h,
@@ -499,7 +499,7 @@ func registerBuiltinPluginExtensions(logger logging.Logger, jwtSecret string, au
 		frontendEntry := ""
 		if p.ID() == "builtin-auth" {
 			uiMode = plugin.UIModeSeparated
-			frontendEntry = "/plugins/auth"
+			frontendEntry = "/skoll/plugins/auth"
 		}
 		infos[p.ID()] = plugin.Info{
 			ID:            p.ID(),
@@ -510,6 +510,8 @@ func registerBuiltinPluginExtensions(logger logging.Logger, jwtSecret string, au
 			EnabledAt:     &now,
 			Source:        "builtin",
 			UIMode:        uiMode,
+			Level:         plugin.LevelSystem,
+			MountPolicy:   plugin.MountPolicyAdmin,
 			FrontendEntry: frontendEntry,
 			SystemBuiltin: true,
 		}

@@ -11,7 +11,7 @@ func TestLoadAuthPolicyFromEnvDefaults(t *testing.T) {
 		t.Fatalf("expected auth policy enabled by default")
 	}
 
-	for _, path := range []string{"/api/health", "/api/ready", "/api/v1/plugins", "/api/v1/auth/login"} {
+	for _, path := range []string{"/skoll/health", "/skoll/ready", "/skoll/v1/plugins", "/skoll/v1/auth/login"} {
 		if _, ok := policy.SkipPaths[path]; !ok {
 			t.Fatalf("expected default skip path %s", path)
 		}
@@ -20,21 +20,21 @@ func TestLoadAuthPolicyFromEnvDefaults(t *testing.T) {
 		}
 	}
 
-	if !policy.ShouldAuthenticate("/api/v1/users") {
+	if !policy.ShouldAuthenticate("/skoll/v1/users") {
 		t.Fatalf("expected /v1/users to require auth")
 	}
 }
 
 func TestLoadAuthPolicyFromEnvCustomPaths(t *testing.T) {
 	t.Setenv("SKOLL_AUTH_ENABLED", "true")
-	t.Setenv("SKOLL_AUTH_SKIP_PATHS", "api/public, /api/open")
+	t.Setenv("SKOLL_AUTH_SKIP_PATHS", "skoll/public, /skoll/open")
 
 	policy := loadAuthPolicyFromEnv()
-	if policy.ShouldAuthenticate("/api/public/ping") {
-		t.Fatalf("expected /api/public to bypass auth")
+	if policy.ShouldAuthenticate("/skoll/public/ping") {
+		t.Fatalf("expected /skoll/public to bypass auth")
 	}
-	if policy.ShouldAuthenticate("/api/open/status") {
-		t.Fatalf("expected /api/open to bypass auth")
+	if policy.ShouldAuthenticate("/skoll/open/status") {
+		t.Fatalf("expected /skoll/open to bypass auth")
 	}
 }
 

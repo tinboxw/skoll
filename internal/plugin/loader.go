@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type MetadataLoader interface {
@@ -151,8 +152,41 @@ func parseManifest(raw []byte) (Info, error) {
 			info.Description = value
 		case "ui_mode":
 			info.UIMode = UIMode(value)
+		case "level":
+			info.Level = Level(value)
+		case "app_id":
+			info.AppID = value
+		case "mount_policy":
+			info.MountPolicy = MountPolicy(value)
 		case "frontend_entry":
 			info.FrontendEntry = value
+		case "vendor":
+			info.Vendor = value
+		case "vendor_url":
+			info.VendorURL = value
+		case "sign_algo":
+			if info.Signature == nil {
+				info.Signature = &Signature{}
+			}
+			info.Signature.Algorithm = SignatureAlgorithm(value)
+		case "sign_timestamp":
+			if info.Signature == nil {
+				info.Signature = &Signature{}
+			}
+			if t, err := time.Parse(time.RFC3339, value); err == nil {
+				info.Signature.Timestamp = t
+			}
+		case "sign_value":
+			if info.Signature == nil {
+				info.Signature = &Signature{}
+			}
+			info.Signature.Value = value
+		case "vendor_pubkey":
+			if info.Signature == nil {
+				info.Signature = &Signature{}
+			}
+			info.Signature.PublicKey = value
+			info.Signature.VendorID = info.Vendor
 		}
 	}
 
@@ -166,6 +200,13 @@ func parseManifest(raw []byte) (Info, error) {
 	if info.UIMode == "" {
 		info.UIMode = UIModeBackendOnly
 	}
+	if info.Level == "" {
+		info.Level = LevelSystem
+	}
+	if info.MountPolicy == "" {
+		info.MountPolicy = MountPolicyAdmin
+	}
+	info.FrontendEntry = ResolveFrontendEntry(info)
 
 	return info, nil
 }

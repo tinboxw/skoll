@@ -3,13 +3,21 @@ package middleware
 import (
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 
+	"github.com/tinboxw/skoll/pkg/config"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
 func Auth(jwtSecret string, skipPaths ...string) func(http.Handler) http.Handler {
-	skip := map[string]struct{}{"/api/health": {}, "/api/ready": {}, "/api/v1/plugins": {}, "/api/v1/auth": {}}
+	apiPrefix := resolveMiddlewareAPIPrefixFromEnv()
+	skip := map[string]struct{}{
+		apiPrefix + "/health":     {},
+		apiPrefix + "/ready":      {},
+		apiPrefix + "/v1/plugins": {},
+		apiPrefix + "/v1/auth":    {},
+	}
 	for _, p := range skipPaths {
 		skip[p] = struct{}{}
 	}
@@ -37,6 +45,16 @@ func Auth(jwtSecret string, skipPaths ...string) func(http.Handler) http.Handler
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func resolveMiddlewareAPIPrefixFromEnv() string {
+	if v := strings.TrimSpace(os.Getenv("SKOLL_API_BASE_PREFIX")); v != "" {
+		return config.NormalizeAPIPrefix(v)
+	}
+	if v := strings.TrimSpace(os.Getenv("SKOLL_SERVER_API_PREFIX")); v != "" {
+		return config.NormalizeAPIPrefix(v)
+	}
+	return config.DefaultAPIBasePrefix
 }
 
 func parseBearerToken(raw string) (string, error) {

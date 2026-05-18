@@ -2,8 +2,10 @@ id: demo-frontend
 name: Demo Frontend Plugin
 version: 0.1.0
 description: Example plugin with frontend-only assets and no backend implementation.
+level: app
+app_id: demo2
+mount_policy: admin
 ui_mode: frontend_only
-frontend_entry: /plugins/demo-frontend
 
 permissions:
   - menu.read

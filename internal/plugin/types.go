@@ -2,6 +2,9 @@ package plugin
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -37,6 +40,37 @@ const (
 	UIModeSeparated    UIMode = "separated"
 )
 
+type Level string
+
+const (
+	LevelSystem Level = "system"
+	LevelApp    Level = "app"
+)
+
+type MountPolicy string
+
+const (
+	MountPolicyAdmin MountPolicy = "admin"
+	MountPolicyUser  MountPolicy = "user"
+	MountPolicyMixed MountPolicy = "mixed"
+)
+
+var appIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
+
+type SignatureAlgorithm string
+
+const (
+	SigAlgoRSASHA256 SignatureAlgorithm = "RSA-SHA256"
+)
+
+type Signature struct {
+	Algorithm SignatureAlgorithm
+	Timestamp time.Time
+	Value     string
+	VendorID  string
+	PublicKey string
+}
+
 type Info struct {
 	ID            string
 	Name          string
@@ -50,8 +84,14 @@ type Info struct {
 	EnabledAt     *time.Time
 	Source        string
 	UIMode        UIMode
+	Level         Level
+	AppID         string
+	MountPolicy   MountPolicy
 	FrontendEntry string
 	SystemBuiltin bool
+	Vendor        string
+	VendorURL     string
+	Signature     *Signature
 }
 
 func (i Info) ValidateManifest() error {
@@ -73,5 +113,86 @@ func (i Info) ValidateManifest() error {
 		return ErrPluginManifestBroken
 	}
 
+	level := i.Level
+	if level == "" {
+		level = LevelSystem
+	}
+	if level != LevelSystem && level != LevelApp {
+		return ErrPluginManifestBroken
+	}
+	appID := strings.TrimSpace(i.AppID)
+	if level == LevelApp {
+		if !appIDPattern.MatchString(appID) {
+			return ErrPluginManifestBroken
+		}
+		if appID == "skoll" {
+			return ErrPluginManifestBroken
+		}
+	} else {
+		if appID != "" {
+			return ErrPluginManifestBroken
+		}
+	}
+
+	mp := i.MountPolicy
+	if mp == "" {
+		mp = MountPolicyAdmin
+	}
+	if mp != MountPolicyAdmin && mp != MountPolicyUser && mp != MountPolicyMixed {
+		return ErrPluginManifestBroken
+	}
+
+	// 签名字段验证（如果有签名）
+	if i.Signature != nil {
+		if i.Signature.Algorithm != SigAlgoRSASHA256 {
+			return ErrPluginManifestBroken
+		}
+		if strings.TrimSpace(i.Signature.Value) == "" {
+			return ErrPluginManifestBroken
+		}
+		if i.Signature.Timestamp.IsZero() {
+			return ErrPluginManifestBroken
+		}
+	}
+
 	return nil
+}
+
+func NormalizeEntryPath(path string) string {
+	v := strings.TrimSpace(path)
+	if v == "" {
+		return ""
+	}
+	if !strings.HasPrefix(v, "/") {
+		v = "/" + v
+	}
+	v = strings.ReplaceAll(v, "//", "/")
+	v = strings.TrimRight(v, "/")
+	if v == "" {
+		return "/"
+	}
+	return v
+}
+
+func ResolveFrontendEntry(info Info) string {
+	explicit := NormalizeEntryPath(info.FrontendEntry)
+	if explicit != "" {
+		return explicit
+	}
+	if strings.TrimSpace(info.ID) == "" {
+		return ""
+	}
+
+	level := info.Level
+	if level == "" {
+		level = LevelSystem
+	}
+	if level == LevelApp {
+		appID := strings.TrimSpace(info.AppID)
+		if appID == "" {
+			return "/unknown"
+		}
+		return fmt.Sprintf("/%s", appID)
+	}
+	return fmt.Sprintf("/skoll/plugins/%s", info.ID)
 }

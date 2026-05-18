@@ -64,15 +64,19 @@ var defaultConfigCandidates = []string{
 	"configs/skoll.yml",
 }
 
+const DefaultAPIBasePrefix = "/skoll"
+
 // Load loads configuration with precedence: environment variables > config file > defaults.
 func Load() (AppConfig, error) {
 	v := viper.New()
 	v.SetEnvPrefix("SKOLL")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
+	_ = v.BindEnv("api.base_prefix", "SKOLL_API_BASE_PREFIX", "SKOLL_SERVER_API_PREFIX")
 
 	v.SetDefault("server.address", ":8080")
-	v.SetDefault("server.api_prefix", "/api")
+	v.SetDefault("server.api_prefix", "")
+	v.SetDefault("api.base_prefix", DefaultAPIBasePrefix)
 	v.SetDefault("server.shutdown_timeout", "10s")
 	v.SetDefault("store.mode", "mysql")
 	v.SetDefault("store.dsn", "root:root@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local")
@@ -117,7 +121,7 @@ func Load() (AppConfig, error) {
 	return AppConfig{
 		Server: ServerConfig{
 			Address:         address,
-			APIPrefix:       normalizeAPIPrefix(v.GetString("server.api_prefix")),
+			APIPrefix:       NormalizeAPIPrefix(resolveAPIPrefix(v)),
 			ShutdownTimeout: shutdownTimeout,
 		},
 		Store: StoreConfig{
@@ -147,17 +151,32 @@ func Load() (AppConfig, error) {
 	}, nil
 }
 
-func normalizeAPIPrefix(raw string) string {
+func resolveAPIPrefix(v *viper.Viper) string {
+	if v == nil {
+		return DefaultAPIBasePrefix
+	}
+	vv := strings.TrimSpace(v.GetString("api.base_prefix"))
+	if vv != "" {
+		return vv
+	}
+	legacy := strings.TrimSpace(v.GetString("server.api_prefix"))
+	if legacy != "" {
+		return legacy
+	}
+	return DefaultAPIBasePrefix
+}
+
+func NormalizeAPIPrefix(raw string) string {
 	v := strings.TrimSpace(raw)
 	if v == "" {
-		return "/api"
+		return DefaultAPIBasePrefix
 	}
 	if !strings.HasPrefix(v, "/") {
 		v = "/" + v
 	}
 	v = strings.TrimRight(v, "/")
 	if v == "" {
-		return "/api"
+		return DefaultAPIBasePrefix
 	}
 	return v
 }

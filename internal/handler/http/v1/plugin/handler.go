@@ -67,6 +67,9 @@ type pluginRecord struct {
 	Version       string `json:"version"`
 	Enabled       bool   `json:"enabled"`
 	UIMode        string `json:"uiMode"`
+	Level         string `json:"level"`
+	AppID         string `json:"appId,omitempty"`
+	MountPolicy   string `json:"mountPolicy"`
 	FrontendEntry string `json:"frontendEntry,omitempty"`
 	SystemBuiltin bool   `json:"systemBuiltin"`
 }
@@ -184,15 +187,7 @@ func (h *PluginHandler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	apiv1.WriteJSON(w, http.StatusOK, pluginRecord{
-		ID:            item.ID,
-		Name:          item.Name,
-		Version:       item.Version,
-		Enabled:       item.State == plugin.StateEnabled,
-		UIMode:        string(item.UIMode),
-		FrontendEntry: strings.TrimSpace(item.FrontendEntry),
-		SystemBuiltin: item.SystemBuiltin || strings.EqualFold(strings.TrimSpace(item.Source), "builtin"),
-	})
+	apiv1.WriteJSON(w, http.StatusOK, pluginRecordFromInfo(item))
 }
 
 func (h *PluginHandler) records() []pluginRecord {
@@ -210,19 +205,7 @@ func (h *PluginHandler) records() []pluginRecord {
 		if item.State == plugin.StateUninstalled {
 			continue
 		}
-		uiMode := string(item.UIMode)
-		if uiMode == "" {
-			uiMode = string(plugin.UIModeBackendOnly)
-		}
-		records = append(records, pluginRecord{
-			ID:            item.ID,
-			Name:          item.Name,
-			Version:       item.Version,
-			Enabled:       item.State == plugin.StateEnabled,
-			UIMode:        uiMode,
-			FrontendEntry: strings.TrimSpace(item.FrontendEntry),
-			SystemBuiltin: item.SystemBuiltin || strings.EqualFold(strings.TrimSpace(item.Source), "builtin"),
-		})
+		records = append(records, pluginRecordFromInfo(item))
 	}
 
 	if len(records) == 0 {
@@ -692,6 +675,8 @@ func (h *PluginHandler) createExternal(w http.ResponseWriter, r *http.Request, p
 		EnabledAt:     &now,
 		Source:        req.URL,
 		UIMode:        plugin.UIModeSeparated,
+		Level:         plugin.LevelSystem,
+		MountPolicy:   plugin.MountPolicyAdmin,
 		FrontendEntry: req.URL,
 		SystemBuiltin: false,
 	}
@@ -761,9 +746,39 @@ func defaultPluginRecords() []pluginRecord {
 			Version:       "1.0.0",
 			Enabled:       true,
 			UIMode:        string(plugin.UIModeSeparated),
-			FrontendEntry: "/plugins/auth",
+			Level:         string(plugin.LevelSystem),
+			MountPolicy:   string(plugin.MountPolicyAdmin),
+			FrontendEntry: "/skoll/plugins/auth",
 			SystemBuiltin: true,
 		},
+	}
+}
+
+func pluginRecordFromInfo(item plugin.Info) pluginRecord {
+	uiMode := string(item.UIMode)
+	if uiMode == "" {
+		uiMode = string(plugin.UIModeBackendOnly)
+	}
+	level := item.Level
+	if level == "" {
+		level = plugin.LevelSystem
+	}
+	mp := item.MountPolicy
+	if mp == "" {
+		mp = plugin.MountPolicyAdmin
+	}
+	entry := plugin.ResolveFrontendEntry(item)
+	return pluginRecord{
+		ID:            item.ID,
+		Name:          item.Name,
+		Version:       item.Version,
+		Enabled:       item.State == plugin.StateEnabled,
+		UIMode:        uiMode,
+		Level:         string(level),
+		AppID:         strings.TrimSpace(item.AppID),
+		MountPolicy:   string(mp),
+		FrontendEntry: entry,
+		SystemBuiltin: item.SystemBuiltin || strings.EqualFold(strings.TrimSpace(item.Source), "builtin"),
 	}
 }
 

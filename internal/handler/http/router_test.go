@@ -24,7 +24,7 @@ import (
 func TestRouterDocumentationRoutes(t *testing.T) {
 	router := NewRouter(Dependencies{})
 
-	openAPIReq := httptest.NewRequest(http.MethodGet, "/api/docs/openapi.yaml", nil)
+	openAPIReq := httptest.NewRequest(http.MethodGet, "/skoll/docs/openapi.yaml", nil)
 	openAPIResp := httptest.NewRecorder()
 	router.ServeHTTP(openAPIResp, openAPIReq)
 	if openAPIResp.Code != http.StatusOK {
@@ -33,8 +33,11 @@ func TestRouterDocumentationRoutes(t *testing.T) {
 	if !strings.Contains(openAPIResp.Body.String(), "openapi:") {
 		t.Fatalf("unexpected openapi payload: %s", openAPIResp.Body.String())
 	}
+	if !strings.Contains(openAPIResp.Body.String(), "- url: /skoll") {
+		t.Fatalf("expected openapi servers url to include /skoll, payload=%s", openAPIResp.Body.String())
+	}
 
-	swaggerReq := httptest.NewRequest(http.MethodGet, "/api/docs/swagger", nil)
+	swaggerReq := httptest.NewRequest(http.MethodGet, "/skoll/docs/swagger", nil)
 	swaggerResp := httptest.NewRecorder()
 	router.ServeHTTP(swaggerResp, swaggerReq)
 	if swaggerResp.Code != http.StatusOK {
@@ -42,6 +45,33 @@ func TestRouterDocumentationRoutes(t *testing.T) {
 	}
 	if !strings.Contains(swaggerResp.Body.String(), "SwaggerUIBundle") {
 		t.Fatalf("unexpected swagger html")
+	}
+	if !strings.Contains(swaggerResp.Body.String(), "url: '/skoll/docs/openapi.yaml'") {
+		t.Fatalf("expected swagger html to reference prefixed openapi path, body=%s", swaggerResp.Body.String())
+	}
+}
+
+func TestRouterDocumentationRoutesWithCustomPrefix(t *testing.T) {
+	router := NewRouter(Dependencies{APIPrefix: "/gateway"})
+
+	openAPIReq := httptest.NewRequest(http.MethodGet, "/gateway/docs/openapi.yaml", nil)
+	openAPIResp := httptest.NewRecorder()
+	router.ServeHTTP(openAPIResp, openAPIReq)
+	if openAPIResp.Code != http.StatusOK {
+		t.Fatalf("openapi status=%d body=%s", openAPIResp.Code, openAPIResp.Body.String())
+	}
+	if !strings.Contains(openAPIResp.Body.String(), "- url: /gateway") {
+		t.Fatalf("expected openapi servers url to include /gateway, payload=%s", openAPIResp.Body.String())
+	}
+
+	swaggerReq := httptest.NewRequest(http.MethodGet, "/gateway/docs/swagger", nil)
+	swaggerResp := httptest.NewRecorder()
+	router.ServeHTTP(swaggerResp, swaggerReq)
+	if swaggerResp.Code != http.StatusOK {
+		t.Fatalf("swagger status=%d body=%s", swaggerResp.Code, swaggerResp.Body.String())
+	}
+	if !strings.Contains(swaggerResp.Body.String(), "url: '/gateway/docs/openapi.yaml'") {
+		t.Fatalf("expected swagger html to reference custom prefix openapi path, body=%s", swaggerResp.Body.String())
 	}
 }
 
@@ -67,14 +97,14 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 		"actorID":      "admin-1",
 	}
 	raw, _ := json.Marshal(createReq)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/users", bytes.NewReader(raw))
+	req := httptest.NewRequest(http.MethodPost, "/skoll/v1/users", bytes.NewReader(raw))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", resp.Code, resp.Body.String())
 	}
 
-	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/users?offset=0&limit=10", nil)
+	listReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/users?offset=0&limit=10", nil)
 	listResp := httptest.NewRecorder()
 	router.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
@@ -91,14 +121,14 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 		t.Fatalf("create role error: %v", err)
 	}
 
-	assignReq := httptest.NewRequest(http.MethodPost, "/api/v1/users/new/roles", bytes.NewReader([]byte(`{"roleId":"`+roleEntity.ID.String()+`","scope":"self"}`)))
+	assignReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/users/new/roles", bytes.NewReader([]byte(`{"roleId":"`+roleEntity.ID.String()+`","scope":"self"}`)))
 	assignResp := httptest.NewRecorder()
 	router.ServeHTTP(assignResp, assignReq)
 	if assignResp.Code != http.StatusOK {
 		t.Fatalf("assign role status=%d body=%s", assignResp.Code, assignResp.Body.String())
 	}
 
-	roleUsersReq := httptest.NewRequest(http.MethodGet, "/api/v1/roles/"+roleEntity.ID.String()+"/users", nil)
+	roleUsersReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/roles/"+roleEntity.ID.String()+"/users", nil)
 	roleUsersResp := httptest.NewRecorder()
 	router.ServeHTTP(roleUsersResp, roleUsersReq)
 	if roleUsersResp.Code != http.StatusOK {
@@ -108,42 +138,42 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 		t.Fatalf("expected assigned user in role users payload: %s", roleUsersResp.Body.String())
 	}
 
-	settingReq := httptest.NewRequest(http.MethodPut, "/api/v1/system/settings/demo.flag", bytes.NewReader([]byte(`{"value":"on","encrypted":false}`)))
+	settingReq := httptest.NewRequest(http.MethodPut, "/skoll/v1/system/settings/demo.flag", bytes.NewReader([]byte(`{"value":"on","encrypted":false}`)))
 	settingResp := httptest.NewRecorder()
 	router.ServeHTTP(settingResp, settingReq)
 	if settingResp.Code != http.StatusOK {
 		t.Fatalf("upsert setting status=%d body=%s", settingResp.Code, settingResp.Body.String())
 	}
 
-	getSettingReq := httptest.NewRequest(http.MethodGet, "/api/v1/system/settings/demo.flag", nil)
+	getSettingReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/system/settings/demo.flag", nil)
 	getSettingResp := httptest.NewRecorder()
 	router.ServeHTTP(getSettingResp, getSettingReq)
 	if getSettingResp.Code != http.StatusOK {
 		t.Fatalf("get setting status=%d body=%s", getSettingResp.Code, getSettingResp.Body.String())
 	}
 
-	missingSettingReq := httptest.NewRequest(http.MethodGet, "/api/v1/system/settings/missing.key", nil)
+	missingSettingReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/system/settings/missing.key", nil)
 	missingSettingResp := httptest.NewRecorder()
 	router.ServeHTTP(missingSettingResp, missingSettingReq)
 	if missingSettingResp.Code != http.StatusNotFound {
 		t.Fatalf("missing setting status=%d body=%s", missingSettingResp.Code, missingSettingResp.Body.String())
 	}
 
-	invalidSettingReq := httptest.NewRequest(http.MethodPut, "/api/v1/system/settings/demo.flag", bytes.NewReader([]byte("{")))
+	invalidSettingReq := httptest.NewRequest(http.MethodPut, "/skoll/v1/system/settings/demo.flag", bytes.NewReader([]byte("{")))
 	invalidSettingResp := httptest.NewRecorder()
 	router.ServeHTTP(invalidSettingResp, invalidSettingReq)
 	if invalidSettingResp.Code != http.StatusBadRequest {
 		t.Fatalf("invalid upsert setting status=%d body=%s", invalidSettingResp.Code, invalidSettingResp.Body.String())
 	}
 
-	resetReq := httptest.NewRequest(http.MethodPost, "/api/v1/system/settings/reset", nil)
+	resetReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/system/settings/reset", nil)
 	resetResp := httptest.NewRecorder()
 	router.ServeHTTP(resetResp, resetReq)
 	if resetResp.Code != http.StatusOK {
 		t.Fatalf("reset setting status=%d body=%s", resetResp.Code, resetResp.Body.String())
 	}
 
-	listAfterResetReq := httptest.NewRequest(http.MethodGet, "/api/v1/system/settings?offset=0&limit=10", nil)
+	listAfterResetReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/system/settings?offset=0&limit=10", nil)
 	listAfterResetResp := httptest.NewRecorder()
 	router.ServeHTTP(listAfterResetResp, listAfterResetReq)
 	if listAfterResetResp.Code != http.StatusOK {
@@ -275,7 +305,7 @@ func TestRouterMountsEnabledPluginExtensionRoutes(t *testing.T) {
 	}
 
 	router := NewRouter(Dependencies{PluginManager: manager})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/demo/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/demo/ping", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusOK {
@@ -305,7 +335,7 @@ func TestRouterSkipsDisabledPluginExtensionRoutes(t *testing.T) {
 	}
 
 	router := NewRouter(Dependencies{PluginManager: manager})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/demo/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/demo/ping", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusNotFound {
@@ -329,7 +359,7 @@ func TestRouterDelegatesToPluginRouteExecutor(t *testing.T) {
 	}
 
 	router := NewRouter(Dependencies{PluginManager: manager})
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/demo/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/demo/ping", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusAccepted {
@@ -374,17 +404,17 @@ func TestRouterPluginPageAndAssetsFlow(t *testing.T) {
 
 	router := NewRouter(Dependencies{PluginManager: manager})
 
-	pageReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend/page", nil)
+	pageReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend/page", nil)
 	pageResp := httptest.NewRecorder()
 	router.ServeHTTP(pageResp, pageReq)
 	if pageResp.Code != http.StatusOK {
 		t.Fatalf("page status=%d body=%s", pageResp.Code, pageResp.Body.String())
 	}
-	if !strings.Contains(pageResp.Body.String(), "/api/v1/plugins/demo-frontend/assets/") {
+	if !strings.Contains(pageResp.Body.String(), "/skoll/v1/plugins/demo-frontend/assets/") {
 		t.Fatalf("expected injected base href in page body: %s", pageResp.Body.String())
 	}
 
-	assetReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend/assets/app.js", nil)
+	assetReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend/assets/app.js", nil)
 	assetResp := httptest.NewRecorder()
 	router.ServeHTTP(assetResp, assetReq)
 	if assetResp.Code != http.StatusOK {
@@ -413,7 +443,7 @@ func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
 
 	router := NewRouter(Dependencies{PluginManager: manager, LogDir: logDir, LogPluginPerFile: true})
 
-	enableReq := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/demo-frontend/enable", nil)
+	enableReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/demo-frontend/enable", nil)
 	enableResp := httptest.NewRecorder()
 	router.ServeHTTP(enableResp, enableReq)
 	if enableResp.Code != http.StatusOK {
@@ -423,7 +453,7 @@ func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
 		t.Fatalf("expected enabled state, got %s", manager.items[0].State)
 	}
 
-	disableReq := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/demo-frontend/disable", nil)
+	disableReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/demo-frontend/disable", nil)
 	disableResp := httptest.NewRecorder()
 	router.ServeHTTP(disableResp, disableReq)
 	if disableResp.Code != http.StatusOK {
@@ -433,7 +463,7 @@ func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
 		t.Fatalf("expected disabled state, got %s", manager.items[0].State)
 	}
 
-	uninstallReq := httptest.NewRequest(http.MethodDelete, "/api/v1/plugins/demo-frontend", nil)
+	uninstallReq := httptest.NewRequest(http.MethodDelete, "/skoll/v1/plugins/demo-frontend", nil)
 	uninstallResp := httptest.NewRecorder()
 	router.ServeHTTP(uninstallResp, uninstallReq)
 	if uninstallResp.Code != http.StatusOK {
@@ -443,7 +473,7 @@ func TestRouterPluginLifecycleAndLogsFlow(t *testing.T) {
 		t.Fatalf("expected uninstalled state, got %s", manager.items[0].State)
 	}
 
-	logsReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend/logs", nil)
+	logsReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend/logs", nil)
 	logsResp := httptest.NewRecorder()
 	router.ServeHTTP(logsResp, logsReq)
 	if logsResp.Code != http.StatusOK {
@@ -477,14 +507,14 @@ func TestRouterPluginConfigFlow(t *testing.T) {
 	}
 	router := NewRouter(Dependencies{PluginManager: manager})
 
-	getEmptyReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend/config", nil)
+	getEmptyReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend/config", nil)
 	getEmptyResp := httptest.NewRecorder()
 	router.ServeHTTP(getEmptyResp, getEmptyReq)
 	if getEmptyResp.Code != http.StatusOK {
 		t.Fatalf("get empty config status=%d body=%s", getEmptyResp.Code, getEmptyResp.Body.String())
 	}
 
-	detailReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend", nil)
+	detailReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend", nil)
 	detailResp := httptest.NewRecorder()
 	router.ServeHTTP(detailResp, detailReq)
 	if detailResp.Code != http.StatusOK {
@@ -494,14 +524,14 @@ func TestRouterPluginConfigFlow(t *testing.T) {
 		t.Fatalf("unexpected plugin detail payload: %s", detailResp.Body.String())
 	}
 
-	updateReq := httptest.NewRequest(http.MethodPut, "/api/v1/plugins/demo-frontend/config", bytes.NewReader([]byte(`{"config":{"featureX":true,"threshold":3}}`)))
+	updateReq := httptest.NewRequest(http.MethodPut, "/skoll/v1/plugins/demo-frontend/config", bytes.NewReader([]byte(`{"config":{"featureX":true,"threshold":3}}`)))
 	updateResp := httptest.NewRecorder()
 	router.ServeHTTP(updateResp, updateReq)
 	if updateResp.Code != http.StatusOK {
 		t.Fatalf("update config status=%d body=%s", updateResp.Code, updateResp.Body.String())
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/demo-frontend/config", nil)
+	getReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend/config", nil)
 	getResp := httptest.NewRecorder()
 	router.ServeHTTP(getResp, getReq)
 	if getResp.Code != http.StatusOK {
@@ -511,14 +541,14 @@ func TestRouterPluginConfigFlow(t *testing.T) {
 		t.Fatalf("unexpected config payload: %s", getResp.Body.String())
 	}
 
-	notFoundReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/not-found/config", nil)
+	notFoundReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/not-found/config", nil)
 	notFoundResp := httptest.NewRecorder()
 	router.ServeHTTP(notFoundResp, notFoundReq)
 	if notFoundResp.Code != http.StatusNotFound {
 		t.Fatalf("not found plugin config status=%d body=%s", notFoundResp.Code, notFoundResp.Body.String())
 	}
 
-	notFoundDetailReq := httptest.NewRequest(http.MethodGet, "/api/v1/plugins/not-found", nil)
+	notFoundDetailReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/not-found", nil)
 	notFoundDetailResp := httptest.NewRecorder()
 	router.ServeHTTP(notFoundDetailResp, notFoundDetailReq)
 	if notFoundDetailResp.Code != http.StatusNotFound {
@@ -546,14 +576,14 @@ func TestRouterPluginValidateInstallAndExternalFlow(t *testing.T) {
 	manager := &fakePluginManager{items: []plugin.Info{}}
 	router := NewRouter(Dependencies{PluginManager: manager})
 
-	validateReq := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/validate", bytes.NewReader([]byte(`{"path":"`+filepath.ToSlash(manifestDir)+`"}`)))
+	validateReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/validate", bytes.NewReader([]byte(`{"path":"`+filepath.ToSlash(manifestDir)+`"}`)))
 	validateResp := httptest.NewRecorder()
 	router.ServeHTTP(validateResp, validateReq)
 	if validateResp.Code != http.StatusOK {
 		t.Fatalf("validate status=%d body=%s", validateResp.Code, validateResp.Body.String())
 	}
 
-	installReq := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/install", bytes.NewReader([]byte(`{"path":"`+filepath.ToSlash(manifestDir)+`"}`)))
+	installReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/install", bytes.NewReader([]byte(`{"path":"`+filepath.ToSlash(manifestDir)+`"}`)))
 	installResp := httptest.NewRecorder()
 	router.ServeHTTP(installResp, installReq)
 	if installResp.Code != http.StatusCreated {
@@ -568,7 +598,7 @@ func TestRouterPluginValidateInstallAndExternalFlow(t *testing.T) {
 	}
 
 	linkBody := `{"pluginId":"ext-link","name":"Ext Link","url":"https://example.com/link"}`
-	linkReq := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/link", bytes.NewReader([]byte(linkBody)))
+	linkReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/link", bytes.NewReader([]byte(linkBody)))
 	linkResp := httptest.NewRecorder()
 	router.ServeHTTP(linkResp, linkReq)
 	if linkResp.Code != http.StatusCreated {
@@ -576,7 +606,7 @@ func TestRouterPluginValidateInstallAndExternalFlow(t *testing.T) {
 	}
 
 	embedBody := `{"pluginId":"ext-embed","name":"Ext Embed","url":"https://example.com/embed"}`
-	embedReq := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/embed", bytes.NewReader([]byte(embedBody)))
+	embedReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/embed", bytes.NewReader([]byte(embedBody)))
 	embedResp := httptest.NewRecorder()
 	router.ServeHTTP(embedResp, embedReq)
 	if embedResp.Code != http.StatusCreated {
@@ -584,7 +614,7 @@ func TestRouterPluginValidateInstallAndExternalFlow(t *testing.T) {
 	}
 
 	invalidLinkBody := `{"pluginId":"bad-link","name":"Bad Link"}`
-	invalidLinkReq := httptest.NewRequest(http.MethodPost, "/api/v1/plugins/link", bytes.NewReader([]byte(invalidLinkBody)))
+	invalidLinkReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/link", bytes.NewReader([]byte(invalidLinkBody)))
 	invalidLinkResp := httptest.NewRecorder()
 	router.ServeHTTP(invalidLinkResp, invalidLinkReq)
 	if invalidLinkResp.Code != http.StatusBadRequest {
@@ -620,21 +650,21 @@ func TestRouterAuditAPIs(t *testing.T) {
 
 	router := NewRouter(Dependencies{AuditService: auditService})
 
-	listReq := httptest.NewRequest(http.MethodGet, "/api/v1/audit?limit=10", nil)
+	listReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit?limit=10", nil)
 	listResp := httptest.NewRecorder()
 	router.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/api/v1/audit/"+rec1.ID.String(), nil)
+	getReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/"+rec1.ID.String(), nil)
 	getResp := httptest.NewRecorder()
 	router.ServeHTTP(getResp, getReq)
 	if getResp.Code != http.StatusOK {
 		t.Fatalf("get status=%d body=%s", getResp.Code, getResp.Body.String())
 	}
 
-	exportReq := httptest.NewRequest(http.MethodGet, "/api/v1/audit/export?limit=10", nil)
+	exportReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/export?limit=10", nil)
 	exportResp := httptest.NewRecorder()
 	router.ServeHTTP(exportResp, exportReq)
 	if exportResp.Code != http.StatusOK {
@@ -646,14 +676,14 @@ func TestRouterAuditAPIs(t *testing.T) {
 
 	from := rec1.OccurredAt.Add(-time.Second).Format(time.RFC3339)
 	to := rec1.OccurredAt.Add(time.Second).Format(time.RFC3339)
-	clearReq := httptest.NewRequest(http.MethodDelete, "/api/v1/audit?from="+from+"&to="+to, nil)
+	clearReq := httptest.NewRequest(http.MethodDelete, "/skoll/v1/audit?from="+from+"&to="+to, nil)
 	clearResp := httptest.NewRecorder()
 	router.ServeHTTP(clearResp, clearReq)
 	if clearResp.Code != http.StatusOK {
 		t.Fatalf("clear status=%d body=%s", clearResp.Code, clearResp.Body.String())
 	}
 
-	actorReq := httptest.NewRequest(http.MethodGet, "/api/v1/audit/actors/actor-a?limit=10", nil)
+	actorReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/actors/actor-a?limit=10", nil)
 	actorResp := httptest.NewRecorder()
 	router.ServeHTTP(actorResp, actorReq)
 	if actorResp.Code != http.StatusOK {
@@ -663,14 +693,14 @@ func TestRouterAuditAPIs(t *testing.T) {
 		t.Fatalf("expected rec1 removed by clear range, body=%s", actorResp.Body.String())
 	}
 
-	legacyListReq := httptest.NewRequest(http.MethodGet, "/api/v1/audit/logs?limit=10", nil)
+	legacyListReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/logs?limit=10", nil)
 	legacyListResp := httptest.NewRecorder()
 	router.ServeHTTP(legacyListResp, legacyListReq)
 	if legacyListResp.Code != http.StatusNotFound {
 		t.Fatalf("legacy list route should be unavailable, got %d body=%s", legacyListResp.Code, legacyListResp.Body.String())
 	}
 
-	legacyExportReq := httptest.NewRequest(http.MethodGet, "/api/v1/audit/logs/export?limit=10", nil)
+	legacyExportReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/logs/export?limit=10", nil)
 	legacyExportResp := httptest.NewRecorder()
 	router.ServeHTTP(legacyExportResp, legacyExportReq)
 	if legacyExportResp.Code != http.StatusNotFound {

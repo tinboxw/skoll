@@ -17,9 +17,10 @@ import (
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
 	"github.com/tinboxw/skoll/internal/service/user"
+	"github.com/tinboxw/skoll/pkg/config"
 )
 
-const defaultAPIPrefix = "/api"
+const defaultAPIPrefix = config.DefaultAPIBasePrefix
 
 type Dependencies struct {
 	UserService      user.Service
@@ -171,16 +172,19 @@ func registerDocumentationRoutes(mux *http.ServeMux, apiPrefix string) {
 	if mux == nil {
 		return
 	}
-	mux.HandleFunc("GET /docs/openapi.yaml", serveOpenAPIYAML)
+	mux.HandleFunc("GET /docs/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		serveOpenAPIYAML(w, apiPrefix)
+	})
 	mux.HandleFunc("GET /docs/swagger", func(w http.ResponseWriter, r *http.Request) {
 		serveSwaggerUI(w, r, apiPrefix)
 	})
 }
 
-func serveOpenAPIYAML(w http.ResponseWriter, _ *http.Request) {
+func serveOpenAPIYAML(w http.ResponseWriter, apiPrefix string) {
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(openAPIYAMLDocument))
+	doc := strings.ReplaceAll(openAPIYAMLDocument, "__API_BASE_PREFIX__", normalizeAPIPrefix(apiPrefix))
+	_, _ = w.Write([]byte(doc))
 }
 
 func serveSwaggerUI(w http.ResponseWriter, _ *http.Request, apiPrefix string) {

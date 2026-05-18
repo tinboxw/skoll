@@ -18,10 +18,16 @@ type PluginModel struct {
 	State            string `gorm:"size:32;index"`
 	Source           string `gorm:"size:512"`
 	UIMode           string `gorm:"size:64"`
+	PluginLevel      string `gorm:"size:32"`
+	AppID            string `gorm:"size:128"`
+	MountPolicy      string `gorm:"size:32"`
 	FrontendEntry    string `gorm:"size:512"`
 	SystemBuiltin    bool
 	PermissionsJSON  string `gorm:"type:text"`
 	DependenciesJSON string `gorm:"type:text"`
+	Vendor           string `gorm:"size:128"`
+	VendorURL        string `gorm:"size:512"`
+	SignatureJSON    string `gorm:"type:text"`
 	InstalledAt      time.Time
 	EnabledAt        *time.Time
 	CreatedAt        time.Time
@@ -33,6 +39,7 @@ func (PluginModel) TableName() string { return "sk_plugins" }
 func PluginModelFromInfo(info plugin.Info) PluginModel {
 	permissions, _ := json.Marshal(info.Permissions)
 	dependencies, _ := json.Marshal(info.Dependencies)
+	signature, _ := json.Marshal(info.Signature)
 	return PluginModel{
 		PluginID:         strings.TrimSpace(info.ID),
 		Name:             strings.TrimSpace(info.Name),
@@ -42,10 +49,16 @@ func PluginModelFromInfo(info plugin.Info) PluginModel {
 		State:            string(info.State),
 		Source:           strings.TrimSpace(info.Source),
 		UIMode:           string(info.UIMode),
+		PluginLevel:      string(info.Level),
+		AppID:            strings.TrimSpace(info.AppID),
+		MountPolicy:      string(info.MountPolicy),
 		FrontendEntry:    strings.TrimSpace(info.FrontendEntry),
 		SystemBuiltin:    info.SystemBuiltin,
 		PermissionsJSON:  string(permissions),
 		DependenciesJSON: string(dependencies),
+		Vendor:           strings.TrimSpace(info.Vendor),
+		VendorURL:        strings.TrimSpace(info.VendorURL),
+		SignatureJSON:    string(signature),
 		InstalledAt:      info.InstalledAt,
 		EnabledAt:        info.EnabledAt,
 	}
@@ -54,12 +67,21 @@ func PluginModelFromInfo(info plugin.Info) PluginModel {
 func (m PluginModel) ToInfo() plugin.Info {
 	permissions := []string{}
 	dependencies := []plugin.Dependency{}
+	signature := (*plugin.Signature)(nil)
+
 	if strings.TrimSpace(m.PermissionsJSON) != "" {
 		_ = json.Unmarshal([]byte(m.PermissionsJSON), &permissions)
 	}
 	if strings.TrimSpace(m.DependenciesJSON) != "" {
 		_ = json.Unmarshal([]byte(m.DependenciesJSON), &dependencies)
 	}
+	if strings.TrimSpace(m.SignatureJSON) != "" {
+		sig := &plugin.Signature{}
+		if err := json.Unmarshal([]byte(m.SignatureJSON), sig); err == nil {
+			signature = sig
+		}
+	}
+
 	return plugin.Info{
 		ID:            strings.TrimSpace(m.PluginID),
 		Name:          strings.TrimSpace(m.Name),
@@ -73,7 +95,13 @@ func (m PluginModel) ToInfo() plugin.Info {
 		EnabledAt:     m.EnabledAt,
 		Source:        strings.TrimSpace(m.Source),
 		UIMode:        plugin.UIMode(strings.TrimSpace(m.UIMode)),
+		Level:         plugin.Level(strings.TrimSpace(m.PluginLevel)),
+		AppID:         strings.TrimSpace(m.AppID),
+		MountPolicy:   plugin.MountPolicy(strings.TrimSpace(m.MountPolicy)),
 		FrontendEntry: strings.TrimSpace(m.FrontendEntry),
 		SystemBuiltin: m.SystemBuiltin,
+		Vendor:        strings.TrimSpace(m.Vendor),
+		VendorURL:     strings.TrimSpace(m.VendorURL),
+		Signature:     signature,
 	}
 }

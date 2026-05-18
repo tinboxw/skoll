@@ -111,6 +111,9 @@ func TestPluginHandlerListFromProvider(t *testing.T) {
 	if body.Data[0].UIMode == "" || body.Data[1].UIMode == "" {
 		t.Fatalf("expected ui mode in list payload: %+v", body.Data)
 	}
+	if body.Data[0].Level == "" || body.Data[0].MountPolicy == "" {
+		t.Fatalf("expected level/mountPolicy in list payload: %+v", body.Data[0])
+	}
 }
 
 func TestPluginHandlerEnabledFilterFallback(t *testing.T) {
@@ -135,6 +138,9 @@ func TestPluginHandlerEnabledFilterFallback(t *testing.T) {
 	}
 	if len(body.Data) != 1 || body.Data[0].ID != "builtin-auth" {
 		t.Fatalf("expected fallback builtin-auth, got %+v", body.Data)
+	}
+	if body.Data[0].Level != string(plugin.LevelSystem) {
+		t.Fatalf("unexpected fallback level: %s", body.Data[0].Level)
 	}
 }
 
@@ -429,9 +435,18 @@ func TestPluginHandlerPageAndAssets(t *testing.T) {
 	}
 }
 
-func TestPluginHandlerPageBackendOnlyNotFound(t *testing.T) {
+func TestPluginHandlerPageDemoBackendMonolith(t *testing.T) {
+	tmp := t.TempDir()
+	pluginDir := filepath.Join(tmp, "demo-backend")
+	if err := os.MkdirAll(filepath.Join(pluginDir, "static"), 0o755); err != nil {
+		t.Fatalf("mkdir failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "static", "index.html"), []byte("<html><head></head><body>Demo Backend Plugin</body></html>"), 0o644); err != nil {
+		t.Fatalf("write index failed: %v", err)
+	}
+
 	mgr := &fakePluginManager{items: map[string]plugin.Info{
-		"demo-backend": {ID: "demo-backend", Name: "Demo Backend", Version: "0.1.0", State: plugin.StateEnabled, Source: "plugins/demo-backend", UIMode: plugin.UIModeBackendOnly},
+		"demo-backend": {ID: "demo-backend", Name: "Demo Backend", Version: "0.1.0", State: plugin.StateEnabled, Source: pluginDir, UIMode: plugin.UIModeMonolith},
 	}}
 	mux := http.NewServeMux()
 	RegisterPluginRoutes(mux, mgr)
@@ -439,8 +454,11 @@ func TestPluginHandlerPageBackendOnlyNotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/v1/plugins/demo-backend/page", nil)
 	resp := httptest.NewRecorder()
 	mux.ServeHTTP(resp, req)
-	if resp.Code != http.StatusNotFound {
-		t.Fatalf("expected 404 for backend-only page, got %d body=%s", resp.Code, resp.Body.String())
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200 for demo-backend page, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	if !strings.Contains(resp.Body.String(), "Demo Backend Plugin") {
+		t.Fatalf("expected demo-backend html content, got: %s", resp.Body.String())
 	}
 }
 
