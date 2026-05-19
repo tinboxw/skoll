@@ -103,13 +103,36 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 
 func (h *builtinAuthHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	actorID := "anonymous"
+	account := ""
 	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
 		if subject := strings.TrimSpace(claims.Subject); subject != "" {
 			actorID = subject
+			account = h.resolveAccountBySubject(r.Context(), subject)
 		}
 	}
-	h.appendAuthAudit(r.Context(), actorID, "logout", "auth", map[string]any{"source": "builtin-auth"})
+	detail := map[string]any{"source": "builtin-auth"}
+	if account != "" {
+		detail["account"] = account
+	}
+	h.appendAuthAudit(r.Context(), actorID, "logout", "auth", detail)
 	httpHandler.WriteMessage(w, http.StatusOK, "ok", "logout success")
+}
+
+func (h *builtinAuthHandler) resolveAccountBySubject(ctx context.Context, subject string) string {
+	if h == nil || h.usersRepo == nil {
+		return ""
+	}
+	lookup := strings.TrimSpace(subject)
+	if lookup == "" {
+		return ""
+	}
+	if entity, err := h.usersRepo.GetByID(ctx, sharedID(lookup)); err == nil && entity != nil {
+		return strings.TrimSpace(entity.Account)
+	}
+	if entity, err := h.usersRepo.GetByAccount(ctx, lookup); err == nil && entity != nil {
+		return strings.TrimSpace(entity.Account)
+	}
+	return ""
 }
 
 func (h *builtinAuthHandler) appendAuthAudit(ctx context.Context, actorID, action, resource string, detail map[string]any) {

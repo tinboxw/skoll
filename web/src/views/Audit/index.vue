@@ -132,6 +132,18 @@ function buildDetailPayload(item: AuditRecord | null): Record<string, unknown> |
 	};
 }
 
+function displayActor(item: AuditRecord): string {
+	const actor = item.actorId.trim();
+	const account = typeof item.detail?.account === "string" ? item.detail.account.trim() : "";
+	if (account === "") {
+		return actor || "-";
+	}
+	if (actor === "" || actor === account) {
+		return account;
+	}
+	return `${account} (${actor})`;
+}
+
 function defaultTimeRange(): { from: string; to: string } {
 	const now = new Date();
 	const monthAgo = new Date(now);
@@ -547,7 +559,7 @@ void loadAuditLogs();
 					@click="openDetail(item)"
 				>
 					<td>{{ item.id }}</td>
-					<td>{{ item.actorId || "-" }}</td>
+					<td>{{ displayActor(item) }}</td>
 					<td>{{ item.action || "-" }}</td>
 					<td>{{ item.resource || "-" }}</td>
 					<td>{{ formatOccurredAtLocal(item.occurredAt) || "-" }}</td>
