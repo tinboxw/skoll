@@ -136,7 +136,20 @@ function buildDetailPayload(item: AuditRecord | null): Record<string, unknown> |
 
 function displayActor(item: AuditRecord): string {
 	const actor = item.actorId.trim();
-	const account = typeof item.detail?.account === "string" ? item.detail.account.trim() : "";
+	const directAccount = typeof item.detail?.account === "string" ? item.detail.account.trim() : "";
+	let account = directAccount;
+	if (account === "" && actor !== "") {
+		for (const candidate of items.value) {
+			if (candidate.actorId.trim() !== actor) {
+				continue;
+			}
+			const alias = typeof candidate.detail?.account === "string" ? candidate.detail.account.trim() : "";
+			if (alias !== "") {
+				account = alias;
+				break;
+			}
+		}
+	}
 	if (account === "") {
 		return actor || "-";
 	}
