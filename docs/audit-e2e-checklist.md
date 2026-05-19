@@ -17,6 +17,16 @@ $env:SKOLL_LOG_FILE="skoll.log"
 go run ./cmd/skoll
 ```
 
+## One-Command Smoke Check
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1
+```
+
+Optional parameters:
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1 -BasePrefix "http://127.0.0.1:8080/skoll" -Account "admin" -Password "Admin@123456"
+```
+
 ## Scenario Matrix
 1. Auth flow
 - Trigger login success, login failed, and logout.
