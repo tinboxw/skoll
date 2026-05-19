@@ -91,7 +91,7 @@ try {
     }
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $exportPath = Join-Path $ExportDir "audit-smoke-$timestamp.csv"
-    Invoke-WebRequest -Method GET -Uri $exportUri -Headers $headers -OutFile $exportPath -TimeoutSec $TimeoutSec -ErrorAction Stop | Out-Null
+    Invoke-WebRequest -Method GET -Uri $exportUri -Headers $headers -OutFile $exportPath -TimeoutSec $TimeoutSec -UseBasicParsing -ErrorAction Stop | Out-Null
     $size = (Get-Item $exportPath).Length
     Write-Host "Export saved: $exportPath ($size bytes)"
 

@@ -88,7 +88,12 @@ const AuthPage = defineComponent({
       }
     }
 
-    function logout(): void {
+    async function logout(): Promise<void> {
+      try {
+        await apiPost("/v1/auth/logout");
+      } catch {
+        // Keep local logout behavior even if API call fails.
+      }
       userStore.logout();
       sessionMeta.value = null;
       saveSessionMeta(null);
@@ -160,7 +165,7 @@ const AuthPage = defineComponent({
                 type: "button",
                 class: "secondary",
                 disabled: loading.value || !isAuthenticated.value,
-                onClick: logout
+                onClick: () => void logout()
               },
               t("plugin.auth.logout")
             )
