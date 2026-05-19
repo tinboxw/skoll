@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -66,7 +67,14 @@ func assertUserRepoContract(t *testing.T, b *Bundle) {
 	t.Helper()
 	ctx := context.Background()
 	now := time.Now().UTC()
-	u, err := user.New(shared.ID("u-contract"), "contract_user", "Contract User", "contract@example.com", now)
+	runKey := strconv.FormatInt(now.UnixNano()&0x7fffffff, 36)
+	u, err := user.New(
+		shared.ID("u-contract-"+runKey),
+		"contract_user_"+runKey,
+		"Contract User",
+		"contract+"+runKey+"@example.com",
+		now,
+	)
 	if err != nil {
 		t.Fatalf("user.New error: %v", err)
 	}
@@ -87,7 +95,16 @@ func assertRoleRepoContract(t *testing.T, b *Bundle) {
 	t.Helper()
 	ctx := context.Background()
 	now := time.Now().UTC()
-	r, err := role.New(shared.ID("r-contract"), "Contract Role", "contract_role", "for contract test", []string{"user:read"}, false, now)
+	runKey := strconv.FormatInt(now.UnixNano()&0x7fffffff, 36)
+	r, err := role.New(
+		shared.ID("r-contract-"+runKey),
+		"Contract Role",
+		"contract_role_"+runKey,
+		"for contract test",
+		[]string{"user:read"},
+		false,
+		now,
+	)
 	if err != nil {
 		t.Fatalf("role.New error: %v", err)
 	}
@@ -107,7 +124,18 @@ func assertAuditRepoContract(t *testing.T, b *Bundle) {
 	t.Helper()
 	ctx := context.Background()
 	now := time.Now().UTC()
-	rec, err := audit.NewRecord(shared.ID("a-1"), shared.ID("u-contract"), "read", "user", "u-contract", map[string]any{"source": "test"}, now)
+	runKey := strconv.FormatInt(now.UnixNano()&0x7fffffff, 36)
+	actorID := shared.ID("u-contract-" + runKey)
+	targetID := "u-contract-" + runKey
+	rec, err := audit.NewRecord(
+		shared.ID("a-1-"+runKey),
+		actorID,
+		"read",
+		"user",
+		targetID,
+		map[string]any{"source": "test"},
+		now,
+	)
 	if err != nil {
 		t.Fatalf("audit.NewRecord error: %v", err)
 	}
