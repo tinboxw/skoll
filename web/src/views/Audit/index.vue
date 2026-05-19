@@ -32,7 +32,9 @@ function normalizeAuditRecord(item: unknown): AuditRecord | null {
 		action: String(row.action ?? row.Action ?? "").trim(),
 		resource: String(row.resource ?? row.Resource ?? "").trim(),
 		resourceId: String(row.resourceId ?? row.ResourceID ?? "").trim(),
-		detail: row.detail && typeof row.detail === "object" ? (row.detail as Record<string, unknown>) : undefined,
+		detail: (row.detail ?? row.Detail) && typeof (row.detail ?? row.Detail) === "object"
+			? ((row.detail ?? row.Detail) as Record<string, unknown>)
+			: undefined,
 		occurredAt: String(row.occurredAt ?? row.OccurredAt ?? "").trim()
 	};
 }
