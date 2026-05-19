@@ -142,23 +142,49 @@ function defaultTimeRange(): { from: string; to: string } {
 	};
 }
 
+function isLikelyLegacyDefaultRange(params: URLSearchParams): boolean {
+	const fromLocal = readQueryValue(params, "fromLocal");
+	const toLocal = readQueryValue(params, "toLocal");
+	if (fromLocal === "" || toLocal === "") {
+		return false;
+	}
+	const fromDate = new Date(fromLocal);
+	const toDate = new Date(toLocal);
+	if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
+		return false;
+	}
+	const durationMs = toDate.getTime() - fromDate.getTime();
+	const dayMs = 24 * 60 * 60 * 1000;
+	const isAboutOneMonth = durationMs >= 27 * dayMs && durationMs <= 32 * dayMs;
+	const isStale = Date.now() - toDate.getTime() > 2 * 60 * 1000;
+	return isAboutOneMonth && isStale;
+}
+
 const initialRange = defaultTimeRange();
 const initialQuery = readInitialQuery();
+const initialActorId = readQueryValue(initialQuery, "actorId");
+const initialAction = readQueryValue(initialQuery, "action");
+const initialResource = readQueryValue(initialQuery, "resource");
+const initialFrom = readQueryValue(initialQuery, "fromLocal");
+const initialTo = readQueryValue(initialQuery, "toLocal");
+const hasExplicitRangeInQuery = initialFrom !== "" || initialTo !== "";
+const autoRangeByDefault = !hasExplicitRangeInQuery || isLikelyLegacyDefaultRange(initialQuery);
 
 const loading = ref(false);
 const operating = ref(false);
 const error = ref("");
 const success = ref("");
-const actorId = ref(readQueryValue(initialQuery, "actorId"));
-const action = ref(readQueryValue(initialQuery, "action"));
-const resource = ref(readQueryValue(initialQuery, "resource"));
-const from = ref(readQueryValue(initialQuery, "fromLocal") || initialRange.from);
-const to = ref(readQueryValue(initialQuery, "toLocal") || initialRange.to);
+const actorId = ref(initialActorId);
+const action = ref(initialAction);
+const resource = ref(initialResource);
+const from = ref(initialFrom || initialRange.from);
+const to = ref(initialTo || initialRange.to);
 const limit = ref(Number.parseInt(readQueryValue(initialQuery, "limit") || "50", 10) || 50);
 const page = ref(1);
 const pageSize = ref(Number.parseInt(readQueryValue(initialQuery, "pageSize") || "10", 10) || 10);
 const items = ref<AuditRecord[]>([]);
 const selected = ref<AuditRecord | null>(null);
+const autoRangeEnabled = ref(autoRangeByDefault);
 const actionHistory = ref<string[]>(readHistory(ACTION_HISTORY_KEY));
 const resourceHistory = ref<string[]>(readHistory(RESOURCE_HISTORY_KEY));
 
@@ -195,10 +221,10 @@ function syncQueryToURL(): void {
 	if (resource.value.trim() !== "") {
 		params.set("resource", resource.value.trim());
 	}
-	if (from.value.trim() !== "") {
+	if (!autoRangeEnabled.value && from.value.trim() !== "") {
 		params.set("fromLocal", from.value.trim());
 	}
-	if (to.value.trim() !== "") {
+	if (!autoRangeEnabled.value && to.value.trim() !== "") {
 		params.set("toLocal", to.value.trim());
 	}
 	params.set("limit", String(Math.max(1, limit.value || 50)));
@@ -206,6 +232,23 @@ function syncQueryToURL(): void {
 	const query = params.toString();
 	const target = query === "" ? window.location.pathname : `${window.location.pathname}?${query}`;
 	window.history.replaceState({}, "", target);
+}
+
+function refreshAutoRange(): void {
+	if (!autoRangeEnabled.value) {
+		return;
+	}
+	const range = defaultTimeRange();
+	from.value = range.from;
+	to.value = range.to;
+}
+
+function handleFromInput(): void {
+	autoRangeEnabled.value = false;
+}
+
+function handleToInput(): void {
+	autoRangeEnabled.value = false;
 }
 
 function updateSuggestionHistory(): void {
@@ -271,6 +314,7 @@ async function loadAuditLogs(): Promise<void> {
 	loading.value = true;
 	error.value = "";
 	success.value = "";
+	refreshAutoRange();
 	syncQueryToURL();
 	try {
 		const payload = await apiGet<ApiResponse<AuditRecord[]>>(`/v1/audit${buildQuery()}`);
@@ -419,11 +463,11 @@ void loadAuditLogs();
 			</label>
 			<label>
 				<span>{{ t("audit.from") }}</span>
-				<input v-model="from" type="datetime-local" :disabled="loading || operating" />
+				<input v-model="from" type="datetime-local" :disabled="loading || operating" @input="handleFromInput" />
 			</label>
 			<label>
 				<span>{{ t("audit.to") }}</span>
-				<input v-model="to" type="datetime-local" :disabled="loading || operating" />
+				<input v-model="to" type="datetime-local" :disabled="loading || operating" @input="handleToInput" />
 			</label>
 			<label>
 				<span>{{ t("audit.limit") }}</span>
