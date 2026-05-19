@@ -22,20 +22,20 @@ function normalizeAuditRecord(item: unknown): AuditRecord | null {
 		return null;
 	}
 	const row = item as Record<string, unknown>;
-	const id = String(row.id ?? row.ID ?? "").trim();
+	const id = String(row.id ?? "").trim();
 	if (!id) {
 		return null;
 	}
 	return {
 		id,
-		actorId: String(row.actorId ?? row.ActorID ?? "").trim(),
-		action: String(row.action ?? row.Action ?? "").trim(),
-		resource: String(row.resource ?? row.Resource ?? "").trim(),
-		resourceId: String(row.resourceId ?? row.ResourceID ?? "").trim(),
-		detail: (row.detail ?? row.Detail) && typeof (row.detail ?? row.Detail) === "object"
-			? ((row.detail ?? row.Detail) as Record<string, unknown>)
+		actorId: String(row.actorId ?? "").trim(),
+		action: String(row.action ?? "").trim(),
+		resource: String(row.resource ?? "").trim(),
+		resourceId: String(row.resourceId ?? "").trim(),
+		detail: row.detail && typeof row.detail === "object"
+			? (row.detail as Record<string, unknown>)
 			: undefined,
-		occurredAt: String(row.occurredAt ?? row.OccurredAt ?? "").trim()
+		occurredAt: String(row.occurredAt ?? "").trim()
 	};
 }
 
@@ -136,27 +136,7 @@ function buildDetailPayload(item: AuditRecord | null): Record<string, unknown> |
 
 function displayActor(item: AuditRecord): string {
 	const actor = item.actorId.trim();
-	const directAccount = typeof item.detail?.account === "string" ? item.detail.account.trim() : "";
-	let account = directAccount;
-	if (account === "" && actor !== "") {
-		for (const candidate of items.value) {
-			if (candidate.actorId.trim() !== actor) {
-				continue;
-			}
-			const alias = typeof candidate.detail?.account === "string" ? candidate.detail.account.trim() : "";
-			if (alias !== "") {
-				account = alias;
-				break;
-			}
-		}
-	}
-	if (account === "") {
-		return actor || "-";
-	}
-	if (actor === "" || actor === account) {
-		return account;
-	}
-	return `${account} (${actor})`;
+	return actor || "-";
 }
 
 function defaultTimeRange(): { from: string; to: string } {
@@ -169,24 +149,6 @@ function defaultTimeRange(): { from: string; to: string } {
 	};
 }
 
-function isLikelyLegacyDefaultRange(params: URLSearchParams): boolean {
-	const fromLocal = readQueryValue(params, "fromLocal");
-	const toLocal = readQueryValue(params, "toLocal");
-	if (fromLocal === "" || toLocal === "") {
-		return false;
-	}
-	const fromDate = new Date(fromLocal);
-	const toDate = new Date(toLocal);
-	if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) {
-		return false;
-	}
-	const durationMs = toDate.getTime() - fromDate.getTime();
-	const dayMs = 24 * 60 * 60 * 1000;
-	const isAboutOneMonth = durationMs >= 27 * dayMs && durationMs <= 32 * dayMs;
-	const isStale = Date.now() - toDate.getTime() > 2 * 60 * 1000;
-	return isAboutOneMonth && isStale;
-}
-
 const initialRange = defaultTimeRange();
 const initialQuery = readInitialQuery();
 const initialActorId = readQueryValue(initialQuery, "actorId");
@@ -195,7 +157,7 @@ const initialResource = readQueryValue(initialQuery, "resource");
 const initialFrom = readQueryValue(initialQuery, "fromLocal");
 const initialTo = readQueryValue(initialQuery, "toLocal");
 const hasExplicitRangeInQuery = initialFrom !== "" || initialTo !== "";
-const autoRangeByDefault = !hasExplicitRangeInQuery || isLikelyLegacyDefaultRange(initialQuery);
+const autoRangeByDefault = !hasExplicitRangeInQuery;
 
 const loading = ref(false);
 const operating = ref(false);

@@ -16,6 +16,49 @@ type AuditHandler struct {
 	service auditsvc.Service
 }
 
+type auditRecordDTO struct {
+	ID         string         `json:"id"`
+	ActorID    string         `json:"actorId"`
+	Action     string         `json:"action"`
+	Resource   string         `json:"resource"`
+	ResourceID string         `json:"resourceId"`
+	Detail     map[string]any `json:"detail,omitempty"`
+	OccurredAt string         `json:"occurredAt"`
+}
+
+func toAuditRecordDTO(item *domainaudit.Record) auditRecordDTO {
+	if item == nil {
+		return auditRecordDTO{}
+	}
+	detail := item.Detail
+	if len(detail) == 0 {
+		detail = nil
+	}
+	return auditRecordDTO{
+		ID:         item.ID.String(),
+		ActorID:    item.ActorID.String(),
+		Action:     item.Action,
+		Resource:   item.Resource,
+		ResourceID: item.ResourceID,
+		Detail:     detail,
+		OccurredAt: item.OccurredAt.Format(time.RFC3339Nano),
+	}
+}
+
+func toAuditRecordDTOs(items []*domainaudit.Record) []auditRecordDTO {
+	if len(items) == 0 {
+		return []auditRecordDTO{}
+	}
+	out := make([]auditRecordDTO, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		out = append(out, toAuditRecordDTO(item))
+	}
+	return out
+}
+
 func RegisterAuditRoutes(mux *http.ServeMux, service auditsvc.Service) {
 	if service == nil {
 		return
@@ -35,7 +78,7 @@ func (h *AuditHandler) listByActor(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	apiv1.WriteJSON(w, http.StatusOK, items)
+	apiv1.WriteJSON(w, http.StatusOK, toAuditRecordDTOs(items))
 }
 
 func (h *AuditHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +87,7 @@ func (h *AuditHandler) list(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	apiv1.WriteJSON(w, http.StatusOK, items)
+	apiv1.WriteJSON(w, http.StatusOK, toAuditRecordDTOs(items))
 }
 
 func (h *AuditHandler) get(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +105,7 @@ func (h *AuditHandler) get(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "audit record not found")
 		return
 	}
-	apiv1.WriteJSON(w, http.StatusOK, item)
+	apiv1.WriteJSON(w, http.StatusOK, toAuditRecordDTO(item))
 }
 
 func (h *AuditHandler) export(w http.ResponseWriter, r *http.Request) {
