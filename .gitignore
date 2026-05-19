@@ -18,3 +18,7 @@
 node_modules
 package-lock.json
 web/dist
+
+# Local runtime artifacts
+log/
+tmp/
