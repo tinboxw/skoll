@@ -110,6 +110,28 @@ function toDateTimeLocalInput(value: Date): string {
 	return adjusted.toISOString().slice(0, 16);
 }
 
+function formatOccurredAtLocal(value: string): string {
+	const raw = value.trim();
+	if (raw === "") {
+		return "";
+	}
+	const parsed = new Date(raw);
+	if (Number.isNaN(parsed.getTime())) {
+		return raw;
+	}
+	return parsed.toLocaleString();
+}
+
+function buildDetailPayload(item: AuditRecord | null): Record<string, unknown> | null {
+	if (!item) {
+		return null;
+	}
+	return {
+		...item,
+		occurredAtLocal: formatOccurredAtLocal(item.occurredAt)
+	};
+}
+
 function defaultTimeRange(): { from: string; to: string } {
 	const now = new Date();
 	const monthAgo = new Date(now);
@@ -484,7 +506,7 @@ void loadAuditLogs();
 					<td>{{ item.actorId || "-" }}</td>
 					<td>{{ item.action || "-" }}</td>
 					<td>{{ item.resource || "-" }}</td>
-					<td>{{ item.occurredAt || "-" }}</td>
+					<td>{{ formatOccurredAtLocal(item.occurredAt) || "-" }}</td>
 				</tr>
 			</tbody>
 			<tbody v-else>
@@ -511,7 +533,7 @@ void loadAuditLogs();
 					<h3>{{ t("audit.detail") }}</h3>
 					<button type="button" @click="closeDetail">{{ t("common.close") }}</button>
 				</header>
-				<pre>{{ JSON.stringify(selected, null, 2) }}</pre>
+				<pre>{{ JSON.stringify(buildDetailPayload(selected), null, 2) }}</pre>
 			</aside>
 		</div>
 	</section>
