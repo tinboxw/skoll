@@ -10,6 +10,7 @@ import { API_BASE_PREFIX } from "../../utils/api-base-prefix";
 type AuditRecord = {
 	id: string;
 	actorId: string;
+	actorName?: string;
 	action: string;
 	resource: string;
 	resourceId?: string;
@@ -29,6 +30,7 @@ function normalizeAuditRecord(item: unknown): AuditRecord | null {
 	return {
 		id,
 		actorId: String(row.actorId ?? "").trim(),
+		actorName: String(row.actorName ?? "").trim(),
 		action: String(row.action ?? "").trim(),
 		resource: String(row.resource ?? "").trim(),
 		resourceId: String(row.resourceId ?? "").trim(),
@@ -135,8 +137,11 @@ function buildDetailPayload(item: AuditRecord | null): Record<string, unknown> |
 }
 
 function displayActor(item: AuditRecord): string {
-	const actor = item.actorId.trim();
-	return actor || "-";
+	const name = (item.actorName ?? "").trim();
+	if (name !== "") {
+		return name;
+	}
+	return item.actorId.trim() || "-";
 }
 
 function defaultTimeRange(): { from: string; to: string } {
@@ -292,7 +297,9 @@ function buildQuery(): string {
 		params.set("from", new Date(from.value).toISOString());
 	}
 	if (to.value.trim() !== "") {
-		params.set("to", new Date(to.value).toISOString());
+		const end = new Date(to.value);
+		end.setSeconds(59, 999);
+		params.set("to", end.toISOString());
 	}
 	params.set("limit", String(Math.max(1, limit.value || 50)));
 	const query = params.toString();

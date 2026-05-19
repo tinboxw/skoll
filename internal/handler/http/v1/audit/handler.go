@@ -19,11 +19,23 @@ type AuditHandler struct {
 type auditRecordDTO struct {
 	ID         string         `json:"id"`
 	ActorID    string         `json:"actorId"`
+	ActorName  string         `json:"actorName,omitempty"`
 	Action     string         `json:"action"`
 	Resource   string         `json:"resource"`
 	ResourceID string         `json:"resourceId"`
 	Detail     map[string]any `json:"detail,omitempty"`
 	OccurredAt string         `json:"occurredAt"`
+}
+
+func resolveActorName(detail map[string]any) string {
+	if len(detail) == 0 {
+		return ""
+	}
+	name, ok := detail["account"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(name)
 }
 
 func toAuditRecordDTO(item *domainaudit.Record) auditRecordDTO {
@@ -37,6 +49,7 @@ func toAuditRecordDTO(item *domainaudit.Record) auditRecordDTO {
 	return auditRecordDTO{
 		ID:         item.ID.String(),
 		ActorID:    item.ActorID.String(),
+		ActorName:  resolveActorName(detail),
 		Action:     item.Action,
 		Resource:   item.Resource,
 		ResourceID: item.ResourceID,
