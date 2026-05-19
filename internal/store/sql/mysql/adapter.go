@@ -1,9 +1,12 @@
 package mysql
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
@@ -41,6 +44,15 @@ func NewAdapter(dsn string) (*Adapter, error) {
 	db, err := gorm.Open(mysql.Open(resolvedDSN), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("open mysql connection: %w", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("resolve mysql sql db: %w", err)
+	}
+	tuneMySQLPool(sqlDB)
+	if err := waitMySQLReady(sqlDB); err != nil {
+		return nil, fmt.Errorf("mysql ping failed: %w", err)
 	}
 
 	db = db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci")
@@ -130,4 +142,34 @@ func resolveMySQLDSN(raw string) (string, error) {
 		credential += ":" + password
 	}
 	return fmt.Sprintf("%s@tcp(%s)/%s?%s", credential, u.Host, database, queryString), nil
+}
+
+func tuneMySQLPool(db *sql.DB) {
+	if db == nil {
+		return
+	}
+	// Conservative defaults for local development stability.
+	db.SetMaxOpenConns(30)
+	db.SetMaxIdleConns(15)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
+}
+
+func waitMySQLReady(db *sql.DB) error {
+	if db == nil {
+		return fmt.Errorf("nil sql db")
+	}
+	const maxAttempts = 8
+	var lastErr error
+	for i := 0; i < maxAttempts; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err := db.PingContext(ctx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		time.Sleep(300 * time.Millisecond)
+	}
+	return lastErr
 }
