@@ -156,7 +156,7 @@ function defaultTimeRange(): { from: string; to: string } {
 
 const initialRange = defaultTimeRange();
 const initialQuery = readInitialQuery();
-const initialActorId = readQueryValue(initialQuery, "actorId");
+const initialActorName = readQueryValue(initialQuery, "actorName");
 const initialAction = readQueryValue(initialQuery, "action");
 const initialResource = readQueryValue(initialQuery, "resource");
 const initialFrom = readQueryValue(initialQuery, "fromLocal");
@@ -168,7 +168,7 @@ const loading = ref(false);
 const operating = ref(false);
 const error = ref("");
 const success = ref("");
-const actorId = ref(initialActorId);
+const actorName = ref(initialActorName);
 const action = ref(initialAction);
 const resource = ref(initialResource);
 const from = ref(initialFrom || initialRange.from);
@@ -191,7 +191,7 @@ const pagedItems = computed(() => {
 const quickActors = computed(() => {
 	const actorSet = new Set<string>();
 	for (const item of items.value) {
-		const actor = item.actorId.trim();
+		const actor = (item.actorName ?? "").trim();
 		if (actor !== "") {
 			actorSet.add(actor);
 		}
@@ -206,8 +206,8 @@ function syncQueryToURL(): void {
 		return;
 	}
 	const params = new URLSearchParams();
-	if (actorId.value.trim() !== "") {
-		params.set("actorId", actorId.value.trim());
+	if (actorName.value.trim() !== "") {
+		params.set("actorName", actorName.value.trim());
 	}
 	if (action.value.trim() !== "") {
 		params.set("action", action.value.trim());
@@ -284,8 +284,8 @@ const resourceSuggestions = computed(() => mergeHistory(resourceHistory.value, q
 
 function buildQuery(): string {
 	const params = new URLSearchParams();
-	if (actorId.value.trim() !== "") {
-		params.set("actorId", actorId.value.trim());
+	if (actorName.value.trim() !== "") {
+		params.set("actorName", actorName.value.trim());
 	}
 	if (action.value.trim() !== "") {
 		params.set("action", action.value.trim());
@@ -344,7 +344,7 @@ function nextPage(): void {
 }
 
 function setQuickActor(actor: string): void {
-	actorId.value = actor;
+	actorName.value = actor;
 	void loadAuditLogs();
 }
 
@@ -359,7 +359,7 @@ function setQuickResource(value: string): void {
 }
 
 function clearQuickActor(): void {
-	actorId.value = "";
+	actorName.value = "";
 	void loadAuditLogs();
 }
 
@@ -441,7 +441,7 @@ void loadAuditLogs();
 		<div class="filters">
 			<label>
 				<span>{{ t("audit.actorId") }}</span>
-				<input v-model="actorId" type="text" :disabled="loading || operating" />
+				<input v-model="actorName" type="text" :disabled="loading || operating" />
 			</label>
 			<label>
 				<span>{{ t("audit.action") }}</span>
@@ -475,7 +475,7 @@ void loadAuditLogs();
 			<button type="button" :disabled="loading || operating" @click="loadAuditLogs">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
 			<button type="button" :disabled="loading || operating" @click="exportCSV">{{ t("audit.export") }}</button>
 			<button type="button" :disabled="loading || operating" @click="clearByRange">{{ t("audit.clear") }}</button>
-			<button v-if="actorId.trim() !== ''" type="button" :disabled="loading || operating" @click="clearQuickActor">{{ t("audit.clearActor") }}</button>
+			<button v-if="actorName.trim() !== ''" type="button" :disabled="loading || operating" @click="clearQuickActor">{{ t("audit.clearActor") }}</button>
 			<button v-if="action.trim() !== ''" type="button" :disabled="loading || operating" @click="clearActionFilter">{{ t("audit.clearAction") }}</button>
 			<button v-if="resource.trim() !== ''" type="button" :disabled="loading || operating" @click="clearResourceFilter">{{ t("audit.clearResource") }}</button>
 		</div>
@@ -487,7 +487,7 @@ void loadAuditLogs();
 				:key="actor"
 				type="button"
 				class="chip"
-				:class="{ active: actorId === actor }"
+				:class="{ active: actorName === actor }"
 				:disabled="loading || operating"
 				@click="setQuickActor(actor)"
 			>

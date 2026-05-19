@@ -162,14 +162,15 @@ func (h *AuditHandler) clear(w http.ResponseWriter, r *http.Request) {
 func (h *AuditHandler) queryRecords(r *http.Request) ([]*domainaudit.Record, error) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	actorID := strings.TrimSpace(r.URL.Query().Get("actorId"))
+	actorName := strings.TrimSpace(r.URL.Query().Get("actorName"))
 	action := strings.TrimSpace(r.URL.Query().Get("action"))
 	resource := strings.TrimSpace(r.URL.Query().Get("resource"))
-	if actorID != "" && action == "" && resource == "" && r.URL.Query().Get("from") == "" && r.URL.Query().Get("to") == "" {
+	if actorID != "" && actorName == "" && action == "" && resource == "" && r.URL.Query().Get("from") == "" && r.URL.Query().Get("to") == "" {
 		items, err := h.service.ListByActor(r.Context(), actorID, limit)
 		if err != nil {
 			return nil, err
 		}
-		return filterRecords(items, actorID, action, resource, limit), nil
+		return filterRecords(items, actorID, actorName, action, resource, limit), nil
 	}
 	from, to, err := parseTimeRange(r)
 	if err != nil {
@@ -179,14 +180,15 @@ func (h *AuditHandler) queryRecords(r *http.Request) ([]*domainaudit.Record, err
 	if err != nil {
 		return nil, err
 	}
-	return filterRecords(items, actorID, action, resource, limit), nil
+	return filterRecords(items, actorID, actorName, action, resource, limit), nil
 }
 
-func filterRecords(items []*domainaudit.Record, actorID, action, resource string, limit int) []*domainaudit.Record {
+func filterRecords(items []*domainaudit.Record, actorID, actorName, action, resource string, limit int) []*domainaudit.Record {
 	if len(items) == 0 {
 		return []*domainaudit.Record{}
 	}
 	wantActor := strings.TrimSpace(actorID)
+	wantActorName := strings.TrimSpace(actorName)
 	wantAction := strings.TrimSpace(action)
 	wantResource := strings.TrimSpace(resource)
 	max := limit
@@ -199,6 +201,9 @@ func filterRecords(items []*domainaudit.Record, actorID, action, resource string
 			continue
 		}
 		if wantActor != "" && item.ActorID.String() != wantActor {
+			continue
+		}
+		if wantActorName != "" && !strings.EqualFold(resolveActorName(item.Detail), wantActorName) {
 			continue
 		}
 		if wantAction != "" && !strings.EqualFold(strings.TrimSpace(item.Action), wantAction) {

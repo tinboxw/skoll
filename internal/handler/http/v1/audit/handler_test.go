@@ -72,12 +72,28 @@ func TestFilterRecordsLimit(t *testing.T) {
 		{ID: shared.ID("a2"), ActorID: shared.ID("1"), Action: "update", Resource: "user"},
 		{ID: shared.ID("a3"), ActorID: shared.ID("1"), Action: "update", Resource: "user"},
 	}
-	got := filterRecords(items, "1", "update", "user", 2)
+	got := filterRecords(items, "1", "", "update", "user", 2)
 	if len(got) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(got))
 	}
 	if got[0].ID.String() != "a1" || got[1].ID.String() != "a2" {
 		t.Fatalf("unexpected order/items: %+v", got)
+	}
+}
+
+func TestFilterRecordsByActorName(t *testing.T) {
+	items := []*domainaudit.Record{
+		{ID: shared.ID("a1"), ActorID: shared.ID("1"), Action: "login", Resource: "auth", Detail: map[string]any{"account": "admin"}},
+		{ID: shared.ID("a2"), ActorID: shared.ID("2"), Action: "login", Resource: "auth", Detail: map[string]any{"account": "alice"}},
+		{ID: shared.ID("a3"), ActorID: shared.ID("3"), Action: "login", Resource: "auth"},
+	}
+
+	got := filterRecords(items, "", "admin", "", "", 10)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(got))
+	}
+	if got[0].ID.String() != "a1" {
+		t.Fatalf("unexpected record: %+v", got[0])
 	}
 }
 
