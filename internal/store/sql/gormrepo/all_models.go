@@ -10,5 +10,6 @@ func AllModels() []any {
 		&PluginModel{},
 		&PluginRouteModel{},
 		&PluginReleaseModel{},
+		&AuditRecordModel{},
 	}
 }

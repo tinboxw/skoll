@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
@@ -19,6 +20,7 @@ import (
 type Adapter struct {
 	dsn  string
 	db   *gorm.DB
+	aud  auditrepo.AuditRepository
 	user userrepo.UserRepository
 	role rolerepo.RoleRepository
 	rbac rbacrepo.RBACRepository
@@ -50,6 +52,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 	return &Adapter{
 		dsn:  resolvedDSN,
 		db:   db,
+		aud:  gormrepo.NewAuditStore(db),
 		user: gormrepo.NewUserStore(db),
 		role: gormrepo.NewRoleStore(db, normalizeRoleKey),
 		rbac: gormrepo.NewRBACStore(db),
@@ -67,6 +70,10 @@ func (a *Adapter) RoleRepository() rolerepo.RoleRepository {
 }
 func (a *Adapter) RBACRepository() rbacrepo.RBACRepository {
 	return a.rbac
+}
+
+func (a *Adapter) AuditRepository() auditrepo.AuditRepository {
+	return a.aud
 }
 
 func (a *Adapter) SystemRepository() systemrepo.SystemRepository {

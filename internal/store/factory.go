@@ -57,15 +57,11 @@ func NewBundle(opts Options) (*Bundle, error) {
 		if err != nil {
 			return nil, err
 		}
-		audit, err := clickhouse.NewAdapter(opts.ClickHouseDSN)
-		if err != nil {
-			return nil, err
-		}
 		return &Bundle{
 			Users:      primary.UserRepository(),
 			Roles:      primary.RoleRepository(),
 			RBAC:       primary.RBACRepository(),
-			Audit:      audit.AuditRepository(),
+			Audit:      primary.AuditRepository(),
 			System:     primary.SystemRepository(),
 			Plugins:    primary.PluginRepository(),
 			UnitOfWork: sql.NewUnitOfWorkWithDB(primary.DB()),
