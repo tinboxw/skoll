@@ -33,6 +33,19 @@ Skoll v2 ÊÇÒ»¸ö°´·Ö²ã¼Ü¹¹ÖØĞÂÊµÏÖµÄ Go ¿ò¼Ü»ùÏß£¬Ç¿µ÷Ö°ÔğÇåÎú¡¢µÍñîºÏ¸ßÄÚ¾Û¡¢¿É²
 - `./configs/skoll.yml`
 
 ²Ö¿âÄ¬ÈÏÅäÖÃÎª `mysql + memory cache`£¨¼û `configs/skoll.yaml`£©¡£
+µ± `store.mode=mysql` Ê±£¬Éó¼Æ¼ÇÂ¼»á³Ö¾Ã»¯µ½ MySQL£¬ºó¶ËÖØÆôºó²»»á¶ªÊ§¡£
+
+ÍÆ¼ö±¾µØÒ»¼üÆô¶¯£¨Ç¿ÖÆ MySQL Ä£Ê½²¢ÖØÆôÇ°ºó¶Ë£©£º
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart
+```
+
+Í£Ö¹±¾µØÇ°ºó¶Ë¼àÌı£º
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-down.ps1
+```
 
 ¿ÉÖ±½ÓÑ¡ÔñÒÔÏÂ×éºÏ£¨ÄãÌáµ½µÄ 1/2/3/4£©£º
 1. `configs/skoll.mysql-memory.yaml`

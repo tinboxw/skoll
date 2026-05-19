@@ -33,6 +33,19 @@ The loader checks these config files automatically (in order):
 - `./configs/skoll.yml`
 
 The default profile is `mysql + memory cache` (see `configs/skoll.yaml`).
+When `store.mode=mysql`, audit records are persisted in MySQL and survive backend restarts.
+
+Recommended local bootstrap (force MySQL mode and restart both services):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart
+```
+
+Stop local backend/frontend listeners:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-down.ps1
+```
 
 You can switch between these preset combinations (1/2/3/4):
 1. `configs/skoll.mysql-memory.yaml`

@@ -2,7 +2,7 @@
 
 ## Scope
 - Validate audit write coverage for auth, user, role, rbac, plugin config, and system settings.
-- Validate query capabilities on audit page (time range + actor + action + resource).
+- Validate query capabilities on audit page (time range + actorName + action + resource).
 - Validate detail drawer fields include before/after snapshots for update flows.
 
 ## Preconditions
@@ -12,9 +12,7 @@
 
 ## Runtime Setup
 ```powershell
-$env:SKOLL_LOG_DIR="log"
-$env:SKOLL_LOG_FILE="skoll.log"
-go run ./cmd/skoll
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart
 ```
 
 ## One-Command Smoke Check
@@ -61,7 +59,7 @@ powershell -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1 -BasePre
 - No record is selected by default on first load.
 
 2. Apply filters.
-- Use combinations of `actorId + action + resource + from/to`.
+- Use combinations of `actorName + action + resource + from/to`.
 - Verify returned rows match all conditions.
 
 3. Open detail drawer.
