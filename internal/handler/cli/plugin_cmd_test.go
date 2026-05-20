@@ -241,6 +241,52 @@ func TestPluginCommandScaffold(t *testing.T) {
 	}
 }
 
+func TestPluginCommandMigrateLifecycle(t *testing.T) {
+	tmp := t.TempDir()
+	pluginDir := filepath.Join(tmp, "oa")
+	migrationsDir := filepath.Join(pluginDir, "migrations")
+	if err := os.MkdirAll(migrationsDir, 0o755); err != nil {
+		t.Fatalf("mkdir migrations failed: %v", err)
+	}
+	files := map[string]string{
+		"001_init.up.sql":   "create table t(id int);",
+		"001_init.down.sql": "drop table t;",
+		"002_seed.up.sql":   "insert into t(id) values (1);",
+		"002_seed.down.sql": "delete from t where id = 1;",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(migrationsDir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("write migration failed: %v", err)
+		}
+	}
+
+	cmd := NewPluginCommand(&fakePluginManager{items: map[string]plugin.Info{}}, plugin.NewFileLoader(), "")
+
+	planOut, err := cmd.Handle(context.Background(), []string{"migrate", pluginDir, "plan"})
+	if err != nil {
+		t.Fatalf("migrate plan should succeed, got err: %v", err)
+	}
+	if !strings.Contains(planOut, "applied=0 pending=2") {
+		t.Fatalf("unexpected migrate plan output: %s", planOut)
+	}
+
+	applyOut, err := cmd.Handle(context.Background(), []string{"migrate", pluginDir, "apply", "1"})
+	if err != nil {
+		t.Fatalf("migrate apply should succeed, got err: %v", err)
+	}
+	if !strings.Contains(applyOut, "applied=1") {
+		t.Fatalf("unexpected migrate apply output: %s", applyOut)
+	}
+
+	rollbackOut, err := cmd.Handle(context.Background(), []string{"migrate", pluginDir, "rollback", "1"})
+	if err != nil {
+		t.Fatalf("migrate rollback should succeed, got err: %v", err)
+	}
+	if !strings.Contains(rollbackOut, "rolled_back=1") {
+		t.Fatalf("unexpected migrate rollback output: %s", rollbackOut)
+	}
+}
+
 func TestPluginCommandUsageErrors(t *testing.T) {
 	cmd := NewPluginCommand(nil, nil, "")
 
@@ -262,6 +308,16 @@ func TestPluginCommandUsageErrors(t *testing.T) {
 	_, err = cmd.Handle(context.Background(), []string{"scaffold", "plugins"})
 	if err == nil || !strings.Contains(err.Error(), "usage: scaffold") {
 		t.Fatalf("expected scaffold usage error, got: %v", err)
+	}
+
+	_, err = cmd.Handle(context.Background(), []string{"migrate", "plugins"})
+	if err == nil || !strings.Contains(err.Error(), "usage: migrate") {
+		t.Fatalf("expected migrate usage error, got: %v", err)
+	}
+
+	_, err = cmd.Handle(context.Background(), []string{"migrate", "plugins/demo", "apply", "-1"})
+	if err == nil || !strings.Contains(err.Error(), "invalid steps") {
+		t.Fatalf("expected migrate steps error, got: %v", err)
 	}
 
 	_, err = cmd.Handle(context.Background(), []string{"unknown"})

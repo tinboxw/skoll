@@ -8,6 +8,7 @@
 - `validate <pluginPathOrManifest>`：校验 `plugin.yaml` 元数据格式。
 - `validate-all <pluginsRootDir>`：批量校验插件目录下所有 `plugin.yaml`。
 - `scaffold <pluginsRootDir> <pluginId> <pluginName> [appId]`：生成标准插件骨架。
+- `migrate <pluginDir> <plan|apply|rollback> [steps]`：执行插件迁移生命周期（MVP）。
 
 ## 命令行为
 ### list
@@ -57,6 +58,15 @@ validated=3
 ### scaffold
 - 输入：`["scaffold", "plugins", "oa", "OA Suite", "oa"]`
 - 行为：创建 `plugins/oa` 标准目录与基础 `plugin.yaml`。
+
+### migrate
+- 输入：`["migrate", "plugins/oa", "plan"]`
+- 输入：`["migrate", "plugins/oa", "apply", "1"]`
+- 输入：`["migrate", "plugins/oa", "rollback", "1"]`
+- 约定：
+  - 迁移文件目录：`<pluginDir>/migrations`
+  - 文件命名：`NNN_name.up.sql` / `NNN_name.down.sql`
+  - 状态文件：`<pluginDir>/.skoll/migration-state.json`
 
 ## 示例插件
 示例目录：`plugins/demo/`
