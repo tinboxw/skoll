@@ -56,6 +56,11 @@ jobs:
         shell: bash
         run: go test ./...
 
+      - name: Validate plugin manifests
+        if: steps.module.outputs.has_module == 'true'
+        shell: bash
+        run: go test ./internal/plugin -run TestValidatePluginManifestsUnderPluginsDir -count=1
+
       - name: Detect concurrency-related changes
         id: detect_race
         if: steps.module.outputs.has_module == 'true'
