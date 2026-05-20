@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/tinboxw/skoll/internal/plugin"
+	buildver "github.com/tinboxw/skoll/pkg/version"
 )
 
 type PluginCommand struct {
@@ -158,6 +159,9 @@ func (c *PluginCommand) handleValidate(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if err := info.ValidateCompatibility(resolveCoreVersionForValidation()); err != nil {
+		return "", err
+	}
 
 	return fmt.Sprintf("valid id=%s version=%s deps=%d perms=%d", info.ID, info.Version, len(info.Dependencies), len(info.Permissions)), nil
 }
@@ -184,6 +188,10 @@ func (c *PluginCommand) handleValidateAll(root string) (string, error) {
 		info, loadErr := c.loader.Load(path)
 		if loadErr != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", path, loadErr))
+			continue
+		}
+		if compatErr := info.ValidateCompatibility(resolveCoreVersionForValidation()); compatErr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", path, compatErr))
 			continue
 		}
 		rows = append(rows, fmt.Sprintf("- ok %s id=%s version=%s", path, info.ID, info.Version))
@@ -333,6 +341,13 @@ func quoteYAML(value string) string {
 	trimmed := strings.TrimSpace(value)
 	trimmed = strings.ReplaceAll(trimmed, `"`, `\"`)
 	return `"` + trimmed + `"`
+}
+
+func resolveCoreVersionForValidation() string {
+	if v := strings.TrimSpace(os.Getenv("SKOLL_CORE_VERSION")); v != "" {
+		return v
+	}
+	return strings.TrimSpace(buildver.String())
 }
 
 func (c *PluginCommand) handleMigrate(pluginDir, action string, steps int) (string, error) {

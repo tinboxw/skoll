@@ -55,6 +55,10 @@ validated=3
 - ok plugins/demo-backend id=demo-backend version=0.1.0
 ```
 
+兼容性校验：
+- `validate` 与 `validate-all` 会校验 `compatibility_skoll`。
+- 可通过环境变量 `SKOLL_CORE_VERSION` 指定当前 core 版本（例如 `1.0.0`）。
+
 ### scaffold
 - 输入：`["scaffold", "plugins", "oa", "OA Suite", "oa"]`
 - 行为：创建 `plugins/oa` 标准目录与基础 `plugin.yaml`。

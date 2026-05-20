@@ -59,6 +59,8 @@ jobs:
       - name: Validate plugin manifests
         if: steps.module.outputs.has_module == 'true'
         shell: bash
+        env:
+          SKOLL_CORE_VERSION: "1.0.0"
         run: go test ./internal/plugin -run TestValidatePluginManifestsUnderPluginsDir -count=1
 
       - name: Detect concurrency-related changes
