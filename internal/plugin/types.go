@@ -3,6 +3,7 @@ package plugin
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -56,6 +57,8 @@ const (
 )
 
 var appIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
+var apiVersionPattern = regexp.MustCompile(`^v[0-9]+$`)
+var migrationVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
 
 type SignatureAlgorithm string
 
@@ -72,30 +75,50 @@ type Signature struct {
 }
 
 type Info struct {
-	ID            string
-	Name          string
-	Version       string
-	Description   string
-	ConfigJSON    string
-	Dependencies  []Dependency
-	Permissions   []string
-	State         State
-	InstalledAt   time.Time
-	EnabledAt     *time.Time
-	Source        string
-	UIMode        UIMode
-	Level         Level
-	AppID         string
-	MountPolicy   MountPolicy
-	FrontendEntry string
-	SystemBuiltin bool
-	Vendor        string
-	VendorURL     string
-	Signature     *Signature
+	ID                 string
+	Name               string
+	Version            string
+	APIVersion         string
+	CompatibilitySkoll string
+	ServiceBaseURL     string
+	ServiceHealthURL   string
+	MigrationVersion   string
+	Description        string
+	ConfigJSON         string
+	Dependencies       []Dependency
+	Permissions        []string
+	State              State
+	InstalledAt        time.Time
+	EnabledAt          *time.Time
+	Source             string
+	UIMode             UIMode
+	Level              Level
+	AppID              string
+	MountPolicy        MountPolicy
+	FrontendEntry      string
+	SystemBuiltin      bool
+	Vendor             string
+	VendorURL          string
+	Signature          *Signature
 }
 
 func (i Info) ValidateManifest() error {
 	if i.ID == "" || i.Name == "" || i.Version == "" {
+		return ErrPluginManifestBroken
+	}
+	if v := strings.TrimSpace(i.APIVersion); v != "" && !apiVersionPattern.MatchString(v) {
+		return ErrPluginManifestBroken
+	}
+	if mv := strings.TrimSpace(i.MigrationVersion); mv != "" && !migrationVersionPattern.MatchString(mv) {
+		return ErrPluginManifestBroken
+	}
+	if cu := strings.TrimSpace(i.CompatibilitySkoll); cu == "" && strings.TrimSpace(i.APIVersion) != "" {
+		return ErrPluginManifestBroken
+	}
+	if base := strings.TrimSpace(i.ServiceBaseURL); base != "" && !isHTTPURL(base) {
+		return ErrPluginManifestBroken
+	}
+	if health := strings.TrimSpace(i.ServiceHealthURL); health != "" && !isHTTPURL(health) {
 		return ErrPluginManifestBroken
 	}
 
@@ -156,6 +179,14 @@ func (i Info) ValidateManifest() error {
 	}
 
 	return nil
+}
+
+func isHTTPURL(raw string) bool {
+	u, err := url.ParseRequestURI(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	return u.Scheme == "http" || u.Scheme == "https"
 }
 
 func NormalizeEntryPath(path string) string {

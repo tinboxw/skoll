@@ -11,6 +11,11 @@ func TestFileLoaderLoad(t *testing.T) {
 	manifest := `id: "sample-plugin"
 name: "Sample Plugin"
 version: "1.0.0"
+api_version: "v1"
+compatibility_skoll: ">=1.0.0 <2.0.0"
+service_base_url: "https://oa.example.com"
+service_health_url: "https://oa.example.com/health"
+migration_version: "v1.2.0"
 description: "plugin for tests"
 level: "app"
 app_id: "crm"
@@ -38,6 +43,21 @@ frontend_entry: "/plugins/sample-plugin"
 
 	if info.ID != "sample-plugin" {
 		t.Fatalf("unexpected plugin id: %s", info.ID)
+	}
+	if info.APIVersion != "v1" {
+		t.Fatalf("unexpected api version: %s", info.APIVersion)
+	}
+	if info.CompatibilitySkoll != ">=1.0.0 <2.0.0" {
+		t.Fatalf("unexpected compatibility: %s", info.CompatibilitySkoll)
+	}
+	if info.ServiceBaseURL != "https://oa.example.com" {
+		t.Fatalf("unexpected service base url: %s", info.ServiceBaseURL)
+	}
+	if info.ServiceHealthURL != "https://oa.example.com/health" {
+		t.Fatalf("unexpected service health url: %s", info.ServiceHealthURL)
+	}
+	if info.MigrationVersion != "v1.2.0" {
+		t.Fatalf("unexpected migration version: %s", info.MigrationVersion)
 	}
 	if len(info.Dependencies) != 1 || info.Dependencies[0].ID != "base-auth" {
 		t.Fatalf("unexpected dependencies: %+v", info.Dependencies)

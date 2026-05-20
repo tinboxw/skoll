@@ -148,6 +148,16 @@ func parseManifest(raw []byte) (Info, error) {
 			} else {
 				info.Version = value
 			}
+		case "api_version":
+			info.APIVersion = value
+		case "compatibility_skoll", "compatibility.skoll":
+			info.CompatibilitySkoll = value
+		case "service_base_url", "service.base_url":
+			info.ServiceBaseURL = value
+		case "service_health_url", "service.health_url":
+			info.ServiceHealthURL = value
+		case "migration_version", "migrations.version":
+			info.MigrationVersion = value
 		case "description":
 			info.Description = value
 		case "ui_mode":

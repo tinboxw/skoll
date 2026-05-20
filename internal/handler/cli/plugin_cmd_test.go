@@ -140,6 +140,56 @@ func TestPluginCommandValidateAndLogs(t *testing.T) {
 	}
 }
 
+func TestPluginCommandValidateAll(t *testing.T) {
+	tmp := t.TempDir()
+	pluginsRoot := filepath.Join(tmp, "plugins")
+	if err := os.MkdirAll(pluginsRoot, 0o755); err != nil {
+		t.Fatalf("mkdir plugins root failed: %v", err)
+	}
+
+	good := filepath.Join(pluginsRoot, "good")
+	if err := os.MkdirAll(good, 0o755); err != nil {
+		t.Fatalf("mkdir good plugin failed: %v", err)
+	}
+	goodManifest := strings.Join([]string{
+		"id: good",
+		"name: Good Plugin",
+		"version: 1.0.0",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(good, "plugin.yaml"), []byte(goodManifest), 0o644); err != nil {
+		t.Fatalf("write good manifest failed: %v", err)
+	}
+
+	bad := filepath.Join(pluginsRoot, "bad")
+	if err := os.MkdirAll(bad, 0o755); err != nil {
+		t.Fatalf("mkdir bad plugin failed: %v", err)
+	}
+	badManifest := strings.Join([]string{
+		"id: bad",
+		"name: Bad Plugin",
+		"version: 1.0.0",
+		"api_version: 1",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(bad, "plugin.yaml"), []byte(badManifest), 0o644); err != nil {
+		t.Fatalf("write bad manifest failed: %v", err)
+	}
+
+	cmd := NewPluginCommand(&fakePluginManager{items: map[string]plugin.Info{}}, plugin.NewFileLoader(), "")
+	out, err := cmd.Handle(context.Background(), []string{"validate-all", pluginsRoot})
+	if err == nil {
+		t.Fatalf("validate-all should fail with invalid plugin manifest")
+	}
+	if !strings.Contains(out, "validated=2") {
+		t.Fatalf("unexpected validate-all output: %s", out)
+	}
+	if !strings.Contains(out, "- ok") {
+		t.Fatalf("expected at least one success row, got: %s", out)
+	}
+	if !strings.Contains(err.Error(), "manifest validation failed") {
+		t.Fatalf("unexpected error message: %v", err)
+	}
+}
+
 func TestPluginCommandUsageErrors(t *testing.T) {
 	cmd := NewPluginCommand(nil, nil, "")
 
@@ -151,6 +201,11 @@ func TestPluginCommandUsageErrors(t *testing.T) {
 	_, err = cmd.Handle(context.Background(), []string{"validate"})
 	if err == nil || !strings.Contains(err.Error(), "usage: validate") {
 		t.Fatalf("expected validate usage error, got: %v", err)
+	}
+
+	_, err = cmd.Handle(context.Background(), []string{"validate-all"})
+	if err == nil || !strings.Contains(err.Error(), "usage: validate-all") {
+		t.Fatalf("expected validate-all usage error, got: %v", err)
 	}
 
 	_, err = cmd.Handle(context.Background(), []string{"unknown"})

@@ -56,3 +56,43 @@ func TestInfoValidateManifestLevelConstraints(t *testing.T) {
 		t.Fatalf("expected validation error for system level with app_id")
 	}
 }
+
+func TestInfoValidateManifestContractFields(t *testing.T) {
+	valid := Info{
+		ID:                 "oa-plugin",
+		Name:               "OA Plugin",
+		Version:            "1.0.0",
+		APIVersion:         "v1",
+		CompatibilitySkoll: ">=1.0.0 <2.0.0",
+		ServiceBaseURL:     "https://oa.example.com",
+		ServiceHealthURL:   "https://oa.example.com/health",
+		MigrationVersion:   "v1.2.3",
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid contract fields, got %v", err)
+	}
+
+	badAPIVersion := valid
+	badAPIVersion.APIVersion = "1"
+	if err := badAPIVersion.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for invalid api_version")
+	}
+
+	missingCompat := valid
+	missingCompat.CompatibilitySkoll = ""
+	if err := missingCompat.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error when api_version is set without compatibility")
+	}
+
+	badURL := valid
+	badURL.ServiceBaseURL = "oa.example.com"
+	if err := badURL.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for invalid service_base_url")
+	}
+
+	badMigration := valid
+	badMigration.MigrationVersion = "v1"
+	if err := badMigration.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for invalid migration_version")
+	}
+}

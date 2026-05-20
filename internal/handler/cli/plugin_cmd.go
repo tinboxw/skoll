@@ -63,6 +63,14 @@ func (c *PluginCommand) Handle(_ context.Context, args []string) (string, error)
 			return "", fmt.Errorf("usage: validate <pluginPathOrManifest>")
 		}
 		return c.handleValidate(args[1])
+	case "validate-all":
+		if c == nil || c.loader == nil {
+			return "", fmt.Errorf("plugin metadata loader not configured")
+		}
+		if len(args) < 2 {
+			return "", fmt.Errorf("usage: validate-all <pluginsRootDir>")
+		}
+		return c.handleValidateAll(args[1])
 	default:
 		return "", fmt.Errorf("unsupported plugin subcommand: %s", args[0])
 	}
@@ -129,4 +137,76 @@ func (c *PluginCommand) handleValidate(path string) (string, error) {
 	}
 
 	return fmt.Sprintf("valid id=%s version=%s deps=%d perms=%d", info.ID, info.Version, len(info.Dependencies), len(info.Permissions)), nil
+}
+
+func (c *PluginCommand) handleValidateAll(root string) (string, error) {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return "", fmt.Errorf("plugins root is required")
+	}
+
+	pluginPaths, err := discoverPluginManifestDirs(root)
+	if err != nil {
+		return "", err
+	}
+	if len(pluginPaths) == 0 {
+		return "", fmt.Errorf("no plugin manifest found under %s", root)
+	}
+
+	rows := make([]string, 0, len(pluginPaths)+1)
+	rows = append(rows, fmt.Sprintf("validated=%d", len(pluginPaths)))
+	errs := make([]string, 0)
+
+	for _, path := range pluginPaths {
+		info, loadErr := c.loader.Load(path)
+		if loadErr != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", path, loadErr))
+			continue
+		}
+		rows = append(rows, fmt.Sprintf("- ok %s id=%s version=%s", path, info.ID, info.Version))
+	}
+
+	if len(errs) > 0 {
+		return strings.Join(rows, "\n"), fmt.Errorf("manifest validation failed: %s", strings.Join(errs, "; "))
+	}
+
+	return strings.Join(rows, "\n"), nil
+}
+
+func discoverPluginManifestDirs(root string) ([]string, error) {
+	paths := make([]string, 0)
+
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d == nil {
+			return nil
+		}
+		if !d.IsDir() {
+			return nil
+		}
+
+		name := d.Name()
+		if strings.HasPrefix(name, ".") || name == "node_modules" {
+			if path == root {
+				return nil
+			}
+			return filepath.SkipDir
+		}
+
+		manifestPath := filepath.Join(path, "plugin.yaml")
+		if info, err := os.Stat(manifestPath); err == nil && !info.IsDir() {
+			paths = append(paths, filepath.Clean(path))
+			return filepath.SkipDir
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(paths)
+	return paths, nil
 }
