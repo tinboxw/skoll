@@ -190,6 +190,57 @@ func TestPluginCommandValidateAll(t *testing.T) {
 	}
 }
 
+func TestPluginCommandScaffold(t *testing.T) {
+	tmp := t.TempDir()
+	pluginsRoot := filepath.Join(tmp, "plugins")
+	cmd := NewPluginCommand(&fakePluginManager{items: map[string]plugin.Info{}}, plugin.NewFileLoader(), "")
+
+	out, err := cmd.Handle(context.Background(), []string{"scaffold", pluginsRoot, "oa", "OA Suite", "oa"})
+	if err != nil {
+		t.Fatalf("scaffold should succeed, got err: %v", err)
+	}
+	if !strings.Contains(out, "scaffolded plugin") {
+		t.Fatalf("unexpected scaffold output: %s", out)
+	}
+
+	pluginDir := filepath.Join(pluginsRoot, "oa")
+	for _, p := range []string{
+		filepath.Join(pluginDir, "plugin.yaml"),
+		filepath.Join(pluginDir, "README.md"),
+		filepath.Join(pluginDir, "backend"),
+		filepath.Join(pluginDir, "frontend"),
+		filepath.Join(pluginDir, "migrations"),
+		filepath.Join(pluginDir, "docs"),
+	} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("expected scaffold path missing: %s (%v)", p, err)
+		}
+	}
+
+	manifestRaw, err := os.ReadFile(filepath.Join(pluginDir, "plugin.yaml"))
+	if err != nil {
+		t.Fatalf("read scaffold manifest failed: %v", err)
+	}
+	manifestText := string(manifestRaw)
+	for _, fragment := range []string{
+		"id: oa",
+		"api_version: v1",
+		"compatibility_skoll",
+		"migration_version: v0.1.0",
+		"level: app",
+		"app_id: oa",
+	} {
+		if !strings.Contains(manifestText, fragment) {
+			t.Fatalf("manifest missing fragment %q, content=%s", fragment, manifestText)
+		}
+	}
+
+	loader := plugin.NewFileLoader()
+	if _, err := loader.Load(pluginDir); err != nil {
+		t.Fatalf("scaffolded manifest should be valid, got err: %v", err)
+	}
+}
+
 func TestPluginCommandUsageErrors(t *testing.T) {
 	cmd := NewPluginCommand(nil, nil, "")
 
@@ -206,6 +257,11 @@ func TestPluginCommandUsageErrors(t *testing.T) {
 	_, err = cmd.Handle(context.Background(), []string{"validate-all"})
 	if err == nil || !strings.Contains(err.Error(), "usage: validate-all") {
 		t.Fatalf("expected validate-all usage error, got: %v", err)
+	}
+
+	_, err = cmd.Handle(context.Background(), []string{"scaffold", "plugins"})
+	if err == nil || !strings.Contains(err.Error(), "usage: scaffold") {
+		t.Fatalf("expected scaffold usage error, got: %v", err)
 	}
 
 	_, err = cmd.Handle(context.Background(), []string{"unknown"})

@@ -6,6 +6,8 @@
 - `debug <pluginId>`：输出插件依赖、权限、来源等调试信息。
 - `logs <pluginId>`：读取插件日志文件（默认目录 `log/`）。
 - `validate <pluginPathOrManifest>`：校验 `plugin.yaml` 元数据格式。
+- `validate-all <pluginsRootDir>`：批量校验插件目录下所有 `plugin.yaml`。
+- `scaffold <pluginsRootDir> <pluginId> <pluginName> [appId]`：生成标准插件骨架。
 
 ## 命令行为
 ### list
@@ -40,6 +42,21 @@ plugins=2
 ```text
 valid id=demo version=0.1.0 deps=1 perms=2
 ```
+
+### validate-all
+- 输入：`["validate-all", "plugins"]`
+- 输出示例：
+
+```text
+validated=3
+- ok plugins/demo id=demo version=0.2.0
+- ok plugins/demo-frontend id=demo-frontend version=0.1.0
+- ok plugins/demo-backend id=demo-backend version=0.1.0
+```
+
+### scaffold
+- 输入：`["scaffold", "plugins", "oa", "OA Suite", "oa"]`
+- 行为：创建 `plugins/oa` 标准目录与基础 `plugin.yaml`。
 
 ## 示例插件
 示例目录：`plugins/demo/`
