@@ -139,11 +139,21 @@ Developer Portal 中当前已接入以下 API：
 - `POST /skoll/v1/plugins/dev/rollout`
   - 仅 `super_admin` 可调用。
   - 请求体：`{ "pluginId": "crm-order", "rolloutPercent": 20 }`
-  - 返回 `data`：`{ operation,status,pluginId,rolloutPercent,persisted,message? }`
+  - 返回 `data`：`{ operation,status,pluginId,rolloutPercent,persisted,message?,task:{ taskId,pluginId,action,requestedRolloutPercent,previousRolloutPercent,rolloutPercent,taskStatus,createdBy,createdAt,startedAt?,finishedAt?,failureReason?,steps?,logs? } }`
+  - 说明：运行时必须提供配置写入能力；不再支持“仅内存保留历史”的降级路径。
 - `POST /skoll/v1/plugins/dev/rollback`
   - 仅 `super_admin` 可调用。
   - 请求体：`{ "pluginId": "crm-order" }`
-  - 返回 `data`：`{ operation,status,pluginId,rolloutPercent,persisted,message? }`
+  - 返回 `data`：`{ operation,status,pluginId,rolloutPercent,persisted,message?,task:{...} }`
+- `GET /skoll/v1/plugins/dev/rollout-tasks?pluginId=crm-order&status=success`
+  - 仅 `super_admin` 可调用。
+  - 返回 `data`：`{ operation,status,pluginId,taskStatus,tasks:[...] }`
+- `GET /skoll/v1/plugins/dev/rollout-tasks/{taskId}`
+  - 仅 `super_admin` 可调用。
+  - 返回 `data`：`{ operation,status,task:{...} }`
+- `GET /skoll/v1/plugins/dev/rollout-tasks/{taskId}/logs`
+  - 仅 `super_admin` 可调用。
+  - 返回 `data`：`{ operation,status,taskId,logs:[{timestamp,step?,level,message}] }`
 - `POST /skoll/v1/plugins/dev/release-orders`
   - 仅 `super_admin` 可调用。
   - 请求体：`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "releaseVersion": "1.2.0", "changelog": "..." }`
@@ -159,6 +169,23 @@ Developer Portal 中当前已接入以下 API：
   - 仅 `super_admin` 可调用。
   - 请求体：`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "comment": "need more checks" }`
   - 返回 `data`：`{ operation,status,order:{...orderStatus=rejected...} }`
+- `POST /skoll/v1/plugins/dev/release-orders/{orderId}/execute`
+  - 仅 `super_admin` 可调用。
+  - 请求体：`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "targetEnv": "staging", "artifactPath": "plugins/_dist/crm-order-1.2.0.zip" }`
+  - 返回 `data`：`{ operation,status,task:{ taskId,orderId,pluginId,releaseVersion,targetEnv,artifactPath,taskStatus,createdBy,createdAt } }`
+  - 说明：
+    - 仅允许执行 `approved` 状态发布单。
+    - 必须显式提供 `artifactPath`，不会自动降级为“仅记录不执行”。
+    - 同一 `pluginId + targetEnv` 若已有 `running` 任务，返回 `409 task_conflict`。
+- `GET /skoll/v1/plugins/dev/release-tasks?pluginsRoot=plugins&pluginId=crm-order&orderId=ro-xxx&status=running`
+  - 仅 `super_admin` 可调用。
+  - 返回 `data`：`{ operation,status,pluginsRoot,pluginId,orderId,taskStatus,tasks:[...] }`
+- `GET /skoll/v1/plugins/dev/release-tasks/{taskId}?pluginsRoot=plugins`
+  - 仅 `super_admin` 可调用。
+  - 返回 `data`：`{ operation,status,task:{...,steps:[{name,status,message?,startedAt?,finishedAt?,durationMs}],failureStep?,failureReason?} }`
+- `GET /skoll/v1/plugins/dev/release-tasks/{taskId}/logs?pluginsRoot=plugins`
+  - 仅 `super_admin` 可调用。
+  - 返回 `data`：`{ operation,status,taskId,logs:[{timestamp,step?,level,message}] }`
 
 - `POST /skoll/v1/plugins/dev/scaffold`
   - 仅 `super_admin` 可调用。
@@ -189,10 +216,13 @@ Developer Portal 中当前已接入以下 API：
 - 灰度/回滚模块：
   - 支持按百分比设置 rollout 值（0-100）。
   - 支持回滚到上一次 rollout 值。
+  - 严格基建模式下，配置写入器缺失会直接失败，不做兼容/兜底。
+  - 所有灰度与回滚动作都会生成任务记录，可通过 rollout-task 接口追踪步骤与日志。
 
 - 发布审批流模块：
   - 支持创建发布单（pending），并按 `orderId` 审批通过或驳回。
   - 发布单内含审计字段：`createdBy/createdAt/approvedBy/approvedAt/rejectedBy/rejectedAt/reviewComment`。
+- 审批通过后可执行发布任务，并通过任务列表/详情/日志跟踪执行状态（pending/running/success/failed/cancelled）。
 
 安全边界：
 - 通过 `SKOLL_DEV_PORTAL_ENABLED=true` 显式开启。

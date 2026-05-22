@@ -51,6 +51,11 @@ jobs:
             exit 1
           fi
 
+      - name: Enforce no-fallback baseline
+        if: steps.module.outputs.has_module == 'true'
+        shell: bash
+        run: bash scripts/ci/check-no-fallback.sh
+
       - name: Run unit tests
         if: steps.module.outputs.has_module == 'true'
         shell: bash

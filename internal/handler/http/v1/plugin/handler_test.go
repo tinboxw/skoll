@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/pkg/security"
@@ -18,6 +19,67 @@ import (
 type fakePluginManager struct {
 	items     map[string]plugin.Info
 	snapshots map[string]plugin.RegistrySnapshot
+}
+
+type noConfigUpdaterPluginManager struct {
+	items map[string]plugin.Info
+}
+
+func (f *noConfigUpdaterPluginManager) Install(path string) (plugin.Info, error) {
+	_ = path
+	return plugin.Info{}, nil
+}
+
+func (f *noConfigUpdaterPluginManager) List() []plugin.Info {
+	items := make([]plugin.Info, 0, len(f.items))
+	for _, item := range f.items {
+		items = append(items, item)
+	}
+	return items
+}
+
+func (f *noConfigUpdaterPluginManager) Enable(pluginID string) error {
+	item, ok := f.items[pluginID]
+	if !ok {
+		return plugin.ErrPluginNotFound
+	}
+	item.State = plugin.StateEnabled
+	f.items[pluginID] = item
+	return nil
+}
+
+func (f *noConfigUpdaterPluginManager) Disable(pluginID string) error {
+	item, ok := f.items[pluginID]
+	if !ok {
+		return plugin.ErrPluginNotFound
+	}
+	if item.SystemBuiltin || strings.EqualFold(item.Source, "builtin") {
+		return plugin.ErrPluginSystemProtected
+	}
+	item.State = plugin.StateDisabled
+	f.items[pluginID] = item
+	return nil
+}
+
+func (f *noConfigUpdaterPluginManager) Uninstall(pluginID string) error {
+	item, ok := f.items[pluginID]
+	if !ok {
+		return plugin.ErrPluginNotFound
+	}
+	if item.SystemBuiltin || strings.EqualFold(item.Source, "builtin") {
+		return plugin.ErrPluginSystemProtected
+	}
+	item.State = plugin.StateUninstalled
+	f.items[pluginID] = item
+	return nil
+}
+
+func (f *noConfigUpdaterPluginManager) Get(pluginID string) (plugin.Info, error) {
+	item, ok := f.items[pluginID]
+	if !ok {
+		return plugin.Info{}, plugin.ErrPluginNotFound
+	}
+	return item, nil
 }
 
 func (f *fakePluginManager) SavePluginConfig(pluginID string, config map[string]any) error {
@@ -600,6 +662,15 @@ func TestPluginHandlerDevPortalManifestPipelineAndRollout(t *testing.T) {
 	if rolloutResp.Code != http.StatusOK {
 		t.Fatalf("rollout status=%d body=%s", rolloutResp.Code, rolloutResp.Body.String())
 	}
+	var rolloutBody struct {
+		Data devRolloutResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rolloutResp.Body.Bytes(), &rolloutBody); err != nil {
+		t.Fatalf("decode rollout response: %v", err)
+	}
+	if strings.TrimSpace(rolloutBody.Data.Task.TaskID) == "" {
+		t.Fatalf("expected rollout task id in response")
+	}
 
 	rollbackPayload := []byte(`{"pluginId":"dev-edit"}`)
 	rollbackReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/rollback", bytes.NewReader(rollbackPayload))
@@ -608,6 +679,87 @@ func TestPluginHandlerDevPortalManifestPipelineAndRollout(t *testing.T) {
 	mux.ServeHTTP(rollbackResp, rollbackReq)
 	if rollbackResp.Code != http.StatusOK {
 		t.Fatalf("rollback status=%d body=%s", rollbackResp.Code, rollbackResp.Body.String())
+	}
+	var rollbackBody struct {
+		Data devRolloutResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rollbackResp.Body.Bytes(), &rollbackBody); err != nil {
+		t.Fatalf("decode rollback response: %v", err)
+	}
+	if strings.TrimSpace(rollbackBody.Data.Task.TaskID) == "" {
+		t.Fatalf("expected rollback task id in response")
+	}
+
+	taskListReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/rollout-tasks?pluginId=dev-edit", nil)
+	taskListReq = withRole(taskListReq, "super_admin")
+	taskListResp := httptest.NewRecorder()
+	mux.ServeHTTP(taskListResp, taskListReq)
+	if taskListResp.Code != http.StatusOK {
+		t.Fatalf("rollout task list status=%d body=%s", taskListResp.Code, taskListResp.Body.String())
+	}
+	var taskListBody struct {
+		Data devListRolloutTasksResponse `json:"data"`
+	}
+	if err := json.Unmarshal(taskListResp.Body.Bytes(), &taskListBody); err != nil {
+		t.Fatalf("decode rollout task list response: %v", err)
+	}
+	if len(taskListBody.Data.Tasks) < 2 {
+		t.Fatalf("expected at least 2 rollout tasks, got %d", len(taskListBody.Data.Tasks))
+	}
+
+	taskID := strings.TrimSpace(rollbackBody.Data.Task.TaskID)
+	taskDetailReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/rollout-tasks/"+taskID, nil)
+	taskDetailReq = withRole(taskDetailReq, "super_admin")
+	taskDetailResp := httptest.NewRecorder()
+	mux.ServeHTTP(taskDetailResp, taskDetailReq)
+	if taskDetailResp.Code != http.StatusOK {
+		t.Fatalf("rollout task detail status=%d body=%s", taskDetailResp.Code, taskDetailResp.Body.String())
+	}
+	var taskDetailBody struct {
+		Data devGetRolloutTaskResponse `json:"data"`
+	}
+	if err := json.Unmarshal(taskDetailResp.Body.Bytes(), &taskDetailBody); err != nil {
+		t.Fatalf("decode rollout task detail response: %v", err)
+	}
+	if taskDetailBody.Data.Task.TaskID != taskID {
+		t.Fatalf("unexpected rollout task detail: %+v", taskDetailBody.Data.Task)
+	}
+
+	taskLogsReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/rollout-tasks/"+taskID+"/logs", nil)
+	taskLogsReq = withRole(taskLogsReq, "super_admin")
+	taskLogsResp := httptest.NewRecorder()
+	mux.ServeHTTP(taskLogsResp, taskLogsReq)
+	if taskLogsResp.Code != http.StatusOK {
+		t.Fatalf("rollout task logs status=%d body=%s", taskLogsResp.Code, taskLogsResp.Body.String())
+	}
+	var taskLogsBody struct {
+		Data devRolloutTaskLogsResponse `json:"data"`
+	}
+	if err := json.Unmarshal(taskLogsResp.Body.Bytes(), &taskLogsBody); err != nil {
+		t.Fatalf("decode rollout task logs response: %v", err)
+	}
+	if len(taskLogsBody.Data.Logs) == 0 {
+		t.Fatalf("expected rollout task logs")
+	}
+}
+
+func TestPluginHandlerDevPortalRolloutRequiresConfigUpdater(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &noConfigUpdaterPluginManager{items: map[string]plugin.Info{
+		"dev-edit": {ID: "dev-edit", Name: "Dev Edit", Version: "0.1.1", State: plugin.StateEnabled, ConfigJSON: "{}"},
+	}}, WithPluginDevPortal(true, "plugins", []string{"plugins"}))
+
+	rolloutPayload := []byte(`{"pluginId":"dev-edit","rolloutPercent":20}`)
+	rolloutReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/rollout", bytes.NewReader(rolloutPayload))
+	rolloutReq = withRole(rolloutReq, "super_admin")
+	rolloutResp := httptest.NewRecorder()
+	mux.ServeHTTP(rolloutResp, rolloutReq)
+
+	if rolloutResp.Code != http.StatusBadRequest {
+		t.Fatalf("expected bad request when updater missing, got status=%d body=%s", rolloutResp.Code, rolloutResp.Body.String())
+	}
+	if !strings.Contains(rolloutResp.Body.String(), "runtime config updater is required") {
+		t.Fatalf("unexpected rollout error body: %s", rolloutResp.Body.String())
 	}
 }
 
@@ -715,6 +867,173 @@ func TestPluginHandlerDevPortalReleaseOrderFlow(t *testing.T) {
 	}
 	if rejectBody.Data.Order.OrderStatus != devReleaseOrderStatusRejected {
 		t.Fatalf("unexpected status after reject: %+v", rejectBody.Data.Order)
+	}
+
+	packagePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-demo"}`)
+	packageReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/package", bytes.NewReader(packagePayload))
+	packageReq = withRole(packageReq, "super_admin")
+	packageResp := httptest.NewRecorder()
+	mux.ServeHTTP(packageResp, packageReq)
+	if packageResp.Code != http.StatusOK {
+		t.Fatalf("package status=%d body=%s", packageResp.Code, packageResp.Body.String())
+	}
+
+	var packageBody struct {
+		Data devPackageProjectResponse `json:"data"`
+	}
+	if err := json.Unmarshal(packageResp.Body.Bytes(), &packageBody); err != nil {
+		t.Fatalf("decode package response: %v", err)
+	}
+	if strings.TrimSpace(packageBody.Data.ArtifactPath) == "" {
+		t.Fatalf("expected artifact path in package response")
+	}
+
+	executePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-demo","targetEnv":"staging","artifactPath":"` + filepath.ToSlash(packageBody.Data.ArtifactPath) + `"}`)
+	executeReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders/"+createBody.Data.Order.OrderID+"/execute", bytes.NewReader(executePayload))
+	executeReq = withRole(executeReq, "super_admin")
+	executeResp := httptest.NewRecorder()
+	mux.ServeHTTP(executeResp, executeReq)
+	if executeResp.Code != http.StatusAccepted {
+		t.Fatalf("execute release order status=%d body=%s", executeResp.Code, executeResp.Body.String())
+	}
+
+	var executeBody struct {
+		Data devExecuteReleaseOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(executeResp.Body.Bytes(), &executeBody); err != nil {
+		t.Fatalf("decode execute release response: %v", err)
+	}
+	taskID := strings.TrimSpace(executeBody.Data.Task.TaskID)
+	if taskID == "" {
+		t.Fatalf("expected task id in execute response")
+	}
+
+	var taskDetailBody struct {
+		Data devGetReleaseTaskResponse `json:"data"`
+	}
+	for attempt := 0; attempt < 20; attempt++ {
+		taskDetailReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/release-tasks/"+taskID+"?pluginsRoot="+filepath.ToSlash(pluginsRoot), nil)
+		taskDetailReq = withRole(taskDetailReq, "super_admin")
+		taskDetailResp := httptest.NewRecorder()
+		mux.ServeHTTP(taskDetailResp, taskDetailReq)
+		if taskDetailResp.Code != http.StatusOK {
+			t.Fatalf("task detail status=%d body=%s", taskDetailResp.Code, taskDetailResp.Body.String())
+		}
+		if err := json.Unmarshal(taskDetailResp.Body.Bytes(), &taskDetailBody); err != nil {
+			t.Fatalf("decode task detail response: %v", err)
+		}
+		if taskDetailBody.Data.Task.TaskStatus == devReleaseTaskStatusSuccess {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if taskDetailBody.Data.Task.TaskStatus != devReleaseTaskStatusSuccess {
+		t.Fatalf("expected task success, got %+v", taskDetailBody.Data.Task)
+	}
+
+	taskListReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/release-tasks?pluginsRoot="+filepath.ToSlash(pluginsRoot)+"&pluginId=release-demo&orderId="+createBody.Data.Order.OrderID, nil)
+	taskListReq = withRole(taskListReq, "super_admin")
+	taskListResp := httptest.NewRecorder()
+	mux.ServeHTTP(taskListResp, taskListReq)
+	if taskListResp.Code != http.StatusOK {
+		t.Fatalf("task list status=%d body=%s", taskListResp.Code, taskListResp.Body.String())
+	}
+	var taskListBody struct {
+		Data devListReleaseTasksResponse `json:"data"`
+	}
+	if err := json.Unmarshal(taskListResp.Body.Bytes(), &taskListBody); err != nil {
+		t.Fatalf("decode task list response: %v", err)
+	}
+	if len(taskListBody.Data.Tasks) == 0 {
+		t.Fatalf("expected at least one task in list")
+	}
+
+	taskLogsReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/release-tasks/"+taskID+"/logs?pluginsRoot="+filepath.ToSlash(pluginsRoot), nil)
+	taskLogsReq = withRole(taskLogsReq, "super_admin")
+	taskLogsResp := httptest.NewRecorder()
+	mux.ServeHTTP(taskLogsResp, taskLogsReq)
+	if taskLogsResp.Code != http.StatusOK {
+		t.Fatalf("task logs status=%d body=%s", taskLogsResp.Code, taskLogsResp.Body.String())
+	}
+	var taskLogsBody struct {
+		Data devReleaseTaskLogsResponse `json:"data"`
+	}
+	if err := json.Unmarshal(taskLogsResp.Body.Bytes(), &taskLogsBody); err != nil {
+		t.Fatalf("decode task logs response: %v", err)
+	}
+	if len(taskLogsBody.Data.Logs) == 0 {
+		t.Fatalf("expected task logs")
+	}
+}
+
+func TestPluginHandlerDevPortalReleaseTaskConflict(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	mgr := &fakePluginManager{items: map[string]plugin.Info{}}
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	scaffoldPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-conflict","pluginName":"Release Conflict"}`)
+	scaffoldReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(scaffoldPayload))
+	scaffoldReq = withRole(scaffoldReq, "super_admin")
+	scaffoldResp := httptest.NewRecorder()
+	mux.ServeHTTP(scaffoldResp, scaffoldReq)
+	if scaffoldResp.Code != http.StatusCreated {
+		t.Fatalf("scaffold status=%d body=%s", scaffoldResp.Code, scaffoldResp.Body.String())
+	}
+
+	createPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-conflict","releaseVersion":"1.0.0"}`)
+	createReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders", bytes.NewReader(createPayload))
+	createReq = withRole(createReq, "super_admin")
+	createResp := httptest.NewRecorder()
+	mux.ServeHTTP(createResp, createReq)
+	if createResp.Code != http.StatusCreated {
+		t.Fatalf("create release order status=%d body=%s", createResp.Code, createResp.Body.String())
+	}
+	var createBody struct {
+		Data devCreateReleaseOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(createResp.Body.Bytes(), &createBody); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+
+	approvePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-conflict"}`)
+	approveReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders/"+createBody.Data.Order.OrderID+"/approve", bytes.NewReader(approvePayload))
+	approveReq = withRole(approveReq, "super_admin")
+	approveResp := httptest.NewRecorder()
+	mux.ServeHTTP(approveResp, approveReq)
+	if approveResp.Code != http.StatusOK {
+		t.Fatalf("approve release order status=%d body=%s", approveResp.Code, approveResp.Body.String())
+	}
+
+	conflictTask := devReleaseTaskRecord{
+		TaskID:         "rt-running-conflict",
+		OrderID:        createBody.Data.Order.OrderID,
+		PluginID:       "release-conflict",
+		ReleaseVersion: "1.0.0",
+		TargetEnv:      "staging",
+		ArtifactPath:   filepath.Join(pluginsRoot, "_dist", "release-conflict-1.0.0.zip"),
+		TaskStatus:     devReleaseTaskStatusRunning,
+		CreatedBy:      "tester",
+		CreatedAt:      time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := os.MkdirAll(filepath.Join(pluginsRoot, "_dist"), 0o755); err != nil {
+		t.Fatalf("mkdir dist: %v", err)
+	}
+	if err := os.WriteFile(conflictTask.ArtifactPath, []byte("dummy"), 0o644); err != nil {
+		t.Fatalf("write artifact: %v", err)
+	}
+	h := &PluginHandler{}
+	if err := h.saveDevReleaseTasks(pluginsRoot, "release-conflict", []devReleaseTaskRecord{conflictTask}); err != nil {
+		t.Fatalf("save conflict task: %v", err)
+	}
+
+	executePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-conflict","targetEnv":"staging","artifactPath":"` + filepath.ToSlash(conflictTask.ArtifactPath) + `"}`)
+	executeReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders/"+createBody.Data.Order.OrderID+"/execute", bytes.NewReader(executePayload))
+	executeReq = withRole(executeReq, "super_admin")
+	executeResp := httptest.NewRecorder()
+	mux.ServeHTTP(executeResp, executeReq)
+	if executeResp.Code != http.StatusConflict {
+		t.Fatalf("expected conflict status, got=%d body=%s", executeResp.Code, executeResp.Body.String())
 	}
 }
 

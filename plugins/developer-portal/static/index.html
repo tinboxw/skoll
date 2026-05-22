@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title data-i18n="page.title">Skoll Developer Portal</title>
   <style>
-    /* Critical fallback styles to avoid plain/unstyled rendering when external assets are stale or blocked. */
+    /* Critical base styles to avoid plain/unstyled rendering when external assets are stale or blocked. */
     :root { color-scheme: light; }
     body { margin: 0; font-family: "IBM Plex Sans", "Segoe UI", "PingFang SC", sans-serif; background: #f3f5f8; color: #14202b; }
     .shell { max-width: none; margin: 0 auto; padding: 20px 24px; }
@@ -373,6 +373,54 @@
                 <div class="actions">
                   <button id="btnApplyRollout" class="secondary" type="button" data-i18n="action.applyRollout">应用灰度</button>
                   <button id="btnRollbackRollout" class="secondary" type="button" data-i18n="action.rollbackRollout">回滚</button>
+                  <button id="btnListRolloutTasks" class="secondary" type="button" data-i18n="action.listRolloutTasks">查询灰度任务</button>
+                  <button id="btnGetRolloutTask" class="secondary" type="button" data-i18n="action.getRolloutTask">灰度任务详情</button>
+                  <button id="btnGetRolloutTaskLogs" class="secondary" type="button" data-i18n="action.getRolloutTaskLogs">灰度任务日志</button>
+                </div>
+                <div class="form-grid" style="margin-top:8px;">
+                  <label>
+                    <span data-i18n="field.rolloutTaskId">rollout taskId</span>
+                    <input id="rolloutTaskId" type="text" placeholder="gt-xxxxx" />
+                  </label>
+                </div>
+                <div class="release-task-panel">
+                  <h4 data-i18n="rolloutTask.panelTitle">灰度任务追踪</h4>
+                  <div class="release-task-toolbar">
+                    <label>
+                      <span data-i18n="rolloutTask.filter.status">任务状态</span>
+                      <select id="rolloutTaskStatusFilter">
+                        <option value="all" data-i18n="rolloutTask.filter.all">全部</option>
+                        <option value="failed">failed</option>
+                        <option value="running">running</option>
+                        <option value="pending">pending</option>
+                        <option value="success">success</option>
+                        <option value="cancelled">cancelled</option>
+                      </select>
+                    </label>
+                    <button id="btnRolloutTaskFilterFailed" class="secondary task-filter-btn" type="button" data-i18n="action.filterFailed">仅失败</button>
+                    <button id="btnRolloutTaskFilterAll" class="secondary task-filter-btn" type="button" data-i18n="action.filterAll">全部</button>
+                  </div>
+                  <table class="release-task-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="rolloutTask.col.taskId">taskId</th>
+                        <th data-i18n="rolloutTask.col.status">status</th>
+                        <th data-i18n="rolloutTask.col.action">action</th>
+                        <th data-i18n="rolloutTask.col.percent">rolloutPercent</th>
+                        <th data-i18n="rolloutTask.col.failure">failure</th>
+                        <th data-i18n="rolloutTask.col.createdAt">createdAt</th>
+                      </tr>
+                    </thead>
+                    <tbody id="rolloutTaskRows">
+                      <tr>
+                        <td colspan="6" class="placeholder" data-i18n="common.empty">暂无数据</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <label class="body-label" style="margin-top:8px;">
+                    <span data-i18n="rolloutTask.logsTitle">灰度任务日志</span>
+                    <textarea id="rolloutTaskLogs" rows="8" readonly></textarea>
+                  </label>
                 </div>
               </div>
 
@@ -392,6 +440,18 @@
                     <span data-i18n="field.releaseOrderId">orderId</span>
                     <input id="releaseOrderId" type="text" placeholder="ro-xxxxx" />
                   </label>
+                  <label>
+                    <span data-i18n="field.releaseTargetEnv">targetEnv</span>
+                    <input id="releaseTargetEnv" type="text" placeholder="staging" value="staging" />
+                  </label>
+                  <label>
+                    <span data-i18n="field.releaseArtifactPath">artifactPath</span>
+                    <input id="releaseArtifactPath" type="text" placeholder="D:/plugins/_dist/demo-1.0.0.zip" />
+                  </label>
+                  <label>
+                    <span data-i18n="field.releaseTaskId">taskId</span>
+                    <input id="releaseTaskId" type="text" placeholder="rt-xxxxx" />
+                  </label>
                 </div>
                 <label class="body-label">
                   <span data-i18n="field.releaseChangelog">changelog / review comment</span>
@@ -402,6 +462,48 @@
                   <button id="btnListReleaseOrders" class="secondary" type="button" data-i18n="action.listReleaseOrders">查询发布单</button>
                   <button id="btnApproveReleaseOrder" class="secondary" type="button" data-i18n="action.approveReleaseOrder">审批通过</button>
                   <button id="btnRejectReleaseOrder" class="secondary" type="button" data-i18n="action.rejectReleaseOrder">审批驳回</button>
+                  <button id="btnExecuteReleaseOrder" class="primary" type="button" data-i18n="action.executeReleaseOrder">执行发布</button>
+                  <button id="btnListReleaseTasks" class="secondary" type="button" data-i18n="action.listReleaseTasks">查询任务</button>
+                  <button id="btnGetReleaseTask" class="secondary" type="button" data-i18n="action.getReleaseTask">任务详情</button>
+                  <button id="btnGetReleaseTaskLogs" class="secondary" type="button" data-i18n="action.getReleaseTaskLogs">任务日志</button>
+                </div>
+                <div class="release-task-panel">
+                  <h4 data-i18n="releaseTask.panelTitle">发布任务追踪</h4>
+                  <div class="release-task-toolbar">
+                    <label>
+                      <span data-i18n="releaseTask.filter.status">任务状态</span>
+                      <select id="releaseTaskStatusFilter">
+                        <option value="all" data-i18n="releaseTask.filter.all">全部</option>
+                        <option value="failed">failed</option>
+                        <option value="running">running</option>
+                        <option value="pending">pending</option>
+                        <option value="success">success</option>
+                        <option value="cancelled">cancelled</option>
+                      </select>
+                    </label>
+                    <button id="btnReleaseTaskFilterFailed" class="secondary task-filter-btn" type="button" data-i18n="action.filterFailed">仅失败</button>
+                    <button id="btnReleaseTaskFilterAll" class="secondary task-filter-btn" type="button" data-i18n="action.filterAll">全部</button>
+                  </div>
+                  <table class="release-task-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="releaseTask.col.taskId">taskId</th>
+                        <th data-i18n="releaseTask.col.status">status</th>
+                        <th data-i18n="releaseTask.col.targetEnv">targetEnv</th>
+                        <th data-i18n="releaseTask.col.failure">failure</th>
+                        <th data-i18n="releaseTask.col.createdAt">createdAt</th>
+                      </tr>
+                    </thead>
+                    <tbody id="releaseTaskRows">
+                      <tr>
+                        <td colspan="5" class="placeholder" data-i18n="common.empty">暂无数据</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <label class="body-label" style="margin-top:8px;">
+                    <span data-i18n="releaseTask.logsTitle">任务日志</span>
+                    <textarea id="releaseTaskLogs" rows="8" readonly></textarea>
+                  </label>
                 </div>
               </div>
             </div>

@@ -177,15 +177,6 @@ type devPipelineRequest struct {
 	OutputDir   string `json:"outputDir"`
 }
 
-type devRolloutRequest struct {
-	PluginID       string `json:"pluginId"`
-	RolloutPercent int    `json:"rolloutPercent"`
-}
-
-type devRollbackRequest struct {
-	PluginID string `json:"pluginId"`
-}
-
 type devConfigResponse struct {
 	Enabled      bool     `json:"enabled"`
 	DefaultRoot  string   `json:"defaultRoot"`
@@ -267,15 +258,6 @@ type devPipelineResponse struct {
 	StartedAt   string            `json:"startedAt"`
 	FinishedAt  string            `json:"finishedAt"`
 	Steps       []devPipelineStep `json:"steps"`
-}
-
-type devRolloutResponse struct {
-	Operation      string `json:"operation"`
-	Status         string `json:"status"`
-	PluginID       string `json:"pluginId"`
-	RolloutPercent int    `json:"rolloutPercent"`
-	Persisted      bool   `json:"persisted"`
-	Message        string `json:"message,omitempty"`
 }
 
 type devValidationResult struct {
@@ -367,10 +349,17 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 		mux.HandleFunc("POST /v1/plugins/dev/pipeline", h.devPipeline)
 		mux.HandleFunc("POST /v1/plugins/dev/rollout", h.devRollout)
 		mux.HandleFunc("POST /v1/plugins/dev/rollback", h.devRollback)
+		mux.HandleFunc("GET /v1/plugins/dev/rollout-tasks", h.devListRolloutTasks)
+		mux.HandleFunc("GET /v1/plugins/dev/rollout-tasks/{taskId}", h.devGetRolloutTask)
+		mux.HandleFunc("GET /v1/plugins/dev/rollout-tasks/{taskId}/logs", h.devGetRolloutTaskLogs)
 		mux.HandleFunc("POST /v1/plugins/dev/release-orders", h.devCreateReleaseOrder)
 		mux.HandleFunc("GET /v1/plugins/dev/release-orders", h.devListReleaseOrders)
 		mux.HandleFunc("POST /v1/plugins/dev/release-orders/{orderId}/approve", h.devApproveReleaseOrder)
 		mux.HandleFunc("POST /v1/plugins/dev/release-orders/{orderId}/reject", h.devRejectReleaseOrder)
+		mux.HandleFunc("POST /v1/plugins/dev/release-orders/{orderId}/execute", h.devExecuteReleaseOrder)
+		mux.HandleFunc("GET /v1/plugins/dev/release-tasks", h.devListReleaseTasks)
+		mux.HandleFunc("GET /v1/plugins/dev/release-tasks/{taskId}", h.devGetReleaseTask)
+		mux.HandleFunc("GET /v1/plugins/dev/release-tasks/{taskId}/logs", h.devGetReleaseTaskLogs)
 		mux.HandleFunc("POST /v1/plugins/dev/scaffold", h.devScaffold)
 		mux.HandleFunc("POST /v1/plugins/dev/validate-all", h.devValidateAll)
 	}
@@ -1380,89 +1369,6 @@ func (h *PluginHandler) devPipeline(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *PluginHandler) devRollout(w http.ResponseWriter, r *http.Request) {
-	if !h.isSuperAdmin(r) {
-		apiv1.WriteMessage(w, http.StatusForbidden, "forbidden", "super_admin role required")
-		return
-	}
-
-	var req devRolloutRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
-		return
-	}
-	pluginID := strings.TrimSpace(strings.ToLower(req.PluginID))
-	if pluginID == "" {
-		apiv1.WriteError(w, http.StatusBadRequest, errors.New("pluginId is required"))
-		return
-	}
-	if req.RolloutPercent < 0 || req.RolloutPercent > 100 {
-		apiv1.WriteError(w, http.StatusBadRequest, errors.New("rolloutPercent must be in range [0,100]"))
-		return
-	}
-
-	persisted, msg, err := h.applyDevRollout(pluginID, req.RolloutPercent)
-	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	h.appendAudit(r, "dev_rollout", "plugin", pluginID, map[string]any{"rolloutPercent": req.RolloutPercent, "persisted": persisted})
-	apiv1.WriteJSON(w, http.StatusOK, devRolloutResponse{
-		Operation:      "rollout",
-		Status:         "ok",
-		PluginID:       pluginID,
-		RolloutPercent: req.RolloutPercent,
-		Persisted:      persisted,
-		Message:        msg,
-	})
-}
-
-func (h *PluginHandler) devRollback(w http.ResponseWriter, r *http.Request) {
-	if !h.isSuperAdmin(r) {
-		apiv1.WriteMessage(w, http.StatusForbidden, "forbidden", "super_admin role required")
-		return
-	}
-
-	var req devRollbackRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
-		return
-	}
-	pluginID := strings.TrimSpace(strings.ToLower(req.PluginID))
-	if pluginID == "" {
-		apiv1.WriteError(w, http.StatusBadRequest, errors.New("pluginId is required"))
-		return
-	}
-
-	h.devMu.Lock()
-	history := h.devRolloutHistory[pluginID]
-	if len(history) == 0 {
-		h.devMu.Unlock()
-		apiv1.WriteError(w, http.StatusBadRequest, errors.New("no rollback history for plugin"))
-		return
-	}
-	prev := history[len(history)-1]
-	h.devRolloutHistory[pluginID] = history[:len(history)-1]
-	h.devMu.Unlock()
-
-	persisted, msg, err := h.persistDevRollout(pluginID, prev)
-	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	h.appendAudit(r, "dev_rollback", "plugin", pluginID, map[string]any{"rolloutPercent": prev, "persisted": persisted})
-	apiv1.WriteJSON(w, http.StatusOK, devRolloutResponse{
-		Operation:      "rollback",
-		Status:         "ok",
-		PluginID:       pluginID,
-		RolloutPercent: prev,
-		Persisted:      persisted,
-		Message:        msg,
-	})
-}
-
 func (h *PluginHandler) devProjects(w http.ResponseWriter, r *http.Request) {
 	if !h.isSuperAdmin(r) {
 		apiv1.WriteMessage(w, http.StatusForbidden, "forbidden", "super_admin role required")
@@ -1823,70 +1729,6 @@ func (h *PluginHandler) resolveManifestPath(pluginsRoot, pluginID string) (plugi
 		return "", "", statErr
 	}
 	return pluginDir, manifestPath, nil
-}
-
-func (h *PluginHandler) applyDevRollout(pluginID string, percent int) (persisted bool, message string, err error) {
-	item, getErr := h.manager.Get(pluginID)
-	if getErr != nil {
-		return false, "", getErr
-	}
-
-	current := 100
-	if raw := strings.TrimSpace(item.ConfigJSON); raw != "" {
-		cfg := map[string]any{}
-		if jsonErr := json.Unmarshal([]byte(raw), &cfg); jsonErr == nil {
-			if v, ok := cfg["dev_rollout_percent"]; ok {
-				switch n := v.(type) {
-				case float64:
-					current = int(n)
-				case int:
-					current = n
-				}
-			}
-		}
-	}
-
-	h.devMu.Lock()
-	if h.devRolloutHistory == nil {
-		h.devRolloutHistory = make(map[string][]int)
-	}
-	h.devRolloutHistory[pluginID] = append(h.devRolloutHistory[pluginID], current)
-	h.devMu.Unlock()
-
-	persisted, message, err = h.persistDevRollout(pluginID, percent)
-	if err != nil {
-		return false, "", err
-	}
-	if message == "" {
-		message = "rollout updated"
-	}
-	return persisted, message, nil
-}
-
-func (h *PluginHandler) persistDevRollout(pluginID string, percent int) (bool, string, error) {
-	item, err := h.manager.Get(pluginID)
-	if err != nil {
-		return false, "", err
-	}
-
-	updater, ok := h.manager.(PluginConfigUpdater)
-	if !ok {
-		return false, "runtime config updater not available; rollout value kept in memory history only", nil
-	}
-
-	cfg := map[string]any{}
-	if raw := strings.TrimSpace(item.ConfigJSON); raw != "" {
-		if unmarshalErr := json.Unmarshal([]byte(raw), &cfg); unmarshalErr != nil {
-			return false, "", unmarshalErr
-		}
-	}
-	cfg["dev_rollout_percent"] = percent
-	cfg["dev_rollout_updated_at"] = time.Now().UTC().Format(time.RFC3339)
-
-	if saveErr := updater.SavePluginConfig(pluginID, cfg); saveErr != nil {
-		return false, "", saveErr
-	}
-	return true, "rollout persisted to plugin config", nil
 }
 
 func (h *PluginHandler) devRoots() ([]string, string) {

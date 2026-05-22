@@ -86,6 +86,13 @@
       "status.rolloutApplied": "灰度已应用",
       "status.rollbacking": "正在回滚...",
       "status.rollbackDone": "回滚完成",
+      "status.listingRolloutTasks": "正在查询灰度任务...",
+      "status.rolloutTasksListed": "灰度任务查询完成",
+      "status.gettingRolloutTask": "正在查询灰度任务详情...",
+      "status.rolloutTaskLoaded": "灰度任务详情查询完成",
+      "status.gettingRolloutTaskLogs": "正在查询灰度任务日志...",
+      "status.rolloutTaskLogsLoaded": "灰度任务日志查询完成",
+      "status.rolloutTaskIdRequired": "rollout taskId 不能为空",
       "status.creatingReleaseOrder": "正在创建发布单...",
       "status.releaseOrderCreated": "发布单创建成功",
       "status.listingReleaseOrders": "正在查询发布单...",
@@ -94,6 +101,16 @@
       "status.releaseOrderApproved": "发布单已审批通过",
       "status.rejectingReleaseOrder": "正在驳回发布单...",
       "status.releaseOrderRejected": "发布单已驳回",
+      "status.executingReleaseOrder": "正在执行发布...",
+      "status.releaseOrderExecuted": "发布任务已创建",
+      "status.listingReleaseTasks": "正在查询发布任务...",
+      "status.releaseTasksListed": "发布任务查询完成",
+      "status.gettingReleaseTask": "正在查询任务详情...",
+      "status.releaseTaskLoaded": "任务详情查询完成",
+      "status.gettingReleaseTaskLogs": "正在查询任务日志...",
+      "status.releaseTaskLogsLoaded": "任务日志查询完成",
+      "status.releaseExecutionRequired": "执行发布需要 targetEnv 与 artifactPath",
+      "status.releaseTaskIdRequired": "taskId 不能为空",
       "table.plugin": "插件",
       "table.root": "目录",
       "table.mode": "模式",
@@ -158,6 +175,7 @@
       "field.pipelinePluginId": "pipeline pluginId",
       "field.rolloutPluginId": "rollout pluginId",
       "field.rolloutPercent": "rolloutPercent (0-100)",
+      "field.rolloutTaskId": "rollout taskId",
       "action.loadManifest": "加载",
       "action.validateManifest": "校验",
       "action.saveManifest": "保存",
@@ -166,16 +184,47 @@
       "action.runPipeline": "执行流水线",
       "action.applyRollout": "应用灰度",
       "action.rollbackRollout": "回滚",
+      "action.listRolloutTasks": "查询灰度任务",
+      "action.getRolloutTask": "灰度任务详情",
+      "action.getRolloutTaskLogs": "灰度任务日志",
+      "action.filterFailed": "仅失败",
+      "action.filterAll": "全部",
+      "rolloutTask.panelTitle": "灰度任务追踪",
+      "rolloutTask.logsTitle": "灰度任务日志",
+      "rolloutTask.col.taskId": "taskId",
+      "rolloutTask.col.status": "status",
+      "rolloutTask.col.action": "action",
+      "rolloutTask.col.percent": "rolloutPercent",
+      "rolloutTask.col.failure": "failure",
+      "rolloutTask.col.createdAt": "createdAt",
+      "rolloutTask.filter.status": "任务状态",
+      "rolloutTask.filter.all": "全部",
       "pluginDev.releaseOrder.title": "发布审批流",
       "pluginDev.releaseOrder.hint": "创建发布单并执行审批/驳回，返回审计字段用于追踪。",
       "field.releasePluginId": "release pluginId",
       "field.releaseVersion": "releaseVersion",
       "field.releaseOrderId": "orderId",
+      "field.releaseTargetEnv": "targetEnv",
+      "field.releaseArtifactPath": "artifactPath",
+      "field.releaseTaskId": "taskId",
       "field.releaseChangelog": "changelog / review comment",
       "action.createReleaseOrder": "创建发布单",
       "action.listReleaseOrders": "查询发布单",
       "action.approveReleaseOrder": "审批通过",
       "action.rejectReleaseOrder": "审批驳回",
+      "action.executeReleaseOrder": "执行发布",
+      "action.listReleaseTasks": "查询任务",
+      "action.getReleaseTask": "任务详情",
+      "action.getReleaseTaskLogs": "任务日志",
+      "releaseTask.panelTitle": "发布任务追踪",
+      "releaseTask.logsTitle": "任务日志",
+      "releaseTask.col.taskId": "taskId",
+      "releaseTask.col.status": "status",
+      "releaseTask.col.targetEnv": "targetEnv",
+      "releaseTask.col.failure": "failure",
+      "releaseTask.col.createdAt": "createdAt",
+      "releaseTask.filter.status": "任务状态",
+      "releaseTask.filter.all": "全部",
       "apiTools.title": "API 工具",
       "apiTools.hint": "在插件页直接携带当前 token 发起请求。",
       "field.method": "method",
@@ -301,6 +350,13 @@
       "status.rolloutApplied": "Rollout applied",
       "status.rollbacking": "Rolling back...",
       "status.rollbackDone": "Rollback completed",
+      "status.listingRolloutTasks": "Listing rollout tasks...",
+      "status.rolloutTasksListed": "Rollout tasks loaded",
+      "status.gettingRolloutTask": "Loading rollout task detail...",
+      "status.rolloutTaskLoaded": "Rollout task detail loaded",
+      "status.gettingRolloutTaskLogs": "Loading rollout task logs...",
+      "status.rolloutTaskLogsLoaded": "Rollout task logs loaded",
+      "status.rolloutTaskIdRequired": "rollout taskId is required",
       "status.creatingReleaseOrder": "Creating release order...",
       "status.releaseOrderCreated": "Release order created",
       "status.listingReleaseOrders": "Listing release orders...",
@@ -309,6 +365,16 @@
       "status.releaseOrderApproved": "Release order approved",
       "status.rejectingReleaseOrder": "Rejecting release order...",
       "status.releaseOrderRejected": "Release order rejected",
+      "status.executingReleaseOrder": "Executing release order...",
+      "status.releaseOrderExecuted": "Release task created",
+      "status.listingReleaseTasks": "Listing release tasks...",
+      "status.releaseTasksListed": "Release tasks loaded",
+      "status.gettingReleaseTask": "Loading release task detail...",
+      "status.releaseTaskLoaded": "Release task detail loaded",
+      "status.gettingReleaseTaskLogs": "Loading release task logs...",
+      "status.releaseTaskLogsLoaded": "Release task logs loaded",
+      "status.releaseExecutionRequired": "targetEnv and artifactPath are required for release execution",
+      "status.releaseTaskIdRequired": "taskId is required",
       "table.plugin": "Plugin",
       "table.root": "Root",
       "table.mode": "Mode",
@@ -373,6 +439,7 @@
       "field.pipelinePluginId": "pipeline pluginId",
       "field.rolloutPluginId": "rollout pluginId",
       "field.rolloutPercent": "rolloutPercent (0-100)",
+      "field.rolloutTaskId": "rollout taskId",
       "action.loadManifest": "Load",
       "action.validateManifest": "Validate",
       "action.saveManifest": "Save",
@@ -381,16 +448,47 @@
       "action.runPipeline": "Run Pipeline",
       "action.applyRollout": "Apply Rollout",
       "action.rollbackRollout": "Rollback",
+      "action.listRolloutTasks": "List Rollout Tasks",
+      "action.getRolloutTask": "Rollout Task Detail",
+      "action.getRolloutTaskLogs": "Rollout Task Logs",
+      "action.filterFailed": "Failed Only",
+      "action.filterAll": "All",
+      "rolloutTask.panelTitle": "Rollout Task Tracker",
+      "rolloutTask.logsTitle": "Rollout Task Logs",
+      "rolloutTask.col.taskId": "taskId",
+      "rolloutTask.col.status": "status",
+      "rolloutTask.col.action": "action",
+      "rolloutTask.col.percent": "rolloutPercent",
+      "rolloutTask.col.failure": "failure",
+      "rolloutTask.col.createdAt": "createdAt",
+      "rolloutTask.filter.status": "Task Status",
+      "rolloutTask.filter.all": "All",
       "pluginDev.releaseOrder.title": "Release Approval Flow",
       "pluginDev.releaseOrder.hint": "Create release orders, then approve/reject with audit fields.",
       "field.releasePluginId": "release pluginId",
       "field.releaseVersion": "releaseVersion",
       "field.releaseOrderId": "orderId",
+      "field.releaseTargetEnv": "targetEnv",
+      "field.releaseArtifactPath": "artifactPath",
+      "field.releaseTaskId": "taskId",
       "field.releaseChangelog": "changelog / review comment",
       "action.createReleaseOrder": "Create Order",
       "action.listReleaseOrders": "List Orders",
       "action.approveReleaseOrder": "Approve",
       "action.rejectReleaseOrder": "Reject",
+      "action.executeReleaseOrder": "Execute Release",
+      "action.listReleaseTasks": "List Tasks",
+      "action.getReleaseTask": "Task Detail",
+      "action.getReleaseTaskLogs": "Task Logs",
+      "releaseTask.panelTitle": "Release Task Tracker",
+      "releaseTask.logsTitle": "Task Logs",
+      "releaseTask.col.taskId": "taskId",
+      "releaseTask.col.status": "status",
+      "releaseTask.col.targetEnv": "targetEnv",
+      "releaseTask.col.failure": "failure",
+      "releaseTask.col.createdAt": "createdAt",
+      "releaseTask.filter.status": "Task Status",
+      "releaseTask.filter.all": "All",
       "apiTools.title": "API Tools",
       "apiTools.hint": "Send authenticated requests from this plugin page using current login token.",
       "field.method": "method",
@@ -503,16 +601,37 @@
   const btnRunPipeline = document.getElementById("btnRunPipeline");
   const rolloutPluginIdEl = document.getElementById("rolloutPluginId");
   const rolloutPercentEl = document.getElementById("rolloutPercent");
+  const rolloutTaskIdEl = document.getElementById("rolloutTaskId");
   const btnApplyRollout = document.getElementById("btnApplyRollout");
   const btnRollbackRollout = document.getElementById("btnRollbackRollout");
+  const btnListRolloutTasks = document.getElementById("btnListRolloutTasks");
+  const btnGetRolloutTask = document.getElementById("btnGetRolloutTask");
+  const btnGetRolloutTaskLogs = document.getElementById("btnGetRolloutTaskLogs");
+  const btnRolloutTaskFilterFailed = document.getElementById("btnRolloutTaskFilterFailed");
+  const btnRolloutTaskFilterAll = document.getElementById("btnRolloutTaskFilterAll");
+  const rolloutTaskStatusFilterEl = document.getElementById("rolloutTaskStatusFilter");
+  const rolloutTaskRowsEl = document.getElementById("rolloutTaskRows");
+  const rolloutTaskLogsEl = document.getElementById("rolloutTaskLogs");
   const releasePluginIdEl = document.getElementById("releasePluginId");
   const releaseVersionEl = document.getElementById("releaseVersion");
   const releaseOrderIdEl = document.getElementById("releaseOrderId");
+  const releaseTargetEnvEl = document.getElementById("releaseTargetEnv");
+  const releaseArtifactPathEl = document.getElementById("releaseArtifactPath");
+  const releaseTaskIdEl = document.getElementById("releaseTaskId");
   const releaseChangelogEl = document.getElementById("releaseChangelog");
   const btnCreateReleaseOrder = document.getElementById("btnCreateReleaseOrder");
   const btnListReleaseOrders = document.getElementById("btnListReleaseOrders");
   const btnApproveReleaseOrder = document.getElementById("btnApproveReleaseOrder");
   const btnRejectReleaseOrder = document.getElementById("btnRejectReleaseOrder");
+  const btnExecuteReleaseOrder = document.getElementById("btnExecuteReleaseOrder");
+  const btnListReleaseTasks = document.getElementById("btnListReleaseTasks");
+  const btnGetReleaseTask = document.getElementById("btnGetReleaseTask");
+  const btnGetReleaseTaskLogs = document.getElementById("btnGetReleaseTaskLogs");
+  const btnReleaseTaskFilterFailed = document.getElementById("btnReleaseTaskFilterFailed");
+  const btnReleaseTaskFilterAll = document.getElementById("btnReleaseTaskFilterAll");
+  const releaseTaskStatusFilterEl = document.getElementById("releaseTaskStatusFilter");
+  const releaseTaskRowsEl = document.getElementById("releaseTaskRows");
+  const releaseTaskLogsEl = document.getElementById("releaseTaskLogs");
   const btnQuickHealth = document.getElementById("btnQuickHealth");
   const btnQuickMe = document.getElementById("btnQuickMe");
   const apiMethodEl = document.getElementById("apiMethod");
@@ -546,6 +665,12 @@
   let yamlSyncTimer = null;
   let formSyncTimer = null;
   let resultExpanded = false;
+  let releaseTaskItems = [];
+  let releaseTaskPollTimer = null;
+  let releaseTaskStatusFilter = "all";
+  let rolloutTaskItems = [];
+  let rolloutTaskPollTimer = null;
+  let rolloutTaskStatusFilter = "all";
   const PERMISSION_DESCRIPTIONS = {
     "oa.read": {
       "zh-CN": "读取 OA 应用相关数据",
@@ -1013,6 +1138,8 @@
     currentLocale = resolveLocale(rawLocale);
     applyI18nToDOM();
     renderProjects();
+    renderRolloutTaskRows();
+    renderReleaseTaskRows();
     updateSelectedPluginMeta(projectByActionID(selectedProjectKey));
     renderPermissionPresetOptions();
     renderPermissionCatalog();
@@ -1027,6 +1154,280 @@
       resultSummaryEl.textContent = String(msg || "");
       resultSummaryEl.classList.toggle("error", Boolean(isError));
     }
+  }
+
+  function releaseTaskStatusClass(status) {
+    const normalized = String(status || "").trim().toLowerCase();
+    if (normalized === "pending" || normalized === "running" || normalized === "success" || normalized === "failed" || normalized === "cancelled") {
+      return normalized;
+    }
+    return "cancelled";
+  }
+
+  function releaseTaskPriority(status) {
+    const normalized = String(status || "").trim().toLowerCase();
+    if (normalized === "failed") {
+      return 0;
+    }
+    if (normalized === "running") {
+      return 1;
+    }
+    if (normalized === "pending") {
+      return 2;
+    }
+    if (normalized === "success") {
+      return 3;
+    }
+    if (normalized === "cancelled") {
+      return 4;
+    }
+    return 5;
+  }
+
+  function getVisibleTaskItems(sourceItems, taskStatusFilterValue) {
+    const source = Array.isArray(sourceItems) ? sourceItems.slice() : [];
+    const normalizedFilter = String(taskStatusFilterValue || "all").trim().toLowerCase() || "all";
+    const filtered = source.filter(function (item) {
+      const status = String((item && item.taskStatus) || "").trim().toLowerCase();
+      if (normalizedFilter === "all") {
+        return true;
+      }
+      return status === normalizedFilter;
+    });
+    filtered.sort(function (left, right) {
+      const leftStatus = String((left && left.taskStatus) || "").trim().toLowerCase();
+      const rightStatus = String((right && right.taskStatus) || "").trim().toLowerCase();
+      const leftPriority = releaseTaskPriority(leftStatus);
+      const rightPriority = releaseTaskPriority(rightStatus);
+      if (leftPriority !== rightPriority) {
+        return leftPriority - rightPriority;
+      }
+      const leftAt = Date.parse(String((left && left.createdAt) || ""));
+      const rightAt = Date.parse(String((right && right.createdAt) || ""));
+      const leftTime = Number.isFinite(leftAt) ? leftAt : 0;
+      const rightTime = Number.isFinite(rightAt) ? rightAt : 0;
+      return rightTime - leftTime;
+    });
+    return filtered;
+  }
+
+  function formatTaskLogs(logs) {
+    if (!Array.isArray(logs) || logs.length === 0) {
+      return "";
+    }
+    return logs.map(function (item) {
+      const ts = String((item && item.timestamp) || "").trim();
+      const level = String((item && item.level) || "").trim();
+      const step = String((item && item.step) || "").trim();
+      const msg = String((item && item.message) || "").trim();
+      const stepPrefix = step ? ("[" + step + "] ") : "";
+      return ts + " [" + level + "] " + stepPrefix + msg;
+    }).join("\n");
+  }
+
+  function isTerminalTaskStatus(status) {
+    const normalized = String(status || "").trim().toLowerCase();
+    return normalized === "success" || normalized === "failed" || normalized === "cancelled";
+  }
+
+  function setRolloutTaskStatusFilter(status) {
+    rolloutTaskStatusFilter = String(status || "all").trim().toLowerCase() || "all";
+    if (rolloutTaskStatusFilterEl) {
+      rolloutTaskStatusFilterEl.value = rolloutTaskStatusFilter;
+    }
+    if (btnRolloutTaskFilterFailed) {
+      btnRolloutTaskFilterFailed.classList.toggle("active", rolloutTaskStatusFilter === "failed");
+    }
+    if (btnRolloutTaskFilterAll) {
+      btnRolloutTaskFilterAll.classList.toggle("active", rolloutTaskStatusFilter === "all");
+    }
+    renderRolloutTaskRows();
+  }
+
+  function setReleaseTaskStatusFilter(status) {
+    releaseTaskStatusFilter = String(status || "all").trim().toLowerCase() || "all";
+    if (releaseTaskStatusFilterEl) {
+      releaseTaskStatusFilterEl.value = releaseTaskStatusFilter;
+    }
+    if (btnReleaseTaskFilterFailed) {
+      btnReleaseTaskFilterFailed.classList.toggle("active", releaseTaskStatusFilter === "failed");
+    }
+    if (btnReleaseTaskFilterAll) {
+      btnReleaseTaskFilterAll.classList.toggle("active", releaseTaskStatusFilter === "all");
+    }
+    renderReleaseTaskRows();
+  }
+
+  function getVisibleReleaseTaskItems() {
+    return getVisibleTaskItems(releaseTaskItems, releaseTaskStatusFilter);
+  }
+
+  function stopReleaseTaskPolling() {
+    if (releaseTaskPollTimer) {
+      clearInterval(releaseTaskPollTimer);
+      releaseTaskPollTimer = null;
+    }
+  }
+
+  function getVisibleRolloutTaskItems() {
+    return getVisibleTaskItems(rolloutTaskItems, rolloutTaskStatusFilter);
+  }
+
+  function stopRolloutTaskPolling() {
+    if (rolloutTaskPollTimer) {
+      clearInterval(rolloutTaskPollTimer);
+      rolloutTaskPollTimer = null;
+    }
+  }
+
+  function renderTaskRows(options) {
+    const tbodyEl = options && options.tbodyEl ? options.tbodyEl : null;
+    const items = options && Array.isArray(options.items) ? options.items : [];
+    const emptyColspan = Number((options && options.emptyColspan) || 0);
+    const renderRow = options && typeof options.renderRow === "function" ? options.renderRow : null;
+    if (!tbodyEl || !renderRow || emptyColspan <= 0) {
+      return;
+    }
+    if (items.length === 0) {
+      tbodyEl.innerHTML = "<tr><td colspan=\"" + String(emptyColspan) + "\" class=\"placeholder\">" + escapeHtml(t("common.empty")) + "</td></tr>";
+      return;
+    }
+    tbodyEl.innerHTML = items.map(function (item) {
+      return renderRow(item);
+    }).join("");
+  }
+
+  function startTaskPolling(taskId, options) {
+    const normalizedTaskID = String(taskId || "").trim();
+    if (!normalizedTaskID || !options || typeof options.stop !== "function") {
+      return;
+    }
+    options.stop();
+    let attempts = 0;
+    const timer = setInterval(async function () {
+      attempts += 1;
+      try {
+        const task = await options.fetchTask(normalizedTaskID);
+        if (task) {
+          options.applyTask(task);
+          const status = String(task.taskStatus || "").trim().toLowerCase();
+          if (isTerminalTaskStatus(status)) {
+            options.stop();
+          }
+        }
+      } catch (err) {
+        options.stop();
+      }
+      if (attempts >= 20) {
+        options.stop();
+      }
+    }, 1500);
+    options.setTimer(timer);
+  }
+
+  function renderRolloutTaskRows() {
+    const items = getVisibleRolloutTaskItems();
+    renderTaskRows({
+      tbodyEl: rolloutTaskRowsEl,
+      items: items,
+      emptyColspan: 6,
+      renderRow: function (item) {
+      const taskId = String((item && item.taskId) || "").trim();
+      const status = String((item && item.taskStatus) || "").trim();
+      const action = String((item && item.action) || "-").trim();
+      const percent = Number((item && item.rolloutPercent) || 0);
+      const failure = String((item && item.failureReason) || "").trim();
+      const createdAt = String((item && item.createdAt) || "-").trim();
+      return "<tr data-task-id=\"" + escapeHtml(taskId) + "\">"
+        + "<td>" + escapeHtml(taskId || "-") + "</td>"
+        + "<td><span class=\"task-status-tag " + releaseTaskStatusClass(status) + "\">" + escapeHtml(status || "-") + "</span></td>"
+        + "<td>" + escapeHtml(action || "-") + "</td>"
+        + "<td>" + escapeHtml(String(percent)) + "</td>"
+        + "<td>" + escapeHtml(failure || "-") + "</td>"
+        + "<td>" + escapeHtml(createdAt || "-") + "</td>"
+        + "</tr>";
+      }
+    });
+  }
+
+  function renderRolloutTaskLogs(logs) {
+    if (!rolloutTaskLogsEl) {
+      return;
+    }
+    rolloutTaskLogsEl.value = formatTaskLogs(logs);
+  }
+
+  function startRolloutTaskPolling(taskId) {
+    startTaskPolling(taskId, {
+      stop: stopRolloutTaskPolling,
+      setTimer: function (timer) {
+        rolloutTaskPollTimer = timer;
+      },
+      fetchTask: async function (normalizedTaskID) {
+        const payload = await callAPIGet("/skoll/v1/plugins/dev/rollout-tasks/" + encodeURIComponent(normalizedTaskID));
+        const data = payload && payload.data ? payload.data : payload;
+        return data && data.task ? data.task : null;
+      },
+      applyTask: function (task) {
+        rolloutTaskItems = [task];
+        renderRolloutTaskRows();
+        if (Array.isArray(task.logs)) {
+          renderRolloutTaskLogs(task.logs);
+        }
+      }
+    });
+  }
+
+  function renderReleaseTaskRows() {
+    const items = getVisibleReleaseTaskItems();
+    renderTaskRows({
+      tbodyEl: releaseTaskRowsEl,
+      items: items,
+      emptyColspan: 5,
+      renderRow: function (item) {
+      const taskId = String((item && item.taskId) || "").trim();
+      const status = String((item && item.taskStatus) || "").trim();
+      const targetEnv = String((item && item.targetEnv) || "-").trim();
+      const failure = [String((item && item.failureStep) || "").trim(), String((item && item.failureReason) || "").trim()].filter(Boolean).join(": ");
+      const createdAt = String((item && item.createdAt) || "-").trim();
+      return "<tr data-task-id=\"" + escapeHtml(taskId) + "\">"
+        + "<td>" + escapeHtml(taskId || "-") + "</td>"
+        + "<td><span class=\"task-status-tag " + releaseTaskStatusClass(status) + "\">" + escapeHtml(status || "-") + "</span></td>"
+        + "<td>" + escapeHtml(targetEnv || "-") + "</td>"
+        + "<td>" + escapeHtml(failure || "-") + "</td>"
+        + "<td>" + escapeHtml(createdAt || "-") + "</td>"
+        + "</tr>";
+      }
+    });
+  }
+
+  function renderReleaseTaskLogs(logs) {
+    if (!releaseTaskLogsEl) {
+      return;
+    }
+    releaseTaskLogsEl.value = formatTaskLogs(logs);
+  }
+
+  function startReleaseTaskPolling(taskId) {
+    startTaskPolling(taskId, {
+      stop: stopReleaseTaskPolling,
+      setTimer: function (timer) {
+        releaseTaskPollTimer = timer;
+      },
+      fetchTask: async function (normalizedTaskID) {
+        const query = "?pluginsRoot=" + encodeURIComponent((rootEl.value || "").trim());
+        const payload = await callAPIGet("/skoll/v1/plugins/dev/release-tasks/" + encodeURIComponent(normalizedTaskID) + query);
+        const data = payload && payload.data ? payload.data : payload;
+        return data && data.task ? data.task : null;
+      },
+      applyTask: function (task) {
+        releaseTaskItems = [task];
+        renderReleaseTaskRows();
+        if (Array.isArray(task.logs)) {
+          renderReleaseTaskLogs(task.logs);
+        }
+      }
+    });
   }
 
   function setManifestDirty(nextDirty) {
@@ -1117,10 +1518,10 @@
     return projectItems.filter(function (item) {
       const pluginId = String(item.pluginId || "").toLowerCase();
       const localizedName = String(resolveProjectName(item) || "").toLowerCase();
-      const fallbackName = String(item.name || "").toLowerCase();
+      const secondaryName = String(item.name || "").toLowerCase();
       const status = String(item.status || "").toLowerCase();
       const keyword = projectSearchText.toLowerCase();
-      const hitSearch = !keyword || pluginId.indexOf(keyword) >= 0 || localizedName.indexOf(keyword) >= 0 || fallbackName.indexOf(keyword) >= 0;
+      const hitSearch = !keyword || pluginId.indexOf(keyword) >= 0 || localizedName.indexOf(keyword) >= 0 || secondaryName.indexOf(keyword) >= 0;
       const hitStatus = projectStatusFilter === "all" || status === projectStatusFilter;
       return hitSearch && hitStatus;
     });
@@ -2150,6 +2551,15 @@
         pluginsRoot: (rootEl.value || "").trim(),
         pluginId: pluginId
       });
+      const data = payload && payload.data ? payload.data : payload;
+      if (releaseArtifactPathEl && data && Array.isArray(data.steps)) {
+        const packageStep = data.steps.find(function (step) {
+          return step && step.name === "package" && step.artifactPath;
+        });
+        if (packageStep && packageStep.artifactPath) {
+          releaseArtifactPathEl.value = String(packageStep.artifactPath);
+        }
+      }
       setStatus(t("status.pipelineDone"), false);
       setFlowStepState("release", "completed");
       resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
@@ -2172,6 +2582,16 @@
         pluginId: pluginId,
         rolloutPercent: rolloutPercent
       });
+      const data = payload && payload.data ? payload.data : payload;
+      applyTaskActionResult(data, {
+        taskIdEl: rolloutTaskIdEl,
+        setItems: function (tasks) {
+          rolloutTaskItems = tasks;
+        },
+        renderRows: renderRolloutTaskRows,
+        renderLogs: renderRolloutTaskLogs,
+        startPolling: startRolloutTaskPolling
+      });
       setStatus(t("status.rolloutApplied"), false);
       setFlowStepState("release", "completed");
       resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
@@ -2192,11 +2612,144 @@
       const payload = await callAPI("/skoll/v1/plugins/dev/rollback", {
         pluginId: pluginId
       });
+      const data = payload && payload.data ? payload.data : payload;
+      applyTaskActionResult(data, {
+        taskIdEl: rolloutTaskIdEl,
+        setItems: function (tasks) {
+          rolloutTaskItems = tasks;
+        },
+        renderRows: renderRolloutTaskRows,
+        renderLogs: renderRolloutTaskLogs,
+        startPolling: startRolloutTaskPolling
+      });
       setStatus(t("status.rollbackDone"), false);
       setFlowStepState("release", "completed");
       resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
     } catch (err) {
       setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/rollback"), true);
+    }
+  }
+
+  function applyTaskListResult(data, taskView) {
+    const tasks = Array.isArray(data && data.tasks) ? data.tasks : [];
+    if (taskView && typeof taskView.setItems === "function") {
+      taskView.setItems(tasks);
+    }
+    if (taskView && typeof taskView.renderRows === "function") {
+      taskView.renderRows();
+    }
+    if (taskView && taskView.taskIdEl && tasks.length > 0) {
+      taskView.taskIdEl.value = String(tasks[0].taskId || "");
+      if (typeof taskView.renderLogs === "function" && Array.isArray(tasks[0].logs)) {
+        taskView.renderLogs(tasks[0].logs);
+      }
+    }
+  }
+
+  function applyTaskDetailResult(data, taskView) {
+    if (!data || !data.task) {
+      return;
+    }
+    if (taskView && typeof taskView.setItems === "function") {
+      taskView.setItems([data.task]);
+    }
+    if (taskView && typeof taskView.renderRows === "function") {
+      taskView.renderRows();
+    }
+    if (taskView && typeof taskView.renderLogs === "function" && Array.isArray(data.task.logs)) {
+      taskView.renderLogs(data.task.logs);
+    }
+  }
+
+  function applyTaskLogsResult(data, renderLogs) {
+    if (typeof renderLogs === "function" && data && Array.isArray(data.logs)) {
+      renderLogs(data.logs);
+    }
+  }
+
+  function applyTaskActionResult(data, taskView) {
+    if (!data || !data.task) {
+      return;
+    }
+    const task = data.task;
+    if (taskView && taskView.taskIdEl && task && task.taskId) {
+      taskView.taskIdEl.value = String(task.taskId);
+    }
+    if (taskView && typeof taskView.setItems === "function") {
+      taskView.setItems([task]);
+    }
+    if (taskView && typeof taskView.renderRows === "function") {
+      taskView.renderRows();
+    }
+    if (taskView && typeof taskView.renderLogs === "function" && Array.isArray(task.logs)) {
+      taskView.renderLogs(task.logs);
+    }
+    if (taskView && typeof taskView.startPolling === "function") {
+      taskView.startPolling(String(task.taskId || ""));
+    }
+  }
+
+  async function listRolloutTasks() {
+    const pluginId = String((rolloutPluginIdEl && rolloutPluginIdEl.value) || "").trim() || selectedPluginId();
+    setStatus(t("status.listingRolloutTasks"), false);
+    try {
+      const query = "?pluginId=" + encodeURIComponent(pluginId);
+      const payload = await callAPIGet("/skoll/v1/plugins/dev/rollout-tasks" + query);
+      const data = payload && payload.data ? payload.data : payload;
+      applyTaskListResult(data, {
+        setItems: function (tasks) {
+          rolloutTaskItems = tasks;
+        },
+        renderRows: renderRolloutTaskRows,
+        taskIdEl: rolloutTaskIdEl,
+        renderLogs: renderRolloutTaskLogs
+      });
+      setStatus(t("status.rolloutTasksListed"), false);
+      resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
+    } catch (err) {
+      setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/rollout-tasks"), true);
+    }
+  }
+
+  async function getRolloutTask() {
+    const taskId = String((rolloutTaskIdEl && rolloutTaskIdEl.value) || "").trim();
+    if (!taskId) {
+      setStatus(t("status.rolloutTaskIdRequired"), true);
+      return;
+    }
+    setStatus(t("status.gettingRolloutTask"), false);
+    try {
+      const payload = await callAPIGet("/skoll/v1/plugins/dev/rollout-tasks/" + encodeURIComponent(taskId));
+      const data = payload && payload.data ? payload.data : payload;
+      applyTaskDetailResult(data, {
+        setItems: function (tasks) {
+          rolloutTaskItems = tasks;
+        },
+        renderRows: renderRolloutTaskRows,
+        renderLogs: renderRolloutTaskLogs
+      });
+      setStatus(t("status.rolloutTaskLoaded"), false);
+      resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
+    } catch (err) {
+      setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/rollout-tasks"), true);
+    }
+  }
+
+  async function getRolloutTaskLogs() {
+    const taskId = String((rolloutTaskIdEl && rolloutTaskIdEl.value) || "").trim();
+    if (!taskId) {
+      setStatus(t("status.rolloutTaskIdRequired"), true);
+      return;
+    }
+    setStatus(t("status.gettingRolloutTaskLogs"), false);
+    try {
+      const payload = await callAPIGet("/skoll/v1/plugins/dev/rollout-tasks/" + encodeURIComponent(taskId) + "/logs");
+      const data = payload && payload.data ? payload.data : payload;
+      applyTaskLogsResult(data, renderRolloutTaskLogs);
+      setStatus(t("status.rolloutTaskLogsLoaded"), false);
+      resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
+    } catch (err) {
+      setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/rollout-tasks"), true);
     }
   }
 
@@ -2262,6 +2815,10 @@
         pluginId: pluginId,
         comment: comment
       });
+      const data = payload && payload.data ? payload.data : payload;
+      if (releaseOrderIdEl && data && data.order && data.order.orderId) {
+        releaseOrderIdEl.value = String(data.order.orderId);
+      }
       setStatus(t("status.releaseOrderApproved"), false);
       setFlowStepState("release", "completed");
       resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
@@ -2286,12 +2843,125 @@
         pluginId: pluginId,
         comment: comment
       });
+      const data = payload && payload.data ? payload.data : payload;
+      if (releaseOrderIdEl && data && data.order && data.order.orderId) {
+        releaseOrderIdEl.value = String(data.order.orderId);
+      }
       setStatus(t("status.releaseOrderRejected"), false);
       setFlowStepState("release", "completed");
       resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
     } catch (err) {
       setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/release-orders"), true);
     }
+  }
+
+  async function executeReleaseOrder() {
+  const pluginId = selectedReleasePluginId();
+  const orderId = String((releaseOrderIdEl && releaseOrderIdEl.value) || "").trim();
+  const targetEnv = String((releaseTargetEnvEl && releaseTargetEnvEl.value) || "").trim();
+  const artifactPath = String((releaseArtifactPathEl && releaseArtifactPathEl.value) || "").trim();
+  if (!pluginId || !orderId) {
+    setStatus(t("status.requirePluginIdAndName"), true);
+    return;
+  }
+  if (!targetEnv || !artifactPath) {
+    setStatus(t("status.releaseExecutionRequired"), true);
+    return;
+  }
+  setStatus(t("status.executingReleaseOrder"), false);
+  setFlowStepState("release", "in-progress");
+  try {
+    const payload = await callAPI("/skoll/v1/plugins/dev/release-orders/" + encodeURIComponent(orderId) + "/execute", {
+      pluginsRoot: (rootEl.value || "").trim(),
+      pluginId: pluginId,
+      targetEnv: targetEnv,
+      artifactPath: artifactPath
+    });
+    const data = payload && payload.data ? payload.data : payload;
+    applyTaskActionResult(data, {
+      taskIdEl: releaseTaskIdEl,
+      setItems: function (tasks) {
+        releaseTaskItems = tasks;
+      },
+      renderRows: renderReleaseTaskRows,
+      renderLogs: renderReleaseTaskLogs,
+      startPolling: startReleaseTaskPolling
+    });
+    setStatus(t("status.releaseOrderExecuted"), false);
+    setFlowStepState("release", "completed");
+    resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
+  } catch (err) {
+    setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/release-orders"), true);
+  }
+  }
+
+  async function listReleaseTasks() {
+  const pluginId = selectedReleasePluginId();
+  const orderId = String((releaseOrderIdEl && releaseOrderIdEl.value) || "").trim();
+  setStatus(t("status.listingReleaseTasks"), false);
+  try {
+    const query = "?pluginsRoot=" + encodeURIComponent((rootEl.value || "").trim())
+      + "&pluginId=" + encodeURIComponent(pluginId)
+      + "&orderId=" + encodeURIComponent(orderId);
+    const payload = await callAPIGet("/skoll/v1/plugins/dev/release-tasks" + query);
+    const data = payload && payload.data ? payload.data : payload;
+    applyTaskListResult(data, {
+      setItems: function (tasks) {
+        releaseTaskItems = tasks;
+      },
+      renderRows: renderReleaseTaskRows,
+      taskIdEl: releaseTaskIdEl,
+      renderLogs: renderReleaseTaskLogs
+    });
+    setStatus(t("status.releaseTasksListed"), false);
+    resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
+  } catch (err) {
+    setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/release-tasks"), true);
+  }
+  }
+
+  async function getReleaseTask() {
+  const taskId = String((releaseTaskIdEl && releaseTaskIdEl.value) || "").trim();
+  if (!taskId) {
+    setStatus(t("status.releaseTaskIdRequired"), true);
+    return;
+  }
+  setStatus(t("status.gettingReleaseTask"), false);
+  try {
+    const query = "?pluginsRoot=" + encodeURIComponent((rootEl.value || "").trim());
+    const payload = await callAPIGet("/skoll/v1/plugins/dev/release-tasks/" + encodeURIComponent(taskId) + query);
+    const data = payload && payload.data ? payload.data : payload;
+    applyTaskDetailResult(data, {
+      setItems: function (tasks) {
+        releaseTaskItems = tasks;
+      },
+      renderRows: renderReleaseTaskRows,
+      renderLogs: renderReleaseTaskLogs
+    });
+    setStatus(t("status.releaseTaskLoaded"), false);
+    resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
+  } catch (err) {
+    setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/release-tasks"), true);
+  }
+  }
+
+  async function getReleaseTaskLogs() {
+  const taskId = String((releaseTaskIdEl && releaseTaskIdEl.value) || "").trim();
+  if (!taskId) {
+    setStatus(t("status.releaseTaskIdRequired"), true);
+    return;
+  }
+  setStatus(t("status.gettingReleaseTaskLogs"), false);
+  try {
+    const query = "?pluginsRoot=" + encodeURIComponent((rootEl.value || "").trim());
+    const payload = await callAPIGet("/skoll/v1/plugins/dev/release-tasks/" + encodeURIComponent(taskId) + "/logs" + query);
+    const data = payload && payload.data ? payload.data : payload;
+    applyTaskLogsResult(data, renderReleaseTaskLogs);
+    setStatus(t("status.releaseTaskLogsLoaded"), false);
+    resultEl.textContent = JSON.stringify(payload.data || payload, null, 2);
+  } catch (err) {
+    setStatus(formatAPIError(err, "/skoll/v1/plugins/dev/release-tasks"), true);
+  }
   }
 
   function activateModule(moduleId) {
@@ -2419,6 +3089,48 @@
       void rollbackRollout();
     });
   }
+  if (btnListRolloutTasks) {
+    btnListRolloutTasks.addEventListener("click", function () {
+      void listRolloutTasks();
+    });
+  }
+  if (btnGetRolloutTask) {
+    btnGetRolloutTask.addEventListener("click", function () {
+      void getRolloutTask();
+    });
+  }
+  if (btnGetRolloutTaskLogs) {
+    btnGetRolloutTaskLogs.addEventListener("click", function () {
+      void getRolloutTaskLogs();
+    });
+  }
+  if (rolloutTaskRowsEl) {
+    rolloutTaskRowsEl.addEventListener("click", function (event) {
+      const row = event.target && event.target.closest ? event.target.closest("tr[data-task-id]") : null;
+      if (!row) {
+        return;
+      }
+      const taskId = String(row.getAttribute("data-task-id") || "").trim();
+      if (rolloutTaskIdEl) {
+        rolloutTaskIdEl.value = taskId;
+      }
+    });
+  }
+  if (rolloutTaskStatusFilterEl) {
+    rolloutTaskStatusFilterEl.addEventListener("change", function () {
+      setRolloutTaskStatusFilter(rolloutTaskStatusFilterEl.value || "all");
+    });
+  }
+  if (btnRolloutTaskFilterFailed) {
+    btnRolloutTaskFilterFailed.addEventListener("click", function () {
+      setRolloutTaskStatusFilter("failed");
+    });
+  }
+  if (btnRolloutTaskFilterAll) {
+    btnRolloutTaskFilterAll.addEventListener("click", function () {
+      setRolloutTaskStatusFilter("all");
+    });
+  }
   if (btnCreateReleaseOrder) {
     btnCreateReleaseOrder.addEventListener("click", function () {
       void createReleaseOrder();
@@ -2444,6 +3156,55 @@
       void rejectReleaseOrder();
     });
   }
+  if (btnExecuteReleaseOrder) {
+    btnExecuteReleaseOrder.addEventListener("click", function () {
+      void executeReleaseOrder();
+    });
+  }
+  if (btnListReleaseTasks) {
+    btnListReleaseTasks.addEventListener("click", function () {
+      void listReleaseTasks();
+    });
+  }
+  if (btnGetReleaseTask) {
+    btnGetReleaseTask.addEventListener("click", function () {
+      void getReleaseTask();
+    });
+  }
+  if (btnGetReleaseTaskLogs) {
+    btnGetReleaseTaskLogs.addEventListener("click", function () {
+      void getReleaseTaskLogs();
+    });
+  }
+  if (releaseTaskRowsEl) {
+    releaseTaskRowsEl.addEventListener("click", function (event) {
+      const row = event.target && event.target.closest ? event.target.closest("tr[data-task-id]") : null;
+      if (!row) {
+        return;
+      }
+      const taskId = String(row.getAttribute("data-task-id") || "").trim();
+      if (releaseTaskIdEl) {
+        releaseTaskIdEl.value = taskId;
+      }
+    });
+  }
+  if (releaseTaskStatusFilterEl) {
+    releaseTaskStatusFilterEl.addEventListener("change", function () {
+      setReleaseTaskStatusFilter(releaseTaskStatusFilterEl.value || "all");
+    });
+  }
+  if (btnReleaseTaskFilterFailed) {
+    btnReleaseTaskFilterFailed.addEventListener("click", function () {
+      setReleaseTaskStatusFilter("failed");
+    });
+  }
+  if (btnReleaseTaskFilterAll) {
+    btnReleaseTaskFilterAll.addEventListener("click", function () {
+      setReleaseTaskStatusFilter("all");
+    });
+  }
+  setRolloutTaskStatusFilter(rolloutTaskStatusFilter);
+  setReleaseTaskStatusFilter(releaseTaskStatusFilter);
   if (btnSelectedEditManifest) {
     btnSelectedEditManifest.addEventListener("click", function () {
       const item = projectByActionID(selectedProjectKey) || (projectItems.length > 0 ? projectItems[0] : null);
