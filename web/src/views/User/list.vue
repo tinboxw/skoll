@@ -193,8 +193,8 @@ void loadRoles();
 		<p v-if="opSuccess" class="success">{{ opSuccess }}</p>
 		<div class="toolbar">
 			<div class="toolbar-actions">
-				<router-link class="button-link" :to="{ path: '/user/add', query: { returnTo } }">{{ t("user.create") }}</router-link>
-				<router-link class="button-link" :to="{ path: '/user/batch-add', query: { returnTo } }">{{ t("user.batchCreate") }}</router-link>
+				<router-link class="button-link" :to="{ name: 'user-add', query: { returnTo } }">{{ t("user.create") }}</router-link>
+				<router-link class="button-link" :to="{ name: 'user-batch-add', query: { returnTo } }">{{ t("user.batchCreate") }}</router-link>
 				<button type="button" :disabled="loading || operating" @click="loadUsers(page)">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
 				<select v-model="selectedRoleID" :disabled="loading || operating || roles.length === 0">
 					<option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }} ({{ role.key || role.id }})</option>
@@ -230,7 +230,7 @@ void loadRoles();
 					<td>{{ item.email }}</td>
 					<td>{{ item.status || "-" }}</td>
 					<td class="actions">
-						<router-link :to="{ path: `/user/${item.id}/edit`, query: { returnTo } }">{{ t("common.edit") }}</router-link>
+						<router-link :to="{ name: 'user-edit', params: { id: item.id }, query: { returnTo } }">{{ t("common.edit") }}</router-link>
 						<button type="button" :disabled="operating || loading" @click="deleteUser(item.id)">{{ t("common.delete") }}</button>
 					</td>
 				</tr>

@@ -5,12 +5,15 @@ import { useRouter } from "vue-router";
 import { useI18n } from "../../i18n";
 import { syncBackendPlugins } from "../../plugins";
 import { clearDefaultHomePath, createDefaultHomeTarget, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePlugin, resolvePluginEntryPath, setDefaultHomeTarget, usePluginStore } from "../../stores/plugins";
+import { useTabsStore } from "../../stores/tabs";
 import { ApiError, type ApiResponse } from "../../utils/api";
+import { API_BASE_PREFIX } from "../../utils/api-base-prefix";
 import { apiDelete, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 const router = useRouter();
 const pluginStore = usePluginStore();
+const tabsStore = useTabsStore();
 const { t } = useI18n();
 
 const loading = ref(false);
@@ -245,11 +248,57 @@ function canVisit(pluginID: string): boolean {
 	if (!plugin || plugin.enabled === false) {
 		return false;
 	}
+	if (pluginOpenMode(pluginID) === "standalone") {
+		return plugin.uiMode !== "backend_only";
+	}
 	return pluginEntryPath(pluginID) !== "";
 }
 
+function pluginOpenMode(pluginID: string): "integrated" | "standalone" {
+	const plugin = getPluginRecord(pluginID);
+	if (plugin?.uiOpenMode === "standalone") {
+		return "standalone";
+	}
+	return "integrated";
+}
+
+function pluginStandalonePageURL(pluginID: string): string {
+	const rawLocale = (localStorage.getItem("skoll.ui.locale") || "").trim();
+	const locale = rawLocale === "en-US" || rawLocale === "zh-CN" ? rawLocale : "zh-CN";
+	return `${window.location.origin}${API_BASE_PREFIX}/v1/plugins/${encodeURIComponent(pluginID)}/page?locale=${encodeURIComponent(locale)}`;
+}
+
+function pluginTabMode(pluginID: string): "optional" | "fixed" | "disabled" {
+	const plugin = getPluginRecord(pluginID);
+	if (plugin?.uiTabMode === "fixed") {
+		return "fixed";
+	}
+	if (plugin?.uiTabMode === "disabled") {
+		return "disabled";
+	}
+	return "optional";
+}
+
 function canSetDefault(pluginID: string): boolean {
-	return canVisit(pluginID);
+	return canVisit(pluginID) && pluginOpenMode(pluginID) !== "standalone";
+}
+
+function canTogglePin(pluginID: string): boolean {
+	return canVisit(pluginID) && pluginTabMode(pluginID) === "optional";
+}
+
+function isPinned(pluginID: string): boolean {
+	const path = pluginEntryPath(pluginID);
+	if (!path) {
+		return false;
+	}
+	if (pluginTabMode(pluginID) === "disabled") {
+		return false;
+	}
+	if (pluginTabMode(pluginID) === "fixed") {
+		return true;
+	}
+	return tabsStore.isPinned(path);
 }
 
 function canVisitApp(appId: string, plugins: Array<{ id: string; enabled?: boolean }>): boolean {
@@ -288,11 +337,50 @@ function canUninstall(pluginID: string): boolean {
 }
 
 async function visitPlugin(pluginID: string): Promise<void> {
+	if (pluginOpenMode(pluginID) === "standalone") {
+		window.open(pluginStandalonePageURL(pluginID), "_blank", "noopener,noreferrer");
+		return;
+	}
 	const entryPath = pluginEntryPath(pluginID);
 	if (!entryPath) {
 		return;
 	}
+	if (pluginTabMode(pluginID) === "fixed") {
+		const plugin = getPluginRecord(pluginID);
+		if (plugin) {
+			tabsStore.pinPluginTab({
+				id: plugin.id,
+				label: plugin.name,
+				path: entryPath
+			});
+		}
+	}
 	await router.push(entryPath);
+}
+
+function togglePinTab(pluginID: string): void {
+	const plugin = getPluginRecord(pluginID);
+	if (!plugin) {
+		return;
+	}
+	if (pluginTabMode(pluginID) !== "optional") {
+		return;
+	}
+	const entryPath = pluginEntryPath(pluginID);
+	if (!entryPath) {
+		return;
+	}
+	if (tabsStore.isPinned(entryPath)) {
+		tabsStore.unpinByPath(entryPath);
+		info.value = t("plugin.tab.unpinned");
+		return;
+	}
+	tabsStore.pinPluginTab({
+		id: plugin.id,
+		label: plugin.name,
+		path: entryPath
+	});
+	info.value = t("plugin.tab.pinned");
 }
 
 function setAsDefaultHome(pluginID: string): void {
@@ -393,6 +481,8 @@ function resetDefaultHome(): void {
 					<td class="action-cell">
 						<button v-if="canVisit(item.id)" type="button" :disabled="operating" @click="visitPlugin(item.id)">{{ t("plugin.action.visit") }}</button>
 						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.visit") }}</button>
+						<button v-if="canTogglePin(item.id)" type="button" :disabled="operating" @click="togglePinTab(item.id)">{{ isPinned(item.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}</button>
+						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.pinTab") }}</button>
 						<button v-if="canSetDefault(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
 						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.setDefault") }}</button>
 						<button v-if="canEnable(item.id)" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
@@ -433,6 +523,8 @@ function resetDefaultHome(): void {
 							</span>
 						</td>
 						<td class="action-cell">
+							<button v-if="canTogglePin(item.id)" type="button" :disabled="operating" @click="togglePinTab(item.id)">{{ isPinned(item.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}</button>
+							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.pinTab") }}</button>
 							<button v-if="canSetDefault(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
 							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.setDefault") }}</button>
 							<button v-if="canEnable(item.id)" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
@@ -569,6 +661,7 @@ button:disabled {
 	background: var(--color-surface);
 	color: var(--color-text);
 }
+
 
 .plugin-table th,
 .plugin-table td {

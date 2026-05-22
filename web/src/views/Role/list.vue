@@ -170,7 +170,7 @@ onMounted(() => {
 					<td>{{ item.key || "-" }}</td>
 					<td>{{ Array.isArray(item.permissions) ? item.permissions.length : 0 }}</td>
 					<td class="actions">
-						<router-link :to="`/role/${item.id}/edit`">{{ t("common.edit") }}</router-link>
+						<router-link :to="{ name: 'role-edit', params: { id: item.id } }">{{ t("common.edit") }}</router-link>
 						<button type="button" :disabled="loading || operating" @click="deleteRole(item.id)">{{ t("common.delete") }}</button>
 					</td>
 				</tr>

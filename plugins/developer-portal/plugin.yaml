@@ -1,0 +1,20 @@
+id: developer-portal
+name: Developer Portal
+name_zh_cn: 开发者门户
+name_en_us: Developer Portal
+version: 0.1.0
+description: Developer utilities hub plugin. Plugin development is the first feature module.
+level: system
+mount_policy: admin
+ui_mode: frontend_only
+ui_nav_position: sidebar
+ui_open_mode: integrated
+ui_tab_mode: optional
+frontend_entry: /skoll/plugins/developer-portal
+i18n_locales:
+  - zh-CN
+  - en-US
+
+permissions:
+  - plugin.read
+  - plugin.manage

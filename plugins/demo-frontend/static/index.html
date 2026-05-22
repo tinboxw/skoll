@@ -4,7 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Demo Frontend Plugin</title>
-  <link rel="stylesheet" href="./style.css" />
+  <style>
+    :root { color-scheme: light; }
+    body { margin: 0; font-family: "Gill Sans", "Trebuchet MS", sans-serif; color: #1a2230; background: #f8f4ef; }
+    .container { max-width: 1020px; margin: 24px auto; padding: 0 16px 24px; }
+    .hero, .panel { background: #fff; border: 1px solid #e5d9cc; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .hero-actions, .commands { display: flex; flex-wrap: wrap; gap: 8px; }
+    .split { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 10px; }
+    button, input, select, textarea { font: inherit; }
+    button { border: 1px solid #b45309; border-radius: 8px; min-height: 36px; padding: 7px 12px; background: #b45309; color: #fff; cursor: pointer; }
+    input, textarea, select { border: 1px solid #dfccba; border-radius: 8px; }
+    pre { margin-top: 10px; background: #2a1f18; color: #f4e9dd; border-radius: 8px; padding: 10px; min-height: 70px; white-space: pre-wrap; }
+    @media (max-width: 840px) { .split { grid-template-columns: 1fr; } }
+  </style>
+  <link rel="stylesheet" href="./style.css?v=20260521" />
 </head>
 <body>
   <main class="container">
@@ -45,6 +58,6 @@
       <pre id="command-output">Click a command to see simulated execution output.</pre>
     </section>
   </main>
-  <script src="./app.js"></script>
+  <script src="./app.js?v=20260521"></script>
 </body>
 </html>

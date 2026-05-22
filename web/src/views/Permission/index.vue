@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 import { useI18n } from "../../i18n";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
@@ -9,6 +9,8 @@ type RoleRecord = {
 	id: string;
 	name: string;
 	key?: string;
+	permissions?: string[];
+	builtIn?: boolean;
 };
 
 type PolicyRule = {
@@ -36,9 +38,20 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 	return {
 		id,
 		name: String(row.name ?? row.Name ?? "").trim(),
-		key: String(row.key ?? row.Key ?? "").trim()
+		key: String(row.key ?? row.Key ?? "").trim(),
+		permissions: Array.isArray(row.permissions ?? row.Permissions)
+			? (row.permissions ?? row.Permissions as unknown[]).filter((it): it is string => typeof it === "string").map((it) => it.trim()).filter((it) => it !== "")
+			: [],
+		builtIn: Boolean(row.builtIn ?? row.BuiltIn)
 	};
 }
+
+const BUILTIN_ROLE_DEFAULTS: Record<string, string[]> = {
+	super_admin: ["*", "user.read", "user.create", "user.update", "user.delete", "role.read", "role.create", "role.update", "role.delete", "permission.manage"],
+	dept_admin: ["user.read", "user.update", "role.read"],
+	operator: ["user.read", "role.read"],
+	user: ["user.read"]
+};
 
 const { t } = useI18n();
 
@@ -50,6 +63,19 @@ const success = ref("");
 const roles = ref<RoleRecord[]>([]);
 const selectedRoleId = ref("");
 const rules = ref<RuleRow[]>([]);
+
+const roleDefaultRows = computed(() => {
+	return roles.value.map((item) => {
+		const key = String(item.key || "").trim().toLowerCase();
+		const fromRole = Array.isArray(item.permissions) ? item.permissions.filter((it) => it.trim() !== "") : [];
+		const fallback = BUILTIN_ROLE_DEFAULTS[key] || [];
+		const defaults = fromRole.length > 0 ? fromRole : fallback;
+		return {
+			...item,
+			defaultPermissions: defaults
+		};
+	});
+});
 
 const resourceOptions = ["user", "role", "rbac", "plugin", "system", "audit"];
 const actionOptions = ["create", "read", "update", "delete", "manage", "*"];
@@ -157,6 +183,39 @@ onMounted(() => {
 		<p v-if="success" class="success">{{ success }}</p>
 
 		<section class="panel">
+			<h3>{{ t("permission.defaultsTitle") }}</h3>
+			<p class="hint">{{ t("permission.defaultsHint") }}</p>
+			<div class="defaults-wrap">
+				<table class="defaults-table">
+					<thead>
+						<tr>
+							<th>{{ t("table.name") }}</th>
+							<th>{{ t("table.key") }}</th>
+							<th>{{ t("permission.defaultPermissionList") }}</th>
+						</tr>
+					</thead>
+					<tbody v-if="roleDefaultRows.length > 0">
+						<tr v-for="item in roleDefaultRows" :key="item.id">
+							<td>{{ item.name || item.id }}</td>
+							<td>{{ item.key || "-" }}</td>
+							<td>
+								<div v-if="item.defaultPermissions.length > 0" class="perm-tags">
+									<span v-for="perm in item.defaultPermissions" :key="item.id + ':' + perm" class="perm-tag">{{ perm }}</span>
+								</div>
+								<span v-else class="muted">{{ t("permission.noDefaults") }}</span>
+							</td>
+						</tr>
+					</tbody>
+					<tbody v-else>
+						<tr>
+							<td colspan="3">{{ t("common.empty") }}</td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+		</section>
+
+		<section class="panel">
 			<h3>{{ t("permission.policyTitle") }}</h3>
 			<label>
 				<span>{{ t("permission.role") }}</span>
@@ -167,22 +226,45 @@ onMounted(() => {
 			<label>
 				<span>{{ t("permission.rulesSelect") }}</span>
 			</label>
-			<div class="rule-list">
-				<div v-for="item in rules" :key="item.id" class="rule-row">
-					<select v-model="item.resource" :disabled="saving">
-						<option v-for="resource in resourceOptions" :key="resource" :value="resource">{{ resource }}</option>
-					</select>
-					<select v-model="item.action" :disabled="saving">
-						<option v-for="action in actionOptions" :key="action" :value="action">{{ action }}</option>
-					</select>
-					<select v-model="item.effect" :disabled="saving">
-						<option v-for="effect in effectOptions" :key="effect" :value="effect">{{ effect }}</option>
-					</select>
-					<select v-model="item.scope" :disabled="saving">
-						<option v-for="scope in scopeOptions" :key="scope" :value="scope">{{ scope }}</option>
-					</select>
-					<button type="button" :disabled="saving || rules.length <= 1" @click="removeRule(item.id)">{{ t("common.delete") }}</button>
-				</div>
+			<div class="rule-list-wrap">
+				<table class="rule-table">
+					<thead>
+						<tr>
+							<th>resource</th>
+							<th>action</th>
+							<th>effect</th>
+							<th>scope</th>
+							<th class="op-col">{{ t("table.actions") }}</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr v-for="item in rules" :key="item.id">
+							<td>
+								<select v-model="item.resource" :disabled="saving">
+									<option v-for="resource in resourceOptions" :key="resource" :value="resource">{{ resource }}</option>
+								</select>
+							</td>
+							<td>
+								<select v-model="item.action" :disabled="saving">
+									<option v-for="action in actionOptions" :key="action" :value="action">{{ action }}</option>
+								</select>
+							</td>
+							<td>
+								<select v-model="item.effect" :disabled="saving">
+									<option v-for="effect in effectOptions" :key="effect" :value="effect">{{ effect }}</option>
+								</select>
+							</td>
+							<td>
+								<select v-model="item.scope" :disabled="saving">
+									<option v-for="scope in scopeOptions" :key="scope" :value="scope">{{ scope }}</option>
+								</select>
+							</td>
+							<td class="op-col">
+								<button type="button" :disabled="saving || rules.length <= 1" @click="removeRule(item.id)">{{ t("common.delete") }}</button>
+							</td>
+						</tr>
+					</tbody>
+				</table>
 			</div>
 			<button type="button" :disabled="saving" @click="addRule">{{ t("permission.addRule") }}</button>
 			<button type="button" :disabled="saving || !selectedRoleId" @click="savePolicies">
@@ -241,6 +323,58 @@ p {
 	margin: 0;
 }
 
+.hint {
+	margin: 0;
+	color: var(--color-text-muted);
+	font-size: 13px;
+}
+
+.defaults-wrap {
+	overflow: auto;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+}
+
+.defaults-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.defaults-table th,
+.defaults-table td {
+	text-align: left;
+	padding: 8px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.defaults-table th {
+	font-size: 12px;
+	color: var(--color-text-muted);
+	background: var(--color-surface-soft);
+}
+
+.defaults-table tr:last-child td {
+	border-bottom: 0;
+}
+
+.perm-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+
+.perm-tag {
+	padding: 2px 8px;
+	border: 1px solid var(--color-border);
+	border-radius: 999px;
+	font-size: 12px;
+	background: var(--color-surface-soft);
+}
+
+.muted {
+	color: var(--color-text-muted);
+}
+
 .grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -260,15 +394,42 @@ button {
 	border: 1px solid var(--color-border);
 }
 
-.rule-list {
-	display: grid;
-	gap: 8px;
+.rule-list-wrap {
+	overflow: auto;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-soft);
 }
 
-.rule-row {
-	display: grid;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
-	gap: 8px;
+.rule-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.rule-table th,
+.rule-table td {
+	padding: 8px;
+	border-bottom: 1px solid var(--color-border);
+	text-align: left;
+}
+
+.rule-table th {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--color-text-muted);
+	background: var(--color-surface);
+}
+
+.rule-table tr:last-child td {
+	border-bottom: 0;
+}
+
+.rule-table td select {
+	width: 100%;
+}
+
+.op-col {
+	white-space: nowrap;
 }
 
 button {

@@ -4,7 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Demo System Plugin</title>
-  <link rel="stylesheet" href="./style.css" />
+  <style>
+    :root { color-scheme: light; }
+    body { margin: 0; font-family: "Trebuchet MS", "Segoe UI", sans-serif; color: #10202b; background: #edf4f8; }
+    .container { max-width: 980px; margin: 24px auto; padding: 0 16px 24px; }
+    .hero, .panel { background: #fff; border: 1px solid #d3dde4; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .hero-actions, .commands { display: flex; flex-wrap: wrap; gap: 8px; }
+    .kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    button, input, select, textarea { font: inherit; }
+    button { border: 1px solid #0f766e; border-radius: 8px; min-height: 36px; padding: 7px 12px; background: #0f766e; color: #fff; cursor: pointer; }
+    pre { margin-top: 10px; background: #10232b; color: #dceaf0; border-radius: 8px; padding: 10px; min-height: 70px; white-space: pre-wrap; }
+    @media (max-width: 840px) { .split { grid-template-columns: 1fr; } }
+  </style>
+  <link rel="stylesheet" href="./style.css?v=20260521" />
 </head>
 <body>
   <main class="container">
@@ -42,6 +55,6 @@
       </article>
     </section>
   </main>
-  <script src="./app.js"></script>
+  <script src="./app.js?v=20260521"></script>
 </body>
 </html>

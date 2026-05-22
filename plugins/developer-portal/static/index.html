@@ -1,0 +1,546 @@
+<!doctype html>
+  <html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title data-i18n="page.title">Skoll Developer Portal</title>
+  <style>
+    /* Critical fallback styles to avoid plain/unstyled rendering when external assets are stale or blocked. */
+    :root { color-scheme: light; }
+    body { margin: 0; font-family: "IBM Plex Sans", "Segoe UI", "PingFang SC", sans-serif; background: #f3f5f8; color: #14202b; }
+    .shell { max-width: none; margin: 0 auto; padding: 20px 24px; }
+    .card { background: #fff; border: 1px solid #d5dde6; border-radius: 12px; box-shadow: 0 10px 24px -20px rgba(27, 51, 78, 0.24); }
+    .hero { padding: 16px 18px; margin-bottom: 14px; }
+    .module-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 14px; padding: 10px; }
+    .module-card { display: block; border: 1px solid #d5dde6; border-radius: 10px; background: #fff; padding: 12px; text-align: left; min-height: 112px; height: auto; }
+    .workbench { display: grid; grid-template-columns: 1fr 360px; gap: 14px; }
+    .panel { display: none; padding: 16px; }
+    .panel.active { display: block; }
+    .result-wrap { padding: 14px; }
+    .locale-diagnostics { margin-top: 12px; border-top: 1px dashed #d5dde6; padding-top: 12px; }
+    .locale-diagnostics h4 { margin: 0 0 8px; font-size: 14px; }
+    .diag-grid { display: grid; grid-template-columns: 120px 1fr; gap: 6px 8px; font-size: 12px; }
+    .diag-grid dt { color: #516273; }
+    .diag-grid dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; word-break: break-all; }
+    .diag-actions { margin-top: 8px; }
+    .manifest-visual-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
+    .manifest-visual-grid h4 { margin: 0; font-size: 13px; color: #516273; }
+    .manifest-visual-section { padding: 10px; border: 1px dashed #d5dde6; border-radius: 10px; background: #fafcff; }
+    .manifest-permissions-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .manifest-permission-row { display: flex; flex-direction: row !important; align-items: center; justify-content: flex-start !important; gap: 8px !important; min-height: 34px; flex: 1 1 calc(50% - 3px); padding: 6px 10px; border: 1px solid #d5dde6; border-radius: 8px; background: #f7f9fc; }
+    .manifest-permission-row input { width: 14px; height: 14px; margin: 0; }
+    .manifest-permission-row span { line-height: 1.25; white-space: nowrap; }
+    .manifest-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+    input, select, textarea, button { font: inherit; }
+    input, select, textarea { border: 1px solid #d5dde6; border-radius: 8px; padding: 8px 10px; background: #f7f9fc; }
+    button { border: 1px solid #b8c6d6; border-radius: 10px; background: #fff; min-height: 36px; height: auto; padding: 7px 14px; line-height: 1.25; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+    button.primary { background: #0b6e67; color: #f7fcfc; border-color: #0b6e67; }
+    @media (max-width: 860px) { .shell { padding: 12px; } .workbench { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="hero card">
+      <div class="hero-main">
+        <p class="eyebrow" data-i18n="hero.eyebrow">Skoll Developer Workspace</p>
+        <h1 data-i18n="hero.title">Developer Portal</h1>
+        <p class="subtitle" data-i18n="hero.subtitle">Unified with Skoll Admin style. Add and evolve developer capabilities through plugin modules without coupling to core management pages.</p>
+      </div>
+      <div class="hero-tags">
+        <span class="tag" data-i18n="hero.tag.pluginPowered">Plugin Powered</span>
+        <span class="tag" data-i18n="hero.tag.removable">Production Removable</span>
+      </div>
+    </header>
+
+    <section class="module-grid card" aria-label="Developer Modules" data-i18n-aria-label="module.aria">
+      <button class="module-card active" data-module="plugin-dev" type="button">
+        <h2 data-i18n="module.pluginDev.title">Plugin Dev</h2>
+        <p data-i18n="module.pluginDev.desc">Scaffold plugins into allowlisted roots and validate manifests in bulk.</p>
+      </button>
+      <button class="module-card" data-module="api-tools" type="button">
+        <h2 data-i18n="module.apiTools.title">API Tools</h2>
+        <p data-i18n="module.apiTools.desc">Request playground with auth token passthrough for rapid backend verification.</p>
+      </button>
+      <button class="module-card" data-module="ops-lab" type="button">
+        <h2 data-i18n="module.opsLab.title">Ops Lab</h2>
+        <p data-i18n="module.opsLab.desc">Reserved for env diagnostics and deployment helpers.</p>
+      </button>
+    </section>
+
+    <section class="workbench">
+      <div class="workbench-main">
+        <section id="plugin-dev" class="panel card active">
+          <div class="flow-intro" data-i18n="pluginDev.flowHint">推荐流程：先创建插件，再从列表选择插件进入配置编辑，最后执行构建与发布操作。</div>
+
+          <nav class="flow-steps" aria-label="Plugin Flow Steps">
+            <button class="flow-step-btn" type="button" data-step-target="flowScaffold" data-step-key="scaffold" data-i18n="step.scaffold">1. 创建插件</button>
+            <button class="flow-step-btn" type="button" data-step-target="flowSelect" data-step-key="select" data-i18n="step.select">2. 选择插件</button>
+            <button class="flow-step-btn" type="button" data-step-target="devPaneManifest" data-step-key="configure" data-i18n="step.configure">3. 配置编辑</button>
+            <button class="flow-step-btn" type="button" data-step-target="devPaneAutomation" data-step-key="release" data-i18n="step.release">4. 构建发布</button>
+          </nav>
+
+          <div id="flowScaffold" class="dev-block flow-section" data-flow-section>
+            <div class="flow-section-head">
+              <h3 data-i18n="pluginDev.scaffold.title">创建插件</h3>
+              <button class="flow-toggle" type="button" data-flow-toggle="flowScaffold" aria-label="Toggle">-</button>
+            </div>
+            <div class="flow-section-body">
+            <p class="hint" data-i18n="pluginDev.scaffold.hint">Calls <code>POST /skoll/v1/plugins/dev/scaffold</code>. Requires <strong>super_admin</strong>.</p>
+            <div class="form-grid">
+              <label>
+                <span data-i18n="field.pluginsRoot">pluginsRoot</span>
+                <input id="pluginsRoot" type="text" value="plugins" list="pluginsRootOptions" />
+                <datalist id="pluginsRootOptions"></datalist>
+              </label>
+              <label>
+                <span data-i18n="field.pluginId">pluginId</span>
+                <input id="pluginId" type="text" placeholder="crm-order" data-i18n-placeholder="placeholder.pluginId" />
+              </label>
+              <label>
+                <span data-i18n="field.pluginName">pluginName</span>
+                <input id="pluginName" type="text" placeholder="CRM Order" data-i18n-placeholder="placeholder.pluginName" />
+              </label>
+              <label>
+                <span data-i18n="field.appId">appId (optional)</span>
+                <input id="appId" type="text" placeholder="crm" data-i18n-placeholder="placeholder.appId" />
+              </label>
+              <label>
+                <span data-i18n="field.mode">mode</span>
+                <select id="scaffoldMode">
+                  <option value="workspace">workspace</option>
+                  <option value="repository">repository</option>
+                </select>
+              </label>
+            </div>
+            <div class="actions">
+              <button id="btnScaffold" class="primary" type="button" data-i18n="action.createScaffold">创建插件</button>
+              <button id="btnValidateAll" class="secondary" type="button" data-i18n="action.validateAll">Validate All</button>
+            </div>
+            </div>
+          </div>
+
+          <div id="flowSelect" class="dev-block flow-section" data-flow-section>
+            <div class="flow-section-head">
+              <h3 data-i18n="pluginDev.projects.title">开发中插件</h3>
+              <button class="flow-toggle" type="button" data-flow-toggle="flowSelect" aria-label="Toggle">-</button>
+            </div>
+            <div class="flow-section-body">
+            <p class="hint" data-i18n="pluginDev.projects.hint">支持独立仓库目录的项目扫描、预览、打包、删除（可选删目录）。</p>
+            <div class="actions">
+              <button id="btnLoadProjects" class="secondary" type="button" data-i18n="action.loadProjects">加载项目列表</button>
+            </div>
+            <div class="list-tools">
+              <label>
+                <span data-i18n="field.projectSearch">搜索插件</span>
+                <input id="projectSearch" type="text" placeholder="developer-portal" data-i18n-placeholder="placeholder.projectSearch" />
+              </label>
+              <label>
+                <span data-i18n="field.projectStatus">状态筛选</span>
+                <select id="projectStatusFilter">
+                  <option value="all" data-i18n="filter.all">全部</option>
+                  <option value="ok" data-i18n="filter.ok">正常</option>
+                  <option value="error" data-i18n="filter.error">异常</option>
+                </select>
+              </label>
+            </div>
+            <div style="overflow:auto; margin-top: 8px;">
+              <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <thead>
+                  <tr>
+                    <th style="text-align:left; border-bottom:1px solid #d5dde6; padding:6px;" data-i18n="table.plugin">插件</th>
+                    <th style="text-align:left; border-bottom:1px solid #d5dde6; padding:6px;" data-i18n="table.root">目录</th>
+                    <th style="text-align:left; border-bottom:1px solid #d5dde6; padding:6px;" data-i18n="table.mode">模式</th>
+                    <th style="text-align:left; border-bottom:1px solid #d5dde6; padding:6px;" data-i18n="table.status">状态</th>
+                    <th style="text-align:left; border-bottom:1px solid #d5dde6; padding:6px;" data-i18n="table.actions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="projectRows">
+                  <tr><td colspan="5" style="padding:8px; color:#6b7280;" data-i18n="common.empty">暂无数据</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div id="selectedPluginPanel" class="selected-plugin-panel">
+              <div class="selected-plugin-header">
+                <strong data-i18n="pluginDev.selected.title">当前插件</strong>
+                <span id="selectedPluginMeta" class="selected-plugin-meta" data-i18n="pluginDev.selected.empty">尚未选择插件，请先在列表中选择。</span>
+              </div>
+            </div>
+            </div>
+          </div>
+
+          <div id="devPaneManifest" class="dev-block flow-section dev-tab-pane active" data-flow-section>
+            <div class="flow-section-head">
+              <h3 data-i18n="pluginDev.manifest.title">Manifest 编辑器</h3>
+              <button class="flow-toggle" type="button" data-flow-toggle="devPaneManifest" aria-label="Toggle">-</button>
+            </div>
+            <div class="flow-section-body">
+            <p class="hint" data-i18n="pluginDev.manifest.hint">加载 plugin.yaml，支持保存前实时校验。</p>
+            <div class="form-grid">
+              <label>
+                <span data-i18n="field.manifestPluginId">manifest pluginId</span>
+                <input id="manifestPluginId" type="text" placeholder="crm-order" data-i18n-placeholder="placeholder.pluginId" readonly />
+              </label>
+            </div>
+
+            <div class="manifest-editor-tabs" role="tablist" aria-label="Manifest Editor Tabs">
+              <button id="btnManifestTabVisual" class="tab-btn active" type="button" data-manifest-tab="visual" data-i18n="tab.manifestVisual">可视化</button>
+              <button id="btnManifestTabYaml" class="tab-btn" type="button" data-manifest-tab="yaml" data-i18n="tab.manifestYaml">YAML 文本</button>
+            </div>
+
+            <div id="manifestPaneVisual" class="manifest-editor-pane active">
+              <div class="manifest-visual-grid">
+              <section class="manifest-visual-section">
+                <h4 data-i18n="manifestVisual.basic.title">基础信息</h4>
+                <div class="form-grid" style="margin-top:8px;">
+                  <label>
+                    <span data-i18n="manifestVisual.id">id</span>
+                    <input id="manifestFieldId" type="text" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.name">name</span>
+                    <input id="manifestFieldName" type="text" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.nameZhCN">name_zh_cn</span>
+                    <input id="manifestFieldNameZhCN" type="text" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.nameEnUS">name_en_us</span>
+                    <input id="manifestFieldNameEnUS" type="text" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.version">version</span>
+                    <input id="manifestFieldVersion" type="text" placeholder="0.1.0" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.description">description</span>
+                    <input id="manifestFieldDescription" type="text" placeholder="Plugin description" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.apiVersion">api_version</span>
+                    <input id="manifestFieldApiVersion" type="text" placeholder="v1" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.compat">compatibility_skoll</span>
+                    <input id="manifestFieldCompat" type="text" placeholder=">=1.0.0 <2.0.0" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.migration">migration_version</span>
+                    <input id="manifestFieldMigration" type="text" placeholder="v0.1.0" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.level">level</span>
+                    <select id="manifestFieldLevel">
+                      <option value="system">system</option>
+                      <option value="app">app</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.appId">app_id</span>
+                    <input id="manifestFieldAppId" type="text" placeholder="oa" />
+                  </label>
+                </div>
+              </section>
+
+              <section class="manifest-visual-section">
+                <h4 data-i18n="manifestVisual.ui.title">UI 配置</h4>
+                <div class="form-grid" style="margin-top:8px;">
+                  <label>
+                    <span data-i18n="manifestVisual.uiMode">ui_mode</span>
+                    <select id="manifestFieldUiMode">
+                      <option value="backend_only">backend_only</option>
+                      <option value="frontend_only">frontend_only</option>
+                      <option value="separated">separated</option>
+                      <option value="monolith">monolith</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.mountPolicy">mount_policy</span>
+                    <select id="manifestFieldMountPolicy">
+                      <option value="admin">admin</option>
+                      <option value="user">user</option>
+                      <option value="mixed">mixed</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.navPosition">ui_nav_position</span>
+                    <select id="manifestFieldNavPosition">
+                      <option value="none">none</option>
+                      <option value="sidebar">sidebar</option>
+                      <option value="top_tab">top_tab</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.openMode">ui_open_mode</span>
+                    <select id="manifestFieldOpenMode">
+                      <option value="integrated">integrated</option>
+                      <option value="standalone">standalone</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.tabMode">ui_tab_mode</span>
+                    <select id="manifestFieldTabMode">
+                      <option value="optional">optional</option>
+                      <option value="fixed">fixed</option>
+                      <option value="disabled">disabled</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.frontendEntry">frontend_entry</span>
+                    <input id="manifestFieldFrontendEntry" type="text" placeholder="/skoll/plugins/demo" />
+                  </label>
+                  <label>
+                    <span data-i18n="manifestVisual.locales">i18n_locales（逗号分隔）</span>
+                    <input id="manifestFieldLocales" type="text" placeholder="zh-CN,en-US" />
+                  </label>
+                </div>
+              </section>
+              <section class="manifest-visual-section">
+                <h4 data-i18n="manifestVisual.permissions">permissions（可勾选）</h4>
+                <p class="hint manifest-permissions-source" data-i18n="manifestVisual.permissionsSource">选项来源：平台内置常用权限模板</p>
+                <p class="hint manifest-permissions-hint" data-i18n="manifestVisual.permissionsHint">默认只使用勾选项即可，不需要自定义。</p>
+                <p id="manifestPermissionsMeta" class="hint manifest-permissions-meta"></p>
+                <label class="manifest-permission-search">
+                  <span data-i18n="manifestVisual.permissionsSearch">筛选权限</span>
+                  <input id="manifestPermissionSearch" type="text" placeholder="plugin." data-i18n-placeholder="manifestVisual.permissionsSearchPlaceholder" />
+                </label>
+                <div id="manifestPermissionPreset" class="manifest-permissions-grid"></div>
+                <label class="manifest-permissions-advanced">
+                  <input id="manifestPermissionEnableCustom" type="checkbox" />
+                  <span data-i18n="manifestVisual.permissionsEnableCustom">需要补充自定义权限</span>
+                </label>
+                <label id="manifestPermissionsCustomWrap" class="manifest-permissions-custom hidden">
+                  <span data-i18n="manifestVisual.permissionsCustom">自定义权限（逗号分隔）</span>
+                  <input id="manifestFieldPermissionsCustom" type="text" placeholder="crm.audit.read, finance.export" />
+                </label>
+                <div id="manifestPermissionCatalog" class="manifest-permissions-catalog"></div>
+              </section>
+              </div>
+            </div>
+
+            <div id="manifestPaneYaml" class="manifest-editor-pane">
+              <label class="body-label" style="margin-top:0;">
+                <span data-i18n="field.manifestYaml">plugin.yaml</span>
+                <textarea id="manifestYaml" rows="14" placeholder="id: demo\nname: Demo"></textarea>
+              </label>
+            </div>
+            <div class="actions">
+              <button id="btnManifestLoad" class="secondary" type="button" data-i18n="action.loadManifest">加载</button>
+              <button id="btnManifestValidate" class="secondary" type="button" data-i18n="action.validateManifest">校验</button>
+              <button id="btnManifestSave" class="primary" type="button" data-i18n="action.saveManifest">保存</button>
+            </div>
+            <p id="manifestSaveFeedback" class="op-feedback" aria-live="polite"></p>
+            </div>
+          </div>
+
+          <div id="devPaneAutomation" class="dev-block flow-section dev-tab-pane active" data-flow-section>
+            <div class="flow-section-head">
+              <h3 data-i18n="pluginDev.automation.title">自动化操作</h3>
+              <button class="flow-toggle" type="button" data-flow-toggle="devPaneAutomation" aria-label="Toggle">-</button>
+            </div>
+            <div class="flow-section-body">
+            <p class="hint" data-i18n="pluginDev.automation.hint">针对当前选中插件执行流水线、灰度和发布审批操作。</p>
+            <div class="automation-grid">
+              <div>
+                <h3 data-i18n="pluginDev.pipeline.title">一键流水线</h3>
+                <p class="hint" data-i18n="pluginDev.pipeline.hint">执行 manifest 校验 + 制品打包。</p>
+            </div>
+                <div class="form-grid">
+                  <label>
+                    <span data-i18n="field.pipelinePluginId">pipeline pluginId</span>
+                    <input id="pipelinePluginId" type="text" placeholder="crm-order" data-i18n-placeholder="placeholder.pluginId" readonly />
+                  </label>
+                </div>
+                <div class="actions">
+                  <button id="btnRunPipeline" class="primary" type="button" data-i18n="action.runPipeline">执行流水线</button>
+                </div>
+              </div>
+
+              <div>
+                <h3 data-i18n="pluginDev.rollout.title">灰度与回滚</h3>
+                <p class="hint" data-i18n="pluginDev.rollout.hint">设置 rollout 百分比并支持回滚到上一个值。</p>
+                <div class="form-grid">
+                  <label>
+                    <span data-i18n="field.rolloutPluginId">rollout pluginId</span>
+                    <input id="rolloutPluginId" type="text" placeholder="crm-order" data-i18n-placeholder="placeholder.pluginId" readonly />
+                  </label>
+                  <label>
+                    <span data-i18n="field.rolloutPercent">rolloutPercent (0-100)</span>
+                    <input id="rolloutPercent" type="number" min="0" max="100" value="100" />
+                  </label>
+                </div>
+                <div class="actions">
+                  <button id="btnApplyRollout" class="secondary" type="button" data-i18n="action.applyRollout">应用灰度</button>
+                  <button id="btnRollbackRollout" class="secondary" type="button" data-i18n="action.rollbackRollout">回滚</button>
+                </div>
+              </div>
+
+              <div>
+                <h3 data-i18n="pluginDev.releaseOrder.title">发布审批流</h3>
+                <p class="hint" data-i18n="pluginDev.releaseOrder.hint">创建发布单并执行审批/驳回，返回审计字段用于追踪。</p>
+                <div class="form-grid">
+                  <label>
+                    <span data-i18n="field.releasePluginId">release pluginId</span>
+                    <input id="releasePluginId" type="text" placeholder="crm-order" data-i18n-placeholder="placeholder.pluginId" readonly />
+                  </label>
+                  <label>
+                    <span data-i18n="field.releaseVersion">releaseVersion</span>
+                    <input id="releaseVersion" type="text" placeholder="1.0.0" />
+                  </label>
+                  <label>
+                    <span data-i18n="field.releaseOrderId">orderId</span>
+                    <input id="releaseOrderId" type="text" placeholder="ro-xxxxx" />
+                  </label>
+                </div>
+                <label class="body-label">
+                  <span data-i18n="field.releaseChangelog">changelog / review comment</span>
+                  <textarea id="releaseChangelog" rows="6" placeholder="release notes or review comments"></textarea>
+                </label>
+                <div class="actions">
+                  <button id="btnCreateReleaseOrder" class="primary" type="button" data-i18n="action.createReleaseOrder">创建发布单</button>
+                  <button id="btnListReleaseOrders" class="secondary" type="button" data-i18n="action.listReleaseOrders">查询发布单</button>
+                  <button id="btnApproveReleaseOrder" class="secondary" type="button" data-i18n="action.approveReleaseOrder">审批通过</button>
+                  <button id="btnRejectReleaseOrder" class="secondary" type="button" data-i18n="action.rejectReleaseOrder">审批驳回</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </section>
+
+        <section id="api-tools" class="panel card">
+          <h3 data-i18n="apiTools.title">API Tools</h3>
+          <p class="hint" data-i18n="apiTools.hint">Send authenticated requests from this plugin page using current login token.</p>
+          <div class="quick-actions">
+            <button id="btnQuickHealth" class="secondary" type="button">GET /skoll/health</button>
+            <button id="btnQuickMe" class="secondary" type="button">GET /skoll/v1/auth/me</button>
+          </div>
+          <div class="form-grid api-form-grid">
+            <label>
+              <span data-i18n="field.method">method</span>
+              <select id="apiMethod">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+              </select>
+            </label>
+            <label>
+              <span data-i18n="field.path">path</span>
+              <input id="apiPath" type="text" value="/skoll/v1/plugins" />
+            </label>
+          </div>
+          <label class="body-label">
+            <span data-i18n="field.jsonBody">JSON body (optional for GET)</span>
+            <textarea id="apiBody" rows="8" placeholder='{"key":"value"}' data-i18n-placeholder="placeholder.apiBody"></textarea>
+          </label>
+          <div class="actions">
+            <button id="btnApiSend" class="primary" type="button" data-i18n="action.sendRequest">Send Request</button>
+          </div>
+        </section>
+
+        <section id="ops-lab" class="panel card">
+          <h3 data-i18n="opsLab.title">Ops Lab</h3>
+          <p class="placeholder" data-i18n="opsLab.placeholder">Planned: deployment checklist, readiness checks, and rollback previews.</p>
+        </section>
+      </div>
+
+      <aside id="resultAside" class="result-wrap card collapsed">
+        <div class="result-head">
+          <h3 data-i18n="result.title">Result</h3>
+          <button id="btnResultToggle" class="secondary" type="button" data-i18n="action.expandResult">展开结果</button>
+        </div>
+        <p id="resultSummary" class="result-summary"></p>
+        <div id="resultBody" class="result-body">
+        <p id="status" class="status" data-i18n="status.ready">Ready.</p>
+        <pre id="result">{}</pre>
+        <section class="locale-diagnostics" aria-label="Locale Diagnostics" data-i18n-aria-label="diagnostics.aria">
+          <h4 data-i18n="diagnostics.title">Locale Diagnostics</h4>
+          <dl class="diag-grid">
+            <dt data-i18n="diagnostics.queryLocale">query.locale</dt>
+            <dd id="diag-locale-query">-</dd>
+            <dt data-i18n="diagnostics.hostLocale">host locale</dt>
+            <dd id="diag-locale-host">-</dd>
+            <dt data-i18n="diagnostics.storageLocale">localStorage</dt>
+            <dd id="diag-locale-storage">-</dd>
+            <dt data-i18n="diagnostics.htmlLang">html lang</dt>
+            <dd id="diag-locale-html">-</dd>
+            <dt data-i18n="diagnostics.allowedLocales">plugin locales</dt>
+            <dd id="diag-locale-allowed">-</dd>
+            <dt data-i18n="diagnostics.activeLocale">active locale</dt>
+            <dd id="diag-locale-active">-</dd>
+            <dt data-i18n="diagnostics.lastSource">last source</dt>
+            <dd id="diag-locale-source">-</dd>
+          </dl>
+          <div class="diag-actions">
+            <button id="btnRefreshDiagnostics" type="button" class="secondary" data-i18n="action.refreshDiagnostics">Refresh Diagnostics</button>
+          </div>
+        </section>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var candidates = [];
+      var origin = "";
+      try {
+        if (window.top && window.top.location && window.top.location.origin) {
+          origin = window.top.location.origin;
+        }
+      } catch (e) {
+        // Ignore cross-window access errors.
+      }
+      if (!origin) {
+        try {
+          origin = window.location.origin || "";
+        } catch (e) {
+          origin = "";
+        }
+      }
+      if (!origin) {
+        return;
+      }
+
+      candidates.push(origin + "/skoll/v1/plugins/developer-portal/assets/");
+      candidates.push(origin + "/v1/plugins/developer-portal/assets/");
+
+      function appendCss(base) {
+        var link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = base + "style.css?v=20260521-portal-devops-v14";
+        document.head.appendChild(link);
+      }
+
+      function appendScript(base) {
+        var script = document.createElement("script");
+        script.src = base + "app.js?v=20260521-portal-devops-v14";
+        script.async = false;
+        document.body.appendChild(script);
+      }
+
+      var loaded = false;
+      (function tryLoad(index) {
+        if (loaded || index >= candidates.length) {
+          return;
+        }
+        var base = candidates[index];
+        fetch(base + "app.js?v=20260521-portal-devops-v14", { method: "GET" })
+          .then(function (resp) {
+            if (!resp.ok) {
+              throw new Error("asset probe failed");
+            }
+            loaded = true;
+            appendCss(base);
+            appendScript(base);
+          })
+          .catch(function () {
+            tryLoad(index + 1);
+          });
+      })(0);
+    })();
+  </script>
+</body>
+</html>

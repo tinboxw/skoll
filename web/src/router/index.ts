@@ -121,9 +121,17 @@ function isPluginHomePath(path: string): boolean {
 	return /^\/(?!skoll(?:\/|$))[^/]+\/?$/.test(path);
 }
 
+function normalizePluginEntryPath(path: string): string {
+	const normalized = path.trim();
+	if (normalized.startsWith("/plugins/")) {
+		return `${ADMIN_PREFIX}${normalized}`;
+	}
+	return normalized;
+}
+
 function resolveSafeDefaultHomePath(): string {
 	const fallback = getSystemDefaultHomePath();
-	const target = getDefaultHomePath(fallback);
+	const target = normalizePluginEntryPath(getDefaultHomePath(fallback));
 	if (isPluginHomePath(target)) {
 		return target;
 	}
@@ -135,6 +143,7 @@ function resolveSafeDefaultHomePath(): string {
 }
 
 async function resolveSafeTargetPath(path: string): Promise<string> {
+	path = normalizePluginEntryPath(path);
 	if (!isPluginHomePath(path)) {
 		return path;
 	}
