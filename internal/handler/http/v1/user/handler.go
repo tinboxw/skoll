@@ -49,6 +49,7 @@ func (h *UserHandler) create(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	req.ActorID = actorIDFromRequest(r.Context(), req.ActorID)
 	entity, err := h.service.Create(r.Context(), req)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -67,6 +68,10 @@ func (h *UserHandler) createBatch(w http.ResponseWriter, r *http.Request) {
 	if len(req.Items) == 0 {
 		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "items are required")
 		return
+	}
+	actorID := actorIDFromRequest(r.Context(), "")
+	for idx := range req.Items {
+		req.Items[idx].ActorID = actorIDFromRequest(r.Context(), req.Items[idx].ActorID)
 	}
 
 	results, err := h.service.CreateBatch(r.Context(), usersvc.BatchCreateInput{Items: req.Items, Atomic: req.Atomic})
@@ -87,7 +92,7 @@ func (h *UserHandler) createBatch(w http.ResponseWriter, r *http.Request) {
 		"failureCount": len(req.Items) - successCount,
 		"results":      results,
 	})
-	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "batch_create", "user", "", map[string]any{"count": len(req.Items), "successCount": successCount, "atomic": req.Atomic})
+	h.appendAudit(r, actorID, "batch_create", "user", "", map[string]any{"count": len(req.Items), "successCount": successCount, "atomic": req.Atomic})
 }
 
 func (h *UserHandler) list(w http.ResponseWriter, r *http.Request) {

@@ -17,8 +17,11 @@ func validateCreateInput(in CreateUserInput) error {
 	if _, err := domainuser.NewEmail(in.Email); err != nil {
 		return err
 	}
-	if _, err := domainuser.NewPasswordHash(in.PasswordHash); err != nil {
-		return err
+	password := strings.TrimSpace(in.PasswordHash)
+	if _, err := domainuser.NewPasswordHash(password); err != nil {
+		if _, hashErr := domainuser.HashPassword(password); hashErr != nil {
+			return hashErr
+		}
 	}
 	if strings.TrimSpace(in.ActorID) == "" {
 		return fmt.Errorf("actor id is required")

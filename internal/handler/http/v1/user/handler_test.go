@@ -188,6 +188,48 @@ func TestUserHandlerUpdateEmailActorIDFallback(t *testing.T) {
 	})
 }
 
+func TestUserHandlerCreateActorIDFallback(t *testing.T) {
+	svc := &fakeUserService{}
+	h := &UserHandler{service: svc}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/users", bytes.NewBufferString(`{"account":"u1","name":"U1","email":"u1@example.com","passwordHash":"password-1234"}`))
+	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{Subject: "jwt-creator"}))
+	resp := httptest.NewRecorder()
+
+	h.create(resp, req)
+
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if len(svc.createInputs) != 1 {
+		t.Fatalf("expected one create input, got %d", len(svc.createInputs))
+	}
+	if svc.createInputs[0].ActorID != "jwt-creator" {
+		t.Fatalf("expected fallback actor id from jwt, got %q", svc.createInputs[0].ActorID)
+	}
+}
+
+func TestUserHandlerCreateBatchActorIDFallback(t *testing.T) {
+	svc := &fakeUserService{}
+	h := &UserHandler{service: svc}
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/users/batch", bytes.NewBufferString(`{"items":[{"account":"u1","name":"U1","email":"u1@example.com","passwordHash":"password-1234"}]}`))
+	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{Subject: "jwt-batch"}))
+	resp := httptest.NewRecorder()
+
+	h.createBatch(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if len(svc.batchInput.Items) != 1 {
+		t.Fatalf("expected one batch item, got %d", len(svc.batchInput.Items))
+	}
+	if svc.batchInput.Items[0].ActorID != "jwt-batch" {
+		t.Fatalf("expected fallback actor id from jwt, got %q", svc.batchInput.Items[0].ActorID)
+	}
+}
+
 func TestUserHandlerDisableActorIDFallback(t *testing.T) {
 	svc := &fakeUserService{}
 	h := &UserHandler{service: svc}

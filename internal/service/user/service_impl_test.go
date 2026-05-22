@@ -42,6 +42,31 @@ func TestUserServiceCreateAndDisable(t *testing.T) {
 	}
 }
 
+func TestUserServiceCreateAcceptsPlainPassword(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	created, err := svc.Create(context.Background(), CreateUserInput{
+		Account:      "svc_plain_pwd",
+		Name:         "Service Plain Password",
+		Email:        "svc_plain@example.com",
+		PasswordHash: "password123",
+		ActorID:      "admin-1",
+	})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	if created == nil {
+		t.Fatalf("expected created user")
+	}
+	if !strings.HasPrefix(created.Password.String(), "sha256:") {
+		t.Fatalf("expected hashed password, got %q", created.Password.String())
+	}
+}
+
 func TestUserServiceCreateBatchAtomicStopsOnFirstError(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
 	if err != nil {
