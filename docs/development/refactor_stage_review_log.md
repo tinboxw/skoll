@@ -32,7 +32,7 @@
   - `go test ./...`
   - `go test ./internal/handler/cli ./internal/plugin...`
   - `npm run build`（web）
-  - `Invoke-WebRequest http://127.0.0.1:8080/health`
+  - `Invoke-RestMethod http://127.0.0.1:8080/health`
 - 门禁结果：通过
 - 风险与阻塞：
   - 前端插件同步后端接口 `/v1/plugins?enabled=true` 尚需在 P12 收口实现
@@ -59,7 +59,7 @@
   - `go test ./internal/bootstrap ./internal/handler/middleware ./internal/handler/http/...`
   - `go test ./...`
   - `npm run build`（web）
-  - `Invoke-WebRequest http://127.0.0.1:8080/v1/plugins?enabled=true`
+  - `Invoke-RestMethod http://127.0.0.1:8080/v1/plugins?enabled=true`
 - 门禁结果：通过
 - 风险与阻塞：
   - 插件同步接口当前默认回退内置插件数据，后续需接入真实运行时插件源
@@ -86,8 +86,8 @@
   - `go test ./internal/bootstrap ./internal/handler/http/... ./internal/handler/middleware ./internal/plugin...`
   - `go test ./...`
   - `npm run build`（web）
-  - `Invoke-WebRequest http://127.0.0.1:8080/v1/plugins`
-  - `Invoke-WebRequest http://127.0.0.1:8080/v1/plugins?enabled=true`
+  - `Invoke-RestMethod http://127.0.0.1:8080/v1/plugins`
+  - `Invoke-RestMethod http://127.0.0.1:8080/v1/plugins?enabled=true`
 - 门禁结果：通过
 - 风险与阻塞：
   - 插件清单目前以运行时加载目录为主，后续可补充持久化插件元数据源
@@ -112,9 +112,9 @@
   - `go test ./...`
   - `go test ./internal/bootstrap ./internal/handler/http/... ./internal/handler/middleware ./internal/plugin...`
   - `npm run build`（web）
-  - `Invoke-WebRequest http://127.0.0.1:8080/health`
-  - `Invoke-WebRequest http://127.0.0.1:8080/v1/plugins`
-  - `Invoke-WebRequest http://127.0.0.1:8080/v1/plugins?enabled=true`
+  - `Invoke-RestMethod http://127.0.0.1:8080/health`
+  - `Invoke-RestMethod http://127.0.0.1:8080/v1/plugins`
+  - `Invoke-RestMethod http://127.0.0.1:8080/v1/plugins?enabled=true`
 - 门禁结果：通过
 - 风险与阻塞：
   - 当前无代码级阻塞缺陷；剩余风险集中在发布流程治理（签字与窗口）

@@ -41,6 +41,24 @@ Skoll v2 ÊÇÒ»¸ö°´·Ö²ã¼Ü¹¹ÖØĞÂÊµÏÖµÄ Go ¿ò¼Ü»ùÏß£¬Ç¿µ÷Ö°ÔğÇåÎú¡¢µÍñîºÏ¸ßÄÚ¾Û¡¢¿É²
 powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart
 ```
 
+`dev-up.ps1` Ä¬ÈÏ»áÔÚÆô¶¯ºó×Ô¶¯Ö´ĞĞÁ¬Í¨ĞÔ¼ì²é£º
+- Ç°¶Ë½¡¿µ¼ì²é£º`/skoll/health`
+- µÇÂ¼»ñÈ¡ token£¨Ä¬ÈÏÕËºÅ `admin`£©
+- ¿ª·¢ÃÅ»§½Ó¿Ú¼ì²é£º`/skoll/v1/plugins/dev/config`¡¢`/skoll/v1/plugins/dev/permission-catalog`
+
+³£ÓÃ²ÎÊıÊ¾Àı£º
+
+```powershell
+# Ìø¹ıÆô¶¯ºó¼ì²é
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart -SkipPostChecks
+
+# ¼ì²éÊ§°ÜÊ±ÈÃ½Å±¾·µ»Ø·Ç 0£¨ÓÃÓÚ CI/ÃÅ½û£©
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart -FailOnCheckError
+
+# Ö¸¶¨¼ì²éµÇÂ¼ÕËºÅ
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart -AdminAccount admin -AdminPassword "Admin@123456"
+```
+
 Í£Ö¹±¾µØÇ°ºó¶Ë¼àÌı£º
 
 ```powershell
@@ -168,12 +186,48 @@ go test ./...
 - `DELETE /skoll/v1/plugins/{id}`
 - `GET /skoll/v1/plugins/{id}/debug`
 - `GET /skoll/v1/plugins/{id}/logs`
+- `POST /skoll/v1/plugins/dev/scaffold`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "pluginName": "CRM Order", "appId": "crm", "mode": "workspace|repository" }`£©
+- `POST /skoll/v1/plugins/dev/validate-all`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins" }`£©
+- `GET /skoll/v1/plugins/dev/config`£¨½ö `super_admin`£©
+- `GET /skoll/v1/plugins/dev/manifest?pluginsRoot=plugins&pluginId=crm-order`£¨½ö `super_admin`£©
+- `POST /skoll/v1/plugins/dev/manifest/validate`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "manifest": "...yaml..." }`£©
+- `PUT /skoll/v1/plugins/dev/manifest`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "manifest": "...yaml..." }`£©
+- `POST /skoll/v1/plugins/dev/projects`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins" }`£©
+- `POST /skoll/v1/plugins/dev/remove`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "removeFiles": true }`£©
+- `POST /skoll/v1/plugins/dev/package`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "outputDir": "plugins/_dist" }`£©
+- `POST /skoll/v1/plugins/dev/pipeline`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "outputDir": "plugins/_dist" }`£©
+- `POST /skoll/v1/plugins/dev/rollout`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginId": "crm-order", "rolloutPercent": 20 }`£©
+- `POST /skoll/v1/plugins/dev/rollback`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginId": "crm-order" }`£©
+- `POST /skoll/v1/plugins/dev/release-orders`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "releaseVersion": "1.2.0", "changelog": "..." }`£©
+- `GET /skoll/v1/plugins/dev/release-orders?pluginsRoot=plugins&pluginId=crm-order`£¨½ö `super_admin`£©
+- `POST /skoll/v1/plugins/dev/release-orders/{orderId}/approve`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "comment": "approved" }`£©
+- `POST /skoll/v1/plugins/dev/release-orders/{orderId}/reject`£¨½ö `super_admin`£¬ÇëÇóÌå£º`{ "pluginsRoot": "plugins", "pluginId": "crm-order", "comment": "need more checks" }`£©
+
+¿ª·¢ÕßÒ³Ãæ²å¼ş£¨¿É°²×°/Ğ¶ÔØ£©£º
+- ²å¼şÄ¿Â¼£º`plugins/developer-portal`
+- °²×°£º`POST /skoll/v1/plugins/install`£¬ÇëÇóÌå `{"path":"plugins/developer-portal"}`
+- ·ÃÎÊ·½Ê½£ºÔÚ²å¼ş¹ÜÀíÖĞÆôÓÃºó£¬µã»÷¸Ã²å¼şµÄ¡¸·ÃÎÊ¡¹½øÈë¿ª·¢ÕßÒ³Ãæ
+- Éú²ú½¨Òé£ºÎŞĞè¿ª·¢ÄÜÁ¦Ê±¿ÉÖ±½ÓĞ¶ÔØ¸Ã²å¼ş
+
+Dev Portal ·µ»ØÆõÔ¼£¨`data` ×Ö¶Î£©£º
+- scaffold£º`{ operation, status, pluginsRoot, pluginId, pluginName, pluginDir, mode }`
+- validate-all£º`{ operation, status, pluginsRoot, summary:{total,valid,invalid}, results:[...] }`
+- config£º`{ enabled, defaultRoot, allowedRoots[] }`
+- manifest_get/manifest_put/manifest_validate£º`{ operation, status, pluginsRoot, pluginId, pluginDir, manifestPath, manifest, validation, error? }`
+- projects£º`{ operation, status, pluginsRoot, projects:[{ pluginId,name,version,path,mode,installed,enabled,previewUrl,buildHint,packageHint,publishHint,lastUpdatedAt }] }`
+- remove£º`{ operation, status, pluginsRoot, pluginId, pluginDir, uninstalled, filesRemoved }`
+- package£º`{ operation, status, pluginsRoot, pluginId, pluginDir, artifactPath }`
+- pipeline£º`{ operation, status, pluginsRoot, pluginId, pluginDir, startedAt, finishedAt, steps:[{name,status,message?,artifactPath?,durationMs}] }`
+- rollout/rollback£º`{ operation, status, pluginId, rolloutPercent, persisted, message? }`
+- release order create/list/approve/reject£º`{ operation, status, order:{ orderId, pluginId, releaseVersion, orderStatus, changelog?, createdBy, createdAt, approvedBy?, approvedAt?, rejectedBy?, rejectedAt?, reviewComment? }, orders?[] }`
 
 ## »ù´¡ÉèÊ©ÅäÖÃ²¹³ä
 
 - Í³Ò» API »ù´¡Ç°×º£º`SKOLL_API_BASE_PREFIX`£¨Ä¬ÈÏ `/skoll`£¬Ç°¶Ë¹¹½¨Ê±×¢Èë£¬ºó¶ËÔËĞĞÊ±¶ÁÈ¡£©
 - Ç°¶ËÒ³Ãæ»ù´¡Â·¾¶£º`SKOLL_WEB_BASE_PATH`£¨Ä¬ÈÏ `/skoll`£¬Ç°¶ËÒ³ÃæÈë¿ÚÄ¬ÈÏ¹ÒÔØµ½¸ÃÂ·¾¶£©
 - ¼æÈİ±£Áô£º`SKOLL_SERVER_API_PREFIX` ÈÔ¿É×÷Îª»ØÍËÅäÖÃ
+- Dev Portal ¿ª¹Ø£º`SKOLL_DEV_PORTAL_ENABLED`£¨Ä¬ÈÏ `false`£¬¿ªÆôºó×¢²á `/v1/plugins/dev/*`£©
+- Dev Portal ¸ùÄ¿Â¼°×Ãûµ¥£º`SKOLL_DEV_PLUGINS_ROOT`£¨Ä¬ÈÏ `plugins`£¬Ö§³Ö `;` »ò `,` ·Ö¸ô¶à¸öÄ¿Â¼£»`pluginsRoot` ±ØĞëÃüÖĞÆäÖĞÒ»¸öÄ¿Â¼£©
 - ÊÂ¼ş×ÜÏßÄ£Ê½£º`SKOLL_EVENT_MODE`£¨`memory` »ò `redis`£©
 - Redis Pub/Sub µØÖ·£º`SKOLL_EVENT_REDIS_ADDR`£¨µ± `SKOLL_EVENT_MODE=redis` Ê±±ØÌî£©
 - Swagger UI£º`GET {API_BASE_PREFIX}/docs/swagger`
