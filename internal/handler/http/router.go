@@ -34,6 +34,9 @@ type Dependencies struct {
 	LogDir           string
 	LogFile          string
 	LogPluginPerFile bool
+	DevPortalEnabled bool
+	DevPortalRoot    string
+	DevPortalRoots   []string
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -60,7 +63,14 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService, deps.AuditService)
 	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService)
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
-	pluginhttp.RegisterPluginRoutes(apiMux, deps.PluginManager, pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile), pluginhttp.WithPluginAuditService(deps.AuditService))
+	pluginhttp.RegisterPluginRoutes(
+		apiMux,
+		deps.PluginManager,
+		pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile),
+		pluginhttp.WithPluginAuditService(deps.AuditService),
+		pluginhttp.WithPluginRoleCatalogProvider(deps.RoleService),
+		pluginhttp.WithPluginDevPortal(deps.DevPortalEnabled, deps.DevPortalRoot, deps.DevPortalRoots),
+	)
 	registerPluginExtensionRoutes(apiMux, deps.PluginManager)
 
 	rootMux := http.NewServeMux()

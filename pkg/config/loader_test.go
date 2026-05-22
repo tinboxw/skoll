@@ -144,6 +144,39 @@ func TestLoadFromDefaultConfigCandidate(t *testing.T) {
 	}
 }
 
+func TestLoadParsesDevPluginsRootAllowlist(t *testing.T) {
+	t.Setenv("SKOLL_DEV_PLUGINS_ROOT", "plugins;D:/workspace/skoll-apps;D:/workspace/skoll-apps")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load with dev allowlist: %v", err)
+	}
+	if cfg.Dev.PluginsRoot != "plugins" {
+		t.Fatalf("unexpected default dev root: %s", cfg.Dev.PluginsRoot)
+	}
+	if len(cfg.Dev.PluginsRoots) != 2 {
+		t.Fatalf("unexpected allowlist size: %d", len(cfg.Dev.PluginsRoots))
+	}
+	if cfg.Dev.PluginsRoots[1] != "D:/workspace/skoll-apps" {
+		t.Fatalf("unexpected secondary allowlist root: %s", cfg.Dev.PluginsRoots[1])
+	}
+}
+
+func TestLoadFallsBackToDefaultDevRootWhenEmpty(t *testing.T) {
+	t.Setenv("SKOLL_DEV_PLUGINS_ROOT", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load with empty dev root: %v", err)
+	}
+	if cfg.Dev.PluginsRoot != "plugins" {
+		t.Fatalf("unexpected fallback dev root: %s", cfg.Dev.PluginsRoot)
+	}
+	if len(cfg.Dev.PluginsRoots) != 1 || cfg.Dev.PluginsRoots[0] != "plugins" {
+		t.Fatalf("unexpected fallback allowlist: %+v", cfg.Dev.PluginsRoots)
+	}
+}
+
 func TestValidate(t *testing.T) {
 	cfg := AppConfig{
 		Server:   ServerConfig{Address: ":8080", ShutdownTimeout: 1},

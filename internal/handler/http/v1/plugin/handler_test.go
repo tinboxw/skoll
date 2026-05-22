@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -11,11 +12,26 @@ import (
 	"testing"
 
 	"github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type fakePluginManager struct {
 	items     map[string]plugin.Info
 	snapshots map[string]plugin.RegistrySnapshot
+}
+
+func (f *fakePluginManager) SavePluginConfig(pluginID string, config map[string]any) error {
+	item, ok := f.items[pluginID]
+	if !ok {
+		return plugin.ErrPluginNotFound
+	}
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	item.ConfigJSON = string(raw)
+	f.items[pluginID] = item
+	return nil
 }
 
 func (f *fakePluginManager) Install(path string) (plugin.Info, error) {
@@ -78,6 +94,12 @@ func (f *fakePluginManager) Get(pluginID string) (plugin.Info, error) {
 func (f *fakePluginManager) GetExtensionSnapshot(pluginID string) (plugin.RegistrySnapshot, bool) {
 	s, ok := f.snapshots[pluginID]
 	return s, ok
+}
+
+func withRole(req *http.Request, role string) *http.Request {
+	claims := &security.JWTClaims{Subject: "u-1", Role: role}
+	ctx := security.WithJWTClaimsContext(context.Background(), claims)
+	return req.WithContext(ctx)
 }
 
 func TestPluginHandlerListFromProvider(t *testing.T) {
@@ -244,6 +266,455 @@ func TestPluginHandlerInstallValidateBadRequest(t *testing.T) {
 		if resp.Code != http.StatusBadRequest {
 			t.Fatalf("%s expected 400 got %d body=%s", path, resp.Code, resp.Body.String())
 		}
+	}
+}
+
+func TestPluginHandlerDevPortalRoutesDisabled(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{}})
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader([]byte(`{}`)))
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 when dev portal disabled, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestPluginHandlerDevPortalRequiresSuperAdmin(t *testing.T) {
+	tmp := t.TempDir()
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{}}, WithPluginDevPortal(true, tmp, []string{tmp}))
+
+	payload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(tmp) + `","pluginId":"demo","pluginName":"Demo"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(payload))
+	req = withRole(req, "admin")
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for non super_admin, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestPluginHandlerDevPortalScaffoldRejectsUnexpectedRoot(t *testing.T) {
+	allowedRoot := filepath.Join(t.TempDir(), "plugins")
+	otherRoot := filepath.Join(t.TempDir(), "other")
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{}}, WithPluginDevPortal(true, allowedRoot, []string{allowedRoot}))
+
+	payload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(otherRoot) + `","pluginId":"demo","pluginName":"Demo"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(payload))
+	req = withRole(req, "super_admin")
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for non-whitelisted root, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestPluginHandlerDevPortalScaffoldAndValidateAll(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{}}, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	scaffoldPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"demo-plugin","pluginName":"Demo Plugin"}`)
+	scaffoldReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(scaffoldPayload))
+	scaffoldReq = withRole(scaffoldReq, "super_admin")
+	scaffoldResp := httptest.NewRecorder()
+	mux.ServeHTTP(scaffoldResp, scaffoldReq)
+	if scaffoldResp.Code != http.StatusCreated {
+		t.Fatalf("scaffold status=%d body=%s", scaffoldResp.Code, scaffoldResp.Body.String())
+	}
+	var scaffoldBody struct {
+		Data struct {
+			Operation string `json:"operation"`
+			Status    string `json:"status"`
+			PluginID  string `json:"pluginId"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(scaffoldResp.Body.Bytes(), &scaffoldBody); err != nil {
+		t.Fatalf("decode scaffold response: %v", err)
+	}
+	if scaffoldBody.Data.Operation != "scaffold" || scaffoldBody.Data.Status != "ok" || scaffoldBody.Data.PluginID != "demo-plugin" {
+		t.Fatalf("unexpected scaffold data: %+v", scaffoldBody.Data)
+	}
+
+	manifestPath := filepath.Join(pluginsRoot, "demo-plugin", "plugin.yaml")
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("expected scaffold manifest created: %v", err)
+	}
+
+	validatePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `"}`)
+	validateReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/validate-all", bytes.NewReader(validatePayload))
+	validateReq = withRole(validateReq, "super_admin")
+	validateResp := httptest.NewRecorder()
+	mux.ServeHTTP(validateResp, validateReq)
+	if validateResp.Code != http.StatusOK {
+		t.Fatalf("validate-all status=%d body=%s", validateResp.Code, validateResp.Body.String())
+	}
+
+	var body struct {
+		Data struct {
+			Operation string `json:"operation"`
+			Status    string `json:"status"`
+			Summary   struct {
+				Total   int `json:"total"`
+				Valid   int `json:"valid"`
+				Invalid int `json:"invalid"`
+			} `json:"summary"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(validateResp.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode validate-all response: %v", err)
+	}
+	if body.Data.Operation != "validate_all" || body.Data.Status != "ok" {
+		t.Fatalf("unexpected validate-all envelope: %+v", body.Data)
+	}
+	if body.Data.Summary.Total != 1 || body.Data.Summary.Valid != 1 || body.Data.Summary.Invalid != 0 {
+		t.Fatalf("unexpected validate-all result: %+v", body.Data)
+	}
+}
+
+func TestPluginHandlerDevPortalAllowsSecondaryRoot(t *testing.T) {
+	primaryRoot := filepath.Join(t.TempDir(), "plugins-primary")
+	secondaryRoot := filepath.Join(t.TempDir(), "plugins-secondary")
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(
+		mux,
+		&fakePluginManager{items: map[string]plugin.Info{}},
+		WithPluginDevPortal(true, primaryRoot, []string{primaryRoot, secondaryRoot}),
+	)
+
+	payload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(secondaryRoot) + `","pluginId":"demo-secondary","pluginName":"Demo Secondary"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(payload))
+	req = withRole(req, "super_admin")
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected scaffold success on secondary root, got %d body=%s", resp.Code, resp.Body.String())
+	}
+
+	manifestPath := filepath.Join(secondaryRoot, "demo-secondary", "plugin.yaml")
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("expected scaffold manifest created in secondary root: %v", err)
+	}
+}
+
+func TestPluginHandlerDevPortalScaffoldRepositoryMode(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{}}, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	payload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"repo-plugin","pluginName":"Repo Plugin","mode":"repository"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(payload))
+	req = withRole(req, "super_admin")
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("expected scaffold repository mode success, got %d body=%s", resp.Code, resp.Body.String())
+	}
+
+	mainPath := filepath.Join(pluginsRoot, "repo-plugin", "backend", "cmd", "repo-plugin", "main.go")
+	if _, err := os.Stat(mainPath); err != nil {
+		t.Fatalf("expected repository mode main.go created: %v", err)
+	}
+	frontendPkg := filepath.Join(pluginsRoot, "repo-plugin", "frontend", "package.json")
+	if _, err := os.Stat(frontendPkg); err != nil {
+		t.Fatalf("expected repository mode frontend package.json created: %v", err)
+	}
+}
+
+func TestPluginHandlerDevPortalScaffoldRejectsInvalidMode(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{}}, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	payload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"bad-mode","pluginName":"Bad Mode","mode":"unknown"}`)
+	req := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(payload))
+	req = withRole(req, "super_admin")
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid mode bad request, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestPluginHandlerDevPortalConfigProjectsRemoveAndPackage(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	mgr := &fakePluginManager{items: map[string]plugin.Info{}}
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	scaffoldPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"dev-work","pluginName":"Dev Work"}`)
+	scaffoldReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(scaffoldPayload))
+	scaffoldReq = withRole(scaffoldReq, "super_admin")
+	scaffoldResp := httptest.NewRecorder()
+	mux.ServeHTTP(scaffoldResp, scaffoldReq)
+	if scaffoldResp.Code != http.StatusCreated {
+		t.Fatalf("scaffold status=%d body=%s", scaffoldResp.Code, scaffoldResp.Body.String())
+	}
+
+	configReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/config", nil)
+	configReq = withRole(configReq, "super_admin")
+	configResp := httptest.NewRecorder()
+	mux.ServeHTTP(configResp, configReq)
+	if configResp.Code != http.StatusOK {
+		t.Fatalf("config status=%d body=%s", configResp.Code, configResp.Body.String())
+	}
+
+	projectsPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `"}`)
+	projectsReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/projects", bytes.NewReader(projectsPayload))
+	projectsReq = withRole(projectsReq, "super_admin")
+	projectsResp := httptest.NewRecorder()
+	mux.ServeHTTP(projectsResp, projectsReq)
+	if projectsResp.Code != http.StatusOK {
+		t.Fatalf("projects status=%d body=%s", projectsResp.Code, projectsResp.Body.String())
+	}
+	var projectsBody struct {
+		Data devListProjectsResponse `json:"data"`
+	}
+	if err := json.Unmarshal(projectsResp.Body.Bytes(), &projectsBody); err != nil {
+		t.Fatalf("decode projects response: %v", err)
+	}
+	if len(projectsBody.Data.Projects) != 1 || projectsBody.Data.Projects[0].PluginID != "dev-work" {
+		t.Fatalf("unexpected projects: %+v", projectsBody.Data.Projects)
+	}
+
+	packagePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"dev-work"}`)
+	packageReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/package", bytes.NewReader(packagePayload))
+	packageReq = withRole(packageReq, "super_admin")
+	packageResp := httptest.NewRecorder()
+	mux.ServeHTTP(packageResp, packageReq)
+	if packageResp.Code != http.StatusOK {
+		t.Fatalf("package status=%d body=%s", packageResp.Code, packageResp.Body.String())
+	}
+	var packageBody struct {
+		Data devPackageProjectResponse `json:"data"`
+	}
+	if err := json.Unmarshal(packageResp.Body.Bytes(), &packageBody); err != nil {
+		t.Fatalf("decode package response: %v", err)
+	}
+	if _, err := os.Stat(packageBody.Data.ArtifactPath); err != nil {
+		t.Fatalf("expected artifact file, got err=%v", err)
+	}
+
+	removePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"dev-work","removeFiles":true}`)
+	removeReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/remove", bytes.NewReader(removePayload))
+	removeReq = withRole(removeReq, "super_admin")
+	removeResp := httptest.NewRecorder()
+	mux.ServeHTTP(removeResp, removeReq)
+	if removeResp.Code != http.StatusOK {
+		t.Fatalf("remove status=%d body=%s", removeResp.Code, removeResp.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(pluginsRoot, "dev-work")); !os.IsNotExist(err) {
+		t.Fatalf("expected project directory removed, err=%v", err)
+	}
+}
+
+func TestPluginHandlerDevPortalManifestPipelineAndRollout(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	mgr := &fakePluginManager{items: map[string]plugin.Info{}}
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	scaffoldPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"dev-edit","pluginName":"Dev Edit"}`)
+	scaffoldReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(scaffoldPayload))
+	scaffoldReq = withRole(scaffoldReq, "super_admin")
+	scaffoldResp := httptest.NewRecorder()
+	mux.ServeHTTP(scaffoldResp, scaffoldReq)
+	if scaffoldResp.Code != http.StatusCreated {
+		t.Fatalf("scaffold status=%d body=%s", scaffoldResp.Code, scaffoldResp.Body.String())
+	}
+
+	manifestGetReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/manifest?pluginsRoot="+filepath.ToSlash(pluginsRoot)+"&pluginId=dev-edit", nil)
+	manifestGetReq = withRole(manifestGetReq, "super_admin")
+	manifestGetResp := httptest.NewRecorder()
+	mux.ServeHTTP(manifestGetResp, manifestGetReq)
+	if manifestGetResp.Code != http.StatusOK {
+		t.Fatalf("manifest get status=%d body=%s", manifestGetResp.Code, manifestGetResp.Body.String())
+	}
+
+	manifest := strings.Join([]string{
+		"id: dev-edit",
+		"name: \"Dev Edit Updated\"",
+		"version: 0.1.1",
+		"api_version: v1",
+		"compatibility_skoll: \">=1.0.0 <2.0.0\"",
+		"migration_version: v0.1.0",
+		"ui_mode: separated",
+		"level: system",
+		"mount_policy: admin",
+		"ui_nav_position: none",
+		"ui_open_mode: integrated",
+		"ui_tab_mode: optional",
+		"i18n_locales:",
+		"  - zh-CN",
+		"  - en-US",
+		"permissions:",
+		"  - \"dev-edit.read\"",
+	}, "\n") + "\n"
+
+	manifestPutPayload, _ := json.Marshal(devManifestRequest{PluginsRoot: filepath.ToSlash(pluginsRoot), PluginID: "dev-edit", Manifest: manifest})
+	manifestPutReq := httptest.NewRequest(http.MethodPut, "/v1/plugins/dev/manifest", bytes.NewReader(manifestPutPayload))
+	manifestPutReq = withRole(manifestPutReq, "super_admin")
+	manifestPutResp := httptest.NewRecorder()
+	mux.ServeHTTP(manifestPutResp, manifestPutReq)
+	if manifestPutResp.Code != http.StatusOK {
+		t.Fatalf("manifest put status=%d body=%s", manifestPutResp.Code, manifestPutResp.Body.String())
+	}
+
+	manifestValidateReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/manifest/validate", bytes.NewReader(manifestPutPayload))
+	manifestValidateReq = withRole(manifestValidateReq, "super_admin")
+	manifestValidateResp := httptest.NewRecorder()
+	mux.ServeHTTP(manifestValidateResp, manifestValidateReq)
+	if manifestValidateResp.Code != http.StatusOK {
+		t.Fatalf("manifest validate status=%d body=%s", manifestValidateResp.Code, manifestValidateResp.Body.String())
+	}
+
+	pipelinePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"dev-edit"}`)
+	pipelineReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/pipeline", bytes.NewReader(pipelinePayload))
+	pipelineReq = withRole(pipelineReq, "super_admin")
+	pipelineResp := httptest.NewRecorder()
+	mux.ServeHTTP(pipelineResp, pipelineReq)
+	if pipelineResp.Code != http.StatusOK {
+		t.Fatalf("pipeline status=%d body=%s", pipelineResp.Code, pipelineResp.Body.String())
+	}
+	var pipelineBody struct {
+		Data devPipelineResponse `json:"data"`
+	}
+	if err := json.Unmarshal(pipelineResp.Body.Bytes(), &pipelineBody); err != nil {
+		t.Fatalf("decode pipeline response: %v", err)
+	}
+	if pipelineBody.Data.Status != "ok" || len(pipelineBody.Data.Steps) < 2 {
+		t.Fatalf("unexpected pipeline response: %+v", pipelineBody.Data)
+	}
+
+	// Add runtime item for rollout persistence path.
+	mgr.items["dev-edit"] = plugin.Info{ID: "dev-edit", Name: "Dev Edit", Version: "0.1.1", State: plugin.StateEnabled, ConfigJSON: "{}"}
+
+	rolloutPayload := []byte(`{"pluginId":"dev-edit","rolloutPercent":20}`)
+	rolloutReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/rollout", bytes.NewReader(rolloutPayload))
+	rolloutReq = withRole(rolloutReq, "super_admin")
+	rolloutResp := httptest.NewRecorder()
+	mux.ServeHTTP(rolloutResp, rolloutReq)
+	if rolloutResp.Code != http.StatusOK {
+		t.Fatalf("rollout status=%d body=%s", rolloutResp.Code, rolloutResp.Body.String())
+	}
+
+	rollbackPayload := []byte(`{"pluginId":"dev-edit"}`)
+	rollbackReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/rollback", bytes.NewReader(rollbackPayload))
+	rollbackReq = withRole(rollbackReq, "super_admin")
+	rollbackResp := httptest.NewRecorder()
+	mux.ServeHTTP(rollbackResp, rollbackReq)
+	if rollbackResp.Code != http.StatusOK {
+		t.Fatalf("rollback status=%d body=%s", rollbackResp.Code, rollbackResp.Body.String())
+	}
+}
+
+func TestPluginHandlerDevPortalReleaseOrderFlow(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	mgr := &fakePluginManager{items: map[string]plugin.Info{}}
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	scaffoldPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-demo","pluginName":"Release Demo"}`)
+	scaffoldReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/scaffold", bytes.NewReader(scaffoldPayload))
+	scaffoldReq = withRole(scaffoldReq, "super_admin")
+	scaffoldResp := httptest.NewRecorder()
+	mux.ServeHTTP(scaffoldResp, scaffoldReq)
+	if scaffoldResp.Code != http.StatusCreated {
+		t.Fatalf("scaffold status=%d body=%s", scaffoldResp.Code, scaffoldResp.Body.String())
+	}
+
+	createPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-demo","releaseVersion":"1.2.0","changelog":"release note"}`)
+	createReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders", bytes.NewReader(createPayload))
+	createReq = withRole(createReq, "super_admin")
+	createResp := httptest.NewRecorder()
+	mux.ServeHTTP(createResp, createReq)
+	if createResp.Code != http.StatusCreated {
+		t.Fatalf("create release order status=%d body=%s", createResp.Code, createResp.Body.String())
+	}
+
+	var createBody struct {
+		Data devCreateReleaseOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(createResp.Body.Bytes(), &createBody); err != nil {
+		t.Fatalf("decode create release order response: %v", err)
+	}
+	if createBody.Data.Order.OrderID == "" {
+		t.Fatalf("expected order id in create response")
+	}
+	if createBody.Data.Order.OrderStatus != devReleaseOrderStatusPending {
+		t.Fatalf("unexpected order status after create: %+v", createBody.Data.Order)
+	}
+
+	listReq := httptest.NewRequest(http.MethodGet, "/v1/plugins/dev/release-orders?pluginsRoot="+filepath.ToSlash(pluginsRoot)+"&pluginId=release-demo", nil)
+	listReq = withRole(listReq, "super_admin")
+	listResp := httptest.NewRecorder()
+	mux.ServeHTTP(listResp, listReq)
+	if listResp.Code != http.StatusOK {
+		t.Fatalf("list release order status=%d body=%s", listResp.Code, listResp.Body.String())
+	}
+
+	var listBody struct {
+		Data devListReleaseOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(listResp.Body.Bytes(), &listBody); err != nil {
+		t.Fatalf("decode list release order response: %v", err)
+	}
+	if len(listBody.Data.Orders) != 1 {
+		t.Fatalf("expected 1 order in list, got %d", len(listBody.Data.Orders))
+	}
+
+	approvePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-demo","comment":"looks good"}`)
+	approveReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders/"+createBody.Data.Order.OrderID+"/approve", bytes.NewReader(approvePayload))
+	approveReq = withRole(approveReq, "super_admin")
+	approveResp := httptest.NewRecorder()
+	mux.ServeHTTP(approveResp, approveReq)
+	if approveResp.Code != http.StatusOK {
+		t.Fatalf("approve release order status=%d body=%s", approveResp.Code, approveResp.Body.String())
+	}
+
+	var approveBody struct {
+		Data devReviewReleaseOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(approveResp.Body.Bytes(), &approveBody); err != nil {
+		t.Fatalf("decode approve release order response: %v", err)
+	}
+	if approveBody.Data.Order.OrderStatus != devReleaseOrderStatusApproved {
+		t.Fatalf("unexpected status after approve: %+v", approveBody.Data.Order)
+	}
+
+	secondCreateReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders", bytes.NewReader([]byte(`{"pluginsRoot":"`+filepath.ToSlash(pluginsRoot)+`","pluginId":"release-demo","releaseVersion":"1.3.0"}`)))
+	secondCreateReq = withRole(secondCreateReq, "super_admin")
+	secondCreateResp := httptest.NewRecorder()
+	mux.ServeHTTP(secondCreateResp, secondCreateReq)
+	if secondCreateResp.Code != http.StatusCreated {
+		t.Fatalf("create second release order status=%d body=%s", secondCreateResp.Code, secondCreateResp.Body.String())
+	}
+	var secondCreateBody struct {
+		Data devCreateReleaseOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(secondCreateResp.Body.Bytes(), &secondCreateBody); err != nil {
+		t.Fatalf("decode second create response: %v", err)
+	}
+
+	rejectPayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-demo","comment":"missing rollback checklist"}`)
+	rejectReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/release-orders/"+secondCreateBody.Data.Order.OrderID+"/reject", bytes.NewReader(rejectPayload))
+	rejectReq = withRole(rejectReq, "super_admin")
+	rejectResp := httptest.NewRecorder()
+	mux.ServeHTTP(rejectResp, rejectReq)
+	if rejectResp.Code != http.StatusOK {
+		t.Fatalf("reject release order status=%d body=%s", rejectResp.Code, rejectResp.Body.String())
+	}
+	var rejectBody struct {
+		Data devReviewReleaseOrderResponse `json:"data"`
+	}
+	if err := json.Unmarshal(rejectResp.Body.Bytes(), &rejectBody); err != nil {
+		t.Fatalf("decode reject response: %v", err)
+	}
+	if rejectBody.Data.Order.OrderStatus != devReleaseOrderStatusRejected {
+		t.Fatalf("unexpected status after reject: %+v", rejectBody.Data.Order)
 	}
 }
 
@@ -465,5 +936,6 @@ func TestPluginHandlerPageDemoBackendMonolith(t *testing.T) {
 func TestFakePluginManagerImplementsManager(t *testing.T) {
 	var _ PluginManager = (*fakePluginManager)(nil)
 	var _ PluginExtensionSnapshotProvider = (*fakePluginManager)(nil)
+	var _ PluginConfigUpdater = (*fakePluginManager)(nil)
 	t.Log("compile assertions passed")
 }

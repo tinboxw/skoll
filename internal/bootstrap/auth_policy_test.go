@@ -23,6 +23,9 @@ func TestLoadAuthPolicyFromEnvDefaults(t *testing.T) {
 	if !policy.ShouldAuthenticate("/skoll/v1/users") {
 		t.Fatalf("expected /v1/users to require auth")
 	}
+	if !policy.ShouldAuthenticate("/skoll/v1/plugins/dev/scaffold") {
+		t.Fatalf("expected /v1/plugins/dev/scaffold to require auth")
+	}
 }
 
 func TestLoadAuthPolicyFromEnvCustomPaths(t *testing.T) {
@@ -48,5 +51,8 @@ func TestAuthPolicyWithCustomAPIPrefix(t *testing.T) {
 	}
 	if !policy.ShouldAuthenticate("/gateway/v1/users") {
 		t.Fatalf("expected /gateway/v1/users to require auth")
+	}
+	if !policy.ShouldAuthenticate("/gateway/v1/plugins/dev/validate-all") {
+		t.Fatalf("expected /gateway/v1/plugins/dev/validate-all to require auth")
 	}
 }

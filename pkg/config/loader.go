@@ -18,6 +18,7 @@ type AppConfig struct {
 	Event    EventConfig
 	Security SecurityConfig
 	Log      LogConfig
+	Dev      DevConfig
 }
 
 type ServerConfig struct {
@@ -53,6 +54,12 @@ type LogConfig struct {
 	Dir           string
 	File          string
 	PluginPerFile bool
+}
+
+type DevConfig struct {
+	PortalEnabled bool
+	PluginsRoot   string
+	PluginsRoots  []string
 }
 
 var defaultConfigCandidates = []string{
@@ -92,6 +99,8 @@ func Load() (AppConfig, error) {
 	v.SetDefault("log.dir", "log")
 	v.SetDefault("log.file", "")
 	v.SetDefault("log.plugin_per_file", false)
+	v.SetDefault("dev.portal_enabled", false)
+	v.SetDefault("dev.plugins_root", "plugins")
 	v.SetDefault("server.port", "")
 
 	if err := loadConfigFile(v); err != nil {
@@ -116,6 +125,12 @@ func Load() (AppConfig, error) {
 			return AppConfig{}, fmt.Errorf("invalid SKOLL_SERVER_PORT: %q", portRaw)
 		}
 		address = fmt.Sprintf(":%d", port)
+	}
+
+	devRoots := parseDevPluginsRoots(v.GetString("dev.plugins_root"))
+	devRoot := "plugins"
+	if len(devRoots) > 0 {
+		devRoot = devRoots[0]
 	}
 
 	return AppConfig{
@@ -148,7 +163,39 @@ func Load() (AppConfig, error) {
 			File:          strings.TrimSpace(v.GetString("log.file")),
 			PluginPerFile: v.GetBool("log.plugin_per_file"),
 		},
+		Dev: DevConfig{
+			PortalEnabled: v.GetBool("dev.portal_enabled"),
+			PluginsRoot:   devRoot,
+			PluginsRoots:  devRoots,
+		},
 	}, nil
+}
+
+func parseDevPluginsRoots(raw string) []string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return []string{"plugins"}
+	}
+	parts := strings.FieldsFunc(trimmed, func(r rune) bool {
+		return r == ';' || r == ','
+	})
+	roots := make([]string, 0, len(parts))
+	seen := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		v := strings.TrimSpace(part)
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		roots = append(roots, v)
+	}
+	if len(roots) == 0 {
+		return []string{"plugins"}
+	}
+	return roots
 }
 
 func resolveAPIPrefix(v *viper.Viper) string {

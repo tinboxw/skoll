@@ -85,6 +85,9 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		LogDir:           cfg.AppConfig.Log.Dir,
 		LogFile:          cfg.AppConfig.Log.File,
 		LogPluginPerFile: cfg.AppConfig.Log.PluginPerFile,
+		DevPortalEnabled: cfg.AppConfig.Dev.PortalEnabled,
+		DevPortalRoot:    cfg.AppConfig.Dev.PluginsRoot,
+		DevPortalRoots:   append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),
@@ -182,6 +185,27 @@ type pluginManagerWithExtensions struct {
 	extensions    map[string]plugin.RegistrySnapshot
 	routeHandlers map[string]http.HandlerFunc
 	pluginsRepo   pluginrepo.PluginRepository
+}
+
+func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) error {
+	if m == nil {
+		return plugin.ErrPluginNotFound
+	}
+	pluginID = strings.TrimSpace(pluginID)
+	if pluginID == "" {
+		return plugin.ErrPluginNotFound
+	}
+	reloader, ok := m.Manager.(interface {
+		ReloadPluginMetadata(pluginID string) error
+	})
+	if !ok {
+		return nil
+	}
+	if err := reloader.ReloadPluginMetadata(pluginID); err != nil {
+		return err
+	}
+	m.persistOne(context.Background(), pluginID)
+	return nil
 }
 
 func (m *pluginManagerWithExtensions) Install(path string) (plugin.Info, error) {

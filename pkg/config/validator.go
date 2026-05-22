@@ -53,5 +53,13 @@ func Validate(cfg AppConfig) error {
 	if strings.TrimSpace(cfg.Security.JWTSecret) == "" {
 		return errors.New("jwt secret is required")
 	}
+	if cfg.Dev.PortalEnabled {
+		if strings.TrimSpace(cfg.Dev.PluginsRoot) == "" {
+			return errors.New("dev plugins root is required when dev portal is enabled")
+		}
+		if len(cfg.Dev.PluginsRoots) == 0 {
+			return errors.New("at least one dev plugins root is required when dev portal is enabled")
+		}
+	}
 	return nil
 }

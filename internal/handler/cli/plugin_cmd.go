@@ -261,6 +261,10 @@ func (c *PluginCommand) handleScaffold(root, pluginID, pluginName, appID string)
 		MigrationVersion:   "v0.1.0",
 		UIMode:             plugin.UIModeSeparated,
 		MountPolicy:        plugin.MountPolicyAdmin,
+		UINavPosition:      plugin.UINavPositionNone,
+		UIOpenMode:         plugin.UIOpenModeIntegrated,
+		UITabMode:          plugin.UITabModeOptional,
+		I18nLocales:        []string{"zh-CN", "en-US"},
 		Level:              plugin.LevelSystem,
 		Permissions:        []string{pluginID + ".read"},
 	}
@@ -326,6 +330,12 @@ func renderScaffoldManifest(info plugin.Info) string {
 		"ui_mode: " + string(info.UIMode),
 		"level: " + string(info.Level),
 		"mount_policy: " + string(info.MountPolicy),
+		"ui_nav_position: " + string(plugin.UINavPositionNone),
+		"ui_open_mode: " + string(plugin.UIOpenModeIntegrated),
+		"ui_tab_mode: " + string(plugin.UITabModeOptional),
+		"i18n_locales:",
+		"  - zh-CN",
+		"  - en-US",
 	}
 	if strings.TrimSpace(info.AppID) != "" {
 		lines = append(lines, "app_id: "+info.AppID)

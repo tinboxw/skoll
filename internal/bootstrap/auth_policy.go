@@ -54,6 +54,9 @@ func (p AuthPolicy) ShouldAuthenticate(path string) bool {
 	if !p.Enabled {
 		return false
 	}
+	if strings.Contains(path, "/v1/plugins/dev/") || strings.HasSuffix(path, "/v1/plugins/dev") {
+		return true
+	}
 	for skipPath := range p.SkipPaths {
 		if path == skipPath || strings.HasPrefix(path, skipPath+"/") {
 			return false
