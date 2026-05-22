@@ -1,11 +1,19 @@
 id: demo-monolith
 name: Demo Monolith Plugin
+name_zh_cn: 示例单体插件
+name_en_us: Demo Monolith Plugin
 version: 0.1.0
 description: Example plugin using non-separated backend+static layout.
 level: app
 app_id: demo3
 mount_policy: admin
 ui_mode: monolith
+ui_nav_position: top_tab
+ui_open_mode: integrated
+ui_tab_mode: optional
+i18n_locales:
+  - zh-CN
+  - en-US
 
 permissions:
   - menu.read

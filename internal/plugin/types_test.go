@@ -96,3 +96,75 @@ func TestInfoValidateManifestContractFields(t *testing.T) {
 		t.Fatalf("expected validation error for invalid migration_version")
 	}
 }
+
+func TestInfoValidateManifestUIConfig(t *testing.T) {
+	valid := Info{
+		ID:            "crm-analytics",
+		Name:          "CRM Analytics",
+		Version:       "1.0.0",
+		UIMode:        UIModeFrontendOnly,
+		UINavPosition: UINavPositionSidebar,
+		UIOpenMode:    UIOpenModeIntegrated,
+		UITabMode:     UITabModeFixed,
+		I18nLocales:   []string{"zh-CN", "en-US"},
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid UI config, got %v", err)
+	}
+
+	badNav := valid
+	badNav.UINavPosition = "left"
+	if err := badNav.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for invalid ui_nav_position")
+	}
+
+	badOpenMode := valid
+	badOpenMode.UIOpenMode = "popup"
+	if err := badOpenMode.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for invalid ui_open_mode")
+	}
+
+	badTabMode := valid
+	badTabMode.UITabMode = "always"
+	if err := badTabMode.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for invalid ui_tab_mode")
+	}
+
+	missingLocales := valid
+	missingLocales.I18nLocales = nil
+	if err := missingLocales.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for missing i18n_locales on frontend plugin")
+	}
+
+	badLocale := valid
+	badLocale.I18nLocales = []string{"zh_cn"}
+	if err := badLocale.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for invalid locale format")
+	}
+
+	duplicatedLocale := valid
+	duplicatedLocale.I18nLocales = []string{"en-US", "en-US"}
+	if err := duplicatedLocale.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for duplicate locales")
+	}
+
+	standaloneValid := valid
+	standaloneValid.UIOpenMode = UIOpenModeStandalone
+	standaloneValid.UINavPosition = UINavPositionNone
+	standaloneValid.UITabMode = UITabModeDisabled
+	if err := standaloneValid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid standalone UI config, got %v", err)
+	}
+
+	standaloneWithSidebar := standaloneValid
+	standaloneWithSidebar.UINavPosition = UINavPositionSidebar
+	if err := standaloneWithSidebar.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for standalone plugin with non-none nav position")
+	}
+
+	standaloneWithTabs := standaloneValid
+	standaloneWithTabs.UITabMode = UITabModeOptional
+	if err := standaloneWithTabs.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for standalone plugin with enabled tab mode")
+	}
+}

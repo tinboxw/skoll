@@ -68,6 +68,60 @@ func TestRuntimeManagerInstallDuplicate(t *testing.T) {
 	}
 }
 
+func TestRuntimeManagerReloadPluginMetadata(t *testing.T) {
+	dir := t.TempDir()
+	path := writePluginManifest(t, dir, "portal", "Portal", "1.0.0", "")
+
+	m := NewRuntimeManager(NewFileLoader(), NewTopologicalResolver())
+	if _, err := m.Install(path); err != nil {
+		t.Fatalf("install plugin failed: %v", err)
+	}
+	if err := m.Enable("portal"); err != nil {
+		t.Fatalf("enable plugin failed: %v", err)
+	}
+
+	before, err := m.Get("portal")
+	if err != nil {
+		t.Fatalf("get plugin before reload failed: %v", err)
+	}
+	beforeInstalledAt := before.InstalledAt
+
+	updatedManifest := "id: \"portal\"\n" +
+		"name: \"Portal Updated\"\n" +
+		"version: \"1.2.3\"\n" +
+		"ui_nav_position: sidebar\n"
+	if err := os.WriteFile(filepath.Join(path, "plugin.yaml"), []byte(updatedManifest), 0o600); err != nil {
+		t.Fatalf("update manifest failed: %v", err)
+	}
+
+	if err := m.ReloadPluginMetadata("portal"); err != nil {
+		t.Fatalf("reload plugin metadata failed: %v", err)
+	}
+
+	after, err := m.Get("portal")
+	if err != nil {
+		t.Fatalf("get plugin after reload failed: %v", err)
+	}
+	if after.Name != "Portal Updated" {
+		t.Fatalf("expected updated name, got %q", after.Name)
+	}
+	if after.Version != "1.2.3" {
+		t.Fatalf("expected updated version, got %q", after.Version)
+	}
+	if after.UINavPosition != UINavPositionSidebar {
+		t.Fatalf("expected updated nav position, got %q", after.UINavPosition)
+	}
+	if after.State != StateEnabled {
+		t.Fatalf("expected state to be preserved as enabled, got %q", after.State)
+	}
+	if after.EnabledAt == nil {
+		t.Fatal("expected enabled timestamp to be preserved")
+	}
+	if !after.InstalledAt.Equal(beforeInstalledAt) {
+		t.Fatal("expected installed timestamp to be preserved")
+	}
+}
+
 func writePluginManifest(t *testing.T, root, id, name, version, dep string) string {
 	t.Helper()
 	dir := filepath.Join(root, id)

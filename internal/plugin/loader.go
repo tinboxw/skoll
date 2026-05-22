@@ -71,6 +71,7 @@ func parseManifest(raw []byte) (Info, error) {
 		sectionRoot = "root"
 		sectionDeps = "deps"
 		sectionPerm = "perm"
+		sectionI18n = "i18n"
 	)
 
 	section := sectionRoot
@@ -98,6 +99,13 @@ func parseManifest(raw []byte) (Info, error) {
 			}
 			section = sectionPerm
 			continue
+		case "i18n_locales:":
+			if currentDep != nil {
+				info.Dependencies = append(info.Dependencies, *currentDep)
+				currentDep = nil
+			}
+			section = sectionI18n
+			continue
 		}
 
 		if strings.HasPrefix(line, "-") {
@@ -115,6 +123,8 @@ func parseManifest(raw []byte) (Info, error) {
 				}
 			case sectionPerm:
 				info.Permissions = append(info.Permissions, parseScalar(item))
+			case sectionI18n:
+				info.I18nLocales = append(info.I18nLocales, parseScalar(item))
 			}
 			continue
 		}
@@ -139,6 +149,10 @@ func parseManifest(raw []byte) (Info, error) {
 			}
 		case "name":
 			info.Name = value
+		case "name_zh_cn":
+			info.NameZhCN = value
+		case "name_en_us":
+			info.NameEnUS = value
 		case "version":
 			if section == sectionDeps {
 				if currentDep == nil {
@@ -170,6 +184,21 @@ func parseManifest(raw []byte) (Info, error) {
 			info.MountPolicy = MountPolicy(value)
 		case "frontend_entry":
 			info.FrontendEntry = value
+		case "ui_nav_position":
+			info.UINavPosition = UINavPosition(value)
+		case "ui_open_mode":
+			info.UIOpenMode = UIOpenMode(value)
+		case "ui_tab_mode":
+			info.UITabMode = UITabMode(value)
+		case "i18n_locales":
+			if value != "" {
+				for _, locale := range strings.Split(value, ",") {
+					trimmed := strings.TrimSpace(locale)
+					if trimmed != "" {
+						info.I18nLocales = append(info.I18nLocales, trimmed)
+					}
+				}
+			}
 		case "vendor":
 			info.Vendor = value
 		case "vendor_url":
@@ -215,6 +244,21 @@ func parseManifest(raw []byte) (Info, error) {
 	}
 	if info.MountPolicy == "" {
 		info.MountPolicy = MountPolicyAdmin
+	}
+	if info.UINavPosition == "" {
+		info.UINavPosition = UINavPositionNone
+	}
+	if info.UIOpenMode == "" {
+		info.UIOpenMode = UIOpenModeIntegrated
+	}
+	if info.UITabMode == "" && info.UIOpenMode == UIOpenModeStandalone {
+		info.UITabMode = UITabModeDisabled
+	}
+	if info.UITabMode == "" {
+		info.UITabMode = UITabModeOptional
+	}
+	if info.UIMode != UIModeBackendOnly && len(info.I18nLocales) == 0 {
+		info.I18nLocales = []string{"zh-CN", "en-US"}
 	}
 	info.FrontendEntry = ResolveFrontendEntry(info)
 

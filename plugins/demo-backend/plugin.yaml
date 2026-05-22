@@ -1,11 +1,19 @@
 id: demo-backend
 name: Demo Backend Plugin
+name_zh_cn: 示例后端插件
+name_en_us: Demo Backend Plugin
 version: 0.1.0
 description: Example analytics plugin with a homepage and backend-focused datasets.
 level: app
 app_id: demo2
 mount_policy: admin
 ui_mode: monolith
+ui_nav_position: top_tab
+ui_open_mode: integrated
+ui_tab_mode: optional
+i18n_locales:
+  - zh-CN
+  - en-US
 
 permissions:
   - menu.read

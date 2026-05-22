@@ -174,6 +174,21 @@ func (sc *SignatureChecker) canonicalManifestBytes(info *Info) []byte {
 	if info.UIMode != "" {
 		buf.WriteString("ui_mode: " + string(info.UIMode) + "\n")
 	}
+	if info.UINavPosition != "" {
+		buf.WriteString("ui_nav_position: " + string(info.UINavPosition) + "\n")
+	}
+	if info.UIOpenMode != "" {
+		buf.WriteString("ui_open_mode: " + string(info.UIOpenMode) + "\n")
+	}
+	if info.UITabMode != "" {
+		buf.WriteString("ui_tab_mode: " + string(info.UITabMode) + "\n")
+	}
+	if len(info.I18nLocales) > 0 {
+		buf.WriteString("i18n_locales:\n")
+		for _, locale := range info.I18nLocales {
+			buf.WriteString("  - " + strings.TrimSpace(locale) + "\n")
+		}
+	}
 	if len(info.Dependencies) > 0 {
 		buf.WriteString("dependencies:\n")
 		for _, dep := range info.Dependencies {

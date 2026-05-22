@@ -1,10 +1,18 @@
 id: demo-system
 name: Demo System Plugin
+name_zh_cn: 示例系统插件
+name_en_us: Demo System Plugin
 version: 0.1.0
 description: Example system-level demo plugin with frontend-only assets.
 level: system
 mount_policy: admin
 ui_mode: frontend_only
+ui_nav_position: top_tab
+ui_open_mode: integrated
+ui_tab_mode: optional
+i18n_locales:
+  - zh-CN
+  - en-US
 
 permissions:
   - menu.read

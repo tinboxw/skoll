@@ -56,9 +56,33 @@ const (
 	MountPolicyMixed MountPolicy = "mixed"
 )
 
+type UINavPosition string
+
+const (
+	UINavPositionNone    UINavPosition = "none"
+	UINavPositionSidebar UINavPosition = "sidebar"
+	UINavPositionTopTab  UINavPosition = "top_tab"
+)
+
+type UIOpenMode string
+
+const (
+	UIOpenModeIntegrated UIOpenMode = "integrated"
+	UIOpenModeStandalone UIOpenMode = "standalone"
+)
+
+type UITabMode string
+
+const (
+	UITabModeOptional UITabMode = "optional"
+	UITabModeFixed    UITabMode = "fixed"
+	UITabModeDisabled UITabMode = "disabled"
+)
+
 var appIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
 var apiVersionPattern = regexp.MustCompile(`^v[0-9]+$`)
 var migrationVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
+var localePattern = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
 
 type SignatureAlgorithm string
 
@@ -77,6 +101,8 @@ type Signature struct {
 type Info struct {
 	ID                 string
 	Name               string
+	NameZhCN           string
+	NameEnUS           string
 	Version            string
 	APIVersion         string
 	CompatibilitySkoll string
@@ -96,6 +122,10 @@ type Info struct {
 	AppID              string
 	MountPolicy        MountPolicy
 	FrontendEntry      string
+	UINavPosition      UINavPosition
+	UIOpenMode         UIOpenMode
+	UITabMode          UITabMode
+	I18nLocales        []string
 	SystemBuiltin      bool
 	Vendor             string
 	VendorURL          string
@@ -163,6 +193,55 @@ func (i Info) ValidateManifest() error {
 	}
 	if mp != MountPolicyAdmin && mp != MountPolicyUser && mp != MountPolicyMixed {
 		return ErrPluginManifestBroken
+	}
+
+	nav := i.UINavPosition
+	if nav == "" {
+		nav = UINavPositionNone
+	}
+	if nav != UINavPositionNone && nav != UINavPositionSidebar && nav != UINavPositionTopTab {
+		return ErrPluginManifestBroken
+	}
+
+	openMode := i.UIOpenMode
+	if openMode == "" {
+		openMode = UIOpenModeIntegrated
+	}
+	if openMode != UIOpenModeIntegrated && openMode != UIOpenModeStandalone {
+		return ErrPluginManifestBroken
+	}
+
+	tabMode := i.UITabMode
+	if tabMode == "" {
+		tabMode = UITabModeOptional
+	}
+	if tabMode != UITabModeOptional && tabMode != UITabModeFixed && tabMode != UITabModeDisabled {
+		return ErrPluginManifestBroken
+	}
+	if openMode == UIOpenModeStandalone {
+		if nav != UINavPositionNone {
+			return ErrPluginManifestBroken
+		}
+		if tabMode != UITabModeDisabled {
+			return ErrPluginManifestBroken
+		}
+	}
+
+	if mode != UIModeBackendOnly {
+		if len(i.I18nLocales) == 0 {
+			return ErrPluginManifestBroken
+		}
+		seenLocales := make(map[string]struct{}, len(i.I18nLocales))
+		for _, locale := range i.I18nLocales {
+			trimmed := strings.TrimSpace(locale)
+			if !localePattern.MatchString(trimmed) {
+				return ErrPluginManifestBroken
+			}
+			if _, exists := seenLocales[trimmed]; exists {
+				return ErrPluginManifestBroken
+			}
+			seenLocales[trimmed] = struct{}{}
+		}
 	}
 
 	// 签名字段验证（如果有签名）

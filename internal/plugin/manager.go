@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -167,4 +168,46 @@ func (m *RuntimeManager) Get(pluginID string) (Info, error) {
 	}
 
 	return info, nil
+}
+
+func (m *RuntimeManager) ReloadPluginMetadata(pluginID string) error {
+	pluginID = strings.TrimSpace(pluginID)
+	if pluginID == "" {
+		return ErrPluginNotFound
+	}
+
+	m.mu.RLock()
+	current, ok := m.plugins[pluginID]
+	m.mu.RUnlock()
+	if !ok {
+		return ErrPluginNotFound
+	}
+
+	source := strings.TrimSpace(current.Source)
+	if source == "" {
+		return ErrPluginManifestBroken
+	}
+
+	loaded, err := m.loader.Load(source)
+	if err != nil {
+		return err
+	}
+	if loaded.ID != pluginID {
+		return ErrPluginManifestBroken
+	}
+
+	loaded.State = current.State
+	loaded.InstalledAt = current.InstalledAt
+	loaded.EnabledAt = current.EnabledAt
+	loaded.Source = current.Source
+	loaded.ConfigJSON = current.ConfigJSON
+	loaded.SystemBuiltin = current.SystemBuiltin
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.plugins[pluginID]; !exists {
+		return ErrPluginNotFound
+	}
+	m.plugins[pluginID] = loaded
+	return nil
 }

@@ -27,6 +27,12 @@ permissions:
   - "user:read"
   - "role:manage"
 ui_mode: "separated"
+ui_nav_position: "sidebar"
+ui_open_mode: "integrated"
+ui_tab_mode: "fixed"
+i18n_locales:
+	- "zh-CN"
+	- "en-US"
 frontend_entry: "/plugins/sample-plugin"
 `
 
@@ -80,6 +86,18 @@ frontend_entry: "/plugins/sample-plugin"
 	if info.FrontendEntry != "/plugins/sample-plugin" {
 		t.Fatalf("unexpected frontend entry: %s", info.FrontendEntry)
 	}
+	if info.UINavPosition != UINavPositionSidebar {
+		t.Fatalf("unexpected ui nav position: %s", info.UINavPosition)
+	}
+	if info.UIOpenMode != UIOpenModeIntegrated {
+		t.Fatalf("unexpected ui open mode: %s", info.UIOpenMode)
+	}
+	if info.UITabMode != UITabModeFixed {
+		t.Fatalf("unexpected ui tab mode: %s", info.UITabMode)
+	}
+	if len(info.I18nLocales) != 2 || info.I18nLocales[0] != "zh-CN" || info.I18nLocales[1] != "en-US" {
+		t.Fatalf("unexpected i18n locales: %+v", info.I18nLocales)
+	}
 }
 
 func TestFileLoaderLoadFrontendOnly(t *testing.T) {
@@ -108,6 +126,18 @@ frontend_entry: "/plugins/frontend-only-plugin"
 	if info.FrontendEntry != "/plugins/frontend-only-plugin" {
 		t.Fatalf("unexpected frontend entry: %s", info.FrontendEntry)
 	}
+	if info.UINavPosition != UINavPositionNone {
+		t.Fatalf("unexpected default ui nav position: %s", info.UINavPosition)
+	}
+	if info.UIOpenMode != UIOpenModeIntegrated {
+		t.Fatalf("unexpected default ui open mode: %s", info.UIOpenMode)
+	}
+	if info.UITabMode != UITabModeOptional {
+		t.Fatalf("unexpected default ui tab mode: %s", info.UITabMode)
+	}
+	if len(info.I18nLocales) != 2 || info.I18nLocales[0] != "zh-CN" || info.I18nLocales[1] != "en-US" {
+		t.Fatalf("unexpected default i18n locales: %+v", info.I18nLocales)
+	}
 }
 
 func TestFileLoaderLoadDerivesFrontendEntryByLevel(t *testing.T) {
@@ -133,5 +163,39 @@ ui_mode: "frontend_only"
 
 	if info.FrontendEntry != "/crm" {
 		t.Fatalf("unexpected derived frontend entry: %s", info.FrontendEntry)
+	}
+}
+
+func TestFileLoaderLoadStandaloneDefaults(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `id: "standalone-plugin"
+name: "Standalone Plugin"
+version: "1.0.0"
+ui_mode: "frontend_only"
+ui_open_mode: "standalone"
+i18n_locales:
+  - "zh-CN"
+  - "en-US"
+`
+
+	path := filepath.Join(dir, "plugin.yaml")
+	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	loader := NewFileLoader()
+	info, err := loader.Load(dir)
+	if err != nil {
+		t.Fatalf("loader.Load error: %v", err)
+	}
+
+	if info.UIOpenMode != UIOpenModeStandalone {
+		t.Fatalf("unexpected ui open mode: %s", info.UIOpenMode)
+	}
+	if info.UINavPosition != UINavPositionNone {
+		t.Fatalf("unexpected ui nav position: %s", info.UINavPosition)
+	}
+	if info.UITabMode != UITabModeDisabled {
+		t.Fatalf("unexpected ui tab mode: %s", info.UITabMode)
 	}
 }
