@@ -1,0 +1,25 @@
+{
+  "points": [
+    {
+      "percent": 100,
+      "taskId": "gt-dj1u0s880rtc",
+      "version": "v1",
+      "type": "rollout",
+      "createdAt": "2026-06-06T08:43:35Z",
+      "createdBy": "u-1"
+    },
+    {
+      "percent": 100,
+      "taskId": "gt-dj1ufap3u4iw",
+      "version": "v2",
+      "type": "rollout",
+      "strategyType": "percent",
+      "targetEnv": "production",
+      "createdAt": "2026-06-06T09:02:32Z",
+      "createdBy": "u-1"
+    }
+  ],
+  "last_success": "gt-dj1ufap3u4iw",
+  "updated_by": "u-1",
+  "updated_at": "2026-06-06T09:02:32Z"
+}

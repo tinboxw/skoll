@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,16 +13,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/adapter"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 )
 
 type devRolloutRequest struct {
-	PluginID       string `json:"pluginId"`
-	RolloutPercent int    `json:"rolloutPercent"`
+	PluginID      string   `json:"pluginId"`
+	Percent       *int     `json:"percent"`
+	StrategyType  string   `json:"strategyType"`
+	TargetEnv     string   `json:"targetEnv"`
+	Tags          []string `json:"tags"`
+	CanaryVersion string   `json:"canaryVersion"`
 }
 
 type devRollbackRequest struct {
-	PluginID string `json:"pluginId"`
+	PluginID  string `json:"pluginId"`
+	ToVersion string `json:"toVersion,omitempty"`
+	ToPercent *int   `json:"toPercent,omitempty"`
 }
 
 type devRolloutResponse struct {
@@ -58,6 +66,13 @@ type devRolloutTaskRecord struct {
 	RequestedRolloutPercent int                       `json:"requestedRolloutPercent"`
 	PreviousRolloutPercent  int                       `json:"previousRolloutPercent"`
 	RolloutPercent          int                       `json:"rolloutPercent"`
+	Version                 string                    `json:"version,omitempty"`
+	RollbackToVersion       string                    `json:"rollbackToVersion,omitempty"`
+	RollbackToPercent       *int                      `json:"rollbackToPercent,omitempty"`
+	StrategyType            string                    `json:"strategyType,omitempty"`
+	TargetEnv               string                    `json:"targetEnv,omitempty"`
+	Tags                    []string                  `json:"tags,omitempty"`
+	CanaryVersion           string                    `json:"canaryVersion,omitempty"`
 	TaskStatus              string                    `json:"taskStatus"`
 	CreatedBy               string                    `json:"createdBy"`
 	CreatedAt               string                    `json:"createdAt"`
@@ -71,6 +86,26 @@ type devRolloutTaskRecord struct {
 
 type devRolloutTaskEnvelope struct {
 	Tasks []devRolloutTaskRecord `json:"tasks"`
+}
+
+type devRolloutPoint struct {
+	Percent       int      `json:"percent"`
+	TaskID        string   `json:"taskId"`
+	Version       string   `json:"version"`
+	Type          string   `json:"type"`
+	StrategyType  string   `json:"strategyType,omitempty"`
+	TargetEnv     string   `json:"targetEnv,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	CanaryVersion string   `json:"canaryVersion,omitempty"`
+	CreatedAt     string   `json:"createdAt"`
+	CreatedBy     string   `json:"createdBy"`
+}
+
+type devRolloutHistoryEntry struct {
+	Points      []devRolloutPoint `json:"points"`
+	LastSuccess string            `json:"last_success"`
+	UpdatedBy   string            `json:"updated_by"`
+	UpdatedAt   string            `json:"updated_at"`
 }
 
 type devListRolloutTasksResponse struct {
@@ -110,12 +145,44 @@ func (h *PluginHandler) devRollout(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, errors.New("pluginId is required"))
 		return
 	}
-	if req.RolloutPercent < 0 || req.RolloutPercent > 100 {
-		apiv1.WriteError(w, http.StatusBadRequest, errors.New("rolloutPercent must be in range [0,100]"))
+
+	strategyType := strings.TrimSpace(req.StrategyType)
+	if strategyType == "" {
+		strategyType = "percent"
+	}
+	targetEnv := strings.TrimSpace(req.TargetEnv)
+	if targetEnv == "" {
+		targetEnv = "production"
+	}
+
+	var rolloutPercent int
+	switch strategyType {
+	case "percent":
+		if req.Percent == nil {
+			apiv1.WriteError(w, http.StatusBadRequest, errors.New("percent is required when strategyType is percent"))
+			return
+		}
+		if *req.Percent < 0 || *req.Percent > 100 {
+			apiv1.WriteError(w, http.StatusBadRequest, errors.New("percent must be in range [0,100]"))
+			return
+		}
+		rolloutPercent = *req.Percent
+	case "tag":
+		if len(req.Tags) == 0 {
+			apiv1.WriteError(w, http.StatusBadRequest, errors.New("tags is required when strategyType is tag"))
+			return
+		}
+	case "canary":
+		if strings.TrimSpace(req.CanaryVersion) == "" {
+			apiv1.WriteError(w, http.StatusBadRequest, errors.New("canaryVersion is required when strategyType is canary"))
+			return
+		}
+	default:
+		apiv1.WriteError(w, http.StatusBadRequest, fmt.Errorf("unsupported strategyType: %s", strategyType))
 		return
 	}
 
-	task, err := h.runDevRolloutTask(pluginID, devRolloutTaskActionRollout, req.RolloutPercent, actorIDFromJWT(r))
+	task, err := h.runDevRolloutTask(pluginID, devRolloutTaskActionRollout, rolloutPercent, actorIDFromJWT(r), "", nil, strategyType, targetEnv, req.Tags, req.CanaryVersion)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
@@ -126,12 +193,18 @@ func (h *PluginHandler) devRollout(w http.ResponseWriter, r *http.Request) {
 		msg = "rollout updated"
 	}
 
-	h.appendAudit(r, "dev_rollout", "plugin", pluginID, map[string]any{"rolloutPercent": req.RolloutPercent, "persisted": persisted, "taskId": task.TaskID})
+	h.appendAudit(r, "dev_rollout", "plugin", pluginID, map[string]any{
+		"rolloutPercent": rolloutPercent,
+		"strategyType":   strategyType,
+		"targetEnv":      targetEnv,
+		"persisted":      persisted,
+		"taskId":         task.TaskID,
+	})
 	apiv1.WriteJSON(w, http.StatusOK, devRolloutResponse{
 		Operation:      "rollout",
 		Status:         "ok",
 		PluginID:       pluginID,
-		RolloutPercent: req.RolloutPercent,
+		RolloutPercent: rolloutPercent,
 		Persisted:      persisted,
 		Message:        msg,
 		Task:           task,
@@ -154,8 +227,16 @@ func (h *PluginHandler) devRollback(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, errors.New("pluginId is required"))
 		return
 	}
+	if req.ToVersion != "" && req.ToPercent != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("toVersion and toPercent are mutually exclusive"))
+		return
+	}
+	if req.ToPercent != nil && (*req.ToPercent < 0 || *req.ToPercent > 100) {
+		apiv1.WriteError(w, http.StatusBadRequest, errors.New("toPercent must be in range [0,100]"))
+		return
+	}
 
-	task, err := h.runDevRolloutTask(pluginID, devRolloutTaskActionRollback, 0, actorIDFromJWT(r))
+	task, err := h.runDevRolloutTask(pluginID, devRolloutTaskActionRollback, 0, actorIDFromJWT(r), req.ToVersion, req.ToPercent, "", "", nil, "")
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
@@ -274,17 +355,17 @@ func (h *PluginHandler) devGetRolloutTaskLogs(w http.ResponseWriter, r *http.Req
 	})
 }
 
-func (h *PluginHandler) applyDevRollout(pluginID string, percent int) (persisted bool, message string, err error) {
+func (h *PluginHandler) applyDevRollout(pluginID string, percent int, actorID string, taskID string, strategyType, targetEnv string, tags []string, canaryVersion string) (persisted bool, message string, version string, err error) {
 	item, getErr := h.manager.Get(pluginID)
 	if getErr != nil {
-		return false, "", getErr
+		return false, "", "", getErr
 	}
 
 	current := 100
 	if raw := strings.TrimSpace(item.ConfigJSON); raw != "" {
 		cfg := map[string]any{}
 		if jsonErr := json.Unmarshal([]byte(raw), &cfg); jsonErr == nil {
-			if v, ok := cfg["dev_rollout_percent"]; ok {
+			if v, ok := cfg[rolloutStrategyConfigKey("percent", targetEnv)]; ok {
 				switch n := v.(type) {
 				case float64:
 					current = int(n)
@@ -295,42 +376,168 @@ func (h *PluginHandler) applyDevRollout(pluginID string, percent int) (persisted
 		}
 	}
 
-	h.devMu.Lock()
-	if h.devRolloutHistory == nil {
-		h.devRolloutHistory = make(map[string][]int)
+	entry, loadErr := h.loadDevRolloutHistory(pluginID)
+	if loadErr != nil && !errors.Is(loadErr, os.ErrNotExist) {
+		return false, "", "", loadErr
 	}
-	h.devRolloutHistory[pluginID] = append(h.devRolloutHistory[pluginID], current)
-	h.devMu.Unlock()
 
-	persisted, message, err = h.persistDevRollout(pluginID, percent)
+	version = nextRolloutVersion(entry)
+	point := devRolloutPoint{
+		Percent:       current,
+		TaskID:        taskID,
+		Version:       version,
+		Type:          "rollout",
+		StrategyType:  strategyType,
+		TargetEnv:     targetEnv,
+		Tags:          tags,
+		CanaryVersion: canaryVersion,
+		CreatedAt:     time.Now().UTC().Format(time.RFC3339),
+		CreatedBy:     actorID,
+	}
+	entry.Points = append(entry.Points, point)
+	entry.LastSuccess = taskID
+	entry.UpdatedBy = actorID
+	entry.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	if saveErr := h.saveDevRolloutHistory(pluginID, entry); saveErr != nil {
+		return false, "", "", saveErr
+	}
+
+	// 调用灰度执行器（mock 版本打印日志，生产环境对接真实网关）
+	strategy := adapter.DevRolloutStrategy{
+		PluginID:      pluginID,
+		StrategyType:  strategyType,
+		TargetEnv:     targetEnv,
+		Percent:       percent,
+		Tags:          tags,
+		CanaryVersion: canaryVersion,
+		TaskID:        taskID,
+		ActorID:       actorID,
+	}
+	execResult, execErr := h.devRolloutExecutor.ApplyRollout(context.Background(), strategy)
+	if execErr != nil {
+		return false, "", "", execErr
+	}
+	if execResult != nil && !execResult.Success {
+		return false, "", "", fmt.Errorf("rollout executor failed: %s", execResult.Message)
+	}
+
+	persisted, message, err = h.persistDevRolloutStrategy(pluginID, strategyType, targetEnv, percent, tags, canaryVersion)
 	if err != nil {
-		return false, "", err
+		return false, "", "", err
 	}
 	if message == "" {
 		message = "rollout updated"
 	}
-	return persisted, message, nil
+	return persisted, message, version, nil
 }
 
-func (h *PluginHandler) applyDevRollback(pluginID string) (persisted bool, message string, rollbackPercent int, err error) {
-	h.devMu.Lock()
-	history := h.devRolloutHistory[pluginID]
-	if len(history) == 0 {
-		h.devMu.Unlock()
+func (h *PluginHandler) applyDevRollback(pluginID string, actorID string, taskID string, toVersion string, toPercent *int) (persisted bool, message string, rollbackPercent int, err error) {
+	entry, loadErr := h.loadDevRolloutHistory(pluginID)
+	if loadErr != nil {
+		return false, "", 0, loadErr
+	}
+	if len(entry.Points) == 0 {
 		return false, "", 0, errors.New("no rollback history for plugin")
 	}
-	prev := history[len(history)-1]
-	h.devRolloutHistory[pluginID] = history[:len(history)-1]
-	h.devMu.Unlock()
 
-	persisted, message, err = h.persistDevRollout(pluginID, prev)
+	var targetPercent int
+	var previousState adapter.DevRolloutStrategy
+
+	if toVersion != "" {
+		found := false
+		for _, p := range entry.Points {
+			if p.Version == toVersion {
+				targetPercent = p.Percent
+				previousState = adapter.DevRolloutStrategy{
+					PluginID:     pluginID,
+					StrategyType: p.StrategyType,
+					TargetEnv:    p.TargetEnv,
+					Percent:      p.Percent,
+					Tags:         p.Tags,
+					CanaryVersion: p.CanaryVersion,
+					TaskID:       p.TaskID,
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false, "", 0, fmt.Errorf("rollback target version %s not found in history", toVersion)
+		}
+	} else if toPercent != nil {
+		targetPercent = *toPercent
+		// Use the last point as previous state
+		last := entry.Points[len(entry.Points)-1]
+		previousState = adapter.DevRolloutStrategy{
+			PluginID:      pluginID,
+			StrategyType:  last.StrategyType,
+			TargetEnv:     last.TargetEnv,
+			Percent:       last.Percent,
+			Tags:          last.Tags,
+			CanaryVersion: last.CanaryVersion,
+			TaskID:        last.TaskID,
+		}
+	} else {
+		// Backward-compatible: rollback to the state before the last rollout
+		// Remove the last point and use the new last point's percent
+		last := entry.Points[len(entry.Points)-1]
+		previousState = adapter.DevRolloutStrategy{
+			PluginID:      pluginID,
+			StrategyType:  last.StrategyType,
+			TargetEnv:     last.TargetEnv,
+			Percent:       last.Percent,
+			Tags:          last.Tags,
+			CanaryVersion: last.CanaryVersion,
+			TaskID:        last.TaskID,
+		}
+		entry.Points = entry.Points[:len(entry.Points)-1]
+		if len(entry.Points) == 0 {
+			targetPercent = 100
+		} else {
+			targetPercent = entry.Points[len(entry.Points)-1].Percent
+		}
+	}
+
+	// 调用灰度执行器执行回滚
+	targetStrategy := adapter.DevRolloutStrategy{
+		PluginID: pluginID,
+		Percent:  targetPercent,
+	}
+	execResult, execErr := h.devRolloutExecutor.ApplyRollback(context.Background(), previousState, targetStrategy)
+	if execErr != nil {
+		return false, "", 0, execErr
+	}
+	if execResult != nil && !execResult.Success {
+		return false, "", 0, fmt.Errorf("rollback executor failed: %s", execResult.Message)
+	}
+
+	// Create rollback point recording the restored state
+	version := nextRolloutVersion(entry)
+	point := devRolloutPoint{
+		Percent:   targetPercent,
+		TaskID:    taskID,
+		Version:   version,
+		Type:      "rollback",
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+		CreatedBy: actorID,
+	}
+	entry.Points = append(entry.Points, point)
+	entry.LastSuccess = taskID
+	entry.UpdatedBy = actorID
+	entry.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	if saveErr := h.saveDevRolloutHistory(pluginID, entry); saveErr != nil {
+		return false, "", 0, saveErr
+	}
+
+	persisted, message, err = h.persistDevRollout(pluginID, targetPercent)
 	if err != nil {
 		return false, "", 0, err
 	}
 	if message == "" {
 		message = "rollback applied"
 	}
-	return persisted, message, prev, nil
+	return persisted, message, targetPercent, nil
 }
 
 func (h *PluginHandler) persistDevRollout(pluginID string, percent int) (bool, string, error) {
@@ -350,7 +557,7 @@ func (h *PluginHandler) persistDevRollout(pluginID string, percent int) (bool, s
 			return false, "", unmarshalErr
 		}
 	}
-	cfg["dev_rollout_percent"] = percent
+	cfg[rolloutStrategyConfigKey("percent", "")] = percent
 	cfg["dev_rollout_updated_at"] = time.Now().UTC().Format(time.RFC3339)
 
 	if saveErr := updater.SavePluginConfig(pluginID, cfg); saveErr != nil {
@@ -359,8 +566,8 @@ func (h *PluginHandler) persistDevRollout(pluginID string, percent int) (bool, s
 	return true, "rollout persisted to plugin config", nil
 }
 
-func (h *PluginHandler) runDevRolloutTask(pluginID, action string, requestedPercent int, actorID string) (devRolloutTaskRecord, error) {
-	task, err := h.createDevRolloutTask(pluginID, action, requestedPercent, actorID)
+func (h *PluginHandler) runDevRolloutTask(pluginID, action string, requestedPercent int, actorID string, rollbackToVersion string, rollbackToPercent *int, strategyType, targetEnv string, tags []string, canaryVersion string) (devRolloutTaskRecord, error) {
+	task, err := h.createDevRolloutTask(pluginID, action, requestedPercent, actorID, rollbackToVersion, rollbackToPercent, strategyType, targetEnv, tags, canaryVersion)
 	if err != nil {
 		return devRolloutTaskRecord{}, err
 	}
@@ -388,18 +595,19 @@ func (h *PluginHandler) runDevRolloutTask(pluginID, action string, requestedPerc
 
 	if err := h.runDevRolloutTaskStep(pluginID, task.TaskID, devRolloutTaskStepPersist, func(target *devRolloutTaskRecord) error {
 		if target.Action == devRolloutTaskActionRollout {
-			persisted, message, applyErr := h.applyDevRollout(pluginID, target.RequestedRolloutPercent)
+			persisted, message, version, applyErr := h.applyDevRollout(pluginID, target.RequestedRolloutPercent, actorID, task.TaskID, strategyType, targetEnv, tags, canaryVersion)
 			if applyErr != nil {
 				return applyErr
 			}
 			target.RolloutPercent = target.RequestedRolloutPercent
+			target.Version = version
 			target.ExecutionResult = message
 			if !persisted {
 				return errors.New("rollout not persisted")
 			}
 			return nil
 		}
-		persisted, message, rollbackPercent, applyErr := h.applyDevRollback(pluginID)
+		persisted, message, rollbackPercent, applyErr := h.applyDevRollback(pluginID, actorID, task.TaskID, target.RollbackToVersion, target.RollbackToPercent)
 		if applyErr != nil {
 			return applyErr
 		}
@@ -492,7 +700,7 @@ func (h *PluginHandler) runDevRolloutTaskStep(pluginID, taskID, stepName string,
 	return stepErr
 }
 
-func (h *PluginHandler) createDevRolloutTask(pluginID, action string, requestedPercent int, actorID string) (devRolloutTaskRecord, error) {
+func (h *PluginHandler) createDevRolloutTask(pluginID, action string, requestedPercent int, actorID string, rollbackToVersion string, rollbackToPercent *int, strategyType, targetEnv string, tags []string, canaryVersion string) (devRolloutTaskRecord, error) {
 	if strings.TrimSpace(actorID) == "" {
 		actorID = "system"
 	}
@@ -502,6 +710,12 @@ func (h *PluginHandler) createDevRolloutTask(pluginID, action string, requestedP
 		PluginID:                pluginID,
 		Action:                  action,
 		RequestedRolloutPercent: requestedPercent,
+		RollbackToVersion:       rollbackToVersion,
+		RollbackToPercent:       rollbackToPercent,
+		StrategyType:            strategyType,
+		TargetEnv:               targetEnv,
+		Tags:                    tags,
+		CanaryVersion:           canaryVersion,
 		TaskStatus:              devReleaseTaskStatusPending,
 		CreatedBy:               actorID,
 		CreatedAt:               now,
@@ -527,7 +741,7 @@ func (h *PluginHandler) currentDevRolloutPercent(pluginID string) (int, error) {
 	if raw := strings.TrimSpace(item.ConfigJSON); raw != "" {
 		cfg := map[string]any{}
 		if jsonErr := json.Unmarshal([]byte(raw), &cfg); jsonErr == nil {
-			if v, ok := cfg["dev_rollout_percent"]; ok {
+			if v, ok := cfg[rolloutStrategyConfigKey("percent", "")]; ok {
 				switch n := v.(type) {
 				case float64:
 					current = int(n)
@@ -670,6 +884,60 @@ func (h *PluginHandler) devRolloutTasksPath(pluginID string) (string, error) {
 	return filepath.Join(root, pluginID, ".devportal", fmt.Sprintf("%s.rollout.tasks.json", pluginID)), nil
 }
 
+func devRolloutHistoryPath(pluginsRoot, pluginID string) string {
+	return filepath.Join(pluginsRoot, pluginID, ".devportal", fmt.Sprintf("%s.rollout.history.json", pluginID))
+}
+
+func (h *PluginHandler) loadDevRolloutHistory(pluginID string) (devRolloutHistoryEntry, error) {
+	root, err := h.defaultDevRoot()
+	if err != nil {
+		return devRolloutHistoryEntry{}, err
+	}
+	path := devRolloutHistoryPath(root, pluginID)
+	h.devMu.Lock()
+	defer h.devMu.Unlock()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return devRolloutHistoryEntry{}, nil
+		}
+		return devRolloutHistoryEntry{}, err
+	}
+	if len(bytesTrim(raw)) == 0 {
+		return devRolloutHistoryEntry{}, nil
+	}
+	var entry devRolloutHistoryEntry
+	if err := json.Unmarshal(raw, &entry); err != nil {
+		return devRolloutHistoryEntry{}, err
+	}
+	return entry, nil
+}
+
+func (h *PluginHandler) saveDevRolloutHistory(pluginID string, entry devRolloutHistoryEntry) error {
+	root, err := h.defaultDevRoot()
+	if err != nil {
+		return err
+	}
+	path := devRolloutHistoryPath(root, pluginID)
+	h.devMu.Lock()
+	defer h.devMu.Unlock()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(entry, "", "  ")
+	if err != nil {
+		return err
+	}
+	raw = append(raw, '\n')
+	return os.WriteFile(path, raw, 0o644)
+}
+
+func nextRolloutVersion(entry devRolloutHistoryEntry) string {
+	return fmt.Sprintf("v%d", len(entry.Points)+1)
+}
+
 func findDevRolloutTaskIndex(tasks []devRolloutTaskRecord, taskID string) int {
 	for idx := range tasks {
 		if tasks[idx].TaskID == taskID {
@@ -691,4 +959,59 @@ func findDevRolloutTaskStepIndex(steps []devRolloutTaskStep, name string) int {
 func newDevRolloutTaskID() string {
 	unixNano := time.Now().UTC().UnixNano()
 	return "gt-" + strconv.FormatInt(unixNano, 36)
+}
+
+// rolloutStrategyConfigKey returns the config key for a strategy type and environment.
+// percent → dev_rollout_percent, tag → dev_rollout_tags, canary → dev_canary_version.
+// Non-production targetEnv appends a suffix, e.g. dev_rollout_percent_staging.
+func rolloutStrategyConfigKey(strategyType, targetEnv string) string {
+	var key string
+	switch strategyType {
+	case "percent":
+		key = "dev_rollout_percent"
+	case "tag":
+		key = "dev_rollout_tags"
+	case "canary":
+		key = "dev_canary_version"
+	default:
+		key = "dev_rollout_percent"
+	}
+	if targetEnv != "" && targetEnv != "production" {
+		key = key + "_" + targetEnv
+	}
+	return key
+}
+
+func (h *PluginHandler) persistDevRolloutStrategy(pluginID, strategyType, targetEnv string, percent int, tags []string, canaryVersion string) (bool, string, error) {
+	item, err := h.manager.Get(pluginID)
+	if err != nil {
+		return false, "", err
+	}
+
+	updater, ok := h.manager.(PluginConfigUpdater)
+	if !ok {
+		return false, "", errors.New("runtime config updater is required")
+	}
+
+	cfg := map[string]any{}
+	if raw := strings.TrimSpace(item.ConfigJSON); raw != "" {
+		if unmarshalErr := json.Unmarshal([]byte(raw), &cfg); unmarshalErr != nil {
+			return false, "", unmarshalErr
+		}
+	}
+
+	switch strategyType {
+	case "percent":
+		cfg[rolloutStrategyConfigKey("percent", targetEnv)] = percent
+	case "tag":
+		cfg[rolloutStrategyConfigKey("tag", targetEnv)] = tags
+	case "canary":
+		cfg[rolloutStrategyConfigKey("canary", targetEnv)] = canaryVersion
+	}
+	cfg["dev_rollout_updated_at"] = time.Now().UTC().Format(time.RFC3339)
+
+	if saveErr := updater.SavePluginConfig(pluginID, cfg); saveErr != nil {
+		return false, "", saveErr
+	}
+	return true, "rollout persisted to plugin config", nil
 }

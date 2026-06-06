@@ -791,6 +791,152 @@
           "message": "runtime config updater is required"
         }
       ]
+    },
+    {
+      "taskId": "gt-dj1u0s880rtc",
+      "pluginId": "dev-edit",
+      "action": "rollout",
+      "requestedRolloutPercent": 20,
+      "previousRolloutPercent": 100,
+      "rolloutPercent": 0,
+      "taskStatus": "failed",
+      "createdBy": "u-1",
+      "createdAt": "2026-06-06T08:43:35Z",
+      "startedAt": "2026-06-06T08:43:35Z",
+      "finishedAt": "2026-06-06T08:43:35Z",
+      "failureReason": "runtime config updater is required",
+      "steps": [
+        {
+          "name": "prepare",
+          "status": "success",
+          "startedAt": "2026-06-06T08:43:35Z",
+          "finishedAt": "2026-06-06T08:43:35Z",
+          "durationMs": 2
+        },
+        {
+          "name": "persist",
+          "status": "failed",
+          "message": "runtime config updater is required",
+          "startedAt": "2026-06-06T08:43:35Z",
+          "finishedAt": "2026-06-06T08:43:35Z",
+          "durationMs": 4
+        }
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-06-06T08:43:35Z",
+          "level": "info",
+          "message": "task accepted"
+        },
+        {
+          "timestamp": "2026-06-06T08:43:35Z",
+          "level": "info",
+          "message": "task started"
+        },
+        {
+          "timestamp": "2026-06-06T08:43:35Z",
+          "step": "prepare",
+          "level": "info",
+          "message": "step started"
+        },
+        {
+          "timestamp": "2026-06-06T08:43:35Z",
+          "step": "prepare",
+          "level": "info",
+          "message": "step completed"
+        },
+        {
+          "timestamp": "2026-06-06T08:43:35Z",
+          "step": "persist",
+          "level": "info",
+          "message": "step started"
+        },
+        {
+          "timestamp": "2026-06-06T08:43:35Z",
+          "step": "persist",
+          "level": "error",
+          "message": "runtime config updater is required"
+        },
+        {
+          "timestamp": "2026-06-06T08:43:35Z",
+          "level": "error",
+          "message": "runtime config updater is required"
+        }
+      ]
+    },
+    {
+      "taskId": "gt-dj1ufap3u4iw",
+      "pluginId": "dev-edit",
+      "action": "rollout",
+      "requestedRolloutPercent": 20,
+      "previousRolloutPercent": 100,
+      "rolloutPercent": 0,
+      "strategyType": "percent",
+      "targetEnv": "production",
+      "taskStatus": "failed",
+      "createdBy": "u-1",
+      "createdAt": "2026-06-06T09:02:32Z",
+      "startedAt": "2026-06-06T09:02:32Z",
+      "finishedAt": "2026-06-06T09:02:32Z",
+      "failureReason": "runtime config updater is required",
+      "steps": [
+        {
+          "name": "prepare",
+          "status": "success",
+          "startedAt": "2026-06-06T09:02:32Z",
+          "finishedAt": "2026-06-06T09:02:32Z",
+          "durationMs": 8
+        },
+        {
+          "name": "persist",
+          "status": "failed",
+          "message": "runtime config updater is required",
+          "startedAt": "2026-06-06T09:02:32Z",
+          "finishedAt": "2026-06-06T09:02:32Z",
+          "durationMs": 14
+        }
+      ],
+      "logs": [
+        {
+          "timestamp": "2026-06-06T09:02:32Z",
+          "level": "info",
+          "message": "task accepted"
+        },
+        {
+          "timestamp": "2026-06-06T09:02:32Z",
+          "level": "info",
+          "message": "task started"
+        },
+        {
+          "timestamp": "2026-06-06T09:02:32Z",
+          "step": "prepare",
+          "level": "info",
+          "message": "step started"
+        },
+        {
+          "timestamp": "2026-06-06T09:02:32Z",
+          "step": "prepare",
+          "level": "info",
+          "message": "step completed"
+        },
+        {
+          "timestamp": "2026-06-06T09:02:32Z",
+          "step": "persist",
+          "level": "info",
+          "message": "step started"
+        },
+        {
+          "timestamp": "2026-06-06T09:02:32Z",
+          "step": "persist",
+          "level": "error",
+          "message": "runtime config updater is required"
+        },
+        {
+          "timestamp": "2026-06-06T09:02:32Z",
+          "level": "error",
+          "message": "runtime config updater is required"
+        }
+      ]
     }
   ]
 }

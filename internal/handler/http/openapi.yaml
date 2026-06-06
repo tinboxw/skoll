@@ -775,12 +775,27 @@ components:
       type: object
       required:
         - pluginId
-        - rolloutPercent
       properties:
         pluginId:
           type: string
-        rolloutPercent:
+        percent:
           type: integer
+          description: 灰度百分比 (strategyType=percent 时必填，范围 0-100)
+        strategyType:
+          type: string
+          description: 灰度策略类型：percent / tag / canary，默认 percent
+          enum: [percent, tag, canary]
+        targetEnv:
+          type: string
+          description: 目标环境：production / staging，默认 production
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签列表 (strategyType=tag 时必填)
+        canaryVersion:
+          type: string
+          description: 金丝雀版本号 (strategyType=canary 时必填)
     RollbackRequest:
       type: object
       required:
@@ -788,6 +803,12 @@ components:
       properties:
         pluginId:
           type: string
+        toVersion:
+          type: string
+          description: 回滚目标版本号（与 toPercent 互斥）
+        toPercent:
+          type: integer
+          description: 回滚目标百分比（与 toVersion 互斥，范围 0-100）
     RolloutTaskStep:
       type: object
       properties:
@@ -821,6 +842,27 @@ components:
           type: integer
         rolloutPercent:
           type: integer
+        version:
+          type: string
+          description: 本次灰度生成的版本号（如 v1, v2）
+        rollbackToVersion:
+          type: string
+          description: 回滚目标版本号
+        rollbackToPercent:
+          type: integer
+          description: 回滚目标百分比
+        strategyType:
+          type: string
+          description: 灰度策略类型：percent / tag / canary
+        targetEnv:
+          type: string
+          description: 目标环境
+        tags:
+          type: array
+          items:
+            type: string
+        canaryVersion:
+          type: string
         taskStatus:
           type: string
         createdBy:

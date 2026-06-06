@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/adapter"
 	domainrole "github.com/tinboxw/skoll/internal/domain/role"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	"github.com/tinboxw/skoll/internal/plugin"
@@ -58,21 +59,21 @@ type PluginRoleCatalogProvider interface {
 }
 
 type PluginHandler struct {
-	manager           PluginManager
-	extensionProvider PluginExtensionSnapshotProvider
-	loader            plugin.MetadataLoader
-	logger            logging.Logger
-	auditSvc          auditsvc.Service
-	roleCatalog       PluginRoleCatalogProvider
-	logLevel          string
-	logDir            string
-	logFile           string
-	pluginPerFile     bool
-	devPortalEnabled  bool
-	devPortalRoot     string
-	devPortalRoots    []string
-	devMu             sync.Mutex
-	devRolloutHistory map[string][]int
+	manager            PluginManager
+	extensionProvider  PluginExtensionSnapshotProvider
+	loader             plugin.MetadataLoader
+	logger             logging.Logger
+	auditSvc           auditsvc.Service
+	roleCatalog        PluginRoleCatalogProvider
+	devRolloutExecutor adapter.DevRolloutExecutor
+	logLevel           string
+	logDir             string
+	logFile            string
+	pluginPerFile      bool
+	devPortalEnabled   bool
+	devPortalRoot      string
+	devPortalRoots     []string
+	devMu              sync.Mutex
 }
 
 type PluginRouteOption func(*PluginHandler)
@@ -309,7 +310,7 @@ type externalPluginRequest struct {
 }
 
 func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...PluginRouteOption) {
-	h := &PluginHandler{manager: manager, loader: plugin.NewFileLoader()}
+	h := &PluginHandler{manager: manager, loader: plugin.NewFileLoader(), devRolloutExecutor: &adapter.MockDevRolloutExecutor{}}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(h)

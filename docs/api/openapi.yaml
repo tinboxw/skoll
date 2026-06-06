@@ -4,7 +4,7 @@ info:
   version: 1.0.0
   description: OpenAPI document for Skoll core HTTP endpoints.
 servers:
-  - url: http://127.0.0.1:8080
+  - url: __API_BASE_PREFIX__
 paths:
   /health:
     get:
@@ -12,6 +12,62 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/auth/login:
+    post:
+      summary: Login with account and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - account
+                - password
+              properties:
+                account:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /v1/auth/logout:
+    post:
+      summary: Logout current user
+      responses:
+        '200':
+          description: OK
+  /v1/auth/me:
+    get:
+      summary: Get current user profile
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /v1/auth/me/profile:
+    put:
+      summary: Update current user profile
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /v1/auth/me/password:
+    patch:
+      summary: Update current user password
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
   /v1/users:
     get:
       summary: List users
@@ -57,6 +113,18 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/users/{id}/roles:
+    post:
+      summary: Assign role to user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
   /v1/roles:
     get:
       summary: List roles
@@ -68,9 +136,93 @@ paths:
       responses:
         '201':
           description: Created
+  /v1/roles/{id}/users:
+    get:
+      summary: List users by role
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
   /v1/rbac/check:
     post:
       summary: Check authorization
+      responses:
+        '200':
+          description: OK
+  /v1/rbac/bindings:
+    get:
+      summary: List role bindings by subject
+      parameters:
+        - name: subjectType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: subjectId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/rbac/bindings/{id}:
+    delete:
+      summary: Delete a role binding
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/audit:
+    get:
+      summary: List audit records
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Clear audit records by time range
+      responses:
+        '200':
+          description: OK
+  /v1/audit/{id}:
+    get:
+      summary: Get audit record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/audit/export:
+    get:
+      summary: Export audit records as CSV
+      responses:
+        '200':
+          description: OK
+  /v1/audit/actors/{actorId}:
+    get:
+      summary: List audit records by actor
+      parameters:
+        - name: actorId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: OK
@@ -80,10 +232,1110 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/plugins/{id}:
+    get:
+      summary: Get plugin detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+  /v1/plugins/{id}/config:
+    get:
+      summary: Get plugin config
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+    put:
+      summary: Update plugin config
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/plugins/dev/rollout:
+    post:
+      summary: Execute plugin rollout with task tracking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RolloutRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolloutAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/rollback:
+    post:
+      summary: Execute plugin rollback with task tracking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RollbackRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolloutAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/rollout-tasks:
+    get:
+      summary: List rollout tasks
+      parameters:
+        - name: pluginId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolloutTaskListAPIResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/rollout-tasks/{taskId}:
+    get:
+      summary: Get rollout task detail
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolloutTaskGetAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/plugins/dev/rollout-tasks/{taskId}/logs:
+    get:
+      summary: Get rollout task logs
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolloutTaskLogsAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/plugins/dev/release-orders:
+    post:
+      summary: Create plugin release order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseOrderCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseOrderCreateAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+    get:
+      summary: List plugin release orders
+      parameters:
+        - name: pluginsRoot
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: pluginId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseOrderListAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/release-orders/{orderId}/approve:
+    post:
+      summary: Approve plugin release order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseOrderReviewRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseOrderReviewAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/release-orders/{orderId}/reject:
+    post:
+      summary: Reject plugin release order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseOrderReviewRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseOrderReviewAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/release-orders/{orderId}/execute:
+    post:
+      summary: Execute approved plugin release order
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseOrderExecuteRequest'
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseOrderExecuteAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/release-tasks:
+    get:
+      summary: List plugin release tasks
+      parameters:
+        - name: pluginsRoot
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: pluginId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: orderId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseTaskListAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+  /v1/plugins/dev/release-tasks/{taskId}:
+    get:
+      summary: Get plugin release task detail
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pluginsRoot
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseTaskGetAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/plugins/dev/release-tasks/{taskId}/logs:
+    get:
+      summary: Get plugin release task logs
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: pluginsRoot
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseTaskLogsAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/system/settings:
     get:
       summary: List system settings
       responses:
         '200':
           description: OK
-components: {}
+  /v1/system/settings/{key}:
+    get:
+      summary: Get system setting by key
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+    put:
+      summary: Upsert system setting by key
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/system/settings/reset:
+    post:
+      summary: Reset system settings
+      responses:
+        '200':
+          description: OK
+components:
+  schemas:
+    MessageResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: error
+        message:
+          type: string
+    RolloutRequest:
+      type: object
+      required:
+        - pluginId
+      properties:
+        pluginId:
+          type: string
+        percent:
+          type: integer
+          description: 灰度百分比 (strategyType=percent 时必填，范围 0-100)
+        strategyType:
+          type: string
+          description: 灰度策略类型：percent / tag / canary，默认 percent
+          enum: [percent, tag, canary]
+        targetEnv:
+          type: string
+          description: 目标环境：production / staging，默认 production
+        tags:
+          type: array
+          items:
+            type: string
+          description: 标签列表 (strategyType=tag 时必填)
+        canaryVersion:
+          type: string
+          description: 金丝雀版本号 (strategyType=canary 时必填)
+    RollbackRequest:
+      type: object
+      required:
+        - pluginId
+      properties:
+        pluginId:
+          type: string
+        toVersion:
+          type: string
+          description: 回滚目标版本号（与 toPercent 互斥）
+        toPercent:
+          type: integer
+          description: 回滚目标百分比（与 toVersion 互斥，范围 0-100）
+    RolloutTaskStep:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+          format: int64
+    RolloutTaskRecord:
+      type: object
+      properties:
+        taskId:
+          type: string
+        pluginId:
+          type: string
+        action:
+          type: string
+        requestedRolloutPercent:
+          type: integer
+        previousRolloutPercent:
+          type: integer
+        rolloutPercent:
+          type: integer
+        version:
+          type: string
+          description: 本次灰度生成的版本号（如 v1, v2）
+        rollbackToVersion:
+          type: string
+          description: 回滚目标版本号
+        rollbackToPercent:
+          type: integer
+          description: 回滚目标百分比
+        strategyType:
+          type: string
+          description: 灰度策略类型：percent / tag / canary
+        targetEnv:
+          type: string
+          description: 目标环境
+        tags:
+          type: array
+          items:
+            type: string
+        canaryVersion:
+          type: string
+        taskStatus:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        failureReason:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/RolloutTaskStep'
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseTaskLogRecord'
+        executionResult:
+          type: string
+    RolloutData:
+      type: object
+      required:
+        - operation
+        - status
+        - pluginId
+        - rolloutPercent
+        - persisted
+        - task
+      properties:
+        operation:
+          type: string
+        status:
+          type: string
+        pluginId:
+          type: string
+        rolloutPercent:
+          type: integer
+        persisted:
+          type: boolean
+        message:
+          type: string
+        task:
+          $ref: '#/components/schemas/RolloutTaskRecord'
+    RolloutTaskListData:
+      type: object
+      required:
+        - operation
+        - status
+        - tasks
+      properties:
+        operation:
+          type: string
+          example: rollout_task_list
+        status:
+          type: string
+          example: ok
+        pluginId:
+          type: string
+        taskStatus:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/RolloutTaskRecord'
+    RolloutTaskGetData:
+      type: object
+      required:
+        - operation
+        - status
+        - task
+      properties:
+        operation:
+          type: string
+          example: rollout_task_get
+        status:
+          type: string
+          example: ok
+        task:
+          $ref: '#/components/schemas/RolloutTaskRecord'
+    RolloutTaskLogsData:
+      type: object
+      required:
+        - operation
+        - status
+        - taskId
+        - logs
+      properties:
+        operation:
+          type: string
+          example: rollout_task_logs
+        status:
+          type: string
+          example: ok
+        taskId:
+          type: string
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseTaskLogRecord'
+    RolloutAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/RolloutData'
+    RolloutTaskListAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/RolloutTaskListData'
+    RolloutTaskGetAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/RolloutTaskGetData'
+    RolloutTaskLogsAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/RolloutTaskLogsData'
+    ReleaseOrderCreateRequest:
+      type: object
+      required:
+        - pluginsRoot
+        - pluginId
+      properties:
+        pluginsRoot:
+          type: string
+        pluginId:
+          type: string
+        releaseVersion:
+          type: string
+        changelog:
+          type: string
+    ReleaseOrderReviewRequest:
+      type: object
+      required:
+        - pluginsRoot
+        - pluginId
+      properties:
+        pluginsRoot:
+          type: string
+        pluginId:
+          type: string
+        comment:
+          type: string
+    ReleaseOrderExecuteRequest:
+      type: object
+      required:
+        - pluginsRoot
+        - pluginId
+        - targetEnv
+        - artifactPath
+      properties:
+        pluginsRoot:
+          type: string
+        pluginId:
+          type: string
+        targetEnv:
+          type: string
+        artifactPath:
+          type: string
+    ReleaseOrderRecord:
+      type: object
+      properties:
+        orderId:
+          type: string
+        pluginId:
+          type: string
+        releaseVersion:
+          type: string
+        orderStatus:
+          type: string
+        changelog:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: string
+        approvedAt:
+          type: string
+          format: date-time
+        rejectedBy:
+          type: string
+        rejectedAt:
+          type: string
+          format: date-time
+        reviewComment:
+          type: string
+    ReleaseOrderCreateData:
+      type: object
+      required:
+        - operation
+        - status
+        - order
+      properties:
+        operation:
+          type: string
+          example: release_order_create
+        status:
+          type: string
+          example: ok
+        order:
+          $ref: '#/components/schemas/ReleaseOrderRecord'
+    ReleaseOrderListData:
+      type: object
+      required:
+        - operation
+        - status
+        - pluginsRoot
+        - orders
+      properties:
+        operation:
+          type: string
+          example: release_order_list
+        status:
+          type: string
+          example: ok
+        pluginsRoot:
+          type: string
+        pluginId:
+          type: string
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseOrderRecord'
+    ReleaseOrderReviewData:
+      type: object
+      required:
+        - operation
+        - status
+        - order
+      properties:
+        operation:
+          type: string
+        status:
+          type: string
+          example: ok
+        order:
+          $ref: '#/components/schemas/ReleaseOrderRecord'
+    ReleaseOrderCreateAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/ReleaseOrderCreateData'
+    ReleaseOrderListAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/ReleaseOrderListData'
+    ReleaseOrderReviewAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/ReleaseOrderReviewData'
+    ReleaseTaskStep:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+          format: int64
+    ReleaseTaskLogRecord:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        step:
+          type: string
+        level:
+          type: string
+        message:
+          type: string
+    ReleaseTaskRecord:
+      type: object
+      properties:
+        taskId:
+          type: string
+        orderId:
+          type: string
+        pluginId:
+          type: string
+        releaseVersion:
+          type: string
+        targetEnv:
+          type: string
+        artifactPath:
+          type: string
+        taskStatus:
+          type: string
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        failureStep:
+          type: string
+        failureReason:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseTaskStep'
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseTaskLogRecord'
+        executionResult:
+          type: string
+    ReleaseOrderExecuteData:
+      type: object
+      required:
+        - operation
+        - status
+        - task
+      properties:
+        operation:
+          type: string
+          example: release_order_execute
+        status:
+          type: string
+          example: accepted
+        task:
+          $ref: '#/components/schemas/ReleaseTaskRecord'
+    ReleaseTaskListData:
+      type: object
+      required:
+        - operation
+        - status
+        - pluginsRoot
+        - tasks
+      properties:
+        operation:
+          type: string
+          example: release_task_list
+        status:
+          type: string
+          example: ok
+        pluginsRoot:
+          type: string
+        pluginId:
+          type: string
+        orderId:
+          type: string
+        taskStatus:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseTaskRecord'
+    ReleaseTaskGetData:
+      type: object
+      required:
+        - operation
+        - status
+        - task
+      properties:
+        operation:
+          type: string
+          example: release_task_get
+        status:
+          type: string
+          example: ok
+        task:
+          $ref: '#/components/schemas/ReleaseTaskRecord'
+    ReleaseTaskLogsData:
+      type: object
+      required:
+        - operation
+        - status
+        - taskId
+        - logs
+      properties:
+        operation:
+          type: string
+          example: release_task_logs
+        status:
+          type: string
+          example: ok
+        taskId:
+          type: string
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReleaseTaskLogRecord'
+    ReleaseOrderExecuteAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/ReleaseOrderExecuteData'
+    ReleaseTaskListAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/ReleaseTaskListData'
+    ReleaseTaskGetAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/ReleaseTaskGetData'
+    ReleaseTaskLogsAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/ReleaseTaskLogsData'
+

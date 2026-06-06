@@ -654,7 +654,7 @@ func TestPluginHandlerDevPortalManifestPipelineAndRollout(t *testing.T) {
 	// Add runtime item for rollout persistence path.
 	mgr.items["dev-edit"] = plugin.Info{ID: "dev-edit", Name: "Dev Edit", Version: "0.1.1", State: plugin.StateEnabled, ConfigJSON: "{}"}
 
-	rolloutPayload := []byte(`{"pluginId":"dev-edit","rolloutPercent":20}`)
+	rolloutPayload := []byte(`{"pluginId":"dev-edit","percent":20}`)
 	rolloutReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/rollout", bytes.NewReader(rolloutPayload))
 	rolloutReq = withRole(rolloutReq, "super_admin")
 	rolloutResp := httptest.NewRecorder()
@@ -749,7 +749,7 @@ func TestPluginHandlerDevPortalRolloutRequiresConfigUpdater(t *testing.T) {
 		"dev-edit": {ID: "dev-edit", Name: "Dev Edit", Version: "0.1.1", State: plugin.StateEnabled, ConfigJSON: "{}"},
 	}}, WithPluginDevPortal(true, "plugins", []string{"plugins"}))
 
-	rolloutPayload := []byte(`{"pluginId":"dev-edit","rolloutPercent":20}`)
+	rolloutPayload := []byte(`{"pluginId":"dev-edit","percent":20}`)
 	rolloutReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/rollout", bytes.NewReader(rolloutPayload))
 	rolloutReq = withRole(rolloutReq, "super_admin")
 	rolloutResp := httptest.NewRecorder()
