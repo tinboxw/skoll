@@ -31,6 +31,7 @@ func loadAuthPolicyFromEnv() AuthPolicy {
 		SkipPaths: map[string]struct{}{
 			config.DefaultAPIBasePrefix + "/health":        {},
 			config.DefaultAPIBasePrefix + "/ready":         {},
+			config.DefaultAPIBasePrefix + "/docs":          {},
 			config.DefaultAPIBasePrefix + "/v1/plugins":    {},
 			config.DefaultAPIBasePrefix + "/v1/auth/login": {},
 		},

@@ -11,13 +11,16 @@ func TestLoadAuthPolicyFromEnvDefaults(t *testing.T) {
 		t.Fatalf("expected auth policy enabled by default")
 	}
 
-	for _, path := range []string{"/skoll/health", "/skoll/ready", "/skoll/v1/plugins", "/skoll/v1/auth/login"} {
+	for _, path := range []string{"/skoll/health", "/skoll/ready", "/skoll/docs", "/skoll/v1/plugins", "/skoll/v1/auth/login"} {
 		if _, ok := policy.SkipPaths[path]; !ok {
 			t.Fatalf("expected default skip path %s", path)
 		}
 		if policy.ShouldAuthenticate(path) {
 			t.Fatalf("expected %s to bypass auth", path)
 		}
+	}
+	if policy.ShouldAuthenticate("/skoll/docs/swagger") {
+		t.Fatalf("expected /skoll/docs/swagger to bypass auth")
 	}
 
 	if !policy.ShouldAuthenticate("/skoll/v1/users") {
@@ -44,7 +47,7 @@ func TestLoadAuthPolicyFromEnvCustomPaths(t *testing.T) {
 func TestAuthPolicyWithCustomAPIPrefix(t *testing.T) {
 	policy := loadAuthPolicyFromEnv().WithAPIPrefix("/gateway")
 
-	for _, path := range []string{"/gateway/health", "/gateway/v1/plugins", "/gateway/v1/auth/login"} {
+	for _, path := range []string{"/gateway/health", "/gateway/docs/swagger", "/gateway/v1/plugins", "/gateway/v1/auth/login"} {
 		if policy.ShouldAuthenticate(path) {
 			t.Fatalf("expected %s to bypass auth", path)
 		}

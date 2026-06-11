@@ -15,6 +15,7 @@ func Auth(jwtSecret string, skipPaths ...string) func(http.Handler) http.Handler
 	skip := map[string]struct{}{
 		apiPrefix + "/health":     {},
 		apiPrefix + "/ready":      {},
+		apiPrefix + "/docs":       {},
 		apiPrefix + "/v1/plugins": {},
 		apiPrefix + "/v1/auth":    {},
 	}
