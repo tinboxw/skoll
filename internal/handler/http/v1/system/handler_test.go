@@ -100,3 +100,46 @@ func TestSystemMenusDefaultAndOverride(t *testing.T) {
 		t.Fatalf("unexpected normalized menus: %+v", putBody.Data.Items)
 	}
 }
+
+func TestSystemSettingsSchema(t *testing.T) {
+	svc := newFakeSystemService()
+	mux := http.NewServeMux()
+	RegisterSystemRoutes(mux, svc, nil)
+
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/system/settings/schema", nil))
+	if resp.Code != http.StatusOK {
+		t.Fatalf("schema status=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	var body struct {
+		Data SettingSchema `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode schema response: %v", err)
+	}
+	if body.Data.TitleZhCN == "" || body.Data.TitleEnUS == "" {
+		t.Fatalf("expected localized schema title, got %+v", body.Data)
+	}
+	if len(body.Data.Fields) < 4 {
+		t.Fatalf("expected default schema fields, got %+v", body.Data.Fields)
+	}
+	if body.Data.Fields[0].Key != "audit.retention_days" || body.Data.Fields[0].Type != "number" {
+		t.Fatalf("unexpected first schema field: %+v", body.Data.Fields[0])
+	}
+	if body.Data.Fields[0].Min == nil || *body.Data.Fields[0].Min != 1 {
+		t.Fatalf("expected audit retention min rule, got %+v", body.Data.Fields[0].Min)
+	}
+	foundMenuTree := false
+	for _, field := range body.Data.Fields {
+		if field.Key == systemMenuSettingKey {
+			foundMenuTree = true
+			if field.Type != "textarea" {
+				t.Fatalf("expected menu tree textarea field, got %+v", field)
+			}
+		}
+	}
+	if !foundMenuTree {
+		t.Fatalf("expected menu tree setting field")
+	}
+}

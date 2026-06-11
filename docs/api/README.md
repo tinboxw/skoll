@@ -119,7 +119,7 @@ JWT 密钥通过 `SKOLL_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置
 | `PUT` | `/skoll/v1/system/settings/{key}` | 创建或更新单个设置 |
 | `GET` | `/skoll/v1/system/settings/{key}` | 获取单个设置 |
 | `GET` | `/skoll/v1/system/settings` | 设置列表 |
-| `PUT` | `/skoll/v1/system/settings` | 批量更新设置 |
+| `GET` | `/skoll/v1/system/settings/schema` | 获取系统设置 SchemaForm 字段声明 |
 | `POST` | `/skoll/v1/system/settings/reset` | 重置设置 |
 
 ### 4.6 插件管理（Plugin）

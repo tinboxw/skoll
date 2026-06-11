@@ -717,6 +717,23 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/system/settings/schema:
+    get:
+      summary: Get system settings schema
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/SystemSettingSchema'
   /v1/system/settings/{key}:
     get:
       summary: Get system setting by key
@@ -770,6 +787,79 @@ components:
           type: string
           example: error
         message:
+          type: string
+    SystemSettingSchema:
+      type: object
+      required:
+        - fields
+      properties:
+        title:
+          type: string
+        titleZhCN:
+          type: string
+        titleEnUS:
+          type: string
+        description:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemSettingSchemaField'
+    SystemSettingSchemaField:
+      type: object
+      required:
+        - key
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        labelZhCN:
+          type: string
+        labelEnUS:
+          type: string
+        type:
+          type: string
+          enum:
+            - string
+            - textarea
+            - number
+            - boolean
+            - select
+        required:
+          type: boolean
+        default:
+          type: string
+        placeholder:
+          type: string
+        help:
+          type: string
+        min:
+          type: number
+        max:
+          type: number
+        minLength:
+          type: integer
+        maxLength:
+          type: integer
+        pattern:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/SystemSettingSchemaOption'
+    SystemSettingSchemaOption:
+      type: object
+      required:
+        - value
+      properties:
+        label:
+          type: string
+        labelZhCN:
+          type: string
+        labelEnUS:
+          type: string
+        value:
           type: string
     RolloutRequest:
       type: object

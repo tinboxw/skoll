@@ -38,6 +38,7 @@ const { t, locale } = useI18n();
 const loading = ref(false);
 const saving = ref(false);
 const resetting = ref(false);
+const schemaLoading = ref(false);
 const error = ref("");
 const success = ref("");
 const searchKey = ref("");
@@ -48,8 +49,9 @@ const editorEncrypted = ref(false);
 const schemaSaving = ref(false);
 const schemaDraft = ref<Record<string, unknown>>({});
 const schemaValid = ref(true);
+const remoteSystemConfigSchema = ref<PluginConfigSchema | null>(null);
 
-const systemConfigSchema = computed<PluginConfigSchema>(() => ({
+const fallbackSystemConfigSchema = computed<PluginConfigSchema>(() => ({
 	titleZhCN: t("settings.schemaTitle"),
 	titleEnUS: "Common Settings",
 	description: t("settings.schemaDesc"),
@@ -88,6 +90,7 @@ const systemConfigSchema = computed<PluginConfigSchema>(() => ({
 		}
 	]
 }));
+const systemConfigSchema = computed<PluginConfigSchema>(() => remoteSystemConfigSchema.value ?? fallbackSystemConfigSchema.value);
 
 const filteredSettings = computed(() => {
 	const keyword = searchKey.value.trim().toLowerCase();
@@ -109,7 +112,7 @@ const groupedSettings = computed(() => {
 	return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
 });
 
-const busy = computed(() => loading.value || saving.value || resetting.value);
+const busy = computed(() => loading.value || saving.value || resetting.value || schemaLoading.value);
 const schemaModel = computed(() => {
 	if (Object.keys(schemaDraft.value).length > 0) {
 		return schemaDraft.value;
@@ -148,6 +151,35 @@ function serializeSettingValue(value: unknown): string {
 		return "";
 	}
 	return String(value);
+}
+
+function normalizeSystemConfigSchema(schema: unknown): PluginConfigSchema | null {
+	if (!schema || typeof schema !== "object") {
+		return null;
+	}
+	const row = schema as PluginConfigSchema;
+	const fields = Array.isArray(row.fields)
+		? row.fields.filter((field) => field && typeof field === "object" && typeof field.key === "string" && field.key.trim() !== "")
+		: [];
+	if (fields.length === 0) {
+		return null;
+	}
+	return {
+		...row,
+		fields
+	};
+}
+
+async function loadSettingsSchema(): Promise<void> {
+	schemaLoading.value = true;
+	try {
+		const payload = await apiGet<ApiResponse<PluginConfigSchema>>("/v1/system/settings/schema");
+		remoteSystemConfigSchema.value = normalizeSystemConfigSchema(payload.data);
+	} catch {
+		remoteSystemConfigSchema.value = null;
+	} finally {
+		schemaLoading.value = false;
+	}
 }
 
 async function loadSettings(): Promise<void> {
@@ -284,7 +316,10 @@ async function resetSettings(): Promise<void> {
 }
 
 onMounted(() => {
-	void loadSettings();
+	void (async () => {
+		await loadSettingsSchema();
+		await loadSettings();
+	})();
 });
 </script>
 

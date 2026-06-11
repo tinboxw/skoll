@@ -37,11 +37,45 @@ func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service, auditSv
 	}
 	h := &SystemHandler{service: service, audit: auditSvc}
 	mux.HandleFunc("GET /v1/system/settings", h.list)
+	mux.HandleFunc("GET /v1/system/settings/schema", h.getSettingsSchema)
 	mux.HandleFunc("GET /v1/system/settings/{key}", h.getByKey)
 	mux.HandleFunc("PUT /v1/system/settings/{key}", h.upsert)
 	mux.HandleFunc("POST /v1/system/settings/reset", h.reset)
 	mux.HandleFunc("GET /v1/system/menus", h.getMenus)
 	mux.HandleFunc("PUT /v1/system/menus", h.putMenus)
+}
+
+type SettingSchema struct {
+	Title       string               `json:"title,omitempty"`
+	TitleZhCN   string               `json:"titleZhCN,omitempty"`
+	TitleEnUS   string               `json:"titleEnUS,omitempty"`
+	Description string               `json:"description,omitempty"`
+	Fields      []SettingSchemaField `json:"fields"`
+}
+
+type SettingSchemaField struct {
+	Key         string                `json:"key"`
+	Label       string                `json:"label,omitempty"`
+	LabelZhCN   string                `json:"labelZhCN,omitempty"`
+	LabelEnUS   string                `json:"labelEnUS,omitempty"`
+	Type        string                `json:"type,omitempty"`
+	Required    bool                  `json:"required,omitempty"`
+	Default     string                `json:"default,omitempty"`
+	Placeholder string                `json:"placeholder,omitempty"`
+	Help        string                `json:"help,omitempty"`
+	Min         *float64              `json:"min,omitempty"`
+	Max         *float64              `json:"max,omitempty"`
+	MinLength   *int                  `json:"minLength,omitempty"`
+	MaxLength   *int                  `json:"maxLength,omitempty"`
+	Pattern     string                `json:"pattern,omitempty"`
+	Options     []SettingSchemaOption `json:"options,omitempty"`
+}
+
+type SettingSchemaOption struct {
+	Label     string `json:"label,omitempty"`
+	LabelZhCN string `json:"labelZhCN,omitempty"`
+	LabelEnUS string `json:"labelEnUS,omitempty"`
+	Value     string `json:"value"`
 }
 
 func (h *SystemHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +87,10 @@ func (h *SystemHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, items)
+}
+
+func (h *SystemHandler) getSettingsSchema(w http.ResponseWriter, _ *http.Request) {
+	apiv1.WriteJSON(w, http.StatusOK, defaultSettingsSchema())
 }
 
 func (h *SystemHandler) getByKey(w http.ResponseWriter, r *http.Request) {
@@ -217,6 +255,51 @@ func defaultSystemMenus() []MenuItem {
 		{ID: "audit", Label: "Audit", Path: "/skoll/audit", Icon: "audit", Order: 50, Visible: true, RequiredPermissions: []string{"audit.read"}},
 		{ID: "plugins", Label: "Plugins", Path: "/skoll/plugin", Icon: "plugins", Order: 60, Visible: true, RequiredPermissions: []string{"plugin.read"}},
 		{ID: "settings", Label: "Settings", Path: "/skoll/setting", Icon: "settings", Order: 70, Visible: true, RequiredPermissions: []string{"system.manage"}},
+	}
+}
+
+func defaultSettingsSchema() SettingSchema {
+	auditMin := 1.0
+	auditMax := 3650.0
+	return SettingSchema{
+		Title:       "Common Settings",
+		TitleZhCN:   "常用配置",
+		TitleEnUS:   "Common Settings",
+		Description: "System settings rendered by the shared SchemaForm.",
+		Fields: []SettingSchemaField{
+			{
+				Key:       "audit.retention_days",
+				LabelZhCN: "审计日志保留天数",
+				LabelEnUS: "Audit retention days",
+				Type:      "number",
+				Default:   "30",
+				Min:       &auditMin,
+				Max:       &auditMax,
+				Help:      "用于后续审计清理策略，当前保存为系统配置项。",
+			},
+			{
+				Key:       "plugin.auto_enable",
+				LabelZhCN: "安装后自动启用插件",
+				LabelEnUS: "Auto-enable installed plugins",
+				Type:      "boolean",
+				Default:   "false",
+			},
+			{
+				Key:       "plugin.dev_portal_enabled",
+				LabelZhCN: "启用开发者门户",
+				LabelEnUS: "Developer portal enabled",
+				Type:      "boolean",
+				Default:   "true",
+			},
+			{
+				Key:         systemMenuSettingKey,
+				LabelZhCN:   "菜单树 JSON",
+				LabelEnUS:   "Menu tree JSON",
+				Type:        "textarea",
+				Default:     "",
+				Placeholder: "[]",
+			},
+		},
 	}
 }
 
