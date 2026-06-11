@@ -108,22 +108,68 @@ func WithPluginDevPortal(enabled bool, pluginsRoot string, pluginsRoots []string
 }
 
 type pluginRecord struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	NameZhCN      string   `json:"nameZhCN,omitempty"`
-	NameEnUS      string   `json:"nameEnUS,omitempty"`
-	Version       string   `json:"version"`
-	Enabled       bool     `json:"enabled"`
-	UIMode        string   `json:"uiMode"`
-	Level         string   `json:"level"`
-	AppID         string   `json:"appId,omitempty"`
-	MountPolicy   string   `json:"mountPolicy"`
-	UINavPosition string   `json:"uiNavPosition,omitempty"`
-	UIOpenMode    string   `json:"uiOpenMode,omitempty"`
-	UITabMode     string   `json:"uiTabMode,omitempty"`
-	I18nLocales   []string `json:"i18nLocales,omitempty"`
-	FrontendEntry string   `json:"frontendEntry,omitempty"`
-	SystemBuiltin bool     `json:"systemBuiltin"`
+	ID            string                    `json:"id"`
+	Name          string                    `json:"name"`
+	NameZhCN      string                    `json:"nameZhCN,omitempty"`
+	NameEnUS      string                    `json:"nameEnUS,omitempty"`
+	Version       string                    `json:"version"`
+	Enabled       bool                      `json:"enabled"`
+	UIMode        string                    `json:"uiMode"`
+	Level         string                    `json:"level"`
+	AppID         string                    `json:"appId,omitempty"`
+	MountPolicy   string                    `json:"mountPolicy"`
+	UINavPosition string                    `json:"uiNavPosition,omitempty"`
+	UIOpenMode    string                    `json:"uiOpenMode,omitempty"`
+	UITabMode     string                    `json:"uiTabMode,omitempty"`
+	I18nLocales   []string                  `json:"i18nLocales,omitempty"`
+	UIMenu        *pluginMenuRecord         `json:"uiMenu,omitempty"`
+	ConfigSchema  *pluginConfigSchemaRecord `json:"configSchema,omitempty"`
+	FrontendEntry string                    `json:"frontendEntry,omitempty"`
+	SystemBuiltin bool                      `json:"systemBuiltin"`
+}
+
+type pluginMenuRecord struct {
+	Label               string   `json:"label,omitempty"`
+	LabelZhCN           string   `json:"labelZhCN,omitempty"`
+	LabelEnUS           string   `json:"labelEnUS,omitempty"`
+	Path                string   `json:"path,omitempty"`
+	Icon                string   `json:"icon,omitempty"`
+	Order               int      `json:"order,omitempty"`
+	RequiredRoles       []string `json:"requiredRoles,omitempty"`
+	RequiredPermissions []string `json:"requiredPermissions,omitempty"`
+}
+
+type pluginConfigSchemaRecord struct {
+	Title       string                    `json:"title,omitempty"`
+	TitleZhCN   string                    `json:"titleZhCN,omitempty"`
+	TitleEnUS   string                    `json:"titleEnUS,omitempty"`
+	Description string                    `json:"description,omitempty"`
+	Fields      []pluginConfigFieldRecord `json:"fields,omitempty"`
+}
+
+type pluginConfigFieldRecord struct {
+	Key         string                     `json:"key"`
+	Label       string                     `json:"label,omitempty"`
+	LabelZhCN   string                     `json:"labelZhCN,omitempty"`
+	LabelEnUS   string                     `json:"labelEnUS,omitempty"`
+	Type        string                     `json:"type,omitempty"`
+	Required    bool                       `json:"required,omitempty"`
+	Default     string                     `json:"default,omitempty"`
+	Placeholder string                     `json:"placeholder,omitempty"`
+	Help        string                     `json:"help,omitempty"`
+	Min         *float64                   `json:"min,omitempty"`
+	Max         *float64                   `json:"max,omitempty"`
+	MinLength   *int                       `json:"minLength,omitempty"`
+	MaxLength   *int                       `json:"maxLength,omitempty"`
+	Pattern     string                     `json:"pattern,omitempty"`
+	Options     []pluginConfigOptionRecord `json:"options,omitempty"`
+}
+
+type pluginConfigOptionRecord struct {
+	Label     string `json:"label,omitempty"`
+	LabelZhCN string `json:"labelZhCN,omitempty"`
+	LabelEnUS string `json:"labelEnUS,omitempty"`
+	Value     string `json:"value"`
 }
 
 type pluginDebugRecord struct {
@@ -624,7 +670,7 @@ func (h *PluginHandler) getConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"pluginId": id, "config": config})
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"pluginId": id, "config": config, "configSchema": pluginConfigSchemaRecordFromInfo(pluginConfigSchemaForInfo(info))})
 }
 
 func (h *PluginHandler) updateConfig(w http.ResponseWriter, r *http.Request) {
@@ -1963,6 +2009,8 @@ func pluginRecordFromInfo(item plugin.Info) pluginRecord {
 			item.UIOpenMode = loaded.UIOpenMode
 			item.UITabMode = loaded.UITabMode
 			item.I18nLocales = append([]string(nil), loaded.I18nLocales...)
+			item.UIMenu = clonePluginUIMenu(loaded.UIMenu)
+			item.ConfigSchema = clonePluginConfigSchema(loaded.ConfigSchema)
 			item.FrontendEntry = loaded.FrontendEntry
 		}
 	}
@@ -2008,8 +2056,112 @@ func pluginRecordFromInfo(item plugin.Info) pluginRecord {
 		UIOpenMode:    string(openMode),
 		UITabMode:     string(tabMode),
 		I18nLocales:   locales,
+		UIMenu:        pluginMenuRecordFromInfo(item.UIMenu),
+		ConfigSchema:  pluginConfigSchemaRecordFromInfo(item.ConfigSchema),
 		FrontendEntry: entry,
 		SystemBuiltin: item.SystemBuiltin || strings.EqualFold(strings.TrimSpace(item.Source), "builtin"),
+	}
+}
+
+func pluginConfigSchemaRecordFromInfo(schema *plugin.ConfigSchema) *pluginConfigSchemaRecord {
+	if schema == nil {
+		return nil
+	}
+	out := &pluginConfigSchemaRecord{
+		Title:       strings.TrimSpace(schema.Title),
+		TitleZhCN:   strings.TrimSpace(schema.TitleZhCN),
+		TitleEnUS:   strings.TrimSpace(schema.TitleEnUS),
+		Description: strings.TrimSpace(schema.Description),
+		Fields:      make([]pluginConfigFieldRecord, 0, len(schema.Fields)),
+	}
+	for _, field := range schema.Fields {
+		record := pluginConfigFieldRecord{
+			Key:         strings.TrimSpace(field.Key),
+			Label:       strings.TrimSpace(field.Label),
+			LabelZhCN:   strings.TrimSpace(field.LabelZhCN),
+			LabelEnUS:   strings.TrimSpace(field.LabelEnUS),
+			Type:        strings.TrimSpace(field.Type),
+			Required:    field.Required,
+			Default:     strings.TrimSpace(field.Default),
+			Placeholder: strings.TrimSpace(field.Placeholder),
+			Help:        strings.TrimSpace(field.Help),
+			Min:         field.Min,
+			Max:         field.Max,
+			MinLength:   field.MinLength,
+			MaxLength:   field.MaxLength,
+			Pattern:     strings.TrimSpace(field.Pattern),
+			Options:     make([]pluginConfigOptionRecord, 0, len(field.Options)),
+		}
+		for _, option := range field.Options {
+			record.Options = append(record.Options, pluginConfigOptionRecord{
+				Label:     strings.TrimSpace(option.Label),
+				LabelZhCN: strings.TrimSpace(option.LabelZhCN),
+				LabelEnUS: strings.TrimSpace(option.LabelEnUS),
+				Value:     strings.TrimSpace(option.Value),
+			})
+		}
+		out.Fields = append(out.Fields, record)
+	}
+	return out
+}
+
+func pluginConfigSchemaForInfo(info plugin.Info) *plugin.ConfigSchema {
+	if source := strings.TrimSpace(info.Source); source != "" {
+		if loaded, err := plugin.NewFileLoader().Load(source); err == nil && loaded.ConfigSchema != nil {
+			return loaded.ConfigSchema
+		}
+	}
+	return info.ConfigSchema
+}
+
+func pluginMenuRecordFromInfo(menu *plugin.UIMenu) *pluginMenuRecord {
+	if menu == nil {
+		return nil
+	}
+	return &pluginMenuRecord{
+		Label:               strings.TrimSpace(menu.Label),
+		LabelZhCN:           strings.TrimSpace(menu.LabelZhCN),
+		LabelEnUS:           strings.TrimSpace(menu.LabelEnUS),
+		Path:                strings.TrimSpace(menu.Path),
+		Icon:                strings.TrimSpace(menu.Icon),
+		Order:               menu.Order,
+		RequiredRoles:       append([]string(nil), menu.RequiredRoles...),
+		RequiredPermissions: append([]string(nil), menu.RequiredPermissions...),
+	}
+}
+
+func clonePluginConfigSchema(schema *plugin.ConfigSchema) *plugin.ConfigSchema {
+	if schema == nil {
+		return nil
+	}
+	out := &plugin.ConfigSchema{
+		Title:       schema.Title,
+		TitleZhCN:   schema.TitleZhCN,
+		TitleEnUS:   schema.TitleEnUS,
+		Description: schema.Description,
+		Fields:      make([]plugin.ConfigField, 0, len(schema.Fields)),
+	}
+	for _, field := range schema.Fields {
+		cloned := field
+		cloned.Options = append([]plugin.ConfigOption(nil), field.Options...)
+		out.Fields = append(out.Fields, cloned)
+	}
+	return out
+}
+
+func clonePluginUIMenu(menu *plugin.UIMenu) *plugin.UIMenu {
+	if menu == nil {
+		return nil
+	}
+	return &plugin.UIMenu{
+		Label:               menu.Label,
+		LabelZhCN:           menu.LabelZhCN,
+		LabelEnUS:           menu.LabelEnUS,
+		Path:                menu.Path,
+		Icon:                menu.Icon,
+		Order:               menu.Order,
+		RequiredRoles:       append([]string(nil), menu.RequiredRoles...),
+		RequiredPermissions: append([]string(nil), menu.RequiredPermissions...),
 	}
 }
 

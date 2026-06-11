@@ -11,6 +11,46 @@ ui_nav_position: sidebar
 ui_open_mode: integrated
 ui_tab_mode: optional
 frontend_entry: /skoll/plugins/developer-portal
+ui_menu:
+  label_zh_cn: 开发者门户
+  label_en_us: Developer Portal
+  path: /skoll/plugins/developer-portal
+  icon: plugins
+  order: 100
+  required_permissions:
+    - plugin.manage
+config_schema:
+  title_zh_cn: 开发者门户配置
+  title_en_us: Developer Portal Config
+  fields:
+    - key: dev.default_root
+      label_zh_cn: 默认插件目录
+      label_en_us: Default plugins root
+      type: string
+      default: plugins
+      placeholder: plugins
+      min_length: 1
+      max_length: 120
+    - key: dev.release_strategy
+      label_zh_cn: 默认发布策略
+      label_en_us: Default release strategy
+      type: select
+      default: percent
+      options:
+        - value: percent
+          label_zh_cn: 百分比
+          label_en_us: Percent
+        - value: tag
+          label_zh_cn: 标签
+          label_en_us: Tag
+        - value: canary
+          label_zh_cn: 金丝雀
+          label_en_us: Canary
+    - key: dev.require_review
+      label_zh_cn: 发布需要审核
+      label_en_us: Require release review
+      type: boolean
+      default: true
 i18n_locales:
   - zh-CN
   - en-US

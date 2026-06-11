@@ -183,6 +183,114 @@ func (sc *SignatureChecker) canonicalManifestBytes(info *Info) []byte {
 	if info.UITabMode != "" {
 		buf.WriteString("ui_tab_mode: " + string(info.UITabMode) + "\n")
 	}
+	if info.UIMenu != nil {
+		buf.WriteString("ui_menu:\n")
+		if info.UIMenu.Label != "" {
+			buf.WriteString("  label: " + strings.TrimSpace(info.UIMenu.Label) + "\n")
+		}
+		if info.UIMenu.LabelZhCN != "" {
+			buf.WriteString("  label_zh_cn: " + strings.TrimSpace(info.UIMenu.LabelZhCN) + "\n")
+		}
+		if info.UIMenu.LabelEnUS != "" {
+			buf.WriteString("  label_en_us: " + strings.TrimSpace(info.UIMenu.LabelEnUS) + "\n")
+		}
+		if info.UIMenu.Path != "" {
+			buf.WriteString("  path: " + strings.TrimSpace(info.UIMenu.Path) + "\n")
+		}
+		if info.UIMenu.Icon != "" {
+			buf.WriteString("  icon: " + strings.TrimSpace(info.UIMenu.Icon) + "\n")
+		}
+		if info.UIMenu.Order != 0 {
+			buf.WriteString(fmt.Sprintf("  order: %d\n", info.UIMenu.Order))
+		}
+		if len(info.UIMenu.RequiredRoles) > 0 {
+			buf.WriteString("  required_roles:\n")
+			for _, role := range info.UIMenu.RequiredRoles {
+				buf.WriteString("    - " + strings.TrimSpace(role) + "\n")
+			}
+		}
+		if len(info.UIMenu.RequiredPermissions) > 0 {
+			buf.WriteString("  required_permissions:\n")
+			for _, permission := range info.UIMenu.RequiredPermissions {
+				buf.WriteString("    - " + strings.TrimSpace(permission) + "\n")
+			}
+		}
+	}
+	if info.ConfigSchema != nil {
+		buf.WriteString("config_schema:\n")
+		if info.ConfigSchema.Title != "" {
+			buf.WriteString("  title: " + strings.TrimSpace(info.ConfigSchema.Title) + "\n")
+		}
+		if info.ConfigSchema.TitleZhCN != "" {
+			buf.WriteString("  title_zh_cn: " + strings.TrimSpace(info.ConfigSchema.TitleZhCN) + "\n")
+		}
+		if info.ConfigSchema.TitleEnUS != "" {
+			buf.WriteString("  title_en_us: " + strings.TrimSpace(info.ConfigSchema.TitleEnUS) + "\n")
+		}
+		if info.ConfigSchema.Description != "" {
+			buf.WriteString("  description: " + strings.TrimSpace(info.ConfigSchema.Description) + "\n")
+		}
+		if len(info.ConfigSchema.Fields) > 0 {
+			buf.WriteString("  fields:\n")
+			for _, field := range info.ConfigSchema.Fields {
+				buf.WriteString("    - key: " + strings.TrimSpace(field.Key) + "\n")
+				if field.Label != "" {
+					buf.WriteString("      label: " + strings.TrimSpace(field.Label) + "\n")
+				}
+				if field.LabelZhCN != "" {
+					buf.WriteString("      label_zh_cn: " + strings.TrimSpace(field.LabelZhCN) + "\n")
+				}
+				if field.LabelEnUS != "" {
+					buf.WriteString("      label_en_us: " + strings.TrimSpace(field.LabelEnUS) + "\n")
+				}
+				if field.Type != "" {
+					buf.WriteString("      type: " + strings.TrimSpace(field.Type) + "\n")
+				}
+				if field.Required {
+					buf.WriteString("      required: true\n")
+				}
+				if field.Default != "" {
+					buf.WriteString("      default: " + strings.TrimSpace(field.Default) + "\n")
+				}
+				if field.Placeholder != "" {
+					buf.WriteString("      placeholder: " + strings.TrimSpace(field.Placeholder) + "\n")
+				}
+				if field.Help != "" {
+					buf.WriteString("      help: " + strings.TrimSpace(field.Help) + "\n")
+				}
+				if field.Min != nil {
+					buf.WriteString(fmt.Sprintf("      min: %g\n", *field.Min))
+				}
+				if field.Max != nil {
+					buf.WriteString(fmt.Sprintf("      max: %g\n", *field.Max))
+				}
+				if field.MinLength != nil {
+					buf.WriteString(fmt.Sprintf("      min_length: %d\n", *field.MinLength))
+				}
+				if field.MaxLength != nil {
+					buf.WriteString(fmt.Sprintf("      max_length: %d\n", *field.MaxLength))
+				}
+				if field.Pattern != "" {
+					buf.WriteString("      pattern: " + strings.TrimSpace(field.Pattern) + "\n")
+				}
+				if len(field.Options) > 0 {
+					buf.WriteString("      options:\n")
+					for _, option := range field.Options {
+						buf.WriteString("        - value: " + strings.TrimSpace(option.Value) + "\n")
+						if option.Label != "" {
+							buf.WriteString("          label: " + strings.TrimSpace(option.Label) + "\n")
+						}
+						if option.LabelZhCN != "" {
+							buf.WriteString("          label_zh_cn: " + strings.TrimSpace(option.LabelZhCN) + "\n")
+						}
+						if option.LabelEnUS != "" {
+							buf.WriteString("          label_en_us: " + strings.TrimSpace(option.LabelEnUS) + "\n")
+						}
+					}
+				}
+			}
+		}
+	}
 	if len(info.I18nLocales) > 0 {
 		buf.WriteString("i18n_locales:\n")
 		for _, locale := range info.I18nLocales {

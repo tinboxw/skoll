@@ -168,3 +168,37 @@ func TestInfoValidateManifestUIConfig(t *testing.T) {
 		t.Fatalf("expected validation error for standalone plugin with enabled tab mode")
 	}
 }
+
+func TestInfoValidateManifestUIMenu(t *testing.T) {
+	valid := Info{
+		ID:            "report-plugin",
+		Name:          "Report Plugin",
+		Version:       "1.0.0",
+		UIMode:        UIModeFrontendOnly,
+		UINavPosition: UINavPositionSidebar,
+		I18nLocales:   []string{"zh-CN", "en-US"},
+		UIMenu: &UIMenu{
+			Label:               "Reports",
+			Path:                "/skoll/plugins/report-plugin",
+			Icon:                "plugins",
+			Order:               120,
+			RequiredRoles:       []string{"manager"},
+			RequiredPermissions: []string{"report.read"},
+		},
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid ui menu, got %v", err)
+	}
+
+	badPath := valid
+	badPath.UIMenu = &UIMenu{Path: "skoll/plugins/report-plugin"}
+	if err := badPath.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for ui menu path without leading slash")
+	}
+
+	badPermission := valid
+	badPermission.UIMenu = &UIMenu{RequiredPermissions: []string{""}}
+	if err := badPermission.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error for blank ui menu permission")
+	}
+}

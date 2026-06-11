@@ -30,6 +30,37 @@ ui_mode: "separated"
 ui_nav_position: "sidebar"
 ui_open_mode: "integrated"
 ui_tab_mode: "fixed"
+ui_menu:
+  label: "Reports"
+  label_zh_cn: "报表"
+  label_en_us: "Reports"
+  path: "/skoll/plugins/sample-plugin/reports"
+  icon: "plugins"
+  order: 120
+  required_roles:
+    - "manager"
+  required_permissions:
+    - "report.read"
+config_schema:
+  title: "Report Config"
+  fields:
+    - key: "report.default_range"
+      label: "Default Range"
+      type: "select"
+      default: "week"
+      required: true
+      min_length: 3
+      max_length: 12
+      pattern: "^[a-z]+$"
+      options:
+        - value: "day"
+          label: "Day"
+        - value: "week"
+          label: "Week"
+    - key: "report.enabled"
+      label: "Enabled"
+      type: "boolean"
+      default: "true"
 i18n_locales:
 	- "zh-CN"
 	- "en-US"
@@ -97,6 +128,27 @@ frontend_entry: "/plugins/sample-plugin"
 	}
 	if len(info.I18nLocales) != 2 || info.I18nLocales[0] != "zh-CN" || info.I18nLocales[1] != "en-US" {
 		t.Fatalf("unexpected i18n locales: %+v", info.I18nLocales)
+	}
+	if info.UIMenu == nil {
+		t.Fatalf("expected ui menu parsed")
+	}
+	if info.UIMenu.LabelZhCN != "报表" || info.UIMenu.Path != "/skoll/plugins/sample-plugin/reports" || info.UIMenu.Order != 120 {
+		t.Fatalf("unexpected ui menu: %+v", info.UIMenu)
+	}
+	if len(info.UIMenu.RequiredPermissions) != 1 || info.UIMenu.RequiredPermissions[0] != "report.read" {
+		t.Fatalf("unexpected ui menu permissions: %+v", info.UIMenu.RequiredPermissions)
+	}
+	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 2 {
+		t.Fatalf("expected config schema fields parsed, got %+v", info.ConfigSchema)
+	}
+	if info.ConfigSchema.Fields[0].Key != "report.default_range" || len(info.ConfigSchema.Fields[0].Options) != 2 {
+		t.Fatalf("unexpected config schema first field: %+v", info.ConfigSchema.Fields[0])
+	}
+	if info.ConfigSchema.Fields[0].MinLength == nil || *info.ConfigSchema.Fields[0].MinLength != 3 || info.ConfigSchema.Fields[0].Pattern != "^[a-z]+$" {
+		t.Fatalf("unexpected config schema validation rules: %+v", info.ConfigSchema.Fields[0])
+	}
+	if info.ConfigSchema.Fields[1].Key != "report.enabled" || info.ConfigSchema.Fields[1].Type != "boolean" {
+		t.Fatalf("unexpected config schema second field: %+v", info.ConfigSchema.Fields[1])
 	}
 }
 

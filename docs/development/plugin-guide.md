@@ -85,6 +85,44 @@ ui_nav_position: sidebar    # none / sidebar / top_tab
 ui_open_mode: integrated    # integrated / standalone
 ui_tab_mode: fixed          # optional / fixed / disabled
 app_id: demo                # 仅 level=app 时需要
+ui_menu:                    # 可选，声明集成式插件的侧栏菜单
+  label_zh_cn: "示例插件"
+  label_en_us: "Demo Plugin"
+  path: /skoll/plugins/demo
+  icon: plugins
+  order: 100
+  required_permissions:
+    - menu.read
+config_schema:              # 可选，声明插件配置表单
+  title_zh_cn: "示例插件配置"
+  title_en_us: "Demo Plugin Config"
+  fields:
+    - key: demo.endpoint
+      label_zh_cn: "服务地址"
+      label_en_us: "Endpoint"
+      type: string
+      required: true
+      min_length: 8
+      max_length: 120
+      pattern: "^https?://"
+      placeholder: "https://api.example.com"
+    - key: demo.mode
+      label_zh_cn: "运行模式"
+      label_en_us: "Mode"
+      type: select
+      default: safe
+      options:
+        - value: safe
+          label_zh_cn: "安全"
+          label_en_us: "Safe"
+        - value: fast
+          label_zh_cn: "快速"
+          label_en_us: "Fast"
+    - key: demo.enabled
+      label_zh_cn: "启用"
+      label_en_us: "Enabled"
+      type: boolean
+      default: true
 i18n_locales:               # 非 backend_only 必须声明
   - zh-CN
   - en-US
@@ -101,6 +139,11 @@ dependencies:               # 可选，声明依赖其他插件
 - **api_version**：若声明则必须同时声明 `compatibility_skoll`
 - **i18n_locales**：非 `backend_only` 插件必须声明至少一个 locale
 - **ui_open_mode=standalone** 时：`ui_nav_position` 必须为 `none`，`ui_tab_mode` 必须为 `disabled`
+- **ui_menu.path**：若声明必须以 `/` 开头；当前前端支持 `dashboard/users/roles/permissions/audit/plugins/settings` 图标名，未知图标会回退为 `plugins`
+- **ui_menu.required_permissions / required_roles**：用于前端菜单可见性过滤，并会继承到集成式插件前端路由守卫；后端 API 仍必须独立做权限校验兜底
+- **config_schema.fields**：用于插件配置面板的结构化表单渲染；当前支持 `string`、`textarea`、`number`、`boolean`、`select`
+- **config_schema.fields[].key**：必须唯一，保存时作为配置 JSON 的字段名；`select` 类型必须提供至少一个 `options`
+- **config_schema 字段校验**：支持 `required`、`min`、`max`、`min_length`、`max_length`、`pattern`；前端会实时校验并阻止保存无效配置
 - **level=app** 时：必须提供 `app_id`，且 `app_id` 不能为 `skoll`
 - **level=system** 时：不能设置 `app_id`
 

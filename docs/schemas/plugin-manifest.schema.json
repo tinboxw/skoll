@@ -66,6 +66,77 @@
         "pattern": "^[a-z]{2}(?:-[A-Z]{2})?$"
       }
     },
+    "ui_menu": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "label_zh_cn": { "type": "string", "minLength": 1 },
+        "label_en_us": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "pattern": "^/" },
+        "icon": { "type": "string", "minLength": 1 },
+        "order": { "type": "integer" },
+        "required_roles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "required_permissions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "config_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "title_zh_cn": { "type": "string" },
+        "title_en_us": { "type": "string" },
+        "description": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "label": { "type": "string" },
+              "label_zh_cn": { "type": "string" },
+              "label_en_us": { "type": "string" },
+              "type": {
+                "type": "string",
+                "enum": ["string", "textarea", "number", "boolean", "select"]
+              },
+              "required": { "type": "boolean" },
+              "default": { "type": ["string", "number", "boolean"] },
+              "placeholder": { "type": "string" },
+              "help": { "type": "string" },
+              "min": { "type": "number" },
+              "max": { "type": "number" },
+              "min_length": { "type": "integer", "minimum": 0 },
+              "max_length": { "type": "integer", "minimum": 0 },
+              "pattern": { "type": "string" },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["value"],
+                  "properties": {
+                    "value": { "type": ["string", "number", "boolean"] },
+                    "label": { "type": "string" },
+                    "label_zh_cn": { "type": "string" },
+                    "label_en_us": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "frontend_entry": {
       "type": "string"
     },

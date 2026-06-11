@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -15,6 +16,19 @@ type MetadataLoader interface {
 }
 
 type FileLoader struct{}
+
+const (
+	sectionRoot              = "root"
+	sectionDeps              = "deps"
+	sectionPerm              = "perm"
+	sectionI18n              = "i18n"
+	sectionUIMenu            = "ui_menu"
+	sectionUIMenuRoles       = "ui_menu_roles"
+	sectionUIMenuPermissions = "ui_menu_permissions"
+	sectionConfigSchema      = "config_schema"
+	sectionConfigFields      = "config_schema_fields"
+	sectionConfigOptions     = "config_schema_options"
+)
 
 func NewFileLoader() *FileLoader {
 	return &FileLoader{}
@@ -67,22 +81,19 @@ func resolveManifestPath(path string) (string, error) {
 func parseManifest(raw []byte) (Info, error) {
 	var info Info
 
-	const (
-		sectionRoot = "root"
-		sectionDeps = "deps"
-		sectionPerm = "perm"
-		sectionI18n = "i18n"
-	)
-
 	section := sectionRoot
 	var currentDep *Dependency
+	var currentConfigField *ConfigField
+	var currentConfigOption *ConfigOption
 
 	scanner := bufio.NewScanner(strings.NewReader(string(raw)))
 	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
+		rawLine := scanner.Text()
+		line := strings.TrimSpace(rawLine)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		isTopLevel := rawLine == line
 
 		switch line {
 		case "dependencies:":
@@ -106,6 +117,42 @@ func parseManifest(raw []byte) (Info, error) {
 			}
 			section = sectionI18n
 			continue
+		case "ui_menu:":
+			if currentDep != nil {
+				info.Dependencies = append(info.Dependencies, *currentDep)
+				currentDep = nil
+			}
+			if currentConfigOption != nil {
+				currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+				currentConfigOption = nil
+			}
+			if currentConfigField != nil {
+				info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
+				currentConfigField = nil
+			}
+			if info.UIMenu == nil {
+				info.UIMenu = &UIMenu{}
+			}
+			section = sectionUIMenu
+			continue
+		case "config_schema:":
+			if currentDep != nil {
+				info.Dependencies = append(info.Dependencies, *currentDep)
+				currentDep = nil
+			}
+			if currentConfigOption != nil {
+				currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+				currentConfigOption = nil
+			}
+			if currentConfigField != nil {
+				info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
+				currentConfigField = nil
+			}
+			if info.ConfigSchema == nil {
+				info.ConfigSchema = &ConfigSchema{}
+			}
+			section = sectionConfigSchema
+			continue
 		}
 
 		if strings.HasPrefix(line, "-") {
@@ -125,6 +172,56 @@ func parseManifest(raw []byte) (Info, error) {
 				info.Permissions = append(info.Permissions, parseScalar(item))
 			case sectionI18n:
 				info.I18nLocales = append(info.I18nLocales, parseScalar(item))
+			case sectionUIMenuRoles:
+				if info.UIMenu == nil {
+					info.UIMenu = &UIMenu{}
+				}
+				info.UIMenu.RequiredRoles = append(info.UIMenu.RequiredRoles, parseScalar(item))
+			case sectionUIMenuPermissions:
+				if info.UIMenu == nil {
+					info.UIMenu = &UIMenu{}
+				}
+				info.UIMenu.RequiredPermissions = append(info.UIMenu.RequiredPermissions, parseScalar(item))
+			case sectionConfigFields:
+				if info.ConfigSchema == nil {
+					info.ConfigSchema = &ConfigSchema{}
+				}
+				if currentConfigOption != nil {
+					currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+					currentConfigOption = nil
+				}
+				if currentConfigField != nil {
+					info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
+				}
+				currentConfigField = &ConfigField{}
+				if strings.HasPrefix(item, "key:") {
+					currentConfigField.Key = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "key:")))
+				} else {
+					currentConfigField.Key = parseScalar(item)
+				}
+			case sectionConfigOptions:
+				if currentConfigField == nil {
+					currentConfigField = &ConfigField{}
+				}
+				if strings.HasPrefix(item, "key:") {
+					if currentConfigOption != nil {
+						currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+						currentConfigOption = nil
+					}
+					info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
+					currentConfigField = &ConfigField{Key: parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "key:")))}
+					section = sectionConfigFields
+					continue
+				}
+				if currentConfigOption != nil {
+					currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+				}
+				currentConfigOption = &ConfigOption{}
+				if strings.HasPrefix(item, "value:") {
+					currentConfigOption.Value = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "value:")))
+				} else {
+					currentConfigOption.Value = parseScalar(item)
+				}
 			}
 			continue
 		}
@@ -136,6 +233,30 @@ func parseManifest(raw []byte) (Info, error) {
 
 		key = strings.TrimSpace(key)
 		value = parseScalar(strings.TrimSpace(value))
+		if section == sectionUIMenu || section == sectionUIMenuRoles || section == sectionUIMenuPermissions {
+			if !isTopLevel && applyUIMenuField(info.UIMenu, key, value, &section) {
+				continue
+			}
+			if isTopLevel {
+				section = sectionRoot
+			}
+		}
+		if section == sectionConfigSchema || section == sectionConfigFields || section == sectionConfigOptions {
+			if !isTopLevel && applyConfigSchemaField(info.ConfigSchema, currentConfigField, currentConfigOption, key, value, &section) {
+				continue
+			}
+			if isTopLevel {
+				if currentConfigOption != nil {
+					currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+					currentConfigOption = nil
+				}
+				if currentConfigField != nil {
+					info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
+					currentConfigField = nil
+				}
+				section = sectionRoot
+			}
+		}
 
 		switch key {
 		case "id":
@@ -236,6 +357,15 @@ func parseManifest(raw []byte) (Info, error) {
 	if currentDep != nil {
 		info.Dependencies = append(info.Dependencies, *currentDep)
 	}
+	if currentConfigOption != nil && currentConfigField != nil {
+		currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+	}
+	if currentConfigField != nil {
+		if info.ConfigSchema == nil {
+			info.ConfigSchema = &ConfigSchema{}
+		}
+		info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
+	}
 	if info.UIMode == "" {
 		info.UIMode = UIModeBackendOnly
 	}
@@ -263,6 +393,158 @@ func parseManifest(raw []byte) (Info, error) {
 	info.FrontendEntry = ResolveFrontendEntry(info)
 
 	return info, nil
+}
+
+func applyConfigSchemaField(schema *ConfigSchema, field *ConfigField, option *ConfigOption, key, value string, section *string) bool {
+	if schema == nil {
+		return false
+	}
+	switch *section {
+	case sectionConfigSchema:
+		switch key {
+		case "title":
+			schema.Title = value
+		case "title_zh_cn":
+			schema.TitleZhCN = value
+		case "title_en_us":
+			schema.TitleEnUS = value
+		case "description":
+			schema.Description = value
+		case "fields":
+			*section = sectionConfigFields
+		default:
+			return false
+		}
+	case sectionConfigFields:
+		if field == nil {
+			return false
+		}
+		switch key {
+		case "key":
+			field.Key = value
+		case "label":
+			field.Label = value
+		case "label_zh_cn":
+			field.LabelZhCN = value
+		case "label_en_us":
+			field.LabelEnUS = value
+		case "type":
+			field.Type = strings.ToLower(strings.TrimSpace(value))
+		case "required":
+			field.Required = parseBoolScalar(value)
+		case "default":
+			field.Default = value
+		case "placeholder":
+			field.Placeholder = value
+		case "help":
+			field.Help = value
+		case "min":
+			if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+				field.Min = &parsed
+			}
+		case "max":
+			if parsed, err := strconv.ParseFloat(value, 64); err == nil {
+				field.Max = &parsed
+			}
+		case "min_length":
+			if parsed, err := strconv.Atoi(value); err == nil {
+				field.MinLength = &parsed
+			}
+		case "max_length":
+			if parsed, err := strconv.Atoi(value); err == nil {
+				field.MaxLength = &parsed
+			}
+		case "pattern":
+			field.Pattern = value
+		case "options":
+			if value != "" {
+				for _, part := range splitScalarList(value) {
+					field.Options = append(field.Options, ConfigOption{Label: part, Value: part})
+				}
+			} else {
+				*section = sectionConfigOptions
+			}
+		default:
+			return false
+		}
+	case sectionConfigOptions:
+		if option == nil {
+			return false
+		}
+		switch key {
+		case "value":
+			option.Value = value
+		case "label":
+			option.Label = value
+		case "label_zh_cn":
+			option.LabelZhCN = value
+		case "label_en_us":
+			option.LabelEnUS = value
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+	return true
+}
+
+func parseBoolScalar(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "1", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func applyUIMenuField(menu *UIMenu, key, value string, section *string) bool {
+	if menu == nil {
+		return false
+	}
+	switch key {
+	case "label":
+		menu.Label = value
+	case "label_zh_cn":
+		menu.LabelZhCN = value
+	case "label_en_us":
+		menu.LabelEnUS = value
+	case "path":
+		menu.Path = NormalizeEntryPath(value)
+	case "icon":
+		menu.Icon = value
+	case "order":
+		if order, err := strconv.Atoi(value); err == nil {
+			menu.Order = order
+		}
+	case "required_roles":
+		if value != "" {
+			menu.RequiredRoles = append(menu.RequiredRoles, splitScalarList(value)...)
+		} else {
+			*section = sectionUIMenuRoles
+		}
+	case "required_permissions":
+		if value != "" {
+			menu.RequiredPermissions = append(menu.RequiredPermissions, splitScalarList(value)...)
+		} else {
+			*section = sectionUIMenuPermissions
+		}
+	default:
+		return false
+	}
+	return true
+}
+
+func splitScalarList(value string) []string {
+	parts := strings.Split(value, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := parseScalar(part)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func parseScalar(v string) string {

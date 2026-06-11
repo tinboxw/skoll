@@ -78,7 +78,7 @@ configs/skoll.yml
 
 | 模式 | 实现文件 | 说明 |
 |------|---------|------|
-| `memory` | `internal/event/memory_bus.go` | 进程内发布/订阅，单实例 |
+| `memory` | `internal/event/inmemory_bus.go` | 进程内发布/订阅，单实例 |
 | `redis` | `internal/event/redis_bus.go` | Redis Pub/Sub，支持多实例广播 |
 
 ### 2.5 security（安全）

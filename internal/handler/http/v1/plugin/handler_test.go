@@ -21,6 +21,50 @@ type fakePluginManager struct {
 	snapshots map[string]plugin.RegistrySnapshot
 }
 
+func TestPluginRecordFromInfoIncludesUIMenu(t *testing.T) {
+	dir := t.TempDir()
+	manifest := strings.Join([]string{
+		`id: "report-plugin"`,
+		`name: "Report Plugin"`,
+		`version: "1.0.0"`,
+		`ui_mode: "frontend_only"`,
+		`ui_nav_position: "sidebar"`,
+		`i18n_locales:`,
+		`  - "zh-CN"`,
+		`  - "en-US"`,
+		`ui_menu:`,
+		`  label_zh_cn: "报表中心"`,
+		`  label_en_us: "Reports"`,
+		`  path: "/skoll/plugins/report-plugin/reports"`,
+		`  icon: "plugins"`,
+		`  order: 88`,
+		`  required_permissions:`,
+		`    - "report.read"`,
+		`frontend_entry: "/skoll/plugins/report-plugin"`,
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	record := pluginRecordFromInfo(plugin.Info{
+		ID:      "report-plugin",
+		Name:    "Stored Report Plugin",
+		Version: "1.0.0",
+		State:   plugin.StateEnabled,
+		Source:  dir,
+	})
+	if record.UIMenu == nil {
+		t.Fatalf("expected ui menu")
+	}
+	if record.UIMenu.LabelZhCN != "报表中心" || record.UIMenu.Path != "/skoll/plugins/report-plugin/reports" || record.UIMenu.Order != 88 {
+		t.Fatalf("unexpected ui menu: %+v", record.UIMenu)
+	}
+	if len(record.UIMenu.RequiredPermissions) != 1 || record.UIMenu.RequiredPermissions[0] != "report.read" {
+		t.Fatalf("unexpected ui menu permissions: %+v", record.UIMenu.RequiredPermissions)
+	}
+}
+
 type noConfigUpdaterPluginManager struct {
 	items map[string]plugin.Info
 }
@@ -744,10 +788,11 @@ func TestPluginHandlerDevPortalManifestPipelineAndRollout(t *testing.T) {
 }
 
 func TestPluginHandlerDevPortalRolloutRequiresConfigUpdater(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
 	mux := http.NewServeMux()
 	RegisterPluginRoutes(mux, &noConfigUpdaterPluginManager{items: map[string]plugin.Info{
 		"dev-edit": {ID: "dev-edit", Name: "Dev Edit", Version: "0.1.1", State: plugin.StateEnabled, ConfigJSON: "{}"},
-	}}, WithPluginDevPortal(true, "plugins", []string{"plugins"}))
+	}}, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
 
 	rolloutPayload := []byte(`{"pluginId":"dev-edit","percent":20}`)
 	rolloutReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/rollout", bytes.NewReader(rolloutPayload))

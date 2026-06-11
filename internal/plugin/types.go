@@ -98,6 +98,50 @@ type Signature struct {
 	PublicKey string
 }
 
+type UIMenu struct {
+	Label               string
+	LabelZhCN           string
+	LabelEnUS           string
+	Path                string
+	Icon                string
+	Order               int
+	RequiredRoles       []string
+	RequiredPermissions []string
+}
+
+type ConfigSchema struct {
+	Title       string
+	TitleZhCN   string
+	TitleEnUS   string
+	Description string
+	Fields      []ConfigField
+}
+
+type ConfigField struct {
+	Key         string
+	Label       string
+	LabelZhCN   string
+	LabelEnUS   string
+	Type        string
+	Required    bool
+	Default     string
+	Placeholder string
+	Help        string
+	Min         *float64
+	Max         *float64
+	MinLength   *int
+	MaxLength   *int
+	Pattern     string
+	Options     []ConfigOption
+}
+
+type ConfigOption struct {
+	Label     string
+	LabelZhCN string
+	LabelEnUS string
+	Value     string
+}
+
 type Info struct {
 	ID                 string
 	Name               string
@@ -126,6 +170,8 @@ type Info struct {
 	UIOpenMode         UIOpenMode
 	UITabMode          UITabMode
 	I18nLocales        []string
+	UIMenu             *UIMenu
+	ConfigSchema       *ConfigSchema
 	SystemBuiltin      bool
 	Vendor             string
 	VendorURL          string
@@ -224,6 +270,64 @@ func (i Info) ValidateManifest() error {
 		}
 		if tabMode != UITabModeDisabled {
 			return ErrPluginManifestBroken
+		}
+	}
+	if i.UIMenu != nil {
+		if path := strings.TrimSpace(i.UIMenu.Path); path != "" && !strings.HasPrefix(path, "/") {
+			return ErrPluginManifestBroken
+		}
+		for _, role := range i.UIMenu.RequiredRoles {
+			if strings.TrimSpace(role) == "" {
+				return ErrPluginManifestBroken
+			}
+		}
+		for _, permission := range i.UIMenu.RequiredPermissions {
+			if strings.TrimSpace(permission) == "" {
+				return ErrPluginManifestBroken
+			}
+		}
+	}
+	if i.ConfigSchema != nil {
+		seenFields := map[string]struct{}{}
+		for _, field := range i.ConfigSchema.Fields {
+			key := strings.TrimSpace(field.Key)
+			if key == "" {
+				return ErrPluginManifestBroken
+			}
+			if _, ok := seenFields[key]; ok {
+				return ErrPluginManifestBroken
+			}
+			seenFields[key] = struct{}{}
+			switch strings.TrimSpace(field.Type) {
+			case "", "string", "textarea", "number", "boolean", "select":
+			default:
+				return ErrPluginManifestBroken
+			}
+			if field.Min != nil && field.Max != nil && *field.Min > *field.Max {
+				return ErrPluginManifestBroken
+			}
+			if field.MinLength != nil && *field.MinLength < 0 {
+				return ErrPluginManifestBroken
+			}
+			if field.MaxLength != nil && *field.MaxLength < 0 {
+				return ErrPluginManifestBroken
+			}
+			if field.MinLength != nil && field.MaxLength != nil && *field.MinLength > *field.MaxLength {
+				return ErrPluginManifestBroken
+			}
+			if strings.TrimSpace(field.Pattern) != "" {
+				if _, err := regexp.Compile(strings.TrimSpace(field.Pattern)); err != nil {
+					return ErrPluginManifestBroken
+				}
+			}
+			if strings.TrimSpace(field.Type) == "select" && len(field.Options) == 0 {
+				return ErrPluginManifestBroken
+			}
+			for _, option := range field.Options {
+				if strings.TrimSpace(option.Value) == "" {
+					return ErrPluginManifestBroken
+				}
+			}
 		}
 	}
 
