@@ -118,6 +118,8 @@ export async function syncBackendPlugins(
 					uiOpenMode: record.uiOpenMode,
 					uiTabMode: record.uiTabMode,
 					i18nLocales: record.i18nLocales,
+					uiMenu: record.uiMenu,
+					configSchema: record.configSchema,
 					entryPath: typeof record.frontendEntry === "string" ? normalizePluginRoutePath(record.frontendEntry) : record.frontendEntry,
 					systemBuiltin: record.systemBuiltin
 				}))
@@ -149,6 +151,8 @@ export async function syncBackendPlugins(
 						uiOpenMode: record.uiOpenMode,
 						uiTabMode: record.uiTabMode,
 						i18nLocales: record.i18nLocales,
+						uiMenu: record.uiMenu,
+						configSchema: record.configSchema,
 						entryPath: typeof record.frontendEntry === "string" ? normalizePluginRoutePath(record.frontendEntry) : record.frontendEntry,
 						systemBuiltin: record.systemBuiltin,
 						route: hasFrontend && record.level !== "app" && record.uiOpenMode !== "standalone"
@@ -201,8 +205,24 @@ function normalizeSyncError(error: unknown): string {
 function registerPlugin(manifest: FrontendPluginManifest, router: Router, store: PluginStore): void {
 	store.registerPlugin(manifest);
 	if (manifest.route) {
-		addRouteIfMissing(manifest.route, router);
+		addRouteIfMissing(withPluginAccessMeta(manifest.route, manifest), router);
 	}
+}
+
+function withPluginAccessMeta(route: RouteRecordRaw, manifest: FrontendPluginManifest): RouteRecordRaw {
+	const requiredRoles = manifest.uiMenu?.requiredRoles ?? [];
+	const requiredPermissions = manifest.uiMenu?.requiredPermissions ?? [];
+	if (requiredRoles.length === 0 && requiredPermissions.length === 0) {
+		return route;
+	}
+	return {
+		...route,
+		meta: {
+			...(route.meta ?? {}),
+			roles: requiredRoles,
+			permissions: requiredPermissions
+		}
+	};
 }
 
 function addRouteIfMissing(route: RouteRecordRaw, router: Router): void {
@@ -314,7 +334,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 							title: `${record.id}-page`,
 							src: frameURL.value,
 							class: "plugin-page-frame",
-							ref: (el: Element | null) => {
+							ref: (el: unknown) => {
 								iframeRef.value = el as HTMLIFrameElement | null;
 							},
 							onLoad: () => {
@@ -454,7 +474,7 @@ function createAppHomeView(appId: string, store: PluginStore) {
 							title: `${appId}-home-page`,
 							src: frameURL.value,
 							class: "plugin-page-frame",
-							ref: (el: Element | null) => {
+							ref: (el: unknown) => {
 								iframeRef.value = el as HTMLIFrameElement | null;
 							},
 							onLoad: () => {

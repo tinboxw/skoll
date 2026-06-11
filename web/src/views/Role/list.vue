@@ -1,7 +1,9 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 
+import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
+import { useAccess } from "../../permissions/access";
 import { type ApiResponse, apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -33,6 +35,7 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 }
 
 const { t } = useI18n();
+const access = useAccess();
 const loading = ref(false);
 const operating = ref(false);
 const error = ref("");
@@ -47,7 +50,9 @@ const createName = ref("");
 const createKey = ref("");
 const createDescription = ref("");
 
-const hasRows = computed(() => rows.value.length > 0);
+const canCreateRole = computed(() => access.can("role.create"));
+const canUpdateRole = computed(() => access.can("role.update"));
+const canDeleteRole = computed(() => access.can("role.delete"));
 
 async function loadRoles(targetPage = page.value): Promise<void> {
 	loading.value = true;
@@ -86,6 +91,10 @@ function nextPage(): void {
 }
 
 async function createRole(): Promise<void> {
+	if (!canCreateRole.value) {
+		createError.value = t("error.forbidden");
+		return;
+	}
 	createError.value = "";
 	createSuccess.value = "";
 	creating.value = true;
@@ -110,7 +119,21 @@ async function createRole(): Promise<void> {
 }
 
 async function deleteRole(roleID: string): Promise<void> {
+	if (!canDeleteRole.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	if (operating.value || loading.value) {
+		return;
+	}
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: `${t("common.delete")}: ${roleID}`,
+		confirmText: t("common.delete"),
+		cancelText: t("common.cancel"),
+		danger: true
+	});
+	if (!confirmed) {
 		return;
 	}
 	operating.value = true;
@@ -131,77 +154,91 @@ onMounted(() => {
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.roles") }}</h2>
-		<section class="create-panel">
-			<h3>{{ t("role.createTitle") }}</h3>
-			<form class="create-form" @submit.prevent="createRole">
-				<input v-model="createName" type="text" :placeholder="t('role.createNamePlaceholder')" required :disabled="creating" />
-				<input v-model="createKey" type="text" :placeholder="t('role.createKeyPlaceholder')" required :disabled="creating" />
-				<input v-model="createDescription" type="text" :placeholder="t('role.createDescPlaceholder')" :disabled="creating" />
-				<button type="submit" :disabled="creating">{{ creating ? t("common.loading") : t("role.create") }}</button>
-			</form>
-			<p v-if="createError" class="error">{{ createError }}</p>
-			<p v-if="createSuccess" class="success">{{ createSuccess }}</p>
-		</section>
-		<p v-if="error" class="error">{{ error }}</p>
-		<div class="toolbar">
-			<button type="button" :disabled="loading || operating" @click="loadRoles(page)">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
-			<div class="pager">
-				<button type="button" :disabled="loading || operating || page <= 1" @click="prevPage">{{ t("common.prev") }}</button>
-				<span>{{ t("common.page") }} {{ page }}</span>
-				<button type="button" :disabled="loading || operating || !canGoNext" @click="nextPage">{{ t("common.next") }}</button>
+	<section class="role-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.roles") }}</h2>
+				<p>{{ t("permission.matrixHint") }}</p>
 			</div>
+			<el-button :loading="loading" :disabled="operating" @click="loadRoles(page)">{{ t("common.refresh") }}</el-button>
+		</header>
+
+		<section v-if="canCreateRole" class="create-panel">
+			<h3>{{ t("role.createTitle") }}</h3>
+			<el-form class="create-form" @submit.prevent="createRole">
+				<el-input v-model="createName" :placeholder="t('role.createNamePlaceholder')" :disabled="creating" />
+				<el-input v-model="createKey" :placeholder="t('role.createKeyPlaceholder')" :disabled="creating" />
+				<el-input v-model="createDescription" :placeholder="t('role.createDescPlaceholder')" :disabled="creating" />
+				<el-button type="primary" native-type="submit" :loading="creating" :disabled="creating || createName.trim() === '' || createKey.trim() === ''">{{ t("role.create") }}</el-button>
+			</el-form>
+			<el-alert v-if="createError" :title="createError" type="error" show-icon :closable="false" />
+			<el-alert v-if="createSuccess" :title="createSuccess" type="success" show-icon :closable="false" />
+		</section>
+		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+
+		<el-table v-loading="loading" :data="rows" border row-key="id" :empty-text="t('common.empty')">
+			<el-table-column prop="id" :label="t('table.id')" min-width="190" show-overflow-tooltip />
+			<el-table-column prop="name" :label="t('table.name')" min-width="160" />
+			<el-table-column :label="t('table.key')" min-width="150">
+				<template #default="{ row }">
+					<el-tag effect="plain">{{ row.key || "-" }}</el-tag>
+				</template>
+			</el-table-column>
+			<el-table-column :label="t('table.permissions')" width="120" align="center">
+				<template #default="{ row }">{{ Array.isArray(row.permissions) ? row.permissions.length : 0 }}</template>
+			</el-table-column>
+			<el-table-column :label="t('table.actions')" width="170" fixed="right">
+				<template #default="{ row }">
+					<el-button v-if="canUpdateRole" link type="primary" tag="router-link" :to="{ name: 'role-edit', params: { id: row.id } }">{{ t("common.edit") }}</el-button>
+					<el-button v-if="canDeleteRole" link type="danger" :disabled="loading || operating" @click="deleteRole(row.id)">{{ t("common.delete") }}</el-button>
+					<span v-if="!canUpdateRole && !canDeleteRole" class="muted">{{ t("common.empty") }}</span>
+				</template>
+			</el-table-column>
+		</el-table>
+
+		<div class="pager">
+			<el-button :disabled="loading || operating || page <= 1" @click="prevPage">{{ t("common.prev") }}</el-button>
+			<span>{{ t("common.page") }} {{ page }}</span>
+			<el-button :disabled="loading || operating || !canGoNext" @click="nextPage">{{ t("common.next") }}</el-button>
 		</div>
-		<table>
-			<thead>
-				<tr>
-					<th>{{ t("table.id") }}</th>
-					<th>{{ t("table.name") }}</th>
-					<th>{{ t("table.key") }}</th>
-					<th>{{ t("table.permissions") }}</th>
-					<th>{{ t("table.actions") }}</th>
-				</tr>
-			</thead>
-			<tbody v-if="hasRows">
-				<tr v-for="item in rows" :key="item.id">
-					<td>{{ item.id }}</td>
-					<td>{{ item.name }}</td>
-					<td>{{ item.key || "-" }}</td>
-					<td>{{ Array.isArray(item.permissions) ? item.permissions.length : 0 }}</td>
-					<td class="actions">
-						<router-link :to="{ name: 'role-edit', params: { id: item.id } }">{{ t("common.edit") }}</router-link>
-						<button type="button" :disabled="loading || operating" @click="deleteRole(item.id)">{{ t("common.delete") }}</button>
-					</td>
-				</tr>
-			</tbody>
-			<tbody v-else>
-				<tr>
-					<td colspan="5">{{ loading ? t("common.loading") : t("common.empty") }}</td>
-				</tr>
-			</tbody>
-		</table>
 	</section>
 </template>
 
 <style scoped>
-.toolbar {
+.role-page {
+	display: grid;
+	gap: 14px;
+}
+
+.page-header {
 	display: flex;
 	justify-content: space-between;
-	align-items: center;
-	margin: 8px 0 12px;
-	gap: 8px;
+	align-items: flex-start;
+	gap: 16px;
+}
+
+.page-header h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.page-header p {
+	margin: 6px 0 0;
+	color: var(--color-text-muted);
 }
 
 .create-panel {
-	margin: 12px 0;
-	padding: 12px;
+	display: grid;
+	gap: 10px;
+	padding: 14px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-md);
+	background: var(--color-surface);
 }
 
 .create-panel h3 {
-	margin: 0 0 8px;
+	margin: 0;
+	font-size: 1rem;
 }
 
 .create-form {
@@ -210,60 +247,27 @@ onMounted(() => {
 	gap: 8px;
 }
 
-.create-form input {
-	height: 32px;
-	padding: 0 8px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
-}
-
 .pager {
 	display: flex;
 	align-items: center;
+	justify-content: flex-end;
 	gap: 8px;
 }
 
-.actions {
-	display: flex;
-	gap: 8px;
-	align-items: center;
+.muted {
+	color: var(--color-text-muted);
 }
 
-table {
-	width: 100%;
-	border-collapse: collapse;
-}
+@media (max-width: 900px) {
+	.page-header,
+	.pager {
+		display: grid;
+		justify-content: stretch;
+	}
 
-th,
-td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
-}
-
-button {
-	height: 32px;
-	padding: 0 10px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
-	cursor: pointer;
-}
-
-button:disabled {
-	opacity: 0.6;
-	cursor: default;
-}
-
-.error {
-	color: var(--color-danger);
-	margin: 4px 0;
-}
-
-.success {
-	color: var(--color-success);
-	margin: 4px 0;
+	.create-form {
+		grid-template-columns: 1fr;
+	}
 }
 </style>
 

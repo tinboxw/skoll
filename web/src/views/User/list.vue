@@ -2,7 +2,9 @@
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 
+import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
+import { useAccess } from "../../permissions/access";
 import { type ApiResponse, apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -55,6 +57,7 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 }
 
 const { t } = useI18n();
+const access = useAccess();
 const route = useRoute();
 
 const loading = ref(false);
@@ -69,10 +72,12 @@ const page = ref(1);
 const pageSize = 10;
 const canGoNext = ref(false);
 
-const hasRows = computed(() => rows.value.length > 0);
 const hasSelectedRows = computed(() => selectedUserIDs.value.length > 0);
-const allRowsSelected = computed(() => rows.value.length > 0 && selectedUserIDs.value.length === rows.value.length);
 const returnTo = computed(() => route.fullPath || "/skoll/user");
+const canCreateUser = computed(() => access.can("user.create"));
+const canUpdateUser = computed(() => access.can("user.update"));
+const canDeleteUser = computed(() => access.can("user.delete"));
+const canAssignRole = computed(() => access.can("role.manage"));
 
 async function loadUsers(targetPage = page.value): Promise<void> {
 	loading.value = true;
@@ -112,7 +117,21 @@ async function loadRoles(): Promise<void> {
 }
 
 async function deleteUser(userID: string): Promise<void> {
+	if (!canDeleteUser.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	if (operating.value || loading.value) {
+		return;
+	}
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: `${t("common.delete")}: ${userID}`,
+		confirmText: t("common.delete"),
+		cancelText: t("common.cancel"),
+		danger: true
+	});
+	if (!confirmed) {
 		return;
 	}
 	operating.value = true;
@@ -141,23 +160,15 @@ function nextPage(): void {
 	void loadUsers(page.value + 1);
 }
 
-function toggleAllRows(): void {
-	if (allRowsSelected.value) {
-		selectedUserIDs.value = [];
-		return;
-	}
-	selectedUserIDs.value = rows.value.map((item) => item.id);
-}
-
-function toggleRow(userID: string): void {
-	if (selectedUserIDs.value.includes(userID)) {
-		selectedUserIDs.value = selectedUserIDs.value.filter((id) => id !== userID);
-		return;
-	}
-	selectedUserIDs.value = [...selectedUserIDs.value, userID];
+function handleSelectionChange(selection: UserRecord[]): void {
+	selectedUserIDs.value = selection.map((item) => item.id);
 }
 
 async function bulkAssignRole(): Promise<void> {
+	if (!canAssignRole.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	if (!hasSelectedRows.value || !selectedRoleID.value) {
 		return;
 	}
@@ -187,144 +198,129 @@ void loadRoles();
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.users") }}</h2>
-		<p v-if="error" class="error">{{ error }}</p>
-		<p v-if="opSuccess" class="success">{{ opSuccess }}</p>
-		<div class="toolbar">
+	<section class="user-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.users") }}</h2>
+				<p>{{ t("user.roleAssignHint") }}</p>
+			</div>
 			<div class="toolbar-actions">
-				<router-link class="button-link" :to="{ name: 'user-add', query: { returnTo } }">{{ t("user.create") }}</router-link>
-				<router-link class="button-link" :to="{ name: 'user-batch-add', query: { returnTo } }">{{ t("user.batchCreate") }}</router-link>
-				<button type="button" :disabled="loading || operating" @click="loadUsers(page)">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
-				<select v-model="selectedRoleID" :disabled="loading || operating || roles.length === 0">
-					<option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }} ({{ role.key || role.id }})</option>
-				</select>
-				<button type="button" :disabled="loading || operating || !hasSelectedRows || !selectedRoleID" @click="bulkAssignRole">{{ t("user.bulkAssign") }}</button>
+				<el-button v-if="canCreateUser" type="primary" tag="router-link" :to="{ name: 'user-add', query: { returnTo } }">{{ t("user.create") }}</el-button>
+				<el-button v-if="canCreateUser" tag="router-link" :to="{ name: 'user-batch-add', query: { returnTo } }">{{ t("user.batchCreate") }}</el-button>
+				<el-button :loading="loading" :disabled="operating" @click="loadUsers(page)">{{ t("common.refresh") }}</el-button>
 			</div>
-			<div class="pager">
-				<button type="button" :disabled="loading || operating || page <= 1" @click="prevPage">{{ t("common.prev") }}</button>
-				<span>{{ t("common.page") }} {{ page }}</span>
-				<button type="button" :disabled="loading || operating || !canGoNext" @click="nextPage">{{ t("common.next") }}</button>
-			</div>
+		</header>
+
+		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+		<el-alert v-if="opSuccess" :title="opSuccess" type="success" show-icon :closable="false" />
+
+		<section v-if="canAssignRole" class="batch-bar">
+			<el-select v-model="selectedRoleID" :disabled="loading || operating || roles.length === 0" class="role-select">
+				<el-option v-for="role in roles" :key="role.id" :value="role.id" :label="`${role.name} (${role.key || role.id})`" />
+			</el-select>
+			<el-button type="primary" :loading="operating" :disabled="loading || !hasSelectedRows || !selectedRoleID" @click="bulkAssignRole">{{ t("user.bulkAssign") }}</el-button>
+		</section>
+
+		<el-table
+			v-loading="loading"
+			:data="rows"
+			border
+			row-key="id"
+			:empty-text="t('common.empty')"
+			@selection-change="handleSelectionChange"
+		>
+			<el-table-column type="selection" width="48" :selectable="() => !operating" />
+			<el-table-column prop="id" :label="t('table.id')" min-width="180" show-overflow-tooltip />
+			<el-table-column :label="t('table.name')" min-width="160">
+				<template #default="{ row }">{{ row.name || row.account }}</template>
+			</el-table-column>
+			<el-table-column prop="email" :label="t('table.email')" min-width="210" show-overflow-tooltip />
+			<el-table-column :label="t('table.status')" width="120">
+				<template #default="{ row }">
+					<el-tag :type="row.status === 'active' ? 'success' : 'info'" effect="plain">{{ row.status || "-" }}</el-tag>
+				</template>
+			</el-table-column>
+			<el-table-column :label="t('table.actions')" width="170" fixed="right">
+				<template #default="{ row }">
+					<el-button v-if="canUpdateUser" link type="primary" tag="router-link" :to="{ name: 'user-edit', params: { id: row.id }, query: { returnTo } }">{{ t("common.edit") }}</el-button>
+					<el-button v-if="canDeleteUser" link type="danger" :disabled="operating || loading" @click="deleteUser(row.id)">{{ t("common.delete") }}</el-button>
+					<span v-if="!canUpdateUser && !canDeleteUser" class="muted">{{ t("common.empty") }}</span>
+				</template>
+			</el-table-column>
+		</el-table>
+
+		<div class="pager">
+			<el-button :disabled="loading || operating || page <= 1" @click="prevPage">{{ t("common.prev") }}</el-button>
+			<span>{{ t("common.page") }} {{ page }}</span>
+			<el-button :disabled="loading || operating || !canGoNext" @click="nextPage">{{ t("common.next") }}</el-button>
 		</div>
-		<table>
-			<thead>
-				<tr>
-					<th>
-						<input type="checkbox" :checked="allRowsSelected" :disabled="loading || operating || rows.length === 0" @change="toggleAllRows" />
-					</th>
-					<th>{{ t("table.id") }}</th>
-					<th>{{ t("table.name") }}</th>
-					<th>{{ t("table.email") }}</th>
-					<th>{{ t("table.status") }}</th>
-					<th>{{ t("table.actions") }}</th>
-				</tr>
-			</thead>
-			<tbody v-if="hasRows">
-				<tr v-for="item in rows" :key="item.id">
-					<td>
-						<input type="checkbox" :checked="selectedUserIDs.includes(item.id)" :disabled="loading || operating" @change="toggleRow(item.id)" />
-					</td>
-					<td>{{ item.id }}</td>
-					<td>{{ item.name || item.account }}</td>
-					<td>{{ item.email }}</td>
-					<td>{{ item.status || "-" }}</td>
-					<td class="actions">
-						<router-link :to="{ name: 'user-edit', params: { id: item.id }, query: { returnTo } }">{{ t("common.edit") }}</router-link>
-						<button type="button" :disabled="operating || loading" @click="deleteUser(item.id)">{{ t("common.delete") }}</button>
-					</td>
-				</tr>
-			</tbody>
-			<tbody v-else>
-				<tr>
-					<td colspan="6">{{ loading ? t("common.loading") : t("common.empty") }}</td>
-				</tr>
-			</tbody>
-		</table>
 	</section>
 </template>
 
 <style scoped>
-.toolbar {
+.user-page {
+	display: grid;
+	gap: 14px;
+}
+
+.page-header {
 	display: flex;
 	justify-content: space-between;
-	align-items: center;
-	margin: 8px 0 12px;
-	gap: 8px;
+	align-items: flex-start;
+	gap: 16px;
+}
+
+.page-header h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.page-header p {
+	margin: 6px 0 0;
+	color: var(--color-text-muted);
 }
 
 .toolbar-actions {
 	display: flex;
-	gap: 8px;
 	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.batch-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	justify-content: flex-start;
+}
+
+.role-select {
+	width: 260px;
 }
 
 .pager {
 	display: flex;
 	align-items: center;
+	justify-content: flex-end;
 	gap: 8px;
 }
 
-table {
-	width: 100%;
-	border-collapse: collapse;
+.muted {
+	color: var(--color-text-muted);
 }
 
-th,
-td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
-}
+@media (max-width: 860px) {
+	.page-header,
+	.batch-bar,
+	.pager {
+		display: grid;
+		justify-content: stretch;
+	}
 
-button {
-	height: 32px;
-	padding: 0 10px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
-	cursor: pointer;
-}
-
-.button-link {
-	display: inline-flex;
-	height: 32px;
-	padding: 0 10px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
-	align-items: center;
-	text-decoration: none;
-	color: inherit;
-}
-
-select {
-	height: 32px;
-	padding: 0 8px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
-}
-
-.actions {
-	display: flex;
-	gap: 8px;
-	align-items: center;
-}
-
-button:disabled {
-	opacity: 0.6;
-	cursor: default;
-}
-
-.error {
-	color: var(--color-danger);
-	margin: 4px 0;
-}
-
-.success {
-	color: var(--color-success);
-	margin: 4px 0;
+	.role-select {
+		width: 100%;
+	}
 }
 </style>
 

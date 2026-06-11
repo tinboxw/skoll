@@ -1,9 +1,30 @@
 ﻿<script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
+import {
+	CircleCheck,
+	Delete,
+	Document,
+	HomeFilled,
+	Link,
+	Refresh,
+	Setting,
+	Star,
+	StarFilled,
+	SwitchButton,
+	Tickets,
+	Tools,
+	Upload,
+	View,
+	WarningFilled
+} from "@element-plus/icons-vue";
 
+import SchemaForm from "../../components/Common/SchemaForm.vue";
+import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
+import { useAccess } from "../../permissions/access";
 import { syncBackendPlugins } from "../../plugins";
+import type { PluginConfigSchema } from "../../plugins/types";
 import { clearDefaultHomePath, createDefaultHomeTarget, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePlugin, resolvePluginEntryPath, setDefaultHomeTarget, usePluginStore } from "../../stores/plugins";
 import { useTabsStore } from "../../stores/tabs";
 import { ApiError, type ApiResponse } from "../../utils/api";
@@ -14,7 +35,8 @@ import { toErrorMessage } from "../../utils/common";
 const router = useRouter();
 const pluginStore = usePluginStore();
 const tabsStore = useTabsStore();
-const { t } = useI18n();
+const { t, locale } = useI18n();
+const access = useAccess();
 
 const loading = ref(false);
 const operating = ref(false);
@@ -23,6 +45,9 @@ const showOnlyEnabled = ref(false);
 const debugText = ref("");
 const logText = ref("");
 const configText = ref("{}");
+const configForm = ref<Record<string, unknown>>({});
+const configSchema = ref<PluginConfigSchema | null>(null);
+const configFormValid = ref(true);
 const operationText = ref("");
 const selectedPlugin = ref("");
 const activeInspectorPanel = ref<"info" | "logs" | "config" | "">("");
@@ -30,6 +55,34 @@ const pluginPath = ref("");
 const activeDefaultHome = ref(getDefaultHomePath());
 const systemDefaultHome = getSystemDefaultHomePath();
 const info = ref<string | null>(null);
+const devLoading = ref(false);
+const devPluginsRoot = ref("plugins");
+const devSelectedPlugin = ref("");
+const devOutputDir = ref("");
+const devTargetEnv = ref("staging");
+const devArtifactPath = ref("");
+const devReleaseVersion = ref("");
+const devChangelog = ref("");
+const devReviewComment = ref("");
+const devScaffoldPluginID = ref("");
+const devScaffoldPluginName = ref("");
+const devScaffoldAppID = ref("");
+const devScaffoldMode = ref("workspace");
+const devRolloutStrategy = ref<"percent" | "tag" | "canary">("percent");
+const devRolloutPercent = ref(10);
+const devRolloutTags = ref("");
+const devCanaryVersion = ref("");
+const devRollbackPercent = ref<number | null>(null);
+const devConfig = ref<Record<string, unknown> | null>(null);
+const devProjects = ref<Array<Record<string, unknown>>>([]);
+const devReleaseOrders = ref<Array<Record<string, unknown>>>([]);
+const devReleaseTasks = ref<Array<Record<string, unknown>>>([]);
+const devRolloutTasks = ref<Array<Record<string, unknown>>>([]);
+const devResultText = ref("");
+const devTaskDrawerOpen = ref(false);
+const devTaskDrawerTitle = ref("");
+const devTaskDetail = ref<Record<string, unknown> | null>(null);
+const devTaskLogs = ref<Array<Record<string, unknown>>>([]);
 
 const visiblePlugins = computed(() => {
 	if (!showOnlyEnabled.value) {
@@ -71,7 +124,93 @@ const syncStatusText = computed(() => {
 	return t("plugin.sync.idle");
 });
 
+const enabledPluginCount = computed(() => pluginStore.items.filter((item) => item.enabled !== false).length);
+const disabledPluginCount = computed(() => pluginStore.items.length - enabledPluginCount.value);
+const appCount = computed(() => Object.keys(appPluginsGrouped.value).length);
+const canReadPlugins = computed(() => access.can({ permissions: ["plugin.read"], mode: "any" }) || access.can({ permissions: ["plugin.manage"], mode: "any" }));
+const canManagePlugins = computed(() => access.can("plugin.manage"));
+const devPluginOptions = computed(() => {
+	const ids = new Set<string>();
+	for (const item of pluginStore.items) {
+		if (item.id) {
+			ids.add(item.id);
+		}
+	}
+	for (const item of devProjects.value) {
+		const id = String(item.pluginId || "");
+		if (id) {
+			ids.add(id);
+		}
+	}
+	return Array.from(ids).sort();
+});
+const devPendingOrders = computed(() => devReleaseOrders.value.filter((item) => String(item.orderStatus || "") === "pending"));
+const devApprovedOrders = computed(() => devReleaseOrders.value.filter((item) => String(item.orderStatus || "") === "approved"));
+
+function pluginStatusType(pluginID: string): "success" | "info" {
+	const plugin = getPluginRecord(pluginID);
+	return plugin?.enabled === false ? "info" : "success";
+}
+
+function pluginStatusText(pluginID: string): string {
+	const plugin = getPluginRecord(pluginID);
+	return plugin?.enabled === false ? t("plugin.status.disabled") : t("plugin.status.enabled");
+}
+
+function handlePluginCommand(command: string): void {
+	const separator = command.indexOf(":");
+	if (separator < 0) {
+		return;
+	}
+	const action = command.slice(0, separator);
+	const pluginID = command.slice(separator + 1);
+	if (!pluginID) {
+		return;
+	}
+	if (action === "config") {
+		if (!ensurePluginAccess("plugin.read")) {
+			return;
+		}
+		void openConfig(pluginID);
+		return;
+	}
+	if (action === "debug") {
+		if (!ensurePluginAccess("plugin.read")) {
+			return;
+		}
+		void openDebug(pluginID);
+		return;
+	}
+	if (action === "logs") {
+		if (!ensurePluginAccess("plugin.read")) {
+			return;
+		}
+		void openLogs(pluginID);
+		return;
+	}
+	if (action === "enable" || action === "disable" || action === "uninstall") {
+		if (!ensurePluginAccess("plugin.manage")) {
+			return;
+		}
+		void runAction(action, pluginID);
+	}
+}
+
+function ensurePluginAccess(permission: "plugin.read" | "plugin.manage"): boolean {
+	if (access.can(permission)) {
+		return true;
+	}
+	if (permission === "plugin.read" && access.can("plugin.manage")) {
+		return true;
+	}
+	error.value = t("error.forbidden");
+	return false;
+}
+
 async function refreshPlugins(): Promise<void> {
+	if (!ensurePluginAccess("plugin.read")) {
+		return;
+	}
 	loading.value = true;
 	error.value = null;
 	info.value = null;
@@ -86,6 +225,12 @@ async function refreshPlugins(): Promise<void> {
 }
 
 async function runAction(action: "enable" | "disable" | "uninstall", pluginID: string): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	if ((action === "disable" || action === "uninstall") && !(await confirmPluginAction(action, pluginID))) {
+		return;
+	}
 	operating.value = true;
 	error.value = null;
 	info.value = null;
@@ -110,7 +255,22 @@ async function runAction(action: "enable" | "disable" | "uninstall", pluginID: s
 	}
 }
 
+async function confirmPluginAction(action: "disable" | "uninstall", pluginID: string): Promise<boolean> {
+	const actionText = action === "disable" ? t("plugin.action.disable") : t("plugin.action.uninstall");
+	return confirmAction({
+		title: t("plugin.table.actions"),
+		message: `${actionText}: ${pluginID}`,
+		confirmText: actionText,
+		cancelText: t("common.cancel"),
+		type: action === "uninstall" ? "error" : "warning",
+		danger: true
+	});
+}
+
 async function openDebug(pluginID: string): Promise<void> {
+	if (!ensurePluginAccess("plugin.read")) {
+		return;
+	}
 	selectedPlugin.value = pluginID;
 	activeInspectorPanel.value = "info";
 	error.value = null;
@@ -125,6 +285,9 @@ async function openDebug(pluginID: string): Promise<void> {
 }
 
 async function openLogs(pluginID: string): Promise<void> {
+	if (!ensurePluginAccess("plugin.read")) {
+		return;
+	}
 	selectedPlugin.value = pluginID;
 	activeInspectorPanel.value = "logs";
 	error.value = null;
@@ -143,20 +306,31 @@ async function openLogs(pluginID: string): Promise<void> {
 }
 
 async function openConfig(pluginID: string): Promise<void> {
+	if (!ensurePluginAccess("plugin.read")) {
+		return;
+	}
 	selectedPlugin.value = pluginID;
 	activeInspectorPanel.value = "config";
 	error.value = null;
 	info.value = null;
 	try {
-		const payload = await apiGet<ApiResponse<{ pluginId?: string; config?: Record<string, unknown> }>>(`/v1/plugins/${pluginID}/config`);
-		configText.value = JSON.stringify(payload.data?.config ?? {}, null, 2);
+		const payload = await apiGet<ApiResponse<{ pluginId?: string; config?: Record<string, unknown>; configSchema?: PluginConfigSchema | null }>>(`/v1/plugins/${pluginID}/config`);
+		const config = payload.data?.config ?? {};
+		configSchema.value = payload.data?.configSchema ?? getPluginRecord(pluginID)?.configSchema ?? null;
+		configForm.value = applyConfigDefaults(config, configSchema.value);
+		configText.value = JSON.stringify(configForm.value, null, 2);
 	} catch (e) {
 		error.value = toErrorMessage(e);
+		configSchema.value = null;
+		configForm.value = {};
 		configText.value = "{}";
 	}
 }
 
 async function saveConfig(): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
 	if (!selectedPlugin.value) {
 		return;
 	}
@@ -164,10 +338,11 @@ async function saveConfig(): Promise<void> {
 	error.value = null;
 	info.value = null;
 	try {
-		const parsed = JSON.parse(configText.value || "{}") as Record<string, unknown>;
+		const parsed = configSchema.value ? configForm.value : JSON.parse(configText.value || "{}") as Record<string, unknown>;
 		await apiPut<ApiResponse<unknown>>(`/v1/plugins/${selectedPlugin.value}/config`, {
 			config: parsed
 		});
+		configText.value = JSON.stringify(parsed, null, 2);
 		info.value = t("plugin.config.saved");
 	} catch (e) {
 		if (e instanceof SyntaxError) {
@@ -181,6 +356,9 @@ async function saveConfig(): Promise<void> {
 }
 
 async function validatePluginPath(): Promise<void> {
+	if (!ensurePluginAccess("plugin.read")) {
+		return;
+	}
 	if (!pluginPath.value.trim()) {
 		error.value = t("plugin.pathRequired");
 		return;
@@ -202,6 +380,9 @@ async function validatePluginPath(): Promise<void> {
 }
 
 async function installPluginPath(): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
 	if (!pluginPath.value.trim()) {
 		error.value = t("plugin.pathRequired");
 		return;
@@ -220,6 +401,371 @@ async function installPluginPath(): Promise<void> {
 		operationText.value = "";
 	} finally {
 		operating.value = false;
+	}
+}
+
+function applyConfigDefaults(config: Record<string, unknown>, schema: PluginConfigSchema | null): Record<string, unknown> {
+	const out = { ...config };
+	for (const field of schema?.fields ?? []) {
+		if (!field.key || out[field.key] !== undefined) {
+			continue;
+		}
+		if (field.type === "boolean") {
+			out[field.key] = field.default === "true" || field.default === "1";
+		} else if (field.type === "number") {
+			const parsed = Number(field.default ?? 0);
+			out[field.key] = Number.isFinite(parsed) ? parsed : 0;
+		} else {
+			out[field.key] = field.default ?? "";
+		}
+	}
+	return out;
+}
+
+function handleConfigFormUpdate(next: Record<string, unknown>): void {
+	configForm.value = next;
+	configText.value = JSON.stringify(next, null, 2);
+}
+
+function handleConfigFormValid(next: boolean): void {
+	configFormValid.value = next;
+}
+
+async function refreshDevPortal(): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	devLoading.value = true;
+	error.value = null;
+	try {
+		const configPayload = await apiGet<ApiResponse<Record<string, unknown>>>("/v1/plugins/dev/config");
+		devConfig.value = configPayload.data ?? {};
+		const defaultRoot = String(devConfig.value.defaultRoot || "").trim();
+		if (defaultRoot && devPluginsRoot.value.trim() === "plugins") {
+			devPluginsRoot.value = defaultRoot;
+		}
+		await Promise.all([
+			loadDevProjects(),
+			loadDevReleaseOrders(),
+			loadDevReleaseTasks(),
+			loadDevRolloutTasks()
+		]);
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		devLoading.value = false;
+	}
+}
+
+async function loadDevProjects(): Promise<void> {
+	const payload = await apiPost<ApiResponse<{ projects?: Array<Record<string, unknown>> }>>("/v1/plugins/dev/projects", {
+		pluginsRoot: devPluginsRoot.value.trim()
+	});
+	devProjects.value = payload.data?.projects ?? [];
+	if (!devSelectedPlugin.value && devPluginOptions.value.length > 0) {
+		devSelectedPlugin.value = devPluginOptions.value[0];
+	}
+}
+
+async function loadDevReleaseOrders(): Promise<void> {
+	const query = new URLSearchParams();
+	query.set("pluginsRoot", devPluginsRoot.value.trim());
+	if (devSelectedPlugin.value) {
+		query.set("pluginId", devSelectedPlugin.value);
+	}
+	const payload = await apiGet<ApiResponse<{ orders?: Array<Record<string, unknown>> }>>(`/v1/plugins/dev/release-orders?${query.toString()}`);
+	devReleaseOrders.value = payload.data?.orders ?? [];
+}
+
+async function loadDevReleaseTasks(): Promise<void> {
+	const query = new URLSearchParams();
+	query.set("pluginsRoot", devPluginsRoot.value.trim());
+	if (devSelectedPlugin.value) {
+		query.set("pluginId", devSelectedPlugin.value);
+	}
+	const payload = await apiGet<ApiResponse<{ tasks?: Array<Record<string, unknown>> }>>(`/v1/plugins/dev/release-tasks?${query.toString()}`);
+	devReleaseTasks.value = payload.data?.tasks ?? [];
+}
+
+async function loadDevRolloutTasks(): Promise<void> {
+	const query = new URLSearchParams();
+	if (devSelectedPlugin.value) {
+		query.set("pluginId", devSelectedPlugin.value);
+	}
+	const suffix = query.toString();
+	const payload = await apiGet<ApiResponse<{ tasks?: Array<Record<string, unknown>> }>>(`/v1/plugins/dev/rollout-tasks${suffix ? `?${suffix}` : ""}`);
+	devRolloutTasks.value = payload.data?.tasks ?? [];
+}
+
+async function runDevAction(action: "validate" | "package" | "pipeline" | "rollout" | "rollback"): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	if ((action === "package" || action === "pipeline" || action === "rollout" || action === "rollback") && !devSelectedPlugin.value) {
+		error.value = "请选择插件。";
+		return;
+	}
+	if (action !== "validate" && !(await confirmDevAction(action, devSelectedPlugin.value))) {
+		return;
+	}
+	devLoading.value = true;
+	error.value = null;
+	info.value = null;
+	try {
+		let payload: unknown;
+		if (action === "validate") {
+			payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/dev/validate-all", {
+				pluginsRoot: devPluginsRoot.value.trim()
+			});
+		} else if (action === "package") {
+			payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/dev/package", {
+				pluginsRoot: devPluginsRoot.value.trim(),
+				pluginId: devSelectedPlugin.value,
+				outputDir: devOutputDir.value.trim()
+			});
+		} else if (action === "pipeline") {
+			payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/dev/pipeline", {
+				pluginsRoot: devPluginsRoot.value.trim(),
+				pluginId: devSelectedPlugin.value,
+				outputDir: devOutputDir.value.trim()
+			});
+		} else if (action === "rollout") {
+			payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/dev/rollout", {
+				pluginId: devSelectedPlugin.value,
+				strategyType: devRolloutStrategy.value,
+				targetEnv: devTargetEnv.value.trim() || "production",
+				percent: devRolloutStrategy.value === "percent" ? devRolloutPercent.value : undefined,
+				tags: devRolloutStrategy.value === "tag" ? devRolloutTags.value.split(",").map((item) => item.trim()).filter(Boolean) : undefined,
+				canaryVersion: devRolloutStrategy.value === "canary" ? devCanaryVersion.value.trim() : undefined
+			});
+		} else {
+			payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/dev/rollback", {
+				pluginId: devSelectedPlugin.value,
+				toPercent: devRollbackPercent.value === null ? undefined : devRollbackPercent.value
+			});
+		}
+		devResultText.value = JSON.stringify(payload, null, 2);
+		captureDevArtifactPath(payload);
+		info.value = "DevPortal 操作已提交。";
+		await Promise.all([loadDevProjects(), loadDevReleaseOrders(), loadDevReleaseTasks(), loadDevRolloutTasks()]);
+	} catch (e) {
+		error.value = toErrorMessage(e);
+		devResultText.value = "";
+	} finally {
+		devLoading.value = false;
+	}
+}
+
+async function confirmDevAction(action: "package" | "pipeline" | "rollout" | "rollback", pluginID: string): Promise<boolean> {
+	const labelMap = {
+		package: "打包",
+		pipeline: "流水线",
+		rollout: "灰度",
+		rollback: "回滚"
+	};
+	const target = action === "rollout" ? `${pluginID} / ${devTargetEnv.value.trim() || "production"}` : pluginID;
+	return confirmAction({
+		title: "DevPortal 操作确认",
+		message: `${labelMap[action]}: ${target}`,
+		confirmText: labelMap[action],
+		cancelText: t("common.cancel"),
+		type: action === "rollback" ? "error" : action === "rollout" ? "warning" : "info",
+		danger: action === "rollback" || action === "rollout"
+	});
+}
+
+async function scaffoldDevPlugin(): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	if (!devScaffoldPluginID.value.trim() || !devScaffoldPluginName.value.trim()) {
+		error.value = "请输入插件 ID 和插件名称。";
+		return;
+	}
+	devLoading.value = true;
+	error.value = null;
+	info.value = null;
+	try {
+		const payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/dev/scaffold", {
+			pluginsRoot: devPluginsRoot.value.trim(),
+			pluginId: devScaffoldPluginID.value.trim(),
+			pluginName: devScaffoldPluginName.value.trim(),
+			appId: devScaffoldAppID.value.trim(),
+			mode: devScaffoldMode.value
+		});
+		devResultText.value = JSON.stringify(payload, null, 2);
+		devSelectedPlugin.value = devScaffoldPluginID.value.trim();
+		info.value = "插件脚手架已创建。";
+		await loadDevProjects();
+	} catch (e) {
+		error.value = toErrorMessage(e);
+		devResultText.value = "";
+	} finally {
+		devLoading.value = false;
+	}
+}
+
+async function createDevReleaseOrder(): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	if (!devSelectedPlugin.value) {
+		error.value = "请选择插件。";
+		return;
+	}
+	devLoading.value = true;
+	error.value = null;
+	info.value = null;
+	try {
+		const payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/dev/release-orders", {
+			pluginsRoot: devPluginsRoot.value.trim(),
+			pluginId: devSelectedPlugin.value,
+			releaseVersion: devReleaseVersion.value.trim(),
+			changelog: devChangelog.value.trim()
+		});
+		devResultText.value = JSON.stringify(payload, null, 2);
+		info.value = "发布单已创建。";
+		await loadDevReleaseOrders();
+	} catch (e) {
+		error.value = toErrorMessage(e);
+		devResultText.value = "";
+	} finally {
+		devLoading.value = false;
+	}
+}
+
+async function reviewDevReleaseOrder(order: Record<string, unknown>, action: "approve" | "reject"): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	const orderID = String(order.orderId || "");
+	const pluginID = String(order.pluginId || devSelectedPlugin.value);
+	if (!orderID || !pluginID) {
+		return;
+	}
+	const actionText = action === "approve" ? "通过发布单" : "拒绝发布单";
+	if (!(await confirmAction({
+		title: "发布审批确认",
+		message: `${actionText}: ${orderID} / ${pluginID}`,
+		confirmText: actionText,
+		cancelText: t("common.cancel"),
+		type: action === "approve" ? "warning" : "info",
+		danger: action === "approve"
+	}))) {
+		return;
+	}
+	devLoading.value = true;
+	error.value = null;
+	info.value = null;
+	try {
+		const payload = await apiPost<ApiResponse<unknown>>(`/v1/plugins/dev/release-orders/${encodeURIComponent(orderID)}/${action}`, {
+			pluginsRoot: devPluginsRoot.value.trim(),
+			pluginId: pluginID,
+			comment: devReviewComment.value.trim()
+		});
+		devResultText.value = JSON.stringify(payload, null, 2);
+		info.value = action === "approve" ? "发布单已审批通过。" : "发布单已拒绝。";
+		await loadDevReleaseOrders();
+	} catch (e) {
+		error.value = toErrorMessage(e);
+		devResultText.value = "";
+	} finally {
+		devLoading.value = false;
+	}
+}
+
+async function executeDevReleaseOrder(order: Record<string, unknown>): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	const orderID = String(order.orderId || "");
+	const pluginID = String(order.pluginId || devSelectedPlugin.value);
+	if (!orderID || !pluginID || !devArtifactPath.value.trim()) {
+		error.value = "执行发布需要发布单、插件和 artifactPath。";
+		return;
+	}
+	if (!(await confirmAction({
+		title: "发布执行确认",
+		message: `${pluginID} -> ${devTargetEnv.value.trim() || "staging"} / ${devArtifactPath.value.trim()}`,
+		confirmText: "执行发布",
+		cancelText: t("common.cancel"),
+		type: "warning",
+		danger: true
+	}))) {
+		return;
+	}
+	devLoading.value = true;
+	error.value = null;
+	info.value = null;
+	try {
+		const payload = await apiPost<ApiResponse<unknown>>(`/v1/plugins/dev/release-orders/${encodeURIComponent(orderID)}/execute`, {
+			pluginsRoot: devPluginsRoot.value.trim(),
+			pluginId: pluginID,
+			targetEnv: devTargetEnv.value.trim() || "staging",
+			artifactPath: devArtifactPath.value.trim()
+		});
+		devResultText.value = JSON.stringify(payload, null, 2);
+		info.value = "发布任务已提交。";
+		await Promise.all([loadDevReleaseOrders(), loadDevReleaseTasks()]);
+	} catch (e) {
+		error.value = toErrorMessage(e);
+		devResultText.value = "";
+	} finally {
+		devLoading.value = false;
+	}
+}
+
+function captureDevArtifactPath(payload: unknown): void {
+	const root = payload as { data?: Record<string, unknown> };
+	const data = root?.data;
+	if (!data) {
+		return;
+	}
+	const direct = String(data.artifactPath || "").trim();
+	if (direct) {
+		devArtifactPath.value = direct;
+		return;
+	}
+	const steps = Array.isArray(data.steps) ? data.steps : [];
+	for (const step of steps) {
+		const artifact = String((step as Record<string, unknown>).artifactPath || "").trim();
+		if (artifact) {
+			devArtifactPath.value = artifact;
+		}
+	}
+}
+
+async function openDevTaskDrawer(kind: "release" | "rollout", task: Record<string, unknown>, view: "detail" | "logs"): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	const taskID = String(task.taskId || "");
+	if (!taskID) {
+		return;
+	}
+	devLoading.value = true;
+	error.value = null;
+	devTaskDrawerOpen.value = true;
+	devTaskDrawerTitle.value = `${kind === "release" ? "发布任务" : "灰度任务"} ${taskID}`;
+	devTaskDetail.value = null;
+	devTaskLogs.value = [];
+	try {
+		const base = kind === "release" ? "/v1/plugins/dev/release-tasks" : "/v1/plugins/dev/rollout-tasks";
+		if (view === "detail") {
+			const query = kind === "release" ? `?${new URLSearchParams({ pluginsRoot: devPluginsRoot.value.trim() }).toString()}` : "";
+			const payload = await apiGet<ApiResponse<{ task?: Record<string, unknown> }>>(`${base}/${encodeURIComponent(taskID)}${query}`);
+			devTaskDetail.value = payload.data?.task ?? null;
+			devTaskLogs.value = Array.isArray(devTaskDetail.value?.logs) ? devTaskDetail.value.logs as Array<Record<string, unknown>> : [];
+		} else {
+			const query = kind === "release" ? `?${new URLSearchParams({ pluginsRoot: devPluginsRoot.value.trim() }).toString()}` : "";
+			const payload = await apiGet<ApiResponse<{ logs?: Array<Record<string, unknown>> }>>(`${base}/${encodeURIComponent(taskID)}/logs${query}`);
+			devTaskDetail.value = task;
+			devTaskLogs.value = payload.data?.logs ?? [];
+		}
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		devLoading.value = false;
 	}
 }
 
@@ -405,414 +951,687 @@ function resetDefaultHome(): void {
 </script>
 
 <template>
-	<section>
-		<header class="topbar">
-			<div>
+	<section class="plugin-page">
+		<header class="page-header">
+			<div class="title-block">
 				<h2>{{ t("plugin.title") }}</h2>
 				<p>{{ t("plugin.desc") }}</p>
-				<p>{{ t("plugin.defaultHomeHint") }}</p>
-				<p class="current-default-home">{{ t("plugin.currentDefaultHome") }}: {{ activeDefaultHome }}</p>
-				<p class="sync-status">{{ syncStatusText }} · {{ t("plugin.sync.attempts") }} {{ pluginStore.syncAttempts }}</p>
-				<p v-if="pluginStore.degradedMode" class="sync-degraded">{{ t("plugin.sync.degraded") }}</p>
 			</div>
-			<div class="actions">
-				<label>
-					<input v-model="showOnlyEnabled" type="checkbox" />
-					{{ t("plugin.onlyEnabled") }}
-				</label>
-				<button type="button" :disabled="loading || operating || activeDefaultHome === systemDefaultHome" @click="resetDefaultHome">
+			<div class="header-actions">
+				<el-switch v-model="showOnlyEnabled" :active-text="t('plugin.onlyEnabled')" />
+				<el-button
+					:icon="HomeFilled"
+					:disabled="loading || operating || activeDefaultHome === systemDefaultHome"
+					@click="resetDefaultHome"
+				>
 					{{ t("plugin.action.resetDefault") }}
-				</button>
-				<button type="button" :disabled="loading || operating || pluginStore.isSyncing" @click="refreshPlugins">
+				</el-button>
+				<el-button
+					type="primary"
+					:icon="Refresh"
+					:loading="loading || pluginStore.isSyncing"
+					:disabled="operating || !canReadPlugins"
+					@click="refreshPlugins"
+				>
 					{{ loading ? t("plugin.refreshing") : t("plugin.refresh") }}
-				</button>
+				</el-button>
 			</div>
 		</header>
 
-		<p v-if="error" class="error">{{ error }}</p>
-		<p v-if="info" class="success">{{ info }}</p>
+		<el-alert v-if="error" class="page-alert" type="error" :title="error" show-icon :closable="false" />
+		<el-alert v-if="info" class="page-alert" type="success" :title="info" show-icon :closable="false" />
+		<el-alert
+			v-if="pluginStore.degradedMode"
+			class="page-alert"
+			type="warning"
+			:title="t('plugin.sync.degraded')"
+			show-icon
+			:closable="false"
+		/>
+		<el-alert
+			v-if="!canReadPlugins"
+			class="page-alert"
+			type="warning"
+			:title="t('error.forbidden')"
+			show-icon
+			:closable="false"
+		/>
 
-		<section class="install-panel">
-			<h3>{{ t("plugin.installTitle") }}</h3>
-			<p>{{ t("plugin.installDesc") }}</p>
-			<div class="install-actions">
-				<input v-model="pluginPath" type="text" :placeholder="t('plugin.pathPlaceholder')" :disabled="operating" />
-				<button type="button" :disabled="operating" @click="validatePluginPath">{{ t("plugin.action.validate") }}</button>
-				<button type="button" :disabled="operating" @click="installPluginPath">{{ t("plugin.action.install") }}</button>
-			</div>
-			<pre v-if="operationText">{{ operationText }}</pre>
+		<section class="summary-grid">
+			<el-card shadow="never" class="summary-card">
+				<div class="summary-label">{{ t("header.plugins") }}</div>
+				<div class="summary-value">{{ pluginStore.items.length }}</div>
+				<div class="summary-note">{{ syncStatusText }} · {{ t("plugin.sync.attempts") }} {{ pluginStore.syncAttempts }}</div>
+			</el-card>
+			<el-card shadow="never" class="summary-card">
+				<div class="summary-label">{{ t("plugin.status.enabled") }}</div>
+				<div class="summary-value">{{ enabledPluginCount }}</div>
+				<div class="summary-note">{{ t("plugin.status.disabled") }} {{ disabledPluginCount }}</div>
+			</el-card>
+			<el-card shadow="never" class="summary-card">
+				<div class="summary-label">{{ t("plugin.appLevel") }}</div>
+				<div class="summary-value">{{ appCount }}</div>
+				<div class="summary-note">{{ t("plugin.systemLevel") }} {{ systemPlugins.length }}</div>
+			</el-card>
+			<el-card shadow="never" class="summary-card is-wide">
+				<div class="summary-label">{{ t("plugin.currentDefaultHome") }}</div>
+				<div class="summary-path">{{ activeDefaultHome }}</div>
+				<div class="summary-note">{{ t("plugin.defaultHomeHint") }}</div>
+			</el-card>
 		</section>
 
-		<table class="plugin-table">
-			<thead>
-				<tr>
-					<th>App</th>
-					<th>{{ t("plugin.table.id") }}</th>
-					<th>{{ t("plugin.table.name") }}</th>
-					<th>{{ t("plugin.table.version") }}</th>
-					<th>{{ t("plugin.table.status") }}</th>
-					<th>{{ t("plugin.table.actions") }}</th>
-				</tr>
-			</thead>
-			<tbody>
-				<!-- System Level Plugins -->
-				<tr v-for="(item, index) in systemPlugins" :key="item.id" :class="{ 'group-first': index === 0 }">
-					<td v-if="index === 0" :rowspan="systemPlugins.length" class="group-cell merge-cell">
-						<div class="group-inline">
-							<div class="group-label">system</div>
-							<button
-								type="button"
-								title="/skoll"
-								:disabled="operating"
-								@click="visitSystemConsole"
-							>
-								{{ t("plugin.action.visit") }}
-							</button>
-						</div>
-					</td>
-					<td>{{ item.id }}</td>
-					<td>{{ item.name }}</td>
-					<td>{{ item.version }}</td>
-					<td>
-						<span :class="item.enabled === false ? 'disabled' : 'enabled'">
-							{{ item.enabled === false ? t("plugin.status.disabled") : t("plugin.status.enabled") }}
-						</span>
-					</td>
-					<td class="action-cell">
-						<button v-if="canVisit(item.id)" type="button" :disabled="operating" @click="visitPlugin(item.id)">{{ t("plugin.action.visit") }}</button>
-						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.visit") }}</button>
-						<button v-if="canTogglePin(item.id)" type="button" :disabled="operating" @click="togglePinTab(item.id)">{{ isPinned(item.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}</button>
-						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.pinTab") }}</button>
-						<button v-if="canSetDefault(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
-						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.setDefault") }}</button>
-						<button v-if="canEnable(item.id)" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
-						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.enable") }}</button>
-						<button v-if="canDisable(item.id)" type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
-						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.disable") }}</button>
-						<button v-if="canUninstall(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
-						<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.uninstall") }}</button>
-						<button type="button" :disabled="operating" @click="openConfig(item.id)">{{ t("plugin.action.config") }}</button>
-						<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
-						<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
-						<span v-if="activeDefaultHome === pluginEntryPath(item.id) && pluginEntryPath(item.id)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
-					</td>
-				</tr>
+		<el-card shadow="never" class="install-panel">
+			<template #header>
+				<div class="card-header">
+					<div>
+						<h3>{{ t("plugin.installTitle") }}</h3>
+						<p>{{ t("plugin.installDesc") }}</p>
+					</div>
+					<el-icon><Upload /></el-icon>
+				</div>
+			</template>
+			<div class="install-actions">
+				<el-input v-model="pluginPath" :placeholder="t('plugin.pathPlaceholder')" :disabled="operating" clearable />
+				<el-button v-permission="'plugin.read'" :icon="CircleCheck" :disabled="operating" @click="validatePluginPath">{{ t("plugin.action.validate") }}</el-button>
+				<el-button v-permission="'plugin.manage'" type="primary" :icon="Upload" :disabled="operating" @click="installPluginPath">{{ t("plugin.action.install") }}</el-button>
+			</div>
+			<pre v-if="operationText" class="code-block">{{ operationText }}</pre>
+		</el-card>
 
-				<!-- App Level Plugins -->
-				<template v-for="(plugins, appId) in appPluginsGrouped" :key="appId">
-					<tr v-for="(item, index) in plugins" :key="item.id" :class="{ 'group-first': index === 0 }">
-						<td v-if="index === 0" :rowspan="plugins.length" class="group-cell merge-cell">
-							<div class="group-inline">
-								<div class="group-label">{{ appId }}</div>
-								<button
-									type="button"
-									:title="`/${String(appId)}`"
+		<el-card v-permission="'plugin.manage'" shadow="never" class="devportal-panel">
+			<template #header>
+				<div class="card-header">
+					<div>
+						<h3>DevPortal 工作台</h3>
+						<p>面向插件开发、打包、发布和灰度回滚的操作入口。</p>
+					</div>
+					<el-button type="primary" :icon="Refresh" :loading="devLoading" @click="refreshDevPortal">刷新工作台</el-button>
+				</div>
+			</template>
+			<div class="devportal-grid">
+				<section class="devportal-controls">
+					<el-form label-position="top">
+						<el-form-item label="插件根目录">
+							<el-input v-model="devPluginsRoot" placeholder="plugins" clearable />
+						</el-form-item>
+						<el-divider content-position="left">脚手架</el-divider>
+						<el-form-item label="新插件 ID">
+							<el-input v-model="devScaffoldPluginID" placeholder="例如: report-center" clearable />
+						</el-form-item>
+						<el-form-item label="新插件名称">
+							<el-input v-model="devScaffoldPluginName" placeholder="例如: Report Center" clearable />
+						</el-form-item>
+						<el-form-item label="App ID / 模式">
+							<div class="inline-fields">
+								<el-input v-model="devScaffoldAppID" placeholder="可选 appId" clearable />
+								<el-select v-model="devScaffoldMode">
+									<el-option label="workspace" value="workspace" />
+									<el-option label="repository" value="repository" />
+								</el-select>
+							</div>
+						</el-form-item>
+						<el-button :icon="Upload" :loading="devLoading" @click="scaffoldDevPlugin">创建脚手架</el-button>
+						<el-divider content-position="left">构建与发布</el-divider>
+						<el-form-item label="插件">
+							<el-select v-model="devSelectedPlugin" filterable clearable placeholder="选择插件" @change="refreshDevPortal">
+								<el-option v-for="id in devPluginOptions" :key="id" :label="id" :value="id" />
+							</el-select>
+						</el-form-item>
+						<el-form-item label="输出目录">
+							<el-input v-model="devOutputDir" placeholder="默认 plugins/_dist" clearable />
+						</el-form-item>
+						<el-form-item label="制品路径">
+							<el-input v-model="devArtifactPath" placeholder="打包或流水线成功后自动填充" clearable />
+						</el-form-item>
+						<el-form-item label="发布版本">
+							<el-input v-model="devReleaseVersion" placeholder="留空则读取 manifest version" clearable />
+						</el-form-item>
+						<el-form-item label="变更说明">
+							<el-input v-model="devChangelog" type="textarea" :rows="3" resize="vertical" placeholder="发布说明 / 风险点 / 回滚说明" />
+						</el-form-item>
+						<el-form-item label="审批意见">
+							<el-input v-model="devReviewComment" placeholder="审批或拒绝时写入" clearable />
+						</el-form-item>
+						<el-form-item label="目标环境">
+							<el-segmented v-model="devTargetEnv" :options="['staging', 'production']" />
+						</el-form-item>
+						<el-button type="success" :icon="Document" :loading="devLoading" :disabled="!devSelectedPlugin" @click="createDevReleaseOrder">创建发布单</el-button>
+						<el-divider content-position="left">灰度与回滚</el-divider>
+						<el-form-item label="灰度策略">
+							<el-segmented v-model="devRolloutStrategy" :options="['percent', 'tag', 'canary']" />
+						</el-form-item>
+						<el-form-item label="灰度比例">
+							<el-slider v-model="devRolloutPercent" :disabled="devRolloutStrategy !== 'percent'" :min="0" :max="100" show-input />
+						</el-form-item>
+						<el-form-item label="标签（逗号分隔）">
+							<el-input v-model="devRolloutTags" :disabled="devRolloutStrategy !== 'tag'" placeholder="beta, internal, tenant-a" clearable />
+						</el-form-item>
+						<el-form-item label="金丝雀版本">
+							<el-input v-model="devCanaryVersion" :disabled="devRolloutStrategy !== 'canary'" placeholder="例如: 1.2.0-canary.1" clearable />
+						</el-form-item>
+						<el-form-item label="回滚比例（可选）">
+							<el-input-number v-model="devRollbackPercent" :min="0" :max="100" controls-position="right" />
+						</el-form-item>
+					</el-form>
+					<div class="devportal-actions">
+						<el-button :icon="CircleCheck" :loading="devLoading" @click="runDevAction('validate')">全量校验</el-button>
+						<el-button :icon="Upload" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('package')">打包</el-button>
+						<el-button type="primary" :icon="Tools" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('pipeline')">流水线</el-button>
+						<el-button type="warning" :icon="WarningFilled" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('rollout')">灰度</el-button>
+						<el-button type="danger" :icon="Refresh" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('rollback')">回滚</el-button>
+					</div>
+					<el-descriptions v-if="devConfig" class="dev-config" :column="1" size="small" border>
+						<el-descriptions-item label="启用">{{ String(devConfig.enabled ?? "") }}</el-descriptions-item>
+						<el-descriptions-item label="默认根目录">{{ String(devConfig.defaultRoot ?? "") }}</el-descriptions-item>
+						<el-descriptions-item label="允许根目录">{{ JSON.stringify(devConfig.allowedRoots ?? []) }}</el-descriptions-item>
+					</el-descriptions>
+				</section>
+
+				<section class="devportal-data">
+					<el-tabs>
+						<el-tab-pane label="项目">
+							<el-table :data="devProjects" stripe border max-height="260">
+								<el-table-column prop="pluginId" label="Plugin ID" min-width="160" show-overflow-tooltip />
+								<el-table-column prop="version" label="版本" width="100" />
+								<el-table-column prop="status" label="状态" width="100" />
+								<el-table-column prop="mode" label="模式" width="110" />
+								<el-table-column prop="path" label="路径" min-width="220" show-overflow-tooltip />
+							</el-table>
+						</el-tab-pane>
+						<el-tab-pane label="发布单">
+							<el-table :data="devReleaseOrders" stripe border max-height="260">
+								<el-table-column prop="orderId" label="Order ID" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="pluginId" label="插件" min-width="140" />
+								<el-table-column prop="releaseVersion" label="版本" width="110" />
+								<el-table-column prop="orderStatus" label="状态" width="110" />
+								<el-table-column prop="createdAt" label="创建时间" min-width="180" show-overflow-tooltip />
+								<el-table-column label="操作" min-width="220" fixed="right">
+									<template #default="{ row }">
+										<div class="row-actions">
+											<el-button size="small" type="success" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'pending'" @click="reviewDevReleaseOrder(row, 'approve')">通过</el-button>
+											<el-button size="small" type="warning" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'pending'" @click="reviewDevReleaseOrder(row, 'reject')">拒绝</el-button>
+											<el-button size="small" type="primary" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'approved' || !devArtifactPath" @click="executeDevReleaseOrder(row)">执行</el-button>
+										</div>
+									</template>
+								</el-table-column>
+							</el-table>
+						</el-tab-pane>
+						<el-tab-pane label="发布任务">
+							<el-table :data="devReleaseTasks" stripe border max-height="260">
+								<el-table-column prop="taskId" label="Task ID" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="pluginId" label="插件" min-width="140" />
+								<el-table-column prop="targetEnv" label="环境" width="100" />
+								<el-table-column prop="taskStatus" label="状态" width="110" />
+								<el-table-column prop="failureReason" label="失败原因" min-width="180" show-overflow-tooltip />
+								<el-table-column label="查看" width="150" fixed="right">
+									<template #default="{ row }">
+										<div class="row-actions">
+											<el-button size="small" @click="openDevTaskDrawer('release', row, 'detail')">详情</el-button>
+											<el-button size="small" @click="openDevTaskDrawer('release', row, 'logs')">日志</el-button>
+										</div>
+									</template>
+								</el-table-column>
+							</el-table>
+						</el-tab-pane>
+						<el-tab-pane label="灰度任务">
+							<el-table :data="devRolloutTasks" stripe border max-height="260">
+								<el-table-column prop="taskId" label="Task ID" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="pluginId" label="插件" min-width="140" />
+								<el-table-column prop="action" label="动作" width="100" />
+								<el-table-column prop="rolloutPercent" label="比例" width="100" />
+								<el-table-column prop="taskStatus" label="状态" width="110" />
+								<el-table-column prop="failureReason" label="失败原因" min-width="180" show-overflow-tooltip />
+								<el-table-column label="查看" width="150" fixed="right">
+									<template #default="{ row }">
+										<div class="row-actions">
+											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'detail')">详情</el-button>
+											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'logs')">日志</el-button>
+										</div>
+									</template>
+								</el-table-column>
+							</el-table>
+						</el-tab-pane>
+						<el-tab-pane label="响应">
+							<pre class="code-block">{{ devResultText || "暂无操作结果。" }}</pre>
+						</el-tab-pane>
+					</el-tabs>
+				</section>
+			</div>
+		</el-card>
+
+		<el-drawer v-model="devTaskDrawerOpen" :title="devTaskDrawerTitle" size="46%">
+			<el-tabs>
+				<el-tab-pane label="详情">
+					<pre class="code-block">{{ devTaskDetail ? JSON.stringify(devTaskDetail, null, 2) : "暂无详情。" }}</pre>
+				</el-tab-pane>
+				<el-tab-pane label="步骤">
+					<el-timeline v-if="Array.isArray(devTaskDetail?.steps) && devTaskDetail.steps.length > 0">
+						<el-timeline-item
+							v-for="(step, index) in devTaskDetail.steps"
+							:key="index"
+							:type="String(step.status || '') === 'success' || String(step.status || '') === 'ok' ? 'success' : String(step.status || '') === 'failed' ? 'danger' : 'primary'"
+							:timestamp="String(step.startedAt || '')"
+						>
+							<strong>{{ step.name }}</strong>
+							<p>{{ step.status }} {{ step.durationMs ? `· ${step.durationMs}ms` : "" }}</p>
+							<p v-if="step.message">{{ step.message }}</p>
+						</el-timeline-item>
+					</el-timeline>
+					<el-empty v-else description="暂无步骤。" />
+				</el-tab-pane>
+				<el-tab-pane label="日志">
+					<el-timeline v-if="devTaskLogs.length > 0">
+						<el-timeline-item
+							v-for="(log, index) in devTaskLogs"
+							:key="index"
+							:type="String(log.level || '') === 'error' ? 'danger' : 'primary'"
+							:timestamp="String(log.timestamp || '')"
+						>
+							<strong>{{ log.level }}</strong>
+							<p>{{ log.step ? `[${log.step}] ` : "" }}{{ log.message }}</p>
+						</el-timeline-item>
+					</el-timeline>
+					<el-empty v-else description="暂无日志。" />
+				</el-tab-pane>
+			</el-tabs>
+		</el-drawer>
+
+		<div class="content-grid">
+			<div class="table-stack">
+				<el-card shadow="never">
+					<template #header>
+						<div class="table-header">
+							<h3>{{ t("plugin.systemLevel") }}</h3>
+							<el-button size="small" :icon="Link" :disabled="operating" @click="visitSystemConsole">{{ t("plugin.action.visit") }}</el-button>
+						</div>
+					</template>
+					<el-table :data="systemPlugins" stripe border empty-text="No plugins">
+						<el-table-column prop="id" :label="t('plugin.table.id')" min-width="180" show-overflow-tooltip />
+						<el-table-column prop="name" :label="t('plugin.table.name')" min-width="160" show-overflow-tooltip />
+						<el-table-column prop="version" :label="t('plugin.table.version')" width="110" />
+						<el-table-column :label="t('plugin.table.status')" width="110">
+							<template #default="{ row }">
+								<el-tag :type="pluginStatusType(row.id)" effect="light">{{ pluginStatusText(row.id) }}</el-tag>
+							</template>
+						</el-table-column>
+						<el-table-column :label="t('plugin.table.actions')" min-width="320" fixed="right">
+							<template #default="{ row }">
+								<div class="row-actions">
+									<el-button size="small" type="primary" plain :icon="View" :disabled="operating || !canVisit(row.id)" @click="visitPlugin(row.id)">
+										{{ t("plugin.action.visit") }}
+									</el-button>
+									<el-button size="small" :icon="isPinned(row.id) ? StarFilled : Star" :disabled="operating || !canTogglePin(row.id)" @click="togglePinTab(row.id)">
+										{{ isPinned(row.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}
+									</el-button>
+									<el-button size="small" :icon="HomeFilled" :disabled="operating || !canSetDefault(row.id)" @click="setAsDefaultHome(row.id)">
+										{{ t("plugin.action.setDefault") }}
+									</el-button>
+									<el-dropdown trigger="click" :disabled="operating" @command="handlePluginCommand">
+										<el-button size="small" :icon="Tools">{{ t("plugin.table.actions") }}</el-button>
+										<template #dropdown>
+											<el-dropdown-menu>
+												<el-dropdown-item v-permission="'plugin.read'" :icon="Setting" :command="`config:${row.id}`">{{ t("plugin.action.config") }}</el-dropdown-item>
+												<el-dropdown-item v-permission="'plugin.read'" :icon="Document" :command="`debug:${row.id}`">{{ t("plugin.action.debug") }}</el-dropdown-item>
+												<el-dropdown-item v-permission="'plugin.read'" :icon="Tickets" :command="`logs:${row.id}`">{{ t("plugin.action.logs") }}</el-dropdown-item>
+												<el-dropdown-item v-if="canEnable(row.id)" v-permission="'plugin.manage'" :icon="SwitchButton" :command="`enable:${row.id}`">{{ t("plugin.action.enable") }}</el-dropdown-item>
+												<el-dropdown-item v-if="canDisable(row.id)" v-permission="'plugin.manage'" :icon="WarningFilled" :command="`disable:${row.id}`">{{ t("plugin.action.disable") }}</el-dropdown-item>
+												<el-dropdown-item v-if="canUninstall(row.id)" v-permission="'plugin.manage'" divided :icon="Delete" :command="`uninstall:${row.id}`">{{ t("plugin.action.uninstall") }}</el-dropdown-item>
+											</el-dropdown-menu>
+										</template>
+									</el-dropdown>
+									<el-tag v-if="activeDefaultHome === pluginEntryPath(row.id) && pluginEntryPath(row.id)" type="success" effect="plain">
+										{{ t("plugin.defaultHomeActive") }}
+									</el-tag>
+								</div>
+							</template>
+						</el-table-column>
+					</el-table>
+				</el-card>
+
+				<el-card shadow="never">
+					<template #header>
+						<div class="table-header">
+							<h3>{{ t("plugin.appLevel") }}</h3>
+							<el-tag effect="plain">{{ appCount }}</el-tag>
+						</div>
+					</template>
+					<el-collapse>
+						<el-collapse-item v-for="(plugins, appId) in appPluginsGrouped" :key="appId" :name="String(appId)">
+							<template #title>
+								<div class="app-title">
+									<strong>{{ appId }}</strong>
+									<el-tag size="small" effect="plain">{{ plugins.length }}</el-tag>
+								</div>
+							</template>
+							<div class="app-toolbar">
+								<el-button
+									size="small"
+									:icon="Link"
 									:disabled="operating || !canVisitApp(String(appId), plugins)"
 									@click="visitApp(String(appId))"
 								>
-									{{ t("plugin.action.visit") }}
-								</button>
+									{{ t("plugin.action.visit") }} /{{ appId }}
+								</el-button>
 							</div>
-						</td>
-						<td>{{ item.id }}</td>
-						<td>{{ item.name }}</td>
-						<td>{{ item.version }}</td>
-						<td>
-							<span :class="item.enabled === false ? 'disabled' : 'enabled'">
-								{{ item.enabled === false ? t("plugin.status.disabled") : t("plugin.status.enabled") }}
-							</span>
-						</td>
-						<td class="action-cell">
-							<button v-if="canTogglePin(item.id)" type="button" :disabled="operating" @click="togglePinTab(item.id)">{{ isPinned(item.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}</button>
-							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.pinTab") }}</button>
-							<button v-if="canSetDefault(item.id)" type="button" :disabled="operating" @click="setAsDefaultHome(item.id)">{{ t("plugin.action.setDefault") }}</button>
-							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.setDefault") }}</button>
-							<button v-if="canEnable(item.id)" type="button" :disabled="operating" @click="runAction('enable', item.id)">{{ t("plugin.action.enable") }}</button>
-							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.enable") }}</button>
-							<button v-if="canDisable(item.id)" type="button" :disabled="operating" @click="runAction('disable', item.id)">{{ t("plugin.action.disable") }}</button>
-							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.disable") }}</button>
-							<button v-if="canUninstall(item.id)" type="button" :disabled="operating" @click="runAction('uninstall', item.id)">{{ t("plugin.action.uninstall") }}</button>
-							<button v-else type="button" class="is-placeholder" disabled>{{ t("plugin.action.uninstall") }}</button>
-							<button type="button" :disabled="operating" @click="openConfig(item.id)">{{ t("plugin.action.config") }}</button>
-							<button type="button" :disabled="operating" @click="openDebug(item.id)">{{ t("plugin.action.debug") }}</button>
-							<button type="button" :disabled="operating" @click="openLogs(item.id)">{{ t("plugin.action.logs") }}</button>
-							<span v-if="isDefaultHomePlugin(item)" class="default-home-badge">{{ t("plugin.defaultHomeActive") }}</span>
-						</td>
-					</tr>
-				</template>
-			</tbody>
-		</table>
+							<el-table :data="plugins" stripe border>
+								<el-table-column prop="id" :label="t('plugin.table.id')" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="name" :label="t('plugin.table.name')" min-width="160" show-overflow-tooltip />
+								<el-table-column prop="version" :label="t('plugin.table.version')" width="110" />
+								<el-table-column :label="t('plugin.table.status')" width="110">
+									<template #default="{ row }">
+										<el-tag :type="pluginStatusType(row.id)" effect="light">{{ pluginStatusText(row.id) }}</el-tag>
+									</template>
+								</el-table-column>
+								<el-table-column :label="t('plugin.table.actions')" min-width="300" fixed="right">
+									<template #default="{ row }">
+										<div class="row-actions">
+											<el-button size="small" :icon="isPinned(row.id) ? StarFilled : Star" :disabled="operating || !canTogglePin(row.id)" @click="togglePinTab(row.id)">
+												{{ isPinned(row.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}
+											</el-button>
+											<el-button size="small" :icon="HomeFilled" :disabled="operating || !canSetDefault(row.id)" @click="setAsDefaultHome(row.id)">
+												{{ t("plugin.action.setDefault") }}
+											</el-button>
+											<el-dropdown trigger="click" :disabled="operating" @command="handlePluginCommand">
+												<el-button size="small" :icon="Tools">{{ t("plugin.table.actions") }}</el-button>
+												<template #dropdown>
+													<el-dropdown-menu>
+														<el-dropdown-item v-permission="'plugin.read'" :icon="Setting" :command="`config:${row.id}`">{{ t("plugin.action.config") }}</el-dropdown-item>
+														<el-dropdown-item v-permission="'plugin.read'" :icon="Document" :command="`debug:${row.id}`">{{ t("plugin.action.debug") }}</el-dropdown-item>
+														<el-dropdown-item v-permission="'plugin.read'" :icon="Tickets" :command="`logs:${row.id}`">{{ t("plugin.action.logs") }}</el-dropdown-item>
+														<el-dropdown-item v-if="canEnable(row.id)" v-permission="'plugin.manage'" :icon="SwitchButton" :command="`enable:${row.id}`">{{ t("plugin.action.enable") }}</el-dropdown-item>
+														<el-dropdown-item v-if="canDisable(row.id)" v-permission="'plugin.manage'" :icon="WarningFilled" :command="`disable:${row.id}`">{{ t("plugin.action.disable") }}</el-dropdown-item>
+														<el-dropdown-item v-if="canUninstall(row.id)" v-permission="'plugin.manage'" divided :icon="Delete" :command="`uninstall:${row.id}`">{{ t("plugin.action.uninstall") }}</el-dropdown-item>
+													</el-dropdown-menu>
+												</template>
+											</el-dropdown>
+											<el-tag v-if="isDefaultHomePlugin(row)" type="success" effect="plain">{{ t("plugin.defaultHomeActive") }}</el-tag>
+										</div>
+									</template>
+								</el-table-column>
+							</el-table>
+						</el-collapse-item>
+					</el-collapse>
+				</el-card>
+			</div>
 
-		<section v-if="selectedPlugin" class="inspector">
-			<h3>{{ t("plugin.inspector") }}: {{ selectedPlugin }}</h3>
-			<article v-if="activeInspectorPanel === 'info'">
-				<h4>{{ t("plugin.debug") }}</h4>
-				<pre>{{ debugText || t("plugin.noDebug") }}</pre>
-			</article>
-			<article v-else-if="activeInspectorPanel === 'config'">
-				<h4>{{ t("plugin.action.config") }}</h4>
-				<textarea v-model="configText" :disabled="operating" rows="12" />
-				<div class="config-actions">
-					<button type="button" :disabled="operating" @click="saveConfig">{{ t("plugin.action.saveConfig") }}</button>
-				</div>
-			</article>
-			<article v-else-if="activeInspectorPanel === 'logs'">
-				<h4>{{ t("plugin.logs") }}</h4>
-				<pre>{{ logText || t("plugin.noLogs") }}</pre>
-			</article>
-		</section>
+			<el-card shadow="never" class="inspector-card">
+				<template #header>
+					<div class="table-header">
+						<h3>{{ t("plugin.inspector") }}</h3>
+						<el-tag v-if="selectedPlugin" effect="plain">{{ selectedPlugin }}</el-tag>
+					</div>
+				</template>
+				<el-empty v-if="!selectedPlugin" :description="t('plugin.noDebug')" />
+				<template v-else>
+					<article v-if="activeInspectorPanel === 'info'">
+						<h4>{{ t("plugin.debug") }}</h4>
+						<pre class="code-block">{{ debugText || t("plugin.noDebug") }}</pre>
+					</article>
+					<article v-else-if="activeInspectorPanel === 'config'">
+						<h4>{{ t("plugin.action.config") }}</h4>
+						<template v-if="configSchema && (configSchema.fields?.length ?? 0) > 0">
+							<SchemaForm
+								:model-value="configForm"
+								:schema="configSchema"
+								:locale="locale"
+								:disabled="operating || !canManagePlugins"
+								@update:model-value="handleConfigFormUpdate"
+								@update:valid="handleConfigFormValid"
+							/>
+							<el-collapse class="config-preview">
+								<el-collapse-item title="JSON" name="json">
+									<pre class="code-block">{{ configText }}</pre>
+								</el-collapse-item>
+							</el-collapse>
+						</template>
+						<el-input v-else v-model="configText" type="textarea" :disabled="operating" :rows="14" resize="vertical" />
+						<div class="config-actions">
+							<el-button v-permission="'plugin.manage'" type="primary" :icon="Setting" :disabled="operating || !configFormValid" @click="saveConfig">{{ t("plugin.action.saveConfig") }}</el-button>
+						</div>
+					</article>
+					<article v-else-if="activeInspectorPanel === 'logs'">
+						<h4>{{ t("plugin.logs") }}</h4>
+						<pre class="code-block">{{ logText || t("plugin.noLogs") }}</pre>
+					</article>
+				</template>
+			</el-card>
+		</div>
 	</section>
 </template>
 
 <style scoped>
-.topbar {
+.plugin-page {
+	display: grid;
+	gap: 16px;
+}
+
+.page-header {
 	display: flex;
 	justify-content: space-between;
-	align-items: center;
-	gap: 12px;
-	margin-bottom: 12px;
+	gap: 16px;
+	align-items: flex-start;
 }
 
-.topbar p {
+.title-block h2,
+.card-header h3,
+.table-header h3 {
+	margin: 0;
+}
+
+.title-block p,
+.card-header p,
+.summary-note {
 	margin: 4px 0 0;
 	color: var(--color-text-muted);
+	font-size: 0.88rem;
 }
 
-.sync-status {
-	font-size: 12px;
-}
-
-.current-default-home {
-	font-size: 12px;
-	font-weight: 600;
-}
-
-.sync-degraded {
-	font-size: 12px;
-	color: #b45309;
-}
-
-.success {
-	color: var(--color-success);
-	margin: 4px 0;
-}
-
-.actions {
+.header-actions,
+.install-actions,
+.row-actions,
+.table-header,
+.card-header,
+.app-toolbar {
 	display: flex;
-	gap: 10px;
 	align-items: center;
+	gap: 10px;
 }
 
-button {
-	border: none;
-	border-radius: var(--radius-md);
-	padding: 7px 10px;
-	background: var(--color-primary);
-	color: var(--color-on-primary);
-	cursor: pointer;
+.header-actions {
+	flex-wrap: wrap;
+	justify-content: flex-end;
 }
 
-button:hover {
-	background: var(--color-primary-strong);
+.page-alert {
+	margin: 0;
 }
 
-button:disabled {
-	opacity: 0.6;
-	cursor: default;
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
 }
 
-.plugin-table {
-	width: 100%;
-	border-collapse: collapse;
+.summary-card {
+	min-height: 116px;
+}
+
+.summary-card.is-wide {
+	grid-column: span 1;
+}
+
+.summary-label {
+	color: var(--color-text-muted);
+	font-size: 0.86rem;
+}
+
+.summary-value {
+	margin-top: 8px;
+	font-size: 2rem;
+	font-weight: 700;
+	line-height: 1;
+	color: var(--color-primary-strong);
+}
+
+.summary-path {
+	margin-top: 8px;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
 	font-size: 0.92rem;
+	font-weight: 700;
+	word-break: break-all;
 }
 
 .install-panel {
-	margin-bottom: 12px;
-	padding: 12px;
 	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
 }
 
-.install-panel h3 {
-	margin: 0;
-}
-
-.install-panel p {
-	margin: 4px 0 10px;
-	color: var(--color-text-muted);
+.card-header,
+.table-header {
+	justify-content: space-between;
 }
 
 .install-actions {
+	align-items: stretch;
+}
+
+.content-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+	gap: 16px;
+	align-items: start;
+}
+
+.devportal-panel {
+	border: 1px solid var(--color-border);
+}
+
+.devportal-grid {
+	display: grid;
+	grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+	gap: 16px;
+	align-items: start;
+}
+
+.devportal-controls {
+	display: grid;
+	gap: 12px;
+}
+
+.devportal-actions {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
-	align-items: center;
 }
 
-.install-actions input {
-	min-width: 300px;
-	flex: 1;
-	height: 34px;
-	padding: 0 10px;
-	border-radius: var(--radius-sm);
-	border: 1px solid var(--color-border);
-	background: var(--color-surface);
-	color: var(--color-text);
-}
-
-
-.plugin-table th,
-.plugin-table td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
-}
-
-.plugin-table tr.section-header {
-	background: var(--color-surface-soft);
-	font-weight: bold;
-	color: var(--color-text-muted);
-}
-
-.plugin-table tr.section-header td {
-	padding: 12px 8px;
-	border-bottom: 2px solid var(--color-border);
-}
-
-.group-cell {
-	font-size: 0.82rem;
-	color: var(--color-text-muted);
-	white-space: nowrap;
-	vertical-align: top;
-}
-
-.group-first td {
-	border-top: 2px solid var(--color-border);
-}
-
-.merge-cell {
-	min-width: 96px;
-	display: table-cell;
-}
-
-.group-label {
-	font-size: 0.82rem;
-	font-weight: 600;
-	display: inline-flex;
-	color: var(--color-text-muted);
-	margin: 0;
-}
-
-.group-inline {
-	display: flex;
+.inline-fields {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 150px;
+	gap: 8px;
 	width: 100%;
-	justify-content: space-between;
-	align-items: center;
-	gap: 6px;
 }
 
-.group-cell button {
-	padding: 5px 8px;
-	font-size: 0.78rem;
-	line-height: 1;
+.dev-config {
+	margin-top: 4px;
 }
 
-.action-cell {
-	display: flex;
+.devportal-data {
+	min-width: 0;
+}
+
+.table-stack {
+	display: grid;
+	gap: 16px;
+	min-width: 0;
+}
+
+.row-actions {
 	flex-wrap: wrap;
-	gap: 6px;
-	align-items: center;
 }
 
-.action-cell button {
-	width: auto;
-	text-align: center;
-	white-space: nowrap;
+.app-title {
 	display: inline-flex;
 	align-items: center;
-	justify-content: center;
-	padding: 7px 10px;
-	line-height: 1;
-	box-sizing: border-box;
+	gap: 8px;
+	width: 100%;
 }
 
-.action-cell button.is-placeholder {
-	background: var(--color-surface-soft);
-	color: var(--color-text-muted);
-	box-shadow: inset 0 0 0 1px var(--color-border);
-	cursor: not-allowed;
-	opacity: 0.9;
-}
-
-.default-home-badge {
-	margin-left: 2px;
-}
-
-.action-cell button {
-	padding: 5px 8px;
-	font-size: 0.78rem;
-}
-
-.default-home-badge {
-	font-size: 0.75rem;
-	padding: 2px 8px;
-	border-radius: 999px;
-	background: var(--color-tag-bg);
-	color: var(--color-tag-text);
-	border: 1px solid var(--color-border);
-	align-self: center;
-}
-
-.enabled {
-	color: var(--color-success);
-	font-weight: 600;
-}
-
-.disabled {
-	color: var(--color-danger);
-	font-weight: 600;
-}
-
-.error {
-	color: var(--color-danger);
+.app-toolbar {
+	justify-content: flex-end;
 	margin-bottom: 10px;
 }
 
-.inspector {
-	margin-top: 14px;
-	border-top: 1px solid var(--color-border);
-	padding-top: 10px;
+.inspector-card {
+	position: sticky;
+	top: 12px;
 }
 
-pre {
-	margin: 0;
-	padding: 10px;
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
+.code-block {
+	margin: 12px 0 0;
+	padding: 12px;
+	border-radius: 8px;
+	background: #f6f8fb;
 	border: 1px solid var(--color-border);
 	white-space: pre-wrap;
 	word-break: break-word;
 	font-size: 0.78rem;
-	max-height: 220px;
+	max-height: 360px;
 	overflow: auto;
 }
 
-textarea {
-	width: 100%;
-	padding: 10px;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
-	background: var(--color-surface-soft);
-	color: var(--color-text);
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-	line-height: 1.4;
-	box-sizing: border-box;
+.config-actions {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 10px;
 }
 
-.config-actions {
-	margin-top: 8px;
+:deep(.el-card__header) {
+	padding: 14px 16px;
+}
+
+:deep(.el-card__body) {
+	padding: 16px;
+}
+
+:deep(.el-table) {
+	--el-table-header-bg-color: var(--color-surface-soft);
+}
+
+@media (max-width: 1180px) {
+	.summary-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.content-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.devportal-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.inspector-card {
+		position: static;
+	}
+}
+
+@media (max-width: 720px) {
+	.page-header,
+	.install-actions {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.inline-fields {
+		grid-template-columns: 1fr;
+	}
+
+	.header-actions {
+		justify-content: flex-start;
+	}
+
+	.summary-grid {
+		grid-template-columns: 1fr;
+	}
 }
 </style>
 

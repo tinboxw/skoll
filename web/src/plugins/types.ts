@@ -1,5 +1,49 @@
 import type { RouteRecordRaw, Router } from "vue-router";
 
+export type PluginMenuManifest = {
+  label?: string;
+  labelZhCN?: string;
+  labelEnUS?: string;
+  path?: string;
+  icon?: string;
+  order?: number;
+  requiredRoles?: string[];
+  requiredPermissions?: string[];
+};
+
+export type PluginConfigOption = {
+  label?: string;
+  labelZhCN?: string;
+  labelEnUS?: string;
+  value: string;
+};
+
+export type PluginConfigField = {
+  key: string;
+  label?: string;
+  labelZhCN?: string;
+  labelEnUS?: string;
+  type?: "string" | "textarea" | "number" | "boolean" | "select";
+  required?: boolean;
+  default?: string;
+  placeholder?: string;
+  help?: string;
+  min?: number;
+  max?: number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  options?: PluginConfigOption[];
+};
+
+export type PluginConfigSchema = {
+  title?: string;
+  titleZhCN?: string;
+  titleEnUS?: string;
+  description?: string;
+  fields?: PluginConfigField[];
+};
+
 export type FrontendPluginManifest = {
   id: string;
   name: string;
@@ -17,6 +61,8 @@ export type FrontendPluginManifest = {
   uiOpenMode?: "integrated" | "standalone";
   uiTabMode?: "optional" | "fixed" | "disabled";
   i18nLocales?: string[];
+  uiMenu?: PluginMenuManifest;
+  configSchema?: PluginConfigSchema;
   systemBuiltin?: boolean;
   route?: RouteRecordRaw;
   backendEndpoint?: string;
@@ -47,6 +93,8 @@ export type BackendPluginRecord = {
   uiOpenMode?: "integrated" | "standalone";
   uiTabMode?: "optional" | "fixed" | "disabled";
   i18nLocales?: string[];
+  uiMenu?: PluginMenuManifest;
+  configSchema?: PluginConfigSchema;
   frontendEntry?: string;
   systemBuiltin?: boolean;
 };

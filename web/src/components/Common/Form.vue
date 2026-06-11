@@ -1,13 +1,13 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 const emit = defineEmits<{
 	(event: "submit"): void;
 }>();
 </script>
 
 <template>
-	<form class="form" @submit.prevent="emit('submit')">
+	<el-form class="form" label-position="top" @submit.prevent="emit('submit')">
 		<slot />
-	</form>
+	</el-form>
 </template>
 
 <style scoped>
@@ -16,4 +16,3 @@ const emit = defineEmits<{
 	gap: 12px;
 }
 </style>
-

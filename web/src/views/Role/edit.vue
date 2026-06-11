@@ -1,8 +1,10 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import { useI18n } from "../../i18n";
+import { useAccess } from "../../permissions/access";
+import { BASE_PERMISSION_OPTIONS } from "../../permissions/catalog";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -59,16 +61,9 @@ function normalizeUserRecord(item: unknown): UserRecord | null {
 
 const route = useRoute();
 const { t } = useI18n();
+const access = useAccess();
 
-const permissionOptions = [
-	"user.read",
-	"user.write",
-	"role.read",
-	"role.write",
-	"rbac.manage",
-	"plugin.manage",
-	"system.manage"
-];
+const permissionOptions = BASE_PERMISSION_OPTIONS;
 
 const roleId = computed(() => String(route.params.id ?? ""));
 const roleName = ref("");
@@ -78,11 +73,16 @@ const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
 const success = ref("");
-const selectedPermission = ref(permissionOptions[0]);
+const selectedPermission = ref(permissionOptions[0] ?? "");
 const permissions = ref<string[]>([]);
 const users = ref<UserRecord[]>([]);
 const usersLoading = ref(false);
 const usersError = ref("");
+const canUpdateRole = computed(() => access.can("role.update"));
+const canManagePermissions = computed(() => access.can("role.manage") || access.can("permission.manage"));
+const canUpdateUser = computed(() => access.can("user.update"));
+
+const availablePermissionOptions = computed(() => permissionOptions.filter((item) => !permissions.value.includes(item)));
 
 async function loadRole(): Promise<void> {
 	if (!roleId.value) {
@@ -101,6 +101,9 @@ async function loadRole(): Promise<void> {
 		roleKey.value = target.key || "";
 		roleDescription.value = String((payload.data as Record<string, unknown>)?.description ?? (payload.data as Record<string, unknown>)?.Description ?? "").trim();
 		permissions.value = Array.isArray(target.permissions) ? [...target.permissions] : [];
+		if (!availablePermissionOptions.value.includes(selectedPermission.value)) {
+			selectedPermission.value = availablePermissionOptions.value[0] ?? "";
+		}
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -109,6 +112,10 @@ async function loadRole(): Promise<void> {
 }
 
 async function saveRole(): Promise<void> {
+	if (!canUpdateRole.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	if (!roleId.value) {
 		return;
 	}
@@ -151,6 +158,10 @@ async function loadRoleUsers(): Promise<void> {
 }
 
 async function grantPermission(): Promise<void> {
+	if (!canManagePermissions.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	const permission = selectedPermission.value.trim().toLowerCase();
 	if (!roleId.value || !permission) {
 		return;
@@ -163,6 +174,7 @@ async function grantPermission(): Promise<void> {
 		if (!permissions.value.includes(permission)) {
 			permissions.value.push(permission);
 		}
+		selectedPermission.value = availablePermissionOptions.value[0] ?? "";
 		success.value = t("role.permissionGranted");
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -172,6 +184,10 @@ async function grantPermission(): Promise<void> {
 }
 
 async function revokePermission(permission: string): Promise<void> {
+	if (!canManagePermissions.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	if (!roleId.value || !permission.trim()) {
 		return;
 	}
@@ -181,6 +197,9 @@ async function revokePermission(permission: string): Promise<void> {
 	try {
 		await apiPost<ApiResponse<unknown>>(`/v1/roles/${roleId.value}/revoke`, { permission });
 		permissions.value = permissions.value.filter((item) => item !== permission);
+		if (!selectedPermission.value) {
+			selectedPermission.value = availablePermissionOptions.value[0] ?? "";
+		}
 		success.value = t("role.permissionRevoked");
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -196,159 +215,176 @@ onMounted(() => {
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.roleEdit") }}</h2>
-		<p>{{ roleId }}</p>
-		<p v-if="error" class="error">{{ error }}</p>
-		<p v-if="success" class="success">{{ success }}</p>
-		<form class="edit-form" @submit.prevent="saveRole">
-			<label>
-				<span>{{ t("table.name") }}</span>
-				<input v-model="roleName" type="text" required :disabled="loading || saving" />
-			</label>
-			<label>
-				<span>{{ t("table.key") }}</span>
-				<input v-model="roleKey" type="text" required :disabled="loading || saving" />
-			</label>
-			<label>
-				<span>{{ t("table.description") }}</span>
-				<input v-model="roleDescription" type="text" :disabled="loading || saving" />
-			</label>
-			<button type="submit" :disabled="loading || saving">{{ saving ? t("common.loading") : t("common.save") }}</button>
-		</form>
-		<form class="add-form" @submit.prevent="grantPermission">
-			<select v-model="selectedPermission" :disabled="loading || saving">
-				<option v-for="item in permissionOptions" :key="item" :value="item">{{ item }}</option>
-			</select>
-			<button type="submit" :disabled="loading || saving || !selectedPermission.trim()">
-				{{ saving ? t("common.loading") : t("role.addPermission") }}
-			</button>
-		</form>
-		<ul>
-			<li v-for="item in permissions" :key="item">
-				<label class="row">
-					<span>{{ item }}</span>
-					<button type="button" :disabled="saving" @click="revokePermission(item)">{{ t("role.revokePermission") }}</button>
-				</label>
-			</li>
-			<li v-if="permissions.length === 0" class="empty">{{ t("common.empty") }}</li>
-		</ul>
-		<section class="role-users">
-			<div class="role-users-header">
-				<h3>{{ t("role.usersTitle") }}</h3>
-				<button type="button" :disabled="usersLoading || saving" @click="loadRoleUsers">{{ usersLoading ? t("common.loading") : t("common.refresh") }}</button>
+	<section class="role-edit-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.roleEdit") }}</h2>
+				<p>{{ roleId }}</p>
 			</div>
-			<p v-if="usersError" class="error">{{ usersError }}</p>
-			<table>
-				<thead>
-					<tr>
-						<th>{{ t("table.id") }}</th>
-						<th>{{ t("table.name") }}</th>
-						<th>{{ t("table.email") }}</th>
-						<th>{{ t("table.actions") }}</th>
-					</tr>
-				</thead>
-				<tbody v-if="users.length > 0">
-					<tr v-for="item in users" :key="item.id">
-						<td>{{ item.id }}</td>
-						<td>{{ item.name || item.account || "-" }}</td>
-						<td>{{ item.email || "-" }}</td>
-						<td>
-							<router-link :to="`/skoll/user/${item.id}/edit`">{{ t("common.edit") }}</router-link>
-						</td>
-					</tr>
-				</tbody>
-				<tbody v-else>
-					<tr>
-						<td colspan="4">{{ usersLoading ? t("common.loading") : t("common.empty") }}</td>
-					</tr>
-				</tbody>
-			</table>
+			<el-button :loading="loading" :disabled="saving" @click="loadRole">{{ t("common.refresh") }}</el-button>
+		</header>
+
+		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+		<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
+
+		<section class="panel">
+			<h3>{{ t("table.description") }}</h3>
+			<el-form label-position="top" class="edit-form" @submit.prevent="saveRole">
+				<el-form-item :label="t('table.name')" required>
+					<el-input v-model="roleName" :disabled="loading || saving || !canUpdateRole" />
+				</el-form-item>
+				<el-form-item :label="t('table.key')" required>
+					<el-input v-model="roleKey" :disabled="loading || saving || !canUpdateRole" />
+				</el-form-item>
+				<el-form-item :label="t('table.description')">
+					<el-input v-model="roleDescription" type="textarea" :rows="2" :disabled="loading || saving || !canUpdateRole" />
+				</el-form-item>
+				<div class="form-actions">
+					<el-button type="primary" native-type="submit" :loading="saving" :disabled="loading || !canUpdateRole">
+						{{ t("common.save") }}
+					</el-button>
+				</div>
+			</el-form>
+		</section>
+
+		<section class="panel">
+			<div class="section-header">
+				<div>
+					<h3>{{ t("table.permissions") }}</h3>
+					<p>{{ t("permission.matrixHint") }}</p>
+				</div>
+				<el-form v-if="canManagePermissions" class="permission-actions" @submit.prevent="grantPermission">
+					<el-select v-model="selectedPermission" filterable :disabled="loading || saving || availablePermissionOptions.length === 0">
+						<el-option v-for="item in availablePermissionOptions" :key="item" :value="item" :label="item" />
+					</el-select>
+					<el-button type="primary" native-type="submit" :loading="saving" :disabled="loading || !selectedPermission.trim()">
+						{{ t("role.addPermission") }}
+					</el-button>
+				</el-form>
+			</div>
+			<el-table v-loading="loading" :data="permissions" border :empty-text="t('common.empty')">
+				<el-table-column :label="t('table.permissions')" min-width="220">
+					<template #default="{ row }">
+						<el-tag effect="plain">{{ row }}</el-tag>
+					</template>
+				</el-table-column>
+				<el-table-column v-if="canManagePermissions" :label="t('table.actions')" width="150" fixed="right">
+					<template #default="{ row }">
+						<el-button link type="danger" :disabled="saving" @click="revokePermission(row)">{{ t("role.revokePermission") }}</el-button>
+					</template>
+				</el-table-column>
+			</el-table>
+		</section>
+
+		<section class="panel">
+			<div class="section-header">
+				<div>
+					<h3>{{ t("role.usersTitle") }}</h3>
+					<p>{{ t("user.roleAssignHint") }}</p>
+				</div>
+				<el-button :loading="usersLoading" :disabled="saving" @click="loadRoleUsers">{{ t("common.refresh") }}</el-button>
+			</div>
+			<el-alert v-if="usersError" :title="usersError" type="error" show-icon :closable="false" />
+			<el-table v-loading="usersLoading" :data="users" border row-key="id" :empty-text="t('common.empty')">
+				<el-table-column prop="id" :label="t('table.id')" min-width="190" show-overflow-tooltip />
+				<el-table-column :label="t('table.name')" min-width="160">
+					<template #default="{ row }">{{ row.name || row.account || "-" }}</template>
+				</el-table-column>
+				<el-table-column prop="email" :label="t('table.email')" min-width="210" show-overflow-tooltip />
+				<el-table-column :label="t('table.actions')" width="120" fixed="right">
+					<template #default="{ row }">
+						<el-button v-if="canUpdateUser" link type="primary" tag="router-link" :to="{ name: 'user-edit', params: { id: row.id } }">
+							{{ t("common.edit") }}
+						</el-button>
+						<span v-else class="muted">{{ t("common.empty") }}</span>
+					</template>
+				</el-table-column>
+			</el-table>
 		</section>
 	</section>
 </template>
 
 <style scoped>
-ul {
-	padding: 0;
-	list-style: none;
+.role-edit-page {
 	display: grid;
-	gap: 8px;
+	gap: 14px;
 }
 
-.row {
+.page-header,
+.section-header {
 	display: flex;
+	align-items: flex-start;
 	justify-content: space-between;
-	align-items: center;
-	gap: 8px;
+	gap: 16px;
+}
+
+.page-header h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.page-header p,
+.section-header p {
+	margin: 6px 0 0;
 	color: var(--color-text-muted);
 }
 
-.add-form {
-	display: flex;
-	gap: 8px;
-	margin-bottom: 12px;
+.panel {
+	display: grid;
+	gap: 12px;
+	padding: 16px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+}
+
+.panel h3 {
+	margin: 0;
+	font-size: 1rem;
 }
 
 .edit-form {
 	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 4px 14px;
+}
+
+.edit-form :deep(.el-form-item:nth-child(3)) {
+	grid-column: 1 / -1;
+}
+
+.form-actions {
+	display: flex;
+	align-items: flex-end;
+	padding-top: 22px;
+}
+
+.permission-actions {
+	display: flex;
+	align-items: center;
 	gap: 8px;
-	max-width: 460px;
-	margin-bottom: 12px;
+	min-width: 420px;
 }
 
-.edit-form label {
-	display: grid;
-	gap: 6px;
+.permission-actions :deep(.el-select) {
+	flex: 1;
 }
 
-select,
-input,
-button {
-	height: 32px;
-	padding: 0 10px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-}
-
-button {
-	background: var(--color-surface-soft);
-	cursor: pointer;
-}
-
-.error {
-	color: var(--color-danger);
-}
-
-.success {
-	color: var(--color-success);
-}
-
-.empty {
+.muted {
 	color: var(--color-text-muted);
 }
 
-.role-users {
-	margin-top: 12px;
-}
+@media (max-width: 900px) {
+	.page-header,
+	.section-header,
+	.permission-actions,
+	.edit-form {
+		display: grid;
+		min-width: 0;
+	}
 
-.role-users-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-bottom: 8px;
-}
-
-table {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-th,
-td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
+	.edit-form :deep(.el-form-item:nth-child(3)) {
+		grid-column: auto;
+	}
 }
 </style>
-

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
+import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { type ApiResponse, apiDelete, apiGet } from "../../utils/api";
 import { getToken } from "../../utils/auth";
@@ -414,6 +415,16 @@ async function exportCSV(): Promise<void> {
 }
 
 async function clearByRange(): Promise<void> {
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: `${t("audit.clear")}: ${from.value || "-"} - ${to.value || "-"}`,
+		confirmText: t("audit.clear"),
+		cancelText: t("common.cancel"),
+		danger: true
+	});
+	if (!confirmed) {
+		return;
+	}
 	operating.value = true;
 	error.value = "";
 	success.value = "";
@@ -432,281 +443,243 @@ void loadAuditLogs();
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.audit") }}</h2>
-		<p>{{ t("audit.desc") }}</p>
-		<p v-if="error" class="error">{{ error }}</p>
-		<p v-if="success" class="success">{{ success }}</p>
+	<section class="audit-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.audit") }}</h2>
+				<p>{{ t("audit.desc") }}</p>
+			</div>
+			<div class="header-actions">
+				<el-button :loading="loading" :disabled="operating" @click="loadAuditLogs">{{ t("common.refresh") }}</el-button>
+				<el-button :loading="operating" :disabled="loading" @click="exportCSV">{{ t("audit.export") }}</el-button>
+				<el-button type="danger" plain :loading="operating" :disabled="loading" @click="clearByRange">{{ t("audit.clear") }}</el-button>
+			</div>
+		</header>
 
-		<div class="filters">
-			<label>
-				<span>{{ t("audit.actorId") }}</span>
-				<input v-model="actorName" type="text" :disabled="loading || operating" />
-			</label>
-			<label>
-				<span>{{ t("audit.action") }}</span>
-				<input v-model="action" type="text" list="audit-action-suggestions" :disabled="loading || operating" />
-				<datalist id="audit-action-suggestions">
-					<option v-for="value in actionSuggestions" :key="`action-option-${value}`" :value="value" />
-				</datalist>
-			</label>
-			<label>
-				<span>{{ t("audit.resource") }}</span>
-				<input v-model="resource" type="text" list="audit-resource-suggestions" :disabled="loading || operating" />
-				<datalist id="audit-resource-suggestions">
-					<option v-for="value in resourceSuggestions" :key="`resource-option-${value}`" :value="value" />
-				</datalist>
-			</label>
-			<label>
-				<span>{{ t("audit.from") }}</span>
-				<input v-model="from" type="datetime-local" :disabled="loading || operating" @input="handleFromInput" />
-			</label>
-			<label>
-				<span>{{ t("audit.to") }}</span>
-				<input v-model="to" type="datetime-local" :disabled="loading || operating" @input="handleToInput" />
-			</label>
-			<label>
-				<span>{{ t("audit.limit") }}</span>
-				<input v-model.number="limit" type="number" min="1" max="500" :disabled="loading || operating" />
-			</label>
-		</div>
+		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+		<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
 
-		<div class="toolbar">
-			<button type="button" :disabled="loading || operating" @click="loadAuditLogs">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
-			<button type="button" :disabled="loading || operating" @click="exportCSV">{{ t("audit.export") }}</button>
-			<button type="button" :disabled="loading || operating" @click="clearByRange">{{ t("audit.clear") }}</button>
-			<button v-if="actorName.trim() !== ''" type="button" :disabled="loading || operating" @click="clearQuickActor">{{ t("audit.clearActor") }}</button>
-			<button v-if="action.trim() !== ''" type="button" :disabled="loading || operating" @click="clearActionFilter">{{ t("audit.clearAction") }}</button>
-			<button v-if="resource.trim() !== ''" type="button" :disabled="loading || operating" @click="clearResourceFilter">{{ t("audit.clearResource") }}</button>
-		</div>
+		<section class="panel">
+			<el-form label-position="top" class="filters" @submit.prevent="loadAuditLogs">
+				<el-form-item :label="t('audit.actorId')">
+					<el-input v-model="actorName" clearable :disabled="loading || operating" />
+				</el-form-item>
+				<el-form-item :label="t('audit.action')">
+					<el-select v-model="action" filterable clearable allow-create default-first-option :disabled="loading || operating">
+						<el-option v-for="value in actionSuggestions" :key="`action-option-${value}`" :value="value" :label="value" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('audit.resource')">
+					<el-select v-model="resource" filterable clearable allow-create default-first-option :disabled="loading || operating">
+						<el-option v-for="value in resourceSuggestions" :key="`resource-option-${value}`" :value="value" :label="value" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('audit.from')">
+					<el-date-picker
+						v-model="from"
+						type="datetime"
+						value-format="YYYY-MM-DDTHH:mm"
+						format="YYYY-MM-DD HH:mm"
+						:disabled="loading || operating"
+						@change="handleFromInput"
+					/>
+				</el-form-item>
+				<el-form-item :label="t('audit.to')">
+					<el-date-picker
+						v-model="to"
+						type="datetime"
+						value-format="YYYY-MM-DDTHH:mm"
+						format="YYYY-MM-DD HH:mm"
+						:disabled="loading || operating"
+						@change="handleToInput"
+					/>
+				</el-form-item>
+				<el-form-item :label="t('audit.limit')">
+					<el-input-number v-model="limit" :min="1" :max="500" :disabled="loading || operating" controls-position="right" />
+				</el-form-item>
+				<div class="filter-actions">
+					<el-button type="primary" native-type="submit" :loading="loading" :disabled="operating">{{ t("common.refresh") }}</el-button>
+					<el-button v-if="actorName.trim() !== ''" :disabled="loading || operating" @click="clearQuickActor">{{ t("audit.clearActor") }}</el-button>
+					<el-button v-if="action.trim() !== ''" :disabled="loading || operating" @click="clearActionFilter">{{ t("audit.clearAction") }}</el-button>
+					<el-button v-if="resource.trim() !== ''" :disabled="loading || operating" @click="clearResourceFilter">{{ t("audit.clearResource") }}</el-button>
+				</div>
+			</el-form>
 
-		<div v-if="quickActors.length > 0" class="quick-actors">
-			<span>{{ t("audit.quickActors") }}</span>
-			<button
-				v-for="actor in quickActors"
-				:key="actor"
-				type="button"
-				class="chip"
-				:class="{ active: actorName === actor }"
-				:disabled="loading || operating"
-				@click="setQuickActor(actor)"
-			>
-				{{ actor }}
-			</button>
-		</div>
-
-		<div v-if="quickActions.length > 0" class="quick-actors">
-			<span>{{ t("audit.quickActions") }}</span>
-			<button
-				v-for="value in quickActions"
-				:key="`action-${value}`"
-				type="button"
-				class="chip"
-				:class="{ active: action === value }"
-				:disabled="loading || operating"
-				@click="setQuickAction(value)"
-			>
-				{{ value }}
-			</button>
-		</div>
-
-		<div v-if="quickResources.length > 0" class="quick-actors">
-			<span>{{ t("audit.quickResources") }}</span>
-			<button
-				v-for="value in quickResources"
-				:key="`resource-${value}`"
-				type="button"
-				class="chip"
-				:class="{ active: resource === value }"
-				:disabled="loading || operating"
-				@click="setQuickResource(value)"
-			>
-				{{ value }}
-			</button>
-		</div>
-
-		<table>
-			<thead>
-				<tr>
-					<th>{{ t("table.id") }}</th>
-					<th>{{ t("table.actor") }}</th>
-					<th>{{ t("table.action") }}</th>
-					<th>{{ t("table.resource") }}</th>
-					<th>{{ t("table.occurredAt") }}</th>
-				</tr>
-			</thead>
-			<tbody v-if="hasRows">
-				<tr
-					v-for="item in pagedItems"
-					:key="item.id"
-					:class="{ active: selected?.id === item.id }"
-					@click="openDetail(item)"
+			<div v-if="quickActors.length > 0" class="quick-row">
+				<span>{{ t("audit.quickActors") }}</span>
+				<el-tag
+					v-for="actor in quickActors"
+					:key="actor"
+					:type="actorName === actor ? 'primary' : 'info'"
+					effect="plain"
+					class="quick-tag"
+					@click="setQuickActor(actor)"
 				>
-					<td>{{ item.id }}</td>
-					<td>{{ displayActor(item) }}</td>
-					<td>{{ item.action || "-" }}</td>
-					<td>{{ item.resource || "-" }}</td>
-					<td>{{ formatOccurredAtLocal(item.occurredAt) || "-" }}</td>
-				</tr>
-			</tbody>
-			<tbody v-else>
-				<tr>
-					<td colspan="5">{{ loading ? t("common.loading") : t("common.empty") }}</td>
-				</tr>
-			</tbody>
-		</table>
+					{{ actor }}
+				</el-tag>
+			</div>
 
-		<div class="pager">
-			<button type="button" :disabled="page <= 1" @click="prevPage">{{ t("common.prev") }}</button>
-			<span>{{ t("common.page") }} {{ page }} / {{ totalPages }}</span>
-			<button type="button" :disabled="page >= totalPages" @click="nextPage">{{ t("common.next") }}</button>
-			<select v-model.number="pageSize">
-				<option :value="10">10</option>
-				<option :value="20">20</option>
-				<option :value="50">50</option>
-			</select>
-		</div>
+			<div v-if="quickActions.length > 0" class="quick-row">
+				<span>{{ t("audit.quickActions") }}</span>
+				<el-tag
+					v-for="value in quickActions"
+					:key="`action-${value}`"
+					:type="action === value ? 'primary' : 'info'"
+					effect="plain"
+					class="quick-tag"
+					@click="setQuickAction(value)"
+				>
+					{{ value }}
+				</el-tag>
+			</div>
 
-		<div v-if="selected" class="drawer-mask" @click.self="closeDetail">
-			<aside class="drawer">
-				<header>
-					<h3>{{ t("audit.detail") }}</h3>
-					<button type="button" @click="closeDetail">{{ t("common.close") }}</button>
-				</header>
-				<pre>{{ JSON.stringify(buildDetailPayload(selected), null, 2) }}</pre>
-			</aside>
-		</div>
+			<div v-if="quickResources.length > 0" class="quick-row">
+				<span>{{ t("audit.quickResources") }}</span>
+				<el-tag
+					v-for="value in quickResources"
+					:key="`resource-${value}`"
+					:type="resource === value ? 'primary' : 'info'"
+					effect="plain"
+					class="quick-tag"
+					@click="setQuickResource(value)"
+				>
+					{{ value }}
+				</el-tag>
+			</div>
+		</section>
+
+		<section class="panel">
+			<el-table
+				v-loading="loading"
+				:data="pagedItems"
+				border
+				row-key="id"
+				highlight-current-row
+				:empty-text="t('common.empty')"
+				@row-click="openDetail"
+			>
+				<el-table-column prop="id" :label="t('table.id')" min-width="190" show-overflow-tooltip />
+				<el-table-column :label="t('table.actor')" min-width="160">
+					<template #default="{ row }">{{ displayActor(row) }}</template>
+				</el-table-column>
+				<el-table-column :label="t('table.action')" min-width="150">
+					<template #default="{ row }">
+						<el-tag effect="plain">{{ row.action || "-" }}</el-tag>
+					</template>
+				</el-table-column>
+				<el-table-column :label="t('table.resource')" min-width="160">
+					<template #default="{ row }">{{ row.resource || "-" }}</template>
+				</el-table-column>
+				<el-table-column :label="t('table.occurredAt')" min-width="190">
+					<template #default="{ row }">{{ formatOccurredAtLocal(row.occurredAt) || "-" }}</template>
+				</el-table-column>
+			</el-table>
+
+			<div class="pager">
+				<el-pagination
+					v-model:current-page="page"
+					v-model:page-size="pageSize"
+					background
+					layout="prev, pager, next, sizes, total"
+					:page-sizes="[10, 20, 50]"
+					:total="items.length"
+				/>
+				<span class="page-total">{{ t("common.page") }} {{ page }} / {{ totalPages }}</span>
+			</div>
+		</section>
+
+		<el-drawer :model-value="selected !== null" :title="t('audit.detail')" size="min(560px, 92vw)" @close="closeDetail">
+			<pre>{{ JSON.stringify(buildDetailPayload(selected), null, 2) }}</pre>
+		</el-drawer>
 	</section>
 </template>
 
 <style scoped>
-p {
+.audit-page {
+	display: grid;
+	gap: 14px;
+}
+
+.page-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.page-header h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.page-header p {
+	margin: 6px 0 0;
 	color: var(--color-text-muted);
+}
+
+.header-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.panel {
+	display: grid;
+	gap: 12px;
+	padding: 16px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
 }
 
 .filters {
 	display: grid;
-	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 8px;
-	margin: 8px 0;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 4px 14px;
 }
 
-.filters label {
-	display: grid;
-	gap: 6px;
+.filters :deep(.el-date-editor),
+.filters :deep(.el-select),
+.filters :deep(.el-input-number) {
+	width: 100%;
 }
 
-.toolbar {
-	display: flex;
-	gap: 8px;
-	margin-bottom: 10px;
-}
-
-.quick-actors {
+.filter-actions {
+	grid-column: 1 / -1;
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	margin-bottom: 8px;
+	gap: 8px;
 	flex-wrap: wrap;
 }
 
-.quick-actors span {
-	font-size: 0.88rem;
+.quick-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.quick-row span {
 	color: var(--color-text-muted);
+	font-size: 0.88rem;
 }
 
-input,
-button {
-	height: 32px;
-	padding: 0 10px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
-}
-
-button {
+.quick-tag {
 	cursor: pointer;
-}
-
-.chip {
-	height: 28px;
-	padding: 0 8px;
-	font-size: 0.8rem;
-}
-
-.chip.active {
-	background: var(--color-primary);
-	color: var(--color-on-primary);
-	border-color: transparent;
-}
-
-table {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-th,
-td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
-}
-
-tbody tr {
-	cursor: pointer;
-}
-
-tbody tr.active {
-	background: var(--color-surface-soft);
-}
-
-.detail {
-	margin-top: 12px;
 }
 
 .pager {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	margin-top: 10px;
-}
-
-.pager select {
-	height: 32px;
-	padding: 0 8px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
-}
-
-.drawer-mask {
-	position: fixed;
-	inset: 0;
-	background: rgba(9, 13, 20, 0.35);
-	display: flex;
-	justify-content: flex-end;
-	z-index: 60;
-}
-
-.drawer {
-	width: min(560px, 92vw);
-	height: 100%;
-	background: var(--color-surface);
-	border-left: 1px solid var(--color-border);
-	padding: 12px;
-	box-sizing: border-box;
-	overflow: auto;
-}
-
-.drawer header {
-	display: flex;
 	justify-content: space-between;
-	align-items: center;
-	margin-bottom: 8px;
+	gap: 12px;
+	flex-wrap: wrap;
 }
 
-.drawer h3 {
-	margin: 0;
+.page-total {
+	color: var(--color-text-muted);
 }
 
 pre {
@@ -719,27 +692,16 @@ pre {
 	word-break: break-word;
 }
 
-.error {
-	color: var(--color-danger);
-}
-
-.success {
-	color: var(--color-success);
-}
-
 @media (max-width: 960px) {
+	.page-header,
+	.header-actions,
 	.filters {
-		grid-template-columns: repeat(3, minmax(0, 1fr));
+		display: grid;
+		justify-content: stretch;
 	}
 
-	.pager {
-		flex-wrap: wrap;
-	}
-}
-
-@media (max-width: 640px) {
-	.filters {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
+	.filter-actions {
+		grid-column: auto;
 	}
 }
 </style>

@@ -1,8 +1,9 @@
 ﻿<script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
+import { useAccess } from "../../permissions/access";
 import { type ApiResponse, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -16,6 +17,7 @@ type UserRecord = {
 const router = useRouter();
 const route = useRoute();
 const { t } = useI18n();
+const access = useAccess();
 
 const account = ref("");
 const name = ref("");
@@ -24,6 +26,7 @@ const password = ref("");
 const loading = ref(false);
 const error = ref("");
 const success = ref("");
+const canCreateUser = computed(() => access.can("user.create"));
 
 function resolveReturnTo(): string {
 	const value = route.query.returnTo;
@@ -53,6 +56,10 @@ function validateForm(): string {
 async function submit(): Promise<void> {
 	error.value = "";
 	success.value = "";
+	if (!canCreateUser.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	const validationMessage = validateForm();
 	if (validationMessage !== "") {
 		error.value = validationMessage;
@@ -81,77 +88,94 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.userAdd") }}</h2>
+	<section class="user-add-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.userAdd") }}</h2>
+				<p>{{ t("user.addHint") }}</p>
+			</div>
+			<el-button :disabled="loading" @click="backToList">{{ t("common.backToList") }}</el-button>
+		</header>
+
 		<section class="create-panel">
 			<h3>{{ t("user.create") }}</h3>
-			<p class="hint">{{ t("user.addHint") }}</p>
-			<form class="create-form" @submit.prevent="submit">
-				<input v-model="account" type="text" :placeholder="t('user.account')" required :disabled="loading" @blur="error = ''" />
-				<input v-model="name" type="text" :placeholder="t('table.name')" :disabled="loading" />
-				<input v-model="email" type="email" :placeholder="t('table.email')" required :disabled="loading" />
-				<input v-model="password" type="password" minlength="8" :placeholder="t('profile.newPassword')" required :disabled="loading" />
-				<button type="submit" :disabled="loading">{{ loading ? t("common.loading") : t("user.create") }}</button>
-			</form>
-			<div class="toolbar">
-				<button type="button" :disabled="loading" @click="backToList">{{ t("common.backToList") }}</button>
-			</div>
-			<p v-if="error" class="error">{{ error }}</p>
-			<p v-if="success" class="success">{{ success }}</p>
+			<el-form label-position="top" class="create-form" @submit.prevent="submit">
+				<el-form-item :label="t('user.account')" required>
+					<el-input v-model="account" :placeholder="t('user.account')" :disabled="loading || !canCreateUser" @blur="error = ''" />
+				</el-form-item>
+				<el-form-item :label="t('table.name')">
+					<el-input v-model="name" :placeholder="t('table.name')" :disabled="loading || !canCreateUser" />
+				</el-form-item>
+				<el-form-item :label="t('table.email')" required>
+					<el-input v-model="email" type="email" :placeholder="t('table.email')" :disabled="loading || !canCreateUser" />
+				</el-form-item>
+				<el-form-item :label="t('profile.newPassword')" required>
+					<el-input v-model="password" type="password" show-password minlength="8" :placeholder="t('profile.newPassword')" :disabled="loading || !canCreateUser" />
+				</el-form-item>
+				<div class="form-actions">
+					<el-button type="primary" native-type="submit" :loading="loading" :disabled="!canCreateUser">{{ t("user.create") }}</el-button>
+				</div>
+			</el-form>
+			<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+			<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
 		</section>
 	</section>
 </template>
 
 <style scoped>
+.user-add-page {
+	display: grid;
+	gap: 14px;
+}
+
+.page-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.page-header h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.page-header p {
+	margin: 6px 0 0;
+	color: var(--color-text-muted);
+}
+
 .create-panel {
-	margin: 12px 0;
-	padding: 12px;
+	display: grid;
+	gap: 12px;
+	padding: 16px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-md);
+	background: var(--color-surface);
 }
 
 .create-panel h3 {
-	margin: 0 0 8px;
+	margin: 0;
+	font-size: 1rem;
 }
 
 .create-form {
 	display: grid;
-	gap: 10px;
-	grid-template-columns: repeat(5, minmax(0, 1fr));
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 4px 14px;
 }
 
-input,
-button {
-	height: 32px;
-	padding: 0 8px;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
-	background: var(--color-surface);
+.form-actions {
+	display: flex;
+	align-items: flex-end;
+	padding-top: 22px;
 }
 
-button {
-	background: var(--color-surface-soft);
-	color: var(--color-text);
-	cursor: pointer;
-}
-
-.hint {
-	margin: 4px 0 12px;
-	color: var(--color-text-muted);
-}
-
-.toolbar {
-	margin-top: 10px;
-}
-
-.error {
-	margin: 0;
-	color: var(--color-danger);
-}
-
-.success {
-	margin: 0;
-	color: var(--color-success);
+@media (max-width: 860px) {
+	.page-header,
+	.create-form {
+		display: grid;
+	}
 }
 </style>
 

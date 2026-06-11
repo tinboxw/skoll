@@ -1,9 +1,10 @@
 ﻿<script setup lang="ts">
-import { ClipboardList, LayoutDashboard, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
+import { ClipboardList, LayoutDashboard, ListTree, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
+import type { SidebarItem } from "../../navigation/menu";
 
 defineProps<{
 	collapsed: boolean;
-	items: Array<{ label: string; to: string; icon: string }>;
+	items: SidebarItem[];
 }>();
 
 const iconMap = {
@@ -11,10 +12,15 @@ const iconMap = {
 	users: Users,
 	roles: UserRoundCog,
 	permissions: ShieldCheck,
+	menus: ListTree,
 	audit: ClipboardList,
 	plugins: Puzzle,
 	settings: Settings2
 } as const;
+
+function resolveIconComponent(icon: string) {
+	return iconMap[icon as keyof typeof iconMap] ?? Puzzle;
+}
 </script>
 
 <template>
@@ -28,7 +34,7 @@ const iconMap = {
 				class="link"
 				active-class="active"
 			>
-				<component :is="iconMap[item.icon as keyof typeof iconMap]" class="icon" :stroke-width="1.8" aria-hidden="true" />
+				<component :is="resolveIconComponent(item.icon)" class="icon" :stroke-width="1.8" aria-hidden="true" />
 				<span v-if="!collapsed">{{ item.label }}</span>
 			</RouterLink>
 		</nav>

@@ -1,7 +1,10 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 
+import SchemaForm from "../../components/Common/SchemaForm.vue";
+import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
+import type { PluginConfigSchema } from "../../plugins/types";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -30,7 +33,7 @@ function normalizeSettingRecord(item: unknown): SettingRecord | null {
 	};
 }
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -42,6 +45,49 @@ const allSettings = ref<SettingRecord[]>([]);
 const editorKey = ref("");
 const editorValue = ref("");
 const editorEncrypted = ref(false);
+const schemaSaving = ref(false);
+const schemaDraft = ref<Record<string, unknown>>({});
+const schemaValid = ref(true);
+
+const systemConfigSchema = computed<PluginConfigSchema>(() => ({
+	titleZhCN: t("settings.schemaTitle"),
+	titleEnUS: "Common Settings",
+	description: t("settings.schemaDesc"),
+	fields: [
+		{
+			key: "audit.retention_days",
+			labelZhCN: t("settings.auditRetention"),
+			labelEnUS: "Audit retention days",
+			type: "number",
+			default: "30",
+			min: 1,
+			max: 3650,
+			help: t("settings.auditRetentionHelp")
+		},
+		{
+			key: "plugin.auto_enable",
+			labelZhCN: t("settings.autoEnable"),
+			labelEnUS: "Auto-enable installed plugins",
+			type: "boolean",
+			default: "false"
+		},
+		{
+			key: "plugin.dev_portal_enabled",
+			labelZhCN: t("settings.devPortalEnabled"),
+			labelEnUS: "Developer portal enabled",
+			type: "boolean",
+			default: "true"
+		},
+		{
+			key: "skoll.menu.tree",
+			labelZhCN: t("settings.menuTree"),
+			labelEnUS: "Menu tree JSON",
+			type: "textarea",
+			default: "",
+			placeholder: "[]"
+		}
+	]
+}));
 
 const filteredSettings = computed(() => {
 	const keyword = searchKey.value.trim().toLowerCase();
@@ -63,6 +109,47 @@ const groupedSettings = computed(() => {
 	return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
 });
 
+const busy = computed(() => loading.value || saving.value || resetting.value);
+const schemaModel = computed(() => {
+	if (Object.keys(schemaDraft.value).length > 0) {
+		return schemaDraft.value;
+	}
+	const out: Record<string, unknown> = {};
+	for (const field of systemConfigSchema.value.fields ?? []) {
+		const item = allSettings.value.find((setting) => setting.key === field.key);
+		out[field.key] = item ? coerceSettingValue(item.value, field.type) : coerceSettingValue(field.default ?? "", field.type);
+	}
+	return out;
+});
+const schemaEncryptedMap = computed(() => {
+	const out: Record<string, boolean> = {};
+	for (const item of allSettings.value) {
+		out[item.key] = item.encrypted;
+	}
+	return out;
+});
+
+function coerceSettingValue(value: unknown, type?: string): unknown {
+	if (type === "boolean") {
+		return value === true || value === "true" || value === "1";
+	}
+	if (type === "number") {
+		const parsed = Number(value ?? 0);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+	return value ?? "";
+}
+
+function serializeSettingValue(value: unknown): string {
+	if (typeof value === "boolean") {
+		return value ? "true" : "false";
+	}
+	if (value === null || value === undefined) {
+		return "";
+	}
+	return String(value);
+}
+
 async function loadSettings(): Promise<void> {
 	loading.value = true;
 	error.value = "";
@@ -74,11 +161,21 @@ async function loadSettings(): Promise<void> {
 		if (editorKey.value === "" && allSettings.value.length > 0) {
 			selectSetting(allSettings.value[0]);
 		}
+		schemaDraft.value = buildSchemaModelFromSettings();
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
 		loading.value = false;
 	}
+}
+
+function buildSchemaModelFromSettings(): Record<string, unknown> {
+	const out: Record<string, unknown> = {};
+	for (const field of systemConfigSchema.value.fields ?? []) {
+		const item = allSettings.value.find((setting) => setting.key === field.key);
+		out[field.key] = item ? coerceSettingValue(item.value, field.type) : coerceSettingValue(field.default ?? "", field.type);
+	}
+	return out;
 }
 
 function selectSetting(item: SettingRecord): void {
@@ -129,7 +226,49 @@ async function saveSetting(): Promise<void> {
 	}
 }
 
+async function saveSchemaSettings(next: Record<string, unknown>): Promise<void> {
+	schemaDraft.value = next;
+	schemaSaving.value = true;
+	error.value = "";
+	success.value = "";
+	try {
+		for (const field of systemConfigSchema.value.fields ?? []) {
+			if (!field.key) {
+				continue;
+			}
+			await apiPut<ApiResponse<SettingRecord>>(`/v1/system/settings/${encodeURIComponent(field.key)}`, {
+				value: serializeSettingValue(next[field.key]),
+				encrypted: schemaEncryptedMap.value[field.key] ?? false
+			});
+		}
+		success.value = t("settings.saveDone");
+		await loadSettings();
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		schemaSaving.value = false;
+	}
+}
+
+function updateSchemaDraft(next: Record<string, unknown>): void {
+	schemaDraft.value = next;
+}
+
+function updateSchemaValid(next: boolean): void {
+	schemaValid.value = next;
+}
+
 async function resetSettings(): Promise<void> {
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: t("settings.reset"),
+		confirmText: t("common.reset"),
+		cancelText: t("common.cancel"),
+		danger: true
+	});
+	if (!confirmed) {
+		return;
+	}
 	resetting.value = true;
 	error.value = "";
 	success.value = "";
@@ -150,182 +289,189 @@ onMounted(() => {
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.settings") }}</h2>
-		<p>{{ t("settings.desc") }}</p>
-		<p v-if="error" class="error">{{ error }}</p>
-		<p v-if="success" class="success">{{ success }}</p>
-		<div class="toolbar">
-			<input v-model="searchKey" type="text" :placeholder="t('settings.searchPlaceholder')" :disabled="loading || saving || resetting" />
-			<div class="actions">
-				<button type="button" :disabled="loading || saving || resetting" @click="loadSettings">{{ loading ? t("common.loading") : t("common.refresh") }}</button>
-				<button type="button" :disabled="loading || saving || resetting" @click="resetSettings">{{ resetting ? t("common.loading") : t("settings.reset") }}</button>
+	<section class="setting-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.settings") }}</h2>
+				<p>{{ t("settings.desc") }}</p>
 			</div>
-		</div>
+			<div class="header-actions">
+				<el-button :loading="loading" :disabled="saving || resetting" @click="loadSettings">{{ t("common.refresh") }}</el-button>
+				<el-button type="danger" plain :loading="resetting" :disabled="loading || saving" @click="resetSettings">{{ t("settings.reset") }}</el-button>
+			</div>
+		</header>
 
-		<section class="editor">
-			<h3>{{ t("settings.editor") }}</h3>
-			<div class="editor-grid">
-				<label>
-					<span>{{ t("table.key") }}</span>
-					<input v-model="editorKey" type="text" :disabled="saving || resetting" />
-				</label>
-				<label>
-					<span>{{ t("table.value") }}</span>
-					<textarea v-model="editorValue" rows="5" :disabled="saving || resetting" />
-				</label>
-				<label class="toggle">
-					<input v-model="editorEncrypted" type="checkbox" :disabled="saving || resetting" />
-					<span>{{ t("settings.encrypted") }}</span>
-				</label>
+		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+		<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
+
+		<section class="panel">
+			<div class="section-header">
+				<div>
+					<h3>{{ t("settings.schemaTitle") }}</h3>
+					<p>{{ t("settings.schemaDesc") }}</p>
+				</div>
+				<el-input v-model="searchKey" clearable class="search-input" :placeholder="t('settings.searchPlaceholder')" :disabled="busy" />
 			</div>
-			<div class="actions">
-				<button type="button" :disabled="saving || resetting || editorKey.trim() === ''" @click="fetchByKey">{{ t("settings.fetchByKey") }}</button>
-				<button type="button" :disabled="saving || resetting || editorKey.trim() === ''" @click="saveSetting">{{ saving ? t("common.loading") : t("common.save") }}</button>
+			<SchemaForm
+				:model-value="schemaModel"
+				:schema="systemConfigSchema"
+				:locale="locale"
+				:disabled="busy || schemaSaving"
+				@update:model-value="updateSchemaDraft"
+				@update:valid="updateSchemaValid"
+			/>
+			<div class="form-actions">
+				<el-button type="primary" :loading="schemaSaving" :disabled="busy || !schemaValid" @click="saveSchemaSettings(schemaModel)">{{ t("common.save") }}</el-button>
 			</div>
 		</section>
 
-		<section class="raw-list">
+		<section class="panel">
+			<h3>{{ t("settings.editor") }}</h3>
+			<el-form label-position="top" class="editor-form" @submit.prevent="saveSetting">
+				<el-form-item :label="t('table.key')" required>
+					<el-input v-model="editorKey" :disabled="saving || resetting" />
+				</el-form-item>
+				<el-form-item :label="t('settings.encrypted')">
+					<el-switch v-model="editorEncrypted" :disabled="saving || resetting" />
+				</el-form-item>
+				<el-form-item class="value-field" :label="t('table.value')">
+					<el-input v-model="editorValue" type="textarea" :rows="5" :disabled="saving || resetting" />
+				</el-form-item>
+				<div class="form-actions">
+					<el-button :disabled="saving || resetting || editorKey.trim() === ''" @click="fetchByKey">{{ t("settings.fetchByKey") }}</el-button>
+					<el-button type="primary" native-type="submit" :loading="saving" :disabled="resetting || editorKey.trim() === ''">{{ t("common.save") }}</el-button>
+				</div>
+			</el-form>
+		</section>
+
+		<section class="panel">
 			<h3>{{ t("settings.rawList") }}</h3>
-			<div v-if="groupedSettings.length > 0" class="group-list">
+			<el-empty v-if="!loading && groupedSettings.length === 0" :description="t('common.empty')" />
+			<div v-else class="group-list">
 				<section v-for="[groupName, items] in groupedSettings" :key="groupName" class="group-panel">
-					<h4>{{ groupName }}</h4>
-					<table>
-						<thead>
-							<tr>
-								<th>{{ t("table.key") }}</th>
-								<th>{{ t("table.value") }}</th>
-								<th>{{ t("table.status") }}</th>
-								<th>{{ t("table.actions") }}</th>
-							</tr>
-						</thead>
-						<tbody>
-							<tr v-for="item in items" :key="item.id">
-								<td>{{ item.key }}</td>
-								<td>{{ item.value }}</td>
-								<td>{{ item.encrypted ? t("settings.encrypted") : t("settings.plain") }}</td>
-								<td><button type="button" :disabled="saving || resetting" @click="selectSetting(item)">{{ t("common.edit") }}</button></td>
-							</tr>
-						</tbody>
-					</table>
+					<div class="group-title">
+						<el-tag effect="plain">{{ groupName }}</el-tag>
+						<span>{{ items.length }}</span>
+					</div>
+					<el-table v-loading="loading" :data="items" border row-key="id" :empty-text="t('common.empty')">
+						<el-table-column prop="key" :label="t('table.key')" min-width="230" show-overflow-tooltip />
+						<el-table-column prop="value" :label="t('table.value')" min-width="280" show-overflow-tooltip />
+						<el-table-column :label="t('table.status')" width="120">
+							<template #default="{ row }">
+								<el-tag :type="row.encrypted ? 'warning' : 'info'" effect="plain">
+									{{ row.encrypted ? t("settings.encrypted") : t("settings.plain") }}
+								</el-tag>
+							</template>
+						</el-table-column>
+						<el-table-column :label="t('table.actions')" width="110" fixed="right">
+							<template #default="{ row }">
+								<el-button link type="primary" :disabled="saving || resetting" @click="selectSetting(row)">{{ t("common.edit") }}</el-button>
+							</template>
+						</el-table-column>
+					</el-table>
 				</section>
 			</div>
-			<p v-else>{{ loading ? t("common.loading") : t("common.empty") }}</p>
 		</section>
 	</section>
 </template>
 
 <style scoped>
-.toolbar {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-	margin: 10px 0;
+.setting-page {
+	display: grid;
+	gap: 14px;
 }
 
-label {
-	display: grid;
-	gap: 6px;
+.page-header,
+.section-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.page-header h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.page-header p {
+	margin: 6px 0 0;
 	color: var(--color-text-muted);
 }
 
-input[type="text"],
-textarea {
-	padding: 8px;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
-	background: var(--color-surface-soft);
-}
-
-textarea {
-	resize: vertical;
-	min-height: 120px;
-}
-
-.actions {
+.header-actions {
 	display: flex;
-	gap: 8px;
-}
-
-button {
-	padding: 8px 12px;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
-	background: var(--color-surface-soft);
-	cursor: pointer;
-}
-
-.toggle {
-	grid-template-columns: auto 1fr;
 	align-items: center;
-	column-gap: 8px;
+	gap: 8px;
 }
 
-.editor {
-	margin-top: 10px;
-	padding: 10px;
+.panel {
+	display: grid;
+	gap: 12px;
+	padding: 16px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-md);
+	background: var(--color-surface);
 }
 
-.editor h3 {
-	margin: 0 0 10px;
+.panel h3 {
+	margin: 0;
+	font-size: 1rem;
 }
 
-.editor-grid {
+.search-input {
+	width: min(380px, 100%);
+}
+
+.editor-form {
 	display: grid;
-	gap: 8px;
-	margin-bottom: 8px;
+	grid-template-columns: minmax(0, 1fr) 160px;
+	gap: 4px 14px;
 }
 
-.raw-list {
-	margin-top: 12px;
+.value-field,
+.form-actions {
+	grid-column: 1 / -1;
+}
+
+.form-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
 }
 
 .group-list {
 	display: grid;
-	gap: 10px;
+	gap: 12px;
 }
 
 .group-panel {
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	padding: 8px;
+	display: grid;
+	gap: 8px;
 }
 
-.group-panel h4 {
-	margin: 0 0 8px;
-	text-transform: uppercase;
-	font-size: 0.85rem;
+.group-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	color: var(--color-text-muted);
 }
 
-table {
-	width: 100%;
-	border-collapse: collapse;
-}
+@media (max-width: 820px) {
+	.page-header,
+	.section-header,
+	.header-actions,
+	.editor-form {
+		display: grid;
+	}
 
-th,
-td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
-}
+	.value-field,
+	.form-actions {
+		grid-column: auto;
+	}
 
-.error {
-	color: var(--color-danger);
-}
-
-.success {
-	color: var(--color-success);
-}
-
-@media (max-width: 900px) {
-	.toolbar {
-		flex-direction: column;
-		align-items: stretch;
+	.form-actions {
+		justify-content: stretch;
 	}
 }
 </style>
-

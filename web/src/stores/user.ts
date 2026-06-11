@@ -1,5 +1,6 @@
 ﻿import { defineStore } from "pinia";
 
+import { hasPermissionValue } from "../permissions/implied";
 import { apiGet, type ApiResponse } from "../utils/api";
 import { clearToken, getToken, hasToken, setToken } from "../utils/auth";
 
@@ -84,12 +85,10 @@ export function hasStoredPermission(permission: string): boolean {
 	if (required === "") {
 		return true;
 	}
-	for (const item of getStoredPermissions()) {
-		if (item === required) {
-			return true;
-		}
+	if (getStoredUserRole() === "super_admin") {
+		return true;
 	}
-	return false;
+	return hasPermissionValue(getStoredPermissions(), required);
 }
 
 const persistedSession = loadPersistedSession();

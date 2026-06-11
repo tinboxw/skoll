@@ -1,18 +1,21 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import HeaderBar from "./components/Layout/Header.vue";
 import MainContent from "./components/Layout/MainContent.vue";
 import PinnedTabs from "./components/Layout/PinnedTabs.vue";
 import Sidebar from "./components/Layout/Sidebar.vue";
 import { useI18n } from "./i18n";
+import { buildSidebarItems } from "./navigation/menu";
 import { useAppStore } from "./stores/app";
+import { useNavigationStore } from "./stores/navigation";
 import { usePluginStore } from "./stores/plugins";
 import { useTabsStore } from "./stores/tabs";
 import { useUserStore } from "./stores/user";
 import { apiPost } from "./utils/api";
 
 const appStore = useAppStore();
+const navigationStore = useNavigationStore();
 const pluginStore = usePluginStore();
 const tabsStore = useTabsStore();
 const userStore = useUserStore();
@@ -150,53 +153,20 @@ watch(
 	{ immediate: true }
 );
 
-type SidebarItem = {
-	label: string;
-	to: string;
-	icon: string;
-	requiredRoles?: string[];
-	requiredPermissions?: string[];
-};
+const sidebarItems = computed(() => buildSidebarItems({
+	t,
+	systemMenus: navigationStore.systemMenus,
+	plugins: pluginStore.items,
+	currentRole: userStore.profile?.role ?? "",
+	currentLocale: String(locale.value || "zh-CN"),
+	permissions: userStore.permissions,
+	resolvePluginLabel
+}));
 
-const sidebarItems = computed(() => {
-	const allItems: SidebarItem[] = [
-		{ label: t("menu.dashboard"), to: `${ADMIN_BASE}/dashboard`, icon: "dashboard" },
-		{ label: t("menu.users"), to: `${ADMIN_BASE}/user`, icon: "users" },
-		{ label: t("menu.roles"), to: `${ADMIN_BASE}/role`, icon: "roles" },
-		{ label: t("menu.permissions"), to: `${ADMIN_BASE}/permission`, icon: "permissions", requiredPermissions: ["permission.manage"] },
-		{ label: t("menu.audit"), to: `${ADMIN_BASE}/audit`, icon: "audit", requiredPermissions: ["audit.read"] },
-		{ label: t("menu.plugins"), to: `${ADMIN_BASE}/plugin`, icon: "plugins" },
-		{ label: t("menu.settings"), to: `${ADMIN_BASE}/setting`, icon: "settings", requiredPermissions: ["role.manage"] }
-	];
-
-	const pluginSidebarItems: SidebarItem[] = pluginStore.items
-		.filter((item) => item.enabled !== false && item.uiMode !== "backend_only" && item.uiNavPosition === "sidebar" && item.uiOpenMode !== "standalone")
-		.map((item) => {
-			const to = typeof item.entryPath === "string" && item.entryPath.trim() !== "" ? item.entryPath : `${ADMIN_BASE}/plugins/${item.id}`;
-			return {
-				label: resolvePluginLabel(item),
-				to,
-				icon: "plugins"
-			};
-		});
-	allItems.push(...pluginSidebarItems);
-
-	const currentRole = userStore.profile?.role ?? "";
-	const permissionSet = new Set(userStore.permissions);
-
-	return allItems.filter((item) => {
-		if (currentRole === "super_admin") {
-			return true;
-		}
-		if (Array.isArray(item.requiredRoles) && item.requiredRoles.length > 0 && !item.requiredRoles.includes(currentRole)) {
-			return false;
-		}
-		if (Array.isArray(item.requiredPermissions) && item.requiredPermissions.length > 0) {
-			return item.requiredPermissions.every((permission) => permissionSet.has(permission));
-		}
-		return true;
-	});
-});
+async function hydrateAuthenticatedShell(): Promise<void> {
+	await userStore.hydrateProfile();
+	await navigationStore.loadSystemMenus();
+}
 
 async function handleLogout(): Promise<void> {
 	try {
@@ -212,11 +182,22 @@ async function handleOpenProfile(): Promise<void> {
 	await router.push(`${ADMIN_BASE}/profile`);
 }
 
-onMounted(() => {
-	if (userStore.isAuthenticated) {
-		void userStore.hydrateProfile();
-	}
-});
+watch(
+	() => userStore.isAuthenticated,
+	(isAuthenticated) => {
+		if (isAuthenticated) {
+			void hydrateAuthenticatedShell();
+			return;
+		}
+		navigationStore.$patch({
+			systemMenus: [],
+			customized: false,
+			syncStatus: "idle",
+			lastError: null
+		});
+	},
+	{ immediate: true }
+);
 </script>
 
 <template>

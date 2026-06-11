@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import { useI18n } from "../../i18n";
+import { useAccess } from "../../permissions/access";
 import { type ApiResponse, apiDelete, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -78,6 +79,7 @@ function normalizeBindingRecord(item: unknown): BindingRecord | null {
 
 const route = useRoute();
 const { t } = useI18n();
+const access = useAccess();
 
 const userId = computed(() => String(route.params.id ?? ""));
 const loading = ref(false);
@@ -95,6 +97,8 @@ const bindError = ref("");
 const bindSuccess = ref("");
 const bindings = ref<BindingRecord[]>([]);
 const selectedBindingIDs = ref<string[]>([]);
+const canUpdateUser = computed(() => access.can("user.update"));
+const canAssignRole = computed(() => access.can("role.manage"));
 
 async function loadUser(): Promise<void> {
 	if (!userId.value) {
@@ -150,6 +154,10 @@ async function loadBindings(): Promise<void> {
 }
 
 async function submit(): Promise<void> {
+	if (!canUpdateUser.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	if (!userId.value) {
 		return;
 	}
@@ -172,6 +180,10 @@ async function submit(): Promise<void> {
 }
 
 async function bindRole(): Promise<void> {
+	if (!canAssignRole.value) {
+		bindError.value = t("error.forbidden");
+		return;
+	}
 	if (!userId.value || !selectedRoleID.value) {
 		return;
 	}
@@ -199,15 +211,15 @@ function roleNameByID(roleID: string): string {
 	return matched ? `${matched.name} (${matched.key || matched.id})` : roleID;
 }
 
-function toggleBinding(bindingID: string): void {
-	if (selectedBindingIDs.value.includes(bindingID)) {
-		selectedBindingIDs.value = selectedBindingIDs.value.filter((id) => id !== bindingID);
-		return;
-	}
-	selectedBindingIDs.value = [...selectedBindingIDs.value, bindingID];
+function handleBindingSelectionChange(selection: BindingRecord[]): void {
+	selectedBindingIDs.value = selection.map((item) => item.id);
 }
 
 async function unbindBindings(targetIDs: string[]): Promise<void> {
+	if (!canAssignRole.value) {
+		bindError.value = t("error.forbidden");
+		return;
+	}
 	if (targetIDs.length === 0) {
 		return;
 	}
@@ -244,156 +256,160 @@ onMounted(() => {
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.userEdit") }}</h2>
-		<p>{{ t("user.editing") }}: {{ userId }}</p>
-		<form @submit.prevent="submit">
-			<label>
-				<span>{{ t("user.account") }}</span>
-				<input :value="account" type="text" disabled />
-			</label>
-			<label>
-				<span>{{ t("table.name") }}</span>
-				<input v-model="name" type="text" required :disabled="loading || saving" />
-			</label>
-			<label>
-				<span>{{ t("table.status") }}</span>
-				<select v-model="status" :disabled="loading || saving">
-					<option value="active">active</option>
-					<option value="disabled">disabled</option>
-				</select>
-			</label>
-			<label>
-				<span>{{ t("table.email") }}</span>
-				<input v-model="email" type="email" required :disabled="loading || saving" />
-			</label>
-			<p v-if="error" class="error">{{ error }}</p>
-			<p v-if="success" class="success">{{ success }}</p>
-			<button type="submit" :disabled="loading || saving">{{ saving ? t("common.loading") : t("common.save") }}</button>
-		</form>
-		<section class="role-bind">
-			<h3>{{ t("user.roleAssignTitle") }}</h3>
-			<label>
-				<span>{{ t("role.field") }}</span>
-				<select v-model="selectedRoleID" :disabled="binding || roles.length === 0">
-					<option v-for="role in roles" :key="role.id" :value="role.id">{{ role.name }} ({{ role.key || role.id }})</option>
-				</select>
-			</label>
-			<p v-if="bindError" class="error">{{ bindError }}</p>
-			<p v-if="bindSuccess" class="success">{{ bindSuccess }}</p>
-			<button type="button" :disabled="binding || roles.length === 0 || !selectedRoleID" @click="bindRole">
-				{{ binding ? t("common.loading") : t("user.assignRole") }}
-			</button>
-			<p class="hint">{{ t("user.roleAssignHint") }}</p>
-			<section class="binding-list">
-				<div class="binding-actions">
-					<button type="button" :disabled="binding || selectedBindingIDs.length === 0" @click="unbindSelected">{{ t("user.unbindSelected") }}</button>
+	<section class="user-edit-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.userEdit") }}</h2>
+				<p>{{ t("user.editing") }}: {{ userId }}</p>
+			</div>
+		</header>
+
+		<section class="panel">
+			<h3>{{ t("table.name") }}</h3>
+			<el-form label-position="top" class="edit-form" @submit.prevent="submit">
+				<el-form-item :label="t('user.account')">
+					<el-input :model-value="account" disabled />
+				</el-form-item>
+				<el-form-item :label="t('table.name')" required>
+					<el-input v-model="name" :disabled="loading || saving || !canUpdateUser" />
+				</el-form-item>
+				<el-form-item :label="t('table.status')">
+					<el-select v-model="status" :disabled="loading || saving || !canUpdateUser">
+						<el-option label="active" value="active" />
+						<el-option label="disabled" value="disabled" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('table.email')" required>
+					<el-input v-model="email" type="email" :disabled="loading || saving || !canUpdateUser" />
+				</el-form-item>
+				<div class="form-actions">
+					<el-button type="primary" native-type="submit" :loading="saving" :disabled="loading || !canUpdateUser">{{ t("common.save") }}</el-button>
 				</div>
-				<table>
-					<thead>
-						<tr>
-							<th></th>
-							<th>{{ t("table.role") }}</th>
-							<th>{{ t("table.scope") }}</th>
-							<th>{{ t("table.actions") }}</th>
-						</tr>
-					</thead>
-					<tbody v-if="bindings.length > 0">
-						<tr v-for="item in bindings" :key="item.id">
-							<td><input type="checkbox" :checked="selectedBindingIDs.includes(item.id)" :disabled="binding" @change="toggleBinding(item.id)" /></td>
-							<td>{{ roleNameByID(item.roleId) }}</td>
-							<td>{{ item.scope || "-" }}</td>
-							<td>
-								<button type="button" :disabled="binding" @click="unbindOne(item.id)">{{ t("user.unbind") }}</button>
-							</td>
-						</tr>
-					</tbody>
-					<tbody v-else>
-						<tr>
-							<td colspan="4">{{ t("common.empty") }}</td>
-						</tr>
-					</tbody>
-				</table>
-			</section>
+			</el-form>
+			<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
+			<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
+		</section>
+
+		<section v-if="canAssignRole" class="panel">
+			<div class="role-header">
+				<div>
+					<h3>{{ t("user.roleAssignTitle") }}</h3>
+					<p>{{ t("user.roleAssignHint") }}</p>
+				</div>
+				<div class="role-actions">
+					<el-select v-model="selectedRoleID" :disabled="binding || roles.length === 0" class="role-select">
+						<el-option v-for="role in roles" :key="role.id" :value="role.id" :label="`${role.name} (${role.key || role.id})`" />
+					</el-select>
+					<el-button type="primary" :loading="binding" :disabled="roles.length === 0 || !selectedRoleID" @click="bindRole">{{ t("user.assignRole") }}</el-button>
+				</div>
+			</div>
+			<el-alert v-if="bindError" :title="bindError" type="error" show-icon :closable="false" />
+			<el-alert v-if="bindSuccess" :title="bindSuccess" type="success" show-icon :closable="false" />
+			<div class="binding-actions">
+				<el-button type="danger" plain :disabled="binding || selectedBindingIDs.length === 0" @click="unbindSelected">{{ t("user.unbindSelected") }}</el-button>
+			</div>
+			<el-table
+				v-loading="binding"
+				:data="bindings"
+				border
+				row-key="id"
+				:empty-text="t('common.empty')"
+				@selection-change="handleBindingSelectionChange"
+			>
+				<el-table-column type="selection" width="48" :selectable="() => !binding" />
+				<el-table-column :label="t('table.role')" min-width="200">
+					<template #default="{ row }">{{ roleNameByID(row.roleId) }}</template>
+				</el-table-column>
+				<el-table-column :label="t('table.scope')" width="130">
+					<template #default="{ row }">
+						<el-tag effect="plain">{{ row.scope || "-" }}</el-tag>
+					</template>
+				</el-table-column>
+				<el-table-column :label="t('table.actions')" width="120" fixed="right">
+					<template #default="{ row }">
+						<el-button link type="danger" :disabled="binding" @click="unbindOne(row.id)">{{ t("user.unbind") }}</el-button>
+					</template>
+				</el-table-column>
+			</el-table>
 		</section>
 	</section>
 </template>
 
 <style scoped>
-p,
-span {
+.user-edit-page {
+	display: grid;
+	gap: 14px;
+}
+
+.page-header h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.page-header p,
+.role-header p {
+	margin: 6px 0 0;
 	color: var(--color-text-muted);
 }
 
-form {
+.panel {
 	display: grid;
-	gap: 8px;
-	max-width: 420px;
-	margin-bottom: 12px;
-}
-
-label {
-	display: grid;
-	gap: 6px;
-}
-
-select,
-input,
-button {
-	padding: 8px;
+	gap: 12px;
+	padding: 16px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-md);
+	background: var(--color-surface);
 }
 
-button {
-	background: var(--color-primary);
-	color: var(--color-on-primary);
-	border: none;
-	cursor: pointer;
+.panel h3 {
+	margin: 0;
+	font-size: 1rem;
 }
 
-.role-bind {
+.edit-form {
 	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 4px 14px;
+}
+
+.form-actions {
+	display: flex;
+	align-items: flex-end;
+	padding-top: 22px;
+}
+
+.role-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.role-actions {
+	display: flex;
+	align-items: center;
 	gap: 8px;
-	max-width: 420px;
 }
 
-.role-bind h3 {
-	margin: 8px 0 0;
-}
-
-.error {
-	margin: 0;
-	color: var(--color-danger);
-}
-
-.success {
-	margin: 0;
-	color: var(--color-success);
-}
-
-.hint {
-	font-size: 13px;
-}
-
-.binding-list {
-	margin-top: 8px;
+.role-select {
+	width: 280px;
 }
 
 .binding-actions {
-	margin-bottom: 6px;
+	display: flex;
+	justify-content: flex-end;
 }
 
-table {
-	width: 100%;
-	border-collapse: collapse;
-}
+@media (max-width: 900px) {
+	.edit-form,
+	.role-header,
+	.role-actions {
+		display: grid;
+	}
 
-th,
-td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
+	.role-select {
+		width: 100%;
+	}
 }
 </style>
 

@@ -1,23 +1,25 @@
-﻿<template>
-	<div class="table-shell">
-		<table>
+<template>
+	<el-card class="table-shell" shadow="never">
+		<table class="legacy-table">
 			<slot />
 		</table>
-	</div>
+	</el-card>
 </template>
 
 <style scoped>
 .table-shell {
 	overflow: auto;
 	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
 }
 
-table {
+.legacy-table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 0.92rem;
 }
-</style>
 
+:deep(.el-card__body) {
+	padding: 0;
+	overflow: auto;
+}
+</style>

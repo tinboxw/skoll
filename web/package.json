@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
+		"typecheck": "vue-tsc --noEmit",
 		"preview": "vite preview",
 		"smoke:health": "node scripts/health-smoke.mjs",
 		"smoke:auth": "node scripts/auth-plugin-smoke.mjs",
@@ -14,6 +15,7 @@
 		"smoke:all": "node scripts/run-smoke-suite.mjs"
 	},
 	"dependencies": {
+		"element-plus": "^2.14.1",
 		"lucide-vue-next": "^1.0.0",
 		"pinia": "^2.1.7",
 		"vue": "^3.4.38",
@@ -21,9 +23,12 @@
 		"xlsx": "^0.18.5"
 	},
 	"devDependencies": {
-		"@vitejs/plugin-vue": "^1.10.2",
+		"@vitejs/plugin-vue": "^5.2.4",
 		"sass": "^1.99.0",
-		"typescript": "^4.9.5",
-		"vite": "^2.9.18"
+		"typescript": "^5.9.3",
+		"unplugin-auto-import": "^0.18.6",
+		"unplugin-vue-components": "^0.27.5",
+		"vite": "^5.4.21",
+		"vue-tsc": "^3.3.4"
 	}
 }

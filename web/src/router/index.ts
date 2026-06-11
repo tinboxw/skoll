@@ -1,22 +1,25 @@
 ﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
+import { canAccess } from "../permissions/access";
 import { waitForPluginBootstrap } from "../plugins";
 import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, resolveValidatedDefaultHomePath, usePluginStore } from "../stores/plugins";
 import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
-import DashboardPage from "../views/Dashboard/index.vue";
-import LoginPage from "../views/Login/index.vue";
-import AuditPage from "../views/Audit/index.vue";
-import PermissionPage from "../views/Permission/index.vue";
-import PluginPage from "../views/Plugin/index.vue";
-import ProfilePage from "../views/Profile/index.vue";
-import RoleEditPage from "../views/Role/edit.vue";
-import RoleListPage from "../views/Role/list.vue";
-import SettingPage from "../views/Setting/index.vue";
-import UserAddPage from "../views/User/add.vue";
-import UserBatchPage from "../views/User/batch.vue";
-import UserEditPage from "../views/User/edit.vue";
-import UserListPage from "../views/User/list.vue";
+
+const LoginPage = () => import("../views/Login/index.vue");
+const DashboardPage = () => import("../views/Dashboard/index.vue");
+const AuditPage = () => import("../views/Audit/index.vue");
+const MenuPage = () => import("../views/Menu/index.vue");
+const PermissionPage = () => import("../views/Permission/index.vue");
+const PluginPage = () => import("../views/Plugin/index.vue");
+const ProfilePage = () => import("../views/Profile/index.vue");
+const RoleEditPage = () => import("../views/Role/edit.vue");
+const RoleListPage = () => import("../views/Role/list.vue");
+const SettingPage = () => import("../views/Setting/index.vue");
+const UserAddPage = () => import("../views/User/add.vue");
+const UserBatchPage = () => import("../views/User/batch.vue");
+const UserEditPage = () => import("../views/User/edit.vue");
+const UserListPage = () => import("../views/User/list.vue");
 
 const ADMIN_PREFIX = "/skoll";
 const ADMIN_LOGIN_PATH = `${ADMIN_PREFIX}/login`;
@@ -48,27 +51,32 @@ const routes: RouteRecordRaw[] = [
 	{
 		path: `${ADMIN_PREFIX}/plugin`,
 		name: "plugin",
-		component: PluginPage
+		component: PluginPage,
+		meta: { permissions: ["plugin.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/user`,
 		name: "user-list",
-		component: UserListPage
+		component: UserListPage,
+		meta: { permissions: ["user.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/user/add`,
 		name: "user-add",
-		component: UserAddPage
+		component: UserAddPage,
+		meta: { permissions: ["user.create"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/user/batch-add`,
 		name: "user-batch-add",
-		component: UserBatchPage
+		component: UserBatchPage,
+		meta: { permissions: ["user.create"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/user/:id/edit`,
 		name: "user-edit",
-		component: UserEditPage
+		component: UserEditPage,
+		meta: { permissions: ["user.update"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/profile`,
@@ -78,18 +86,26 @@ const routes: RouteRecordRaw[] = [
 	{
 		path: `${ADMIN_PREFIX}/role`,
 		name: "role-list",
-		component: RoleListPage
+		component: RoleListPage,
+		meta: { permissions: ["role.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/role/:id/edit`,
 		name: "role-edit",
-		component: RoleEditPage
+		component: RoleEditPage,
+		meta: { permissions: ["role.update"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/permission`,
 		name: "permission",
 		component: PermissionPage,
 		meta: { permissions: ["permission.manage"] }
+	},
+	{
+		path: `${ADMIN_PREFIX}/menu`,
+		name: "menu",
+		component: MenuPage,
+		meta: { permissions: ["system.manage"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/audit`,
@@ -101,7 +117,7 @@ const routes: RouteRecordRaw[] = [
 		path: `${ADMIN_PREFIX}/setting`,
 		name: "setting",
 		component: SettingPage,
-		meta: { permissions: ["role.manage"] }
+		meta: { permissions: ["system.manage"] }
 	}
 ];
 
@@ -142,6 +158,11 @@ function resolveSafeDefaultHomePath(): string {
 	return fallback;
 }
 
+function resolveForbiddenFallback(currentPath: string): string {
+	const fallback = resolveSafeDefaultHomePath();
+	return fallback === currentPath ? getSystemDefaultHomePath() : fallback;
+}
+
 async function resolveSafeTargetPath(path: string): Promise<string> {
 	path = normalizePluginEntryPath(path);
 	if (!isPluginHomePath(path)) {
@@ -179,6 +200,8 @@ function normalizeRedirectPath(raw: string): string {
 		withSlash === "/user" || withSlash.startsWith("/user/") ||
 		withSlash === "/role" || withSlash.startsWith("/role/") ||
 		withSlash === "/permission" || withSlash.startsWith("/permission/") ||
+		withSlash === "/menu" || withSlash.startsWith("/menu/") ||
+		withSlash === "/audit" || withSlash.startsWith("/audit/") ||
 		withSlash === "/setting" || withSlash.startsWith("/setting/") ||
 		withSlash === "/profile" || withSlash.startsWith("/profile/") ||
 		withSlash === "/login" || withSlash.startsWith("/login/")
@@ -222,21 +245,15 @@ router.beforeEach(async (to) => {
 
 	const requiredRoles = Array.isArray(to.meta.roles) ? to.meta.roles : null;
 	const requiredPermissions = Array.isArray(to.meta.permissions) ? to.meta.permissions : null;
-	if (requiredRoles && requiredRoles.length > 0) {
+	if ((requiredRoles && requiredRoles.length > 0) || (requiredPermissions && requiredPermissions.length > 0)) {
 		const currentRole = getStoredUserRole();
-		if (!requiredRoles.includes(currentRole)) {
-			return resolveSafeDefaultHomePath();
-		}
-	}
-
-	if (requiredPermissions && requiredPermissions.length > 0) {
-		const currentRole = getStoredUserRole();
-		if (currentRole !== "super_admin") {
-			const permissions = getStoredPermissions();
-			const allowed = requiredPermissions.every((item) => permissions.includes(item));
-			if (!allowed) {
-				return resolveSafeDefaultHomePath();
-			}
+		const permissions = getStoredPermissions();
+		const allowed = canAccess({
+			roles: requiredRoles ?? [],
+			permissions: requiredPermissions ?? []
+		}, currentRole, permissions);
+		if (!allowed) {
+			return resolveForbiddenFallback(to.path);
 		}
 	}
 

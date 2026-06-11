@@ -1,7 +1,9 @@
 ﻿<script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import { Check, Close, Refresh, Select, Setting } from "@element-plus/icons-vue";
 
 import { useI18n } from "../../i18n";
+import { BASE_PERMISSION_CATALOG, BUILTIN_ROLE_DEFAULTS, type PermissionCatalogItem } from "../../permissions/catalog";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -40,42 +42,24 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 		name: String(row.name ?? row.Name ?? "").trim(),
 		key: String(row.key ?? row.Key ?? "").trim(),
 		permissions: Array.isArray(row.permissions ?? row.Permissions)
-			? (row.permissions ?? row.Permissions as unknown[]).filter((it): it is string => typeof it === "string").map((it) => it.trim()).filter((it) => it !== "")
+			? ((row.permissions ?? row.Permissions) as unknown[]).filter((it): it is string => typeof it === "string").map((it) => it.trim()).filter((it) => it !== "")
 			: [],
 		builtIn: Boolean(row.builtIn ?? row.BuiltIn)
 	};
 }
 
-const BUILTIN_ROLE_DEFAULTS: Record<string, string[]> = {
-	super_admin: ["*", "user.read", "user.create", "user.update", "user.delete", "role.read", "role.create", "role.update", "role.delete", "permission.manage"],
-	dept_admin: ["user.read", "user.update", "role.read"],
-	operator: ["user.read", "role.read"],
-	user: ["user.read"]
-};
-
 const { t } = useI18n();
 
 const loading = ref(false);
 const saving = ref(false);
+const matrixSaving = ref(false);
 const error = ref("");
 const success = ref("");
 
 const roles = ref<RoleRecord[]>([]);
 const selectedRoleId = ref("");
+const selectedMatrixPermissions = ref<string[]>([]);
 const rules = ref<RuleRow[]>([]);
-
-const roleDefaultRows = computed(() => {
-	return roles.value.map((item) => {
-		const key = String(item.key || "").trim().toLowerCase();
-		const fromRole = Array.isArray(item.permissions) ? item.permissions.filter((it) => it.trim() !== "") : [];
-		const fallback = BUILTIN_ROLE_DEFAULTS[key] || [];
-		const defaults = fromRole.length > 0 ? fromRole : fallback;
-		return {
-			...item,
-			defaultPermissions: defaults
-		};
-	});
-});
 
 const resourceOptions = ["user", "role", "rbac", "plugin", "system", "audit"];
 const actionOptions = ["create", "read", "update", "delete", "manage", "*"];
@@ -87,6 +71,59 @@ const checkSubjectId = ref("");
 const checkResource = ref(resourceOptions[0]);
 const checkAction = ref(actionOptions[1]);
 const checkResult = ref<"allowed" | "denied" | "">("");
+
+const selectedRole = computed(() => roles.value.find((item) => item.id === selectedRoleId.value) ?? null);
+
+const roleDefaultRows = computed(() => roles.value.map((item) => ({
+	...item,
+	defaultPermissions: resolveRolePermissions(item)
+})));
+
+const permissionCatalog = computed(() => {
+	const map = new Map<string, PermissionCatalogItem>();
+	for (const item of BASE_PERMISSION_CATALOG) {
+		map.set(item.key, item);
+	}
+	for (const role of roleDefaultRows.value) {
+		for (const permission of role.defaultPermissions) {
+			if (permission === "*" || map.has(permission)) {
+				continue;
+			}
+			const [resource = "custom", action = "manage"] = permission.split(".");
+			map.set(permission, {
+				key: permission,
+				resource,
+				action,
+				label: permission
+			});
+		}
+	}
+	return Array.from(map.values()).sort((a, b) => a.resource.localeCompare(b.resource) || a.action.localeCompare(b.action));
+});
+
+const matrixRows = computed(() => {
+	const grouped = new Map<string, PermissionCatalogItem[]>();
+	for (const permission of permissionCatalog.value) {
+		if (!grouped.has(permission.resource)) {
+			grouped.set(permission.resource, []);
+		}
+		grouped.get(permission.resource)!.push(permission);
+	}
+	return Array.from(grouped.entries()).map(([resource, permissions]) => ({
+		resource,
+		permissions
+	}));
+});
+
+watch(selectedRole, (role) => {
+	selectedMatrixPermissions.value = role ? resolveRolePermissions(role) : [];
+}, { immediate: true });
+
+function resolveRolePermissions(role: RoleRecord): string[] {
+	const key = String(role.key || "").trim().toLowerCase();
+	const fromRole = Array.isArray(role.permissions) ? role.permissions.filter((it) => it.trim() !== "") : [];
+	return fromRole.length > 0 ? fromRole : BUILTIN_ROLE_DEFAULTS[key] || [];
+}
 
 function newRuleRow(): RuleRow {
 	return {
@@ -104,6 +141,39 @@ function addRule(): void {
 
 function removeRule(id: string): void {
 	rules.value = rules.value.filter((item) => item.id !== id);
+}
+
+function hasMatrixPermission(permission: string): boolean {
+	return selectedMatrixPermissions.value.includes("*") || selectedMatrixPermissions.value.includes(permission);
+}
+
+async function toggleMatrixPermission(permission: string, enabled: boolean): Promise<void> {
+	if (!selectedRoleId.value || permission === "*") {
+		return;
+	}
+	matrixSaving.value = true;
+	error.value = "";
+	success.value = "";
+	try {
+		const endpoint = enabled ? "grant" : "revoke";
+		await apiPost<ApiResponse<unknown>>(`/v1/roles/${selectedRoleId.value}/${endpoint}`, { permission });
+		const next = new Set(selectedMatrixPermissions.value.filter((item) => item !== "*"));
+		if (enabled) {
+			next.add(permission);
+		} else {
+			next.delete(permission);
+		}
+		selectedMatrixPermissions.value = Array.from(next).sort();
+		const role = selectedRole.value;
+		if (role) {
+			role.permissions = [...selectedMatrixPermissions.value];
+		}
+		success.value = enabled ? t("role.permissionGranted") : t("role.permissionRevoked");
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		matrixSaving.value = false;
+	}
 }
 
 async function loadRoles(): Promise<void> {
@@ -175,280 +245,261 @@ onMounted(() => {
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.permissions") }}</h2>
-		<p>{{ t("permission.desc") }}</p>
-
-		<p v-if="error" class="error">{{ error }}</p>
-		<p v-if="success" class="success">{{ success }}</p>
-
-		<section class="panel">
-			<h3>{{ t("permission.defaultsTitle") }}</h3>
-			<p class="hint">{{ t("permission.defaultsHint") }}</p>
-			<div class="defaults-wrap">
-				<table class="defaults-table">
-					<thead>
-						<tr>
-							<th>{{ t("table.name") }}</th>
-							<th>{{ t("table.key") }}</th>
-							<th>{{ t("permission.defaultPermissionList") }}</th>
-						</tr>
-					</thead>
-					<tbody v-if="roleDefaultRows.length > 0">
-						<tr v-for="item in roleDefaultRows" :key="item.id">
-							<td>{{ item.name || item.id }}</td>
-							<td>{{ item.key || "-" }}</td>
-							<td>
-								<div v-if="item.defaultPermissions.length > 0" class="perm-tags">
-									<span v-for="perm in item.defaultPermissions" :key="item.id + ':' + perm" class="perm-tag">{{ perm }}</span>
-								</div>
-								<span v-else class="muted">{{ t("permission.noDefaults") }}</span>
-							</td>
-						</tr>
-					</tbody>
-					<tbody v-else>
-						<tr>
-							<td colspan="3">{{ t("common.empty") }}</td>
-						</tr>
-					</tbody>
-				</table>
+	<section class="permission-page">
+		<header class="page-header">
+			<div>
+				<h2>{{ t("page.permissions") }}</h2>
+				<p>{{ t("permission.desc") }}</p>
 			</div>
-		</section>
+			<el-button :icon="Refresh" :loading="loading" @click="loadRoles">{{ t("common.refresh") }}</el-button>
+		</header>
 
-		<section class="panel">
-			<h3>{{ t("permission.policyTitle") }}</h3>
-			<label>
-				<span>{{ t("permission.role") }}</span>
-				<select v-model="selectedRoleId" :disabled="loading || roles.length === 0">
-					<option v-for="item in roles" :key="item.id" :value="item.id">{{ item.name }} ({{ item.key || item.id }})</option>
-				</select>
-			</label>
-			<label>
-				<span>{{ t("permission.rulesSelect") }}</span>
-			</label>
-			<div class="rule-list-wrap">
-				<table class="rule-table">
-					<thead>
-						<tr>
-							<th>resource</th>
-							<th>action</th>
-							<th>effect</th>
-							<th>scope</th>
-							<th class="op-col">{{ t("table.actions") }}</th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr v-for="item in rules" :key="item.id">
-							<td>
-								<select v-model="item.resource" :disabled="saving">
-									<option v-for="resource in resourceOptions" :key="resource" :value="resource">{{ resource }}</option>
-								</select>
-							</td>
-							<td>
-								<select v-model="item.action" :disabled="saving">
-									<option v-for="action in actionOptions" :key="action" :value="action">{{ action }}</option>
-								</select>
-							</td>
-							<td>
-								<select v-model="item.effect" :disabled="saving">
-									<option v-for="effect in effectOptions" :key="effect" :value="effect">{{ effect }}</option>
-								</select>
-							</td>
-							<td>
-								<select v-model="item.scope" :disabled="saving">
-									<option v-for="scope in scopeOptions" :key="scope" :value="scope">{{ scope }}</option>
-								</select>
-							</td>
-							<td class="op-col">
-								<button type="button" :disabled="saving || rules.length <= 1" @click="removeRule(item.id)">{{ t("common.delete") }}</button>
-							</td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
-			<button type="button" :disabled="saving" @click="addRule">{{ t("permission.addRule") }}</button>
-			<button type="button" :disabled="saving || !selectedRoleId" @click="savePolicies">
-				{{ saving ? t("common.loading") : t("permission.savePolicies") }}
-			</button>
-		</section>
+		<el-alert v-if="error" type="error" :title="error" show-icon :closable="false" />
+		<el-alert v-if="success" type="success" :title="success" show-icon :closable="false" />
 
-		<section class="panel">
-			<h3>{{ t("permission.checkTitle") }}</h3>
-			<div class="grid">
-				<label>
-					<span>{{ t("permission.subjectType") }}</span>
-					<select v-model="checkSubjectType" :disabled="saving">
-						<option value="user">user</option>
-						<option value="role">role</option>
-					</select>
-				</label>
-				<label>
-					<span>{{ t("permission.subjectId") }}</span>
-					<input v-model="checkSubjectId" type="text" :disabled="saving" />
-				</label>
-				<label>
-					<span>{{ t("permission.resource") }}</span>
-					<select v-model="checkResource" :disabled="saving">
-						<option v-for="resource in resourceOptions" :key="resource" :value="resource">{{ resource }}</option>
-					</select>
-				</label>
-				<label>
-					<span>{{ t("permission.action") }}</span>
-					<select v-model="checkAction" :disabled="saving">
-						<option v-for="action in actionOptions" :key="action" :value="action">{{ action }}</option>
-					</select>
-				</label>
+		<el-card shadow="never">
+			<template #header>
+				<div class="card-header">
+					<div>
+						<h3>{{ t("permission.matrixTitle") }}</h3>
+						<p>{{ t("permission.matrixHint") }}</p>
+					</div>
+					<el-select v-model="selectedRoleId" :disabled="loading || roles.length === 0" filterable class="role-select">
+						<el-option v-for="item in roles" :key="item.id" :value="item.id" :label="`${item.name || item.id} (${item.key || item.id})`" />
+					</el-select>
+				</div>
+			</template>
+
+			<el-table :data="matrixRows" border stripe>
+				<el-table-column prop="resource" label="Resource" width="150" />
+				<el-table-column label="Permissions" min-width="520">
+					<template #default="{ row }">
+						<div class="permission-switches">
+							<el-check-tag
+								v-for="permission in row.permissions"
+								:key="permission.key"
+								:checked="hasMatrixPermission(permission.key)"
+								:disabled="matrixSaving || selectedMatrixPermissions.includes('*')"
+								@click="toggleMatrixPermission(permission.key, !hasMatrixPermission(permission.key))"
+							>
+								{{ permission.key }}
+							</el-check-tag>
+						</div>
+					</template>
+				</el-table-column>
+			</el-table>
+
+			<div class="matrix-footer">
+				<el-tag v-if="selectedMatrixPermissions.includes('*')" type="success" effect="plain">super permission *</el-tag>
+				<el-tag v-else effect="plain">{{ selectedMatrixPermissions.length }} permissions</el-tag>
 			</div>
-			<button type="button" :disabled="saving" @click="checkPermission">{{ t("permission.checkNow") }}</button>
-			<p v-if="checkResult" class="result">{{ t(`permission.result.${checkResult}`) }}</p>
-		</section>
+		</el-card>
+
+		<div class="content-grid">
+			<el-card shadow="never">
+				<template #header>
+					<div class="card-header">
+						<div>
+							<h3>{{ t("permission.defaultsTitle") }}</h3>
+							<p>{{ t("permission.defaultsHint") }}</p>
+						</div>
+					</div>
+				</template>
+				<el-table :data="roleDefaultRows" border stripe>
+					<el-table-column prop="name" :label="t('table.name')" min-width="150" show-overflow-tooltip />
+					<el-table-column prop="key" :label="t('table.key')" width="140" />
+					<el-table-column :label="t('permission.defaultPermissionList')" min-width="260">
+						<template #default="{ row }">
+							<div v-if="row.defaultPermissions.length > 0" class="perm-tags">
+								<el-tag v-for="perm in row.defaultPermissions" :key="row.id + ':' + perm" size="small" effect="plain">{{ perm }}</el-tag>
+							</div>
+							<span v-else class="muted">{{ t("permission.noDefaults") }}</span>
+						</template>
+					</el-table-column>
+				</el-table>
+			</el-card>
+
+			<el-card shadow="never">
+				<template #header>
+					<div class="card-header">
+						<div>
+							<h3>{{ t("permission.checkTitle") }}</h3>
+							<p>{{ t("permission.hint1") }}</p>
+						</div>
+					</div>
+				</template>
+				<el-form label-position="top">
+					<div class="check-grid">
+						<el-form-item :label="t('permission.subjectType')">
+							<el-select v-model="checkSubjectType" :disabled="saving">
+								<el-option label="user" value="user" />
+								<el-option label="role" value="role" />
+							</el-select>
+						</el-form-item>
+						<el-form-item :label="t('permission.subjectId')">
+							<el-input v-model="checkSubjectId" :disabled="saving" clearable />
+						</el-form-item>
+						<el-form-item :label="t('permission.resource')">
+							<el-select v-model="checkResource" :disabled="saving">
+								<el-option v-for="resource in resourceOptions" :key="resource" :label="resource" :value="resource" />
+							</el-select>
+						</el-form-item>
+						<el-form-item :label="t('permission.action')">
+							<el-select v-model="checkAction" :disabled="saving">
+								<el-option v-for="action in actionOptions" :key="action" :label="action" :value="action" />
+							</el-select>
+						</el-form-item>
+					</div>
+					<el-button type="primary" :icon="checkResult === 'allowed' ? Check : Select" :loading="saving" @click="checkPermission">{{ t("permission.checkNow") }}</el-button>
+					<el-tag v-if="checkResult" class="check-result" :type="checkResult === 'allowed' ? 'success' : 'danger'" effect="light">
+						<el-icon><component :is="checkResult === 'allowed' ? Check : Close" /></el-icon>
+						{{ t(`permission.result.${checkResult}`) }}
+					</el-tag>
+				</el-form>
+			</el-card>
+		</div>
+
+		<el-card shadow="never">
+			<template #header>
+				<div class="card-header">
+					<div>
+						<h3>{{ t("permission.policyTitle") }}</h3>
+						<p>{{ t("permission.hint2") }}</p>
+					</div>
+					<el-button :icon="Setting" :disabled="saving" @click="addRule">{{ t("permission.addRule") }}</el-button>
+				</div>
+			</template>
+			<el-table :data="rules" border stripe>
+				<el-table-column label="resource" min-width="150">
+					<template #default="{ row }">
+						<el-select v-model="row.resource" :disabled="saving">
+							<el-option v-for="resource in resourceOptions" :key="resource" :label="resource" :value="resource" />
+						</el-select>
+					</template>
+				</el-table-column>
+				<el-table-column label="action" min-width="140">
+					<template #default="{ row }">
+						<el-select v-model="row.action" :disabled="saving">
+							<el-option v-for="action in actionOptions" :key="action" :label="action" :value="action" />
+						</el-select>
+					</template>
+				</el-table-column>
+				<el-table-column label="effect" min-width="140">
+					<template #default="{ row }">
+						<el-select v-model="row.effect" :disabled="saving">
+							<el-option v-for="effect in effectOptions" :key="effect" :label="effect" :value="effect" />
+						</el-select>
+					</template>
+				</el-table-column>
+				<el-table-column label="scope" min-width="150">
+					<template #default="{ row }">
+						<el-select v-model="row.scope" :disabled="saving">
+							<el-option v-for="scope in scopeOptions" :key="scope" :label="scope" :value="scope" />
+						</el-select>
+					</template>
+				</el-table-column>
+				<el-table-column :label="t('table.actions')" width="120">
+					<template #default="{ row }">
+						<el-button type="danger" link :disabled="saving || rules.length <= 1" @click="removeRule(row.id)">{{ t("common.delete") }}</el-button>
+					</template>
+				</el-table-column>
+			</el-table>
+			<div class="policy-actions">
+				<el-button type="primary" :loading="saving" :disabled="!selectedRoleId" @click="savePolicies">
+					{{ saving ? t("common.loading") : t("permission.savePolicies") }}
+				</el-button>
+			</div>
+		</el-card>
 	</section>
 </template>
 
 <style scoped>
-p {
-	color: var(--color-text-muted);
-}
-
-.panel {
-	margin-top: 12px;
-	padding: 12px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
+.permission-page {
 	display: grid;
-	gap: 8px;
+	gap: 16px;
 }
 
-.panel h3 {
+.page-header,
+.card-header,
+.matrix-footer,
+.policy-actions {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.page-header h2,
+.card-header h3 {
 	margin: 0;
 }
 
-.hint {
-	margin: 0;
+.page-header p,
+.card-header p {
+	margin: 4px 0 0;
 	color: var(--color-text-muted);
-	font-size: 13px;
+	font-size: 0.9rem;
 }
 
-.defaults-wrap {
-	overflow: auto;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
+.role-select {
+	width: min(360px, 100%);
 }
 
-.defaults-table {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-.defaults-table th,
-.defaults-table td {
-	text-align: left;
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
-}
-
-.defaults-table th {
-	font-size: 12px;
-	color: var(--color-text-muted);
-	background: var(--color-surface-soft);
-}
-
-.defaults-table tr:last-child td {
-	border-bottom: 0;
-}
-
+.permission-switches,
 .perm-tags {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: 8px;
 }
 
-.perm-tag {
-	padding: 2px 8px;
-	border: 1px solid var(--color-border);
-	border-radius: 999px;
-	font-size: 12px;
-	background: var(--color-surface-soft);
+.matrix-footer,
+.policy-actions {
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+
+.content-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+	gap: 16px;
+	align-items: start;
+}
+
+.check-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.check-result {
+	margin-left: 10px;
 }
 
 .muted {
 	color: var(--color-text-muted);
 }
 
-.grid {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 8px;
+:deep(.el-card__header) {
+	padding: 14px 16px;
 }
 
-label {
-	display: grid;
-	gap: 6px;
+:deep(.el-card__body) {
+	padding: 16px;
 }
 
-input,
-select,
-button {
-	padding: 8px;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
+:deep(.el-table) {
+	--el-table-header-bg-color: var(--color-surface-soft);
 }
 
-.rule-list-wrap {
-	overflow: auto;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface-soft);
-}
+@media (max-width: 980px) {
+	.page-header,
+	.card-header {
+		flex-direction: column;
+	}
 
-.rule-table {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-.rule-table th,
-.rule-table td {
-	padding: 8px;
-	border-bottom: 1px solid var(--color-border);
-	text-align: left;
-}
-
-.rule-table th {
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--color-text-muted);
-	background: var(--color-surface);
-}
-
-.rule-table tr:last-child td {
-	border-bottom: 0;
-}
-
-.rule-table td select {
-	width: 100%;
-}
-
-.op-col {
-	white-space: nowrap;
-}
-
-button {
-	width: fit-content;
-	background: var(--color-surface-soft);
-	cursor: pointer;
-}
-
-.error {
-	color: var(--color-danger);
-}
-
-.success {
-	color: var(--color-success);
-}
-
-.result {
-	margin: 0;
-	font-weight: 600;
+	.content-grid,
+	.check-grid {
+		grid-template-columns: 1fr;
+	}
 }
 </style>
-
