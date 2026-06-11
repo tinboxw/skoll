@@ -10,6 +10,7 @@
 docs/
 ├── README.md                              # 本文档 — 文档总索引
 ├── configuration.md                       # 配置参考文档
+├── development_skills.md                  # Codex 开发 skills 与协作规则
 ├── feature_implementation_status.md       # 功能实现状态报告 (v2.0)
 ├── iteration_plan.md                      # 项目迭代计划 (v3.0)
 ├── open_admin_baseline_plan.md            # 开源 Admin 基线计划
@@ -52,6 +53,7 @@ docs/
 | 文档 | 说明 |
 |------|------|
 | [configuration.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\configuration.md>) | 所有配置项的键名、类型、默认值和说明表格，含环境变量映射规则 |
+| [development_skills.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\development_skills.md>) | Codex 项目专用 skills、触发场景、里程碑提交与本地审阅规则 |
 | [feature_implementation_status.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\feature_implementation_status.md>) | 项目功能实现状态报告，标注各模块完成度 |
 | [iteration_plan.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\iteration_plan.md>) | 项目迭代计划，M0-M16 里程碑状态与下一步收敛计划 |
 | [open_admin_baseline_plan.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\open_admin_baseline_plan.md>) | 面向开源 Admin 项目的基建路线，覆盖动态菜单、权限、字典、文件、代码生成、插件市场和 UI schema |
