@@ -14,9 +14,9 @@
 | 评估维度 | 完成度 | 说明 |
 |---------|--------|------|
 | 后端核心功能 | **95%** | 所有核心模块完整实现，仅存性能测试和覆盖率统计待完成 |
-| 前端功能 | **80%** | 6个管理页面全部实现（Dashboard/User/Role/Permission/Plugin/Setting），组件完整 |
+| 前端功能 | **88%** | 6个管理页面全部实现，Vite 5 已升级，Element Plus 已按需接入并完成插件页、权限页、菜单页、User/Role 列表页、Role 编辑页、User 新增/编辑/批量页和 Audit/Setting 页首批迁移 |
 | 测试体系 | **60%** | 基础测试存在，覆盖率未达 80% |
-| 文档体系 | **55%** | 核心文档已补齐，开发/部署/API 文档尚需完善 |
+| 文档体系 | **70%** | 核心文档已补齐，开发/部署/API 文档已有主体，仍需示例、发布报告和排查清单 |
 | 插件系统 | **90%** | 核心功能完整，DevPortal 全套 API + 灰度/回滚真实化（adapter 抽象）已实现 |
 
 ### 1.2 关键发现
@@ -29,10 +29,11 @@
 - 插件 DevPortal 完整：脚手架/验证/打包/发布审批流水线 + 灰度/回滚真实化（回滚点模型 + adapter 抽象 + 三策略支持）
 
 **真正未完成项**：
-- Element Plus UI 组件库替换（当前使用自定义 CSS，依赖未引入）
+- 动态菜单/动态路由/按钮权限同源模型（前端菜单注册中心、插件 `ui_menu` 解析输出、`canAccess`/`v-permission`、权限矩阵页、后端菜单树 API、侧栏远端菜单加载、菜单管理页首版、静态页面级路由权限和插件路由权限继承已接入）
+- Element Plus UI 组件库全量迁移（依赖已按需接入，插件管理页、权限页、菜单页、User/Role 列表页、Role 编辑页、User 新增/编辑/批量页、Audit/Setting 页与 Common 组件已完成首批迁移，后续转入细节优化）
 - 完整性能基准测试（仅存 cache benchmark）
 - 测试覆盖率达 80%（未运行 go test -cover）
-- 部署运维文档、插件开发教程、配置参考文档
+- 文档示例、发布报告、部署排查清单和插件完整 walkthrough
 
 ---
 
@@ -103,7 +104,7 @@
 | RBAC API（5 个端点，含绑定/策略/权限检查） | ✅ | `internal/handler/http/v1/rbac/handler.go` |
 | 审计 API（5 个端点，含列表/详情/导出/清理/Actor查询） | ✅ | `internal/handler/http/v1/audit/handler.go` |
 | 系统设置 API（4 个端点，含单个/批量/重置） | ✅ | `internal/handler/http/v1/system/handler.go` |
-| 插件管理 API（安装/启用/禁用/卸载/配置/校验/DevPortal全流程） | ✅ | `internal/handler/http/v1/plugin/handler.go` |
+| 插件管理 API（安装/启用/禁用/卸载/配置/校验/DevPortal全流程） | ✅ | `internal/handler/http/v1/plugin/handler.go`，配置接口已返回 manifest `config_schema`，并支持字段级校验声明 |
 | 认证中间件（JWT Bearer + 白名单） | ✅ | `internal/handler/middleware/auth.go` |
 | 日志/限流中间件 | ✅ | `internal/handler/middleware/` |
 
@@ -156,8 +157,12 @@
 | 插件管理页面 | ✅ | `web/src/views/Plugin/` |
 | 系统设置页面 | ✅ | `web/src/views/Setting/` |
 | 布局组件（Sidebar + Header） | ✅ | `web/src/components/Layout/` |
+| 菜单注册中心 | 🔄 进行中 | `web/src/navigation/menu.ts` 已统一系统菜单、插件菜单、排序、权限过滤；认证后会加载 `/v1/system/menus` 作为侧栏系统菜单来源；后端已支持插件 `ui_menu` manifest 解析与列表输出；菜单管理页首版和同级排序已接入 |
+| 后端菜单树 API | 🔄 进行中 | `GET/PUT /v1/system/menus` 已提供默认菜单与系统设置持久化覆盖，并已接入菜单管理 UI |
+| 按钮权限工具 | 🔄 进行中 | `web/src/permissions/` 已新增 `canAccess` 与 `v-permission`，插件管理页、User 列表、User 表单页、Role 列表和角色编辑页已首批接入 |
+| 权限矩阵页面 | 🔄 进行中 | `web/src/views/Permission/` 已升级为 Element Plus 权限矩阵，可按角色授予/撤销权限；权限目录已抽到 `web/src/permissions/catalog.ts` 并复用于角色编辑页 |
 | Lucide 图标库 | ✅ | `lucide-vue-next` 已在 package.json |
-| Element Plus UI 组件库 | ❌ 未实现 | 使用自定义 CSS，依赖未引入 |
+| Element Plus UI 组件库 | ✅ 基础完成 | 已按需接入，插件管理页、权限页、菜单管理页、User/Role 列表页、Role 编辑页、User 新增/编辑/批量页、Audit/Setting 页和 Common 组件已完成首批迁移；`SchemaForm` 已支持插件配置 schema、系统设置常用配置和字段级校验 |
 
 ---
 
@@ -178,10 +183,10 @@
 | Redis 7.0+ | 已支持 | ✅ |
 | Memcached 1.6+ | 已支持 | ✅ |
 | Vue 3.4+ | Vue 3.4 | ✅ |
-| Element Plus 2.6+ | 未使用（自定义 CSS） | ❌ |
+| Element Plus 2.6+ | Element Plus 2.14+ | 🔄 进行中 |
 | Pinia 2.1+ | Pinia 2.1 | ✅ |
 | Vue Router 4.4+ | Vue Router 4.4 | ✅ |
-| Vite 2.9+ | Vite 2.9 | ⚠️ 版本偏低 |
+| Vite 5.x | Vite 5.4+ | ✅ |
 | SCSS | 已使用 | ✅ |
 | Lucide Vue Next | 已集成 | ✅ |
 
@@ -273,40 +278,46 @@
 
 | ID | 功能名称 | 模块 | 说明 |
 |----|---------|------|------|
-| F001 | Element Plus UI 组件库 | 前端 | 当前使用自定义 CSS，规划要求 Element Plus 2.6+ |
+| F000 | 状态校准与基线报告 | 测试/文档 | 重新执行 `go test ./...`、覆盖率统计、前端构建和现有 CI 门禁，形成当前基线 |
+| F001 | Vite 版本升级 | 前端 | ✅ 已完成，当前使用 Vite 5.x |
+| F002 | Element Plus UI 组件库 | 前端 | ✅ 基础完成，已按需接入并完成插件页、权限页、菜单页、User/Role 列表页、Role 编辑页、User 新增/编辑/批量页和 Audit/Setting 页首批迁移；插件配置 schema 表单、系统设置 SchemaForm 和字段级校验已接入 |
+| F003 | 动态菜单/动态路由/按钮权限基线 | 前端/后端 | 🔄 进行中，前端菜单注册中心、插件 `ui_menu` 解析输出、按钮权限工具、权限矩阵页、后端菜单树 API、侧栏远端菜单加载、菜单管理页首版、同级排序、静态页面级路由权限、插件路由权限继承和 User/Role 首批按钮权限已接入；后续接 UI 迁移和可选拖拽排序 |
 
 ### 5.2 中优先级（P1）
 
 | ID | 功能名称 | 模块 | 说明 |
 |----|---------|------|------|
-| F002 | 完整性能基准测试 | 测试 | 使用 vegeta/k6 进行 API 压力测试，QPS≥500, RT<150ms |
-| F003 | 测试覆盖率统计 | 测试 | 运行 `go test -cover` 确保整体≥80% |
+| F004 | 覆盖率提升计划 | 测试 | 基于覆盖率报告补齐 service/handler/store/sql 低覆盖包，核心业务包目标 ≥80% |
+| F005 | 完整性能基准测试 | 测试 | 使用 vegeta/k6 进行 API 压力测试，输出 QPS、P95/P99、错误率和环境参数 |
+| F006 | CI/CD 质量门禁增强 | 工程化 | 在现有 Go CI 基础上补前端 build、覆盖率产物、benchmark artifact、OpenAPI/manifest 校验 |
 
 ### 5.3 低优先级（P2）
 
 | ID | 功能名称 | 模块 | 说明 |
 |----|---------|------|------|
-| F004 | API 用户文档 | 文档 | 完整 API 使用文档 |
-| F005 | 部署运维文档 | 文档 | 部署指南和配置说明 |
-| F006 | 插件开发完整指南 | 文档 | Step-by-step 开发教程 |
-| F007 | 配置参考文档 | 文档 | 完整环境变量/配置项说明 |
-| F008 | Vite 版本升级 | 前端 | 当前 Vite 2.9，规划要求 5.2+ |
+| F007 | API 用户文档增强 | 文档 | 增加认证、分页、错误码、插件 DevPortal 示例 |
+| F008 | 部署运维文档增强 | 文档 | 增加生产配置检查清单、日志、健康检查、回滚说明 |
+| F009 | 插件开发完整指南增强 | 文档 | Step-by-step 补齐脚手架、验证、打包、审批、灰度、回滚 walkthrough |
+| F010 | 配置参考文档校准 | 文档 | 校准环境变量/配置项/文件路径，补多环境配置示例 |
 
 ---
 
 ## 6. 建议实现顺序
 
 ```
-第一阶段（P0 优先）:
-├── F001: Element Plus UI 组件库 [3-4周]
+第一阶段（P0 开源 Admin 基建）:
+├── F000: 状态校准与基线报告 [0.5天]
+├── F001: Vite 版本升级 [已完成]
+├── F002: Element Plus 渐进迁移 [基础完成，插件/权限/菜单/User/Role/Audit/Setting 首批完成]
+├── F003: 动态菜单/动态路由/按钮权限基线 [进行中]
 
-第二阶段（P1 短期）:
-├── F002: 性能基准测试 [1-2周]
-├── F003: 测试覆盖率统计 [1-2周]
-├── F008: Vite 版本升级 [1天]
+第二阶段（P1 质量基线）:
+├── F004: 覆盖率提升计划 [1周]
+├── F005: API 性能基准测试 [1周]
+├── F006: CI/CD 质量门禁增强 [0.5-1周]
 
-第三阶段（P2 持续）:
-├── F004-F007: 文档完善 [持续]
+第三阶段（P2 发布文档）:
+├── F007-F010: API/部署/插件/配置文档增强 [持续]
 ```
 
 ---

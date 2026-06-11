@@ -11,7 +11,9 @@ docs/
 ├── README.md                              # 本文档 — 文档总索引
 ├── configuration.md                       # 配置参考文档
 ├── feature_implementation_status.md       # 功能实现状态报告 (v2.0)
-├── iteration_plan.md                      # 项目迭代计划 (v2.1)
+├── iteration_plan.md                      # 项目迭代计划 (v3.0)
+├── open_admin_baseline_plan.md            # 开源 Admin 基线计划
+├── plugin_ui_optimization_plan.md         # 插件与 UI 优化实施计划
 ├── plugin_platform_baseline_v1.md         # 插件平台基建蓝图 V1
 ├── PLUGIN_SECURITY_DESIGN.md              # 插件签名与风险分级设计
 │
@@ -51,7 +53,9 @@ docs/
 |------|------|
 | [configuration.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\configuration.md>) | 所有配置项的键名、类型、默认值和说明表格，含环境变量映射规则 |
 | [feature_implementation_status.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\feature_implementation_status.md>) | 项目功能实现状态报告，标注各模块完成度 |
-| [iteration_plan.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\iteration_plan.md>) | 项目迭代计划，M12-M16 里程碑状态 |
+| [iteration_plan.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\iteration_plan.md>) | 项目迭代计划，M0-M16 里程碑状态与下一步收敛计划 |
+| [open_admin_baseline_plan.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\open_admin_baseline_plan.md>) | 面向开源 Admin 项目的基建路线，覆盖动态菜单、权限、字典、文件、代码生成、插件市场和 UI schema |
+| [plugin_ui_optimization_plan.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\plugin_ui_optimization_plan.md>) | 插件与 UI 优化实施计划，说明已实现功能优化点、未实现规划和首批落地 |
 | [plugin_platform_baseline_v1.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\plugin_platform_baseline_v1.md>) | 插件平台基建蓝图，描述插件系统整体设计 |
 | [PLUGIN_SECURITY_DESIGN.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\PLUGIN_SECURITY_DESIGN.md>) | 插件签名校验、风险分级与安全策略引擎设计 |
 
