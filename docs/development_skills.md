@@ -2,6 +2,8 @@
 
 This project uses Codex skills to keep repeated Skoll development work consistent.
 
+The Skoll project skills are managed under `C:\Users\tinbox.wu\.agents\skills` so they can be reused by other local agent tooling. The same skill set may also exist under Codex's default skill directory for the current Codex runtime.
+
 ## Prepared Skills
 
 | Skill | Purpose |
