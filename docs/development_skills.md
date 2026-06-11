@@ -22,6 +22,14 @@ This project uses Codex skills to keep repeated Skoll development work consisten
 | `skoll-observability-audit` | Audit logs, operation logs, plugin task logs, metrics, health/readiness, and admin monitoring UI. |
 | `skoll-data-dictionary-config` | Dictionaries, system settings, plugin config, schema forms, validation metadata, and config audit. |
 | `skoll-testing-automation` | Unit, integration, smoke, browser, API contract, plugin fixture, and CI regression tests. |
+| `skoll-file-storage` | File upload, object storage, local/S3 adapters, file permissions, thumbnails, and cleanup jobs. |
+| `skoll-workflow-jobs` | Background jobs, workflow approvals, scheduled tasks, queues, retries, and task UI. |
+| `skoll-i18n-accessibility` | Internationalization, locale resources, keyboard support, accessibility checks, and UI copy consistency. |
+| `skoll-performance-scaling` | Backend profiling, frontend bundle budgets, caching, pagination, query tuning, and large-table UX. |
+| `skoll-upgrade-migration` | Version compatibility, database migrations, plugin migration hooks, deprecation policy, and release upgrades. |
+| `skoll-community-governance` | Issue templates, PR templates, contribution rules, maintainership, roadmap communication, and release governance. |
+| `skoll-cache-development` | Memory/Redis/Memcached cache adapters, cache keys, TTL, invalidation, fallback, and cache tests. |
+| `skoll-database-development` | Store contracts, GORM repositories, MySQL/Postgres behavior, SQLite tests, migrations, indexes, and seed data. |
 
 ## Usage Rules
 
@@ -29,20 +37,7 @@ This project uses Codex skills to keep repeated Skoll development work consisten
 - Use `skoll-web-development` when a task crosses backend and frontend or requires local service review.
 - Use `skoll-vue-frontend` when editing `web/src`.
 - Use `skoll-go-backend` when editing `cmd`, `internal`, backend plugin code, or backend tests.
-- Use specialized skills when a task touches a named subsystem such as plugin platform, RBAC, security, API contracts, docs, deployment, or code generation.
-
-## Additional Candidates
-
-The current 16 skills cover the main infrastructure phase. Consider adding these later when the matching subsystem becomes active:
-
-| Candidate | Purpose |
-| --- | --- |
-| `skoll-file-storage` | File upload, object storage, local/S3 adapters, file permissions, thumbnails, and cleanup jobs. |
-| `skoll-workflow-jobs` | Background jobs, workflow approvals, scheduled tasks, queues, retries, and task UI. |
-| `skoll-i18n-accessibility` | Internationalization, locale resources, keyboard support, accessibility checks, and UI copy consistency. |
-| `skoll-performance-scaling` | Backend profiling, frontend bundle budgets, caching, pagination, query tuning, and large-table UX. |
-| `skoll-upgrade-migration` | Version compatibility, database migrations, plugin migration hooks, deprecation policy, and release upgrades. |
-| `skoll-community-governance` | Issue templates, PR templates, contribution rules, maintainership, roadmap communication, and release governance. |
+- Use specialized skills when a task touches a named subsystem such as plugin platform, RBAC, security, API contracts, docs, deployment, cache, database, file storage, workflow jobs, performance, or code generation.
 
 ## Project Workflow
 
