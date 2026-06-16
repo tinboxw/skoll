@@ -31,6 +31,7 @@ const SYSTEM_MENU: Array<Omit<SidebarItem, "label" | "source"> & { labelKey: str
 	{ labelKey: "menu.roles", to: `${ADMIN_BASE}/role`, icon: "roles", order: 30, requiredPermissions: ["role.read"] },
 	{ labelKey: "menu.permissions", to: `${ADMIN_BASE}/permission`, icon: "permissions", order: 40, requiredPermissions: ["permission.manage"] },
 	{ labelKey: "menu.menus", to: `${ADMIN_BASE}/menu`, icon: "menus", order: 45, requiredPermissions: ["system.manage"] },
+	{ labelKey: "menu.dictionaries", to: `${ADMIN_BASE}/dictionary`, icon: "settings", order: 47, requiredPermissions: ["dict.read"] },
 	{ labelKey: "menu.audit", to: `${ADMIN_BASE}/audit`, icon: "audit", order: 50, requiredPermissions: ["audit.read"] },
 	{ labelKey: "menu.plugins", to: `${ADMIN_BASE}/plugin`, icon: "plugins", order: 60, requiredPermissions: ["plugin.read"] },
 	{ labelKey: "menu.settings", to: `${ADMIN_BASE}/setting`, icon: "settings", order: 70, requiredPermissions: ["system.manage"] }

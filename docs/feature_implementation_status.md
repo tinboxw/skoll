@@ -103,7 +103,7 @@
 | 角色 API（8 个端点，含权限授予/撤销/角色用户） | ✅ | `internal/handler/http/v1/role/handler.go` |
 | RBAC API（5 个端点，含绑定/策略/权限检查） | ✅ | `internal/handler/http/v1/rbac/handler.go` |
 | 审计 API（5 个端点，含列表/详情/导出/清理/Actor查询） | ✅ | `internal/handler/http/v1/audit/handler.go` |
-| 系统设置 API（4 个端点，含单个/批量/重置） | ✅ | `internal/handler/http/v1/system/handler.go` |
+| 系统设置 API（含单个/批量/重置/schema/菜单/字典） | ✅ | `internal/handler/http/v1/system/handler.go` |
 | 插件管理 API（安装/启用/禁用/卸载/配置/校验/DevPortal全流程） | ✅ | `internal/handler/http/v1/plugin/handler.go`，配置接口已返回 manifest `config_schema`，并支持字段级校验声明 |
 | 认证中间件（JWT Bearer + 白名单） | ✅ | `internal/handler/middleware/auth.go` |
 | 日志/限流中间件 | ✅ | `internal/handler/middleware/` |
@@ -241,14 +241,20 @@
 | DELETE | /v1/audit | ✅ 按时间范围清理 |
 | GET | /v1/audit/actors/{actorId} | ✅ 按操作者查询 |
 
-### 4.5 系统设置 API（4 个端点）
+### 4.5 系统设置 API（Settings/Menu/Dictionary）
 
 | 方法 | 路径 | 状态 |
 |------|------|------|
 | GET | /v1/system/settings | ✅ 设置列表 |
+| GET | /v1/system/settings/schema | ✅ 设置 SchemaForm 字段声明 |
 | GET | /v1/system/settings/{key} | ✅ 按 key 获取 |
 | PUT | /v1/system/settings/{key} | ✅ Upsert 设置 |
 | POST | /v1/system/settings/reset | ✅ 重置设置 |
+| GET | /v1/system/menus | ✅ 菜单树 |
+| PUT | /v1/system/menus | ✅ 保存菜单树 |
+| GET | /v1/system/dictionaries | ✅ 字典列表 |
+| GET | /v1/system/dictionaries/{type} | ✅ 字典详情 |
+| PUT | /v1/system/dictionaries | ✅ 保存字典 |
 
 ### 4.6 插件管理 API（15+ 端点）
 
@@ -282,6 +288,7 @@
 | F001 | Vite 版本升级 | 前端 | ✅ 已完成，当前使用 Vite 5.x |
 | F002 | Element Plus UI 组件库 | 前端 | ✅ 基础完成，已按需接入并完成插件页、权限页、菜单页、User/Role 列表页、Role 编辑页、User 新增/编辑/批量页和 Audit/Setting 页首批迁移；插件配置 schema 表单、系统设置 SchemaForm 和字段级校验已接入 |
 | F003 | 动态菜单/动态路由/按钮权限基线 | 前端/后端 | 🔄 进行中，前端菜单注册中心、插件 `ui_menu` 解析输出、按钮权限工具、权限矩阵页、后端菜单树 API、侧栏远端菜单加载、菜单管理页首版、同级排序、静态页面级路由权限、插件路由权限继承和 User/Role 首批按钮权限已接入；后续接 UI 迁移和可选拖拽排序 |
+| F003a | 字典管理首版 | 前端/后端 | ✅ 已完成，新增字典类型/字典项 API、设置存储持久化、审计留痕、菜单/权限入口和 Element Plus 管理页；后续升级独立存储和缓存 |
 
 ### 5.2 中优先级（P1）
 

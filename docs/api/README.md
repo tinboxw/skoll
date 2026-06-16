@@ -121,6 +121,11 @@ JWT 密钥通过 `SKOLL_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置
 | `GET` | `/skoll/v1/system/settings` | 设置列表 |
 | `GET` | `/skoll/v1/system/settings/schema` | 获取系统设置 SchemaForm 字段声明 |
 | `POST` | `/skoll/v1/system/settings/reset` | 重置设置 |
+| `GET` | `/skoll/v1/system/menus` | 获取系统菜单树 |
+| `PUT` | `/skoll/v1/system/menus` | 保存系统菜单树 |
+| `GET` | `/skoll/v1/system/dictionaries` | 获取字典类型与字典项 |
+| `GET` | `/skoll/v1/system/dictionaries/{type}` | 获取单个字典类型 |
+| `PUT` | `/skoll/v1/system/dictionaries` | 保存字典类型与字典项 |
 
 ### 4.6 插件管理（Plugin）
 

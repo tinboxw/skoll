@@ -3,6 +3,7 @@ package system
 import (
 	"encoding/json"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -12,7 +13,10 @@ import (
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
-const systemMenuSettingKey = "skoll.menu.tree"
+const (
+	systemMenuSettingKey       = "skoll.menu.tree"
+	systemDictionarySettingKey = "skoll.dictionary.types"
+)
 
 type SystemHandler struct {
 	service systemsvc.Service
@@ -31,6 +35,22 @@ type MenuItem struct {
 	Children            []MenuItem `json:"children,omitempty"`
 }
 
+type DictionaryType struct {
+	Type        string           `json:"type"`
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	Status      string           `json:"status"`
+	Order       int              `json:"order"`
+	Items       []DictionaryItem `json:"items"`
+}
+
+type DictionaryItem struct {
+	Label  string `json:"label"`
+	Value  string `json:"value"`
+	Status string `json:"status"`
+	Order  int    `json:"order"`
+}
+
 func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service, auditSvc auditsvc.Service) {
 	if service == nil {
 		return
@@ -41,6 +61,9 @@ func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service, auditSv
 	mux.HandleFunc("GET /v1/system/settings/{key}", h.getByKey)
 	mux.HandleFunc("PUT /v1/system/settings/{key}", h.upsert)
 	mux.HandleFunc("POST /v1/system/settings/reset", h.reset)
+	mux.HandleFunc("GET /v1/system/dictionaries", h.getDictionaries)
+	mux.HandleFunc("PUT /v1/system/dictionaries", h.putDictionaries)
+	mux.HandleFunc("GET /v1/system/dictionaries/{type}", h.getDictionaryByType)
 	mux.HandleFunc("GET /v1/system/menus", h.getMenus)
 	mux.HandleFunc("PUT /v1/system/menus", h.putMenus)
 }
@@ -190,6 +213,83 @@ func (h *SystemHandler) putMenus(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *SystemHandler) getDictionaries(w http.ResponseWriter, r *http.Request) {
+	items, customized, err := h.loadDictionaries(r)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{
+		"items":      items,
+		"customized": customized,
+	})
+}
+
+func (h *SystemHandler) getDictionaryByType(w http.ResponseWriter, r *http.Request) {
+	dictType := strings.TrimSpace(r.PathValue("type"))
+	items, _, err := h.loadDictionaries(r)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	for _, item := range items {
+		if item.Type == dictType {
+			apiv1.WriteJSON(w, http.StatusOK, item)
+			return
+		}
+	}
+	apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "dictionary type not found")
+}
+
+func (h *SystemHandler) putDictionaries(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Items []DictionaryType `json:"items"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	items := normalizeDictionaryTypes(req.Items)
+	raw, err := json.Marshal(items)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	before, _ := h.service.GetByKey(r.Context(), systemDictionarySettingKey)
+	_, err = h.service.Upsert(r.Context(), systemsvc.UpsertInput{
+		Key:   systemDictionarySettingKey,
+		Value: string(raw),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	detail := map[string]any{"after": len(items)}
+	if before != nil {
+		detail["before"] = len(parseStoredDictionaries(before.Value))
+	}
+	h.appendAudit(r, "upsert_dictionaries", "system_dictionary", systemDictionarySettingKey, detail)
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{
+		"items":      items,
+		"customized": true,
+	})
+}
+
+func (h *SystemHandler) loadDictionaries(r *http.Request) ([]DictionaryType, bool, error) {
+	item, err := h.service.GetByKey(r.Context(), systemDictionarySettingKey)
+	if err != nil {
+		return nil, false, err
+	}
+	if item == nil || strings.TrimSpace(item.Value) == "" {
+		return defaultDictionaries(), false, nil
+	}
+	dictionaries := parseStoredDictionaries(item.Value)
+	if len(dictionaries) == 0 {
+		return defaultDictionaries(), false, nil
+	}
+	return dictionaries, true, nil
+}
+
 func (h *SystemHandler) loadMenus(r *http.Request) ([]MenuItem, bool, error) {
 	item, err := h.service.GetByKey(r.Context(), systemMenuSettingKey)
 	if err != nil {
@@ -211,6 +311,80 @@ func parseStoredMenus(raw string) []MenuItem {
 		return nil
 	}
 	return normalizeMenuItems(menus)
+}
+
+func parseStoredDictionaries(raw string) []DictionaryType {
+	var items []DictionaryType
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil
+	}
+	return normalizeDictionaryTypes(items)
+}
+
+func normalizeDictionaryTypes(items []DictionaryType) []DictionaryType {
+	seenTypes := map[string]struct{}{}
+	out := make([]DictionaryType, 0, len(items))
+	for _, item := range items {
+		dictType := strings.TrimSpace(item.Type)
+		name := strings.TrimSpace(item.Name)
+		if dictType == "" || name == "" {
+			continue
+		}
+		if _, exists := seenTypes[dictType]; exists {
+			continue
+		}
+		seenTypes[dictType] = struct{}{}
+		status := normalizeDictionaryStatus(item.Status)
+		item.Type = dictType
+		item.Name = name
+		item.Description = strings.TrimSpace(item.Description)
+		item.Status = status
+		item.Items = normalizeDictionaryItems(item.Items)
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Order == out[j].Order {
+			return out[i].Type < out[j].Type
+		}
+		return out[i].Order < out[j].Order
+	})
+	return out
+}
+
+func normalizeDictionaryItems(items []DictionaryItem) []DictionaryItem {
+	seenValues := map[string]struct{}{}
+	out := make([]DictionaryItem, 0, len(items))
+	for _, item := range items {
+		label := strings.TrimSpace(item.Label)
+		value := strings.TrimSpace(item.Value)
+		if label == "" || value == "" {
+			continue
+		}
+		if _, exists := seenValues[value]; exists {
+			continue
+		}
+		seenValues[value] = struct{}{}
+		item.Label = label
+		item.Value = value
+		item.Status = normalizeDictionaryStatus(item.Status)
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Order == out[j].Order {
+			return out[i].Value < out[j].Value
+		}
+		return out[i].Order < out[j].Order
+	})
+	return out
+}
+
+func normalizeDictionaryStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "disabled":
+		return "disabled"
+	default:
+		return "enabled"
+	}
 }
 
 func normalizeMenuItems(items []MenuItem) []MenuItem {
@@ -252,9 +426,37 @@ func defaultSystemMenus() []MenuItem {
 		{ID: "roles", Label: "Roles", Path: "/skoll/role", Icon: "roles", Order: 30, Visible: true, RequiredPermissions: []string{"role.read"}},
 		{ID: "permissions", Label: "Permissions", Path: "/skoll/permission", Icon: "permissions", Order: 40, Visible: true, RequiredPermissions: []string{"permission.manage"}},
 		{ID: "menus", Label: "Menus", Path: "/skoll/menu", Icon: "menus", Order: 45, Visible: true, RequiredPermissions: []string{"system.manage"}},
+		{ID: "dictionaries", Label: "Dictionaries", Path: "/skoll/dictionary", Icon: "settings", Order: 47, Visible: true, RequiredPermissions: []string{"dict.read"}},
 		{ID: "audit", Label: "Audit", Path: "/skoll/audit", Icon: "audit", Order: 50, Visible: true, RequiredPermissions: []string{"audit.read"}},
 		{ID: "plugins", Label: "Plugins", Path: "/skoll/plugin", Icon: "plugins", Order: 60, Visible: true, RequiredPermissions: []string{"plugin.read"}},
 		{ID: "settings", Label: "Settings", Path: "/skoll/setting", Icon: "settings", Order: 70, Visible: true, RequiredPermissions: []string{"system.manage"}},
+	}
+}
+
+func defaultDictionaries() []DictionaryType {
+	return []DictionaryType{
+		{
+			Type:        "system.status",
+			Name:        "System Status",
+			Description: "Common enabled/disabled status values.",
+			Status:      "enabled",
+			Order:       10,
+			Items: []DictionaryItem{
+				{Label: "Enabled", Value: "enabled", Status: "enabled", Order: 10},
+				{Label: "Disabled", Value: "disabled", Status: "enabled", Order: 20},
+			},
+		},
+		{
+			Type:        "plugin.level",
+			Name:        "Plugin Level",
+			Description: "Plugin level options used by manifest and admin UI.",
+			Status:      "enabled",
+			Order:       20,
+			Items: []DictionaryItem{
+				{Label: "System", Value: "system", Status: "enabled", Order: 10},
+				{Label: "Application", Value: "app", Status: "enabled", Order: 20},
+			},
+		},
 	}
 }
 

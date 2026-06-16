@@ -143,3 +143,67 @@ func TestSystemSettingsSchema(t *testing.T) {
 		t.Fatalf("expected menu tree setting field")
 	}
 }
+
+func TestSystemDictionariesDefaultOverrideAndLookup(t *testing.T) {
+	svc := newFakeSystemService()
+	mux := http.NewServeMux()
+	RegisterSystemRoutes(mux, svc, nil)
+
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/system/dictionaries", nil))
+	if resp.Code != http.StatusOK {
+		t.Fatalf("default dictionaries status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	var defaultBody struct {
+		Data struct {
+			Items      []DictionaryType `json:"items"`
+			Customized bool             `json:"customized"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &defaultBody); err != nil {
+		t.Fatalf("decode default dictionaries: %v", err)
+	}
+	if defaultBody.Data.Customized {
+		t.Fatalf("default dictionaries should not be customized")
+	}
+	if len(defaultBody.Data.Items) == 0 {
+		t.Fatalf("expected default dictionaries")
+	}
+
+	payload := []byte(`{"items":[{"type":"order.status","name":"Order Status","description":"Order lifecycle","status":"enabled","order":30,"items":[{"label":"Paid","value":"paid","status":"enabled","order":20},{"label":"Pending","value":"pending","status":"enabled","order":10},{"label":"","value":"bad"}]},{"type":"","name":"Bad"}]}`)
+	putResp := httptest.NewRecorder()
+	mux.ServeHTTP(putResp, httptest.NewRequest(http.MethodPut, "/v1/system/dictionaries", bytes.NewReader(payload)))
+	if putResp.Code != http.StatusOK {
+		t.Fatalf("put dictionaries status=%d body=%s", putResp.Code, putResp.Body.String())
+	}
+	var putBody struct {
+		Data struct {
+			Items      []DictionaryType `json:"items"`
+			Customized bool             `json:"customized"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(putResp.Body.Bytes(), &putBody); err != nil {
+		t.Fatalf("decode put dictionaries: %v", err)
+	}
+	if !putBody.Data.Customized {
+		t.Fatalf("put dictionaries should be customized")
+	}
+	if len(putBody.Data.Items) != 1 || putBody.Data.Items[0].Type != "order.status" {
+		t.Fatalf("unexpected normalized dictionaries: %+v", putBody.Data.Items)
+	}
+	if got := putBody.Data.Items[0].Items; len(got) != 2 || got[0].Value != "pending" {
+		t.Fatalf("expected sorted valid dictionary items, got %+v", got)
+	}
+
+	lookupResp := httptest.NewRecorder()
+	mux.ServeHTTP(lookupResp, httptest.NewRequest(http.MethodGet, "/v1/system/dictionaries/order.status", nil))
+	if lookupResp.Code != http.StatusOK {
+		t.Fatalf("lookup dictionary status=%d body=%s", lookupResp.Code, lookupResp.Body.String())
+	}
+
+	missingResp := httptest.NewRecorder()
+	mux.ServeHTTP(missingResp, httptest.NewRequest(http.MethodGet, "/v1/system/dictionaries/missing", nil))
+	if missingResp.Code != http.StatusNotFound {
+		t.Fatalf("missing dictionary status=%d body=%s", missingResp.Code, missingResp.Body.String())
+	}
+}
