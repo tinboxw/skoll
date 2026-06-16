@@ -196,7 +196,21 @@ paths:
       summary: Check authorization
       responses:
         '200':
-          description: OK
+          description: Permission decision with resolved data scope
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allowed:
+                    type: boolean
+                  scope:
+                    type: string
+                    enum: [self, dept, dept_tree, custom, all]
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
   /v1/rbac/bindings:
     get:
       summary: List role bindings by subject

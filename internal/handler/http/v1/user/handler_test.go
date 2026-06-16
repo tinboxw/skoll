@@ -50,6 +50,10 @@ func (f *fakeRBACService) CheckPermission(_ context.Context, _ rbacsvc.CheckPerm
 	return false, nil
 }
 
+func (f *fakeRBACService) ResolvePermission(_ context.Context, _ rbacsvc.CheckPermissionInput) (rbacsvc.PermissionDecision, error) {
+	return rbacsvc.PermissionDecision{}, nil
+}
+
 func (f *fakeRBACService) SetRolePolicies(_ context.Context, _ rbacsvc.SetRolePoliciesInput) error {
 	return nil
 }

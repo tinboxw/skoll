@@ -81,7 +81,7 @@ func (h *RBACHandler) check(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	ok, err := h.service.CheckPermission(r.Context(), rbacsvc.CheckPermissionInput{
+	decision, err := h.service.ResolvePermission(r.Context(), rbacsvc.CheckPermissionInput{
 		SubjectType: domainrbac.SubjectType(req.SubjectType),
 		SubjectID:   req.SubjectID,
 		Resource:    req.Resource,
@@ -91,7 +91,7 @@ func (h *RBACHandler) check(w http.ResponseWriter, r *http.Request) {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	apiv1.WriteJSON(w, http.StatusOK, map[string]bool{"allowed": ok})
+	apiv1.WriteJSON(w, http.StatusOK, decision)
 }
 
 func (h *RBACHandler) listBindings(w http.ResponseWriter, r *http.Request) {

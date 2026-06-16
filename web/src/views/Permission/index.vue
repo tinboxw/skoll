@@ -26,6 +26,7 @@ type RuleRow = PolicyRule & { id: string };
 
 type PermissionCheckResult = {
 	allowed?: boolean;
+	scope?: PolicyRule["scope"];
 };
 
 function normalizeRoleRecord(item: unknown): RoleRecord | null {
@@ -71,6 +72,7 @@ const checkSubjectId = ref("");
 const checkResource = ref(resourceOptions[0]);
 const checkAction = ref(actionOptions[1]);
 const checkResult = ref<"allowed" | "denied" | "">("");
+const checkScope = ref("");
 
 const selectedRole = computed(() => roles.value.find((item) => item.id === selectedRoleId.value) ?? null);
 
@@ -224,6 +226,7 @@ async function checkPermission(): Promise<void> {
 	saving.value = true;
 	error.value = "";
 	checkResult.value = "";
+	checkScope.value = "";
 	try {
 		const payload = await apiPost<ApiResponse<PermissionCheckResult>>("/v1/rbac/check", {
 			subjectType: checkSubjectType.value,
@@ -232,6 +235,7 @@ async function checkPermission(): Promise<void> {
 			action: checkAction.value.trim()
 		});
 		checkResult.value = payload.data?.allowed ? "allowed" : "denied";
+		checkScope.value = payload.data?.scope ?? "";
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -354,6 +358,9 @@ onMounted(() => {
 					<el-tag v-if="checkResult" class="check-result" :type="checkResult === 'allowed' ? 'success' : 'danger'" effect="light">
 						<el-icon><component :is="checkResult === 'allowed' ? Check : Close" /></el-icon>
 						{{ t(`permission.result.${checkResult}`) }}
+					</el-tag>
+					<el-tag v-if="checkScope" class="check-result" effect="plain">
+						{{ t("permission.dataScope") }}: {{ checkScope }}
 					</el-tag>
 				</el-form>
 			</el-card>

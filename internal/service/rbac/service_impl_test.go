@@ -88,6 +88,71 @@ func TestRBACServiceCheckPermission(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected permission allowed")
 	}
+
+	decision, err := svc.ResolvePermission(context.Background(), CheckPermissionInput{
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-1",
+		Resource:    "user:profile",
+		Action:      "read",
+	})
+	if err != nil {
+		t.Fatalf("ResolvePermission error: %v", err)
+	}
+	if !decision.Allowed || decision.Scope != domainrbac.DataScopeAll {
+		t.Fatalf("unexpected decision: %+v", decision)
+	}
+}
+
+func TestRBACServiceResolvePermissionUsesMostRestrictiveScope(t *testing.T) {
+	repo := memory.NewRBACStore()
+	svc := NewService(repo)
+
+	_, err := svc.BindRole(context.Background(), BindRoleInput{
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-scope",
+		RoleID:      "r-scope",
+		Scope:       domainrbac.DataScopeDeptTree,
+	})
+	if err != nil {
+		t.Fatalf("BindRole error: %v", err)
+	}
+
+	err = svc.SetRolePolicies(context.Background(), SetRolePoliciesInput{
+		RoleID: "r-scope",
+		Rules: []domainrbac.PolicyRule{
+			{Resource: "user:*", Action: "read", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeDept},
+			{Resource: "user:*", Action: "update", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeAll},
+		},
+	})
+	if err != nil {
+		t.Fatalf("SetRolePolicies error: %v", err)
+	}
+
+	readDecision, err := svc.ResolvePermission(context.Background(), CheckPermissionInput{
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-scope",
+		Resource:    "user:profile",
+		Action:      "read",
+	})
+	if err != nil {
+		t.Fatalf("ResolvePermission read error: %v", err)
+	}
+	if !readDecision.Allowed || readDecision.Scope != domainrbac.DataScopeDept {
+		t.Fatalf("expected dept scope, got %+v", readDecision)
+	}
+
+	updateDecision, err := svc.ResolvePermission(context.Background(), CheckPermissionInput{
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-scope",
+		Resource:    "user:profile",
+		Action:      "update",
+	})
+	if err != nil {
+		t.Fatalf("ResolvePermission update error: %v", err)
+	}
+	if !updateDecision.Allowed || updateDecision.Scope != domainrbac.DataScopeDeptTree {
+		t.Fatalf("expected dept_tree scope, got %+v", updateDecision)
+	}
 }
 
 func TestRBACServiceListBindingsByUser(t *testing.T) {

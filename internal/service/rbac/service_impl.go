@@ -73,33 +73,46 @@ func (s *serviceImpl) SetRolePolicies(ctx context.Context, in SetRolePoliciesInp
 }
 
 func (s *serviceImpl) CheckPermission(ctx context.Context, in CheckPermissionInput) (bool, error) {
-	bindings, err := s.repo.ListBindingsBySubject(ctx, in.SubjectType, shared.ID(in.SubjectID))
+	decision, err := s.ResolvePermission(ctx, in)
 	if err != nil {
 		return false, err
 	}
+	return decision.Allowed, nil
+}
+
+func (s *serviceImpl) ResolvePermission(ctx context.Context, in CheckPermissionInput) (PermissionDecision, error) {
+	bindings, err := s.repo.ListBindingsBySubject(ctx, in.SubjectType, shared.ID(in.SubjectID))
+	if err != nil {
+		return PermissionDecision{}, err
+	}
 	if len(bindings) == 0 {
-		return false, nil
+		return PermissionDecision{}, nil
 	}
 
 	allowed := false
+	resolvedScope := domainrbac.DataScopeAll
 	for _, b := range bindings {
 		rules, err := s.repo.ListPolicyRulesByRoleID(ctx, b.RoleID)
 		if err != nil {
-			return false, err
+			return PermissionDecision{}, err
 		}
 		for _, rule := range rules {
 			if rule.Matches(in.Resource, in.Action) {
 				if rule.Effect == domainrbac.EffectDeny {
-					return false, nil
+					return PermissionDecision{}, nil
 				}
 				if rule.Effect == domainrbac.EffectAllow {
 					allowed = true
+					resolvedScope = moreRestrictiveScope(resolvedScope, moreRestrictiveScope(b.Scope, rule.Scope))
 				}
 			}
 		}
 	}
 
-	return allowed, nil
+	if !allowed {
+		return PermissionDecision{}, nil
+	}
+	return PermissionDecision{Allowed: true, Scope: resolvedScope}, nil
 }
 
 func (s *serviceImpl) ListBindingsByUser(ctx context.Context, userID string) ([]*domainrbac.Binding, error) {
@@ -108,4 +121,28 @@ func (s *serviceImpl) ListBindingsByUser(ctx context.Context, userID string) ([]
 		return []*domainrbac.Binding{}, nil
 	}
 	return s.ListBindings(ctx, domainrbac.SubjectUser, target)
+}
+
+func moreRestrictiveScope(left, right domainrbac.DataScope) domainrbac.DataScope {
+	if scopeRank(left) <= scopeRank(right) {
+		return left
+	}
+	return right
+}
+
+func scopeRank(scope domainrbac.DataScope) int {
+	switch scope {
+	case domainrbac.DataScopeSelf:
+		return 0
+	case domainrbac.DataScopeDept:
+		return 1
+	case domainrbac.DataScopeDeptTree:
+		return 2
+	case domainrbac.DataScopeCustom:
+		return 3
+	case domainrbac.DataScopeAll:
+		return 4
+	default:
+		return 4
+	}
 }

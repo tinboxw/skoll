@@ -20,3 +20,8 @@ type CheckPermissionInput struct {
 	Resource    string
 	Action      string
 }
+
+type PermissionDecision struct {
+	Allowed bool                 `json:"allowed"`
+	Scope   domainrbac.DataScope `json:"scope,omitempty"`
+}

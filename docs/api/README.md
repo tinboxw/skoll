@@ -100,7 +100,7 @@ JWT 密钥通过 `SKOLL_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置
 | `DELETE` | `/skoll/v1/rbac/bindings/{id}` | 删除绑定 |
 | `GET` | `/skoll/v1/rbac/bindings` | 查询绑定列表 |
 | `PUT` | `/skoll/v1/rbac/roles/{id}/policies` | 设置角色策略规则 |
-| `POST` | `/skoll/v1/rbac/check` | 权限检查 |
+| `POST` | `/skoll/v1/rbac/check` | 权限检查，返回 `allowed` 与解析后的 `scope` |
 | `GET` | `/skoll/v1/rbac/users/{id}/bindings` | 查询用户所有绑定 |
 
 ### 4.4 审计日志（Audit）

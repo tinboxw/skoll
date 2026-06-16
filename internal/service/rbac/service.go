@@ -12,5 +12,6 @@ type Service interface {
 	ListBindings(ctx context.Context, subjectType domainrbac.SubjectType, subjectID string) ([]*domainrbac.Binding, error)
 	SetRolePolicies(ctx context.Context, in SetRolePoliciesInput) error
 	CheckPermission(ctx context.Context, in CheckPermissionInput) (bool, error)
+	ResolvePermission(ctx context.Context, in CheckPermissionInput) (PermissionDecision, error)
 	ListBindingsByUser(ctx context.Context, userID string) ([]*domainrbac.Binding, error)
 }
