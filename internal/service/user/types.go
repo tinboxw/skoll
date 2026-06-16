@@ -1,40 +1,44 @@
 package user
 
 type CreateUserInput struct {
-	Account      string
-	Name         string
-	Email        string
-	PasswordHash string
-	ActorID      string
+	Account      string `json:"account"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	PasswordHash string `json:"passwordHash"`
+	DepartmentID string `json:"departmentId"`
+	PositionID   string `json:"positionId"`
+	ActorID      string `json:"actorId"`
 }
 
 type BatchCreateInput struct {
-	Items  []CreateUserInput
-	Atomic bool
+	Items  []CreateUserInput `json:"items"`
+	Atomic bool              `json:"atomic"`
 }
 
 type BatchCreateResult struct {
-	Index   int
-	Account string
-	Success bool
-	Message string
-	ID      string
+	Index   int    `json:"index"`
+	Account string `json:"account"`
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	ID      string `json:"id"`
 }
 
 type UpdateEmailInput struct {
-	ID      string
-	Email   string
-	ActorID string
+	ID      string `json:"id"`
+	Email   string `json:"email"`
+	ActorID string `json:"actorId"`
 }
 
 type UpdateUserInput struct {
-	ID     string
-	Name   string
-	Email  string
-	Status string
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Status       string `json:"status"`
+	DepartmentID string `json:"departmentId"`
+	PositionID   string `json:"positionId"`
 }
 
 type ListInput struct {
-	Offset int
-	Limit  int
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
 }

@@ -150,9 +150,11 @@ func (h *UserHandler) updateEmail(w http.ResponseWriter, r *http.Request) {
 
 func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Name   string `json:"name"`
-		Email  string `json:"email"`
-		Status string `json:"status"`
+		Name         string `json:"name"`
+		Email        string `json:"email"`
+		Status       string `json:"status"`
+		DepartmentID string `json:"departmentId"`
+		PositionID   string `json:"positionId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -160,23 +162,25 @@ func (h *UserHandler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	before, _ := h.service.Get(r.Context(), r.PathValue("id"))
 	entity, err := h.service.Update(r.Context(), usersvc.UpdateUserInput{
-		ID:     r.PathValue("id"),
-		Name:   req.Name,
-		Email:  req.Email,
-		Status: req.Status,
+		ID:           r.PathValue("id"),
+		Name:         req.Name,
+		Email:        req.Email,
+		Status:       req.Status,
+		DepartmentID: req.DepartmentID,
+		PositionID:   req.PositionID,
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	targetID := strings.TrimSpace(r.PathValue("id"))
-	detail := map[string]any{"after": map[string]any{"name": req.Name, "email": req.Email, "status": req.Status}}
+	detail := map[string]any{"after": map[string]any{"name": req.Name, "email": req.Email, "status": req.Status, "departmentId": req.DepartmentID, "positionId": req.PositionID}}
 	if entity != nil {
 		targetID = entity.ID.String()
-		detail["after"] = map[string]any{"name": entity.Name, "email": entity.Email, "status": entity.Status}
+		detail["after"] = map[string]any{"name": entity.Name, "email": entity.Email, "status": entity.Status, "departmentId": entity.DepartmentID, "positionId": entity.PositionID}
 	}
 	if before != nil {
-		detail["before"] = map[string]any{"name": before.Name, "email": before.Email, "status": before.Status}
+		detail["before"] = map[string]any{"name": before.Name, "email": before.Email, "status": before.Status, "departmentId": before.DepartmentID, "positionId": before.PositionID}
 	}
 	h.appendAudit(r, actorIDFromRequest(r.Context(), ""), "update", "user", targetID, detail)
 	apiv1.WriteJSON(w, http.StatusOK, entity)

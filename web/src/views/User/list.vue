@@ -14,12 +14,19 @@ type UserRecord = {
 	name?: string;
 	email: string;
 	status?: string;
+	departmentId?: string;
+	positionId?: string;
 };
 
 type RoleRecord = {
 	id: string;
 	name: string;
 	key?: string;
+};
+
+type OrganizationOption = {
+	id: string;
+	name: string;
 };
 
 function normalizeUserRecord(item: unknown): UserRecord | null {
@@ -36,7 +43,9 @@ function normalizeUserRecord(item: unknown): UserRecord | null {
 		account: String(row.account ?? row.Account ?? "").trim(),
 		name: String(row.name ?? row.Name ?? "").trim(),
 		email: String(row.email ?? row.Email ?? "").trim(),
-		status: String(row.status ?? row.Status ?? "").trim()
+		status: String(row.status ?? row.Status ?? "").trim(),
+		departmentId: String(row.departmentId ?? row.DepartmentID ?? "").trim(),
+		positionId: String(row.positionId ?? row.PositionID ?? "").trim()
 	};
 }
 
@@ -56,6 +65,21 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 	};
 }
 
+function normalizeOrganizationOption(item: unknown): OrganizationOption | null {
+	if (!item || typeof item !== "object") {
+		return null;
+	}
+	const row = item as Record<string, unknown>;
+	const id = String(row.id ?? row.ID ?? "").trim();
+	if (!id) {
+		return null;
+	}
+	return {
+		id,
+		name: String(row.name ?? row.Name ?? id).trim() || id
+	};
+}
+
 const { t } = useI18n();
 const access = useAccess();
 const route = useRoute();
@@ -65,6 +89,8 @@ const error = ref("");
 const operating = ref(false);
 const rows = ref<UserRecord[]>([]);
 const roles = ref<RoleRecord[]>([]);
+const departments = ref<OrganizationOption[]>([]);
+const positions = ref<OrganizationOption[]>([]);
 const selectedRoleID = ref("");
 const selectedUserIDs = ref<string[]>([]);
 const opSuccess = ref("");
@@ -114,6 +140,31 @@ async function loadRoles(): Promise<void> {
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	}
+}
+
+async function loadOrganizationOptions(): Promise<void> {
+	try {
+		const [deptPayload, positionPayload] = await Promise.all([
+			apiGet<ApiResponse<{ items?: unknown[] }>>("/v1/system/departments"),
+			apiGet<ApiResponse<{ items?: unknown[] }>>("/v1/system/positions")
+		]);
+		const deptItems = Array.isArray(deptPayload.data?.items) ? deptPayload.data.items : [];
+		const positionItems = Array.isArray(positionPayload.data?.items) ? positionPayload.data.items : [];
+		departments.value = deptItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
+		positions.value = positionItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
+	} catch {
+		departments.value = [];
+		positions.value = [];
+	}
+}
+
+function labelByID(options: OrganizationOption[], id?: string): string {
+	const value = String(id ?? "").trim();
+	if (!value) {
+		return "-";
+	}
+	const matched = options.find((item) => item.id === value);
+	return matched ? matched.name : value;
 }
 
 async function deleteUser(userID: string): Promise<void> {
@@ -195,6 +246,7 @@ async function bulkAssignRole(): Promise<void> {
 
 void loadUsers(1);
 void loadRoles();
+void loadOrganizationOptions();
 </script>
 
 <template>
@@ -235,6 +287,12 @@ void loadRoles();
 				<template #default="{ row }">{{ row.name || row.account }}</template>
 			</el-table-column>
 			<el-table-column prop="email" :label="t('table.email')" min-width="210" show-overflow-tooltip />
+			<el-table-column :label="t('table.department')" min-width="140" show-overflow-tooltip>
+				<template #default="{ row }">{{ labelByID(departments, row.departmentId) }}</template>
+			</el-table-column>
+			<el-table-column :label="t('table.position')" min-width="140" show-overflow-tooltip>
+				<template #default="{ row }">{{ labelByID(positions, row.positionId) }}</template>
+			</el-table-column>
 			<el-table-column :label="t('table.status')" width="120">
 				<template #default="{ row }">
 					<el-tag :type="row.status === 'active' ? 'success' : 'info'" effect="plain">{{ row.status || "-" }}</el-tag>

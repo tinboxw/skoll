@@ -4,7 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
 import { useAccess } from "../../permissions/access";
-import { type ApiResponse, apiPost } from "../../utils/api";
+import { type ApiResponse, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 type UserRecord = {
@@ -12,6 +12,11 @@ type UserRecord = {
 	account: string;
 	name?: string;
 	email: string;
+};
+
+type OrganizationOption = {
+	id: string;
+	name: string;
 };
 
 const router = useRouter();
@@ -23,10 +28,45 @@ const account = ref("");
 const name = ref("");
 const email = ref("");
 const password = ref("");
+const departmentId = ref("");
+const positionId = ref("");
+const departments = ref<OrganizationOption[]>([]);
+const positions = ref<OrganizationOption[]>([]);
 const loading = ref(false);
 const error = ref("");
 const success = ref("");
 const canCreateUser = computed(() => access.can("user.create"));
+
+function normalizeOrganizationOption(item: unknown): OrganizationOption | null {
+	if (!item || typeof item !== "object") {
+		return null;
+	}
+	const row = item as Record<string, unknown>;
+	const id = String(row.id ?? row.ID ?? "").trim();
+	if (!id) {
+		return null;
+	}
+	return {
+		id,
+		name: String(row.name ?? row.Name ?? id).trim() || id
+	};
+}
+
+async function loadOrganizationOptions(): Promise<void> {
+	try {
+		const [deptPayload, positionPayload] = await Promise.all([
+			apiGet<ApiResponse<{ items?: unknown[] }>>("/v1/system/departments"),
+			apiGet<ApiResponse<{ items?: unknown[] }>>("/v1/system/positions")
+		]);
+		const deptItems = Array.isArray(deptPayload.data?.items) ? deptPayload.data.items : [];
+		const positionItems = Array.isArray(positionPayload.data?.items) ? positionPayload.data.items : [];
+		departments.value = deptItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
+		positions.value = positionItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
+	} catch {
+		departments.value = [];
+		positions.value = [];
+	}
+}
 
 function resolveReturnTo(): string {
 	const value = route.query.returnTo;
@@ -71,7 +111,9 @@ async function submit(): Promise<void> {
 			account: account.value.trim(),
 			name: name.value.trim() || account.value.trim(),
 			email: email.value.trim(),
-			passwordHash: password.value.trim()
+			passwordHash: password.value.trim(),
+			departmentId: departmentId.value.trim(),
+			positionId: positionId.value.trim()
 		});
 		const created = payload.data as unknown as Record<string, unknown> | undefined;
 		const createdName = String(created?.account ?? created?.Account ?? account.value).trim();
@@ -85,6 +127,8 @@ async function submit(): Promise<void> {
 		loading.value = false;
 	}
 }
+
+void loadOrganizationOptions();
 </script>
 
 <template>
@@ -108,6 +152,16 @@ async function submit(): Promise<void> {
 				</el-form-item>
 				<el-form-item :label="t('table.email')" required>
 					<el-input v-model="email" type="email" :placeholder="t('table.email')" :disabled="loading || !canCreateUser" />
+				</el-form-item>
+				<el-form-item :label="t('table.department')">
+					<el-select v-model="departmentId" clearable filterable :placeholder="t('user.departmentPlaceholder')" :disabled="loading || !canCreateUser">
+						<el-option v-for="item in departments" :key="item.id" :label="item.name" :value="item.id" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('table.position')">
+					<el-select v-model="positionId" clearable filterable :placeholder="t('user.positionPlaceholder')" :disabled="loading || !canCreateUser">
+						<el-option v-for="item in positions" :key="item.id" :label="item.name" :value="item.id" />
+					</el-select>
 				</el-form-item>
 				<el-form-item :label="t('profile.newPassword')" required>
 					<el-input v-model="password" type="password" show-password minlength="8" :placeholder="t('profile.newPassword')" :disabled="loading || !canCreateUser" />

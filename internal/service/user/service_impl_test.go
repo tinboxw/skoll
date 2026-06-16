@@ -67,6 +67,45 @@ func TestUserServiceCreateAcceptsPlainPassword(t *testing.T) {
 	}
 }
 
+func TestUserServiceCreateAndUpdateOrganization(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	created, err := svc.Create(context.Background(), CreateUserInput{
+		Account:      "svc_org",
+		Name:         "Service Org",
+		Email:        "svc_org@example.com",
+		PasswordHash: "password123",
+		DepartmentID: "dept-root",
+		PositionID:   "pos-admin",
+		ActorID:      "admin-1",
+	})
+	if err != nil {
+		t.Fatalf("Create error: %v", err)
+	}
+	if created.DepartmentID != "dept-root" || created.PositionID != "pos-admin" {
+		t.Fatalf("unexpected organization fields: %+v", created)
+	}
+
+	updated, err := svc.Update(context.Background(), UpdateUserInput{
+		ID:           created.ID.String(),
+		Name:         created.Name,
+		Email:        created.Email.String(),
+		Status:       string(created.Status),
+		DepartmentID: "dept-ops",
+		PositionID:   "pos-user",
+	})
+	if err != nil {
+		t.Fatalf("Update error: %v", err)
+	}
+	if updated.DepartmentID != "dept-ops" || updated.PositionID != "pos-user" {
+		t.Fatalf("unexpected updated organization fields: %+v", updated)
+	}
+}
+
 func TestUserServiceCreateBatchAtomicStopsOnFirstError(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
 	if err != nil {

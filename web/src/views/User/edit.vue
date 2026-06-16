@@ -13,6 +13,8 @@ type UserRecord = {
 	name?: string;
 	email: string;
 	status?: string;
+	departmentId?: string;
+	positionId?: string;
 };
 
 type RoleRecord = {
@@ -25,6 +27,11 @@ type BindingRecord = {
 	id: string;
 	roleId: string;
 	scope: string;
+};
+
+type OrganizationOption = {
+	id: string;
+	name: string;
 };
 
 function normalizeUserRecord(item: unknown): UserRecord | null {
@@ -41,7 +48,9 @@ function normalizeUserRecord(item: unknown): UserRecord | null {
 		account: String(row.account ?? row.Account ?? "").trim(),
 		name: String(row.name ?? row.Name ?? "").trim(),
 		email: String(row.email ?? row.Email ?? "").trim(),
-		status: String(row.status ?? row.Status ?? "").trim()
+		status: String(row.status ?? row.Status ?? "").trim(),
+		departmentId: String(row.departmentId ?? row.DepartmentID ?? "").trim(),
+		positionId: String(row.positionId ?? row.PositionID ?? "").trim()
 	};
 }
 
@@ -77,6 +86,21 @@ function normalizeBindingRecord(item: unknown): BindingRecord | null {
 	};
 }
 
+function normalizeOrganizationOption(item: unknown): OrganizationOption | null {
+	if (!item || typeof item !== "object") {
+		return null;
+	}
+	const row = item as Record<string, unknown>;
+	const id = String(row.id ?? row.ID ?? "").trim();
+	if (!id) {
+		return null;
+	}
+	return {
+		id,
+		name: String(row.name ?? row.Name ?? id).trim() || id
+	};
+}
+
 const route = useRoute();
 const { t } = useI18n();
 const access = useAccess();
@@ -90,6 +114,10 @@ const account = ref("");
 const name = ref("");
 const status = ref("");
 const email = ref("");
+const departmentId = ref("");
+const positionId = ref("");
+const departments = ref<OrganizationOption[]>([]);
+const positions = ref<OrganizationOption[]>([]);
 const roles = ref<RoleRecord[]>([]);
 const selectedRoleID = ref("");
 const binding = ref(false);
@@ -117,6 +145,8 @@ async function loadUser(): Promise<void> {
 		name.value = data?.name ?? "";
 		status.value = data?.status ?? "";
 		email.value = data?.email ?? "";
+		departmentId.value = data?.departmentId ?? "";
+		positionId.value = data?.positionId ?? "";
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -135,6 +165,22 @@ async function loadRoles(): Promise<void> {
 		}
 	} catch (e) {
 		bindError.value = toErrorMessage(e);
+	}
+}
+
+async function loadOrganizationOptions(): Promise<void> {
+	try {
+		const [deptPayload, positionPayload] = await Promise.all([
+			apiGet<ApiResponse<{ items?: unknown[] }>>("/v1/system/departments"),
+			apiGet<ApiResponse<{ items?: unknown[] }>>("/v1/system/positions")
+		]);
+		const deptItems = Array.isArray(deptPayload.data?.items) ? deptPayload.data.items : [];
+		const positionItems = Array.isArray(positionPayload.data?.items) ? positionPayload.data.items : [];
+		departments.value = deptItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
+		positions.value = positionItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
+	} catch {
+		departments.value = [];
+		positions.value = [];
 	}
 }
 
@@ -168,7 +214,9 @@ async function submit(): Promise<void> {
 		await apiPut<ApiResponse<UserRecord>>(`/v1/users/${userId.value}`, {
 			name: name.value.trim(),
 			email: email.value.trim(),
-			status: status.value.trim()
+			status: status.value.trim(),
+			departmentId: departmentId.value.trim(),
+			positionId: positionId.value.trim()
 		});
 		success.value = t("user.updateDone");
 		await loadUser();
@@ -249,6 +297,7 @@ async function unbindSelected(): Promise<void> {
 }
 
 onMounted(() => {
+	void loadOrganizationOptions();
 	void loadUser();
 	void loadRoles();
 	void loadBindings();
@@ -281,6 +330,16 @@ onMounted(() => {
 				</el-form-item>
 				<el-form-item :label="t('table.email')" required>
 					<el-input v-model="email" type="email" :disabled="loading || saving || !canUpdateUser" />
+				</el-form-item>
+				<el-form-item :label="t('table.department')">
+					<el-select v-model="departmentId" clearable filterable :placeholder="t('user.departmentPlaceholder')" :disabled="loading || saving || !canUpdateUser">
+						<el-option v-for="item in departments" :key="item.id" :label="item.name" :value="item.id" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('table.position')">
+					<el-select v-model="positionId" clearable filterable :placeholder="t('user.positionPlaceholder')" :disabled="loading || saving || !canUpdateUser">
+						<el-option v-for="item in positions" :key="item.id" :label="item.name" :value="item.id" />
+					</el-select>
 				</el-form-item>
 				<div class="form-actions">
 					<el-button type="primary" native-type="submit" :loading="saving" :disabled="loading || !canUpdateUser">{{ t("common.save") }}</el-button>

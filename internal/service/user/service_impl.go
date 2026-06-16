@@ -63,6 +63,7 @@ func (s *serviceImpl) Create(ctx context.Context, in CreateUserInput) (*domainus
 	if err := entity.SetPasswordHash(passwordValue); err != nil {
 		return nil, err
 	}
+	entity.SetOrganization(in.DepartmentID, in.PositionID, now)
 
 	err = s.tx.InTx(ctx, func(_ repository.Tx) error {
 		if err := s.repo.Save(ctx, entity); err != nil {
@@ -167,6 +168,7 @@ func (s *serviceImpl) createWithoutTx(ctx context.Context, in CreateUserInput) (
 	if err := entity.SetPasswordHash(passwordValue); err != nil {
 		return nil, err
 	}
+	entity.SetOrganization(in.DepartmentID, in.PositionID, now)
 
 	if err := s.repo.Save(ctx, entity); err != nil {
 		return nil, err
@@ -238,6 +240,9 @@ func (s *serviceImpl) Update(ctx context.Context, in UpdateUserInput) (*domainus
 		default:
 			return nil, fmt.Errorf("unsupported status: %s", status)
 		}
+	}
+	if strings.TrimSpace(in.DepartmentID) != entity.DepartmentID || strings.TrimSpace(in.PositionID) != entity.PositionID {
+		entity.SetOrganization(in.DepartmentID, in.PositionID, now)
 	}
 
 	if err := s.repo.Save(ctx, entity); err != nil {

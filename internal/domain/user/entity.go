@@ -16,13 +16,15 @@ const (
 )
 
 type User struct {
-	ID       shared.ID
-	Account  string
-	Name     string
-	Email    Email
-	Status   Status
-	Password PasswordHash
-	Meta     shared.AuditMeta
+	ID           shared.ID
+	Account      string
+	Name         string
+	Email        Email
+	Status       Status
+	Password     PasswordHash
+	DepartmentID string
+	PositionID   string
+	Meta         shared.AuditMeta
 }
 
 func New(id shared.ID, account, name, email string, now time.Time) (*User, error) {
@@ -77,6 +79,12 @@ func (u *User) Rename(name string, now time.Time) error {
 	u.Name = strings.TrimSpace(name)
 	u.Meta.Touch(now)
 	return nil
+}
+
+func (u *User) SetOrganization(departmentID, positionID string, now time.Time) {
+	u.DepartmentID = strings.TrimSpace(departmentID)
+	u.PositionID = strings.TrimSpace(positionID)
+	u.Meta.Touch(now)
 }
 
 func (u *User) Disable(now time.Time) {

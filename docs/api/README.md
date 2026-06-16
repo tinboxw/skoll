@@ -77,6 +77,8 @@ JWT 密钥通过 `SKOLL_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置
 | `DELETE` | `/skoll/v1/users/{id}` | 删除用户 |
 | `PUT` | `/skoll/v1/users/{id}/roles` | 分配用户角色 |
 
+用户创建与更新请求已支持可选字段 `departmentId`、`positionId`，用于绑定部门与岗位，为后续数据权限策略提供组织归属基础。
+
 ### 4.2 角色管理（Role）
 
 | 方法 | 路径 | 说明 |

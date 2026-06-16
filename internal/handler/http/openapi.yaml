@@ -76,6 +76,29 @@ paths:
           description: OK
     post:
       summary: Create user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - account
+                - email
+                - passwordHash
+              properties:
+                account:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                passwordHash:
+                  type: string
+                departmentId:
+                  type: string
+                positionId:
+                  type: string
       responses:
         '201':
           description: Created
@@ -99,6 +122,24 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                status:
+                  type: string
+                  enum: [active, disabled]
+                departmentId:
+                  type: string
+                positionId:
+                  type: string
       responses:
         '200':
           description: OK
