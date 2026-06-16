@@ -16,6 +16,8 @@ import (
 const (
 	systemMenuSettingKey       = "skoll.menu.tree"
 	systemDictionarySettingKey = "skoll.dictionary.types"
+	systemDepartmentSettingKey = "skoll.organization.departments"
+	systemPositionSettingKey   = "skoll.organization.positions"
 )
 
 type SystemHandler struct {
@@ -51,6 +53,24 @@ type DictionaryItem struct {
 	Order  int    `json:"order"`
 }
 
+type DepartmentRecord struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	ParentID string `json:"parentId,omitempty"`
+	Leader   string `json:"leader,omitempty"`
+	Status   string `json:"status"`
+	Order    int    `json:"order"`
+}
+
+type PositionRecord struct {
+	ID          string `json:"id"`
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Status      string `json:"status"`
+	Order       int    `json:"order"`
+}
+
 func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service, auditSvc auditsvc.Service) {
 	if service == nil {
 		return
@@ -64,6 +84,10 @@ func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service, auditSv
 	mux.HandleFunc("GET /v1/system/dictionaries", h.getDictionaries)
 	mux.HandleFunc("PUT /v1/system/dictionaries", h.putDictionaries)
 	mux.HandleFunc("GET /v1/system/dictionaries/{type}", h.getDictionaryByType)
+	mux.HandleFunc("GET /v1/system/departments", h.getDepartments)
+	mux.HandleFunc("PUT /v1/system/departments", h.putDepartments)
+	mux.HandleFunc("GET /v1/system/positions", h.getPositions)
+	mux.HandleFunc("PUT /v1/system/positions", h.putPositions)
 	mux.HandleFunc("GET /v1/system/menus", h.getMenus)
 	mux.HandleFunc("PUT /v1/system/menus", h.putMenus)
 }
@@ -290,6 +314,107 @@ func (h *SystemHandler) loadDictionaries(r *http.Request) ([]DictionaryType, boo
 	return dictionaries, true, nil
 }
 
+func (h *SystemHandler) getDepartments(w http.ResponseWriter, r *http.Request) {
+	items, customized, err := h.loadDepartments(r)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "customized": customized})
+}
+
+func (h *SystemHandler) putDepartments(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Items []DepartmentRecord `json:"items"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	items := normalizeDepartments(req.Items)
+	if err := h.saveSystemList(r, systemDepartmentSettingKey, items, "upsert_departments", "system_department"); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "customized": true})
+}
+
+func (h *SystemHandler) getPositions(w http.ResponseWriter, r *http.Request) {
+	items, customized, err := h.loadPositions(r)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "customized": customized})
+}
+
+func (h *SystemHandler) putPositions(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Items []PositionRecord `json:"items"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	items := normalizePositions(req.Items)
+	if err := h.saveSystemList(r, systemPositionSettingKey, items, "upsert_positions", "system_position"); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "customized": true})
+}
+
+func (h *SystemHandler) saveSystemList(r *http.Request, key string, items any, action, resource string) error {
+	raw, err := json.Marshal(items)
+	if err != nil {
+		return err
+	}
+	before, _ := h.service.GetByKey(r.Context(), key)
+	_, err = h.service.Upsert(r.Context(), systemsvc.UpsertInput{
+		Key:   key,
+		Value: string(raw),
+	})
+	if err != nil {
+		return err
+	}
+	detail := map[string]any{"key": key}
+	if before != nil {
+		detail["before"] = before.Value != ""
+	}
+	h.appendAudit(r, action, resource, key, detail)
+	return nil
+}
+
+func (h *SystemHandler) loadDepartments(r *http.Request) ([]DepartmentRecord, bool, error) {
+	item, err := h.service.GetByKey(r.Context(), systemDepartmentSettingKey)
+	if err != nil {
+		return nil, false, err
+	}
+	if item == nil || strings.TrimSpace(item.Value) == "" {
+		return defaultDepartments(), false, nil
+	}
+	items := parseStoredDepartments(item.Value)
+	if len(items) == 0 {
+		return defaultDepartments(), false, nil
+	}
+	return items, true, nil
+}
+
+func (h *SystemHandler) loadPositions(r *http.Request) ([]PositionRecord, bool, error) {
+	item, err := h.service.GetByKey(r.Context(), systemPositionSettingKey)
+	if err != nil {
+		return nil, false, err
+	}
+	if item == nil || strings.TrimSpace(item.Value) == "" {
+		return defaultPositions(), false, nil
+	}
+	items := parseStoredPositions(item.Value)
+	if len(items) == 0 {
+		return defaultPositions(), false, nil
+	}
+	return items, true, nil
+}
+
 func (h *SystemHandler) loadMenus(r *http.Request) ([]MenuItem, bool, error) {
 	item, err := h.service.GetByKey(r.Context(), systemMenuSettingKey)
 	if err != nil {
@@ -319,6 +444,81 @@ func parseStoredDictionaries(raw string) []DictionaryType {
 		return nil
 	}
 	return normalizeDictionaryTypes(items)
+}
+
+func parseStoredDepartments(raw string) []DepartmentRecord {
+	var items []DepartmentRecord
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil
+	}
+	return normalizeDepartments(items)
+}
+
+func parseStoredPositions(raw string) []PositionRecord {
+	var items []PositionRecord
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil
+	}
+	return normalizePositions(items)
+}
+
+func normalizeDepartments(items []DepartmentRecord) []DepartmentRecord {
+	seen := map[string]struct{}{}
+	out := make([]DepartmentRecord, 0, len(items))
+	for _, item := range items {
+		id := strings.TrimSpace(item.ID)
+		name := strings.TrimSpace(item.Name)
+		if id == "" || name == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		item.ID = id
+		item.Name = name
+		item.ParentID = strings.TrimSpace(item.ParentID)
+		item.Leader = strings.TrimSpace(item.Leader)
+		item.Status = normalizeDictionaryStatus(item.Status)
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Order == out[j].Order {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].Order < out[j].Order
+	})
+	return out
+}
+
+func normalizePositions(items []PositionRecord) []PositionRecord {
+	seen := map[string]struct{}{}
+	out := make([]PositionRecord, 0, len(items))
+	for _, item := range items {
+		id := strings.TrimSpace(item.ID)
+		code := strings.TrimSpace(item.Code)
+		name := strings.TrimSpace(item.Name)
+		if id == "" || code == "" || name == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		item.ID = id
+		item.Code = code
+		item.Name = name
+		item.Description = strings.TrimSpace(item.Description)
+		item.Status = normalizeDictionaryStatus(item.Status)
+		out = append(out, item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Order == out[j].Order {
+			return out[i].Code < out[j].Code
+		}
+		return out[i].Order < out[j].Order
+	})
+	return out
 }
 
 func normalizeDictionaryTypes(items []DictionaryType) []DictionaryType {
@@ -427,9 +627,23 @@ func defaultSystemMenus() []MenuItem {
 		{ID: "permissions", Label: "Permissions", Path: "/skoll/permission", Icon: "permissions", Order: 40, Visible: true, RequiredPermissions: []string{"permission.manage"}},
 		{ID: "menus", Label: "Menus", Path: "/skoll/menu", Icon: "menus", Order: 45, Visible: true, RequiredPermissions: []string{"system.manage"}},
 		{ID: "dictionaries", Label: "Dictionaries", Path: "/skoll/dictionary", Icon: "settings", Order: 47, Visible: true, RequiredPermissions: []string{"dict.read"}},
+		{ID: "organization", Label: "Organization", Path: "/skoll/organization", Icon: "users", Order: 48, Visible: true, RequiredPermissions: []string{"org.read"}},
 		{ID: "audit", Label: "Audit", Path: "/skoll/audit", Icon: "audit", Order: 50, Visible: true, RequiredPermissions: []string{"audit.read"}},
 		{ID: "plugins", Label: "Plugins", Path: "/skoll/plugin", Icon: "plugins", Order: 60, Visible: true, RequiredPermissions: []string{"plugin.read"}},
 		{ID: "settings", Label: "Settings", Path: "/skoll/setting", Icon: "settings", Order: 70, Visible: true, RequiredPermissions: []string{"system.manage"}},
+	}
+}
+
+func defaultDepartments() []DepartmentRecord {
+	return []DepartmentRecord{
+		{ID: "dept-root", Name: "Headquarters", Status: "enabled", Order: 10},
+	}
+}
+
+func defaultPositions() []PositionRecord {
+	return []PositionRecord{
+		{ID: "pos-admin", Code: "admin", Name: "Administrator", Status: "enabled", Order: 10},
+		{ID: "pos-operator", Code: "operator", Name: "Operator", Status: "enabled", Order: 20},
 	}
 }
 

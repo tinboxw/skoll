@@ -42,6 +42,8 @@ var frameworkPermissionSeeds = []string{
 	"audit.read",
 	"dict.read",
 	"dict.manage",
+	"org.read",
+	"org.manage",
 	"metrics.read",
 	"profile.manage",
 	"plugin.read",

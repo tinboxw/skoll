@@ -15,7 +15,9 @@ const IMPLIED_PERMISSIONS: Record<string, string[]> = {
 	"system.read": ["*", "system.manage"],
 	"system.manage": ["*"],
 	"dict.read": ["*", "dict.manage"],
-	"dict.manage": ["*"]
+	"dict.manage": ["*"],
+	"org.read": ["*", "org.manage"],
+	"org.manage": ["*"]
 };
 
 export function hasPermissionValue(permissions: string[] | Set<string>, permission: string): boolean {

@@ -6,9 +6,9 @@ export type PermissionCatalogItem = {
 };
 
 export const BUILTIN_ROLE_DEFAULTS: Record<string, string[]> = {
-	super_admin: ["*", "user.read", "user.create", "user.update", "user.delete", "role.read", "role.create", "role.update", "role.delete", "role.manage", "permission.manage", "plugin.read", "plugin.manage", "audit.read", "system.read", "system.manage", "dict.read", "dict.manage"],
-	dept_admin: ["user.read", "user.update", "role.read", "plugin.read", "audit.read", "dict.read"],
-	operator: ["user.read", "role.read", "plugin.read", "dict.read"],
+	super_admin: ["*", "user.read", "user.create", "user.update", "user.delete", "role.read", "role.create", "role.update", "role.delete", "role.manage", "permission.manage", "plugin.read", "plugin.manage", "audit.read", "system.read", "system.manage", "dict.read", "dict.manage", "org.read", "org.manage"],
+	dept_admin: ["user.read", "user.update", "role.read", "plugin.read", "audit.read", "dict.read", "org.read"],
+	operator: ["user.read", "role.read", "plugin.read", "dict.read", "org.read"],
 	user: ["user.read"]
 };
 
@@ -29,7 +29,9 @@ export const BASE_PERMISSION_CATALOG: PermissionCatalogItem[] = [
 	{ key: "system.read", resource: "system", action: "read", label: "System Read" },
 	{ key: "system.manage", resource: "system", action: "manage", label: "System Manage" },
 	{ key: "dict.read", resource: "dictionary", action: "read", label: "Dictionary Read" },
-	{ key: "dict.manage", resource: "dictionary", action: "manage", label: "Dictionary Manage" }
+	{ key: "dict.manage", resource: "dictionary", action: "manage", label: "Dictionary Manage" },
+	{ key: "org.read", resource: "organization", action: "read", label: "Organization Read" },
+	{ key: "org.manage", resource: "organization", action: "manage", label: "Organization Manage" }
 ];
 
 export const BASE_PERMISSION_OPTIONS = BASE_PERMISSION_CATALOG.map((item) => item.key);

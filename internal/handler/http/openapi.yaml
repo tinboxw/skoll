@@ -801,6 +801,28 @@ paths:
           description: OK
         '404':
           description: Not Found
+  /v1/system/departments:
+    get:
+      summary: List departments
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Save departments
+      responses:
+        '200':
+          description: OK
+  /v1/system/positions:
+    get:
+      summary: List positions
+      responses:
+        '200':
+          description: OK
+    put:
+      summary: Save positions
+      responses:
+        '200':
+          description: OK
 components:
   schemas:
     MessageResponse:

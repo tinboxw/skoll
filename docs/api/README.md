@@ -126,6 +126,10 @@ JWT 密钥通过 `SKOLL_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置
 | `GET` | `/skoll/v1/system/dictionaries` | 获取字典类型与字典项 |
 | `GET` | `/skoll/v1/system/dictionaries/{type}` | 获取单个字典类型 |
 | `PUT` | `/skoll/v1/system/dictionaries` | 保存字典类型与字典项 |
+| `GET` | `/skoll/v1/system/departments` | 获取部门列表 |
+| `PUT` | `/skoll/v1/system/departments` | 保存部门列表 |
+| `GET` | `/skoll/v1/system/positions` | 获取岗位列表 |
+| `PUT` | `/skoll/v1/system/positions` | 保存岗位列表 |
 
 ### 4.6 插件管理（Plugin）
 

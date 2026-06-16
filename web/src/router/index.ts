@@ -11,6 +11,7 @@ const DashboardPage = () => import("../views/Dashboard/index.vue");
 const AuditPage = () => import("../views/Audit/index.vue");
 const DictionaryPage = () => import("../views/Dictionary/index.vue");
 const MenuPage = () => import("../views/Menu/index.vue");
+const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
 const PluginPage = () => import("../views/Plugin/index.vue");
 const ProfilePage = () => import("../views/Profile/index.vue");
@@ -115,6 +116,12 @@ const routes: RouteRecordRaw[] = [
 		meta: { permissions: ["dict.read"] }
 	},
 	{
+		path: `${ADMIN_PREFIX}/organization`,
+		name: "organization",
+		component: OrganizationPage,
+		meta: { permissions: ["org.read"] }
+	},
+	{
 		path: `${ADMIN_PREFIX}/audit`,
 		name: "audit",
 		component: AuditPage,
@@ -209,6 +216,7 @@ function normalizeRedirectPath(raw: string): string {
 		withSlash === "/permission" || withSlash.startsWith("/permission/") ||
 		withSlash === "/menu" || withSlash.startsWith("/menu/") ||
 		withSlash === "/dictionary" || withSlash.startsWith("/dictionary/") ||
+		withSlash === "/organization" || withSlash.startsWith("/organization/") ||
 		withSlash === "/audit" || withSlash.startsWith("/audit/") ||
 		withSlash === "/setting" || withSlash.startsWith("/setting/") ||
 		withSlash === "/profile" || withSlash.startsWith("/profile/") ||

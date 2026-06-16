@@ -207,3 +207,69 @@ func TestSystemDictionariesDefaultOverrideAndLookup(t *testing.T) {
 		t.Fatalf("missing dictionary status=%d body=%s", missingResp.Code, missingResp.Body.String())
 	}
 }
+
+func TestSystemOrganizationDefaultsAndOverride(t *testing.T) {
+	svc := newFakeSystemService()
+	mux := http.NewServeMux()
+	RegisterSystemRoutes(mux, svc, nil)
+
+	deptResp := httptest.NewRecorder()
+	mux.ServeHTTP(deptResp, httptest.NewRequest(http.MethodGet, "/v1/system/departments", nil))
+	if deptResp.Code != http.StatusOK {
+		t.Fatalf("default departments status=%d body=%s", deptResp.Code, deptResp.Body.String())
+	}
+	var deptBody struct {
+		Data struct {
+			Items      []DepartmentRecord `json:"items"`
+			Customized bool               `json:"customized"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(deptResp.Body.Bytes(), &deptBody); err != nil {
+		t.Fatalf("decode default departments: %v", err)
+	}
+	if deptBody.Data.Customized || len(deptBody.Data.Items) == 0 {
+		t.Fatalf("expected default non-customized departments, got %+v", deptBody.Data)
+	}
+
+	deptPayload := []byte(`{"items":[{"id":"dept-sales","name":"Sales","leader":"Alice","status":"enabled","order":20},{"id":"","name":"Bad"}]}`)
+	deptPut := httptest.NewRecorder()
+	mux.ServeHTTP(deptPut, httptest.NewRequest(http.MethodPut, "/v1/system/departments", bytes.NewReader(deptPayload)))
+	if deptPut.Code != http.StatusOK {
+		t.Fatalf("put departments status=%d body=%s", deptPut.Code, deptPut.Body.String())
+	}
+	var deptPutBody struct {
+		Data struct {
+			Items []DepartmentRecord `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(deptPut.Body.Bytes(), &deptPutBody); err != nil {
+		t.Fatalf("decode put departments: %v", err)
+	}
+	if len(deptPutBody.Data.Items) != 1 || deptPutBody.Data.Items[0].ID != "dept-sales" {
+		t.Fatalf("unexpected departments: %+v", deptPutBody.Data.Items)
+	}
+
+	posResp := httptest.NewRecorder()
+	mux.ServeHTTP(posResp, httptest.NewRequest(http.MethodGet, "/v1/system/positions", nil))
+	if posResp.Code != http.StatusOK {
+		t.Fatalf("default positions status=%d body=%s", posResp.Code, posResp.Body.String())
+	}
+
+	posPayload := []byte(`{"items":[{"id":"pos-sales","code":"sales","name":"Sales","status":"enabled","order":30},{"id":"bad","code":"","name":"Bad"}]}`)
+	posPut := httptest.NewRecorder()
+	mux.ServeHTTP(posPut, httptest.NewRequest(http.MethodPut, "/v1/system/positions", bytes.NewReader(posPayload)))
+	if posPut.Code != http.StatusOK {
+		t.Fatalf("put positions status=%d body=%s", posPut.Code, posPut.Body.String())
+	}
+	var posPutBody struct {
+		Data struct {
+			Items []PositionRecord `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(posPut.Body.Bytes(), &posPutBody); err != nil {
+		t.Fatalf("decode put positions: %v", err)
+	}
+	if len(posPutBody.Data.Items) != 1 || posPutBody.Data.Items[0].Code != "sales" {
+		t.Fatalf("unexpected positions: %+v", posPutBody.Data.Items)
+	}
+}

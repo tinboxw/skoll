@@ -103,7 +103,7 @@
 | 角色 API（8 个端点，含权限授予/撤销/角色用户） | ✅ | `internal/handler/http/v1/role/handler.go` |
 | RBAC API（5 个端点，含绑定/策略/权限检查） | ✅ | `internal/handler/http/v1/rbac/handler.go` |
 | 审计 API（5 个端点，含列表/详情/导出/清理/Actor查询） | ✅ | `internal/handler/http/v1/audit/handler.go` |
-| 系统设置 API（含单个/批量/重置/schema/菜单/字典） | ✅ | `internal/handler/http/v1/system/handler.go` |
+| 系统设置 API（含单个/批量/重置/schema/菜单/字典/组织） | ✅ | `internal/handler/http/v1/system/handler.go` |
 | 插件管理 API（安装/启用/禁用/卸载/配置/校验/DevPortal全流程） | ✅ | `internal/handler/http/v1/plugin/handler.go`，配置接口已返回 manifest `config_schema`，并支持字段级校验声明 |
 | 认证中间件（JWT Bearer + 白名单） | ✅ | `internal/handler/middleware/auth.go` |
 | 日志/限流中间件 | ✅ | `internal/handler/middleware/` |
@@ -255,6 +255,10 @@
 | GET | /v1/system/dictionaries | ✅ 字典列表 |
 | GET | /v1/system/dictionaries/{type} | ✅ 字典详情 |
 | PUT | /v1/system/dictionaries | ✅ 保存字典 |
+| GET | /v1/system/departments | ✅ 部门列表 |
+| PUT | /v1/system/departments | ✅ 保存部门 |
+| GET | /v1/system/positions | ✅ 岗位列表 |
+| PUT | /v1/system/positions | ✅ 保存岗位 |
 
 ### 4.6 插件管理 API（15+ 端点）
 
@@ -289,6 +293,7 @@
 | F002 | Element Plus UI 组件库 | 前端 | ✅ 基础完成，已按需接入并完成插件页、权限页、菜单页、User/Role 列表页、Role 编辑页、User 新增/编辑/批量页和 Audit/Setting 页首批迁移；插件配置 schema 表单、系统设置 SchemaForm 和字段级校验已接入 |
 | F003 | 动态菜单/动态路由/按钮权限基线 | 前端/后端 | 🔄 进行中，前端菜单注册中心、插件 `ui_menu` 解析输出、按钮权限工具、权限矩阵页、后端菜单树 API、侧栏远端菜单加载、菜单管理页首版、同级排序、静态页面级路由权限、插件路由权限继承和 User/Role 首批按钮权限已接入；后续接 UI 迁移和可选拖拽排序 |
 | F003a | 字典管理首版 | 前端/后端 | ✅ 已完成，新增字典类型/字典项 API、设置存储持久化、审计留痕、菜单/权限入口和 Element Plus 管理页；后续升级独立存储和缓存 |
+| F003b | 部门/岗位管理首版 | 前端/后端 | ✅ 已完成，新增部门与岗位 API、设置存储持久化、审计留痕、组织管理页、菜单/权限入口；后续接用户组织归属和数据权限 |
 
 ### 5.2 中优先级（P1）
 
