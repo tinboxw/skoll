@@ -5574,3 +5574,60 @@ rg -n "getAuditEvent|selectedDetail|detailPayload|audit\.metadata|audit\.diff|au
 ### 下一步
 
 - 进入 `M2-05-05`，审计导出按钮接入。
+
+## M2-05-05: 审计导出按钮接入
+
+- 状态: Passed
+- Work Item: M2-05-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Audit/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 导出按钮使用 `exportAuditEvents(buildAuditEventQuery())`，携带当前筛选条件。 |
+| API/OpenAPI 同步 | Passed | 导出走 M2-04 CSV export 契约。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 导出复用当前 action/type/risk/resource/actor/time query。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 导出错误进入页面 error alert，成功显示下载反馈。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未新增页面内 fetch 封装，继续复用 typed API client。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+rg -n 'exportAuditEvents|audit\.exported|success\.value' web/src/views/Audit/index.vue web/src/i18n/index.ts
+```
+
+结果摘要: 通过。build 仅输出现有依赖的 Rollup pure annotation 与 Dart Sass legacy API 警告；初次 rg 命令因 PowerShell 引号转义失败，改用单引号检索后通过。
+
+### 人工验收
+
+1. 审阅 `exportCSV`，确认导出使用当前 `buildAuditEventQuery`。
+2. 审阅错误处理，确认异常进入 `error` alert。
+3. 审阅成功分支，确认下载触发后展示成功反馈。
+
+结果摘要: 通过。审计导出按钮已接入当前过滤条件。
+
+### 失败与返工
+
+- 失败原因: 初次验收检索命令引号转义错误。
+- 返工动作: 改用单引号 rg 检索。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `M2-05-06`，审计页空态/错误态/无权限态。

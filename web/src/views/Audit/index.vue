@@ -458,6 +458,7 @@ async function exportCSV(): Promise<void> {
 		a.click();
 		a.remove();
 		URL.revokeObjectURL(url);
+		success.value = t("audit.exported");
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
