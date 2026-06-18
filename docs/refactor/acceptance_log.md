@@ -739,3 +739,55 @@ git status --short
 ### 下一步
 
 - 进入 `M0-04-01`，校准父任务表状态枚举。
+
+## M0-04-01: 校准父任务表状态枚举
+
+- 状态: Passed
+- Work Item: M0-04-01
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/task_board.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 父任务表明确必须与 Work Item 表使用同一套状态枚举。 |
+| API/OpenAPI 同步 | N/A | 仅文档治理任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅文档治理任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅文档治理任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅文档治理任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅文档治理任务，无前端实现影响。 |
+| 文档同步 | Passed | 父任务表、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只校准任务状态枚举，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+Select-String -Path docs\refactor\task_board.md,docs\refactor\work_items.md -Pattern "Todo|Doing|Review|Failed|Done|Blocked"
+```
+
+结果摘要: 通过。父任务表与 Work Item 表均包含同一套状态枚举。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/task_board.md` 的状态枚举。
+2. 对照 `docs/refactor/work_items.md` 的状态枚举。
+
+结果摘要: 通过。两张任务表状态枚举一致。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-04-02`，校准父任务与 Work Item 关系。

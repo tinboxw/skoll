@@ -26,20 +26,20 @@
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
 | 1 | M0-01-01 | M0-01 | `skoll-refactor-governance` | 校准架构决策文档标题、状态、适用范围 | `architecture_and_execution_plan.md` | 明确当前是唯一架构决策；无旧计划入口引用 | 文档审阅 | Done |
-| 2 | M0-01-02 | M0-01 | `skoll-refactor-governance` | 固化不做兼容方案规则 | `architecture_and_execution_plan.md`、`README.md` | 规则同时出现在执行入口和治理原则中 | `rg "不做旧接口|不做兼容方案" docs/refactor docs/README.md` | Done |
+| 2 | M0-01-02 | M0-01 | `skoll-refactor-governance` | 固化不做兼容方案规则 | `architecture_and_execution_plan.md`、`README.md` | 规则同时出现在执行入口和治理原则中 | `rg "不做旧接口\|不做兼容方案" docs/refactor docs/README.md` | Done |
 | 3 | M0-01-03 | M0-01 | `skoll-refactor-governance` | 固化分层依赖规则 | `architecture_and_execution_plan.md` | domain/service/repository/store/handler/web/plugin 边界清晰 | 文档审阅 | Done |
 | 4 | M0-01-04 | M0-01 | `skoll-refactor-governance` | 关联重构专用 skills | `architecture_and_execution_plan.md` | M0-M6 均能找到对应 skill | `rg "skoll-.*refactor" docs/refactor/architecture_and_execution_plan.md` | Done |
 | 5 | M0-02-01 | M0-02 | `skoll-refactor-governance` | 建立验收记录模板字段 | `acceptance_log.md` | 包含状态、日期、执行人、提交、改动文件、验收项 | 文档审阅 | Done |
 | 6 | M0-02-02 | M0-02 | `skoll-refactor-governance` | 补齐边界同步验收项 | `acceptance_log.md` | API/OpenAPI、权限、审计、migration、前端、文档均有检查项 | 文档审阅 | Done |
 | 7 | M0-02-03 | M0-02 | `skoll-refactor-governance` | 补齐失败返工记录区 | `acceptance_log.md` | 失败原因、返工动作、重新验收结果字段齐全 | 文档审阅 | Done |
-| 8 | M0-02-04 | M0-02 | `skoll-refactor-governance` | 补齐一任务一提交说明 | `README.md`、`acceptance_log.md` | 明确验收通过后提交一次代码 | `rg "提交一次代码|一任务一提交" docs/refactor` | Done |
+| 8 | M0-02-04 | M0-02 | `skoll-refactor-governance` | 补齐一任务一提交说明 | `README.md`、`acceptance_log.md` | 明确验收通过后提交一次代码 | `rg "提交一次代码\|一任务一提交" docs/refactor` | Done |
 | 9 | M0-03-01 | M0-03 | `skoll-quality-gate` | 运行 Go 全量测试 | 质量基线记录 | 记录命令、结果、失败包、失败原因 | `go test ./...` | Done |
 | 10 | M0-03-02 | M0-03 | `skoll-quality-gate` | 运行 Go 覆盖率统计 | `coverage.out` 或报告 | 记录总覆盖率和低覆盖包清单 | `go test ./... -coverprofile=coverage.out`; `go tool cover -func=coverage.out` | Done |
 | 11 | M0-03-03 | M0-03 | `skoll-quality-gate` | 运行前端构建 | 质量基线记录 | 记录 build 结果和 warning | `cd web && npm run build` | Done |
 | 12 | M0-03-04 | M0-03 | `skoll-quality-gate` | 检查前端 typecheck 命令 | 质量基线记录 | 若脚本存在则执行并记录；不存在则记录缺口 | `cd web && npm run typecheck` | Done |
 | 13 | M0-03-05 | M0-03 | `skoll-quality-gate` | 记录测试副作用 | 质量基线记录 | 运行门禁后 `git status --short` 输出被记录；污染文件列入修复项 | `git status --short` | Done |
-| 14 | M0-04-01 | M0-04 | `skoll-refactor-governance` | 校准父任务表状态枚举 | `task_board.md` | 状态枚举与 work item 状态一致 | 文档审阅 | Todo |
-| 15 | M0-04-02 | M0-04 | `skoll-refactor-governance` | 校准父任务与 work item 关系 | `task_board.md`、`work_items.md` | task_board 是父任务，work_items 是最小提交单元 | `rg "Work Item|最小执行" docs/refactor` | Todo |
+| 14 | M0-04-01 | M0-04 | `skoll-refactor-governance` | 校准父任务表状态枚举 | `task_board.md` | 状态枚举与 work item 状态一致 | 文档审阅 | Done |
+| 15 | M0-04-02 | M0-04 | `skoll-refactor-governance` | 校准父任务与 work item 关系 | `task_board.md`、`work_items.md` | task_board 是父任务，work_items 是最小提交单元 | `rg "Work Item\|最小执行" docs/refactor` | Todo |
 | 16 | M0-04-03 | M0-04 | `skoll-refactor-governance` | 校准 M0-M2 Work Item 覆盖率 | `work_items.md` | M0、M1、M2 每个父任务至少有一个 work item | 文档审阅 | Todo |
 | 17 | M0-04-04 | M0-04 | `skoll-refactor-governance` | 设置 M3-M7 滚动拆分规则 | `work_items.md` | 明确 M2 验收后再拆 M3-M7 | 文档审阅 | Todo |
 | 18 | M0-05-01 | M0-05 | `skoll-docs-writer` | 更新 `docs/refactor/README.md` 文档结构 | `README.md` | 列出 `work_items.md` | `rg "work_items.md" docs/refactor/README.md` | Todo |
@@ -148,7 +148,7 @@
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
 | 108 | FE0-01 | FE0 | `skoll-frontend-design-refactor` | 盘点当前前端页面体验 | 页面体验清单 | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 状态、问题、优先级清楚 | 文档审阅 | Todo |
-| 109 | FE0-02 | FE0 | `skoll-frontend-coding-refactor` | 盘点前端架构与复用点 | 架构清单 | API client、stores、router、permissions、SchemaForm、Common 组件边界清楚 | `rg "defineStore|SchemaForm|canAccess|v-permission" web/src` | Todo |
+| 109 | FE0-02 | FE0 | `skoll-frontend-coding-refactor` | 盘点前端架构与复用点 | 架构清单 | API client、stores、router、permissions、SchemaForm、Common 组件边界清楚 | `rg "defineStore\|SchemaForm\|canAccess\|v-permission" web/src` | Todo |
 | 110 | FE0-03 | FE0 | `skoll-frontend-performance-refactor` | 建立前端构建基线 | 构建记录 | build 输出、chunk、warning 和明显依赖风险被记录 | `cd web && npm run build` | Todo |
 | 111 | FE0-04 | FE0 | `skoll-frontend-testing-refactor` | 建立前端 typecheck 基线 | 检查记录 | typecheck 存在则记录结果，不存在则列入任务 | `cd web && npm run typecheck` | Todo |
 | 112 | FE0-05 | FE0 | `skoll-frontend-testing-refactor` | 建立浏览器人工验收模板 | 前端验收模板 | 包含正常、加载、空态、错误、无权限、窄屏、危险操作 | 文档审阅 | Todo |
@@ -162,7 +162,7 @@
 | 115 | FE1-03 | FE1 | `skoll-frontend-design-refactor` | 定义表格体验标准 | UI 文档/组件要求 | 列稳定、状态标签、批量动作、紧凑行操作标准明确 | 文档审阅 | Todo |
 | 116 | FE1-04 | FE1 | `skoll-frontend-design-refactor` | 定义表单和弹窗标准 | UI 文档/组件要求 | 校验、保存中、错误、确认、抽屉/弹窗适用边界明确 | 文档审阅 | Todo |
 | 117 | FE1-05 | FE1 | `skoll-frontend-design-refactor` | 定义状态组件标准 | UI 文档/组件要求 | loading/empty/error/no-permission/success/failed 统一 | 文档审阅 | Todo |
-| 118 | FE1-06 | FE1 | `skoll-frontend-coding-refactor` | 抽查全局样式与变量 | 样式清单 | 颜色、间距、字号、状态色来源清楚，无一页一套 | `rg "#[0-9A-Fa-f]{3,6}|var\\(" web/src/styles web/src/views` | Todo |
+| 118 | FE1-06 | FE1 | `skoll-frontend-coding-refactor` | 抽查全局样式与变量 | 样式清单 | 颜色、间距、字号、状态色来源清楚，无一页一套 | `rg "#[0-9A-Fa-f]{3,6}\|var\\(" web/src/styles web/src/views` | Todo |
 | 119 | FE1-07 | FE1 | `skoll-frontend-design-refactor` | 定义响应式最低标准 | UI 文档 | 窄屏无重叠、无按钮溢出、表格有降级策略 | 文档审阅 | Todo |
 
 ## FE2 Work Items: 前端架构与数据流
@@ -171,10 +171,10 @@
 |---:|---|---|---|---|---|---|---|---|
 | 120 | FE2-01 | FE2 | `skoll-frontend-coding-refactor` | 统一 API client 规范 | API client 文档/代码规范 | 请求、响应、错误、分页、导出封装标准明确 | 文档审阅 | Todo |
 | 121 | FE2-02 | FE2 | `skoll-frontend-coding-refactor` | 统一 Pinia store 规范 | store 文档/代码规范 | loading/error/data/retry/refresh 模式明确 | 文档审阅 | Todo |
-| 122 | FE2-03 | FE2 | `skoll-frontend-coding-refactor` | 统一 route guard 规范 | router/permission 文档 | 菜单、路由、按钮、插件权限同源 | `rg "canAccess|beforeEach|v-permission" web/src` | Todo |
+| 122 | FE2-03 | FE2 | `skoll-frontend-coding-refactor` | 统一 route guard 规范 | router/permission 文档 | 菜单、路由、按钮、插件权限同源 | `rg "canAccess\|beforeEach\|v-permission" web/src` | Todo |
 | 123 | FE2-04 | FE2 | `skoll-frontend-coding-refactor` | 统一 SchemaForm 使用规范 | SchemaForm 文档/示例 | 插件配置、系统设置、生成器表单复用边界明确 | 文档审阅 | Todo |
-| 124 | FE2-05 | FE2 | `skoll-frontend-coding-refactor` | 统一确认动作 helper | helper 规范/代码 | 删除、禁用、回滚、发布等危险动作使用统一确认 | `rg "useConfirmAction|ElMessageBox" web/src` | Todo |
-| 125 | FE2-06 | FE2 | `skoll-frontend-coding-refactor` | 统一前端错误展示 | helper 规范/代码 | 后端错误不会被吞掉或显示假成功 | `rg "catch|ElMessage.error|throw" web/src` | Todo |
+| 124 | FE2-05 | FE2 | `skoll-frontend-coding-refactor` | 统一确认动作 helper | helper 规范/代码 | 删除、禁用、回滚、发布等危险动作使用统一确认 | `rg "useConfirmAction\|ElMessageBox" web/src` | Todo |
+| 125 | FE2-06 | FE2 | `skoll-frontend-coding-refactor` | 统一前端错误展示 | helper 规范/代码 | 后端错误不会被吞掉或显示假成功 | `rg "catch\|ElMessage.error\|throw" web/src` | Todo |
 | 126 | FE2-07 | FE2 | `skoll-frontend-coding-refactor` | 统一导出/下载交互 | helper 规范/代码 | 导出使用当前筛选条件，失败可见 | 文档审阅 | Todo |
 
 ## FE3 Work Items: 核心页面体验升级
