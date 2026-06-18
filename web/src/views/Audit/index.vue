@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import { exportAuditEvents, listAuditEvents, type AuditEvent, type AuditEventListQuery, type AuditEventRisk, type AuditEventType } from "../../audit/api";
+import { exportAuditEvents, getAuditEvent, listAuditEvents, type AuditEvent, type AuditEventDetail, type AuditEventListQuery, type AuditEventRisk, type AuditEventType } from "../../audit/api";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { type ApiResponse, apiDelete } from "../../utils/api";
@@ -183,6 +183,8 @@ const page = ref(1);
 const pageSize = ref(Number.parseInt(readQueryValue(initialQuery, "pageSize") || "10", 10) || 10);
 const items = ref<AuditRecord[]>([]);
 const selected = ref<AuditRecord | null>(null);
+const selectedDetail = ref<AuditEventDetail | null>(null);
+const detailLoading = ref(false);
 const autoRangeEnabled = ref(autoRangeByDefault);
 const actionHistory = ref<string[]>(readHistory(ACTION_HISTORY_KEY));
 const resourceHistory = ref<string[]>(readHistory(RESOURCE_HISTORY_KEY));
@@ -295,6 +297,7 @@ const quickResources = computed(() => {
 });
 const actionSuggestions = computed(() => mergeHistory(actionHistory.value, quickActions.value));
 const resourceSuggestions = computed(() => mergeHistory(resourceHistory.value, quickResources.value));
+const detailPayload = computed(() => buildDetailPayload(selectedDetail.value ?? selected.value));
 
 function handleTypeChange(): void {
 	void loadAuditLogs();
@@ -422,12 +425,23 @@ function clearResourceFilter(): void {
 	void loadAuditLogs();
 }
 
-function openDetail(item: AuditRecord): void {
+async function openDetail(item: AuditRecord): Promise<void> {
 	selected.value = item;
+	selectedDetail.value = null;
+	detailLoading.value = true;
+	try {
+		selectedDetail.value = await getAuditEvent(item.id);
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		detailLoading.value = false;
+	}
 }
 
 function closeDetail(): void {
 	selected.value = null;
+	selectedDetail.value = null;
+	detailLoading.value = false;
 }
 
 async function exportCSV(): Promise<void> {
@@ -643,7 +657,38 @@ void loadAuditLogs();
 		</section>
 
 		<el-drawer :model-value="selected !== null" :title="t('audit.detail')" size="min(560px, 92vw)" @close="closeDetail">
-			<pre>{{ JSON.stringify(buildDetailPayload(selected), null, 2) }}</pre>
+			<el-skeleton v-if="detailLoading" :rows="8" animated />
+			<div v-else-if="detailPayload" class="detail-drawer">
+				<el-descriptions :column="1" border>
+					<el-descriptions-item :label="t('table.id')">{{ detailPayload.id }}</el-descriptions-item>
+					<el-descriptions-item :label="t('audit.type')">{{ detailPayload.type }}</el-descriptions-item>
+					<el-descriptions-item :label="t('table.actor')">{{ displayActor(detailPayload as AuditRecord) }}</el-descriptions-item>
+					<el-descriptions-item :label="t('table.action')">{{ detailPayload.action }}</el-descriptions-item>
+					<el-descriptions-item :label="t('table.resource')">{{ displayResource(detailPayload as AuditRecord) }}</el-descriptions-item>
+					<el-descriptions-item :label="t('audit.risk')">{{ detailPayload.risk }}</el-descriptions-item>
+					<el-descriptions-item :label="t('table.occurredAt')">{{ detailPayload.occurredAtLocal }}</el-descriptions-item>
+				</el-descriptions>
+
+				<section class="detail-section">
+					<h3>{{ t("audit.trace") }}</h3>
+					<pre>{{ JSON.stringify(detailPayload.trace ?? {}, null, 2) }}</pre>
+				</section>
+
+				<section class="detail-section">
+					<h3>{{ t("audit.metadata") }}</h3>
+					<pre>{{ JSON.stringify(detailPayload.metadata ?? {}, null, 2) }}</pre>
+				</section>
+
+				<section class="detail-section">
+					<h3>{{ t("audit.diff") }}</h3>
+					<pre>{{ JSON.stringify(detailPayload.diff ?? {}, null, 2) }}</pre>
+				</section>
+
+				<section class="detail-section">
+					<h3>{{ t("audit.sourceData") }}</h3>
+					<pre>{{ JSON.stringify(detailPayload.sourceData ?? {}, null, 2) }}</pre>
+				</section>
+			</div>
 		</el-drawer>
 	</section>
 </template>
@@ -734,6 +779,22 @@ void loadAuditLogs();
 
 .page-total {
 	color: var(--color-text-muted);
+}
+
+.detail-drawer {
+	display: grid;
+	gap: 14px;
+}
+
+.detail-section {
+	display: grid;
+	gap: 8px;
+}
+
+.detail-section h3 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 700;
 }
 
 pre {
