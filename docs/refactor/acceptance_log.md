@@ -5743,6 +5743,60 @@ rg -n "FE1-01.*Done" docs/refactor/work_items.md
 
 - 进入 `FE1-02`，定义页面布局标准。
 
+## FE1-02: 定义页面布局标准
+
+- 状态: Passed
+- Work Item: FE1-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe1_admin_page_layout_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Skoll Admin 页面布局标准文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 标准覆盖页面标题、工具栏、筛选、表格、详情、抽屉、弹窗和插件宿主布局。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准直接服务当前 Layout shell 和 Element Plus 组件，不新增旧布局兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Page header|Toolbar|Filter panel|Data panel|Detail drawer|Dialog|Plugin host|Responsive Layout" docs/refactor/fe1_admin_page_layout_standard.md
+rg -n "FE1-02.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。布局标准文档覆盖页面标题、工具栏、筛选、数据面板、详情抽屉、弹窗、插件宿主和响应式布局；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe1_admin_page_layout_standard.md`，确认页面标题、工具栏、筛选、表格、详情、抽屉结构统一。
+2. 对照 Audit 和 Plugin 页面锚点，确认标准能承接当前复杂页面。
+3. 确认 FE3/FE4 页面升级可直接引用该布局合同。
+
+结果摘要: 通过。FE1-02 页面布局标准完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE1-03`，定义表格体验标准。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed
