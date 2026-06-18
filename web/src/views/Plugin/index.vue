@@ -52,6 +52,8 @@ const configForm = ref<Record<string, unknown>>({});
 const configSchema = ref<PluginConfigSchema | null>(null);
 const configFormValid = ref(true);
 const operationText = ref("");
+const installPreflight = ref<Record<string, unknown> | null>(null);
+const validatedPluginPath = ref("");
 const selectedPlugin = ref("");
 const activeInspectorPanel = ref<"info" | "logs" | "config" | "">("");
 const pluginPath = ref("");
@@ -152,6 +154,7 @@ const riskPluginCount = computed(() => disabledPluginCount.value + inaccessibleP
 const hasActivePluginFilters = computed(() => showOnlyEnabled.value || pluginKeyword.value.trim() !== "" || pluginStatusFilter.value !== "");
 const canReadPlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginRead));
 const canManagePlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginManage));
+const installPreflightReady = computed(() => installPreflight.value !== null && pluginPath.value.trim() === validatedPluginPath.value);
 const detailPlugin = computed(() => getPluginRecord(detailPluginID.value));
 const detailReleaseOrders = computed(() => devReleaseOrders.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
 const detailReleaseTasks = computed(() => devReleaseTasks.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
@@ -396,6 +399,23 @@ function pluginAssetRows(plugin: FrontendPluginManifest): Array<{ label: string;
 	];
 }
 
+function preflightValue(key: string): string {
+	const value = installPreflight.value?.[key];
+	if (value === undefined || value === null || value === "") {
+		return "-";
+	}
+	return String(value);
+}
+
+function preflightCount(key: string): number {
+	const value = installPreflight.value?.[key];
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function preflightRiskType(): "success" | "warning" {
+	return preflightCount("permissions") > 0 || preflightCount("dependencies") > 0 ? "warning" : "success";
+}
+
 function handlePluginCommand(command: string): void {
 	const separator = command.indexOf(":");
 	if (separator < 0) {
@@ -603,10 +623,14 @@ async function validatePluginPath(): Promise<void> {
 	operating.value = true;
 	error.value = null;
 	info.value = null;
+	installPreflight.value = null;
+	validatedPluginPath.value = "";
 	try {
 		const payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/validate", {
 			path: pluginPath.value.trim()
 		});
+		installPreflight.value = payload.data && typeof payload.data === "object" ? payload.data as Record<string, unknown> : {};
+		validatedPluginPath.value = pluginPath.value.trim();
 		operationText.value = JSON.stringify(payload.data, null, 2);
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -624,6 +648,10 @@ async function installPluginPath(): Promise<void> {
 		error.value = t("plugin.pathRequired");
 		return;
 	}
+	if (!installPreflightReady.value) {
+		error.value = "请先完成当前路径的安装预检。";
+		return;
+	}
 	operating.value = true;
 	error.value = null;
 	info.value = null;
@@ -632,6 +660,8 @@ async function installPluginPath(): Promise<void> {
 			path: pluginPath.value.trim()
 		});
 		operationText.value = JSON.stringify(payload.data, null, 2);
+		installPreflight.value = null;
+		validatedPluginPath.value = "";
 		await refreshPlugins();
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -1295,7 +1325,27 @@ function resetDefaultHome(): void {
 			<div class="install-actions">
 				<el-input v-model="pluginPath" :placeholder="t('plugin.pathPlaceholder')" :disabled="operating" clearable />
 				<el-button v-permission="'plugin.read'" :icon="CircleCheck" :disabled="operating" @click="validatePluginPath">{{ t("plugin.action.validate") }}</el-button>
-				<el-button v-permission="'plugin.manage'" type="primary" :icon="Upload" :disabled="operating" @click="installPluginPath">{{ t("plugin.action.install") }}</el-button>
+				<el-button v-permission="'plugin.manage'" type="primary" :icon="Upload" :disabled="operating || !installPreflightReady" @click="installPluginPath">{{ t("plugin.action.install") }}</el-button>
+			</div>
+			<div v-if="installPreflight" class="preflight-panel plugin-install-preflight">
+				<div class="preflight-header">
+					<div>
+						<strong>安装预检</strong>
+						<p>{{ validatedPluginPath }}</p>
+					</div>
+					<el-tag :type="preflightRiskType()" effect="light">{{ preflightRiskType() === "warning" ? "需要复核" : "低风险" }}</el-tag>
+				</div>
+				<el-descriptions :column="3" border>
+					<el-descriptions-item label="插件">{{ preflightValue("id") }}</el-descriptions-item>
+					<el-descriptions-item label="版本">{{ preflightValue("version") }}</el-descriptions-item>
+					<el-descriptions-item label="依赖">{{ preflightCount("dependencies") }}</el-descriptions-item>
+					<el-descriptions-item label="权限 diff">{{ preflightCount("permissions") > 0 ? `${preflightCount("permissions")} 项新增/复核` : "无新增权限" }}</el-descriptions-item>
+					<el-descriptions-item label="菜单 diff">当前接口未返回菜单变更，安装前需在详情/菜单注册中复核。</el-descriptions-item>
+					<el-descriptions-item label="签名">当前 validate 响应未返回签名结果，按未验证处理。</el-descriptions-item>
+					<el-descriptions-item label="迁移影响">当前 validate 响应未返回 migration 信息，安装前按未知影响复核。</el-descriptions-item>
+					<el-descriptions-item label="风险">{{ preflightRiskType() === "warning" ? "权限或依赖存在变更" : "未发现权限/依赖风险" }}</el-descriptions-item>
+					<el-descriptions-item label="安装门禁">{{ installPreflightReady ? "当前路径已预检" : "路径变化后需重新预检" }}</el-descriptions-item>
+				</el-descriptions>
 			</div>
 			<pre v-if="operationText" class="code-block">{{ operationText }}</pre>
 		</el-card>
@@ -1917,6 +1967,26 @@ function resetDefaultHome(): void {
 
 .install-actions {
 	align-items: stretch;
+}
+
+.preflight-panel {
+	display: grid;
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.preflight-header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.preflight-header p {
+	margin: 4px 0 0;
+	color: var(--color-text-muted);
+	font-size: 0.86rem;
+	word-break: break-all;
 }
 
 .content-grid {

@@ -8400,6 +8400,69 @@ npm run build
 ### 下一步
 
 - 进入 `FE4-03`，执行插件安装预检体验。
+## FE4-03: 插件安装预检体验
+
+- 状态: Passed
+- Work Item: FE4-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Plugin 安装面板新增安装预检结果区和安装门禁。 |
+| 权限 diff | Passed | 展示 validate 返回的权限数量，并标记新增/复核项。 |
+| 菜单 diff | Passed | 当前 validate 接口未返回菜单 diff，页面明确显示需在安装前复核菜单注册。 |
+| 风险 | Passed | 根据权限/依赖数量展示低风险或需要复核。 |
+| 签名 | Passed | 当前 validate 接口未返回签名结果，页面明确按未验证处理。 |
+| 迁移影响 | Passed | 当前 validate 接口未返回 migration 信息，页面明确按未知影响复核。 |
+| 安装门禁 | Passed | 安装按钮要求当前路径已完成预检；路径变化后需要重新预检。 |
+| API/OpenAPI 同步 | N/A | 本项不改 `/v1/plugins/validate` 或 `/v1/plugins/install` 契约。 |
+| 权限目录同步 | Passed | 继续复用 `plugin.read` 做预检、`plugin.manage` 做安装。 |
+
+### 自动化验证
+
+```powershell
+rg -n "installPreflight|installPreflightReady|plugin-install-preflight|权限 diff|菜单 diff|签名|迁移影响|安装门禁" web/src/views/Plugin/index.vue
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。预检面板、权限 diff、菜单 diff、签名、迁移影响和安装门禁锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可调用的 in-app browser 工具；bundled Playwright 运行时缺少 `playwright-core`，无法完成真实点击或截图 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 validate -> install 门禁流程。
+
+### Performance Hook
+
+- Page/route: Plugin，`/skoll/plugin`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus descriptions/tag。
+- Request behavior: 不新增首屏请求；只在用户点击预检时调用现有 validate API。
+- Follow-up: 后端 validate 响应扩展 permission/menu/signature/migration diff 后，可替换当前未知状态提示。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE4-04`，执行插件风险报告体验。
 ## ADJ-FE-20260619-06: FE4 plugin portal risk map
 
 - 状态: Passed
