@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ type permissionChecker interface {
 }
 
 func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, auditSink auditmw.AuditEventSink) http.Handler {
-	h := recoverMiddleware(logger, next)
+	h := recoverMiddleware(logger, auditSink, next)
 	h = accessLogMiddleware(logger, h)
 	h = authGuardMiddleware(policy, apiPrefix, jwtSecret, checker, auditSink, h)
 	return h
@@ -174,15 +175,38 @@ func accessLogMiddleware(logger logging.Logger, next http.Handler) http.Handler 
 	})
 }
 
-func recoverMiddleware(logger logging.Logger, next http.Handler) http.Handler {
+func recoverMiddleware(logger logging.Logger, auditSink auditmw.AuditEventSink, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
 				logger.Error("panic recovered", "panic", rec)
+				appendErrorAudit(r, auditSink, rec)
 				apperrors.WriteHTTP(w, apperrors.New("internal_error", "internal server error", nil))
 			}
 		}()
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func appendErrorAudit(r *http.Request, sink auditmw.AuditEventSink, rec any) {
+	if r == nil || sink == nil {
+		return
+	}
+	now := time.Now().UTC()
+	event, err := auditmw.NewErrorAuditEvent(auditmw.ErrorAuditInput{
+		ID:         shared.ID("audit-event-" + strconv.FormatInt(now.UnixNano(), 10)),
+		LogID:      shared.ID("error-log-" + strconv.FormatInt(now.UnixNano(), 10)),
+		Request:    r,
+		StatusCode: http.StatusInternalServerError,
+		ErrorCode:  "panic",
+		Summary:    "panic recovered",
+		Message:    fmt.Sprint(rec),
+		Panic:      rec,
+		OccurredAt: now,
+	})
+	if err != nil {
+		return
+	}
+	_ = sink.AppendEvent(r.Context(), event)
 }

@@ -4964,3 +4964,57 @@ $env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
 
 ### 下一步
 - 进入 `M2-03-05`，接入错误日志捕获。
+
+## M2-03-05: 接入错误日志捕获
+
+- 状态: Passed
+- Work Item: M2-03-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/handler/middleware/error_audit.go`
+- `internal/handler/middleware/error_audit_test.go`
+- `internal/handler/middleware/README.md`
+- `internal/bootstrap/middleware.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 error audit middleware 和事件构造器，覆盖 handler 500 与 panic。 |
+| API/OpenAPI 同步 | N/A | 响应契约未改变。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | handler error 使用 `error.request.handled`，panic 使用 `error.request.panic`。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | middleware README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 错误捕获直接写新 `audit.Event`，source data 使用 `ErrorLog` 结构字段。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/handler/middleware/error_audit.go internal/handler/middleware/error_audit_test.go internal/bootstrap/middleware.go
+go test ./internal/handler/middleware/...
+$env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
+```
+
+结果摘要: 通过。handler 500、panic、trace/request id、ErrorLog source data 均已覆盖；bootstrap recover 路径在 `CGO_ENABLED=0` 下复验通过。
+
+### 人工验收
+
+1. 审阅 `error_audit.go`，确认 panic 与 handler error 分别写入不同 action。
+2. 审阅 `error_audit_test.go`，确认 trace/request id 被写入事件。
+3. 审阅 `bootstrap/middleware.go`，确认 recover middleware 复用统一错误事件构造器。
+
+结果摘要: 通过。错误日志捕获已接入。
+
+### 失败与返工
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+- 进入 `M2-04-01`，设计审计列表 API 契约。

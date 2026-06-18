@@ -10,6 +10,7 @@ HTTP 中间件集合。
 
 ## 当前规划文件
 - auth.go
+- error_audit.go
 - logger.go
 - rate_limit.go
 - request_audit.go
