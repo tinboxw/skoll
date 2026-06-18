@@ -6665,6 +6665,61 @@ rg -n "FE2-0[1-9].*Todo|ADJ-FE-20260619-02.*Todo" docs/refactor/work_items.md
 
 - 进入 `ADJ-FE-20260619-03`，建立 FE3 page-by-page acceptance map。
 
+## ADJ-FE-20260619-03: FE3 page-by-page acceptance map
+
+- 状态: Passed
+- Work Item: ADJ-FE-20260619-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe3_page_acceptance_map.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE3 核心页面逐页验收地图。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | Passed | 每页验收要求记录 route/menu/button/permission path。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 每页覆盖状态、交互、响应式和命令验收。 |
+| 文档同步 | Passed | Work Item、Task Board 和验收记录已同步，FE3 父任务进入 Doing。 |
+| 无兼容方案/无旧路径残留 | Passed | 验收地图要求引用当前 FE1/FE2 标准，不新增旧 UI 流程。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|State coverage|Command coverage" docs/refactor/fe3_page_acceptance_map.md
+rg -n "ADJ-FE-20260619-03.*Done|\\| 60 \\| FE3 .*Doing" docs/refactor/work_items.md docs/refactor/task_board.md
+```
+
+结果摘要: 通过。八个核心页面均有验收地图；状态覆盖、命令覆盖和 FE3 readiness 已记录；FE3 父任务进入 Doing。
+
+### 人工验收
+
+1. 审阅 `fe3_page_acceptance_map.md`，确认 Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 均覆盖。
+2. 确认每页包含状态、权限、数据路径、响应式和命令验收要求。
+3. 确认后续 FE3 页面任务不能只以 build 通过作为验收。
+
+结果摘要: 通过。ADJ-FE-20260619-03 完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `ADJ-FE-20260619-04`，建立 FE6 performance hook for FE3。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
