@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 
 import { exportAuditEvents, getAuditEvent, listAuditEvents, type AuditEvent, type AuditEventDetail, type AuditEventListQuery, type AuditEventRisk, type AuditEventType } from "../../audit/api";
 import { confirmAction } from "../../composables/useConfirmAction";
+import { downloadBlob } from "../../composables/useDownloadBlob";
 import { useI18n } from "../../i18n";
 import { ApiError, type ApiResponse, apiDelete } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -453,14 +454,7 @@ async function exportCSV(): Promise<void> {
 	success.value = "";
 	try {
 		const blob = await exportAuditEvents(buildAuditEventQuery());
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement("a");
-		a.href = url;
-		a.download = "audit_events.csv";
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		URL.revokeObjectURL(url);
+		downloadBlob({ blob, filename: "audit_events.csv" });
 		success.value = t("audit.exported");
 	} catch (e) {
 		error.value = toErrorMessage(e);

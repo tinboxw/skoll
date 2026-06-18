@@ -6491,6 +6491,64 @@ rg -n "FE2-06.*Done" docs/refactor/work_items.md
 
 - 进入 `FE2-07`，统一导出/下载交互。
 
+## FE2-07: 统一导出/下载交互
+
+- 状态: Passed
+- Work Item: FE2-07
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/composables/useDownloadBlob.ts`
+- `web/src/views/Audit/index.vue`
+- `docs/refactor/fe2_download_export_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Blob 下载 helper 和导出/下载标准文档，Audit 导出已接入 helper。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 导出复用当前筛选 query，API client 返回 Blob，下载 DOM 动作集中在 helper，失败进入页面错误。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 不新增旧下载路径或重复页面 DOM 下载实现。 |
+
+### 自动化验证
+
+```powershell
+rg -n "downloadBlob|exportAuditEvents|buildAuditEventQuery|toErrorMessage|URL.createObjectURL" web/src docs/refactor/fe2_download_export_standard.md
+rg -n "Query parity|Blob boundary|Error visibility|No duplicate DOM download" docs/refactor/fe2_download_export_standard.md
+cd web
+npm run typecheck
+```
+
+结果摘要: 通过。Audit 导出复用 `buildAuditEventQuery()`，Blob 下载由 `downloadBlob` 统一触发，错误仍由 `toErrorMessage` 展示；前端 typecheck 通过。
+
+### 人工验收
+
+1. 审阅 `fe2_download_export_standard.md`，确认 API client、download helper、页面职责分离。
+2. 对照 `audit/api.ts` 和 `Audit/index.vue`，确认导出使用当前筛选条件且失败可见。
+3. 对照 `useDownloadBlob.ts`，确认 object URL 创建和释放集中在 helper 内。
+
+结果摘要: 通过。FE2-07 统一导出/下载交互完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE2-08`，统一空态/错误态/无权限态组件。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
