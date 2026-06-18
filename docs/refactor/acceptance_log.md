@@ -7583,3 +7583,80 @@ $fixture.scenarios.Count
 ### 下一步
 
 - 进入 `M2-06-01`，更新 smoke-auth-audit 脚本场景。
+
+## FE3-01: Dashboard 体验升级方案
+
+- 状态: Passed
+- Work Item: FE3-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Dashboard/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Dashboard 从单一卡片区升级为系统状态、插件状态、菜单状态、快捷入口和关注事项聚合页。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | Passed | 快捷入口复用现有 `canAccess` 与权限 key，不新增权限目录项。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改变数据库结构或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 页面读取现有 plugin/navigation/user stores，不新增请求或重复 API client。 |
+| 文档同步 | Passed | Work Item 状态、验证命令、验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/dashboard` 当前路由，未新增旧入口或兼容分支。 |
+
+### 自动化验证
+
+```powershell
+rg -n "StateBlock|RouterLink|canAccess|quickLinks|riskItems|dashboard.quick|dashboard.risk" web/src/views/Dashboard/index.vue web/src/i18n/index.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。关键 UI/权限/状态锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 和 `@vueuse/core` 注释 warning，未由本页引入新依赖。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 已启动本地 Vite 服务并尝试用 bundled Playwright 打开页面；当前运行时 `playwright` 包存在但缺少 `playwright-core`，浏览器截图无法执行。
+- 处理: 本次以静态锚点、typecheck、build 完成验收，并记录该环境限制；后续 FE5 smoke 工具链修复后补跑 Dashboard 浏览器路径。
+
+### Performance Hook
+
+- Page/route: Dashboard，`/skoll/dashboard`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 RouterLink、StateBlock、Pinia stores 和现有权限工具。
+- Route lazy loading: Passed，router 中通过 `const DashboardPage = () => import("../views/Dashboard/index.vue")` 动态导入。
+- Heavy table risk: N/A，页面无表格和大列表。
+- Request behavior: 不新增 API 请求；只消费既有 plugin/navigation/user store 状态。
+- Loading behavior: 不新增全局 loading；通过系统卡片、快捷入口空态和关注事项表达 store 当前状态。
+- Deferred panels: N/A，页面无详情、日志、配置等重面板。
+- Narrow viewport: CSS grid 在 900px 以下折叠，快捷入口和头部状态 chip 不强制横向布局；浏览器 smoke 因 Playwright 环境缺失待 FE5 补跑。
+- Follow-up: FE5 smoke 工具链可用后补充真实浏览器截图/交互验收。
+
+### 人工验收
+
+1. 对照 `fe3_page_acceptance_map.md`，确认 Dashboard 覆盖系统状态、插件状态、快捷入口、风险提示。
+2. 对照 `fe3_performance_hook_template.md`，确认本页记录构建影响、路由懒加载、请求行为、重表格风险和窄屏策略。
+3. 审阅 `web/src/views/Dashboard/index.vue`，确认页面未新增 API 分支，快捷入口按当前账号权限过滤。
+
+结果摘要: 通过。Dashboard 首屏信息密度和运行状态表达已满足 FE3-01 要求。
+
+### 失败与返工
+
+- 失败原因: 首次 typecheck 发现 `navigationStore.hasError` 属性不存在；浏览器 smoke 发现 bundled Playwright 缺少 `playwright-core`。
+- 返工动作: 将菜单异常判断改为 `navigationStore.syncStatus === "error"`；浏览器 smoke 作为环境阻塞记录，保留自动化 typecheck/build 作为本次验收门禁。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `FE3-02`，执行 User 页面体验升级。
