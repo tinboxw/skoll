@@ -2186,3 +2186,57 @@ go test ./internal/store/memory/...
 ### 下一步
 
 - 进入 `M1-04-05`，实现 SQL permission store。
+
+## M1-04-05: 实现 SQL permission store
+
+- 状态: Passed
+- Work Item: M1-04-05
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/store/sql/gormrepo/permission_store.go`
+- `internal/store/sql/gormrepo/permission_store_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 SQL permission store，覆盖 register/list/get/set enabled。 |
+| API/OpenAPI 同步 | N/A | 本项只实现 SQL store，无 API 影响。 |
+| 权限目录同步 | Passed | store 实现 permission repository 契约并使用 permission domain/model。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | Passed | store 写入字段与 permission resource migration/model 对齐；暂不引入 seed。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧权限 SQL store 兼容路径。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/store/sql/gormrepo -run "TestPermissionStoreImplementsRepository"
+go test ./internal/store/sql/gormrepo/...
+```
+
+结果摘要: 关闭 cgo 后 repository 契约测试通过。全包验收受本机 cgo 编译器路径缺失影响失败，失败原因与 M0 基线一致。
+
+### 人工验收
+
+1. 审阅 `internal/store/sql/gormrepo/permission_store.go`。
+2. 确认 SQL store 与 permission repository 契约一致。
+
+结果摘要: 通过。SQL permission store 已实现。
+
+### 失败与返工
+
+- 失败原因: 全包 gormrepo 测试依赖 SQLite cgo，当前 `CC` 指向缺失的 gcc。
+- 返工动作: 增加 repository 契约专项测试，并在 `CGO_ENABLED=0` 下执行通过；保留环境失败记录。
+- 重新验收结果: 通过。
+
+### 下一步
+
+- 进入 `M1-04-06`，实现 SQL menu store。

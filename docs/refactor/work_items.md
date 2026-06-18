@@ -71,7 +71,7 @@
 | 38 | M1-04-02 | M1-04 | `skoll-permission-menu-refactor` | 定义 menu repository 接口 | repository code | service-facing 方法覆盖 tree/list/upsert/reorder | `go test ./internal/repository/...` | Done |
 | 39 | M1-04-03 | M1-04 | `skoll-permission-menu-refactor` | 实现 memory permission store | memory store + tests | 注册幂等、source filter、enable/disable 通过 | `go test ./internal/store/memory/...` | Done |
 | 40 | M1-04-04 | M1-04 | `skoll-permission-menu-refactor` | 实现 memory menu store | memory store + tests | upsert/tree/reorder/visibility 通过 | `go test ./internal/store/memory/...` | Done |
-| 41 | M1-04-05 | M1-04 | `skoll-database-development` | 实现 SQL permission store | gormrepo store + tests | 与 repository 契约一致 | `go test ./internal/store/sql/gormrepo/...` | Todo |
+| 41 | M1-04-05 | M1-04 | `skoll-database-development` | 实现 SQL permission store | gormrepo store + tests | 与 repository 契约一致 | `go test ./internal/store/sql/gormrepo/...` | Done |
 | 42 | M1-04-06 | M1-04 | `skoll-database-development` | 实现 SQL menu store | gormrepo store + tests | 与 repository 契约一致 | `go test ./internal/store/sql/gormrepo/...` | Todo |
 | 43 | M1-04-07 | M1-04 | `skoll-database-development` | 接入 store factory | factory code | memory/mysql/postgres bundle 可提供新 store | `go test ./internal/store/...` | Todo |
 | 44 | M1-05-01 | M1-05 | `skoll-permission-menu-refactor` | 定义 permission catalog service interface | service code | 接口覆盖注册、列表、启停、diff | `go test ./internal/service/permission/...` | Todo |
