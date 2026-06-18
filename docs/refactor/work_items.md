@@ -184,7 +184,7 @@
 | 131 | FE2-06 | FE2 | `skoll-frontend-coding-refactor` | 统一前端错误展示 | helper 规范/代码 | 后端错误不会被吞掉或显示假成功 | `rg -n "catch|toErrorMessage|ApiError|lastError|throw" web/src docs/refactor/fe2_error_display_standard.md` | Done |
 | 132 | FE2-07 | FE2 | `skoll-frontend-coding-refactor` | 统一导出/下载交互 | helper 规范/代码 | 导出使用当前筛选条件，失败可见 | `rg -n "downloadBlob|exportAuditEvents|buildAuditEventQuery|toErrorMessage|URL.createObjectURL" web/src docs/refactor/fe2_download_export_standard.md` | Done |
 | 133 | FE2-08 | FE2 | `skoll-frontend-coding-refactor` / `skoll-frontend-design-refactor` | 统一空态/错误态/无权限态组件 | `StateBlock` 组件/规范 | 页面数据区、drawer、局部面板状态组件边界明确 | `rg -n "StateBlock|empty|error|forbidden|actions" web/src/components/Common web/src/views/Audit/index.vue docs/refactor/fe2_state_block_standard.md` | Done |
-| 134 | FE2-09 | FE2 | `skoll-frontend-coding-refactor` | 前端架构 smoke 检查 | smoke 检查记录 | API client、store、router、permission、SchemaForm、StateBlock 锚点存在，typecheck 通过 | `rg -n "apiGet|defineStore|beforeEach|SchemaForm|StateBlock|v-permission|canAccess" web/src; cd web && npm run typecheck` | Todo |
+| 134 | FE2-09 | FE2 | `skoll-frontend-coding-refactor` | 前端架构 smoke 检查 | `docs/refactor/fe2_frontend_architecture_smoke.md` | API client、store、router、permission、SchemaForm、StateBlock 锚点存在，typecheck 通过 | `rg -n "apiGet|defineStore|beforeEach|SchemaForm|StateBlock|v-permission|canAccess" web/src; cd web && npm run typecheck` | Done |
 
 ## FE3 Work Items: 核心页面体验升级
 

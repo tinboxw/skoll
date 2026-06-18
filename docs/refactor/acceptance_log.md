@@ -6608,6 +6608,63 @@ npm run typecheck
 
 - 进入 `FE2-09`，前端架构 smoke 检查。
 
+## FE2-09: 前端架构 smoke 检查
+
+- 状态: Passed
+- Work Item: FE2-09
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_frontend_architecture_smoke.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE2 前端架构 smoke 记录。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | API client、store、router、permission、SchemaForm、StateBlock 锚点存在。 |
+| 文档同步 | Passed | Work Item、Task Board 和验收记录已同步，FE2 父任务已置为 Done。 |
+| 无兼容方案/无旧路径残留 | Passed | smoke 只引用当前架构锚点，不新增兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "apiGet|defineStore|beforeEach|SchemaForm|StateBlock|v-permission|canAccess" web/src
+cd web
+npm run typecheck
+rg -n "FE2-0[1-9].*Todo|ADJ-FE-20260619-02.*Todo" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。架构锚点可定位，前端 typecheck 通过；FE2 work items 与 FE2 插队架构门禁均无 Todo。
+
+### 人工验收
+
+1. 审阅 `fe2_frontend_architecture_smoke.md`，确认 FE2 收口状态清楚。
+2. 对照 `work_items.md`，确认 FE2-01 到 FE2-09 和 ADJ-FE-20260619-02 均为 Done。
+3. 对照 `task_board.md`，确认 FE2 父任务已从 Doing 更新为 Done。
+
+结果摘要: 通过。FE2 前端架构与数据流规范收口完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `ADJ-FE-20260619-03`，建立 FE3 page-by-page acceptance map。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
