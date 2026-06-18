@@ -58,7 +58,7 @@
 | 25 | M1-01-04 | M1-01 | `skoll-permission-menu-refactor` | 实现 permission risk/source metadata | domain code + tests | risk/source/metadata 可序列化并校验 | `go test ./internal/domain/permission` | Done |
 | 26 | M1-01-05 | M1-01 | `skoll-permission-menu-refactor` | 补 permission domain README | docs in package | 说明类型、命名和 no-compat 规则 | 文档审阅 | Done |
 | 27 | M1-02-01 | M1-02 | `skoll-permission-menu-refactor` | 创建 menu domain 包结构 | `internal/domain/menu` | 包可编译，无 store/service 依赖 | `go test ./internal/domain/menu` | Done |
-| 28 | M1-02-02 | M1-02 | `skoll-permission-menu-refactor` | 定义 MenuNode 类型和值对象 | domain code | parent/path/component/icon/sort/visible/source 字段完整 | `go test ./internal/domain/menu` | Todo |
+| 28 | M1-02-02 | M1-02 | `skoll-permission-menu-refactor` | 定义 MenuNode 类型和值对象 | domain code | parent/path/component/icon/sort/visible/source 字段完整 | `go test ./internal/domain/menu` | Done |
 | 29 | M1-02-03 | M1-02 | `skoll-permission-menu-refactor` | 实现 MenuNode 校验规则 | domain code + tests | path、name、sort、source 校验通过 | `go test ./internal/domain/menu` | Todo |
 | 30 | M1-02-04 | M1-02 | `skoll-permission-menu-refactor` | 实现菜单树排序与过滤规则 | domain code + tests | 同级排序稳定；隐藏节点和无权节点可过滤 | `go test ./internal/domain/menu` | Todo |
 | 31 | M1-02-05 | M1-02 | `skoll-permission-menu-refactor` | 补 menu domain README | docs in package | 说明菜单节点、树、权限字段 | 文档审阅 | Todo |
