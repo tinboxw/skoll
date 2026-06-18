@@ -2,8 +2,10 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { Check, Close, Refresh, Select, Setting } from "@element-plus/icons-vue";
 
+import StateBlock from "../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import type { PermissionResource } from "../../permissions/api";
 import { usePermissionStore } from "../../stores/permissions";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
@@ -36,6 +38,10 @@ type PermissionCatalogItem = {
 	resource: string;
 	action: string;
 	label: string;
+	type: string;
+	source: string;
+	risk: string;
+	enabled: boolean;
 };
 
 function normalizeRoleRecord(item: unknown): RoleRecord | null {
@@ -60,6 +66,7 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 
 const { t } = useI18n();
 const permissionStore = usePermissionStore();
+const buttonAccess = useButtonAccess();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -81,7 +88,11 @@ const checkResource = ref("");
 const checkAction = ref("");
 const checkResult = ref<"allowed" | "denied" | "">("");
 const checkScope = ref("");
+const matrixKeyword = ref("");
+const matrixResourceFilter = ref("");
+const matrixRiskFilter = ref("");
 
+const canManagePermission = computed(() => buttonAccess.can(BUTTON_ACCESS.permissionManage));
 const selectedRole = computed(() => roles.value.find((item) => item.id === selectedRoleId.value) ?? null);
 
 const roleDefaultRows = computed(() => roles.value.map((item) => ({
@@ -91,7 +102,7 @@ const roleDefaultRows = computed(() => roles.value.map((item) => ({
 
 const permissionCatalog = computed(() => {
 	const map = new Map<string, PermissionCatalogItem>();
-	for (const item of permissionStore.enabledItems) {
+	for (const item of permissionStore.items) {
 		map.set(item.key, permissionResourceToCatalogItem(item));
 	}
 	for (const role of roleDefaultRows.value) {
@@ -104,7 +115,11 @@ const permissionCatalog = computed(() => {
 				key: permission,
 				resource,
 				action,
-				label: permission
+				label: permission,
+				type: "custom",
+				source: "role",
+				risk: "low",
+				enabled: true
 			});
 		}
 	}
@@ -123,7 +138,7 @@ const actionOptions = computed(() => {
 
 const matrixRows = computed(() => {
 	const grouped = new Map<string, PermissionCatalogItem[]>();
-	for (const permission of permissionCatalog.value) {
+	for (const permission of filteredPermissionCatalog.value) {
 		if (!grouped.has(permission.resource)) {
 			grouped.set(permission.resource, []);
 		}
@@ -134,6 +149,22 @@ const matrixRows = computed(() => {
 		permissions
 	}));
 });
+
+const filteredPermissionCatalog = computed(() => {
+	const term = matrixKeyword.value.trim().toLowerCase();
+	return permissionCatalog.value.filter((item) => {
+		const matchesTerm = term === "" || [item.key, item.label, item.resource, item.action, item.source].some((value) => value.toLowerCase().includes(term));
+		const matchesResource = matrixResourceFilter.value === "" || item.resource === matrixResourceFilter.value;
+		const matchesRisk = matrixRiskFilter.value === "" || item.risk === matrixRiskFilter.value;
+		return matchesTerm && matchesResource && matchesRisk;
+	});
+});
+
+const enabledPermissionCount = computed(() => permissionCatalog.value.filter((item) => item.enabled).length);
+const disabledPermissionCount = computed(() => permissionCatalog.value.filter((item) => !item.enabled).length);
+const highRiskPermissionCount = computed(() => permissionCatalog.value.filter((item) => item.risk === "high" || item.risk === "critical").length);
+const matrixFilterActive = computed(() => matrixKeyword.value.trim() !== "" || matrixResourceFilter.value !== "" || matrixRiskFilter.value !== "");
+const riskOptions = computed(() => unique(permissionCatalog.value.map((item) => item.risk)));
 
 watch(selectedRole, (role) => {
 	selectedMatrixPermissions.value = role ? resolveRolePermissions(role) : [];
@@ -223,6 +254,10 @@ function patchRole(role: RoleRecord): void {
 }
 
 async function loadRoles(): Promise<void> {
+	if (!canManagePermission.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	loading.value = true;
 	error.value = "";
 	try {
@@ -244,6 +279,9 @@ async function loadRoles(): Promise<void> {
 }
 
 async function loadPermissionCatalog(): Promise<void> {
+	if (!canManagePermission.value) {
+		return;
+	}
 	try {
 		await permissionStore.load({ limit: 500 }, { force: true });
 	} catch (e) {
@@ -259,6 +297,10 @@ async function loadPage(): Promise<void> {
 }
 
 async function savePolicies(): Promise<void> {
+	if (!canManagePermission.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	if (!selectedRoleId.value) {
 		return;
 	}
@@ -292,6 +334,10 @@ async function savePolicies(): Promise<void> {
 }
 
 async function checkPermission(): Promise<void> {
+	if (!canManagePermission.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	saving.value = true;
 	error.value = "";
 	checkResult.value = "";
@@ -321,8 +367,18 @@ function permissionResourceToCatalogItem(item: PermissionResource): PermissionCa
 		key: item.key,
 		resource: item.metadata.resource || item.module || parsePermissionResource(item.key),
 		action: item.metadata.action || parsePermissionAction(item.key) || item.type,
-		label: item.name || item.key
+		label: item.name || item.key,
+		type: item.type,
+		source: item.source,
+		risk: item.risk,
+		enabled: item.enabled
 	};
+}
+
+function resetMatrixFilters(): void {
+	matrixKeyword.value = "";
+	matrixResourceFilter.value = "";
+	matrixRiskFilter.value = "";
 }
 
 function parsePermissionResource(permission: string): string {
@@ -365,6 +421,32 @@ function unique(values: string[]): string[] {
 		<el-alert v-if="error" type="error" :title="error" show-icon :closable="false" />
 		<el-alert v-if="success" type="success" :title="success" show-icon :closable="false" />
 
+		<StateBlock v-if="!canManagePermission" type="forbidden" :title="t('permission.noPermissionTitle')" :description="t('error.forbidden')" />
+
+		<template v-else>
+		<section class="summary-grid">
+			<article class="summary-card">
+				<span>{{ t("permission.summary.roles") }}</span>
+				<strong>{{ roles.length }}</strong>
+				<small>{{ selectedRole ? selectedRole.name || selectedRole.key || selectedRole.id : "-" }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("permission.summary.catalog") }}</span>
+				<strong>{{ permissionCatalog.length }}</strong>
+				<small>{{ t("permission.summary.disabled") }} {{ disabledPermissionCount }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("permission.summary.enabled") }}</span>
+				<strong>{{ enabledPermissionCount }}</strong>
+				<small>{{ t("permission.summary.highRisk") }} {{ highRiskPermissionCount }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("permission.summary.filtered") }}</span>
+				<strong>{{ filteredPermissionCatalog.length }}</strong>
+				<small>{{ matrixFilterActive ? t("permission.summary.filterActive") : t("permission.summary.filterClear") }}</small>
+			</article>
+		</section>
+
 		<el-card shadow="never">
 			<template #header>
 				<div class="card-header">
@@ -378,19 +460,38 @@ function unique(values: string[]): string[] {
 				</div>
 			</template>
 
-			<el-table v-loading="loading || permissionStore.isLoading" :data="matrixRows" border stripe>
-				<el-table-column prop="resource" label="Resource" width="150" />
-				<el-table-column label="Permissions" min-width="520">
+			<el-form class="matrix-filters" label-position="top" @submit.prevent>
+				<el-form-item :label="t('permission.filter.keyword')">
+					<el-input v-model="matrixKeyword" clearable :placeholder="t('permission.filter.keywordPlaceholder')" />
+				</el-form-item>
+				<el-form-item :label="t('permission.resource')">
+					<el-select v-model="matrixResourceFilter" clearable filterable :placeholder="t('permission.filter.allResources')">
+						<el-option v-for="resource in resourceOptions" :key="resource" :label="resource" :value="resource" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('permission.filter.risk')">
+					<el-select v-model="matrixRiskFilter" clearable :placeholder="t('permission.filter.allRisks')">
+						<el-option v-for="risk in riskOptions" :key="risk" :label="risk" :value="risk" />
+					</el-select>
+				</el-form-item>
+				<el-form-item class="filter-actions" :label="t('common.actions')">
+					<el-button :disabled="!matrixFilterActive" @click="resetMatrixFilters">{{ t("common.reset") }}</el-button>
+				</el-form-item>
+			</el-form>
+
+			<el-table v-loading="loading || permissionStore.isLoading" :data="matrixRows" border stripe :empty-text="matrixFilterActive ? t('permission.filter.empty') : t('common.empty')">
+				<el-table-column prop="resource" :label="t('permission.resource')" width="150" />
+				<el-table-column :label="t('table.permissions')" min-width="520">
 					<template #default="{ row }">
 						<div class="permission-switches">
 							<el-check-tag
 								v-for="permission in row.permissions"
 								:key="permission.key"
 								:checked="hasMatrixPermission(permission.key)"
-								:disabled="matrixSaving || selectedMatrixPermissions.includes('*')"
+								:disabled="matrixSaving || !permission.enabled || selectedMatrixPermissions.includes('*')"
 								@click="toggleMatrixPermission(permission.key, !hasMatrixPermission(permission.key))"
 							>
-								{{ permission.key }}
+								{{ permission.key }}<span v-if="!permission.enabled" class="permission-state">({{ t("permission.disabled") }})</span>
 							</el-check-tag>
 						</div>
 					</template>
@@ -521,6 +622,7 @@ function unique(values: string[]): string[] {
 				</el-button>
 			</div>
 		</el-card>
+		</template>
 	</section>
 </template>
 
@@ -554,6 +656,53 @@ function unique(values: string[]): string[] {
 
 .role-select {
 	width: min(360px, 100%);
+}
+
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.summary-card {
+	display: grid;
+	gap: 4px;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-soft);
+}
+
+.summary-card span,
+.summary-card small {
+	color: var(--color-text-muted);
+}
+
+.summary-card strong {
+	font-size: 1.3rem;
+}
+
+.matrix-filters {
+	display: grid;
+	grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(160px, 0.7fr)) minmax(130px, auto);
+	gap: 12px;
+	align-items: end;
+	margin-bottom: 14px;
+}
+
+.matrix-filters :deep(.el-form-item) {
+	margin-bottom: 0;
+}
+
+.matrix-filters :deep(.el-select),
+.matrix-filters :deep(.el-input) {
+	width: 100%;
+}
+
+.filter-actions :deep(.el-form-item__content) {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
 }
 
 .permission-switches,
@@ -608,8 +757,10 @@ function unique(values: string[]): string[] {
 		flex-direction: column;
 	}
 
+	.summary-grid,
 	.content-grid,
-	.check-grid {
+	.check-grid,
+	.matrix-filters {
 		grid-template-columns: 1fr;
 	}
 }
