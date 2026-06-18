@@ -843,3 +843,57 @@ rg "Work Item|最小执行" docs/refactor
 ### 下一步
 
 - 进入 `M0-04-03`，校准 M0-M2 Work Item 覆盖率。
+
+## M0-04-03: 校准 M0-M2 Work Item 覆盖率
+
+- 状态: Passed
+- Work Item: M0-04-03
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | M0-M2 每个父任务均至少有一个 Work Item，覆盖校验结果已写入 `work_items.md`。 |
+| API/OpenAPI 同步 | N/A | 仅文档治理任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅文档治理任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅文档治理任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅文档治理任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅文档治理任务，无前端实现影响。 |
+| 文档同步 | Passed | Work Item 覆盖说明、状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只校准任务覆盖率，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+foreach ($id in @('M0-01','M0-02','M0-03','M0-04','M0-05','M1-01','M1-02','M1-03','M1-04','M1-05','M1-06','M1-07','M1-08','M1-09','M1-10','M2-01','M2-02','M2-03','M2-04','M2-05','M2-06')) {
+  $count=(Select-String -Path docs\refactor\work_items.md -SimpleMatch "| $id" | Measure-Object).Count
+  "$id $count"
+}
+```
+
+结果摘要: 通过。M0-M2 每个父任务均有 Work Item，计数范围为 4-8。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/work_items.md` 中 M0、M1、M2 Work Items。
+2. 确认父任务 M0-01 至 M2-06 均有对应 Work Item。
+
+结果摘要: 通过。M0-M2 父任务覆盖完整。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-04-04`，设置 M3-M7 滚动拆分规则。
