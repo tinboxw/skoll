@@ -1920,3 +1920,57 @@ go test ./internal/store/sql/gormrepo/...
 ### 下一步
 
 - 进入 `M1-03-05`，更新 migration 文档。
+
+## M1-03-05: migration 文档更新
+
+- 状态: Passed
+- Work Item: M1-03-05
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `migrations/mysql/README.md`
+- `migrations/postgres/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | MySQL/PostgreSQL migration README 均说明新表用途、执行顺序和回滚说明。 |
+| API/OpenAPI 同步 | N/A | 本项只更新 migration 文档，无 API 影响。 |
+| 权限目录同步 | Passed | 文档说明权限资源表用途和对应 GORM model。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | Passed | 文档明确 `000013`、`000014` 执行顺序且不包含 seed。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | migrations README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧 migration 兼容说明或双迁移路径。 |
+
+### 自动化验证
+
+```powershell
+rg "20260618_000013|20260618_000014|sk_permission_resources|sk_menu_nodes|执行顺序|回滚说明" migrations/mysql/README.md migrations/postgres/README.md
+```
+
+结果摘要: 通过。新表用途和执行顺序均可检索。
+
+### 人工验收
+
+1. 审阅 `migrations/mysql/README.md`。
+2. 审阅 `migrations/postgres/README.md`。
+3. 确认已说明新表用途和执行顺序。
+
+结果摘要: 通过。migration 文档已更新。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-04-01`，定义 permission repository 接口。
