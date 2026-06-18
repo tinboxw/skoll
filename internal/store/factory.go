@@ -16,6 +16,7 @@ import (
 	"github.com/tinboxw/skoll/internal/store/clickhouse"
 	"github.com/tinboxw/skoll/internal/store/memory"
 	"github.com/tinboxw/skoll/internal/store/sql"
+	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/internal/store/sql/mysql"
 	"github.com/tinboxw/skoll/internal/store/sql/postgres"
 )
@@ -44,6 +45,7 @@ type Bundle struct {
 	Permissions permissionrepo.PermissionRepository
 	Menus       menurepo.MenuRepository
 	UnitOfWork  repository.UnitOfWork
+	AuditEvents auditrepo.EventRepository
 }
 
 func NewBundle(opts Options) (*Bundle, error) {
@@ -53,26 +55,30 @@ func NewBundle(opts Options) (*Bundle, error) {
 		roles := memory.NewRoleStore()
 		rbac := memory.NewRBACStore()
 		audit := clickhouse.NewAuditStore()
+		auditEvents := memory.NewAuditEventStore()
 		system := memory.NewSystemStore()
 		plugins := memory.NewPluginStore()
 		permissions := memory.NewPermissionStore()
 		menus := memory.NewMenuStore()
-		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions, Menus: menus, UnitOfWork: sql.NewUnitOfWork()}, nil
+		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions, Menus: menus, UnitOfWork: sql.NewUnitOfWork(), AuditEvents: auditEvents}, nil
 	case ModeMySQL:
 		primary, err := mysql.NewAdapter(opts.PrimaryDSN)
 		if err != nil {
 			return nil, err
 		}
+		auditRepo := primary.AuditRepository()
+		auditEvents, _ := auditRepo.(auditrepo.EventRepository)
 		return &Bundle{
 			Users:       primary.UserRepository(),
 			Roles:       primary.RoleRepository(),
 			RBAC:        primary.RBACRepository(),
-			Audit:       primary.AuditRepository(),
+			Audit:       auditRepo,
 			System:      primary.SystemRepository(),
 			Plugins:     primary.PluginRepository(),
 			Permissions: primary.PermissionRepository(),
 			Menus:       primary.MenuRepository(),
 			UnitOfWork:  sql.NewUnitOfWorkWithDB(primary.DB()),
+			AuditEvents: auditEvents,
 		}, nil
 	case ModePostgres:
 		primary, err := postgres.NewAdapter(opts.PrimaryDSN)
@@ -93,6 +99,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Permissions: primary.PermissionRepository(),
 			Menus:       primary.MenuRepository(),
 			UnitOfWork:  sql.NewUnitOfWorkWithDB(primary.DB()),
+			AuditEvents: gormrepo.NewAuditStore(primary.DB()),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported store mode: %q", opts.Mode)

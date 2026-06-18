@@ -4853,3 +4853,58 @@ go test ./internal/handler/middleware/...
 
 ### 下一步
 - 进入 `M2-03-03`，接入登录成功/失败审计。
+
+## M2-03-03: 接入登录成功/失败审计
+
+- 状态: Passed
+- Work Item: M2-03-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/bootstrap/auth_builtin_handler.go`
+- `internal/bootstrap/auth_builtin_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/bootstrap/di_plugin_manager_test.go`
+- `internal/store/factory.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | builtin auth 登录成功/失败写入 `EventTypeLogin`，并附带 `LoginLog` source data。 |
+| API/OpenAPI 同步 | N/A | 登录接口响应契约未改变。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 使用 `auth.session.login` 与 `auth.session.login_failed`。 |
+| migration/seed 同步 | Passed | store bundle 新增 `AuditEvents`，memory/SQL 可注入新事件仓储；无新增 migration。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 登录成功/失败不再通过旧 `appendAuthAudit` 写 `audit.Record`；logout 旧路径留待后续非登录迁移任务处理。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/store/factory.go internal/bootstrap/di.go internal/bootstrap/auth_builtin_handler.go internal/bootstrap/auth_builtin_handler_test.go internal/bootstrap/di_plugin_manager_test.go
+go test ./internal/bootstrap/... ./internal/handler/http/...
+$env:CGO_ENABLED='0'; go test ./internal/bootstrap/... ./internal/handler/http/...
+```
+
+结果摘要: 默认 `go test` 因本机缺少 `D:\Program Files\JetBrains\CLion 2024.1.1\bin\mingw\bin\gcc.exe` 触发 cgo 构建失败；按既有 Windows 验收方式设置 `CGO_ENABLED=0` 后通过。
+
+### 人工验收
+
+1. 审阅 `auth_builtin_handler.go`，确认登录成功/失败写入 `EventTypeLogin`。
+2. 审阅 `auth_builtin_handler_test.go`，确认成功可查询 `auth.session.login`，失败可查询 `auth.session.login_failed`。
+3. 审阅 `store/factory.go` 与 `di.go`，确认新事件仓储可注入 auth handler。
+
+结果摘要: 通过。login 和 login_failed 已接入新审计事件并可查询。
+
+### 失败与返工
+- 失败原因: 默认测试环境缺少 cgo 使用的 gcc 路径，导致 bootstrap/http 包测试构建失败。
+- 返工动作: 使用 `CGO_ENABLED=0` 复验；本项代码路径不依赖 SQLite/cgo。
+- 重新验收结果: Passed
+
+### 下一步
+- 进入 `M2-03-04`，接入权限拒绝审计。

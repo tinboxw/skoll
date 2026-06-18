@@ -63,6 +63,10 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 
 	auditService := audit.NewService(bundle.Audit)
+	var auditEventService audit.EventService
+	if bundle.AuditEvents != nil {
+		auditEventService = audit.NewEventService(bundle.AuditEvents)
+	}
 	bus, err := buildEventBus(cfg.AppConfig.Event)
 	if err != nil {
 		return nil, err
@@ -75,7 +79,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
-	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService)
+	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
 		UserService:       userService,
@@ -128,11 +132,11 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, pluginsRepo pluginrepo.PluginRepository, auditSvc audit.Service) plugin.Manager {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, pluginsRepo pluginrepo.PluginRepository, auditSvc audit.Service, auditEventSvc audit.EventService) plugin.Manager {
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
 	runtimeManager.SetCatalogRegistry(plugin.NewMemoryCatalogRegistry())
 	runtimeManager.SetCatalogAuditSink(pluginCatalogAuditSink{auditSvc: auditSvc})
-	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, auditSvc, logger)
+	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, auditSvc, auditEventSvc, logger)
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
 	m := &pluginManagerWithExtensions{
 		Manager:       runtimeManager,

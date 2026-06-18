@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
@@ -27,10 +30,13 @@ type builtinAuthHandler struct {
 	rolesRepo rolerepo.RoleRepository
 	rbacRepo  rbacrepo.RBACRepository
 	auditSvc  auditsvc.Service
+	eventSvc  auditsvc.EventService
 	logger    logging.Logger
+	nowFn     func() time.Time
+	idFn      func(prefix string) shared.ID
 }
 
-func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, auditSvc auditsvc.Service, logger logging.Logger) *builtinAuthHandler {
+func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, auditSvc auditsvc.Service, eventSvc auditsvc.EventService, logger logging.Logger) *builtinAuthHandler {
 	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil {
 		return nil
 	}
@@ -40,7 +46,12 @@ func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, 
 		rolesRepo: rolesRepo,
 		rbacRepo:  rbacRepo,
 		auditSvc:  auditSvc,
+		eventSvc:  eventSvc,
 		logger:    logger,
+		nowFn:     func() time.Time { return time.Now().UTC() },
+		idFn: func(prefix string) shared.ID {
+			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+		},
 	}
 }
 
@@ -50,14 +61,14 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.appendAuthAudit(r.Context(), "anonymous", "login_failed", "auth", map[string]any{"reason": "invalid_payload"})
+		h.appendLoginAudit(r, "anonymous", "anonymous", domainaudit.LoginResultFailure, "invalid_payload", "", nil)
 		httpHandler.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	account := strings.TrimSpace(req.Account)
 	password := strings.TrimSpace(req.Password)
 	if account == "" || password == "" {
-		h.appendAuthAudit(r.Context(), account, "login_failed", "auth", map[string]any{"reason": "missing_credentials", "account": account})
+		h.appendLoginAudit(r, account, account, domainaudit.LoginResultFailure, "missing_credentials", "", map[string]any{"account": account})
 		httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_credentials", "account and password are required")
 		return
 	}
@@ -68,7 +79,7 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if entity == nil || entity.Status != domainuser.StatusActive || !domainuser.VerifyPassword(password, entity.Password) {
-		h.appendAuthAudit(r.Context(), account, "login_failed", "auth", map[string]any{"account": account})
+		h.appendLoginAudit(r, account, account, domainaudit.LoginResultFailure, "invalid_credentials", "", map[string]any{"account": account})
 		httpHandler.WriteMessage(w, http.StatusUnauthorized, "invalid_credentials", "invalid account or password")
 		return
 	}
@@ -98,7 +109,7 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 			"role":    roleKey,
 		},
 	})
-	h.appendAuthAudit(r.Context(), entity.ID.String(), "login", "auth", map[string]any{"account": entity.Account, "role": roleKey})
+	h.appendLoginAudit(r, entity.ID.String(), entity.Account, domainaudit.LoginResultSuccess, "", "", map[string]any{"account": entity.Account, "role": roleKey})
 }
 
 func (h *builtinAuthHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -148,6 +159,114 @@ func (h *builtinAuthHandler) appendAuthAudit(ctx context.Context, actorID, actio
 			h.logger.Warn("append auth audit failed", "actor", targetActor, "action", action, "resource", resource, "error", err)
 		}
 	}
+}
+
+func (h *builtinAuthHandler) appendLoginAudit(r *http.Request, actorID, account string, result domainaudit.LoginResult, failureReason, sessionID string, metadata map[string]any) {
+	if h == nil || h.eventSvc == nil || r == nil {
+		return
+	}
+	now := h.nowFn()
+	eventID := h.idFn("audit-event")
+	logID := h.idFn("login-log")
+	if strings.TrimSpace(sessionID) == "" && result == domainaudit.LoginResultSuccess {
+		sessionID = eventID.String()
+	}
+	normalizedAccount := strings.TrimSpace(account)
+	if normalizedAccount == "" {
+		normalizedAccount = "anonymous"
+	}
+	trace := domainaudit.TraceContext{
+		TraceID:   strings.TrimSpace(r.Header.Get("X-Trace-Id")),
+		RequestID: strings.TrimSpace(r.Header.Get("X-Request-Id")),
+		Method:    r.Method,
+		Path:      r.URL.Path,
+		IP:        authRequestIP(r),
+		UserAgent: r.UserAgent(),
+	}
+	loginLog, err := domainaudit.NewLoginLog(domainaudit.LoginLogInput{
+		ID:            logID,
+		Account:       normalizedAccount,
+		ActorID:       shared.ID(strings.TrimSpace(actorID)),
+		Result:        result,
+		IP:            trace.IP,
+		UserAgent:     trace.UserAgent,
+		FailureReason: failureReason,
+		SessionID:     sessionID,
+		Trace:         trace,
+		Metadata:      metadata,
+		OccurredAt:    now,
+	})
+	if err != nil {
+		h.logAuditEventError("build login audit failed", actorID, string(result), err)
+		return
+	}
+
+	action := domainaudit.AuditAction("auth.session.login")
+	eventResult := domainaudit.EventResultSuccess
+	risk := domainaudit.EventRiskLow
+	if result == domainaudit.LoginResultFailure {
+		action = domainaudit.AuditAction("auth.session.login_failed")
+		eventResult = domainaudit.EventResultFailure
+		risk = domainaudit.EventRiskMedium
+	}
+	actor := domainaudit.ActorRef{Type: "user", ID: shared.ID(strings.TrimSpace(actorID)), Name: normalizedAccount}
+	if actor.ID.IsZero() || result == domainaudit.LoginResultFailure {
+		actor.Type = "account"
+		actor.ID = shared.ID(normalizedAccount)
+	}
+	event, err := domainaudit.NewEvent(domainaudit.EventInput{
+		ID:       eventID,
+		Type:     domainaudit.EventTypeLogin,
+		Action:   action,
+		Actor:    actor,
+		Resource: domainaudit.ResourceRef{Type: "auth_session", ID: sessionID, Name: normalizedAccount},
+		Result:   eventResult,
+		Trace:    trace,
+		Risk:     risk,
+		Metadata: metadata,
+		SourceData: map[string]any{
+			"kind":          "login_log",
+			"id":            loginLog.ID.String(),
+			"account":       loginLog.Account,
+			"actorId":       loginLog.ActorID.String(),
+			"result":        string(loginLog.Result),
+			"ip":            loginLog.IP,
+			"userAgent":     loginLog.UserAgent,
+			"failureReason": loginLog.FailureReason,
+			"sessionId":     loginLog.SessionID,
+			"metadata":      loginLog.Metadata,
+			"occurredAt":    loginLog.OccurredAt.Format(time.RFC3339Nano),
+		},
+		OccurredAt: now,
+	})
+	if err != nil {
+		h.logAuditEventError("build login event failed", actorID, action.String(), err)
+		return
+	}
+	if err := h.eventSvc.AppendEvent(r.Context(), event); err != nil {
+		h.logAuditEventError("append login audit failed", actorID, action.String(), err)
+	}
+}
+
+func (h *builtinAuthHandler) logAuditEventError(message, actorID, action string, err error) {
+	if h != nil && h.logger != nil && err != nil {
+		h.logger.Warn(message, "actor", actorID, "action", action, "error", err)
+	}
+}
+
+func authRequestIP(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); forwarded != "" {
+		parts := strings.Split(forwarded, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	if err == nil {
+		return host
+	}
+	return strings.TrimSpace(r.RemoteAddr)
 }
 
 func (h *builtinAuthHandler) handleMe(w http.ResponseWriter, r *http.Request) {

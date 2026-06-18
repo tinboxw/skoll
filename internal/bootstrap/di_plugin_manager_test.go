@@ -40,7 +40,7 @@ func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil).(*pluginManagerWithExtensions)
+	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil).(*pluginManagerWithExtensions)
 	if !ok {
 		t.Fatalf("expected pluginManagerWithExtensions")
 	}
