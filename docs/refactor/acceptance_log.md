@@ -8050,3 +8050,80 @@ npm run build
 ### 下一步
 
 - 进入 `FE3-07`，执行 Audit 页面体验升级。
+## FE3-07: Audit 页面体验升级
+
+- 状态: Passed
+- Work Item: FE3-07
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Audit/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Audit 页面新增摘要卡、高风险/失败聚合、筛选重置、type/result/risk/trace 可扫列，以及详情抽屉 tabs 分区。 |
+| API/OpenAPI 同步 | N/A | 本项不改 audit list/detail/export/clear API 契约。 |
+| 权限目录同步 | Passed | 继续复用 route meta 的 `audit.read`；无新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增后端审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 继续复用 `listAuditEvents`、`getAuditEvent`、`exportAuditEvents`、`downloadBlob`、`confirmAction` 和 `toErrorMessage`；导出成功/失败与清理确认可见。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/audit` 当前路由，不新增兼容入口。 |
+
+### 自动化验证
+
+```powershell
+rg -n "summary-grid|highRiskCount|failedCount|uniqueActorCount|resetFilters|riskTagType|resultTagType|audit.summary|audit.result|detail-tabs|StateBlock|downloadBlob|confirmAction" web/src/views/Audit/index.vue web/src/i18n/index.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。关键 UI/状态/导出/危险确认锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可用 in-app browser 工具；bundled Playwright 运行时仍缺少 `playwright-core`，无法完成截图或真实点击 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 `/skoll/audit` 的默认、筛选、空结果、详情 drawer、CSV 导出、清理确认和窄屏路径。
+
+### Performance Hook
+
+- Page/route: Audit，`/skoll/audit`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus、StateBlock、downloadBlob、confirmAction 和现有 audit API client。
+- Route lazy loading: Passed，router 中通过 `const AuditPage = () => import("../views/Audit/index.vue")` 动态导入。
+- Heavy table risk: 当前按 `limit` 获取审计列表并在前端分页展示；本次未新增全量额外请求。
+- Request behavior: 首屏 list 请求不变；详情 drawer 按行点击加载；导出沿用当前筛选条件。
+- Loading behavior: 刷新、详情加载、导出、清理均保留 loading/禁用/错误反馈，不用 spinner 掩盖失败。
+- Deferred panels: trace、metadata、diff、sourceData 在详情 drawer 中分 tab 呈现，详情数据按需加载。
+- Narrow viewport: 摘要卡在 960px/640px 折叠；筛选表单在窄屏单列化；表格保留横向处理避免列挤压。
+- Follow-up: 若审计数据量继续增长，应把当前前端分页升级为服务端 offset/page，并对 sourceData 大 JSON 增加折叠和复制操作。
+
+### 人工验收
+
+1. 对照 `fe3_page_acceptance_map.md`，确认 Audit 覆盖 tabs、筛选、quick tags、详情 drawer、CSV 导出、清理确认、风险标签和权限状态。
+2. 对照 `web/src/views/Audit/index.vue`，确认 forbidden、empty、error、success、loading、operating 状态均有可见表达。
+3. 确认导出使用 `buildAuditEventQuery()`，与当前筛选条件一致。
+4. 确认清理仍使用 `confirmAction`，不会绕过危险确认。
+
+结果摘要: 通过。Audit 页面已满足 FE3-07 对 tab、筛选、详情、导出、风险标签和 trace 展示完整性的要求。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE3-08`，执行 Setting 页面体验升级。

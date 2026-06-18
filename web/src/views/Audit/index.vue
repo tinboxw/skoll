@@ -198,6 +198,11 @@ const pagedItems = computed(() => {
 	const start = (page.value - 1) * pageSize.value;
 	return items.value.slice(start, start + pageSize.value);
 });
+const highRiskCount = computed(() => items.value.filter((item) => item.risk === "high" || item.risk === "critical").length);
+const failedCount = computed(() => items.value.filter((item) => item.result === "failure" || item.result === "denied").length);
+const uniqueActorCount = computed(() => new Set(items.value.map((item) => displayActor(item)).filter((item) => item !== "-")).size);
+const uniqueResourceCount = computed(() => new Set(items.value.map((item) => displayResource(item)).filter((item) => item !== "-")).size);
+const hasActiveFilters = computed(() => selectedType.value !== "all" || actorName.value.trim() !== "" || action.value.trim() !== "" || resource.value.trim() !== "" || resourceId.value.trim() !== "" || risk.value !== "" || !autoRangeEnabled.value);
 const quickActors = computed(() => {
 	const actorSet = new Set<string>();
 	for (const item of items.value) {
@@ -301,6 +306,46 @@ const quickResources = computed(() => {
 const actionSuggestions = computed(() => mergeHistory(actionHistory.value, quickActions.value));
 const resourceSuggestions = computed(() => mergeHistory(resourceHistory.value, quickResources.value));
 const detailPayload = computed(() => buildDetailPayload(selectedDetail.value ?? selected.value));
+
+function riskTagType(value: AuditEventRisk): "success" | "warning" | "danger" | "info" {
+	if (value === "critical" || value === "high") {
+		return "danger";
+	}
+	if (value === "medium") {
+		return "warning";
+	}
+	if (value === "low") {
+		return "success";
+	}
+	return "info";
+}
+
+function resultTagType(value: string): "success" | "warning" | "danger" | "info" {
+	if (value === "success") {
+		return "success";
+	}
+	if (value === "denied") {
+		return "warning";
+	}
+	if (value === "failure") {
+		return "danger";
+	}
+	return "info";
+}
+
+function resetFilters(): void {
+	const range = defaultTimeRange();
+	selectedType.value = "all";
+	actorName.value = "";
+	action.value = "";
+	resource.value = "";
+	resourceId.value = "";
+	risk.value = "";
+	from.value = range.from;
+	to.value = range.to;
+	autoRangeEnabled.value = true;
+	void loadAuditLogs();
+}
 
 function handleTypeChange(): void {
 	void loadAuditLogs();
@@ -509,6 +554,29 @@ void loadAuditLogs();
 		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
 		<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
 
+		<section class="summary-grid">
+			<article class="summary-card">
+				<span>{{ t("audit.summary.total") }}</span>
+				<strong>{{ items.length }}</strong>
+				<small>{{ t("audit.summary.limit") }} {{ limit }}</small>
+			</article>
+			<article class="summary-card" :class="{ 'summary-card--warning': highRiskCount > 0 }">
+				<span>{{ t("audit.summary.highRisk") }}</span>
+				<strong>{{ highRiskCount }}</strong>
+				<small>{{ t("audit.summary.failed") }} {{ failedCount }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("audit.summary.actors") }}</span>
+				<strong>{{ uniqueActorCount }}</strong>
+				<small>{{ t("audit.summary.resources") }} {{ uniqueResourceCount }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("audit.summary.range") }}</span>
+				<strong>{{ autoRangeEnabled ? t("audit.summary.autoRange") : t("audit.summary.manualRange") }}</strong>
+				<small>{{ hasActiveFilters ? t("audit.summary.filterActive") : t("audit.summary.filterClear") }}</small>
+			</article>
+		</section>
+
 		<section class="panel">
 			<el-tabs v-model="selectedType" class="audit-tabs" @tab-change="handleTypeChange">
 				<el-tab-pane
@@ -566,6 +634,7 @@ void loadAuditLogs();
 				</el-form-item>
 				<div class="filter-actions">
 					<el-button type="primary" native-type="submit" :loading="loading" :disabled="operating">{{ t("common.refresh") }}</el-button>
+					<el-button :disabled="loading || operating || !hasActiveFilters" @click="resetFilters">{{ t("common.reset") }}</el-button>
 					<el-button v-if="actorName.trim() !== ''" :disabled="loading || operating" @click="clearQuickActor">{{ t("audit.clearActor") }}</el-button>
 					<el-button v-if="action.trim() !== ''" :disabled="loading || operating" @click="clearActionFilter">{{ t("audit.clearAction") }}</el-button>
 					<el-button v-if="resource.trim() !== '' || resourceId.trim() !== ''" :disabled="loading || operating" @click="clearResourceFilter">{{ t("audit.clearResource") }}</el-button>
@@ -642,6 +711,11 @@ void loadAuditLogs();
 				@row-click="openDetail"
 			>
 				<el-table-column prop="id" :label="t('table.id')" min-width="190" show-overflow-tooltip />
+				<el-table-column :label="t('audit.type')" width="120">
+					<template #default="{ row }">
+						<el-tag effect="plain">{{ t(`audit.type.${row.type}`) }}</el-tag>
+					</template>
+				</el-table-column>
 				<el-table-column :label="t('table.actor')" min-width="160">
 					<template #default="{ row }">{{ displayActor(row) }}</template>
 				</el-table-column>
@@ -652,6 +726,19 @@ void loadAuditLogs();
 				</el-table-column>
 				<el-table-column :label="t('table.resource')" min-width="160">
 					<template #default="{ row }">{{ displayResource(row) }}</template>
+				</el-table-column>
+				<el-table-column :label="t('audit.risk')" width="120">
+					<template #default="{ row }">
+						<el-tag :type="riskTagType(row.risk)" effect="light">{{ t(`audit.risk.${row.risk}`) }}</el-tag>
+					</template>
+				</el-table-column>
+				<el-table-column :label="t('audit.result')" width="120">
+					<template #default="{ row }">
+						<el-tag :type="resultTagType(row.result)" effect="plain">{{ t(`audit.result.${row.result}`) }}</el-tag>
+					</template>
+				</el-table-column>
+				<el-table-column :label="t('audit.trace')" min-width="160" show-overflow-tooltip>
+					<template #default="{ row }">{{ row.trace?.traceId || row.trace?.requestId || "-" }}</template>
 				</el-table-column>
 				<el-table-column :label="t('table.occurredAt')" min-width="190">
 					<template #default="{ row }">{{ formatOccurredAtLocal(row.occurredAt) || "-" }}</template>
@@ -684,25 +771,20 @@ void loadAuditLogs();
 					<el-descriptions-item :label="t('table.occurredAt')">{{ detailPayload.occurredAtLocal }}</el-descriptions-item>
 				</el-descriptions>
 
-				<section class="detail-section">
-					<h3>{{ t("audit.trace") }}</h3>
-					<pre>{{ JSON.stringify(detailPayload.trace ?? {}, null, 2) }}</pre>
-				</section>
-
-				<section class="detail-section">
-					<h3>{{ t("audit.metadata") }}</h3>
-					<pre>{{ JSON.stringify(detailPayload.metadata ?? {}, null, 2) }}</pre>
-				</section>
-
-				<section class="detail-section">
-					<h3>{{ t("audit.diff") }}</h3>
-					<pre>{{ JSON.stringify(detailPayload.diff ?? {}, null, 2) }}</pre>
-				</section>
-
-				<section class="detail-section">
-					<h3>{{ t("audit.sourceData") }}</h3>
-					<pre>{{ JSON.stringify(detailPayload.sourceData ?? {}, null, 2) }}</pre>
-				</section>
+				<el-tabs class="detail-tabs">
+					<el-tab-pane :label="t('audit.trace')">
+						<pre>{{ JSON.stringify(detailPayload.trace ?? {}, null, 2) }}</pre>
+					</el-tab-pane>
+					<el-tab-pane :label="t('audit.metadata')">
+						<pre>{{ JSON.stringify(detailPayload.metadata ?? {}, null, 2) }}</pre>
+					</el-tab-pane>
+					<el-tab-pane :label="t('audit.diff')">
+						<pre>{{ JSON.stringify(detailPayload.diff ?? {}, null, 2) }}</pre>
+					</el-tab-pane>
+					<el-tab-pane :label="t('audit.sourceData')">
+						<pre>{{ JSON.stringify(detailPayload.sourceData ?? {}, null, 2) }}</pre>
+					</el-tab-pane>
+				</el-tabs>
 			</div>
 		</el-drawer>
 	</section>
@@ -737,6 +819,42 @@ void loadAuditLogs();
 	gap: 8px;
 	flex-wrap: wrap;
 	justify-content: flex-end;
+}
+
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.summary-card {
+	display: grid;
+	gap: 8px;
+	min-height: 112px;
+	padding: 16px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+}
+
+.summary-card--warning {
+	border-color: var(--color-danger);
+	background: var(--color-danger-soft);
+}
+
+.summary-card span {
+	color: var(--color-text-muted);
+	font-size: 0.86rem;
+}
+
+.summary-card strong {
+	font-size: 1.7rem;
+	line-height: 1;
+	color: var(--color-primary-strong);
+}
+
+.summary-card small {
+	color: var(--color-text-muted);
 }
 
 .panel {
@@ -801,6 +919,10 @@ void loadAuditLogs();
 	gap: 14px;
 }
 
+.detail-tabs {
+	min-width: 0;
+}
+
 .detail-section {
 	display: grid;
 	gap: 8px;
@@ -823,6 +945,10 @@ pre {
 }
 
 @media (max-width: 960px) {
+	.summary-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
 	.page-header,
 	.header-actions,
 	.filters {
@@ -832,6 +958,12 @@ pre {
 
 	.filter-actions {
 		grid-column: auto;
+	}
+}
+
+@media (max-width: 640px) {
+	.summary-grid {
+		grid-template-columns: 1fr;
 	}
 }
 </style>
