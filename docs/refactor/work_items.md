@@ -180,7 +180,7 @@
 | 127 | FE2-03 | FE2 | `skoll-frontend-coding-refactor` | 统一 route guard 规范 | router/permission 文档 | 菜单、路由、按钮、插件权限同源 | `rg -n "canAccess|beforeEach|v-permission|withRouteAccessMeta|BUTTON_ACCESS" web/src` | Done |
 | 128 | FE2-04 | FE2 | `skoll-frontend-coding-refactor` | 统一 SchemaForm 使用规范 | SchemaForm 文档/示例 | 插件配置、系统设置、生成器表单复用边界明确 | `rg -n "SchemaForm|PluginConfigSchema|update:valid|update:errors|configSchema|systemConfigSchema" web/src docs/refactor/fe2_schema_form_standard.md` | Done |
 | 129 | ADJ-FE-20260619-02 | FE2 | `skoll-frontend-coding-refactor` | FE2 architecture before FE3 gate | `docs/refactor/fe2_architecture_before_fe3_gate.md` | FE3 页面升级前 API client、store、router、permission、SchemaForm 边界明确 | `rg -n "API client boundary|Store boundary|Router/permission boundary|SchemaForm boundary|FE3 gate" docs/refactor/fe2_architecture_before_fe3_gate.md` | Done |
-| 130 | FE2-05 | FE2 | `skoll-frontend-coding-refactor` | 统一确认动作 helper | helper 规范/代码 | 删除、禁用、回滚、发布等危险动作使用统一确认 | `rg "useConfirmAction\|ElMessageBox" web/src` | Todo |
+| 130 | FE2-05 | FE2 | `skoll-frontend-coding-refactor` | 统一确认动作 helper | helper 规范/代码 | 删除、禁用、回滚、发布等危险动作使用统一确认 | `rg -n "confirmAction|ElMessageBox" web/src docs/refactor/fe2_confirm_action_standard.md` | Done |
 | 131 | FE2-06 | FE2 | `skoll-frontend-coding-refactor` | 统一前端错误展示 | helper 规范/代码 | 后端错误不会被吞掉或显示假成功 | `rg "catch\|ElMessage.error\|throw" web/src` | Todo |
 | 132 | FE2-07 | FE2 | `skoll-frontend-coding-refactor` | 统一导出/下载交互 | helper 规范/代码 | 导出使用当前筛选条件，失败可见 | 文档审阅 | Todo |
 

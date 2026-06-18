@@ -6380,6 +6380,62 @@ rg -n "apiGet|defineStore|beforeEach|SchemaForm|v-permission|canAccess" web/src
 
 - 进入 `FE2-05`，统一确认动作 helper。
 
+## FE2-05: 统一确认动作 helper
+
+- 状态: Passed
+- Work Item: FE2-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_confirm_action_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增确认动作 helper 标准文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 删除、禁用、重置、发布、回滚等危险动作统一使用 `confirmAction`。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准禁止页面直接调用 `ElMessageBox`、`window.confirm` 或自建确认弹窗。 |
+
+### 自动化验证
+
+```powershell
+rg -n "confirmAction|ElMessageBox" web/src docs/refactor/fe2_confirm_action_standard.md
+$direct = rg -n "ElMessageBox" web/src | Select-String -NotMatch "web/src\\composables\\useConfirmAction.ts"
+if ($direct) { $direct; exit 1 }
+rg -n "FE2-05.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。`ElMessageBox` 只在 `useConfirmAction.ts` 中出现；Audit、Dictionary、Menu、Organization、Plugin、Permission、Setting、Role、User 页面均通过 `confirmAction` 调用确认动作；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe2_confirm_action_standard.md`，确认 helper 职责、页面调用规则和禁止项明确。
+2. 对照 `useConfirmAction.ts`，确认 helper 只返回 boolean，不执行业务动作。
+3. 对照现有页面调用点，确认危险动作在 API 请求前先等待确认结果。
+
+结果摘要: 通过。FE2-05 统一确认动作 helper 完成。
+
+### 失败与返工
+
+- 失败原因: 原 Work Item 验证命令使用 `\|`，在 ripgrep 正则中容易按字面量管道解析，无法可靠命中 alternation。
+- 返工动作: 将验证命令修正为 `rg -n "confirmAction|ElMessageBox" web/src docs/refactor/fe2_confirm_action_standard.md`，并补充直接 `ElMessageBox` 调用排除检查。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `FE2-06`，统一前端错误展示。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
