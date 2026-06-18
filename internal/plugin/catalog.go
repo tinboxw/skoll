@@ -12,6 +12,7 @@ import (
 
 type CatalogRegistry interface {
 	ImportPlugin(info Info) error
+	DisablePlugin(pluginID string) error
 	RemovePlugin(pluginID string) error
 }
 
@@ -79,6 +80,32 @@ func (r *MemoryCatalogRegistry) RemovePlugin(pluginID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.removePluginLocked(strings.TrimSpace(strings.ToLower(pluginID)))
+	return nil
+}
+
+func (r *MemoryCatalogRegistry) DisablePlugin(pluginID string) error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	keys := r.byPlugin[strings.TrimSpace(strings.ToLower(pluginID))]
+	for _, key := range keys.permissions {
+		permission, ok := r.permissions[key]
+		if !ok {
+			continue
+		}
+		permission.Enabled = false
+		r.permissions[key] = permission
+	}
+	for _, key := range keys.menus {
+		menu, ok := r.menus[key]
+		if !ok {
+			continue
+		}
+		menu.Visible = false
+		r.menus[key] = menu
+	}
 	return nil
 }
 

@@ -131,7 +131,7 @@ func (m *RuntimeManager) Disable(pluginID string) error {
 		m.plugins[pluginID] = info
 	}
 	if m.catalog != nil {
-		return m.catalog.RemovePlugin(pluginID)
+		return m.catalog.DisablePlugin(pluginID)
 	}
 
 	return nil

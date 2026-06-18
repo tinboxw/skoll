@@ -3222,3 +3222,57 @@ $env:CGO_ENABLED='0'; go test ./internal/plugin/...
 ### 下一步
 
 - 进入 `M1-07-04`，插件 disable 隐藏/冻结权限与菜单。
+
+## M1-07-04: 插件 disable 隐藏访问
+
+- 状态: Passed
+- Work Item: M1-07-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/plugin/catalog.go`
+- `internal/plugin/manager.go`
+- `internal/plugin/manager_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 插件 disable 后 catalog 保留记录但权限 inactive、菜单 hidden。 |
+| API/OpenAPI 同步 | N/A | 本项未改 HTTP API。 |
+| 权限目录同步 | Passed | disable 后 `PermissionResource.Enabled=false`。 |
+| 审计 action 同步 | N/A | 审计导入在 M1-07-05 处理。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项为 plugin manager 生命周期能力。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | disable 冻结、uninstall 移除，生命周期语义清晰。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/plugin/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/plugin/catalog.go` 和 `internal/plugin/manager.go`。
+2. 确认 disable 后菜单不可见、权限不可用，uninstall 后移除 catalog 记录。
+
+结果摘要: 通过。插件 disable 隐藏访问已完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-07-05`，插件权限/菜单导入审计。

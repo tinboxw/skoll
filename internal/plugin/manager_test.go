@@ -169,8 +169,20 @@ ui_menu:
 	if err := m.Disable("reports"); err != nil {
 		t.Fatalf("disable plugin failed: %v", err)
 	}
+	permissions = catalog.ListPermissions()
+	if len(permissions) != 1 || permissions[0].Enabled {
+		t.Fatalf("expected disabled permission after disable, got %+v", permissions)
+	}
+	menus = catalog.ListMenuNodes()
+	if len(menus) != 1 || menus[0].Visible {
+		t.Fatalf("expected hidden menu after disable, got %+v", menus)
+	}
+
+	if err := m.Uninstall("reports"); err != nil {
+		t.Fatalf("uninstall plugin failed: %v", err)
+	}
 	if len(catalog.ListPermissions()) != 0 || len(catalog.ListMenuNodes()) != 0 {
-		t.Fatalf("expected catalog cleanup after disable")
+		t.Fatalf("expected catalog cleanup after uninstall")
 	}
 }
 
