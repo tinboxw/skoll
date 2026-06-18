@@ -1,46 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
+import { exportAuditEvents, listAuditEvents, type AuditEvent, type AuditEventListQuery } from "../../audit/api";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
-import { type ApiResponse, apiDelete, apiGet } from "../../utils/api";
-import { getToken } from "../../utils/auth";
+import { type ApiResponse, apiDelete } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
-import { API_BASE_PREFIX } from "../../utils/api-base-prefix";
 
-type AuditRecord = {
-	id: string;
-	actorId: string;
-	actorName?: string;
-	action: string;
-	resource: string;
-	resourceId?: string;
-	detail?: Record<string, unknown>;
-	occurredAt: string;
-};
-
-function normalizeAuditRecord(item: unknown): AuditRecord | null {
-	if (!item || typeof item !== "object") {
-		return null;
-	}
-	const row = item as Record<string, unknown>;
-	const id = String(row.id ?? "").trim();
-	if (!id) {
-		return null;
-	}
-	return {
-		id,
-		actorId: String(row.actorId ?? "").trim(),
-		actorName: String(row.actorName ?? "").trim(),
-		action: String(row.action ?? "").trim(),
-		resource: String(row.resource ?? "").trim(),
-		resourceId: String(row.resourceId ?? "").trim(),
-		detail: row.detail && typeof row.detail === "object"
-			? (row.detail as Record<string, unknown>)
-			: undefined,
-		occurredAt: String(row.occurredAt ?? "").trim()
-	};
-}
+type AuditRecord = AuditEvent;
 
 const { t } = useI18n();
 
@@ -138,11 +105,19 @@ function buildDetailPayload(item: AuditRecord | null): Record<string, unknown> |
 }
 
 function displayActor(item: AuditRecord): string {
-	const name = (item.actorName ?? "").trim();
+	const name = (item.actor.name ?? "").trim();
 	if (name !== "") {
 		return name;
 	}
-	return item.actorId.trim() || "-";
+	return item.actor.id.trim() || "-";
+}
+
+function displayResource(item: AuditRecord): string {
+	const name = (item.resource.name ?? "").trim();
+	if (name !== "") {
+		return name;
+	}
+	return item.resource.type.trim() || item.resource.id.trim() || "-";
 }
 
 function defaultTimeRange(): { from: string; to: string } {
@@ -192,7 +167,7 @@ const pagedItems = computed(() => {
 const quickActors = computed(() => {
 	const actorSet = new Set<string>();
 	for (const item of items.value) {
-		const actor = (item.actorName ?? "").trim();
+		const actor = displayActor(item);
 		if (actor !== "") {
 			actorSet.add(actor);
 		}
@@ -270,7 +245,7 @@ const quickActions = computed(() => {
 const quickResources = computed(() => {
 	const resourceSet = new Set<string>();
 	for (const item of items.value) {
-		const value = item.resource.trim();
+		const value = item.resource.type.trim();
 		if (value !== "") {
 			resourceSet.add(value);
 		}
@@ -286,13 +261,13 @@ const resourceSuggestions = computed(() => mergeHistory(resourceHistory.value, q
 function buildQuery(): string {
 	const params = new URLSearchParams();
 	if (actorName.value.trim() !== "") {
-		params.set("actorName", actorName.value.trim());
+		params.set("actorId", actorName.value.trim());
 	}
 	if (action.value.trim() !== "") {
 		params.set("action", action.value.trim());
 	}
 	if (resource.value.trim() !== "") {
-		params.set("resource", resource.value.trim());
+		params.set("resourceType", resource.value.trim());
 	}
 	if (from.value.trim() !== "") {
 		params.set("from", new Date(from.value).toISOString());
@@ -307,6 +282,24 @@ function buildQuery(): string {
 	return query === "" ? "" : `?${query}`;
 }
 
+function buildAuditEventQuery(): AuditEventListQuery {
+	const query: AuditEventListQuery = {
+		actorId: actorName.value.trim(),
+		action: action.value.trim(),
+		resourceType: resource.value.trim(),
+		limit: Math.max(1, limit.value || 50)
+	};
+	if (from.value.trim() !== "") {
+		query.from = new Date(from.value).toISOString();
+	}
+	if (to.value.trim() !== "") {
+		const end = new Date(to.value);
+		end.setSeconds(59, 999);
+		query.to = end.toISOString();
+	}
+	return query;
+}
+
 async function loadAuditLogs(): Promise<void> {
 	loading.value = true;
 	error.value = "";
@@ -314,10 +307,8 @@ async function loadAuditLogs(): Promise<void> {
 	refreshAutoRange();
 	syncQueryToURL();
 	try {
-		const payload = await apiGet<ApiResponse<AuditRecord[]>>(`/v1/audit${buildQuery()}`);
-		items.value = Array.isArray(payload.data)
-			? payload.data.map((item) => normalizeAuditRecord(item)).filter((item): item is AuditRecord => item !== null)
-			: [];
+		const payload = await listAuditEvents(buildAuditEventQuery());
+		items.value = payload.items.filter((item) => item.id.trim() !== "");
 		page.value = 1;
 		selected.value = null;
 		updateSuggestionHistory();
@@ -387,22 +378,11 @@ async function exportCSV(): Promise<void> {
 	error.value = "";
 	success.value = "";
 	try {
-		const token = getToken().trim();
-		const authValue = token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`;
-		const resp = await fetch(`${API_BASE_PREFIX}/v1/audit/export${buildQuery()}`, {
-			method: "GET",
-			headers: {
-				Authorization: authValue
-			}
-		});
-		if (!resp.ok) {
-			throw new Error(`export failed: ${resp.status}`);
-		}
-		const blob = await resp.blob();
+		const blob = await exportAuditEvents(buildAuditEventQuery());
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
-		a.download = "audit_logs.csv";
+		a.download = "audit_events.csv";
 		document.body.appendChild(a);
 		a.click();
 		a.remove();
@@ -568,7 +548,7 @@ void loadAuditLogs();
 					</template>
 				</el-table-column>
 				<el-table-column :label="t('table.resource')" min-width="160">
-					<template #default="{ row }">{{ row.resource || "-" }}</template>
+					<template #default="{ row }">{{ displayResource(row) }}</template>
 				</el-table-column>
 				<el-table-column :label="t('table.occurredAt')" min-width="190">
 					<template #default="{ row }">{{ formatOccurredAtLocal(row.occurredAt) || "-" }}</template>

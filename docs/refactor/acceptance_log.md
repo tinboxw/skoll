@@ -5347,3 +5347,59 @@ rg -n "Export audit event source data as CSV|eventId,sourceData|text/csv|AuditEv
 ### 下一步
 
 - 进入 `M2-05-01`，新增审计 API client 类型。
+
+## M2-05-01: 新增审计 API client 类型
+
+- 状态: Passed
+- Work Item: M2-05-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/audit/api.ts`
+- `web/src/views/Audit/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增审计 typed API client，覆盖 list/detail/export 类型与调用函数。 |
+| API/OpenAPI 同步 | Passed | 前端类型按 M2-04 OpenAPI 的 `AuditEvent`、detail、CSV export 契约建模。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | query 类型包含 canonical action、type/result/risk 过滤字段。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 审计页 list/export 已切到 `web/src/audit/api.ts`。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 移除页面内旧 list/export 请求封装，避免重复 API client。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出现有依赖的 Rollup pure annotation 与 Dart Sass legacy API 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/audit/api.ts`，确认 list/detail/export 类型完整。
+2. 审阅 `web/src/views/Audit/index.vue`，确认列表和导出使用 typed client。
+3. 确认页面仍保留后续任务需要升级的详情抽屉与筛选 UI，不在本项扩大范围。
+
+结果摘要: 通过。审计 API client 类型已新增并接入基础 list/export。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-05-02`，审计列表页接入新 API。
