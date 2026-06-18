@@ -3836,3 +3836,58 @@ npm run build
 ### 下一步
 
 - 进入 `M1-09-04`，菜单管理页编辑与保存。
+
+## M1-09-04: 菜单管理页编辑与保存
+
+- 状态: Passed
+- Work Item: M1-09-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Menu/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 菜单管理页编辑保存继续走 registry-backed navigation store。 |
+| API/OpenAPI 同步 | N/A | 本项复用 M1-08 menu client/store，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未改权限目录数据。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 显隐、排序、权限字段保存路径保留，且保存时保留 registry source/component。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未回退到旧 system menu 请求或页面局部保存逻辑。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/views/Menu/index.vue` 的 `createDraft` 与 `normalizeDrafts`。
+2. 确认 visible、order、requiredRoles、requiredPermissions 仍随保存 payload 进入 store。
+3. 确认 source/component 在编辑保存时不会被归一化丢失。
+
+结果摘要: 通过。菜单管理页编辑与保存路径完整。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-09-05`，菜单和权限页面确认弹窗。
