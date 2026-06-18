@@ -5797,6 +5797,60 @@ rg -n "FE1-02.*Done" docs/refactor/work_items.md
 
 - 进入 `FE1-03`，定义表格体验标准。
 
+## FE1-03: 定义表格体验标准
+
+- 状态: Passed
+- Work Item: FE1-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe1_table_experience_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Skoll Admin 表格体验标准文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 标准覆盖稳定列、状态标签、批量动作、紧凑行操作、分页、详情和数据状态。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准明确后续优先使用 Element Plus table 合同，不扩展旧 table shell 兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Stable columns|Status tags|Bulk actions|Compact row actions|Data states|row-key|show-overflow-tooltip" docs/refactor/fe1_table_experience_standard.md
+rg -n "FE1-03.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。表格体验标准包含稳定列、状态标签、批量动作、紧凑行操作、数据状态、row-key 和 overflow 约束；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe1_table_experience_standard.md`，确认列稳定、状态标签、批量动作、紧凑行操作标准明确。
+2. 对照 Audit、Plugin、Menu、Dictionary、Organization、Role、User 页面表格锚点，确认标准能覆盖现有使用方式。
+3. 确认后续 FE3/FE4 页面升级可直接引用该表格合同。
+
+结果摘要: 通过。FE1-03 表格体验标准完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE1-04`，定义表单和弹窗标准。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed
