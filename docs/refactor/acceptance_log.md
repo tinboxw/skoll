@@ -4119,3 +4119,79 @@ rg -n "/v1/menus/tree|/v1/menus/reorder|/v1/menus/visibility|permissions|ui_menu
 ### 下一步
 
 - 进入 `M1-10-04`，编写 M1 里程碑验收记录。
+
+## M1-10-04: M1 里程碑验收记录
+
+- 状态: Passed
+- Work Item: M1-10-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 里程碑范围
+
+M1 覆盖 permission catalog 与 menu registry 的端到端建设：domain、migration、repository、store、service、HTTP API、OpenAPI、插件 manifest 导入、插件生命周期、前端 API/store、路由/按钮权限入口、权限矩阵、菜单管理页、自动化与文档。
+
+### 阶段验收汇总
+
+| 阶段 | 范围 | 结果 | 说明 |
+|---|---|---|---|
+| M1-01 | Permission domain | Passed | `PermissionResource`、类型、校验、risk、metadata 和包内文档完成。 |
+| M1-02 | Menu domain | Passed | `MenuNode`、树排序、显隐、角色/权限过滤和包内文档完成。 |
+| M1-03 | 数据库模型与 migration | Passed | 权限表、菜单表、GORM model、AutoMigrate 注册与 migration 文档完成。 |
+| M1-04 | repository/store | Passed | permission/menu repository、memory store、SQL store、store factory 接入完成。 |
+| M1-05 | service | Passed | permission catalog 注册/查询/启停/diff 与 menu merge/tree/filter/reorder 完成。 |
+| M1-06 | HTTP API/OpenAPI | Passed | permission/menu API 契约、handler、router、system seed 完成。 |
+| M1-07 | 插件导入 | Passed | 插件 permissions/ui_menu 读取、enable 导入、disable 冻结、审计事件完成。 |
+| M1-08 | 前端 API/store/权限入口 | Passed | permission/menu client、Pinia store、route guard、button access 统一完成。 |
+| M1-09 | 前端页面 | Passed | 权限矩阵、菜单管理页、确认弹窗、加载/空态/错误态完成。 |
+| M1-10 | 集成验收与文档 | Passed | 后端集成测试、前端 smoke、架构文档、里程碑记录完成。 |
+
+### 提交索引
+
+| 阶段 | Work Items | 提交 hash |
+|---|---|---|
+| M1-01 | M1-01-01..M1-01-05 | `872cfab`, `a7ffd08`, `f3e3afb`, `3f30a32`, `fdcc424` |
+| M1-02 | M1-02-01..M1-02-05 | `1fca991`, `b0d2d51`, `cec906b`, `0b5a1f1`, `661e3ab` |
+| M1-03 | M1-03-01..M1-03-05 | `4a83ff7`, `ed365d4`, `5c8a224`, `2c36698`, `4a0c468` |
+| M1-04 | M1-04-01..M1-04-07 | `ddcdb1b`, `c1ec703`, `b237323`, `3ca712b`, `ab5227d`, `2713be3`, `51f18c1` |
+| M1-05 | M1-05-01..M1-05-08 | `fe02aae`, `999663e`, `1d2144a`, `f3ffeee`, `30a61cf`, `12738d3`, `63ef486`, `586b2fb` |
+| M1-06 | M1-06-01..M1-06-05 | `e544407`, `f3505f7`, `3226867`, `c48c58a`, `7ae52c8` |
+| M1-07 | M1-07-01..M1-07-05 | `52b6b6a`, `dfe67c4`, `6302f80`, `db6118d`, `14a4534` |
+| M1-08 | M1-08-01..M1-08-06 | `ea1f078`, `bd9e3cb`, `07de75a`, `2472977`, `d8f89f9`, `cb330fe` |
+| M1-09 | M1-09-01..M1-09-05 | `2d34ecc`, `21c788f`, `a6eac15`, `1ca4c47`, `64dfe4e` |
+| M1-10 | M1-10-01..M1-10-04 | `c5c8b9e`, `2d6a175`, `e735c40`, 本任务提交 |
+
+### 命令结果汇总
+
+| 验证项 | 命令 | 结果 |
+|---|---|---|
+| Go domain/service/API/plugin 单项测试 | 各 Work Item 记录中的 `go test ./internal/...` | Passed |
+| M1 后端集成测试 | `$env:CGO_ENABLED='0'; go test ./internal/handler/http/...` | Passed |
+| M1 service 交叉测试 | `$env:CGO_ENABLED='0'; go test ./internal/service/role/... ./internal/service/menu/...` | Passed |
+| M1 全量 Go 测试 | `$env:CGO_ENABLED='0'; go test ./...` | Passed |
+| 前端类型检查 | `cd web; npm run typecheck` | Passed |
+| 前端构建 | `cd web; npm run build` | Passed；仅有既有 Sass legacy JS API 与 Rollup pure annotation 警告 |
+| 前端 M1 smoke | `cd web; npm run smoke:m1-permissions` | Passed；8 项 smoke 全部通过 |
+| M1 文档审阅 | `rg` 检索 catalog/registry/API/前端入口关键说明 | Passed |
+
+已知环境限制：Windows 默认 cgo 测试仍依赖本机 gcc；本轮 M1 里程碑验收使用 `CGO_ENABLED=0`，SQLite/cgo 相关测试在 cgo disabled/stub 场景明确 skip，其它错误仍 fail。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/work_items.md`：M1-01 至 M1-10 的 Work Item 均为 Done。
+2. 审阅 `docs/refactor/acceptance_log.md`：每个 M1 Work Item 均包含交付物、边界同步、验证命令、人工验收、失败与返工记录。
+3. 审阅 M1 关键文档：`docs/architecture/rbac.md`、`docs/development/plugin-guide.md`、`docs/refactor/m1_frontend_smoke.md`。
+4. 确认 M1 未新增旧接口兼容层、旧菜单复制路径或页面局部权限判断旁路。
+
+结果摘要: 通过。M1 已形成 permission catalog 与 menu registry 的端到端闭环，具备进入 M2 审计、登录日志、错误日志统一化任务的条件。
+
+### 失败与返工
+
+- 失败原因: M1-09-03 首次 build 发现 `common.retry` i18n 缺失；M1-10-01 首次 `CGO_ENABLED=0 go test ./...` 发现 SQLite/cgo stub 场景未被测试 helper 明确处理；M1-10-03 首次文档审阅发现正则转义过度。
+- 返工动作: 补齐 i18n key；将 SQLite/cgo stub 场景限制为明确 skip；修正文档正则转义。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 M2，从 `M2-01-01` 开始推进审计、登录日志、错误日志统一化。

@@ -106,7 +106,7 @@
 | 73 | M1-10-01 | M1-10 | `skoll-testing-automation` | 编写 M1 后端集成测试 | tests | 角色授权、菜单过滤、API 拒绝路径覆盖 | `go test ./...` | Done |
 | 74 | M1-10-02 | M1-10 | `skoll-testing-automation` | 编写 M1 前端 smoke 步骤 | docs/scripts | 可手工或脚本验证侧栏/路由/按钮一致性 | `cd web && npm run build` | Done |
 | 75 | M1-10-03 | M1-10 | `skoll-docs-writer` | 更新权限与菜单架构文档 | docs | 说明 catalog/registry、权限命名、菜单来源 | 文档审阅 | Done |
-| 76 | M1-10-04 | M1-10 | `skoll-refactor-governance` | M1 里程碑验收记录 | `acceptance_log.md` | 记录命令结果、人工验收、提交 hash | 文档审阅 | Todo |
+| 76 | M1-10-04 | M1-10 | `skoll-refactor-governance` | M1 里程碑验收记录 | `acceptance_log.md` | 记录命令结果、人工验收、提交 hash | 文档审阅 | Done |
 
 ## M2 Work Items: 审计、登录日志、错误日志统一化
 
