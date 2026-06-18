@@ -6027,6 +6027,60 @@ rg -n "apiGet|apiPost|apiPut|apiDelete|createRouter|router.beforeEach|BUTTON_ACC
 
 - 进入 `FE0-03`，建立前端构建基线。
 
+## FE0-03: 建立前端构建基线
+
+- 状态: Passed
+- Work Item: FE0-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe0_frontend_build_baseline_2026-06-19.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增前端 build 基线记录。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | Vite build 通过，chunk 和 warning 已记录。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 仅建立基线，不新增前端路径。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run build
+```
+
+结果摘要: 通过。Vite build 完成，3497 modules transformed，build time 48.93s。记录了最大 JS/CSS chunks、Sass legacy JS API warning、`@vueuse/core` pure annotation warning，以及 `xlsx` chunk 依赖风险。
+
+### 人工验收
+
+1. 审阅 `fe0_frontend_build_baseline_2026-06-19.md`。
+2. 确认 chunk、warning、依赖风险均有记录。
+3. 确认后续 FE6 可接管 build hygiene 和预算任务。
+
+结果摘要: 通过。FE0 build baseline 完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE0-04`，建立前端 typecheck 基线。
+
 ## ADJ-20260619-01: M2 export/list filter parity check
 
 - 状态: Passed

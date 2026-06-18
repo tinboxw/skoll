@@ -154,7 +154,7 @@
 |---:|---|---|---|---|---|---|---|---|
 | 112 | FE0-01 | FE0 | `skoll-frontend-design-refactor` | 盘点当前前端页面体验 | 页面体验清单 | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 状态、问题、优先级清楚 | 文档审阅 | Done |
 | 113 | FE0-02 | FE0 | `skoll-frontend-coding-refactor` | 盘点前端架构与复用点 | 架构清单 | API client、stores、router、permissions、SchemaForm、Common 组件边界清楚 | `rg "defineStore|SchemaForm|canAccess|v-permission" web/src` | Done |
-| 114 | FE0-03 | FE0 | `skoll-frontend-performance-refactor` | 建立前端构建基线 | 构建记录 | build 输出、chunk、warning 和明显依赖风险被记录 | `cd web && npm run build` | Todo |
+| 114 | FE0-03 | FE0 | `skoll-frontend-performance-refactor` | 建立前端构建基线 | 构建记录 | build 输出、chunk、warning 和明显依赖风险被记录 | `cd web && npm run build` | Done |
 | 115 | FE0-04 | FE0 | `skoll-frontend-testing-refactor` | 建立前端 typecheck 基线 | 检查记录 | typecheck 存在则记录结果，不存在则列入任务 | `cd web && npm run typecheck` | Todo |
 | 116 | FE0-05 | FE0 | `skoll-frontend-testing-refactor` | 建立浏览器人工验收模板 | 前端验收模板 | 包含正常、加载、空态、错误、无权限、窄屏、危险操作 | 文档审阅 | Todo |
 
