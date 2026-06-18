@@ -4414,3 +4414,58 @@ go test ./internal/domain/audit/...
 ### 下一步
 
 - 进入 `M2-02-01`，定义 LoginLog 模型。
+
+## M2-02-01: 定义 LoginLog 模型
+
+- 状态: Passed
+- Work Item: M2-02-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/audit/login_log.go`
+- `internal/domain/audit/login_log_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 `LoginLog`、`LoginLogInput` 和 `LoginResult`，字段覆盖账号、结果、IP、UA、失败原因、session id。 |
+| API/OpenAPI 同步 | N/A | 本项仅定义 domain 模型，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | LoginLog 可承载 M2 action catalog 中的登录成功/失败事件数据。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构，SQL migration 后续 M2-02-03 处理。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新模型直接服务统一登录日志，不新增旧 login audit 兼容结构。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/domain/audit/login_log.go internal/domain/audit/login_log_test.go
+go test ./internal/domain/audit/...
+rg -n "type LoginLog|Account|Result|IP|UserAgent|FailureReason|SessionID|NewLoginLog|LoginResult" internal/domain/audit/login_log.go internal/domain/audit/login_log_test.go
+```
+
+结果摘要: 通过。成功/失败登录、必填字段、session id、失败原因、trace、metadata 拷贝均已覆盖。
+
+### 人工验收
+
+1. 审阅 `internal/domain/audit/login_log.go`，确认登录日志字段完整且不依赖 store。
+2. 审阅 `internal/domain/audit/login_log_test.go`，确认成功与失败路径均有测试。
+
+结果摘要: 通过。LoginLog 模型已定义。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-02-02`，定义 ErrorLog 模型。
