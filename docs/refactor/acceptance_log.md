@@ -4751,3 +4751,53 @@ go test ./internal/service/audit/...
 
 ### 下一步
 - 进入 `M2-03-01`，梳理现有 middleware 写审计路径。
+
+## M2-03-01: 梳理现有 middleware 写审计路径
+
+- 状态: Passed
+- Work Item: M2-03-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/m2_audit_write_path_inventory.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增写审计路径清单，覆盖 auth、plugin、user、role、rbac、system、audit API 和 service 直写。 |
+| API/OpenAPI 同步 | N/A | 本项仅梳理代码清单，不改 API 契约。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 清单列出旧 bare action 并标明后续需迁移到 action catalog。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态、替换清单和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项为梳理任务，明确列出旧分散写入点和替换目标，未新增旧路径。 |
+
+### 自动化验证
+```powershell
+rg -n "audit|operation|login" internal/handler internal/service
+rg -n "h\.appendAudit\(|appendAuthAudit\(|audit\.Append\(|auditSvc\.Append\(|audit\.NewRecord\(" internal/handler internal/service internal/bootstrap -S
+```
+
+结果摘要: 通过。命令覆盖当前 handler/service 关键命中；补充收窄命令定位了真正的旧写入入口。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/m2_audit_write_path_inventory.md`，确认旧分散写入点按区域列出。
+2. 审阅替换清单，确认后续 M2-03-02 到 M2-03-05 有明确迁移目标。
+3. 审阅 middleware findings，确认当前 middleware 尚未写入统一审计事件。
+
+结果摘要: 通过。现有旧写入点和替换目标已成清单。
+
+### 失败与返工
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+- 进入 `M2-03-02`，实现统一请求审计 middleware。
