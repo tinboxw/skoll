@@ -2080,3 +2080,56 @@ go test ./internal/repository/...
 ### 下一步
 
 - 进入 `M1-04-03`，实现 memory permission store。
+
+## M1-04-03: 实现 memory permission store
+
+- 状态: Passed
+- Work Item: M1-04-03
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/store/memory/permission_store.go`
+- `internal/store/memory/permission_store_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 memory permission store，覆盖 register/list/get/set enabled。 |
+| API/OpenAPI 同步 | N/A | 本项只实现 memory store，无 API 影响。 |
+| 权限目录同步 | Passed | store 使用 permission repository 接口和 permission domain 类型。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧权限 store 兼容路径。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/store/memory/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/store/memory/permission_store.go`。
+2. 确认注册幂等、source filter、enable/disable 均有测试覆盖。
+
+结果摘要: 通过。memory permission store 已实现。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-04-04`，实现 memory menu store。
