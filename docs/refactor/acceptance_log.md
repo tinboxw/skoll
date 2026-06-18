@@ -581,3 +581,56 @@ if (Test-Path coverage.out) { go tool cover -func=coverage.out } else { Write-Ou
 ### 下一步
 
 - 进入 `M0-03-03`，运行前端构建。
+
+## M0-03-03: 运行前端构建
+
+- 状态: Passed
+- Work Item: M0-03-03
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/quality_baseline.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 前端 build 已执行，结果和 warning 已记录。 |
+| API/OpenAPI 同步 | N/A | 仅质量基线记录任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅质量基线记录任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅质量基线记录任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅质量基线记录任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 本项只运行构建并记录结果，无前端代码改动。 |
+| 文档同步 | Passed | 质量基线记录、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只记录真实构建基线，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run build
+```
+
+结果摘要: 通过。Vite 构建成功，3485 modules transformed，built in 9.01s；Sass deprecation、Rollup PURE annotation 和 npm notice 已记录在 `docs/refactor/quality_baseline.md`。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/quality_baseline.md` 的 M0-03-03 记录。
+2. 确认 build 结果、主要产物尺寸和 warning 已记录。
+
+结果摘要: 通过。前端构建基线可复现。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-03-04`，检查前端 typecheck 命令。

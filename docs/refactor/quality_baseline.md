@@ -155,3 +155,44 @@ coverage.out missing
 go test ./... -coverprofile=coverage.out
 go tool cover -func=coverage.out
 ```
+
+## M0-03-03: 前端构建
+
+- 命令: `cd web && npm run build`
+- 执行日期: 2026-06-18
+- 执行人: Codex
+- 结果: Passed
+
+### 结果摘要
+
+前端生产构建通过。
+
+```text
+vite v5.4.21 building for production...
+3485 modules transformed.
+built in 9.01s
+```
+
+主要产物尺寸观察:
+
+| 产物 | 大小 | gzip |
+|---|---:|---:|
+| `assets/xlsx-DLNWaC59.js` | 332.45 kB | 113.83 kB |
+| `assets/el-alert-BQWP3KR4.js` | 164.74 kB | 57.50 kB |
+| `assets/index-Cap6jvEn.js` | 115.62 kB | 33.75 kB |
+| `assets/vue-DNuytgzo.js` | 109.78 kB | 42.86 kB |
+| `assets/index-Cv9E1btV.js` | 95.56 kB | 28.94 kB |
+| `assets/el-table-column-BvYiDMwf.js` | 91.21 kB | 31.42 kB |
+
+### Warning 记录
+
+- Dart Sass legacy JS API deprecation warning: legacy JS API will be removed in Dart Sass 2.0.0.
+- Rollup removed two `/* #__PURE__ */` comments from `node_modules/@vueuse/core/dist/index.js` because the annotation position could not be interpreted.
+- npm notice: local npm has a newer minor version available.
+
+### 重跑命令
+
+```powershell
+cd web
+npm run build
+```
