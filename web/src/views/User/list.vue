@@ -4,7 +4,7 @@ import { useRoute } from "vue-router";
 
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
-import { useAccess } from "../../permissions/access";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { type ApiResponse, apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -81,7 +81,7 @@ function normalizeOrganizationOption(item: unknown): OrganizationOption | null {
 }
 
 const { t } = useI18n();
-const access = useAccess();
+const buttonAccess = useButtonAccess();
 const route = useRoute();
 
 const loading = ref(false);
@@ -100,10 +100,10 @@ const canGoNext = ref(false);
 
 const hasSelectedRows = computed(() => selectedUserIDs.value.length > 0);
 const returnTo = computed(() => route.fullPath || "/skoll/user");
-const canCreateUser = computed(() => access.can("user.create"));
-const canUpdateUser = computed(() => access.can("user.update"));
-const canDeleteUser = computed(() => access.can("user.delete"));
-const canAssignRole = computed(() => access.can("role.manage"));
+const canCreateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userCreate));
+const canUpdateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userUpdate));
+const canDeleteUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userDelete));
+const canAssignRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleManage));
 
 async function loadUsers(targetPage = page.value): Promise<void> {
 	loading.value = true;

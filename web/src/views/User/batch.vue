@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import { useAccess } from "../../permissions/access";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { apiPost, type ApiResponse } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -27,7 +27,7 @@ type BatchCreatePayload = {
 };
 
 const { t } = useI18n();
-const access = useAccess();
+const buttonAccess = useButtonAccess();
 const router = useRouter();
 const route = useRoute();
 const rows = ref<BatchUserRow[]>([{ id: crypto.randomUUID(), account: "", name: "", email: "", password: "" }]);
@@ -35,7 +35,7 @@ const importing = ref(false);
 const error = ref("");
 const results = ref<ImportResult[]>([]);
 const atomic = ref(false);
-const canCreateUser = computed(() => access.can("user.create"));
+const canCreateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userCreate));
 
 const importHeaderAliases = {
 	account: new Set(["account", "\u7528\u6237\u540d", "\u8d26\u53f7"]),

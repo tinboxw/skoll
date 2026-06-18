@@ -22,7 +22,7 @@ import {
 import SchemaForm from "../../components/Common/SchemaForm.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
-import { useAccess } from "../../permissions/access";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { syncBackendPlugins } from "../../plugins";
 import type { PluginConfigSchema } from "../../plugins/types";
 import { clearDefaultHomePath, createDefaultHomeTarget, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePlugin, resolvePluginEntryPath, setDefaultHomeTarget, usePluginStore } from "../../stores/plugins";
@@ -36,7 +36,7 @@ const router = useRouter();
 const pluginStore = usePluginStore();
 const tabsStore = useTabsStore();
 const { t, locale } = useI18n();
-const access = useAccess();
+const buttonAccess = useButtonAccess();
 
 const loading = ref(false);
 const operating = ref(false);
@@ -127,8 +127,8 @@ const syncStatusText = computed(() => {
 const enabledPluginCount = computed(() => pluginStore.items.filter((item) => item.enabled !== false).length);
 const disabledPluginCount = computed(() => pluginStore.items.length - enabledPluginCount.value);
 const appCount = computed(() => Object.keys(appPluginsGrouped.value).length);
-const canReadPlugins = computed(() => access.can({ permissions: ["plugin.read"], mode: "any" }) || access.can({ permissions: ["plugin.manage"], mode: "any" }));
-const canManagePlugins = computed(() => access.can("plugin.manage"));
+const canReadPlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginRead));
+const canManagePlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginManage));
 const devPluginOptions = computed(() => {
 	const ids = new Set<string>();
 	for (const item of pluginStore.items) {
@@ -197,10 +197,8 @@ function handlePluginCommand(command: string): void {
 }
 
 function ensurePluginAccess(permission: "plugin.read" | "plugin.manage"): boolean {
-	if (access.can(permission)) {
-		return true;
-	}
-	if (permission === "plugin.read" && access.can("plugin.manage")) {
+	const rule = permission === "plugin.manage" ? BUTTON_ACCESS.pluginManage : BUTTON_ACCESS.pluginRead;
+	if (buttonAccess.can(rule)) {
 		return true;
 	}
 	error.value = t("error.forbidden");

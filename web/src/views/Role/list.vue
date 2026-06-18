@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
-import { useAccess } from "../../permissions/access";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { type ApiResponse, apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -35,7 +35,7 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 }
 
 const { t } = useI18n();
-const access = useAccess();
+const buttonAccess = useButtonAccess();
 const loading = ref(false);
 const operating = ref(false);
 const error = ref("");
@@ -50,9 +50,9 @@ const createName = ref("");
 const createKey = ref("");
 const createDescription = ref("");
 
-const canCreateRole = computed(() => access.can("role.create"));
-const canUpdateRole = computed(() => access.can("role.update"));
-const canDeleteRole = computed(() => access.can("role.delete"));
+const canCreateRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleCreate));
+const canUpdateRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleUpdate));
+const canDeleteRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleDelete));
 
 async function loadRoles(targetPage = page.value): Promise<void> {
 	loading.value = true;

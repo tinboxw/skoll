@@ -3,7 +3,7 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import { useAccess } from "../../permissions/access";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { type ApiResponse, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -22,7 +22,7 @@ type OrganizationOption = {
 const router = useRouter();
 const route = useRoute();
 const { t } = useI18n();
-const access = useAccess();
+const buttonAccess = useButtonAccess();
 
 const account = ref("");
 const name = ref("");
@@ -35,7 +35,7 @@ const positions = ref<OrganizationOption[]>([]);
 const loading = ref(false);
 const error = ref("");
 const success = ref("");
-const canCreateUser = computed(() => access.can("user.create"));
+const canCreateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userCreate));
 
 function normalizeOrganizationOption(item: unknown): OrganizationOption | null {
 	if (!item || typeof item !== "object") {

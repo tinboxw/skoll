@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import { useAccess } from "../../permissions/access";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { BASE_PERMISSION_OPTIONS } from "../../permissions/catalog";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -61,7 +61,7 @@ function normalizeUserRecord(item: unknown): UserRecord | null {
 
 const route = useRoute();
 const { t } = useI18n();
-const access = useAccess();
+const buttonAccess = useButtonAccess();
 
 const permissionOptions = BASE_PERMISSION_OPTIONS;
 
@@ -78,9 +78,9 @@ const permissions = ref<string[]>([]);
 const users = ref<UserRecord[]>([]);
 const usersLoading = ref(false);
 const usersError = ref("");
-const canUpdateRole = computed(() => access.can("role.update"));
-const canManagePermissions = computed(() => access.can("role.manage") || access.can("permission.manage"));
-const canUpdateUser = computed(() => access.can("user.update"));
+const canUpdateRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleUpdate));
+const canManagePermissions = computed(() => buttonAccess.can({ permissions: [BUTTON_ACCESS.roleManage, BUTTON_ACCESS.permissionManage], mode: "any" }));
+const canUpdateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userUpdate));
 
 const availablePermissionOptions = computed(() => permissionOptions.filter((item) => !permissions.value.includes(item)));
 

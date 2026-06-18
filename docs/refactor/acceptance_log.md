@@ -3607,3 +3607,66 @@ npm run build
 ### 下一步
 
 - 进入 `M1-08-06`，统一按钮权限入口。
+
+## M1-08-06: 统一按钮权限入口
+
+- 状态: Passed
+- Work Item: M1-08-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/permissions/button.ts`
+- `web/src/permissions/directive.ts`
+- `web/src/views/Plugin/index.vue`
+- `web/src/views/Role/list.vue`
+- `web/src/views/Role/edit.vue`
+- `web/src/views/User/list.vue`
+- `web/src/views/User/add.vue`
+- `web/src/views/User/edit.vue`
+- `web/src/views/User/batch.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增按钮权限工具入口并接入 `v-permission`。 |
+| API/OpenAPI 同步 | N/A | 本项未改 HTTP API。 |
+| 权限目录同步 | Passed | 按钮权限继续复用 `canAccess` 与 implied permission 判断。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 用户、角色、插件页按钮权限判断迁移到 `useButtonAccess`/`BUTTON_ACCESS`。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 页面中不再直接使用 `useAccess/access.can` 判断按钮权限；业务状态判断仍留在页面。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/permissions/button.ts` 与 `web/src/permissions/directive.ts`。
+2. 搜索 `useAccess|access\.can`，确认页面按钮权限判断已迁移。
+3. 确认用户、角色、插件页的按钮可见/禁用逻辑仍保留原有业务状态判断。
+
+结果摘要: 通过。按钮权限入口已统一。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-09-01`，权限矩阵页读取 catalog。

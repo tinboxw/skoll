@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
 import { useI18n } from "../../i18n";
-import { useAccess } from "../../permissions/access";
+import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { type ApiResponse, apiDelete, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -103,7 +103,7 @@ function normalizeOrganizationOption(item: unknown): OrganizationOption | null {
 
 const route = useRoute();
 const { t } = useI18n();
-const access = useAccess();
+const buttonAccess = useButtonAccess();
 
 const userId = computed(() => String(route.params.id ?? ""));
 const loading = ref(false);
@@ -125,8 +125,8 @@ const bindError = ref("");
 const bindSuccess = ref("");
 const bindings = ref<BindingRecord[]>([]);
 const selectedBindingIDs = ref<string[]>([]);
-const canUpdateUser = computed(() => access.can("user.update"));
-const canAssignRole = computed(() => access.can("role.manage"));
+const canUpdateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userUpdate));
+const canAssignRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleManage));
 
 async function loadUser(): Promise<void> {
 	if (!userId.value) {
