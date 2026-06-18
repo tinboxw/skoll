@@ -94,6 +94,20 @@ plugins/
 5. 插件不能绕过 manifest 直接写入系统菜单、权限和路由。
 6. 生成器输出必须遵守同样边界。
 
+### 1.7 分层边界验收口径
+
+后续每个涉及代码的 Work Item 都必须按以下边界自检:
+
+| 边界 | 允许职责 | 禁止事项 |
+|------|----------|----------|
+| `domain` | 模型、值对象、领域规则、领域级校验 | 依赖 Gin、GORM、HTTP 请求、Vue、具体数据库适配 |
+| `service` | 用例编排、事务边界、权限检查、审计事件、仓储调用 | 解析 HTTP、直接操作 GORM model、返回前端专用结构 |
+| `repository` | 面向 service 的仓储接口、查询语义、组合能力 | 泄漏具体 SQL/GORM 细节给 service |
+| `store` | Memory、SQL、Object、Cache 等具体 adapter 实现 | 反向调用 service 或承载业务编排 |
+| `handler` | 请求解析、响应格式、状态码、OpenAPI 对齐 | 直接访问 store、绕过 service 实现业务规则 |
+| `web` | Vue 页面、API client、Pinia store、权限和交互状态 | 猜测后端契约、维护孤立权限来源 |
+| `plugin` | manifest、权限、菜单、配置、资产、生命周期 extension point | 绕过平台注册中心直接污染核心菜单、权限或路由 |
+
 ## 2. 项目治理原则
 
 1. 每个任务必须有验收标准。验收失败时，任务退回“重新执行”，不得标记完成。

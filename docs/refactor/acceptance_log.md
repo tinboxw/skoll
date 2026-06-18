@@ -158,3 +158,54 @@ rg "不做旧接口|不做兼容方案" docs/refactor docs/README.md
 ### 下一步
 
 - 进入 `M0-01-03`，固化分层依赖规则。
+
+## M0-01-03: 固化分层依赖规则
+
+- 状态: Passed
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/architecture_and_execution_plan.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 架构计划新增分层边界验收口径。 |
+| API/OpenAPI 同步 | N/A | 仅文档治理任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅文档治理任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅文档治理任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅文档治理任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅文档治理任务，无前端实现影响。 |
+| 文档同步 | Passed | 架构计划、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只固化边界规则，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+rg "domain|service|repository|store|handler|web|plugin" docs/refactor/architecture_and_execution_plan.md
+```
+
+结果摘要: 通过。关键分层名称均可在架构计划中定位。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/architecture_and_execution_plan.md` 的依赖规则。
+2. 审阅新增分层边界验收口径表。
+
+结果摘要: 通过。各层职责和禁止事项可作为后续 Work Item 的验收依据。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-01-04`，关联重构专用 skills。
