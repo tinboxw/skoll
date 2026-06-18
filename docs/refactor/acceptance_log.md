@@ -4249,3 +4249,59 @@ go test ./internal/domain/audit/...
 ### 下一步
 
 - 进入 `M2-01-02`，定义 AuditAction 命名规则。
+
+## M2-01-02: 定义 AuditAction 命名规则
+
+- 状态: Passed
+- Work Item: M2-01-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/audit/action.go`
+- `internal/domain/audit/action_test.go`
+- `internal/domain/audit/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 `AuditAction` 值对象、解析、校验和三段拆分方法。 |
+| API/OpenAPI 同步 | N/A | 本项仅定义 domain 规则，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 新增 `module.resource.action` 校验规则，拒绝旧式 `login_failed`、`plugin_catalog_import` 等命名。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | 包内 README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新 action 规则不保留兼容分支；旧写入点将在后续 M2-03 任务迁移。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/domain/audit/action.go internal/domain/audit/action_test.go
+go test ./internal/domain/audit/...
+rg -n "module\\.resource\\.action|AuditAction|login_failed|plugin_catalog_import|user.account.create|menu.node.update" internal/domain/audit/README.md internal/domain/audit/action.go internal/domain/audit/action_test.go
+```
+
+结果摘要: 通过。`module.resource.action` 合法路径、非法旧命名、大小写归一化和三段拆分均已覆盖。
+
+### 人工验收
+
+1. 审阅 `internal/domain/audit/action.go`，确认规则严格为三段 dotted action。
+2. 审阅 `internal/domain/audit/README.md`，确认命名示例与后续迁移说明清晰。
+
+结果摘要: 通过。AuditAction 命名规则已定义。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-01-03`，定义 AuditEvent 统一结构。
