@@ -6270,6 +6270,61 @@ rg -n "FE2-03.*Done" docs/refactor/work_items.md
 
 - 进入 `FE2-04`，统一 SchemaForm 使用规范。
 
+## FE2-04: 统一 SchemaForm 使用规范
+
+- 状态: Passed
+- Work Item: FE2-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_schema_form_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 SchemaForm 使用规范文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | Passed | 文档明确插件配置保存受 `plugin.manage` 保护，不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 插件配置、系统设置、生成器表单复用边界明确。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 规范要求复用现有 SchemaForm，不新增第二套临时表单生成器。 |
+
+### 自动化验证
+
+```powershell
+rg -n "SchemaForm|PluginConfigSchema|update:valid|update:errors|configSchema|systemConfigSchema" web/src docs/refactor/fe2_schema_form_standard.md
+rg -n "Component boundary|Field contract|Plugin config|System settings|Generator reuse|update:modelValue|update:valid|update:errors" docs/refactor/fe2_schema_form_standard.md
+rg -n "FE2-04.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。SchemaForm 组件、类型定义、Plugin/Setting 使用点和 FE2-04 标准文档均有锚点；组件职责、字段契约、插件配置、系统设置和生成器复用规则已覆盖。
+
+### 人工验收
+
+1. 审阅 `fe2_schema_form_standard.md`，确认 SchemaForm 不处理 API、权限、保存、路由和业务确认。
+2. 对照 `SchemaForm.vue`、`plugins/types.ts`、`Plugin/index.vue`、`Setting/index.vue`，确认当前使用点符合 schema-driven 表单边界。
+3. 确认后续生成器表单需复用本标准，不新增第二套临时表单生成器。
+
+结果摘要: 通过。FE2-04 SchemaForm 使用规范完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `ADJ-FE-20260619-02`，补充 FE2 architecture before FE3 gate。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
