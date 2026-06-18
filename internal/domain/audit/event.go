@@ -56,6 +56,7 @@ type EventInput struct {
 	Trace      TraceContext
 	Risk       EventRisk
 	Metadata   map[string]any
+	SourceData map[string]any
 	OccurredAt time.Time
 }
 
@@ -69,6 +70,7 @@ type Event struct {
 	Trace      TraceContext
 	Risk       EventRisk
 	Metadata   map[string]any
+	SourceData map[string]any
 	OccurredAt time.Time
 }
 
@@ -92,6 +94,7 @@ func NewEvent(in EventInput) (*Event, error) {
 		Trace:      in.Trace,
 		Risk:       in.Risk,
 		Metadata:   copyMetadata(in.Metadata),
+		SourceData: copyMetadata(in.SourceData),
 		OccurredAt: in.OccurredAt,
 	}, nil
 }

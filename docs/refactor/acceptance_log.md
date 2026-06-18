@@ -4580,3 +4580,62 @@ rg -n "idx_audit_events_type_time|idx_audit_events_actor_time|idx_audit_events_a
 ### 下一步
 
 - 进入 `M2-02-04`，实现 memory audit log store。
+
+## M2-02-04: 实现 memory audit log store
+
+- 状态: Passed
+- Work Item: M2-02-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/audit/event.go`
+- `internal/domain/audit/event_test.go`
+- `internal/repository/audit/event_repo.go`
+- `internal/store/memory/audit_event_store.go`
+- `internal/store/memory/audit_event_store_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 memory `AuditEventStore`，支持 append、detail、list/filter/page、export source data。 |
+| API/OpenAPI 同步 | N/A | 本项只实现 store，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | store 使用统一 `audit.Event` 和 `auditrepo.EventFilter`，不接收旧 `Record` 查询模型。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新增 canonical EventRepository 契约，未给旧 audit record 增加并行兼容查询。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/domain/audit/event.go internal/domain/audit/event_test.go internal/repository/audit/event_repo.go internal/store/memory/audit_event_store.go internal/store/memory/audit_event_store_test.go
+go test ./internal/domain/audit/... ./internal/store/memory/...
+rg -n "AuditEventStore|AppendEvent|GetEventByID|ListEvents|ExportEventSourceData|EventFilter|SourceData" internal/repository/audit/event_repo.go internal/store/memory/audit_event_store.go internal/store/memory/audit_event_store_test.go internal/domain/audit/event.go
+```
+
+结果摘要: 通过。append/query/detail/export source data、过滤、分页、排序和拷贝隔离均已覆盖。
+
+### 人工验收
+
+1. 审阅 `internal/repository/audit/event_repo.go`，确认查询契约覆盖 type、actor、action、resource、result、risk、time、分页。
+2. 审阅 `internal/store/memory/audit_event_store.go`，确认返回值和 source data 均做拷贝。
+3. 审阅 `internal/store/memory/audit_event_store_test.go`，确认 append/detail/list/export 路径完整。
+
+结果摘要: 通过。memory audit log store 已实现。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-02-05`，实现 SQL audit log store。

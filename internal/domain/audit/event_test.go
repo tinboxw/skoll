@@ -10,6 +10,7 @@ import (
 func TestNewEventBuildsCompleteAuditEvent(t *testing.T) {
 	now := time.Date(2026, time.June, 19, 10, 0, 0, 0, time.UTC)
 	metadata := map[string]any{" reason ": "manual"}
+	sourceData := map[string]any{" account ": "admin"}
 
 	event, err := NewEvent(EventInput{
 		ID:     shared.ID("audit-1"),
@@ -35,6 +36,7 @@ func TestNewEventBuildsCompleteAuditEvent(t *testing.T) {
 			UserAgent: " test-agent ",
 		},
 		Metadata:   metadata,
+		SourceData: sourceData,
 		OccurredAt: now,
 	})
 	if err != nil {
@@ -62,6 +64,13 @@ func TestNewEventBuildsCompleteAuditEvent(t *testing.T) {
 	metadata["reason"] = "changed"
 	if event.Metadata["reason"] != "manual" {
 		t.Fatalf("metadata should be copied: %+v", event.Metadata)
+	}
+	if event.SourceData["account"] != "admin" {
+		t.Fatalf("unexpected source data: %+v", event.SourceData)
+	}
+	sourceData["account"] = "changed"
+	if event.SourceData["account"] != "admin" {
+		t.Fatalf("source data should be copied: %+v", event.SourceData)
 	}
 }
 
