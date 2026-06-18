@@ -5905,6 +5905,60 @@ rg -n "FE1-04.*Done" docs/refactor/work_items.md
 
 - 进入 `FE1-05`，定义状态组件标准。
 
+## FE1-05: 定义状态组件标准
+
+- 状态: Passed
+- Work Item: FE1-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe1_state_component_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Skoll Admin 状态组件标准文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 标准覆盖 loading、empty、error、no-permission、success、failed 的组件、位置和验收要求。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准复用当前 Element Plus 状态组件，不新增旧状态组件兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Loading|Empty|Error|No permission|Success|Failed|el-alert|el-empty|el-result|el-skeleton" docs/refactor/fe1_state_component_standard.md
+rg -n "FE1-05.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。状态组件标准包含 loading、empty、error、no-permission、success、failed 以及 Element Plus 状态组件锚点；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe1_state_component_standard.md`，确认 loading/empty/error/no-permission/success/failed 统一。
+2. 对照 Audit、Plugin、Dictionary、Organization、Permission、Role、Setting、User 页面状态锚点，确认标准可落地。
+3. 确认 FE0 浏览器人工验收模板可引用该状态矩阵。
+
+结果摘要: 通过。FE1-05 状态组件标准完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE1-06`，抽查全局样式与变量。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed

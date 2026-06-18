@@ -166,7 +166,7 @@
 | 118 | FE1-02 | FE1 | `skoll-frontend-design-refactor` | 定义页面布局标准 | UI 文档/样例 | 页面标题、工具栏、筛选、表格、详情、抽屉结构统一 | 文档审阅 | Done |
 | 119 | FE1-03 | FE1 | `skoll-frontend-design-refactor` | 定义表格体验标准 | UI 文档/组件要求 | 列稳定、状态标签、批量动作、紧凑行操作标准明确 | 文档审阅 | Done |
 | 120 | FE1-04 | FE1 | `skoll-frontend-design-refactor` | 定义表单和弹窗标准 | UI 文档/组件要求 | 校验、保存中、错误、确认、抽屉/弹窗适用边界明确 | 文档审阅 | Done |
-| 121 | FE1-05 | FE1 | `skoll-frontend-design-refactor` | 定义状态组件标准 | UI 文档/组件要求 | loading/empty/error/no-permission/success/failed 统一 | 文档审阅 | Todo |
+| 121 | FE1-05 | FE1 | `skoll-frontend-design-refactor` | 定义状态组件标准 | UI 文档/组件要求 | loading/empty/error/no-permission/success/failed 统一 | 文档审阅 | Done |
 | 122 | FE1-06 | FE1 | `skoll-frontend-coding-refactor` | 抽查全局样式与变量 | 样式清单 | 颜色、间距、字号、状态色来源清楚，无一页一套 | `rg "#[0-9A-Fa-f]{3,6}\|var\\(" web/src/styles web/src/views` | Todo |
 | 123 | FE1-07 | FE1 | `skoll-frontend-design-refactor` | 定义响应式最低标准 | UI 文档 | 窄屏无重叠、无按钮溢出、表格有降级策略 | 文档审阅 | Todo |
 
