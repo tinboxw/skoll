@@ -26,6 +26,8 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/internal/service/audit"
+	menusvc "github.com/tinboxw/skoll/internal/service/menu"
+	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
@@ -71,23 +73,27 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	roleService := role.NewService(bundle.Roles)
 	rbacService := rbac.NewService(bundle.RBAC)
 	systemService := system.NewService(bundle.System)
+	permissionService := permissionsvc.NewService(bundle.Permissions)
+	menuService := menusvc.NewService(bundle.Menus)
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
-		UserService:      userService,
-		RoleService:      roleService,
-		RBACService:      rbacService,
-		AuditService:     auditService,
-		SystemService:    systemService,
-		PluginManager:    pluginManager,
-		APIPrefix:        cfg.AppConfig.Server.APIPrefix,
-		LogLevel:         cfg.AppConfig.Log.Level,
-		LogDir:           cfg.AppConfig.Log.Dir,
-		LogFile:          cfg.AppConfig.Log.File,
-		LogPluginPerFile: cfg.AppConfig.Log.PluginPerFile,
-		DevPortalEnabled: cfg.AppConfig.Dev.PortalEnabled,
-		DevPortalRoot:    cfg.AppConfig.Dev.PluginsRoot,
-		DevPortalRoots:   append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
+		UserService:       userService,
+		RoleService:       roleService,
+		RBACService:       rbacService,
+		AuditService:      auditService,
+		SystemService:     systemService,
+		PermissionService: permissionService,
+		MenuService:       menuService,
+		PluginManager:     pluginManager,
+		APIPrefix:         cfg.AppConfig.Server.APIPrefix,
+		LogLevel:          cfg.AppConfig.Log.Level,
+		LogDir:            cfg.AppConfig.Log.Dir,
+		LogFile:           cfg.AppConfig.Log.File,
+		LogPluginPerFile:  cfg.AppConfig.Log.PluginPerFile,
+		DevPortalEnabled:  cfg.AppConfig.Dev.PortalEnabled,
+		DevPortalRoot:     cfg.AppConfig.Dev.PluginsRoot,
+		DevPortalRoots:    append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),
@@ -105,6 +111,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 
 	ensureBuiltinAuthData(context.Background(), logger, bundle.Users, bundle.Roles, bundle.RBAC)
+	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
 	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus}, nil
 }

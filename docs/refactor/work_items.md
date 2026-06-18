@@ -86,7 +86,7 @@
 | 53 | M1-06-02 | M1-06 | `skoll-api-contracts` | 实现 permission handler | handler code + tests | HTTP 状态码、错误码、响应格式一致 | `go test ./internal/handler/http/v1/permission/...` | Done |
 | 54 | M1-06-03 | M1-06 | `skoll-api-contracts` | 设计 menu API 契约 | OpenAPI draft | tree/save/reorder/visibility 请求响应明确 | OpenAPI review | Done |
 | 55 | M1-06-04 | M1-06 | `skoll-api-contracts` | 实现 menu handler | handler code + tests | 不直连 store；鉴权失败路径覆盖 | `go test ./internal/handler/http/v1/menu/...` | Done |
-| 56 | M1-06-05 | M1-06 | `skoll-api-contracts` | 注册路由与权限 keys | router/OpenAPI/permission seed | API 路由可访问，权限 key 纳入 catalog | `go test ./internal/handler/http/...` | Todo |
+| 56 | M1-06-05 | M1-06 | `skoll-api-contracts` | 注册路由与权限 keys | router/OpenAPI/permission seed | API 路由可访问，权限 key 纳入 catalog | `go test ./internal/handler/http/...` | Done |
 | 57 | M1-07-01 | M1-07 | `skoll-plugin-platform` | 扩展 plugin manifest permission 字段读取 | plugin parser | 字段校验严格，无旧格式旁路 | `go test ./internal/plugin/...` | Todo |
 | 58 | M1-07-02 | M1-07 | `skoll-plugin-platform` | 扩展 plugin manifest menu 字段读取 | plugin parser | ui_menu 进入统一 MenuNode 映射 | `go test ./internal/plugin/...` | Todo |
 | 59 | M1-07-03 | M1-07 | `skoll-plugin-platform` | 插件 enable 导入 catalog/registry | plugin manager | enable 后权限和菜单可查询 | `go test ./internal/plugin/...` | Todo |

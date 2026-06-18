@@ -12,8 +12,11 @@ import (
 	"testing"
 	"time"
 
+	domainmenu "github.com/tinboxw/skoll/internal/domain/menu"
 	"github.com/tinboxw/skoll/internal/plugin"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
+	menusvc "github.com/tinboxw/skoll/internal/service/menu"
+	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	rolesvc "github.com/tinboxw/skoll/internal/service/role"
 	systemsvc "github.com/tinboxw/skoll/internal/service/system"
@@ -181,6 +184,60 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 	}
 	if strings.Contains(listAfterResetResp.Body.String(), "demo.flag") {
 		t.Fatalf("setting should be removed after reset, body=%s", listAfterResetResp.Body.String())
+	}
+}
+
+func TestRouterRegistersPermissionAndMenuRoutes(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+	permissionService := permissionsvc.NewService(bundle.Permissions)
+	menuService := menusvc.NewService(bundle.Menus)
+	if _, err := permissionService.RegisterResource(context.Background(), permissionsvc.RegisterResourceInput{
+		Key:    "menu.read",
+		Type:   "api",
+		Module: "menu",
+		Source: "system",
+		Name:   "Read menu registry",
+	}); err != nil {
+		t.Fatalf("RegisterResource error: %v", err)
+	}
+	node, err := domainmenu.NewNode(domainmenu.NodeIdentity{
+		Key:       "system.dashboard",
+		ParentKey: "system",
+		Source:    "system",
+	}, domainmenu.NodeView{Path: "/dashboard", Name: "Dashboard"}, 10)
+	if err != nil {
+		t.Fatalf("NewNode error: %v", err)
+	}
+	if _, err := menuService.MergeNodes(context.Background(), menusvc.MergeNodesInput{Nodes: []domainmenu.MenuNode{node}}); err != nil {
+		t.Fatalf("MergeNodes error: %v", err)
+	}
+
+	router := NewRouter(Dependencies{
+		PermissionService: permissionService,
+		MenuService:       menuService,
+	})
+
+	permissionReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/permissions?source=system", nil)
+	permissionResp := httptest.NewRecorder()
+	router.ServeHTTP(permissionResp, permissionReq)
+	if permissionResp.Code != http.StatusOK {
+		t.Fatalf("permission route status=%d body=%s", permissionResp.Code, permissionResp.Body.String())
+	}
+	if !strings.Contains(permissionResp.Body.String(), "menu.read") {
+		t.Fatalf("expected permission catalog payload, got %s", permissionResp.Body.String())
+	}
+
+	menuReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/menus/tree?source=system&parentKey=system", nil)
+	menuResp := httptest.NewRecorder()
+	router.ServeHTTP(menuResp, menuReq)
+	if menuResp.Code != http.StatusOK {
+		t.Fatalf("menu route status=%d body=%s", menuResp.Code, menuResp.Body.String())
+	}
+	if !strings.Contains(menuResp.Body.String(), "system.dashboard") {
+		t.Fatalf("expected menu tree payload, got %s", menuResp.Body.String())
 	}
 }
 

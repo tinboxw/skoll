@@ -2991,3 +2991,65 @@ go test ./internal/handler/http/v1/menu/...
 ### 下一步
 
 - 进入 `M1-06-05`，注册路由与权限 keys。
+
+## M1-06-05: 注册路由与权限 keys
+
+- 状态: Passed
+- Work Item: M1-06-05
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/handler/http/router.go`
+- `internal/handler/http/v1/menu/handler.go`
+- `internal/handler/http/v1/menu/handler_test.go`
+- `internal/handler/http/router_test.go`
+- `internal/bootstrap/di.go`
+- `internal/bootstrap/permission_menu_seed.go`
+- `internal/bootstrap/permission_menu_seed_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 主 router 注册 permission/menu handler，bootstrap 注入 service。 |
+| API/OpenAPI 同步 | Passed | 路由与 M1-06-01/M1-06-03 OpenAPI 契约保持一致。 |
+| 权限目录同步 | Passed | `permission.manage`、`menu.read`、`menu.manage` 纳入 system catalog seed。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | Passed | 新增 system permission catalog seed，幂等注册。 |
+| 前端 API client/UI 同步 | N/A | 本项为后端路由注册，无前端改动。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新路由走统一 service，不引入旧权限旁路。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/handler/http/v1/menu/...
+$env:CGO_ENABLED='0'; go test ./internal/handler/http/...
+$env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
+```
+
+默认 `go test ./internal/handler/http/...` 与 `go test ./internal/bootstrap/...` 仍受本机 cgo 环境影响失败，错误为 `C compiler "D:\Program Files\JetBrains\CLion 2024.1.1\bin\mingw\bin\gcc.exe" not found`，与 M0 基线一致。
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/handler/http/router.go` 和 `internal/bootstrap/permission_menu_seed.go`。
+2. 确认主 router 可访问 permission/menu API，系统权限 key 可由 permission catalog 查询。
+
+结果摘要: 通过。路由与权限 key 已注册。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-07-01`，扩展 plugin manifest permission 字段读取。

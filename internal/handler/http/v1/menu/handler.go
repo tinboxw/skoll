@@ -53,8 +53,9 @@ func (h *Handler) tree(w http.ResponseWriter, r *http.Request) {
 		visible = &value
 	}
 	nodes, err := h.service.Tree(r.Context(), menusvc.TreeInput{
-		Source:  strings.TrimSpace(query.Get("source")),
-		Visible: visible,
+		ParentKey: strings.TrimSpace(query.Get("parentKey")),
+		Source:    strings.TrimSpace(query.Get("source")),
+		Visible:   visible,
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)

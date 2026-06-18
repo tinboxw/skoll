@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	audithttp "github.com/tinboxw/skoll/internal/handler/http/v1/audit"
+	menuhttp "github.com/tinboxw/skoll/internal/handler/http/v1/menu"
+	permissionhttp "github.com/tinboxw/skoll/internal/handler/http/v1/permission"
 	pluginhttp "github.com/tinboxw/skoll/internal/handler/http/v1/plugin"
 	rbachttp "github.com/tinboxw/skoll/internal/handler/http/v1/rbac"
 	rolehttp "github.com/tinboxw/skoll/internal/handler/http/v1/role"
@@ -13,6 +15,8 @@ import (
 	userhttp "github.com/tinboxw/skoll/internal/handler/http/v1/user"
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/service/audit"
+	"github.com/tinboxw/skoll/internal/service/menu"
+	"github.com/tinboxw/skoll/internal/service/permission"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
@@ -23,20 +27,22 @@ import (
 const defaultAPIPrefix = config.DefaultAPIBasePrefix
 
 type Dependencies struct {
-	UserService      user.Service
-	RoleService      role.Service
-	RBACService      rbac.Service
-	AuditService     audit.Service
-	SystemService    system.Service
-	PluginManager    plugin.Manager
-	APIPrefix        string
-	LogLevel         string
-	LogDir           string
-	LogFile          string
-	LogPluginPerFile bool
-	DevPortalEnabled bool
-	DevPortalRoot    string
-	DevPortalRoots   []string
+	UserService       user.Service
+	RoleService       role.Service
+	RBACService       rbac.Service
+	AuditService      audit.Service
+	SystemService     system.Service
+	PermissionService permission.Service
+	MenuService       menu.Service
+	PluginManager     plugin.Manager
+	APIPrefix         string
+	LogLevel          string
+	LogDir            string
+	LogFile           string
+	LogPluginPerFile  bool
+	DevPortalEnabled  bool
+	DevPortalRoot     string
+	DevPortalRoots    []string
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -63,6 +69,8 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService, deps.AuditService)
 	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService)
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
+	permissionhttp.RegisterPermissionRoutes(apiMux, deps.PermissionService)
+	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	pluginhttp.RegisterPluginRoutes(
 		apiMux,
 		deps.PluginManager,

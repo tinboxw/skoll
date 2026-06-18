@@ -18,13 +18,13 @@ func TestMenuHandlerTreeFiltersAccess(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterMenuRoutes(mux, svc)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/menus/tree?source=system&visible=true&roles=admin&permissions=system:user:list", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/menus/tree?source=system&parentKey=system&visible=true&roles=admin&permissions=system:user:list", nil)
 	resp := httptest.NewRecorder()
 	mux.ServeHTTP(resp, req)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
 	}
-	if svc.treeInput.Source != "system" || svc.treeInput.Visible == nil || !*svc.treeInput.Visible {
+	if svc.treeInput.Source != "system" || svc.treeInput.ParentKey != "system" || svc.treeInput.Visible == nil || !*svc.treeInput.Visible {
 		t.Fatalf("tree input = %+v", svc.treeInput)
 	}
 	if len(svc.filterInput.Roles) != 1 || svc.filterInput.Roles[0] != "admin" {
