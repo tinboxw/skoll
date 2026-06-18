@@ -106,3 +106,55 @@ rg -n "唯一架构|旧计划|执行入口|当前状态|适用范围" docs\refac
 ### 下一步
 
 - 进入 `M0-01-02`，固化不做兼容方案规则。
+
+## M0-01-02: 固化不做兼容方案规则
+
+- 状态: Passed
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/architecture_and_execution_plan.md`
+- `docs/refactor/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | “不做兼容方案”规则已写入治理原则和执行入口。 |
+| API/OpenAPI 同步 | N/A | 仅文档治理任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅文档治理任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅文档治理任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅文档治理任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅文档治理任务，无前端实现影响。 |
+| 文档同步 | Passed | 架构计划、执行入口、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 明确不做兼容方案，不保留旧接口、旧数据结构、旧插件格式和旧页面路径兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg "不做旧接口|不做兼容方案" docs/refactor docs/README.md
+```
+
+结果摘要: 通过。执行入口与治理原则均可检索到规则。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/architecture_and_execution_plan.md` 的项目治理原则。
+2. 审阅 `docs/refactor/README.md` 的执行原则。
+
+结果摘要: 通过。规则位置明确，后续任务可直接引用。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-01-03`，固化分层依赖规则。
