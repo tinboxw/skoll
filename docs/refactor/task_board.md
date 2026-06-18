@@ -1,6 +1,6 @@
 # Skoll 重构父任务表
 
-> 执行规则: 本文档是父任务表。实际执行与提交以 [work_items.md](work_items.md) 的 Work Item 为最小单元。每个 Work Item 验收通过后提交一次代码。
+> 执行规则: 本文档是父任务表。实际执行与提交以 [work_items.md](work_items.md) 的 Work Item 为最小单元。每个 Work Item 验收通过后提交一次代码。父任务用于里程碑分组和验收聚合，不作为最小执行或提交单元。
 
 状态枚举:
 
