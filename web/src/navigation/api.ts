@@ -46,7 +46,9 @@ export type MenuVisibilityRequest = {
 };
 
 export type MenuVisibilityResult = {
-	item: MenuNodeRecord;
+	item?: MenuNodeRecord;
+	key?: string;
+	visible?: boolean;
 };
 
 export async function getMenuTree(query: MenuTreeQuery = {}): Promise<MenuNodeRecord[]> {
@@ -77,7 +79,14 @@ export async function setMenuVisibility(request: MenuVisibilityRequest): Promise
 		key: request.key.trim(),
 		visible: request.visible
 	});
-	return normalizeMenuNode(payload.data.item);
+	return normalizeMenuNode(payload.data.item ?? {
+		key: payload.data.key ?? request.key,
+		source: "",
+		name: "",
+		path: "/",
+		sort: 0,
+		visible: payload.data.visible ?? request.visible
+	});
 }
 
 function buildMenuQuery(query: MenuTreeQuery): string {

@@ -3494,3 +3494,59 @@ npm run build
 ### 下一步
 
 - 进入 `M1-08-04`，新增 menu store。
+
+## M1-08-04: 新增 menu store
+
+- 状态: Passed
+- Work Item: M1-08-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/stores/navigation.ts`
+- `web/src/navigation/api.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | navigation Pinia store 已改为使用 registry menu API。 |
+| API/OpenAPI 同步 | Passed | store 通过 `getMenuTree`/`saveMenuNodes`/`reorderMenuNodes`/`setMenuVisibility` 访问 `/v1/menus*`。 |
+| 权限目录同步 | N/A | 本项为前端状态管理，不改权限目录数据。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 侧栏继续优先使用 `navigationStore.systemMenus`，其来源已切换为 registry tree。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 移除 store 内旧 `/v1/system/menus` 请求，统一走 registry menu client。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/stores/navigation.ts`。
+2. 确认 registry flat nodes 会组装为侧栏使用的树结构，并支持保存、重排、显隐状态操作。
+3. 确认 `web/src/App.vue` 仍通过 `navigationStore.systemMenus` 构建侧栏，因此加载成功时 registry tree 优先于静态默认菜单。
+
+结果摘要: 通过。menu store 已接入 registry tree。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-08-05`，统一 route guard 权限入口。
