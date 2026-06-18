@@ -32,7 +32,7 @@
 | 5 | M0-02-01 | M0-02 | `skoll-refactor-governance` | 建立验收记录模板字段 | `acceptance_log.md` | 包含状态、日期、执行人、提交、改动文件、验收项 | 文档审阅 | Done |
 | 6 | M0-02-02 | M0-02 | `skoll-refactor-governance` | 补齐边界同步验收项 | `acceptance_log.md` | API/OpenAPI、权限、审计、migration、前端、文档均有检查项 | 文档审阅 | Done |
 | 7 | M0-02-03 | M0-02 | `skoll-refactor-governance` | 补齐失败返工记录区 | `acceptance_log.md` | 失败原因、返工动作、重新验收结果字段齐全 | 文档审阅 | Done |
-| 8 | M0-02-04 | M0-02 | `skoll-refactor-governance` | 补齐一任务一提交说明 | `README.md`、`acceptance_log.md` | 明确验收通过后提交一次代码 | `rg "提交一次代码|一任务一提交" docs/refactor` | Todo |
+| 8 | M0-02-04 | M0-02 | `skoll-refactor-governance` | 补齐一任务一提交说明 | `README.md`、`acceptance_log.md` | 明确验收通过后提交一次代码 | `rg "提交一次代码|一任务一提交" docs/refactor` | Done |
 | 9 | M0-03-01 | M0-03 | `skoll-quality-gate` | 运行 Go 全量测试 | 质量基线记录 | 记录命令、结果、失败包、失败原因 | `go test ./...` | Todo |
 | 10 | M0-03-02 | M0-03 | `skoll-quality-gate` | 运行 Go 覆盖率统计 | `coverage.out` 或报告 | 记录总覆盖率和低覆盖包清单 | `go test ./... -coverprofile=coverage.out`; `go tool cover -func=coverage.out` | Todo |
 | 11 | M0-03-03 | M0-03 | `skoll-quality-gate` | 运行前端构建 | 质量基线记录 | 记录 build 结果和 warning | `cd web && npm run build` | Todo |
