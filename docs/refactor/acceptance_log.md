@@ -3725,3 +3725,58 @@ npm run build
 ### 下一步
 
 - 进入 `M1-09-02`，权限矩阵授权/撤销接入 API。
+
+## M1-09-02: 权限矩阵授权/撤销接入 API
+
+- 状态: Passed
+- Work Item: M1-09-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Permission/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 权限矩阵 grant/revoke 使用后端返回 role 更新页面状态。 |
+| API/OpenAPI 同步 | Passed | 继续使用 `/v1/roles/{id}/grant` 与 `/v1/roles/{id}/revoke`。 |
+| 权限目录同步 | Passed | 授权项来自 catalog 矩阵，角色权限状态采用后端响应。 |
+| 审计 action 同步 | N/A | 后端接口已有 grant/revoke 审计，本项未新增 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 保存成功后以响应 role patch 本地角色列表，异常响应时强制重载角色列表。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 不再手工拼接矩阵权限作为最终状态。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `toggleMatrixPermission`。
+2. 确认 grant/revoke 成功后使用接口返回的 role 更新 `roles` 与 `selectedMatrixPermissions`。
+3. 确认返回体无法归一化时会重新加载角色列表，避免前端状态漂移。
+
+结果摘要: 通过。权限矩阵授权/撤销保存后前后端状态一致。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-09-03`，菜单管理页读取 registry tree。

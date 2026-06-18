@@ -186,17 +186,13 @@ async function toggleMatrixPermission(permission: string, enabled: boolean): Pro
 	success.value = "";
 	try {
 		const endpoint = enabled ? "grant" : "revoke";
-		await apiPost<ApiResponse<unknown>>(`/v1/roles/${selectedRoleId.value}/${endpoint}`, { permission });
-		const next = new Set(selectedMatrixPermissions.value.filter((item) => item !== "*"));
-		if (enabled) {
-			next.add(permission);
+		const payload = await apiPost<ApiResponse<RoleRecord>>(`/v1/roles/${selectedRoleId.value}/${endpoint}`, { permission });
+		const updatedRole = normalizeRoleRecord(payload.data);
+		if (updatedRole) {
+			patchRole(updatedRole);
+			selectedMatrixPermissions.value = resolveRolePermissions(updatedRole);
 		} else {
-			next.delete(permission);
-		}
-		selectedMatrixPermissions.value = Array.from(next).sort();
-		const role = selectedRole.value;
-		if (role) {
-			role.permissions = [...selectedMatrixPermissions.value];
+			await loadRoles();
 		}
 		success.value = enabled ? t("role.permissionGranted") : t("role.permissionRevoked");
 	} catch (e) {
@@ -204,6 +200,15 @@ async function toggleMatrixPermission(permission: string, enabled: boolean): Pro
 	} finally {
 		matrixSaving.value = false;
 	}
+}
+
+function patchRole(role: RoleRecord): void {
+	const index = roles.value.findIndex((item) => item.id === role.id);
+	if (index >= 0) {
+		roles.value[index] = role;
+		return;
+	}
+	roles.value.push(role);
 }
 
 async function loadRoles(): Promise<void> {
