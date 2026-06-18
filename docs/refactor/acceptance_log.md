@@ -2511,3 +2511,56 @@ go test ./internal/service/permission/...
 ### 下一步
 
 - 进入 `M1-05-04`，实现 Enable/Disable。
+
+## M1-05-04: 实现 Enable/Disable
+
+- 状态: Passed
+- Work Item: M1-05-04
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/service/permission/service_impl.go`
+- `internal/service/permission/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `EnableResource` 和 `DisableResource` 已实现并写入 repository 状态。 |
+| API/OpenAPI 同步 | N/A | 本项只实现 service 方法，无 API 影响。 |
+| 权限目录同步 | Passed | 启停逻辑写入 permission catalog repository。 |
+| 审计 action 同步 | Passed | `auditFn` 预留状态变更审计动作接入点。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧 permission service 兼容路径。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/permission/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/service/permission/service_impl.go`。
+2. 确认状态变更写 repository，且审计动作预留点有测试覆盖。
+
+结果摘要: 通过。`EnableResource` 和 `DisableResource` 已实现。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-05-05`，实现 permission diff。

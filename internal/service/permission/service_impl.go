@@ -10,7 +10,8 @@ import (
 )
 
 type serviceImpl struct {
-	repo permissionrepo.PermissionRepository
+	repo    permissionrepo.PermissionRepository
+	auditFn func(ctx context.Context, key string, enabled bool) error
 }
 
 func NewService(repo permissionrepo.PermissionRepository) Service {
@@ -66,14 +67,31 @@ func (s *serviceImpl) GetResource(ctx context.Context, key string) (*domainpermi
 	return s.repo.Get(ctx, key)
 }
 
-func (s *serviceImpl) EnableResource(context.Context, string) error {
-	return fmt.Errorf("EnableResource is not implemented")
+func (s *serviceImpl) EnableResource(ctx context.Context, key string) error {
+	return s.setResourceEnabled(ctx, key, true)
 }
 
-func (s *serviceImpl) DisableResource(context.Context, string) error {
-	return fmt.Errorf("DisableResource is not implemented")
+func (s *serviceImpl) DisableResource(ctx context.Context, key string) error {
+	return s.setResourceEnabled(ctx, key, false)
 }
 
 func (s *serviceImpl) DiffResources(context.Context, DiffResourcesInput) (*DiffResult, error) {
 	return nil, fmt.Errorf("DiffResources is not implemented")
+}
+
+func (s *serviceImpl) setResourceEnabled(ctx context.Context, key string, enabled bool) error {
+	if s == nil || s.repo == nil {
+		return fmt.Errorf("permission repository is not configured")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return fmt.Errorf("permission key is required")
+	}
+	if err := s.repo.SetEnabled(ctx, key, enabled); err != nil {
+		return err
+	}
+	if s.auditFn != nil {
+		return s.auditFn(ctx, key, enabled)
+	}
+	return nil
 }

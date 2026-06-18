@@ -136,6 +136,79 @@ func TestGetResourceRequiresKey(t *testing.T) {
 	}
 }
 
+func TestEnableDisableResource(t *testing.T) {
+	ctx := context.Background()
+	store := memory.NewPermissionStore()
+	svc := NewService(store)
+	_, _ = svc.RegisterResource(ctx, RegisterResourceInput{
+		Key:    "system:user:list",
+		Type:   domainpermission.ResourceTypeAPI,
+		Module: "system",
+		Source: "system",
+		Name:   "List users",
+	})
+
+	if err := svc.DisableResource(ctx, "system:user:list"); err != nil {
+		t.Fatalf("DisableResource() error = %v", err)
+	}
+	got, _ := svc.GetResource(ctx, "system:user:list")
+	if got == nil || got.Enabled {
+		t.Fatalf("after disable got = %+v", got)
+	}
+
+	if err := svc.EnableResource(ctx, "system:user:list"); err != nil {
+		t.Fatalf("EnableResource() error = %v", err)
+	}
+	got, _ = svc.GetResource(ctx, "system:user:list")
+	if got == nil || !got.Enabled {
+		t.Fatalf("after enable got = %+v", got)
+	}
+}
+
+func TestEnableDisableResourceValidationAndRepositoryError(t *testing.T) {
+	t.Run("requires key", func(t *testing.T) {
+		svc := NewService(memory.NewPermissionStore())
+		err := svc.EnableResource(context.Background(), " ")
+		if err == nil || !strings.Contains(strings.ToLower(err.Error()), "permission key") {
+			t.Fatalf("expected key required error, got %v", err)
+		}
+	})
+
+	t.Run("propagates repository error", func(t *testing.T) {
+		wantErr := errors.New("store failed")
+		svc := NewService(&failingPermissionRepository{err: wantErr})
+		err := svc.DisableResource(context.Background(), "system:user:list")
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("err = %v, want %v", err, wantErr)
+		}
+	})
+}
+
+func TestEnableDisableResourceAuditHookReserved(t *testing.T) {
+	ctx := context.Background()
+	store := memory.NewPermissionStore()
+	svc := NewService(store).(*serviceImpl)
+	_, _ = svc.RegisterResource(ctx, RegisterResourceInput{
+		Key:    "system:user:list",
+		Type:   domainpermission.ResourceTypeAPI,
+		Module: "system",
+		Source: "system",
+		Name:   "List users",
+	})
+
+	called := false
+	svc.auditFn = func(_ context.Context, key string, enabled bool) error {
+		called = key == "system:user:list" && !enabled
+		return nil
+	}
+	if err := svc.DisableResource(ctx, "system:user:list"); err != nil {
+		t.Fatalf("DisableResource() error = %v", err)
+	}
+	if !called {
+		t.Fatal("expected audit hook to be called")
+	}
+}
+
 type failingPermissionRepository struct {
 	err error
 }
