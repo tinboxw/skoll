@@ -45,6 +45,43 @@ jobs:
         working-directory: web
         run: npm run typecheck
 
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect frontend workspace
+        id: frontend
+        shell: bash
+        run: |
+          if [ -f web/package.json ]; then
+            echo "has_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_frontend=false" >> "$GITHUB_OUTPUT"
+            echo "web/package.json not found; frontend build is skipped."
+          fi
+
+      - name: Setup Node
+        if: steps.frontend.outputs.has_frontend == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.frontend.outputs.has_frontend == 'true'
+        working-directory: web
+        run: npm ci
+
+      - name: Run frontend build
+        if: steps.frontend.outputs.has_frontend == 'true'
+        working-directory: web
+        run: npm run build
+
   quality-gates:
     name: Go Quality Gates
     runs-on: ubuntu-latest

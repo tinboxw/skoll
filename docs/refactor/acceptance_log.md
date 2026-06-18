@@ -8754,3 +8754,64 @@ npm run typecheck
 ### 下一步
 
 - 进入 `FE5-02`，固化前端 build 门禁。
+
+## FE5-02: 固化 build 门禁
+
+- 状态: Passed
+- Work Item: FE5-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `.github/workflows/ci.yml`
+- `docs/refactor/fe5_frontend_build_gate.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE5 build 门禁文档，并把 build 接入 CI。 |
+| package script | Passed | `web/package.json` 已定义 `build: vite build`。 |
+| CI 文档/门禁 | Passed | `.github/workflows/ci.yml` 新增 `frontend-build` job，使用 Node 20、`npm ci`、`npm run build`。 |
+| build 是前端必跑项 | Passed | 门禁文档明确每个前端 Work Item 必须执行 `cd web && npm run build`。 |
+| build 可运行 | Passed | 本地 `cd web && npm run build` 通过。 |
+| bundle/warning 记录 | Passed | 门禁文档要求记录最大 JS chunk、新 warning 和新增依赖/资产原因。 |
+| 前端 API client/UI 同步 | N/A | 本项为测试门禁固化，不改可见 UI 或前端 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "frontend-build|npm run build|vite build|FE5 Frontend Build Gate|Bundle Notes|Failure Policy" .github/workflows/ci.yml web/package.json docs/refactor/fe5_frontend_build_gate.md
+cd web
+npm run build
+```
+
+结果摘要: 通过。CI job、package script、门禁文档锚点均存在；Vite production build 通过。build 仍仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项为 build 门禁和 CI 文档，不涉及可见页面运行。
+
+### Performance Hook
+
+- Page/route: N/A
+- Typecheck: N/A，FE5-01 已单独固化 typecheck 门禁。
+- Build: Passed，`cd web && npm run build`
+- Bundle baseline: 最大已列出 chunk 仍为 `xlsx-DLNWaC59.js` 332.45 kB gzip 113.83 kB；本任务不新增前端依赖。
+- Request behavior: N/A
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE5-03`，建立核心页面 smoke 清单。
