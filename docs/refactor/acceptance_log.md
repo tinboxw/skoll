@@ -3332,3 +3332,57 @@ $env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
 ### 下一步
 
 - 进入 `M1-08-01`，设计 RBAC 授权矩阵契约。
+
+## M1-08-01: 新增 permission API client
+
+- 状态: Passed
+- Work Item: M1-08-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/permissions/api.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 permission API client，覆盖 list/detail/enable/disable/diff。 |
+| API/OpenAPI 同步 | Passed | client 路径与 M1-06 permission API 契约一致。 |
+| 权限目录同步 | N/A | 本项为前端 client 封装，不改目录数据。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 类型定义完整，统一复用 `utils/api` 的错误处理。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未新增页面内临时请求封装。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/permissions/api.ts`。
+2. 确认请求、响应、diff、启停状态类型明确，网络与后端错误仍由统一 API wrapper 处理。
+
+结果摘要: 通过。permission API client 已新增。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-08-02`，新增 permission store。
