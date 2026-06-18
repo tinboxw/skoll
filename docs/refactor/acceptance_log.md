@@ -8334,3 +8334,49 @@ npm run build
 ### 下一步
 
 - 进入 `FE4-02`，执行插件详情抽屉/详情页设计。
+## ADJ-FE-20260619-06: FE4 plugin portal risk map
+
+- 状态: Passed
+- Work Item: ADJ-FE-20260619-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe4_plugin_portal_risk_map.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 微调任务合并 | Passed | 将巡检微调中的 FE4 plugin portal risk map 插入 FE4-01 之后、FE4-02 之前。 |
+| 任务交付物完成 | Passed | 新增 FE4 插件门户风险动作矩阵，覆盖 Install、Enable/Disable、Config、Logs、Release、Rollback、Task status。 |
+| 前端 API client/UI 同步 | N/A | 本项为 FE4 门禁文档，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key；后续页面改造继续复用 `plugin.read` 与 `plugin.manage`。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收日志已同步。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Install|Enable/Disable|Config|Logs|Release|Rollback|Task status|Acceptance" docs/refactor/fe4_plugin_portal_risk_map.md
+```
+
+结果摘要: 通过。矩阵覆盖安装、启停、配置、日志、发布、回滚和任务状态，并为 FE4-02 至 FE4-06 提供验收门禁。
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项为风险动作矩阵文档，不涉及页面运行。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE4-02`，执行插件详情抽屉/详情页设计。
