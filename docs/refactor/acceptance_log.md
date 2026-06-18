@@ -6325,6 +6325,61 @@ rg -n "FE2-04.*Done" docs/refactor/work_items.md
 
 - 进入 `ADJ-FE-20260619-02`，补充 FE2 architecture before FE3 gate。
 
+## ADJ-FE-20260619-02: FE2 architecture before FE3 gate
+
+- 状态: Passed
+- Work Item: ADJ-FE-20260619-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_architecture_before_fe3_gate.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE3 开工前架构门禁文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | Passed | 门禁要求 FE3 页面权限与 route/menu/button/plugin 同源。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | API client、store、router、permission、SchemaForm 边界均有引用与验收命令。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 门禁明确禁止旧 route alias、重复 store、fallback UI 路径和第二套表单生成器。 |
+
+### 自动化验证
+
+```powershell
+rg -n "API client boundary|Store boundary|Router/permission boundary|SchemaForm boundary|FE3 gate" docs/refactor/fe2_architecture_before_fe3_gate.md
+rg -n "FE2-01.*Done|FE2-02.*Done|FE2-03.*Done|FE2-04.*Done|ADJ-FE-20260619-02.*Done" docs/refactor/work_items.md
+rg -n "apiGet|defineStore|beforeEach|SchemaForm|v-permission|canAccess" web/src
+```
+
+结果摘要: 通过。FE3 开工前所需 API client、store、router/permission、SchemaForm 和 FE1 状态示例均已有标准文档；Work Item 状态已更新为 Done；代码锚点存在。
+
+### 人工验收
+
+1. 审阅 `fe2_architecture_before_fe3_gate.md`，确认 FE3 单页任务开工规则明确。
+2. 对照 FE2-01 到 FE2-04 文档，确认门禁没有引入新规则冲突。
+3. 确认 FE2-05 到 FE2-09 仍保持 Todo，作为后续确认动作、错误展示、导出和状态组件任务继续推进。
+
+结果摘要: 通过。ADJ-FE-20260619-02 架构门禁完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE2-05`，统一确认动作 helper。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
