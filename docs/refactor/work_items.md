@@ -221,7 +221,7 @@
 |---:|---|---|---|---|---|---|---|---|
 | 154 | FE5-01 | FE5 | `skoll-frontend-testing-refactor` | 固化 typecheck 门禁 | package script/CI 文档 | typecheck 可运行或缺口明确 | `cd web && npm run typecheck` | Done |
 | 155 | FE5-02 | FE5 | `skoll-frontend-testing-refactor` | 固化 build 门禁 | package script/CI 文档 | build 是所有前端任务必跑项 | `cd web && npm run build` | Done |
-| 156 | FE5-03 | FE5 | `skoll-frontend-testing-refactor` | 建立核心页面 smoke 清单 | docs/scripts | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 有步骤 | 文档审阅 | Todo |
+| 156 | FE5-03 | FE5 | `skoll-frontend-testing-refactor` | 建立核心页面 smoke 清单 | `docs/refactor/fe5_core_page_smoke_checklist.md` | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 有步骤 | `rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Normal|Loading|Empty|Error|No permission|Narrow|Dangerous action|Browser Tooling Status" docs/refactor/fe5_core_page_smoke_checklist.md` | Done |
 | 157 | FE5-04 | FE5 | `skoll-frontend-testing-refactor` | 建立权限态验收清单 | docs/scripts | admin 和 restricted role 验收步骤明确 | 文档审阅 | Todo |
 | 158 | FE5-05 | FE5 | `skoll-frontend-testing-refactor` | 建立响应式验收清单 | docs/scripts | 至少桌面和窄屏检查项明确 | 文档审阅 | Todo |
 | 159 | FE5-06 | FE5 | `skoll-frontend-testing-refactor` | 评估 Playwright/browser 自动化 | 测试方案 | 是否引入、覆盖范围、执行命令明确 | 文档审阅 | Todo |

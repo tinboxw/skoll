@@ -8815,3 +8815,60 @@ npm run build
 ### 下一步
 
 - 进入 `FE5-03`，建立核心页面 smoke 清单。
+
+## FE5-03: 建立核心页面 smoke 清单
+
+- 状态: Passed
+- Work Item: FE5-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe5_core_page_smoke_checklist.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE5 核心页面 smoke 清单。 |
+| 核心页面覆盖 | Passed | Dashboard、User、Role、Permission、Menu、Plugin、Audit、Setting 均有路由和 smoke path。 |
+| 状态覆盖 | Passed | Normal、Loading、Empty、Error、No permission、Narrow、Dangerous action 均有全局检查标准。 |
+| 证据规则 | Passed | 清单要求记录 route、role、viewport、截图/日志、失败 expected/actual 和 Blocked 原因。 |
+| 微调任务承接 | Passed | 清单显式保留 browser tooling Blocked 记录，并为 ADJ-FE-20260619-07 的登录、权限拒绝、插件操作、审计导出、窄屏导航最小集合打底。 |
+| 前端 API client/UI 同步 | N/A | 本项为手工 smoke 清单，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Normal|Loading|Empty|Error|No permission|Narrow|Dangerous action|Browser Tooling Status" docs/refactor/fe5_core_page_smoke_checklist.md
+```
+
+结果摘要: 通过。8 个核心页面、全局状态矩阵、危险操作、窄屏和浏览器工具阻塞记录锚点均存在。
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立 smoke 清单，不执行真实浏览器点击；当前线程仍未暴露可调用的 in-app browser 工具，且此前 bundled Playwright 缺少 `playwright-core`。
+- 后续: FE5-06/ADJ-FE-20260619-07 将继续评估自动化和最小浏览器 smoke 集合。
+
+### Performance Hook
+
+- Page/route: Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 清单覆盖。
+- Typecheck: N/A，本项为文档清单；FE5-01 已固化 typecheck 门禁。
+- Build: N/A，本项为文档清单；FE5-02 已固化 build 门禁。
+- Request behavior: N/A
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE5-04`，建立权限态验收清单。
