@@ -1,6 +1,6 @@
 ﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
-import { canAccess } from "../permissions/access";
+import { canAccessRoute, isPublicRoute } from "../permissions/route";
 import { waitForPluginBootstrap } from "../plugins";
 import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, resolveValidatedDefaultHomePath, usePluginStore } from "../stores/plugins";
 import { getStoredPermissions, getStoredUserRole } from "../stores/user";
@@ -229,7 +229,7 @@ function normalizeRedirectPath(raw: string): string {
 
 router.beforeEach(async (to) => {
 	const token = getToken().trim();
-	const isPublic = to.meta.public === true || to.path.startsWith(`${ADMIN_PREFIX}/plugins/auth`);
+	const isPublic = isPublicRoute(to);
 
 	if (token === "" && !isPublic) {
 		return {
@@ -259,18 +259,8 @@ router.beforeEach(async (to) => {
 		}
 	}
 
-	const requiredRoles = Array.isArray(to.meta.roles) ? to.meta.roles : null;
-	const requiredPermissions = Array.isArray(to.meta.permissions) ? to.meta.permissions : null;
-	if ((requiredRoles && requiredRoles.length > 0) || (requiredPermissions && requiredPermissions.length > 0)) {
-		const currentRole = getStoredUserRole();
-		const permissions = getStoredPermissions();
-		const allowed = canAccess({
-			roles: requiredRoles ?? [],
-			permissions: requiredPermissions ?? []
-		}, currentRole, permissions);
-		if (!allowed) {
-			return resolveForbiddenFallback(to.path);
-		}
+	if (!canAccessRoute(to, getStoredUserRole(), getStoredPermissions())) {
+		return resolveForbiddenFallback(to.path);
 	}
 
 	return true;
@@ -281,6 +271,7 @@ declare module "vue-router" {
 		public?: boolean;
 		roles?: string[];
 		permissions?: string[];
+		mode?: "all" | "any";
 	}
 }
 

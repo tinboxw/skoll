@@ -3550,3 +3550,60 @@ npm run build
 ### 下一步
 
 - 进入 `M1-08-05`，统一 route guard 权限入口。
+
+## M1-08-05: 统一 route guard 权限入口
+
+- 状态: Passed
+- Work Item: M1-08-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/permissions/route.ts`
+- `web/src/router/index.ts`
+- `web/src/plugins/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 route access 统一入口。 |
+| API/OpenAPI 同步 | N/A | 本项未改 HTTP API。 |
+| 权限目录同步 | Passed | route guard 继续使用统一 `canAccess` 与 implied permission 判断。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 静态路由、插件动态路由和 auth plugin public 判断均通过 `permissions/route`。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | router 内不再手写 roles/permissions 分支，插件 route meta 合并复用统一入口。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/permissions/route.ts`。
+2. 确认 router guard 调用 `isPublicRoute` 与 `canAccessRoute`。
+3. 确认插件动态 route 权限 meta 由 `withRouteAccessMeta` 注入，与静态 route 走同一判断入口。
+
+结果摘要: 通过。route guard 权限入口已统一。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-08-06`，统一按钮权限入口。

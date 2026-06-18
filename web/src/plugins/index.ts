@@ -2,6 +2,7 @@
 import type { RouteRecordRaw, Router } from "vue-router";
 
 import { useI18n } from "../i18n";
+import { withRouteAccessMeta } from "../permissions/route";
 import { getDefaultHomeTarget, type DefaultHomeTarget, type usePluginStore } from "../stores/plugins";
 import { getToken } from "../utils/auth";
 import { API_BASE_PREFIX } from "../utils/api-base-prefix";
@@ -212,17 +213,10 @@ function registerPlugin(manifest: FrontendPluginManifest, router: Router, store:
 function withPluginAccessMeta(route: RouteRecordRaw, manifest: FrontendPluginManifest): RouteRecordRaw {
 	const requiredRoles = manifest.uiMenu?.requiredRoles ?? [];
 	const requiredPermissions = manifest.uiMenu?.requiredPermissions ?? [];
-	if (requiredRoles.length === 0 && requiredPermissions.length === 0) {
-		return route;
-	}
-	return {
-		...route,
-		meta: {
-			...(route.meta ?? {}),
-			roles: requiredRoles,
-			permissions: requiredPermissions
-		}
-	};
+	return withRouteAccessMeta(route, {
+		roles: requiredRoles,
+		permissions: requiredPermissions
+	});
 }
 
 function addRouteIfMissing(route: RouteRecordRaw, router: Router): void {
