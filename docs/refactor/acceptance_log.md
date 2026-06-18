@@ -528,3 +528,56 @@ Test-Path 'D:\Program Files\JetBrains\CLion 2024.1.1\bin\mingw\bin\gcc.exe'
 ### 下一步
 
 - 进入 `M0-03-02`，运行 Go 覆盖率统计。
+
+## M0-03-02: 运行 Go 覆盖率统计
+
+- 状态: Passed
+- Work Item: M0-03-02
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/quality_baseline.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 覆盖率命令已执行，失败原因、`coverage.out` 状态、部分包覆盖率和重跑命令已记录。 |
+| API/OpenAPI 同步 | N/A | 仅质量基线记录任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅质量基线记录任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅质量基线记录任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅质量基线记录任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅质量基线记录任务，无前端实现影响。 |
+| 文档同步 | Passed | 质量基线记录、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只记录真实覆盖率基线，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+go test ./... -coverprofile=coverage.out
+if (Test-Path coverage.out) { go tool cover -func=coverage.out } else { Write-Output 'coverage.out missing' }
+```
+
+结果摘要: 覆盖率命令失败，`coverage.out` 未生成。失败原因是本机 cgo 编译器路径不存在；部分包覆盖率和重跑命令已记录在 `docs/refactor/quality_baseline.md`。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/quality_baseline.md` 的 M0-03-02 记录。
+2. 确认记录包含命令、结果、覆盖率文件状态、失败原因、部分包覆盖率和重跑命令。
+
+结果摘要: 通过。本项验收目标是建立真实覆盖率基线，当前完整总覆盖率不可用且限制明确。
+
+### 失败与返工
+
+- 失败原因: `go test ./... -coverprofile=coverage.out` 因本机 cgo 编译器路径不存在而失败，未生成 `coverage.out`。
+- 返工动作: 记录失败原因、覆盖率文件状态、可观察到的部分包覆盖率和重跑命令；不在本项中修改本机工具链。
+- 重新验收结果: 覆盖率基线记录验收通过；覆盖率命令失败作为后续质量修复输入。
+
+### 下一步
+
+- 进入 `M0-03-03`，运行前端构建。
