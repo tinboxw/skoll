@@ -213,7 +213,7 @@
 | 150 | FE4-03 | FE4 | `skoll-frontend-design-refactor` | 插件安装预检体验 | Plugin/Marketplace UI | 权限 diff、菜单 diff、风险、签名、迁移影响清楚 | `rg -n "installPreflight|installPreflightReady|plugin-install-preflight|权限 diff|菜单 diff|签名|迁移影响|安装门禁" web/src/views/Plugin/index.vue; cd web && npm run typecheck; npm run build` | Done |
 | 151 | FE4-04 | FE4 | `skoll-frontend-design-refactor` | 插件风险报告体验 | Plugin UI | 风险等级、因子、阻断原因、审计记录可读 | `rg -n "pluginRiskRows|visibleRiskRows|pluginRiskLevel|pluginRiskFactors|pluginRiskBlockers|pluginRiskAuditTrail|plugin-risk-report|风险等级|风险因子|阻断原因|审计线索" web/src/views/Plugin/index.vue; cd web && npm run typecheck; npm run build` | Done |
 | 152 | FE4-05 | FE4 | `skoll-frontend-design-refactor` | Dev Portal 发布任务体验 | Developer Portal | 任务状态、步骤、日志、失败原因、重试/回滚清楚 | `rg -n "devTaskSummary|dev-task-summary|devTaskStatusType|canRetryDevTask|retryDevTask|失败原因|重试|回滚|openDevTaskDrawer" web/src/views/Plugin/index.vue; cd web && npm run typecheck; npm run build` | Done |
-| 153 | FE4-06 | FE4 | `skoll-frontend-performance-refactor` | 插件重面板按需加载 | Plugin/Dev Portal | 日志、风险、发布历史不阻塞首屏 | `cd web && npm run build` | Todo |
+| 153 | FE4-06 | FE4 | `skoll-frontend-performance-refactor` | 插件重面板按需加载 | Plugin/Dev Portal | 日志、风险、发布历史不阻塞首屏 | `cd web && npm run build` | Done |
 
 ## FE5 Work Items: 前端测试与验收体系
 

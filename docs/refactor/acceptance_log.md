@@ -8334,6 +8334,7 @@ npm run build
 ### 下一步
 
 - 进入 `FE4-02`，执行插件详情抽屉/详情页设计。
+
 ## FE4-02: 插件详情抽屉/详情页设计
 
 - 状态: Passed
@@ -8632,3 +8633,65 @@ rg -n "Install|Enable/Disable|Config|Logs|Release|Rollback|Task status|Acceptanc
 ### 下一步
 
 - 进入 `FE4-02`，执行插件详情抽屉/详情页设计。
+
+## FE4-06: 插件重面板按需加载
+
+- 状态: Passed
+- Work Item: FE4-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Plugin 页面新增重面板切换，默认只挂载插件列表。 |
+| 风险报告按需加载 | Passed | 风险报告面板仅在 `activeHeavyPanel === "risk"` 时渲染。 |
+| Dev Portal 按需加载 | Passed | Dev Portal 面板仅在 `activeHeavyPanel === "devportal"` 且具备 `plugin.manage` 时渲染。 |
+| 日志/发布历史不阻塞首屏 | Passed | Dev Portal 任务抽屉和发布任务表随 Dev Portal 面板延迟挂载；插件详情日志仍按用户点击加载。 |
+| 首屏请求行为 | Passed | 未新增首屏请求；Dev Portal 刷新、任务日志、重试和回滚仍由用户动作触发。 |
+| API/OpenAPI 同步 | N/A | 本项不新增或修改后端接口契约。 |
+| 权限目录同步 | Passed | Dev Portal 仍复用 `plugin.manage` 权限；插件列表和风险报告不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "activeHeavyPanel|heavy-panel-tabs|plugin-risk-report|devportal-panel|content-grid|devTaskDrawerOpen" web/src/views/Plugin/index.vue
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。按需挂载锚点存在；前端 typecheck/build 均通过。build 输出显示 Plugin 页面未新增依赖，仍只有既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可调用的 in-app browser 工具；bundled Playwright 运行时缺少 `playwright-core`，无法完成真实点击或截图 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑插件列表默认首屏、风险报告切换、Dev Portal 切换和任务抽屉。
+
+### Performance Hook
+
+- Page/route: Plugin，`/skoll/plugin`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle baseline: Vite build 通过；最大已列出 chunk 仍为 `xlsx-DLNWaC59.js` 332.45 kB gzip 113.83 kB，本任务未引入新库。
+- Rendering behavior: 默认 `inventory` 模式只挂载插件列表；风险报告、Dev Portal、发布任务表和任务日志抽屉通过 `v-if` 延迟挂载。
+- Request behavior: 未新增首屏请求；Dev Portal 数据和任务日志继续按显式用户动作加载。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE5-01`，固化前端 typecheck 门禁。

@@ -45,6 +45,7 @@ const error = ref<string | null>(null);
 const showOnlyEnabled = ref(false);
 const pluginKeyword = ref("");
 const pluginStatusFilter = ref("");
+const activeHeavyPanel = ref<"inventory" | "risk" | "devportal">("inventory");
 const debugText = ref("");
 const logText = ref("");
 const configText = ref("{}");
@@ -1481,7 +1482,15 @@ function resetDefaultHome(): void {
 			<pre v-if="operationText" class="code-block">{{ operationText }}</pre>
 		</el-card>
 
-		<el-card shadow="never" class="risk-report-panel plugin-risk-report">
+		<div class="heavy-panel-tabs" aria-label="插件重面板">
+			<el-button-group>
+				<el-button :type="activeHeavyPanel === 'inventory' ? 'primary' : 'default'" @click="activeHeavyPanel = 'inventory'">插件列表</el-button>
+				<el-button :type="activeHeavyPanel === 'risk' ? 'primary' : 'default'" @click="activeHeavyPanel = 'risk'">风险报告</el-button>
+				<el-button :type="activeHeavyPanel === 'devportal' ? 'primary' : 'default'" :disabled="!canManagePlugins" @click="activeHeavyPanel = 'devportal'">DevPortal</el-button>
+			</el-button-group>
+		</div>
+
+		<el-card v-if="activeHeavyPanel === 'risk'" shadow="never" class="risk-report-panel plugin-risk-report">
 			<template #header>
 				<div class="card-header">
 					<div>
@@ -1510,7 +1519,7 @@ function resetDefaultHome(): void {
 			</el-table>
 		</el-card>
 
-		<el-card v-permission="'plugin.manage'" shadow="never" class="devportal-panel">
+		<el-card v-if="activeHeavyPanel === 'devportal'" v-permission="'plugin.manage'" shadow="never" class="devportal-panel">
 			<template #header>
 				<div class="card-header">
 					<div>
@@ -1700,7 +1709,7 @@ function resetDefaultHome(): void {
 			</div>
 		</el-card>
 
-		<el-drawer v-model="devTaskDrawerOpen" :title="devTaskDrawerTitle" size="46%">
+		<el-drawer v-if="activeHeavyPanel === 'devportal'" v-model="devTaskDrawerOpen" :title="devTaskDrawerTitle" size="46%">
 			<el-tabs>
 				<el-tab-pane label="详情">
 					<pre class="code-block">{{ devTaskDetail ? JSON.stringify(devTaskDetail, null, 2) : "暂无详情。" }}</pre>
@@ -1822,7 +1831,7 @@ function resetDefaultHome(): void {
 			<el-empty v-else description="请选择插件。" />
 		</el-drawer>
 
-		<div class="content-grid">
+		<div v-if="activeHeavyPanel === 'inventory'" class="content-grid">
 			<div class="table-stack">
 				<el-card shadow="never">
 					<template #header>
@@ -2180,6 +2189,16 @@ function resetDefaultHome(): void {
 	color: var(--color-text-muted);
 	font-size: 0.86rem;
 	word-break: break-all;
+}
+
+.heavy-panel-tabs {
+	display: flex;
+	justify-content: flex-start;
+}
+
+.heavy-panel-tabs :deep(.el-button-group) {
+	display: flex;
+	flex-wrap: wrap;
 }
 
 .content-grid {
