@@ -8334,6 +8334,72 @@ npm run build
 ### 下一步
 
 - 进入 `FE4-02`，执行插件详情抽屉/详情页设计。
+## FE4-02: 插件详情抽屉/详情页设计
+
+- 状态: Passed
+- Work Item: FE4-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Plugin 页面新增详情抽屉入口，系统级和应用级插件均可打开。 |
+| 权限分区 | Passed | 详情抽屉包含访问状态、管理权限、菜单权限和角色要求。 |
+| 菜单分区 | Passed | 展示 label、path、icon、order 等菜单落点。 |
+| 配置分区 | Passed | 展示 config schema 字段数、字段表格和空态。 |
+| 资产分区 | Passed | 展示 entryPath、backendEndpoint、serviceHealthURL、appId、ui mode、locale 等资产/入口信息。 |
+| 日志分区 | Passed | 区分未加载日志与已选择插件日志内容。 |
+| 发布状态分区 | Passed | 展示发布单、发布任务、灰度/回滚任务数量和失败原因列。 |
+| API/OpenAPI 同步 | N/A | 本项不新增接口；复用现有 plugin store 与 Dev Portal task 状态。 |
+| 权限目录同步 | Passed | 继续复用 `plugin.read` 和 `plugin.manage`，详情入口受 `plugin.read` 保护。 |
+| migration/seed 同步 | N/A | 本项不改数据库或种子数据。 |
+
+### 自动化验证
+
+```powershell
+rg -n "detailDrawerOpen|openPluginDetail|plugin-detail-permissions|plugin-detail-menu|plugin-detail-config|plugin-detail-assets|plugin-detail-logs|plugin-detail-release" web/src/views/Plugin/index.vue
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。详情抽屉、权限、菜单、配置、资产、日志、发布状态分区锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可调用的 in-app browser 工具；bundled Playwright 运行时缺少 `playwright-core`，无法完成真实点击或截图 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑详情按钮、抽屉 tabs、日志加载和窄屏路径。
+
+### Performance Hook
+
+- Page/route: Plugin，`/skoll/plugin`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；详情抽屉复用 Element Plus drawer/tabs/descriptions/table。
+- Request behavior: 不新增首屏请求；详情抽屉读取现有 store 与 Dev Portal task 状态。
+- Heavy panel risk: 日志内容仍沿用现有显式加载入口；详情抽屉不会自动拉取日志。
+- Narrow viewport: Drawer 内 tag 可换行，表格保留横向处理。
+- Follow-up: FE4-06 可进一步把日志和发布历史拆成按需面板，降低重内容首屏成本。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE4-03`，执行插件安装预检体验。
 ## ADJ-FE-20260619-06: FE4 plugin portal risk map
 
 - 状态: Passed

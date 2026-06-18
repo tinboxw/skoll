@@ -86,6 +86,8 @@ const devTaskDrawerOpen = ref(false);
 const devTaskDrawerTitle = ref("");
 const devTaskDetail = ref<Record<string, unknown> | null>(null);
 const devTaskLogs = ref<Array<Record<string, unknown>>>([]);
+const detailDrawerOpen = ref(false);
+const detailPluginID = ref("");
 
 const visiblePlugins = computed(() => {
 	if (!showOnlyEnabled.value) {
@@ -150,6 +152,10 @@ const riskPluginCount = computed(() => disabledPluginCount.value + inaccessibleP
 const hasActivePluginFilters = computed(() => showOnlyEnabled.value || pluginKeyword.value.trim() !== "" || pluginStatusFilter.value !== "");
 const canReadPlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginRead));
 const canManagePlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginManage));
+const detailPlugin = computed(() => getPluginRecord(detailPluginID.value));
+const detailReleaseOrders = computed(() => devReleaseOrders.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
+const detailReleaseTasks = computed(() => devReleaseTasks.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
+const detailRolloutTasks = computed(() => devRolloutTasks.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
 const devPluginOptions = computed(() => {
 	const ids = new Set<string>();
 	for (const item of pluginStore.items) {
@@ -351,6 +357,43 @@ function pluginSignatureStatus(plugin: FrontendPluginManifest): string {
 		return "signed";
 	}
 	return "";
+}
+
+function taskBelongsToPlugin(item: Record<string, unknown>, pluginID: string): boolean {
+	return pluginID !== "" && String(item.pluginId || item.pluginID || "") === pluginID;
+}
+
+function openPluginDetail(pluginID: string): void {
+	if (!ensurePluginAccess("plugin.read")) {
+		return;
+	}
+	detailPluginID.value = pluginID;
+	detailDrawerOpen.value = true;
+}
+
+function pluginRequiredPermissions(plugin: FrontendPluginManifest): string[] {
+	return plugin.uiMenu?.requiredPermissions ?? [];
+}
+
+function pluginRequiredRoles(plugin: FrontendPluginManifest): string[] {
+	return plugin.uiMenu?.requiredRoles ?? [];
+}
+
+function pluginConfigFieldCount(plugin: FrontendPluginManifest): number {
+	return plugin.configSchema?.fields?.length ?? 0;
+}
+
+function pluginAssetRows(plugin: FrontendPluginManifest): Array<{ label: string; value: string }> {
+	return [
+		{ label: "entryPath", value: pluginEntryPath(plugin.id) || "-" },
+		{ label: "backendEndpoint", value: plugin.backendEndpoint || "-" },
+		{ label: "serviceHealthURL", value: plugin.serviceHealthURL || "-" },
+		{ label: "appId", value: plugin.appId || "-" },
+		{ label: "uiMode", value: plugin.uiMode || "frontend" },
+		{ label: "uiOpenMode", value: plugin.uiOpenMode || "-" },
+		{ label: "uiTabMode", value: plugin.uiTabMode || "-" },
+		{ label: "locales", value: plugin.i18nLocales?.join(", ") || "-" }
+	];
 }
 
 function handlePluginCommand(command: string): void {
@@ -1455,6 +1498,91 @@ function resetDefaultHome(): void {
 			</el-tabs>
 		</el-drawer>
 
+		<el-drawer v-model="detailDrawerOpen" :title="detailPlugin ? `${detailPlugin.name} / ${detailPlugin.id}` : 'Plugin detail'" size="58%" class="detail-drawer">
+			<template v-if="detailPlugin">
+				<section class="detail-summary">
+					<el-tag :type="pluginStatusType(detailPlugin.id)" effect="light">{{ pluginStatusText(detailPlugin.id) }}</el-tag>
+					<el-tag :type="pluginRiskType(detailPlugin)" effect="plain">{{ t("plugin.signal.risk") }}: {{ pluginRiskText(detailPlugin) }}</el-tag>
+					<el-tag :type="pluginHealthType(detailPlugin)" effect="plain">{{ t("plugin.signal.health") }}: {{ pluginHealthText(detailPlugin) }}</el-tag>
+					<el-tag :type="pluginSignatureType(detailPlugin)" effect="plain">{{ t("plugin.signal.signature") }}: {{ pluginSignatureText(detailPlugin) }}</el-tag>
+				</section>
+				<el-tabs class="detail-tabs">
+					<el-tab-pane label="权限" name="permissions">
+						<div class="detail-section plugin-detail-permissions">
+							<el-descriptions :column="2" border>
+								<el-descriptions-item label="访问状态">{{ canVisit(detailPlugin.id) ? t("plugin.access.ready") : t("plugin.access.blocked") }}</el-descriptions-item>
+								<el-descriptions-item label="管理权限">{{ canManagePlugins ? "plugin.manage" : "-" }}</el-descriptions-item>
+								<el-descriptions-item label="菜单权限">
+									<el-tag v-for="item in pluginRequiredPermissions(detailPlugin)" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
+									<span v-if="pluginRequiredPermissions(detailPlugin).length === 0">-</span>
+								</el-descriptions-item>
+								<el-descriptions-item label="角色要求">
+									<el-tag v-for="item in pluginRequiredRoles(detailPlugin)" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
+									<span v-if="pluginRequiredRoles(detailPlugin).length === 0">-</span>
+								</el-descriptions-item>
+							</el-descriptions>
+						</div>
+					</el-tab-pane>
+					<el-tab-pane label="菜单" name="menu">
+						<div class="detail-section plugin-detail-menu">
+							<el-descriptions :column="2" border>
+								<el-descriptions-item label="label">{{ detailPlugin.uiMenu?.label || detailPlugin.name }}</el-descriptions-item>
+								<el-descriptions-item label="path">{{ detailPlugin.uiMenu?.path || pluginEntryPath(detailPlugin.id) || "-" }}</el-descriptions-item>
+								<el-descriptions-item label="icon">{{ detailPlugin.uiMenu?.icon || "-" }}</el-descriptions-item>
+								<el-descriptions-item label="order">{{ detailPlugin.uiMenu?.order ?? "-" }}</el-descriptions-item>
+							</el-descriptions>
+						</div>
+					</el-tab-pane>
+					<el-tab-pane label="配置" name="config">
+						<div class="detail-section plugin-detail-config">
+							<el-descriptions :column="2" border>
+								<el-descriptions-item label="schema">{{ pluginConfigFieldCount(detailPlugin) }}</el-descriptions-item>
+								<el-descriptions-item label="selected">{{ selectedPlugin === detailPlugin.id ? activeInspectorPanel || "-" : "-" }}</el-descriptions-item>
+							</el-descriptions>
+							<el-empty v-if="pluginConfigFieldCount(detailPlugin) === 0" description="暂无配置 Schema。" />
+							<el-table v-else :data="detailPlugin.configSchema?.fields ?? []" stripe border>
+								<el-table-column prop="key" label="Key" min-width="160" />
+								<el-table-column prop="type" label="Type" width="120" />
+								<el-table-column prop="required" label="Required" width="120" />
+								<el-table-column prop="help" label="Help" min-width="220" show-overflow-tooltip />
+							</el-table>
+						</div>
+					</el-tab-pane>
+					<el-tab-pane label="资产" name="assets">
+						<div class="detail-section plugin-detail-assets">
+							<el-table :data="pluginAssetRows(detailPlugin)" stripe border>
+								<el-table-column prop="label" label="Asset" width="180" />
+								<el-table-column prop="value" label="Value" min-width="260" show-overflow-tooltip />
+							</el-table>
+						</div>
+					</el-tab-pane>
+					<el-tab-pane label="日志" name="logs">
+						<div class="detail-section plugin-detail-logs">
+							<el-empty v-if="selectedPlugin !== detailPlugin.id || activeInspectorPanel !== 'logs'" description="可从操作菜单加载该插件日志。" />
+							<pre v-else class="code-block">{{ logText || t("plugin.noLogs") }}</pre>
+						</div>
+					</el-tab-pane>
+					<el-tab-pane label="发布状态" name="release">
+						<div class="detail-section plugin-detail-release">
+							<el-descriptions :column="3" border>
+								<el-descriptions-item label="发布单">{{ detailReleaseOrders.length }}</el-descriptions-item>
+								<el-descriptions-item label="发布任务">{{ detailReleaseTasks.length }}</el-descriptions-item>
+								<el-descriptions-item label="灰度/回滚">{{ detailRolloutTasks.length }}</el-descriptions-item>
+							</el-descriptions>
+							<el-table :data="[...detailReleaseTasks, ...detailRolloutTasks]" stripe border>
+								<el-table-column prop="taskId" label="Task ID" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="action" label="Action" width="110" />
+								<el-table-column prop="targetEnv" label="Env" width="110" />
+								<el-table-column prop="taskStatus" label="Status" width="120" />
+								<el-table-column prop="failureReason" label="Failure" min-width="220" show-overflow-tooltip />
+							</el-table>
+						</div>
+					</el-tab-pane>
+				</el-tabs>
+			</template>
+			<el-empty v-else description="请选择插件。" />
+		</el-drawer>
+
 		<div class="content-grid">
 			<div class="table-stack">
 				<el-card shadow="never">
@@ -1501,6 +1629,9 @@ function resetDefaultHome(): void {
 								<div class="row-actions">
 									<el-button size="small" type="primary" plain :icon="View" :disabled="operating || !canVisit(row.id)" @click="visitPlugin(row.id)">
 										{{ t("plugin.action.visit") }}
+									</el-button>
+									<el-button size="small" :icon="Document" :disabled="operating" @click="openPluginDetail(row.id)">
+										详情
 									</el-button>
 									<el-button size="small" :icon="isPinned(row.id) ? StarFilled : Star" :disabled="operating || !canTogglePin(row.id)" @click="togglePinTab(row.id)">
 										{{ isPinned(row.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}
@@ -1586,6 +1717,9 @@ function resetDefaultHome(): void {
 								<el-table-column :label="t('plugin.table.actions')" min-width="300" fixed="right">
 									<template #default="{ row }">
 										<div class="row-actions">
+											<el-button size="small" :icon="Document" :disabled="operating" @click="openPluginDetail(row.id)">
+												详情
+											</el-button>
 											<el-button size="small" :icon="isPinned(row.id) ? StarFilled : Star" :disabled="operating || !canTogglePin(row.id)" @click="togglePinTab(row.id)">
 												{{ isPinned(row.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}
 											</el-button>
@@ -1886,6 +2020,27 @@ function resetDefaultHome(): void {
 	display: flex;
 	justify-content: flex-end;
 	margin-top: 10px;
+}
+
+.detail-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.detail-tabs {
+	min-width: 0;
+}
+
+.detail-section {
+	display: grid;
+	gap: 12px;
+}
+
+.detail-tag {
+	margin-right: 6px;
+	margin-bottom: 4px;
 }
 
 :deep(.el-card__header) {
