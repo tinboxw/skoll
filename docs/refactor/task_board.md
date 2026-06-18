@@ -34,7 +34,7 @@
 
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
-| 6 | M1-01 | `skoll-permission-menu-refactor` | 定义 PermissionResource 模型 | `internal/domain/permission` | 支持 api/menu/button/data_scope/plugin；单测覆盖校验规则 | `go test ./internal/domain/permission` | Todo |
+| 6 | M1-01 | `skoll-permission-menu-refactor` | 定义 PermissionResource 模型 | `internal/domain/permission` | 支持 api/menu/button/data_scope/plugin；单测覆盖校验规则 | `go test ./internal/domain/permission` | Done |
 | 7 | M1-02 | `skoll-permission-menu-refactor` | 定义 MenuNode 模型 | `internal/domain/menu` | 支持父子、路径、组件、图标、排序、显隐、授权字段 | `go test ./internal/domain/menu` | Todo |
 | 8 | M1-03 | `skoll-database-development` | 新增权限与菜单迁移 | MySQL/PostgreSQL migration | 可在空库执行；唯一约束和索引明确 | `go test ./internal/store/sql/...` | Todo |
 | 9 | M1-04 | `skoll-permission-menu-refactor` | 实现 catalog repository/store | repository + memory/sql store | service 不依赖 GORM；重复注册幂等 | `go test ./internal/repository/... ./internal/store/...` | Todo |
