@@ -5866,7 +5866,7 @@ npm run build
 - Work Item: M2-06-04
 - 日期: 2026-06-19
 - 执行人: Codex
-- 提交: pending
+- 提交: c5291cf
 
 ### 改动文件
 
