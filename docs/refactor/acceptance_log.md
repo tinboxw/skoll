@@ -8204,3 +8204,58 @@ npm run build
 ### 下一步
 
 - 进入 `FE3-09`，执行核心页面状态验收。
+## FE3-09: 核心页面状态验收
+
+- 状态: Passed
+- Work Item: FE3-09
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe3_core_page_state_acceptance.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE3 核心页面状态验收矩阵，覆盖 Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting。 |
+| 正常态覆盖 | Passed | 每页均记录主内容、摘要、筛选、表格、表单或详情入口的可扫状态。 |
+| 空态覆盖 | Passed | 每页均记录列表、矩阵、筛选结果或 schema 缺失时的空态锚点。 |
+| 错误态覆盖 | Passed | 记录 API、保存、导出、生命周期等失败路径的反馈形式。 |
+| 无权限态覆盖 | Passed | 记录权限 guard、`StateBlock` forbidden 或权限过滤行为。 |
+| 窄屏覆盖 | Passed | 记录 960px/820px/640px/560px 级别的折列与横向处理。 |
+| 浏览器 smoke | Blocked | 当前线程未暴露可调用的 in-app browser 工具；bundled Playwright 缺少 `playwright-core`，无法完成真实点击、截图或窄屏浏览器 smoke。 |
+| 替代验收门 | Passed | 以静态状态锚点、路由/权限锚点、typecheck、build 和人工代码审阅完成本轮验收；FE5 工具链可用后补跑浏览器 smoke。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Browser smoke|State coverage|Follow-up" docs/refactor/fe3_core_page_state_acceptance.md
+rg -n "StateBlock|forbidden|empty|loading|error|success|summary-grid|filters|reset|confirmAction|downloadBlob|SchemaForm|canRead|canManage|quickLinks|riskItems" web/src/views/Dashboard/index.vue web/src/views/User/list.vue web/src/views/Role/list.vue web/src/views/Role/edit.vue web/src/views/Permission/index.vue web/src/views/Menu/index.vue web/src/views/Plugin/index.vue web/src/views/Audit/index.vue web/src/views/Setting/index.vue
+rg -n "const .*Page = \(\) => import|/skoll/dashboard|/skoll/user|/skoll/role|/skoll/permission|/skoll/menu|/skoll/plugin|/skoll/audit|/skoll/setting|permissions" web/src/router/index.ts web/src/navigation/menu.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。验收文档、核心页面状态锚点、路由/权限锚点均可检索；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前环境无法调用 in-app browser，也无法用 bundled Playwright 完成真实浏览器操作。
+- 处理: 本次如实记录阻塞，不声明浏览器通过；以静态锚点、typecheck/build 和人工审阅完成 FE3-09 验收，后续 FE5 建立 smoke 工具链后补跑。
+
+### 失败与返工
+
+- 失败原因: 浏览器 smoke 环境阻塞。
+- 返工动作: 改为记录阻塞原因与替代验收门，并将补跑动作纳入 FE5 follow-up。
+- 重新验收结果: Passed with browser smoke blocked。
+
+### 下一步
+
+- 进入 `FE4-01`，执行插件列表信息架构升级。

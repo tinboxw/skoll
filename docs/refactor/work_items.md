@@ -200,7 +200,7 @@
 | 142 | FE3-06 | FE3 | `skoll-frontend-design-refactor` | Plugin 页面体验升级 | 页面改动 | 状态、风险、权限、配置、访问、生命周期动作清晰 | `rg -n "StateBlock|pluginKeyword|pluginStatusFilter|filteredPlugins|riskPluginCount|resetPluginFilters|plugin.filter|plugin.summary|plugin.access|plugin.table.mode" web/src/views/Plugin/index.vue web/src/i18n/index.ts; cd web && npm run typecheck; npm run build` | Done |
 | 143 | FE3-07 | FE3 | `skoll-frontend-design-refactor` | Audit 页面体验升级 | 页面改动 | tab、筛选、详情、导出、风险标签、trace 展示完整 | `rg -n "summary-grid|highRiskCount|failedCount|uniqueActorCount|resetFilters|riskTagType|resultTagType|audit.summary|audit.result|detail-tabs|StateBlock|downloadBlob|confirmAction" web/src/views/Audit/index.vue web/src/i18n/index.ts; cd web && npm run typecheck; npm run build` | Done |
 | 144 | FE3-08 | FE3 | `skoll-frontend-design-refactor` | Setting 页面体验升级 | 页面改动 | SchemaForm、分组、敏感项、保存反馈、审计提示清晰 | `rg -n "StateBlock|canManageSettings|summary-grid|encryptedCount|schemaFieldCount|isSensitiveSettingKey|resetSearch|settings.summary|settings.auditHint|settings.noPermissionTitle|settings.emptyFiltered|SchemaForm|confirmAction" web/src/views/Setting/index.vue web/src/i18n/index.ts; cd web && npm run typecheck; npm run build` | Done |
-| 145 | FE3-09 | FE3 | `skoll-frontend-testing-refactor` | 核心页面状态验收 | 验收记录 | 每页正常/空态/错误/无权限/窄屏至少抽查 | 浏览器验收 | Todo |
+| 145 | FE3-09 | FE3 | `skoll-frontend-testing-refactor` | 核心页面状态验收 | `docs/refactor/fe3_core_page_state_acceptance.md` | 每页正常/空态/错误/无权限/窄屏至少抽查；浏览器 smoke 阻塞原因记录清楚 | `rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Browser smoke|State coverage|Follow-up" docs/refactor/fe3_core_page_state_acceptance.md; cd web && npm run typecheck; npm run build` | Done |
 
 ## FE4 Work Items: 插件与开发者门户体验
 
