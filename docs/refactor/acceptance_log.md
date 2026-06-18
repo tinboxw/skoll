@@ -7895,3 +7895,81 @@ npm run build
 ### 下一步
 
 - 进入 `FE3-05`，执行 Menu 页面体验升级。
+
+## FE3-05: Menu 页面体验升级
+
+- 状态: Passed
+- Work Item: FE3-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Menu/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Menu 页面新增摘要、筛选、无权限空态、非法节点提示和更清晰的筛选空结果。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 menu tree/save/reorder/visibility 契约。 |
+| 权限目录同步 | Passed | 复用现有 `system.manage` 权限 key，不新增目录项。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改变数据库结构或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 页面继续使用 `useNavigationStore` 和现有 menu API wrapper；保存、删除、刷新错误可见。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/menu` 当前路由，不新增兼容入口。 |
+
+### 自动化验证
+
+```powershell
+rg -n "StateBlock|canManageMenu|summary-grid|filters|filteredDrafts|invalidMenuCount|visibilityFilter|resetFilters|menu.editor.filter|menu.editor.summary" web/src/views/Menu/index.vue web/src/i18n/index.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。关键 UI/权限/状态锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 和 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可用 in-app browser 工具；bundled Playwright 运行时仍缺少 `playwright-core`，无法完成截图或真实点击 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 `/skoll/menu` 的默认、筛选、空结果、排序、显隐、删除确认、保存确认、窄屏路径。
+
+### Performance Hook
+
+- Page/route: Menu，`/skoll/menu`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus、StateBlock、Pinia navigation store、confirmAction 和现有 API wrapper。
+- Route lazy loading: Passed，router 中通过 `const MenuPage = () => import("../views/Menu/index.vue")` 动态导入。
+- Heavy table risk: 树表基于当前菜单树，新增筛选为客户端局部筛选，未新增全量额外请求。
+- Request behavior: 首屏仍为 menu tree 请求；保存、排序、显隐沿用既有 store/API 行为。
+- Loading behavior: 刷新、保存、重置、删除确认均有 loading/禁用/确认或错误反馈。
+- Deferred panels: N/A，页面无重日志/详情面板。
+- Narrow viewport: 摘要卡和筛选表单在 900px 以下折叠；树表保持 Element Plus 横向处理。
+- Follow-up: 如果菜单树规模明显增长，应为树节点引入分组/搜索高亮或服务端筛选。
+
+### 人工验收
+
+1. 对照 `fe3_page_acceptance_map.md`，确认 Menu 覆盖树表、排序、显隐、权限字段、保存确认和错误态。
+2. 对照 `web/src/views/Menu/index.vue`，确认删除与保存仍使用 `confirmAction`。
+3. 确认 keyword/visibility 筛选不破坏原 draft 引用，筛选状态下编辑仍可保存。
+4. 确认缺少 `system.manage` 时显示 forbidden StateBlock。
+
+结果摘要: 通过。Menu 页面已满足 FE3-05 对树表、排序、显隐、权限字段和保存确认的要求。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE3-06`，执行 Plugin 页面体验升级。
