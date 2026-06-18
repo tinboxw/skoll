@@ -5018,3 +5018,55 @@ $env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
 
 ### 下一步
 - 进入 `M2-04-01`，设计审计列表 API 契约。
+
+## M2-04-01: 设计审计列表 API 契约
+
+- 状态: Passed
+- Work Item: M2-04-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `/v1/audit` GET 契约升级为 audit event list，定义 type/actor/action/resource/result/risk/time/page filters。 |
+| API/OpenAPI 同步 | Passed | 文档 OpenAPI 与内嵌 OpenAPI hash 一致。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | response schema 使用 canonical `AuditEvent.action` pattern。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项仅设计 API 契约，后续 M2-05 接入前端 client/UI。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 列表契约面向新 `audit.Event`，未新增 legacy `audit.Record` response schema。 |
+
+### 自动化验证
+```powershell
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+rg -n "List audit events|AuditEventListAPIResponse|AuditEventListData|AuditTraceContext|resourceType|enum: \[operation, login, error, plugin, security\]" docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+```
+
+结果摘要: 通过。两份 OpenAPI 文件 hash 一致，filter/page/response 字段可定位。
+
+### 人工验收
+
+1. 审阅 `/v1/audit` GET 参数，确认 type、actor、resource、action、time、risk、offset、limit 字段稳定。
+2. 审阅 `AuditEventListAPIResponse`，确认保持 `code/message/data` 包络。
+3. 审阅 `AuditEvent`，确认列表响应包含 actor/resource/trace/metadata/occurredAt。
+
+结果摘要: 通过。审计列表 API 契约已设计。
+
+### 失败与返工
+- 失败原因: 初稿中内嵌 OpenAPI 的 `AuditEvent.action` pattern 第三段少了首字母约束。
+- 返工动作: 修正 pattern 并通过 hash 校验确认两份 OpenAPI 完全一致。
+- 重新验收结果: Passed
+
+### 下一步
+- 进入 `M2-04-02`，实现审计列表 API。
