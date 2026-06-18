@@ -8988,3 +8988,60 @@ git log --oneline -n 16
 ### 下一步
 
 - 进入 `FE5-05`，建立响应式验收清单。
+
+## FE5-05: 建立响应式验收清单
+
+- 状态: Passed
+- Work Item: FE5-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe5_responsive_acceptance_checklist.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE5 响应式验收清单。 |
+| 视口覆盖 | Passed | 清单定义 Desktop、Tablet/Narrow desktop、Minimum narrow 390px 三档验收。 |
+| 全局区域覆盖 | Passed | Page header、Filters、Tables、Forms、Drawers/dialogs、State blocks、Dangerous actions、Plugin panels 均有验收项。 |
+| 核心页面覆盖 | Passed | Dashboard、User、Role、Permission、Menu、Plugin、Audit、Setting 均有桌面和窄屏检查。 |
+| 失败/Blocked 规则 | Passed | 明确重叠、按钮不可达、drawer/dialog 截断、表格动作不可达等失败条件；缺少浏览器工具/seed/role 时记录 Blocked。 |
+| 前端 API client/UI 同步 | N/A | 本项为响应式验收清单，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Desktop|Tablet/Narrow desktop|Minimum narrow|390|Page header|Filters|Tables|Forms|Drawers/dialogs|Dangerous actions|Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Failure Policy|Browser Tooling Status" docs/refactor/fe5_responsive_acceptance_checklist.md
+```
+
+结果摘要: 通过。三档视口、全局区域、8 个核心页面、失败策略和浏览器工具阻塞说明锚点均存在。
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立响应式验收清单，不执行真实浏览器点击；当前线程仍未暴露可调用的 in-app browser 工具，且此前 bundled Playwright 缺少 `playwright-core`。
+- 后续: ADJ-TAIL-20260619-02/ADJ-FE-20260619-07 将继续记录浏览器 smoke 最小集执行结果。
+
+### Performance Hook
+
+- Page/route: Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 响应式清单覆盖。
+- Typecheck: N/A，本项为文档清单；FE5-01 已固化 typecheck 门禁。
+- Build: N/A，本项为文档清单；FE5-02 已固化 build 门禁。
+- Request behavior: N/A
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `ADJ-TAIL-20260619-02`，记录 browser smoke 最小集执行结果。
