@@ -842,6 +842,7 @@ func TestRouterAuditAPIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new audit event error: %v", err)
 	}
+	event.SourceData = map[string]any{"operation": "create"}
 	if err := auditEventService.AppendEvent(context.Background(), event); err != nil {
 		t.Fatalf("append audit event error: %v", err)
 	}
@@ -874,8 +875,9 @@ func TestRouterAuditAPIs(t *testing.T) {
 	if exportResp.Code != http.StatusOK {
 		t.Fatalf("export status=%d body=%s", exportResp.Code, exportResp.Body.String())
 	}
-	if !strings.Contains(exportResp.Body.String(), "id,actorId,action,resource,resourceId,occurredAt") {
-		t.Fatalf("unexpected export header: %s", exportResp.Body.String())
+	exportBody := exportResp.Body.String()
+	if !strings.Contains(exportBody, "eventId,sourceData") || !strings.Contains(exportBody, "event-1") || !strings.Contains(exportBody, `""operation"":""create""`) {
+		t.Fatalf("unexpected export body: %s", exportBody)
 	}
 
 	from := rec1.OccurredAt.Add(-time.Second).Format(time.RFC3339)

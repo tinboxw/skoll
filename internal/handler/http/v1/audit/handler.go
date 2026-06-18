@@ -2,6 +2,7 @@ package audit
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -205,6 +206,20 @@ func (h *AuditHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuditHandler) export(w http.ResponseWriter, r *http.Request) {
+	if h.events != nil {
+		filter, _, _, err := parseEventFilter(r)
+		if err != nil {
+			apiv1.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		items, err := h.events.ExportEventSourceData(r.Context(), filter)
+		if err != nil {
+			apiv1.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		writeAuditEventSourceCSV(w, items)
+		return
+	}
 	items, err := h.queryRecords(r)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -267,13 +282,25 @@ func (h *AuditHandler) queryRecords(r *http.Request) ([]*domainaudit.Record, err
 }
 
 func (h *AuditHandler) queryEvents(r *http.Request) (auditEventListData, error) {
-	offset, err := parseNonNegativeInt(r.URL.Query().Get("offset"), 0)
+	filter, offset, limit, err := parseEventFilter(r)
 	if err != nil {
 		return auditEventListData{}, err
 	}
-	limit, err := parseBoundedLimit(r.URL.Query().Get("limit"), 50, 200)
+	items, err := h.events.ListEvents(r.Context(), filter)
 	if err != nil {
 		return auditEventListData{}, err
+	}
+	return auditEventListData{Items: toAuditEventDTOs(items), Offset: offset, Limit: limit}, nil
+}
+
+func parseEventFilter(r *http.Request) (auditsvc.EventFilter, int, int, error) {
+	offset, err := parseNonNegativeInt(r.URL.Query().Get("offset"), 0)
+	if err != nil {
+		return auditsvc.EventFilter{}, 0, 0, err
+	}
+	limit, err := parseBoundedLimit(r.URL.Query().Get("limit"), 50, 200)
+	if err != nil {
+		return auditsvc.EventFilter{}, 0, 0, err
 	}
 	filter := auditsvc.EventFilter{
 		ActorID:      strings.TrimSpace(r.URL.Query().Get("actorId")),
@@ -285,28 +312,28 @@ func (h *AuditHandler) queryEvents(r *http.Request) (auditEventListData, error) 
 	if raw := strings.TrimSpace(r.URL.Query().Get("type")); raw != "" {
 		eventType, err := domainaudit.ParseEventType(raw)
 		if err != nil {
-			return auditEventListData{}, err
+			return auditsvc.EventFilter{}, 0, 0, err
 		}
 		filter.Type = eventType
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("action")); raw != "" {
 		action, err := domainaudit.ParseAuditAction(raw)
 		if err != nil {
-			return auditEventListData{}, err
+			return auditsvc.EventFilter{}, 0, 0, err
 		}
 		filter.Action = action
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("result")); raw != "" {
 		result := domainaudit.EventResult(strings.ToLower(raw))
 		if err := result.Validate(); err != nil {
-			return auditEventListData{}, err
+			return auditsvc.EventFilter{}, 0, 0, err
 		}
 		filter.Result = result
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("risk")); raw != "" {
 		risk := domainaudit.EventRisk(strings.ToLower(raw))
 		if err := risk.Validate(); err != nil {
-			return auditEventListData{}, err
+			return auditsvc.EventFilter{}, 0, 0, err
 		}
 		filter.Risk = risk
 	}
@@ -314,24 +341,36 @@ func (h *AuditHandler) queryEvents(r *http.Request) (auditEventListData, error) 
 	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
 	if fromRaw != "" || toRaw != "" {
 		if fromRaw == "" || toRaw == "" {
-			return auditEventListData{}, domainaudit.ErrInvalidTimeRange
+			return auditsvc.EventFilter{}, 0, 0, domainaudit.ErrInvalidTimeRange
 		}
 		from, err := time.Parse(time.RFC3339, fromRaw)
 		if err != nil {
-			return auditEventListData{}, err
+			return auditsvc.EventFilter{}, 0, 0, err
 		}
 		to, err := time.Parse(time.RFC3339, toRaw)
 		if err != nil {
-			return auditEventListData{}, err
+			return auditsvc.EventFilter{}, 0, 0, err
 		}
 		filter.From = from
 		filter.To = to
 	}
-	items, err := h.events.ListEvents(r.Context(), filter)
-	if err != nil {
-		return auditEventListData{}, err
+	return filter, offset, limit, nil
+}
+
+func writeAuditEventSourceCSV(w http.ResponseWriter, items []auditsvc.EventSourceData) {
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=audit_events.csv")
+	w.WriteHeader(http.StatusOK)
+	writer := csv.NewWriter(w)
+	_ = writer.Write([]string{"eventId", "sourceData"})
+	for _, item := range items {
+		sourceData, err := json.Marshal(item.SourceData)
+		if err != nil {
+			sourceData = []byte("{}")
+		}
+		_ = writer.Write([]string{item.EventID, string(sourceData)})
 	}
-	return auditEventListData{Items: toAuditEventDTOs(items), Offset: offset, Limit: limit}, nil
+	writer.Flush()
 }
 
 func toAuditEventDetailDTO(item *domainaudit.Event) auditEventDetailDTO {

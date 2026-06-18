@@ -5234,3 +5234,61 @@ rg -n "GetEventByID|auditEventDetailData|auditEventDetailDTO|sourceData|errAudit
 ### 下一步
 
 - 进入 `M2-04-05`，实现审计导出 API。
+
+## M2-04-05: 实现审计导出 API
+
+- 状态: Passed
+- Work Item: M2-04-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/handler/http/v1/audit/handler.go`
+- `internal/handler/http/v1/audit/handler_test.go`
+- `internal/handler/http/router_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `/v1/audit/export` 在 `EventService` 存在时导出新审计事件 sourceData。 |
+| API/OpenAPI 同步 | N/A | 本项先完成 handler 与测试；OpenAPI 统一更新在 M2-04-06 执行。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 导出过滤复用列表同一套 action/type/result/risk 校验。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 前端导出入口后续 M2-05 接入。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新事件服务存在时不再导出 legacy record CSV；legacy 仅作为未注入新服务时的旧兜底。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/handler/http/v1/audit/handler.go internal/handler/http/v1/audit/handler_test.go internal/handler/http/router_test.go
+go test ./internal/handler/http/v1/audit/...
+$env:CGO_ENABLED='0'; go test ./internal/handler/http/...
+rg -n "parseEventFilter|writeAuditEventSourceCSV|ExportEventSourceData|eventId,sourceData|M2-04-05" internal/handler/http/v1/audit internal/handler/http/router_test.go docs/refactor/work_items.md docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。导出 CSV 字段固定，过滤条件与列表共享解析函数；路由集成测试已确认导出新事件 sourceData。
+
+### 人工验收
+
+1. 审阅 `handler.go`，确认列表与导出复用 `parseEventFilter`。
+2. 审阅 `handler_test.go`，确认导出过滤映射、limit 上限和非法 action 失败路径。
+3. 审阅 `router_test.go`，确认 `/v1/audit/export` 返回新事件 CSV。
+
+结果摘要: 通过。审计导出 API 已实现并验收。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-04-06`，更新 OpenAPI 文件。

@@ -131,7 +131,7 @@
 | 93 | M2-04-02 | M2-04 | `skoll-api-contracts` | 实现审计列表 API | handler + tests | 分类、actor、resource、action、时间、风险筛选 | `go test ./internal/handler/http/v1/audit/...` | Done |
 | 94 | M2-04-03 | M2-04 | `skoll-api-contracts` | 设计审计详情 API 契约 | OpenAPI | metadata/diff/trace 字段明确 | OpenAPI review | Done |
 | 95 | M2-04-04 | M2-04 | `skoll-api-contracts` | 实现审计详情 API | handler + tests | 不存在返回 not_found，权限失败返回 forbidden | `go test ./internal/handler/http/v1/audit/...` | Done |
-| 96 | M2-04-05 | M2-04 | `skoll-api-contracts` | 实现审计导出 API | handler + tests | CSV 字段稳定，过滤条件与列表一致 | `go test ./internal/handler/http/v1/audit/...` | Todo |
+| 96 | M2-04-05 | M2-04 | `skoll-api-contracts` | 实现审计导出 API | handler + tests | CSV 字段稳定，过滤条件与列表一致 | `go test ./internal/handler/http/v1/audit/...` | Done |
 | 97 | M2-04-06 | M2-04 | `skoll-api-contracts` | 更新 OpenAPI 文件 | `docs/api/openapi.yaml` | 审计 list/detail/export 契约同步 | OpenAPI lint/review | Todo |
 | 98 | M2-05-01 | M2-05 | `skoll-vue-frontend` | 新增审计 API client 类型 | web client | list/detail/export 类型完整 | `cd web && npm run build` | Todo |
 | 99 | M2-05-02 | M2-05 | `skoll-vue-frontend` | 审计页 tab 分类 | Vue page | operation/login/error/plugin/security tab 可切换 | `cd web && npm run build` | Todo |

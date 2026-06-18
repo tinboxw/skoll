@@ -43,11 +43,13 @@ func (f *fakeAuditService) ClearByTimeRange(context.Context, time.Time, time.Tim
 }
 
 type fakeAuditEventService struct {
-	filter auditsvc.EventFilter
-	items  []*domainaudit.Event
-	item   *domainaudit.Event
-	getID  string
-	getErr error
+	filter       auditsvc.EventFilter
+	exportFilter auditsvc.EventFilter
+	items        []*domainaudit.Event
+	sources      []auditsvc.EventSourceData
+	item         *domainaudit.Event
+	getID        string
+	getErr       error
 }
 
 func (f *fakeAuditEventService) AppendEvent(context.Context, *domainaudit.Event) error {
@@ -67,8 +69,9 @@ func (f *fakeAuditEventService) ListEvents(_ context.Context, filter auditsvc.Ev
 	return f.items, nil
 }
 
-func (f *fakeAuditEventService) ExportEventSourceData(context.Context, auditsvc.EventFilter) ([]auditsvc.EventSourceData, error) {
-	return nil, nil
+func (f *fakeAuditEventService) ExportEventSourceData(_ context.Context, filter auditsvc.EventFilter) ([]auditsvc.EventSourceData, error) {
+	f.exportFilter = filter
+	return f.sources, nil
 }
 
 func TestAuditHandlerListEventsWithFilters(t *testing.T) {
@@ -110,6 +113,55 @@ func TestAuditHandlerListEventsRejectsInvalidFilter(t *testing.T) {
 	resp := httptest.NewRecorder()
 
 	h.list(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAuditHandlerExportEventsWithFilters(t *testing.T) {
+	svc := &fakeAuditEventService{sources: []auditsvc.EventSourceData{{
+		EventID:    "event-1",
+		SourceData: map[string]any{"ip": "127.0.0.1", "result": "denied"},
+	}}}
+	h := &AuditHandler{events: svc}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit/export?type=security&actorId=actor-1&action=system.security.deny&resourceType=role&resourceId=delete&result=denied&risk=high&from=2026-06-01T00:00:00Z&to=2026-06-30T00:00:00Z&offset=2&limit=500", nil)
+	resp := httptest.NewRecorder()
+
+	h.export(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	if got := resp.Header().Get("Content-Type"); got != "text/csv; charset=utf-8" {
+		t.Fatalf("unexpected content type: %s", got)
+	}
+	if svc.exportFilter.Type != domainaudit.EventTypeSecurity ||
+		svc.exportFilter.ActorID != "actor-1" ||
+		svc.exportFilter.Action != domainaudit.AuditAction("system.security.deny") ||
+		svc.exportFilter.ResourceType != "role" ||
+		svc.exportFilter.ResourceID != "delete" ||
+		svc.exportFilter.Result != domainaudit.EventResultDenied ||
+		svc.exportFilter.Risk != domainaudit.EventRiskHigh ||
+		svc.exportFilter.Offset != 2 ||
+		svc.exportFilter.Limit != 200 {
+		t.Fatalf("unexpected export filter: %+v", svc.exportFilter)
+	}
+	body := resp.Body.String()
+	for _, want := range []string{"eventId,sourceData", "event-1", `""ip"":""127.0.0.1""`, `""result"":""denied""`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected %s in csv body=%s", want, body)
+		}
+	}
+}
+
+func TestAuditHandlerExportEventsRejectsInvalidFilter(t *testing.T) {
+	h := &AuditHandler{events: &fakeAuditEventService{}}
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit/export?action=bad", nil)
+	resp := httptest.NewRecorder()
+
+	h.export(resp, req)
 
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
