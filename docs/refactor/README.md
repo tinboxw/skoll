@@ -23,6 +23,7 @@ docs/refactor/
 ├── work_items.md                     # 细粒度最小执行与提交单元
 ├── frontend_experience_plan.md       # 前端体验、视觉、编码、测试、性能专项计划
 ├── acceptance_log.md                 # 任务验收记录模板
+├── quality_baseline.md               # M0 质量基线命令结果、失败原因和重跑命令
 ├── gin-vue-admin_analysis.md         # gin-vue-admin 对标分析
 └── source_map.md                     # 旧文档吸收记录与归档说明
 ```
@@ -88,6 +89,7 @@ M5-03: add generator dry-run diff
 - [task_board.md](task_board.md)
 - [work_items.md](work_items.md)
 - [frontend_experience_plan.md](frontend_experience_plan.md)
+- [quality_baseline.md](quality_baseline.md)
 - [source_map.md](source_map.md)
 
 后续如发现旧文档仍有有效信息，应摘录到当前执行文件，再保持旧文档归档状态。

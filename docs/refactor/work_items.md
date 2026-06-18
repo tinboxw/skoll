@@ -43,7 +43,7 @@
 | 15 | M0-04-02 | M0-04 | `skoll-refactor-governance` | 校准父任务与 work item 关系 | `task_board.md`、`work_items.md` | task_board 是父任务，work_items 是最小提交单元 | `rg "Work Item\|最小执行" docs/refactor` | Done |
 | 16 | M0-04-03 | M0-04 | `skoll-refactor-governance` | 校准 M0-M2 Work Item 覆盖率 | `work_items.md` | M0、M1、M2 每个父任务至少有一个 work item | 文档审阅 | Done |
 | 17 | M0-04-04 | M0-04 | `skoll-refactor-governance` | 设置 M3-M7 滚动拆分规则 | `work_items.md` | 明确 M2 验收后再拆 M3-M7 | 文档审阅 | Done |
-| 18 | M0-05-01 | M0-05 | `skoll-docs-writer` | 更新 `docs/refactor/README.md` 文档结构 | `README.md` | 列出 `work_items.md` | `rg "work_items.md" docs/refactor/README.md` | Todo |
+| 18 | M0-05-01 | M0-05 | `skoll-docs-writer` | 更新 `docs/refactor/README.md` 文档结构 | `README.md` | 列出 `work_items.md` | `rg "work_items.md" docs/refactor/README.md` | Done |
 | 19 | M0-05-02 | M0-05 | `skoll-docs-writer` | 更新顶层 `docs/README.md` 当前入口 | `docs/README.md` | 当前执行入口包含 work items | `rg "work_items.md" docs/README.md` | Todo |
 | 20 | M0-05-03 | M0-05 | `skoll-docs-writer` | 校验旧计划文档归档 | `source_map.md` | 旧计划类文档在 legacy-plans 中，当前入口不引用其为执行源 | `Get-ChildItem docs/archive/legacy-plans` | Todo |
 | 21 | M0-05-04 | M0-05 | `skoll-docs-writer` | M0 文档验收记录 | `acceptance_log.md` | M0 文档整理任务有验收记录 | 文档审阅 | Todo |
