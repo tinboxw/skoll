@@ -1,13 +1,23 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import { exportAuditEvents, listAuditEvents, type AuditEvent, type AuditEventListQuery } from "../../audit/api";
+import { exportAuditEvents, listAuditEvents, type AuditEvent, type AuditEventListQuery, type AuditEventType } from "../../audit/api";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { type ApiResponse, apiDelete } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 type AuditRecord = AuditEvent;
+type AuditTypeFilter = "all" | AuditEventType;
+
+const AUDIT_TYPE_TABS: Array<{ value: AuditTypeFilter; labelKey: string }> = [
+	{ value: "all", labelKey: "audit.type.all" },
+	{ value: "operation", labelKey: "audit.type.operation" },
+	{ value: "login", labelKey: "audit.type.login" },
+	{ value: "error", labelKey: "audit.type.error" },
+	{ value: "plugin", labelKey: "audit.type.plugin" },
+	{ value: "security", labelKey: "audit.type.security" }
+];
 
 const { t } = useI18n();
 
@@ -77,6 +87,12 @@ function readQueryValue(params: URLSearchParams, key: string): string {
 	return (params.get(key) ?? "").trim();
 }
 
+function normalizeAuditTypeFilter(value: string): AuditTypeFilter {
+	return value === "operation" || value === "login" || value === "error" || value === "plugin" || value === "security"
+		? value
+		: "all";
+}
+
 function toDateTimeLocalInput(value: Date): string {
 	const adjusted = new Date(value.getTime() - value.getTimezoneOffset() * 60000);
 	return adjusted.toISOString().slice(0, 16);
@@ -135,6 +151,7 @@ const initialQuery = readInitialQuery();
 const initialActorName = readQueryValue(initialQuery, "actorName");
 const initialAction = readQueryValue(initialQuery, "action");
 const initialResource = readQueryValue(initialQuery, "resource");
+const initialType = normalizeAuditTypeFilter(readQueryValue(initialQuery, "type"));
 const initialFrom = readQueryValue(initialQuery, "fromLocal");
 const initialTo = readQueryValue(initialQuery, "toLocal");
 const hasExplicitRangeInQuery = initialFrom !== "" || initialTo !== "";
@@ -147,6 +164,7 @@ const success = ref("");
 const actorName = ref(initialActorName);
 const action = ref(initialAction);
 const resource = ref(initialResource);
+const selectedType = ref<AuditTypeFilter>(initialType);
 const from = ref(initialFrom || initialRange.from);
 const to = ref(initialTo || initialRange.to);
 const limit = ref(Number.parseInt(readQueryValue(initialQuery, "limit") || "50", 10) || 50);
@@ -182,6 +200,9 @@ function syncQueryToURL(): void {
 		return;
 	}
 	const params = new URLSearchParams();
+	if (selectedType.value !== "all") {
+		params.set("type", selectedType.value);
+	}
 	if (actorName.value.trim() !== "") {
 		params.set("actorName", actorName.value.trim());
 	}
@@ -258,8 +279,15 @@ const quickResources = computed(() => {
 const actionSuggestions = computed(() => mergeHistory(actionHistory.value, quickActions.value));
 const resourceSuggestions = computed(() => mergeHistory(resourceHistory.value, quickResources.value));
 
+function handleTypeChange(): void {
+	void loadAuditLogs();
+}
+
 function buildQuery(): string {
 	const params = new URLSearchParams();
+	if (selectedType.value !== "all") {
+		params.set("type", selectedType.value);
+	}
 	if (actorName.value.trim() !== "") {
 		params.set("actorId", actorName.value.trim());
 	}
@@ -289,6 +317,9 @@ function buildAuditEventQuery(): AuditEventListQuery {
 		resourceType: resource.value.trim(),
 		limit: Math.max(1, limit.value || 50)
 	};
+	if (selectedType.value !== "all") {
+		query.type = selectedType.value;
+	}
 	if (from.value.trim() !== "") {
 		query.from = new Date(from.value).toISOString();
 	}
@@ -440,6 +471,15 @@ void loadAuditLogs();
 		<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
 
 		<section class="panel">
+			<el-tabs v-model="selectedType" class="audit-tabs" @tab-change="handleTypeChange">
+				<el-tab-pane
+					v-for="tab in AUDIT_TYPE_TABS"
+					:key="tab.value"
+					:name="tab.value"
+					:label="t(tab.labelKey)"
+				/>
+			</el-tabs>
+
 			<el-form label-position="top" class="filters" @submit.prevent="loadAuditLogs">
 				<el-form-item :label="t('audit.actorId')">
 					<el-input v-model="actorName" clearable :disabled="loading || operating" />
