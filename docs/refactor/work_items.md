@@ -67,7 +67,7 @@
 | 34 | M1-03-03 | M1-03 | `skoll-database-development` | 增加 gormrepo model | SQL models | model 字段与 migration 一致 | `go test ./internal/store/sql/gormrepo/...` | Done |
 | 35 | M1-03-04 | M1-03 | `skoll-database-development` | 注册新 model 到 all_models | store bootstrap | AutoMigrate/模型列表包含新表 | `go test ./internal/store/sql/gormrepo/...` | Done |
 | 36 | M1-03-05 | M1-03 | `skoll-database-development` | migration 文档更新 | migrations README | 说明新表用途和执行顺序 | 文档审阅 | Done |
-| 37 | M1-04-01 | M1-04 | `skoll-permission-menu-refactor` | 定义 permission repository 接口 | repository code | service-facing 方法覆盖 register/list/get/update state | `go test ./internal/repository/...` | Todo |
+| 37 | M1-04-01 | M1-04 | `skoll-permission-menu-refactor` | 定义 permission repository 接口 | repository code | service-facing 方法覆盖 register/list/get/update state | `go test ./internal/repository/...` | Done |
 | 38 | M1-04-02 | M1-04 | `skoll-permission-menu-refactor` | 定义 menu repository 接口 | repository code | service-facing 方法覆盖 tree/list/upsert/reorder | `go test ./internal/repository/...` | Todo |
 | 39 | M1-04-03 | M1-04 | `skoll-permission-menu-refactor` | 实现 memory permission store | memory store + tests | 注册幂等、source filter、enable/disable 通过 | `go test ./internal/store/memory/...` | Todo |
 | 40 | M1-04-04 | M1-04 | `skoll-permission-menu-refactor` | 实现 memory menu store | memory store + tests | upsert/tree/reorder/visibility 通过 | `go test ./internal/store/memory/...` | Todo |

@@ -1974,3 +1974,56 @@ rg "20260618_000013|20260618_000014|sk_permission_resources|sk_menu_nodes|执行
 ### 下一步
 
 - 进入 `M1-04-01`，定义 permission repository 接口。
+
+## M1-04-01: 定义 permission repository 接口
+
+- 状态: Passed
+- Work Item: M1-04-01
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/repository/permission/permission_repo.go`
+- `internal/repository/permission/permission_repo_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `PermissionRepository` 覆盖 register/list/get/update state 方法。 |
+| API/OpenAPI 同步 | N/A | 本项只定义 repository 接口，无 API 影响。 |
+| 权限目录同步 | Passed | 接口使用 permission domain 类型和 resource filter。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧权限 repository 兼容接口。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/repository/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/repository/permission/permission_repo.go`。
+2. 确认 service-facing 方法覆盖 register/list/get/update state。
+
+结果摘要: 通过。permission repository 接口已定义。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-04-02`，定义 menu repository 接口。
