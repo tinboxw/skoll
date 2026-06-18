@@ -5959,6 +5959,62 @@ rg -n "FE1-05.*Done" docs/refactor/work_items.md
 
 - 进入 `FE1-06`，抽查全局样式与变量。
 
+## FE1-06: 抽查全局样式与变量
+
+- 状态: Passed
+- Work Item: FE1-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe1_style_variable_inventory.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增样式变量抽查清单。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 颜色、间距、字号、圆角、状态色来源和硬编码收敛点已记录。 |
+| 文档同步 | Passed | Work Item 验证命令、状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 仅记录当前变量来源，不新增单页主题或旧样式兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "#[0-9A-Fa-f]{3,8}" web/src/styles web/src/views web/src/components -g "*.scss" -g "*.vue"
+rg -n "var\(" web/src/styles web/src/views web/src/components -g "*.scss" -g "*.vue"
+rg -n "linear-gradient|radial-gradient|rgba?\(" web/src/styles web/src/views web/src/components -g "*.scss" -g "*.vue"
+rg -n "FE1-06.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 首次原命令 `rg "#[0-9A-Fa-f]{3,6}\|var\\(" web/src/styles web/src/views` 失败；已拆分为颜色、变量、渐变三段命令并通过。样式清单记录了变量来源、硬编码颜色、spacing/font/radius 分布和状态色缺口。
+
+### 人工验收
+
+1. 审阅 `fe1_style_variable_inventory.md`，确认颜色、间距、字号、状态色来源清楚。
+2. 确认少量硬编码颜色均列入后续收敛，不作为单页独立主题保留。
+3. 确认 Work Item 验证命令已替换为可复制执行的 rg 命令。
+
+结果摘要: 通过。FE1-06 样式变量抽查完成。
+
+### 失败与返工
+
+- 失败原因: 原验证命令中的 `\|` 和 `var\\(` 组合导致 ripgrep 正则解析失败。
+- 返工动作: 拆分为颜色硬编码、变量引用、渐变/rgba 三段验证命令，并同步修正 Work Item 验证命令。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `FE1-07`，定义响应式最低标准。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed
