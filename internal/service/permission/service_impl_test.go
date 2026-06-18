@@ -75,6 +75,67 @@ func TestRegisterResourcePropagatesRepositoryError(t *testing.T) {
 	}
 }
 
+func TestListResourcesAndGetResource(t *testing.T) {
+	ctx := context.Background()
+	store := memory.NewPermissionStore()
+	svc := NewService(store)
+
+	_, _ = svc.RegisterResource(ctx, RegisterResourceInput{
+		Key:    "system:user:list",
+		Type:   domainpermission.ResourceTypeAPI,
+		Module: "system",
+		Source: "system",
+		Name:   "List users",
+	})
+	_, _ = svc.RegisterResource(ctx, RegisterResourceInput{
+		Key:    "plugin.demo:report:list",
+		Type:   domainpermission.ResourceTypeMenu,
+		Module: "report",
+		Source: "plugin.demo",
+		Name:   "Reports",
+	})
+	_ = store.SetEnabled(ctx, "plugin.demo:report:list", false)
+
+	enabled := true
+	items, err := svc.ListResources(ctx, ListResourcesInput{
+		Type:    domainpermission.ResourceTypeAPI,
+		Source:  "system",
+		Enabled: &enabled,
+	})
+	if err != nil {
+		t.Fatalf("ListResources() error = %v", err)
+	}
+	if len(items) != 1 || items[0].Key() != "system:user:list" {
+		t.Fatalf("items = %+v", items)
+	}
+
+	got, err := svc.GetResource(ctx, "system:user:list")
+	if err != nil {
+		t.Fatalf("GetResource() error = %v", err)
+	}
+	if got == nil || got.Key() != "system:user:list" {
+		t.Fatalf("got = %+v", got)
+	}
+}
+
+func TestListResourcesRejectsInvalidPagination(t *testing.T) {
+	svc := NewService(memory.NewPermissionStore())
+
+	_, err := svc.ListResources(context.Background(), ListResourcesInput{Offset: -1})
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "invalid pagination") {
+		t.Fatalf("expected invalid pagination error, got %v", err)
+	}
+}
+
+func TestGetResourceRequiresKey(t *testing.T) {
+	svc := NewService(memory.NewPermissionStore())
+
+	_, err := svc.GetResource(context.Background(), " ")
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "permission key") {
+		t.Fatalf("expected key required error, got %v", err)
+	}
+}
+
 type failingPermissionRepository struct {
 	err error
 }

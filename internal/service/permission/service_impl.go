@@ -3,6 +3,7 @@ package permission
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	domainpermission "github.com/tinboxw/skoll/internal/domain/permission"
 	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
@@ -39,12 +40,30 @@ func (s *serviceImpl) RegisterResource(ctx context.Context, in RegisterResourceI
 	return &resource, nil
 }
 
-func (s *serviceImpl) ListResources(context.Context, ListResourcesInput) ([]domainpermission.PermissionResource, error) {
-	return nil, fmt.Errorf("ListResources is not implemented")
+func (s *serviceImpl) ListResources(ctx context.Context, in ListResourcesInput) ([]domainpermission.PermissionResource, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("permission repository is not configured")
+	}
+	if in.Offset < 0 || in.Limit < 0 {
+		return nil, fmt.Errorf("invalid pagination")
+	}
+	return s.repo.List(ctx, permissionrepo.ListFilter{
+		Type:    in.Type,
+		Module:  in.Module,
+		Source:  in.Source,
+		Enabled: in.Enabled,
+	}, in.Offset, in.Limit)
 }
 
-func (s *serviceImpl) GetResource(context.Context, string) (*domainpermission.PermissionResource, error) {
-	return nil, fmt.Errorf("GetResource is not implemented")
+func (s *serviceImpl) GetResource(ctx context.Context, key string) (*domainpermission.PermissionResource, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("permission repository is not configured")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, fmt.Errorf("permission key is required")
+	}
+	return s.repo.Get(ctx, key)
 }
 
 func (s *serviceImpl) EnableResource(context.Context, string) error {
