@@ -41,8 +41,12 @@ func (s *serviceImpl) Tree(ctx context.Context, in TreeInput) ([]domainmenu.Menu
 	})
 }
 
-func (s *serviceImpl) Filter(context.Context, FilterInput) ([]domainmenu.MenuNode, error) {
-	return nil, fmt.Errorf("Filter is not implemented")
+func (s *serviceImpl) Filter(_ context.Context, in FilterInput) ([]domainmenu.MenuNode, error) {
+	nodes := append([]domainmenu.MenuNode(nil), in.Nodes...)
+	if in.VisibleOnly {
+		nodes = domainmenu.FilterVisible(nodes)
+	}
+	return domainmenu.FilterAuthorized(nodes, domainmenu.NewAccessContext(in.Roles, in.Permissions)), nil
 }
 
 func (s *serviceImpl) Reorder(ctx context.Context, in ReorderInput) error {

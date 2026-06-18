@@ -37,6 +37,30 @@ func TestMergeNodesStableSortsAndUpserts(t *testing.T) {
 	assertServiceMenuKeys(t, tree, []string{"system", "system.users", "plugin.reports", "generated.audit"})
 }
 
+func TestFilterAppliesVisibilityRolesAndPermissions(t *testing.T) {
+	svc := NewService(memory.NewMenuStore())
+	allowed := mustServiceNode(t, "system.users", "system", "system", "/system/users", "Users", 10)
+	allowed.RequiredRoles = []string{"admin"}
+	allowed.RequiredPermissions = []string{"system:user:list"}
+	missingPermission := mustServiceNode(t, "system.audit", "system", "system", "/system/audit", "Audit", 20)
+	missingPermission.RequiredPermissions = []string{"system:audit:list"}
+	hidden := mustServiceNode(t, "system.roles", "system", "system", "/system/roles", "Roles", 30)
+	hidden.Visible = false
+	public := mustServiceNode(t, "dashboard", "", "system", "/dashboard", "Dashboard", 0)
+
+	nodes, err := svc.Filter(context.Background(), FilterInput{
+		Nodes:       []domainmenu.MenuNode{allowed, missingPermission, hidden, public},
+		Roles:       []string{"ADMIN"},
+		Permissions: []string{"system:user:list"},
+		VisibleOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("Filter() error = %v", err)
+	}
+
+	assertServiceMenuKeys(t, nodes, []string{"system.users", "dashboard"})
+}
+
 func mustServiceNode(t *testing.T, key string, parent string, source string, path string, name string, sort int) domainmenu.MenuNode {
 	t.Helper()
 	node, err := domainmenu.NewNode(domainmenu.NodeIdentity{
