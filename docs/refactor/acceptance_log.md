@@ -6161,6 +6161,60 @@ rg -n "FE2-01.*Done" docs/refactor/work_items.md
 
 - 进入 `FE2-02`，统一 Pinia store 规范。
 
+## FE2-02: 统一 Pinia store 规范
+
+- 状态: Passed
+- Work Item: FE2-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_pinia_store_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Pinia store 规范文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | loading/error/data/retry/refresh 模式和 store/page/API 边界明确。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准复用当前 Pinia stores，不新增重复 store 或旧状态兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Loading/error/data|Retry/refresh|Store boundary|Cache/query|Current gaps|defineStore|syncStatus|lastError|lastQuery|refresh|retry" docs/refactor/fe2_pinia_store_standard.md web/src/stores
+rg -n "FE2-02.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。Pinia store 规范覆盖 loading/error/data、retry/refresh、store 边界、cache/query 和当前缺口；现有 stores 中 defineStore、syncStatus、lastError、lastQuery、refresh/retry 锚点已盘点；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe2_pinia_store_standard.md`，确认 loading/error/data/retry/refresh 模式明确。
+2. 对照 `permissions.ts`、`navigation.ts`、`plugins.ts`、`user.ts`，确认规范承接当前 store 形态并记录缺口。
+3. 确认页面局部状态和共享 async state 的边界清楚，后续 FE3 不需要一次性大包迁移。
+
+结果摘要: 通过。FE2-02 Pinia store 规范完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE2-03`，统一 route guard 规范。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
