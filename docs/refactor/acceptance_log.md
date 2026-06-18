@@ -3110,3 +3110,61 @@ $env:CGO_ENABLED='0'; go test ./internal/plugin/...
 ### 下一步
 
 - 进入 `M1-07-02`，扩展 plugin manifest menu 字段读取。
+
+## M1-07-02: 扩展 plugin manifest menu 字段读取
+
+- 状态: Passed
+- Work Item: M1-07-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/plugin/menu_mapping.go`
+- `internal/plugin/menu_mapping_test.go`
+- `internal/plugin/loader.go`
+- `internal/plugin/loader_test.go`
+- `internal/plugin/types.go`
+- `internal/plugin/signature.go`
+- `docs/schemas/plugin-manifest.schema.json`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `ui_menu` 支持 key/parent_key/component/visible，并可映射为 `domain/menu.MenuNode`。 |
+| API/OpenAPI 同步 | N/A | 本项未改 HTTP API。 |
+| 权限目录同步 | Passed | 菜单节点保留 required_roles/required_permissions。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项仅扩展 manifest parser 和领域映射。 |
+| 文档同步 | Passed | manifest JSON schema 与 Work Item 状态已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 旧 `ui_menu` 字段保持可用，并统一通过 `MenuNodes()` 校验与映射。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/plugin/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/plugin/menu_mapping.go`。
+2. 确认 manifest `ui_menu` 可生成合法 `MenuNode`，非法 key/path 会被拒绝。
+
+结果摘要: 通过。plugin manifest menu 字段读取已扩展。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-07-03`，插件 enable 导入 catalog/registry。

@@ -70,12 +70,22 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.\\-]{1,127}$"
+        },
+        "parent_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.\\-]{1,127}$"
+        },
         "label": { "type": "string", "minLength": 1 },
         "label_zh_cn": { "type": "string", "minLength": 1 },
         "label_en_us": { "type": "string", "minLength": 1 },
         "path": { "type": "string", "pattern": "^/" },
+        "component": { "type": "string", "minLength": 1 },
         "icon": { "type": "string", "minLength": 1 },
         "order": { "type": "integer" },
+        "visible": { "type": "boolean" },
         "required_roles": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }

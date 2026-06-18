@@ -31,12 +31,16 @@ ui_nav_position: "sidebar"
 ui_open_mode: "integrated"
 ui_tab_mode: "fixed"
 ui_menu:
+  key: "plugin.sample-plugin.reports"
+  parent_key: "plugin.sample-plugin"
   label: "Reports"
   label_zh_cn: "报表"
   label_en_us: "Reports"
   path: "/skoll/plugins/sample-plugin/reports"
+  component: "PluginReports"
   icon: "plugins"
   order: 120
+  visible: false
   required_roles:
     - "manager"
   required_permissions:
@@ -138,8 +142,21 @@ frontend_entry: "/plugins/sample-plugin"
 	if info.UIMenu.LabelZhCN != "报表" || info.UIMenu.Path != "/skoll/plugins/sample-plugin/reports" || info.UIMenu.Order != 120 {
 		t.Fatalf("unexpected ui menu: %+v", info.UIMenu)
 	}
+	if info.UIMenu.Key != "plugin.sample-plugin.reports" || info.UIMenu.ParentKey != "plugin.sample-plugin" || info.UIMenu.Component != "PluginReports" || info.UIMenu.Visible == nil || *info.UIMenu.Visible {
+		t.Fatalf("unexpected ui menu mapping fields: %+v", info.UIMenu)
+	}
 	if len(info.UIMenu.RequiredPermissions) != 1 || info.UIMenu.RequiredPermissions[0] != "report.read" {
 		t.Fatalf("unexpected ui menu permissions: %+v", info.UIMenu.RequiredPermissions)
+	}
+	nodes, err := info.MenuNodes()
+	if err != nil {
+		t.Fatalf("MenuNodes error: %v", err)
+	}
+	if len(nodes) != 1 || nodes[0].Key() != "plugin.sample-plugin.reports" || nodes[0].ParentKey() != "plugin.sample-plugin" {
+		t.Fatalf("unexpected menu nodes: %+v", nodes)
+	}
+	if nodes[0].Component() != "PluginReports" || nodes[0].Visible {
+		t.Fatalf("unexpected menu node view/visibility: %+v", nodes[0])
 	}
 	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 2 {
 		t.Fatalf("expected config schema fields parsed, got %+v", info.ConfigSchema)

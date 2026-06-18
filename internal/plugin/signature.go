@@ -186,6 +186,12 @@ func (sc *SignatureChecker) canonicalManifestBytes(info *Info) []byte {
 	}
 	if info.UIMenu != nil {
 		buf.WriteString("ui_menu:\n")
+		if info.UIMenu.Key != "" {
+			buf.WriteString("  key: " + strings.TrimSpace(info.UIMenu.Key) + "\n")
+		}
+		if info.UIMenu.ParentKey != "" {
+			buf.WriteString("  parent_key: " + strings.TrimSpace(info.UIMenu.ParentKey) + "\n")
+		}
 		if info.UIMenu.Label != "" {
 			buf.WriteString("  label: " + strings.TrimSpace(info.UIMenu.Label) + "\n")
 		}
@@ -198,11 +204,17 @@ func (sc *SignatureChecker) canonicalManifestBytes(info *Info) []byte {
 		if info.UIMenu.Path != "" {
 			buf.WriteString("  path: " + strings.TrimSpace(info.UIMenu.Path) + "\n")
 		}
+		if info.UIMenu.Component != "" {
+			buf.WriteString("  component: " + strings.TrimSpace(info.UIMenu.Component) + "\n")
+		}
 		if info.UIMenu.Icon != "" {
 			buf.WriteString("  icon: " + strings.TrimSpace(info.UIMenu.Icon) + "\n")
 		}
 		if info.UIMenu.Order != 0 {
 			buf.WriteString(fmt.Sprintf("  order: %d\n", info.UIMenu.Order))
+		}
+		if info.UIMenu.Visible != nil {
+			buf.WriteString(fmt.Sprintf("  visible: %t\n", *info.UIMenu.Visible))
 		}
 		if len(info.UIMenu.RequiredRoles) > 0 {
 			buf.WriteString("  required_roles:\n")

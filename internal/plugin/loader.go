@@ -617,6 +617,10 @@ func applyUIMenuField(menu *UIMenu, key, value string, section *string) bool {
 		return false
 	}
 	switch key {
+	case "key":
+		menu.Key = value
+	case "parent_key", "parentKey":
+		menu.ParentKey = value
 	case "label":
 		menu.Label = value
 	case "label_zh_cn":
@@ -625,12 +629,17 @@ func applyUIMenuField(menu *UIMenu, key, value string, section *string) bool {
 		menu.LabelEnUS = value
 	case "path":
 		menu.Path = NormalizeEntryPath(value)
+	case "component":
+		menu.Component = value
 	case "icon":
 		menu.Icon = value
 	case "order":
 		if order, err := strconv.Atoi(value); err == nil {
 			menu.Order = order
 		}
+	case "visible":
+		visible := parseBoolScalar(value)
+		menu.Visible = &visible
 	case "required_roles":
 		if value != "" {
 			menu.RequiredRoles = append(menu.RequiredRoles, splitScalarList(value)...)

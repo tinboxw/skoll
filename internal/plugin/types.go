@@ -101,12 +101,16 @@ type Signature struct {
 }
 
 type UIMenu struct {
+	Key                 string
+	ParentKey           string
 	Label               string
 	LabelZhCN           string
 	LabelEnUS           string
 	Path                string
+	Component           string
 	Icon                string
 	Order               int
+	Visible             *bool
 	RequiredRoles       []string
 	RequiredPermissions []string
 }
@@ -300,6 +304,9 @@ func (i Info) ValidateManifest() error {
 			if strings.TrimSpace(permission) == "" {
 				return ErrPluginManifestBroken
 			}
+		}
+		if _, err := i.MenuNodes(); err != nil {
+			return ErrPluginManifestBroken
 		}
 	}
 	if i.ConfigSchema != nil {
