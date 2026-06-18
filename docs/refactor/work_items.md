@@ -79,7 +79,7 @@
 | 46 | M1-05-03 | M1-05 | `skoll-permission-menu-refactor` | 实现 ListResources/GetResource | service code + tests | 支持 type/source/enabled 过滤 | `go test ./internal/service/permission/...` | Done |
 | 47 | M1-05-04 | M1-05 | `skoll-permission-menu-refactor` | 实现 Enable/Disable | service code + tests | 状态变更写审计动作预留 | `go test ./internal/service/permission/...` | Done |
 | 48 | M1-05-05 | M1-05 | `skoll-permission-menu-refactor` | 实现 permission diff | service code + tests | install preflight 可复用 diff 输出 | `go test ./internal/service/permission/...` | Done |
-| 49 | M1-05-06 | M1-05 | `skoll-permission-menu-refactor` | 定义 menu registry service interface | service code | 接口覆盖 merge/tree/filter/reorder | `go test ./internal/service/menu/...` | Todo |
+| 49 | M1-05-06 | M1-05 | `skoll-permission-menu-refactor` | 定义 menu registry service interface | service code | 接口覆盖 merge/tree/filter/reorder | `go test ./internal/service/menu/...` | Done |
 | 50 | M1-05-07 | M1-05 | `skoll-permission-menu-refactor` | 实现菜单合并与排序 | service code + tests | 系统/插件/生成模块菜单稳定合并 | `go test ./internal/service/menu/...` | Todo |
 | 51 | M1-05-08 | M1-05 | `skoll-permission-menu-refactor` | 实现菜单权限过滤 | service code + tests | requiredRoles/requiredPermissions 生效 | `go test ./internal/service/menu/...` | Todo |
 | 52 | M1-06-01 | M1-06 | `skoll-api-contracts` | 设计 permission API 契约 | OpenAPI draft | list/detail/enable/disable/diff 请求响应明确 | OpenAPI review | Todo |
