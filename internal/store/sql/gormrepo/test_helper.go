@@ -32,6 +32,8 @@ func TestDB(t *testing.T) *gorm.DB {
 		PluginModel{},
 		PluginReleaseModel{},
 		PluginRouteModel{},
+		PermissionResourceModel{},
+		MenuNodeModel{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
@@ -73,6 +75,8 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 		PluginModel{},
 		PluginReleaseModel{},
 		PluginRouteModel{},
+		PermissionResourceModel{},
+		MenuNodeModel{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
