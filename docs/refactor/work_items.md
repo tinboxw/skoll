@@ -30,7 +30,7 @@
 | 3 | M0-01-03 | M0-01 | `skoll-refactor-governance` | 固化分层依赖规则 | `architecture_and_execution_plan.md` | domain/service/repository/store/handler/web/plugin 边界清晰 | 文档审阅 | Done |
 | 4 | M0-01-04 | M0-01 | `skoll-refactor-governance` | 关联重构专用 skills | `architecture_and_execution_plan.md` | M0-M6 均能找到对应 skill | `rg "skoll-.*refactor" docs/refactor/architecture_and_execution_plan.md` | Done |
 | 5 | M0-02-01 | M0-02 | `skoll-refactor-governance` | 建立验收记录模板字段 | `acceptance_log.md` | 包含状态、日期、执行人、提交、改动文件、验收项 | 文档审阅 | Done |
-| 6 | M0-02-02 | M0-02 | `skoll-refactor-governance` | 补齐边界同步验收项 | `acceptance_log.md` | API/OpenAPI、权限、审计、migration、前端、文档均有检查项 | 文档审阅 | Todo |
+| 6 | M0-02-02 | M0-02 | `skoll-refactor-governance` | 补齐边界同步验收项 | `acceptance_log.md` | API/OpenAPI、权限、审计、migration、前端、文档均有检查项 | 文档审阅 | Done |
 | 7 | M0-02-03 | M0-02 | `skoll-refactor-governance` | 补齐失败返工记录区 | `acceptance_log.md` | 失败原因、返工动作、重新验收结果字段齐全 | 文档审阅 | Todo |
 | 8 | M0-02-04 | M0-02 | `skoll-refactor-governance` | 补齐一任务一提交说明 | `README.md`、`acceptance_log.md` | 明确验收通过后提交一次代码 | `rg "提交一次代码|一任务一提交" docs/refactor` | Todo |
 | 9 | M0-03-01 | M0-03 | `skoll-quality-gate` | 运行 Go 全量测试 | 质量基线记录 | 记录命令、结果、失败包、失败原因 | `go test ./...` | Todo |

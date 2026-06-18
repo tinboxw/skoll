@@ -19,6 +19,8 @@
 
 ### 验收项
 
+以下边界同步项为默认检查项；无影响时填写 `N/A` 并说明原因，有影响时必须同步对应交付物。
+
 | 验收项 | 结果 | 说明 |
 |---|---|---|
 | 任务交付物完成 |  |  |
@@ -316,3 +318,54 @@ rg "状态:|Work Item:|日期:|执行人:|提交:|### 改动文件|### 验收项
 ### 下一步
 
 - 进入 `M0-02-02`，补齐边界同步验收项。
+
+## M0-02-02: 补齐边界同步验收项
+
+- 状态: Passed
+- Work Item: M0-02-02
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/acceptance_log.md`
+- `docs/refactor/work_items.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 验收模板明确边界同步项是默认检查项。 |
+| API/OpenAPI 同步 | Passed | 模板包含 API/OpenAPI 同步检查项。 |
+| 权限目录同步 | Passed | 模板包含权限目录同步检查项。 |
+| 审计 action 同步 | Passed | 模板包含审计 action 同步检查项。 |
+| migration/seed 同步 | Passed | 模板包含 migration/seed 同步检查项。 |
+| 前端 API client/UI 同步 | Passed | 模板包含前端 API client/UI 同步检查项。 |
+| 文档同步 | Passed | 模板包含文档同步检查项，Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 模板保留无兼容方案/无旧路径残留检查项。 |
+
+### 自动化验证
+
+```powershell
+rg "API/OpenAPI|权限目录|审计 action|migration/seed|前端 API client/UI|文档同步" docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。边界同步验收项均可检索到。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/acceptance_log.md` 的验收项表。
+2. 确认 API/OpenAPI、权限、审计、migration、前端、文档均有检查项。
+
+结果摘要: 通过。模板满足跨边界任务同步检查要求。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-02-03`，补齐失败返工记录区。
