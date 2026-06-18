@@ -89,7 +89,7 @@
 | 56 | M1-06-05 | M1-06 | `skoll-api-contracts` | 注册路由与权限 keys | router/OpenAPI/permission seed | API 路由可访问，权限 key 纳入 catalog | `go test ./internal/handler/http/...` | Done |
 | 57 | M1-07-01 | M1-07 | `skoll-plugin-platform` | 扩展 plugin manifest permission 字段读取 | plugin parser | 字段校验严格，无旧格式旁路 | `go test ./internal/plugin/...` | Done |
 | 58 | M1-07-02 | M1-07 | `skoll-plugin-platform` | 扩展 plugin manifest menu 字段读取 | plugin parser | ui_menu 进入统一 MenuNode 映射 | `go test ./internal/plugin/...` | Done |
-| 59 | M1-07-03 | M1-07 | `skoll-plugin-platform` | 插件 enable 导入 catalog/registry | plugin manager | enable 后权限和菜单可查询 | `go test ./internal/plugin/...` | Todo |
+| 59 | M1-07-03 | M1-07 | `skoll-plugin-platform` | 插件 enable 导入 catalog/registry | plugin manager | enable 后权限和菜单可查询 | `go test ./internal/plugin/...` | Done |
 | 60 | M1-07-04 | M1-07 | `skoll-plugin-platform` | 插件 disable 隐藏访问 | plugin manager | disable 后菜单过滤且权限 inactive | `go test ./internal/plugin/...` | Todo |
 | 61 | M1-07-05 | M1-07 | `skoll-plugin-platform` | 插件权限/菜单导入审计 | plugin/service tests | enable/disable 产生审计事件 | `go test ./internal/plugin/... ./internal/service/audit/...` | Todo |
 | 62 | M1-08-01 | M1-08 | `skoll-vue-frontend` | 新增 permission API client | web client | 类型定义完整，错误处理统一 | `cd web && npm run build` | Todo |

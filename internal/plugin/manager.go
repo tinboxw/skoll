@@ -20,6 +20,7 @@ type RuntimeManager struct {
 	mu       sync.RWMutex
 	loader   MetadataLoader
 	resolver DependencyResolver
+	catalog  CatalogRegistry
 	plugins  map[string]Info
 }
 
@@ -36,6 +37,12 @@ func NewRuntimeManager(loader MetadataLoader, resolver DependencyResolver) *Runt
 		resolver: resolver,
 		plugins:  make(map[string]Info),
 	}
+}
+
+func (m *RuntimeManager) SetCatalogRegistry(registry CatalogRegistry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.catalog = registry
 }
 
 func (m *RuntimeManager) Install(path string) (Info, error) {
@@ -91,6 +98,13 @@ func (m *RuntimeManager) Enable(pluginID string) error {
 		p.EnabledAt = &now
 		m.plugins[id] = p
 	}
+	if m.catalog != nil {
+		for _, id := range order {
+			if err := m.catalog.ImportPlugin(m.plugins[id]); err != nil {
+				return err
+			}
+		}
+	}
 
 	return nil
 }
@@ -116,6 +130,9 @@ func (m *RuntimeManager) Disable(pluginID string) error {
 		info.EnabledAt = nil
 		m.plugins[pluginID] = info
 	}
+	if m.catalog != nil {
+		return m.catalog.RemovePlugin(pluginID)
+	}
 
 	return nil
 }
@@ -139,6 +156,9 @@ func (m *RuntimeManager) Uninstall(pluginID string) error {
 	info.State = StateUninstalled
 	info.EnabledAt = nil
 	m.plugins[pluginID] = info
+	if m.catalog != nil {
+		return m.catalog.RemovePlugin(pluginID)
+	}
 	return nil
 }
 
@@ -209,5 +229,8 @@ func (m *RuntimeManager) ReloadPluginMetadata(pluginID string) error {
 		return ErrPluginNotFound
 	}
 	m.plugins[pluginID] = loaded
+	if loaded.State == StateEnabled && m.catalog != nil {
+		return m.catalog.ImportPlugin(loaded)
+	}
 	return nil
 }

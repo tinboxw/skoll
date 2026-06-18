@@ -122,6 +122,58 @@ func TestRuntimeManagerReloadPluginMetadata(t *testing.T) {
 	}
 }
 
+func TestRuntimeManagerEnableImportsCatalogRegistry(t *testing.T) {
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, "reports")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("mkdir plugin dir: %v", err)
+	}
+	manifest := `id: "reports"
+name: "Reports"
+version: "1.0.0"
+permissions:
+  - key: "reports.read"
+    type: "api"
+    module: "reports"
+    name: "Read reports"
+ui_menu:
+  key: "plugin.reports"
+  label: "Reports"
+  path: "/skoll/plugins/reports"
+  required_permissions:
+    - "reports.read"
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	catalog := NewMemoryCatalogRegistry()
+	m := NewRuntimeManager(NewFileLoader(), NewTopologicalResolver())
+	m.SetCatalogRegistry(catalog)
+	if _, err := m.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin failed: %v", err)
+	}
+	if err := m.Enable("reports"); err != nil {
+		t.Fatalf("enable plugin failed: %v", err)
+	}
+
+	permissions := catalog.ListPermissions()
+	if len(permissions) != 1 || permissions[0].Key() != "reports.read" || permissions[0].Source() != "plugin.reports" {
+		t.Fatalf("unexpected imported permissions: %+v", permissions)
+	}
+	menus := catalog.ListMenuNodes()
+	if len(menus) != 1 || menus[0].Key() != "plugin.reports" || menus[0].RequiredPermissions[0] != "reports.read" {
+		t.Fatalf("unexpected imported menus: %+v", menus)
+	}
+
+	if err := m.Disable("reports"); err != nil {
+		t.Fatalf("disable plugin failed: %v", err)
+	}
+	if len(catalog.ListPermissions()) != 0 || len(catalog.ListMenuNodes()) != 0 {
+		t.Fatalf("expected catalog cleanup after disable")
+	}
+}
+
 func writePluginManifest(t *testing.T, root, id, name, version, dep string) string {
 	t.Helper()
 	dir := filepath.Join(root, id)

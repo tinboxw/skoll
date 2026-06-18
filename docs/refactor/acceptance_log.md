@@ -3168,3 +3168,57 @@ $env:CGO_ENABLED='0'; go test ./internal/plugin/...
 ### 下一步
 
 - 进入 `M1-07-03`，插件 enable 导入 catalog/registry。
+
+## M1-07-03: 插件 enable 导入 catalog/registry
+
+- 状态: Passed
+- Work Item: M1-07-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/plugin/catalog.go`
+- `internal/plugin/manager.go`
+- `internal/plugin/manager_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | RuntimeManager enable 时导入插件权限和菜单到 catalog registry。 |
+| API/OpenAPI 同步 | N/A | 本项未改 HTTP API。 |
+| 权限目录同步 | Passed | `CatalogPermissions()` 生成 `domain/permission.PermissionResource`，source 为 `plugin.<id>`。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项为 plugin manager 生命周期能力。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | enable/reload 统一导入，disable/uninstall 统一移除。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/plugin/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/plugin/catalog.go` 与 `internal/plugin/manager.go`。
+2. 确认 enable 后权限和菜单可查询，disable 后 registry 清理。
+
+结果摘要: 通过。插件 enable 导入 catalog/registry 已完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-07-04`，插件 disable 隐藏/冻结权限与菜单。
