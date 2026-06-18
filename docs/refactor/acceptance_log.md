@@ -6720,6 +6720,60 @@ rg -n "ADJ-FE-20260619-03.*Done|\\| 60 \\| FE3 .*Doing" docs/refactor/work_items
 
 - 进入 `ADJ-FE-20260619-04`，建立 FE6 performance hook for FE3。
 
+## ADJ-FE-20260619-04: FE6 performance hook for FE3
+
+- 状态: Passed
+- Work Item: ADJ-FE-20260619-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe3_performance_hook_template.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE3 页面性能 hook 模板。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 每页验收要求记录构建影响、路由懒加载、重表格、请求、loading 和重面板风险。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 模板要求直接记录和处理性能风险，不用 spinner 或 fallback route 掩盖慢 UI。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Build impact|Route lazy loading|Heavy table risk|Request behavior|Deferred panels" docs/refactor/fe3_performance_hook_template.md
+rg -n "ADJ-FE-20260619-04.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。性能 hook 模板覆盖构建影响、路由懒加载、重表格风险、请求/loading 行为和重面板按需加载。
+
+### 人工验收
+
+1. 审阅 `fe3_performance_hook_template.md`，确认每个 FE3 页面都有可复制记录格式。
+2. 确认 Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 均有页面级性能关注点。
+3. 确认模板要求 typecheck/build 和性能风险说明，不允许只用 loading 掩盖慢 UI。
+
+结果摘要: 通过。ADJ-FE-20260619-04 完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE3-01`，Dashboard 体验升级方案。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
