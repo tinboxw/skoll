@@ -13,5 +13,6 @@ func AllModels() []any {
 		&PermissionResourceModel{},
 		&MenuNodeModel{},
 		&AuditRecordModel{},
+		&AuditEventModel{},
 	}
 }

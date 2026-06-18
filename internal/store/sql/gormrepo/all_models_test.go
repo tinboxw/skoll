@@ -11,6 +11,9 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 	if !containsModel[MenuNodeModel](models) {
 		t.Fatal("AllModels() should include MenuNodeModel")
 	}
+	if !containsModel[AuditEventModel](models) {
+		t.Fatal("AllModels() should include AuditEventModel")
+	}
 }
 
 func containsModel[T any](models []any) bool {
