@@ -19,9 +19,9 @@
 |---:|---|---|---|---|---|---|---|
 | 1 | M0-01 | `skoll-refactor-governance` | 固化架构模型 | 架构决策文档 | 明确 Modular Monolith + Clean/Hexagonal + Tactical DDD；明确不做兼容方案 | 文档审阅 | Done |
 | 2 | M0-02 | `skoll-refactor-governance` | 建立任务验收模板 | `acceptance_log.md` | 模板包含改动文件、命令结果、人工验收、提交信息 | 文档审阅 | Done |
-| 3 | M0-03 | `skoll-quality-gate` | 建立当前质量基线 | 当前测试/构建/覆盖率记录 | `go test ./...`、覆盖率、前端 build/typecheck 有真实结果 | `go test ./...`; `go test ./... -coverprofile=coverage.out`; `cd web && npm run build` | Doing |
-| 4 | M0-04 | `skoll-refactor-governance` | 校准任务表 | 更新本文件 | 所有任务具备交付物、验收要求、验证命令和状态 | 文档审阅 | Todo |
-| 5 | M0-05 | `skoll-docs-writer` | 清理文档入口 | `docs/README.md`、`docs/refactor/README.md` | 当前计划入口唯一，旧计划进入 archive | `rg "docs/refactor|legacy-plans" docs/README.md` | Todo |
+| 3 | M0-03 | `skoll-quality-gate` | 建立当前质量基线 | 当前测试/构建/覆盖率记录 | `go test ./...`、覆盖率、前端 build/typecheck 有真实结果 | `go test ./...`; `go test ./... -coverprofile=coverage.out`; `cd web && npm run build` | Done |
+| 4 | M0-04 | `skoll-refactor-governance` | 校准任务表 | 更新本文件 | 所有任务具备交付物、验收要求、验证命令和状态 | 文档审阅 | Done |
+| 5 | M0-05 | `skoll-docs-writer` | 清理文档入口 | `docs/README.md`、`docs/refactor/README.md` | 当前计划入口唯一，旧计划进入 archive | `rg "docs/refactor|legacy-plans" docs/README.md` | Done |
 
 里程碑验收:
 

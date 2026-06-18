@@ -1104,3 +1104,58 @@ Get-ChildItem docs/archive/legacy-plans
 ### 下一步
 
 - 进入 `M0-05-04`，补充 M0 文档验收记录。
+
+## M0-05-04: M0 文档验收记录
+
+- 状态: Passed
+- Work Item: M0-05-04
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/task_board.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | M0-01 至 M0-05 均已有验收记录，父任务表 M0 状态已标记 Done。 |
+| API/OpenAPI 同步 | N/A | M0 文档整理阶段未变更 API。 |
+| 权限目录同步 | N/A | M0 文档整理阶段未变更权限目录。 |
+| 审计 action 同步 | N/A | M0 文档整理阶段未变更审计 action。 |
+| migration/seed 同步 | N/A | M0 文档整理阶段未变更数据结构。 |
+| 前端 API client/UI 同步 | N/A | M0 文档整理阶段未变更前端实现。 |
+| 文档同步 | Passed | 架构计划、任务表、Work Item、质量基线、文档入口、旧文档归档记录和验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | M0 规则明确不做兼容方案，旧计划仅作为历史归档。 |
+
+### 自动化验证
+
+```powershell
+rg "M0-01-01|M0-02-01|M0-03-01|M0-04-01|M0-05-01|M0-05-04" docs/refactor/acceptance_log.md
+rg "work_items.md" docs/README.md docs/refactor/README.md
+Get-ChildItem docs/archive/legacy-plans
+```
+
+结果摘要: 通过。M0 文档整理任务均有验收记录；顶层和重构入口均可定位 Work Items；旧计划归档目录可访问。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/acceptance_log.md` 中 M0-01 至 M0-05 记录。
+2. 审阅 `docs/refactor/task_board.md` 的 M0 父任务状态。
+3. 审阅 `docs/refactor/quality_baseline.md` 的质量基线真实结果。
+
+结果摘要: 通过。M0 文档整理闭环完成；Go 全量测试和覆盖率当前因本机 cgo 编译器路径缺失失败，已作为质量基线限制记录。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-01-01`，创建 permission domain 包结构。
