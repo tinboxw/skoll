@@ -5851,6 +5851,60 @@ rg -n "FE1-03.*Done" docs/refactor/work_items.md
 
 - 进入 `FE1-04`，定义表单和弹窗标准。
 
+## FE1-04: 定义表单和弹窗标准
+
+- 状态: Passed
+- Work Item: FE1-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe1_form_dialog_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Skoll Admin 表单和弹窗标准文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 标准覆盖校验、保存中、错误、确认、drawer/dialog 适用边界。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准复用当前 SchemaForm 和 confirmAction，不新增旧表单或旧弹窗兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Validation|Saving state|Error feedback|Confirmation|Drawer/dialog boundary|SchemaForm|confirmAction" docs/refactor/fe1_form_dialog_standard.md
+rg -n "FE1-04.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。表单和弹窗标准包含校验、保存中、错误反馈、确认、drawer/dialog 边界、SchemaForm 和 confirmAction；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe1_form_dialog_standard.md`，确认校验、保存中、错误、确认、抽屉/弹窗适用边界明确。
+2. 对照 SchemaForm、confirmAction、Audit、Plugin、Menu、Dictionary、Organization、Permission 页面锚点，确认标准可落地。
+3. 确认后续 FE3/FE4 页面升级可直接引用该表单与弹窗合同。
+
+结果摘要: 通过。FE1-04 表单和弹窗标准完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE1-05`，定义状态组件标准。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed
