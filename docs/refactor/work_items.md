@@ -162,7 +162,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 117 | FE1-01 | FE1 | `skoll-frontend-design-refactor` | 定义 Skoll Admin 视觉原则 | `frontend_experience_plan.md` 或 UI 文档 | 明确专业、克制、可扫、插件优先、不做营销页风格 | 文档审阅 | Todo |
+| 117 | FE1-01 | FE1 | `skoll-frontend-design-refactor` | 定义 Skoll Admin 视觉原则 | `frontend_experience_plan.md` 或 UI 文档 | 明确专业、克制、可扫、插件优先、不做营销页风格 | 文档审阅 | Done |
 | 118 | FE1-02 | FE1 | `skoll-frontend-design-refactor` | 定义页面布局标准 | UI 文档/样例 | 页面标题、工具栏、筛选、表格、详情、抽屉结构统一 | 文档审阅 | Todo |
 | 119 | FE1-03 | FE1 | `skoll-frontend-design-refactor` | 定义表格体验标准 | UI 文档/组件要求 | 列稳定、状态标签、批量动作、紧凑行操作标准明确 | 文档审阅 | Todo |
 | 120 | FE1-04 | FE1 | `skoll-frontend-design-refactor` | 定义表单和弹窗标准 | UI 文档/组件要求 | 校验、保存中、错误、确认、抽屉/弹窗适用边界明确 | 文档审阅 | Todo |

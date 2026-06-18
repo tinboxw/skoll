@@ -5689,6 +5689,60 @@ rg -n "forbidden|el-result|el-empty|audit\.empty|audit\.forbidden" web/src/views
 
 - 进入 `M2-06-01`，更新 smoke-auth-audit 脚本场景。
 
+## FE1-01: 定义 Skoll Admin 视觉原则
+
+- 状态: Passed
+- Work Item: FE1-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe1_skoll_admin_visual_principles.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Skoll Admin 视觉原则文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 原则覆盖专业、克制、可扫、插件优先、运营状态和不做营销页风格。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 原则明确不保留旧页面路径或旧组件外观兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Professional|Restrained|Scannable|Plugin-first|No marketing style|No compatibility styling" docs/refactor/fe1_skoll_admin_visual_principles.md
+rg -n "FE1-01.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。视觉原则文档包含专业、克制、可扫、插件优先、不做营销页风格和不做兼容样式等验收关键词；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe1_skoll_admin_visual_principles.md`，确认原则覆盖专业、克制、可扫、插件优先、不做营销页风格。
+2. 对照现有 `variables.scss`、`global.scss` 和 Layout 组件，确认原则能承接当前视觉基础。
+3. 确认后续 FE1-02 至 FE1-07 均有明确承接方式。
+
+结果摘要: 通过。FE1-01 视觉原则可作为 FE1 设计系统任务的上层约束。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE1-02`，定义页面布局标准。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed
