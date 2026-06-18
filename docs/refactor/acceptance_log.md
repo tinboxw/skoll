@@ -3386,3 +3386,57 @@ npm run build
 ### 下一步
 
 - 进入 `M1-08-02`，新增 permission store。
+
+## M1-08-02: 新增 permission store
+
+- 状态: Passed
+- Work Item: M1-08-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/stores/permissions.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Pinia permission store。 |
+| API/OpenAPI 同步 | N/A | 本项复用 M1-08-01 client。 |
+| 权限目录同步 | Passed | store 支持按 key/type/source 查询 catalog 缓存。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 支持加载、失败状态、retry、refresh、启停本地 patch。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入页面局部重复状态管理。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/stores/permissions.ts`。
+2. 确认加载、失败、重试、缓存刷新与启停 patch 路径清晰。
+
+结果摘要: 通过。permission store 已新增。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-08-03`，新增 menu API client。
