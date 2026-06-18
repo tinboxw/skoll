@@ -1,5 +1,7 @@
 package permission
 
+import "strings"
+
 type ResourceType string
 
 const (
@@ -23,12 +25,17 @@ type PermissionResource struct {
 	Enabled  bool
 }
 
-func NewResource(identity ResourceIdentity, name string) PermissionResource {
+func NewResource(identity ResourceIdentity, name string) (PermissionResource, error) {
+	identity = NormalizeIdentity(identity)
+	name = strings.TrimSpace(name)
+	if err := ValidateResource(identity, name); err != nil {
+		return PermissionResource{}, err
+	}
 	return PermissionResource{
 		Identity: identity,
 		Name:     name,
 		Enabled:  true,
-	}
+	}, nil
 }
 
 func (r PermissionResource) Key() string {

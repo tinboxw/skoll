@@ -54,7 +54,7 @@
 |---:|---|---|---|---|---|---|---|---|
 | 22 | M1-01-01 | M1-01 | `skoll-permission-menu-refactor` | 创建 permission domain 包结构 | `internal/domain/permission` | 包可编译，无 store/service 依赖 | `go test ./internal/domain/permission` | Done |
 | 23 | M1-01-02 | M1-01 | `skoll-permission-menu-refactor` | 定义 PermissionResource 类型和值对象 | domain code | 支持 api/menu/button/data_scope/plugin 类型 | `go test ./internal/domain/permission` | Done |
-| 24 | M1-01-03 | M1-01 | `skoll-permission-menu-refactor` | 实现 PermissionResource 校验规则 | domain code + tests | key/name/module/source 必填，type 枚举校验 | `go test ./internal/domain/permission` | Todo |
+| 24 | M1-01-03 | M1-01 | `skoll-permission-menu-refactor` | 实现 PermissionResource 校验规则 | domain code + tests | key/name/module/source 必填，type 枚举校验 | `go test ./internal/domain/permission` | Done |
 | 25 | M1-01-04 | M1-01 | `skoll-permission-menu-refactor` | 实现 permission risk/source metadata | domain code + tests | risk/source/metadata 可序列化并校验 | `go test ./internal/domain/permission` | Todo |
 | 26 | M1-01-05 | M1-01 | `skoll-permission-menu-refactor` | 补 permission domain README | docs in package | 说明类型、命名和 no-compat 规则 | 文档审阅 | Todo |
 | 27 | M1-02-01 | M1-02 | `skoll-permission-menu-refactor` | 创建 menu domain 包结构 | `internal/domain/menu` | 包可编译，无 store/service 依赖 | `go test ./internal/domain/menu` | Todo |

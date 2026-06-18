@@ -19,12 +19,15 @@ func TestResourceTypes(t *testing.T) {
 }
 
 func TestNewResourceDefaultsEnabled(t *testing.T) {
-	resource := NewResource(ResourceIdentity{
-		Key:    "user.read",
+	resource, err := NewResource(ResourceIdentity{
+		Key:    " User.Read ",
 		Type:   ResourceTypeAPI,
-		Module: "user",
-		Source: "system",
+		Module: " User ",
+		Source: " System ",
 	}, "Read users")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if !resource.Enabled {
 		t.Fatal("new resource should be enabled by default")

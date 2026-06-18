@@ -1266,3 +1266,59 @@ go test ./internal/domain/permission
 ### 下一步
 
 - 进入 `M1-01-03`，实现 PermissionResource 校验规则。
+
+## M1-01-03: 实现 PermissionResource 校验规则
+
+- 状态: Passed
+- Work Item: M1-01-03
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/permission/resource.go`
+- `internal/domain/permission/resource_test.go`
+- `internal/domain/permission/rules.go`
+- `internal/domain/permission/rules_test.go`
+- `internal/domain/permission/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | key/name/module/source 必填和 type 枚举校验已实现并测试覆盖。 |
+| API/OpenAPI 同步 | N/A | 本项只修改 domain 校验规则，无 API 影响。 |
+| 权限目录同步 | Passed | 权限目录领域校验规则已建立，尚未接入持久化或服务。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | 包 README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 校验规则只接受当前类型枚举，未添加旧权限别名或兼容路径。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/permission
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/domain/permission/rules.go`。
+2. 审阅 `internal/domain/permission/rules_test.go` 的失败路径覆盖。
+
+结果摘要: 通过。PermissionResource 校验规则覆盖必填字段和类型枚举。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-01-04`，实现 permission risk/source metadata。
