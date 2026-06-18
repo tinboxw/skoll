@@ -8463,6 +8463,67 @@ npm run build
 ### 下一步
 
 - 进入 `FE4-04`，执行插件风险报告体验。
+## FE4-04: 插件风险报告体验
+
+- 状态: Passed
+- Work Item: FE4-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Plugin 页面新增风险报告面板。 |
+| 风险等级 | Passed | 每个风险行计算 critical/high/medium/low，并用 tag 显示。 |
+| 风险因子 | Passed | 聚合停用、不可访问、降级、失败任务、签名未验证等因子。 |
+| 阻断原因 | Passed | 展示失败任务、停用、入口不可访问、同步降级、签名未验证等阻断原因。 |
+| 审计记录可读 | Passed | 为风险行提供 `plugin.lifecycle`、`system.security.deny`、`plugin.dev.release/rollout` 等审计线索。 |
+| API/OpenAPI 同步 | N/A | 本项不新增接口；风险报告复用现有 plugin store 与 Dev Portal task 状态。 |
+| 权限目录同步 | Passed | 页面仍受 `plugin.read` 保护，不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "pluginRiskRows|visibleRiskRows|pluginRiskLevel|pluginRiskFactors|pluginRiskBlockers|pluginRiskAuditTrail|plugin-risk-report|风险等级|风险因子|阻断原因|审计线索" web/src/views/Plugin/index.vue
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。风险等级、因子、阻断原因和审计线索锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可调用的 in-app browser 工具；bundled Playwright 运行时缺少 `playwright-core`，无法完成真实点击或截图 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑风险报告默认态、空态和风险行。
+
+### Performance Hook
+
+- Page/route: Plugin，`/skoll/plugin`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；风险报告复用 Element Plus table/tag。
+- Request behavior: 不新增请求；基于现有 store 和 task 列表计算。
+- Heavy table risk: 风险行数量与插件数量一致，当前可控；后续插件市场化后可加过滤或折叠。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE4-05`，执行 Dev Portal 发布任务体验。
 ## ADJ-FE-20260619-06: FE4 plugin portal risk map
 
 - 状态: Passed

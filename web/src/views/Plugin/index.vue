@@ -155,6 +155,15 @@ const hasActivePluginFilters = computed(() => showOnlyEnabled.value || pluginKey
 const canReadPlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginRead));
 const canManagePlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginManage));
 const installPreflightReady = computed(() => installPreflight.value !== null && pluginPath.value.trim() === validatedPluginPath.value);
+const pluginRiskRows = computed(() => pluginStore.items.map((plugin) => ({
+	id: plugin.id,
+	name: plugin.name,
+	level: pluginRiskLevel(plugin),
+	factors: pluginRiskFactors(plugin),
+	blockers: pluginRiskBlockers(plugin),
+	audit: pluginRiskAuditTrail(plugin)
+})));
+const visibleRiskRows = computed(() => pluginRiskRows.value.filter((row) => row.level !== "low" || row.factors.length > 0));
 const detailPlugin = computed(() => getPluginRecord(detailPluginID.value));
 const detailReleaseOrders = computed(() => devReleaseOrders.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
 const detailReleaseTasks = computed(() => devReleaseTasks.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
@@ -277,6 +286,81 @@ function pluginRiskText(plugin: FrontendPluginManifest): string {
 		return t("plugin.risk.degraded");
 	}
 	return t("plugin.risk.clear");
+}
+
+function pluginRiskLevel(plugin: FrontendPluginManifest): "critical" | "high" | "medium" | "low" {
+	if (pluginFailedTasks(plugin.id) > 0) {
+		return "critical";
+	}
+	if (plugin.enabled === false || !canVisit(plugin.id)) {
+		return "high";
+	}
+	if (pluginStore.degradedMode || pluginSignatureType(plugin) === "warning") {
+		return "medium";
+	}
+	return "low";
+}
+
+function pluginRiskLevelType(level: "critical" | "high" | "medium" | "low"): "success" | "warning" | "danger" | "info" {
+	if (level === "critical" || level === "high") {
+		return "danger";
+	}
+	if (level === "medium") {
+		return "warning";
+	}
+	return "success";
+}
+
+function pluginRiskFactors(plugin: FrontendPluginManifest): string[] {
+	const factors: string[] = [];
+	if (plugin.enabled === false) {
+		factors.push(t("plugin.risk.disabled"));
+	}
+	if (!canVisit(plugin.id)) {
+		factors.push(t("plugin.risk.inaccessible"));
+	}
+	if (pluginStore.degradedMode) {
+		factors.push(t("plugin.risk.degraded"));
+	}
+	if (pluginFailedTasks(plugin.id) > 0) {
+		factors.push(`${t("plugin.risk.failedTasks")} ${pluginFailedTasks(plugin.id)}`);
+	}
+	if (pluginSignatureType(plugin) === "warning") {
+		factors.push(t("plugin.signal.signature"));
+	}
+	return factors;
+}
+
+function pluginRiskBlockers(plugin: FrontendPluginManifest): string {
+	if (pluginFailedTasks(plugin.id) > 0) {
+		return "存在失败发布/灰度任务";
+	}
+	if (plugin.enabled === false) {
+		return "插件已停用";
+	}
+	if (!canVisit(plugin.id)) {
+		return "入口或权限不可访问";
+	}
+	if (pluginStore.degradedMode) {
+		return "后端同步降级";
+	}
+	if (pluginSignatureType(plugin) === "warning") {
+		return "签名未验证";
+	}
+	return "无阻断";
+}
+
+function pluginRiskAuditTrail(plugin: FrontendPluginManifest): string {
+	if (pluginFailedTasks(plugin.id) > 0) {
+		return "plugin.dev.release / plugin.dev.rollout";
+	}
+	if (plugin.enabled === false) {
+		return "plugin.lifecycle.disable";
+	}
+	if (!canVisit(plugin.id)) {
+		return "system.security.deny";
+	}
+	return "plugin.lifecycle";
 }
 
 function pluginHealthType(plugin: FrontendPluginManifest): "success" | "warning" | "danger" | "info" {
@@ -1350,6 +1434,35 @@ function resetDefaultHome(): void {
 			<pre v-if="operationText" class="code-block">{{ operationText }}</pre>
 		</el-card>
 
+		<el-card shadow="never" class="risk-report-panel plugin-risk-report">
+			<template #header>
+				<div class="card-header">
+					<div>
+						<h3>插件风险报告</h3>
+						<p>汇总停用、不可访问、降级、签名和发布任务失败等风险信号。</p>
+					</div>
+					<el-tag :type="visibleRiskRows.length > 0 ? 'warning' : 'success'" effect="light">{{ visibleRiskRows.length }}</el-tag>
+				</div>
+			</template>
+			<StateBlock v-if="visibleRiskRows.length === 0" type="empty" description="暂无插件风险。" />
+			<el-table v-else :data="visibleRiskRows" stripe border>
+				<el-table-column prop="id" label="插件" min-width="170" show-overflow-tooltip />
+				<el-table-column label="风险等级" width="120">
+					<template #default="{ row }">
+						<el-tag :type="pluginRiskLevelType(row.level)" effect="light">{{ row.level }}</el-tag>
+					</template>
+				</el-table-column>
+				<el-table-column label="风险因子" min-width="220">
+					<template #default="{ row }">
+						<el-tag v-for="item in row.factors" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
+						<span v-if="row.factors.length === 0">-</span>
+					</template>
+				</el-table-column>
+				<el-table-column prop="blockers" label="阻断原因" min-width="180" show-overflow-tooltip />
+				<el-table-column prop="audit" label="审计线索" min-width="200" show-overflow-tooltip />
+			</el-table>
+		</el-card>
+
 		<el-card v-permission="'plugin.manage'" shadow="never" class="devportal-panel">
 			<template #header>
 				<div class="card-header">
@@ -1933,6 +2046,10 @@ function resetDefaultHome(): void {
 }
 
 .install-panel {
+	border: 1px solid var(--color-border);
+}
+
+.risk-report-panel {
 	border: 1px solid var(--color-border);
 }
 
