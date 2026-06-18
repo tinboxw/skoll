@@ -1594,3 +1594,58 @@ go test ./internal/domain/menu
 ### 下一步
 
 - 进入 `M1-02-04`，实现菜单树排序与过滤规则。
+
+## M1-02-04: 实现菜单树排序与过滤规则
+
+- 状态: Passed
+- Work Item: M1-02-04
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/menu/tree.go`
+- `internal/domain/menu/tree_test.go`
+- `internal/domain/menu/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增同级节点稳定排序、隐藏节点过滤和权限过滤规则。 |
+| API/OpenAPI 同步 | N/A | 本项只变更 domain 规则，无 API 影响。 |
+| 权限目录同步 | N/A | 本项不变更权限目录。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | 包 README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧菜单来源、兼容路由或新旧菜单双轨实现。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/menu
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/domain/menu/tree.go`。
+2. 确认 `SortSiblings` 使用稳定排序且不修改入参。
+3. 确认隐藏节点和缺少角色/权限的节点可被过滤。
+
+结果摘要: 通过。菜单树排序与过滤规则已建立。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-02-05`，补充 menu domain README。

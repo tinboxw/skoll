@@ -13,6 +13,7 @@
 - doc.go
 - node.go
 - rules.go
+- tree.go
 
 ## 后续待补充实现
-- [ ] 补充菜单树排序、过滤与权限裁剪规则。
+- [ ] 补充 menu domain README 的节点、树和权限字段说明。
