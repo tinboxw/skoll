@@ -75,7 +75,7 @@
 | 42 | M1-04-06 | M1-04 | `skoll-database-development` | 实现 SQL menu store | gormrepo store + tests | 与 repository 契约一致 | `go test ./internal/store/sql/gormrepo/...` | Done |
 | 43 | M1-04-07 | M1-04 | `skoll-database-development` | 接入 store factory | factory code | memory/mysql/postgres bundle 可提供新 store | `go test ./internal/store/...` | Done |
 | 44 | M1-05-01 | M1-05 | `skoll-permission-menu-refactor` | 定义 permission catalog service interface | service code | 接口覆盖注册、列表、启停、diff | `go test ./internal/service/permission/...` | Done |
-| 45 | M1-05-02 | M1-05 | `skoll-permission-menu-refactor` | 实现 RegisterResource | service code + tests | 幂等、校验失败、仓储失败路径覆盖 | `go test ./internal/service/permission/...` | Todo |
+| 45 | M1-05-02 | M1-05 | `skoll-permission-menu-refactor` | 实现 RegisterResource | service code + tests | 幂等、校验失败、仓储失败路径覆盖 | `go test ./internal/service/permission/...` | Done |
 | 46 | M1-05-03 | M1-05 | `skoll-permission-menu-refactor` | 实现 ListResources/GetResource | service code + tests | 支持 type/source/enabled 过滤 | `go test ./internal/service/permission/...` | Todo |
 | 47 | M1-05-04 | M1-05 | `skoll-permission-menu-refactor` | 实现 Enable/Disable | service code + tests | 状态变更写审计动作预留 | `go test ./internal/service/permission/...` | Todo |
 | 48 | M1-05-05 | M1-05 | `skoll-permission-menu-refactor` | 实现 permission diff | service code + tests | install preflight 可复用 diff 输出 | `go test ./internal/service/permission/...` | Todo |
