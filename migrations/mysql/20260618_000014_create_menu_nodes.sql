@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS sk_menu_nodes (
+	id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+	menu_key VARCHAR(128) NOT NULL,
+	parent_key VARCHAR(128) NOT NULL DEFAULT '',
+	source VARCHAR(64) NOT NULL,
+	name VARCHAR(128) NOT NULL,
+	path VARCHAR(256) NOT NULL,
+	component VARCHAR(256) NOT NULL DEFAULT '',
+	icon VARCHAR(128) NOT NULL DEFAULT '',
+	sort INT NOT NULL DEFAULT 0,
+	visible TINYINT(1) NOT NULL DEFAULT 1,
+	required_roles_json TEXT NULL,
+	required_permissions_json TEXT NULL,
+	created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+	updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+	UNIQUE KEY uk_menu_nodes_key (menu_key),
+	KEY idx_menu_nodes_parent_sort (parent_key, sort, id),
+	KEY idx_menu_nodes_source (source),
+	KEY idx_menu_nodes_path (path),
+	KEY idx_menu_nodes_sort (sort),
+	KEY idx_menu_nodes_visible (visible)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

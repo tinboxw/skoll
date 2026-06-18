@@ -1755,3 +1755,57 @@ rg "sk_permission_resources|uk_permission_resources_key|idx_permission_resources
 ### 下一步
 
 - 进入 `M1-03-02`，设计菜单表 migration。
+
+## M1-03-02: 设计菜单表 migration
+
+- 状态: Passed
+- Work Item: M1-03-02
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `migrations/mysql/20260618_000014_create_menu_nodes.sql`
+- `migrations/postgres/20260618_000014_create_menu_nodes.sql`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | MySQL/PostgreSQL migration 均新增 `sk_menu_nodes` 表。 |
+| API/OpenAPI 同步 | N/A | 本项只设计数据库 migration，无 API 影响。 |
+| 权限目录同步 | N/A | 本项不变更权限目录。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | Passed | 新增 MySQL/PostgreSQL menu migration，暂不引入 seed。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步；migrations README 由 `M1-03-05` 专项补充。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧菜单表兼容迁移或双写结构。 |
+
+### 自动化验证
+
+```powershell
+rg "sk_menu_nodes|parent_key|source|path|sort|uk_menu_nodes_key|idx_menu_nodes" migrations/mysql/20260618_000014_create_menu_nodes.sql migrations/postgres/20260618_000014_create_menu_nodes.sql
+```
+
+结果摘要: 通过。parent/source/path/sort 索引和唯一约束定义均可检索。
+
+### 人工验收
+
+1. 审阅 MySQL migration。
+2. 审阅 PostgreSQL migration。
+3. 确认 parent/source/path/sort 索引齐全。
+
+结果摘要: 通过。菜单表 migration 设计完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-03-03`，增加 gormrepo model。
