@@ -27,7 +27,7 @@ func TestNewBundleModes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewBundle error: %v", err)
 			}
-			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.UnitOfWork == nil {
+			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.Permissions == nil || b.Menus == nil || b.UnitOfWork == nil {
 				t.Fatalf("bundle has nil repositories")
 			}
 
@@ -48,7 +48,7 @@ func TestNewBundleMySQLIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBundle mysql error: %v", err)
 	}
-	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil {
+	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil || b.Permissions == nil || b.Menus == nil {
 		t.Fatalf("mysql bundle has nil repositories")
 	}
 

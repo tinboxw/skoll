@@ -9,6 +9,8 @@ import (
 	"time"
 
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
+	menurepo "github.com/tinboxw/skoll/internal/repository/menu"
+	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
@@ -29,6 +31,8 @@ type Adapter struct {
 	rbac rbacrepo.RBACRepository
 	sys  systemrepo.SystemRepository
 	plg  pluginrepo.PluginRepository
+	perm permissionrepo.PermissionRepository
+	menu menurepo.MenuRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -70,6 +74,8 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		rbac: gormrepo.NewRBACStore(db),
 		sys:  gormrepo.NewSystemStore(db, normalizeSettingKey),
 		plg:  gormrepo.NewPluginStore(db),
+		perm: gormrepo.NewPermissionStore(db),
+		menu: gormrepo.NewMenuStore(db),
 	}, nil
 }
 
@@ -94,6 +100,14 @@ func (a *Adapter) SystemRepository() systemrepo.SystemRepository {
 
 func (a *Adapter) PluginRepository() pluginrepo.PluginRepository {
 	return a.plg
+}
+
+func (a *Adapter) PermissionRepository() permissionrepo.PermissionRepository {
+	return a.perm
+}
+
+func (a *Adapter) MenuRepository() menurepo.MenuRepository {
+	return a.menu
 }
 
 func (a *Adapter) DB() *gorm.DB {

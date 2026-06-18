@@ -6,6 +6,8 @@ import (
 
 	"github.com/tinboxw/skoll/internal/repository"
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
+	menurepo "github.com/tinboxw/skoll/internal/repository/menu"
+	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
@@ -33,13 +35,15 @@ type Options struct {
 }
 
 type Bundle struct {
-	Users      userrepo.UserRepository
-	Roles      rolerepo.RoleRepository
-	RBAC       rbacrepo.RBACRepository
-	Audit      auditrepo.AuditRepository
-	System     systemrepo.SystemRepository
-	Plugins    pluginrepo.PluginRepository
-	UnitOfWork repository.UnitOfWork
+	Users       userrepo.UserRepository
+	Roles       rolerepo.RoleRepository
+	RBAC        rbacrepo.RBACRepository
+	Audit       auditrepo.AuditRepository
+	System      systemrepo.SystemRepository
+	Plugins     pluginrepo.PluginRepository
+	Permissions permissionrepo.PermissionRepository
+	Menus       menurepo.MenuRepository
+	UnitOfWork  repository.UnitOfWork
 }
 
 func NewBundle(opts Options) (*Bundle, error) {
@@ -51,20 +55,24 @@ func NewBundle(opts Options) (*Bundle, error) {
 		audit := clickhouse.NewAuditStore()
 		system := memory.NewSystemStore()
 		plugins := memory.NewPluginStore()
-		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, UnitOfWork: sql.NewUnitOfWork()}, nil
+		permissions := memory.NewPermissionStore()
+		menus := memory.NewMenuStore()
+		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions, Menus: menus, UnitOfWork: sql.NewUnitOfWork()}, nil
 	case ModeMySQL:
 		primary, err := mysql.NewAdapter(opts.PrimaryDSN)
 		if err != nil {
 			return nil, err
 		}
 		return &Bundle{
-			Users:      primary.UserRepository(),
-			Roles:      primary.RoleRepository(),
-			RBAC:       primary.RBACRepository(),
-			Audit:      primary.AuditRepository(),
-			System:     primary.SystemRepository(),
-			Plugins:    primary.PluginRepository(),
-			UnitOfWork: sql.NewUnitOfWorkWithDB(primary.DB()),
+			Users:       primary.UserRepository(),
+			Roles:       primary.RoleRepository(),
+			RBAC:        primary.RBACRepository(),
+			Audit:       primary.AuditRepository(),
+			System:      primary.SystemRepository(),
+			Plugins:     primary.PluginRepository(),
+			Permissions: primary.PermissionRepository(),
+			Menus:       primary.MenuRepository(),
+			UnitOfWork:  sql.NewUnitOfWorkWithDB(primary.DB()),
 		}, nil
 	case ModePostgres:
 		primary, err := postgres.NewAdapter(opts.PrimaryDSN)
@@ -76,13 +84,15 @@ func NewBundle(opts Options) (*Bundle, error) {
 			return nil, err
 		}
 		return &Bundle{
-			Users:      primary.UserRepository(),
-			Roles:      primary.RoleRepository(),
-			RBAC:       primary.RBACRepository(),
-			Audit:      audit.AuditRepository(),
-			System:     primary.SystemRepository(),
-			Plugins:    primary.PluginRepository(),
-			UnitOfWork: sql.NewUnitOfWorkWithDB(primary.DB()),
+			Users:       primary.UserRepository(),
+			Roles:       primary.RoleRepository(),
+			RBAC:        primary.RBACRepository(),
+			Audit:       audit.AuditRepository(),
+			System:      primary.SystemRepository(),
+			Plugins:     primary.PluginRepository(),
+			Permissions: primary.PermissionRepository(),
+			Menus:       primary.MenuRepository(),
+			UnitOfWork:  sql.NewUnitOfWorkWithDB(primary.DB()),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported store mode: %q", opts.Mode)

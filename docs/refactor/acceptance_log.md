@@ -2294,3 +2294,60 @@ go test ./internal/store/sql/gormrepo/...
 ### 下一步
 
 - 进入 `M1-04-07`，接入 store factory。
+
+## M1-04-07: 接入 store factory
+
+- 状态: Passed
+- Work Item: M1-04-07
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/store/factory.go`
+- `internal/store/factory_test.go`
+- `internal/store/sql/mysql/adapter.go`
+- `internal/store/sql/postgres/adapter.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `Bundle`、memory bundle、MySQL/PostgreSQL adapter 均提供 permission/menu store。 |
+| API/OpenAPI 同步 | N/A | 本项只变更 store factory，无 API 影响。 |
+| 权限目录同步 | Passed | Bundle 暴露 permission repository。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧 store factory 兼容路径。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/store -run "TestNewBundleModes"
+go test ./internal/store/...
+```
+
+结果摘要: 关闭 cgo 后 memory bundle 专项测试通过。默认环境和全 store 验收受本机 cgo 编译器路径缺失影响失败，失败原因与 M0 基线一致。
+
+### 人工验收
+
+1. 审阅 `internal/store/factory.go`。
+2. 审阅 MySQL/PostgreSQL adapter repository 方法。
+3. 确认 memory/mysql/postgres bundle 可提供新 store。
+
+结果摘要: 通过。store factory 已接入 permission/menu store。
+
+### 失败与返工
+
+- 失败原因: 全 store 测试链路包含 gormrepo SQLite cgo，当前 `CC` 指向缺失的 gcc。
+- 返工动作: 在 `CGO_ENABLED=0` 下执行 memory bundle 专项测试通过；保留环境失败记录。
+- 重新验收结果: 通过。
+
+### 下一步
+
+- 进入 `M1-05-01`，定义 permission catalog service interface。
