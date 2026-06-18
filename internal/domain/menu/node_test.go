@@ -3,16 +3,19 @@ package menu
 import "testing"
 
 func TestNewNodeDefaultsVisible(t *testing.T) {
-	node := NewNode(NodeIdentity{
-		Key:       "system.user",
-		ParentKey: "system",
-		Source:    "system",
+	node, err := NewNode(NodeIdentity{
+		Key:       " System.User ",
+		ParentKey: " System ",
+		Source:    " System ",
 	}, NodeView{
-		Name:      "Users",
-		Path:      "/system/users",
-		Component: "UserList",
-		Icon:      "Users",
+		Name:      " Users ",
+		Path:      " /system/users ",
+		Component: " UserList ",
+		Icon:      " Users ",
 	}, 20)
+	if err != nil {
+		t.Fatalf("NewNode() error = %v", err)
+	}
 
 	if !node.Visible {
 		t.Fatal("new menu node should be visible by default")

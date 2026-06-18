@@ -1538,3 +1538,59 @@ go test ./internal/domain/menu
 ### 下一步
 
 - 进入 `M1-02-03`，实现 MenuNode 校验规则。
+
+## M1-02-03: 实现 MenuNode 校验规则
+
+- 状态: Passed
+- Work Item: M1-02-03
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/menu/node.go`
+- `internal/domain/menu/node_test.go`
+- `internal/domain/menu/rules.go`
+- `internal/domain/menu/rules_test.go`
+- `internal/domain/menu/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `NewNode` 统一规范化 identity/view，并校验 path、name、sort、source。 |
+| API/OpenAPI 同步 | N/A | 本项只变更 domain 类型和校验，无 API 影响。 |
+| 权限目录同步 | N/A | 本项不变更权限目录。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | 包 README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧菜单来源、兼容路由或新旧菜单双轨实现。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/menu
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/domain/menu/rules.go`。
+2. 确认 path、name、sort、source 均有失败用例覆盖。
+
+结果摘要: 通过。MenuNode 校验规则已建立，并由单元测试覆盖。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-02-04`，实现菜单树排序与过滤规则。

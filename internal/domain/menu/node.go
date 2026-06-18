@@ -22,13 +22,19 @@ type MenuNode struct {
 	RequiredPermissions []string
 }
 
-func NewNode(identity NodeIdentity, view NodeView, sort int) MenuNode {
+func NewNode(identity NodeIdentity, view NodeView, sort int) (MenuNode, error) {
+	identity = NormalizeIdentity(identity)
+	view = NormalizeView(view)
+	if err := ValidateNode(identity, view, sort); err != nil {
+		return MenuNode{}, err
+	}
+
 	return MenuNode{
 		Identity: identity,
 		View:     view,
 		Sort:     sort,
 		Visible:  true,
-	}
+	}, nil
 }
 
 func (n MenuNode) Key() string {
