@@ -998,6 +998,97 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
+  /v1/menus/tree:
+    get:
+      summary: Get menu registry tree
+      parameters:
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: visible
+          in: query
+          schema:
+            type: boolean
+        - name: roles
+          in: query
+          schema:
+            type: string
+          description: Comma-separated role keys for permission filtering.
+        - name: permissions
+          in: query
+          schema:
+            type: string
+          description: Comma-separated permission keys for permission filtering.
+      responses:
+        '200':
+          description: Menu tree
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuTreeAPIResponse'
+        '401':
+          description: Unauthorized
+  /v1/menus:
+    put:
+      summary: Save menu nodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuSaveRequest'
+      responses:
+        '200':
+          description: Saved menu nodes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuSaveAPIResponse'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /v1/menus/reorder:
+    post:
+      summary: Reorder sibling menu nodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuReorderRequest'
+      responses:
+        '200':
+          description: Reordered menu nodes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuReorderAPIResponse'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /v1/menus/visibility:
+    patch:
+      summary: Update menu node visibility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuVisibilityRequest'
+      responses:
+        '200':
+          description: Updated menu visibility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuVisibilityAPIResponse'
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
 components:
   schemas:
     MessageResponse:
@@ -1168,6 +1259,149 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/PermissionResourceDiffResult'
+    MenuNode:
+      type: object
+      required:
+        - key
+        - source
+        - name
+        - path
+        - sort
+        - visible
+      properties:
+        key:
+          type: string
+        parentKey:
+          type: string
+        source:
+          type: string
+        name:
+          type: string
+        path:
+          type: string
+        component:
+          type: string
+        icon:
+          type: string
+        sort:
+          type: integer
+        visible:
+          type: boolean
+        requiredRoles:
+          type: array
+          items:
+            type: string
+        requiredPermissions:
+          type: array
+          items:
+            type: string
+    MenuSaveRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuNode'
+    MenuTreeData:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuNode'
+    MenuSaveData:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuNode'
+    MenuReorderRequest:
+      type: object
+      required:
+        - parentKey
+        - orderedKeys
+      properties:
+        parentKey:
+          type: string
+        orderedKeys:
+          type: array
+          items:
+            type: string
+    MenuReorderData:
+      type: object
+      required:
+        - parentKey
+        - orderedKeys
+      properties:
+        parentKey:
+          type: string
+        orderedKeys:
+          type: array
+          items:
+            type: string
+    MenuVisibilityRequest:
+      type: object
+      required:
+        - key
+        - visible
+      properties:
+        key:
+          type: string
+        visible:
+          type: boolean
+    MenuVisibilityData:
+      type: object
+      required:
+        - key
+        - visible
+      properties:
+        key:
+          type: string
+        visible:
+          type: boolean
+    MenuTreeAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/MenuTreeData'
+    MenuSaveAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/MenuSaveData'
+    MenuReorderAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/MenuReorderData'
+    MenuVisibilityAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/MenuVisibilityData'
     ErrorResponse:
       type: object
       required:
