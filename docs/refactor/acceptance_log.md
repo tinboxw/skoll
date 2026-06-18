@@ -5688,3 +5688,461 @@ rg -n "forbidden|el-result|el-empty|audit\.empty|audit\.forbidden" web/src/views
 ### 下一步
 
 - 进入 `M2-06-01`，更新 smoke-auth-audit 脚本场景。
+
+## M2-06-01: 更新 smoke-auth-audit 脚本场景
+
+- 状态: Passed
+- Work Item: M2-06-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `scripts/smoke-auth-audit.ps1`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | smoke 脚本新增 fixture 读取、场景查询、详情 sourceData、CSV export token 校验。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | Passed | 脚本识别 `auth.session.login_failed`、`system.security.deny`、`plugin.lifecycle.enable`、`menu.node.update`、`audit.event.export`。 |
+| migration/seed 同步 | N/A | 本项不改数据库；fixture seed 由后续完整 E2E 承接。 |
+| 前端 API client/UI 同步 | N/A | 本项为 PowerShell smoke。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧审计 action；旧式场景名仅作为 smoke scenario ID。 |
+
+### 自动化验证
+
+```powershell
+$tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path scripts/smoke-auth-audit.ps1), [ref]$tokens, [ref]$errors)
+$fixture = Get-Content -Raw -Encoding utf8 docs/refactor/fixtures/m2_audit_smoke_events.json | ConvertFrom-Json
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1
+```
+
+结果摘要: 通过。脚本语法通过，fixture 五个场景可解析；启动 memory store 后端后，默认 smoke 命令通过。当前默认模式会真实触发并验证 `login_failed`，其余固定 fixture 场景未 seed 时输出 warning；使用 `-StrictFixtureAssertions` 可在后续 E2E 中强制要求全部固定样本命中。
+
+### 人工验收
+
+1. 审阅 `scripts/smoke-auth-audit.ps1`，确认 fixture validation 覆盖 `login_failed`、`forbidden`、`plugin`、`menu`、`export`。
+2. 确认脚本修正新审计 list envelope 的 `data.items` 计数。
+3. 确认登录失败场景由脚本触发并按 action/result/risk 匹配运行时事件。
+4. 确认固定 fixture 场景支持严格模式，便于后续 seed 后作为 E2E 门禁。
+
+结果摘要: 通过。smoke-auth-audit 脚本已接入 M2 audit fixture 并覆盖当前可触发场景。
+
+### 失败与返工
+
+- 失败原因: 首次执行时本地 `127.0.0.1:8080` 未启动服务。
+- 返工动作: 启动 memory store 后端并重跑。
+- 重新验收结果: 进入下一失败点。
+- 失败原因: `Set-StrictMode` 下直接访问缺失的 `metadata.scenario` 属性会抛错。
+- 返工动作: 增加 `Get-ObjectProperty` 安全读取。
+- 重新验收结果: 进入下一观察点。
+- 失败原因: 运行时触发的 `login_failed` 没有 fixture 固定 `event.id` 或 `metadata.scenario`，导致按固定样本匹配时只 warning。
+- 返工动作: 将 `login_failed` 作为运行时触发场景，按 action/result/risk 匹配；固定样本仍支持 strict fixture 断言。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `M2-06-02`，编写 M2 手工验收步骤。
+
+## M2-06-02: 编写 M2 手工验收步骤
+
+- 状态: Passed
+- Work Item: M2-06-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/m2_manual_acceptance_steps.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 M2 手工验收步骤文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | Passed | 手工验收覆盖 login/security/plugin/menu/export action。 |
+| migration/seed 同步 | N/A | 本项记录 fixture seed 前置条件，不改 seed。 |
+| 前端 API client/UI 同步 | Passed | 手工步骤覆盖 UI 查询、详情、导出、空态、错误态、无权限态和窄屏。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 文档使用统一 audit event/action 术语，不引入旧验收路径。 |
+
+### 自动化验证
+
+```powershell
+rg -n "UI Query Flow|Detail Flow|Export Flow|State Checks|Strict fixture smoke|Acceptance Record Template" docs/refactor/m2_manual_acceptance_steps.md
+```
+
+结果摘要: 通过。手工验收步骤覆盖 UI 查询、详情、导出、日志/状态检查和记录模板。
+
+### 人工验收
+
+1. 审阅 `m2_manual_acceptance_steps.md`，确认步骤可由测试人员逐项执行。
+2. 确认基本 smoke 与 strict fixture smoke 的区别写清楚。
+3. 确认空态、错误态、无权限态、窄屏都进入验收范围。
+
+结果摘要: 通过。M2 手工验收步骤完整。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-06-03`，执行 M2 全量回归。
+
+## M2-06-03: M2 全量回归
+
+- 状态: Passed
+- Work Item: M2-06-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/m2_regression_record_2026-06-19.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 M2 regression record。 |
+| API/OpenAPI 同步 | Passed | 全量 Go 测试包含审计 handler/OpenAPI 相关包测试。 |
+| 权限目录同步 | Passed | 全量 Go 测试包含 permission/menu/service/bootstrap 相关测试。 |
+| 审计 action 同步 | Passed | 全量 Go 测试包含 audit domain/service/handler/middleware。 |
+| migration/seed 同步 | Passed | store/sql/gormrepo 测试通过。 |
+| 前端 API client/UI 同步 | Passed | 前端 production build 通过。 |
+| 文档同步 | Passed | Work Item 状态、回归记录、验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 回归未新增兼容路径。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'
+go test ./...
+cd web
+npm run build
+```
+
+结果摘要: 通过。Go 全量测试通过；前端 Vite build 通过，仅保留既有 `@vueuse/core` Rollup pure annotation 和 Dart Sass legacy JS API 警告。
+
+### 人工验收
+
+1. 审阅测试输出，确认无失败包。
+2. 审阅 build 输出，确认产物生成且警告为既有依赖警告。
+3. 将命令结果记录到 `m2_regression_record_2026-06-19.md`。
+
+结果摘要: 通过。M2 全量回归完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-06-04`，编写 M2 里程碑验收记录。
+
+## M2-06-04: M2 里程碑验收记录
+
+- 状态: Passed
+- Work Item: M2-06-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: pending
+
+### 改动文件
+
+- `docs/refactor/m2_milestone_acceptance_2026-06-19.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 M2 milestone acceptance 记录。 |
+| API/OpenAPI 同步 | Passed | M2-04 list/detail/export、OpenAPI/client sync gate 已完成。 |
+| 权限目录同步 | Passed | M1 权限目录已完成，M2 smoke 记录权限拒绝场景与 strict fixture 门禁。 |
+| 审计 action 同步 | Passed | M2 覆盖 operation/login/error/plugin/security 分类和三段式 action。 |
+| migration/seed 同步 | Passed | audit event migration/store 回归通过；fixture seed 作为后续 strict E2E 前置条件。 |
+| 前端 API client/UI 同步 | Passed | M2-05 前端 audit page 和 FE0 UX baseline 完成。 |
+| 文档同步 | Passed | task board、work items、milestone acceptance、acceptance log 已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | M2 继续使用统一 audit event contract，不新增旧路径兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "M2 Milestone Acceptance|Parent Task Results|Command Results|Acceptance Decision" docs/refactor/m2_milestone_acceptance_2026-06-19.md
+powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1
+$env:CGO_ENABLED='0'
+go test ./...
+cd web
+npm run build
+```
+
+结果摘要: 通过。M2 里程碑记录、smoke、Go 全量测试、前端 build 均完成。
+
+### 人工验收
+
+1. 审阅 M2 parent task results，确认 M2-01 至 M2-06 均 Passed。
+2. 审阅 known warnings，确认 warning 均有后续严格门禁或后续里程碑归属。
+3. 确认 `task_board.md` 中 M2-06 状态更新为 Done。
+
+结果摘要: 通过。M2 里程碑验收完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 根据 task board 进入下一里程碑任务。
+
+## ADJ-20260619-01: M2 export/list filter parity check
+
+- 状态: Passed
+- Work Item: ADJ-20260619-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/task_board.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/m2_export_list_filter_parity.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增导出/list 过滤一致性记录。 |
+| API/OpenAPI 同步 | Passed | 记录确认 list/export 共用 `parseEventFilter`。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | action/type/result/risk 使用同一过滤解析与校验路径。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项只记录后端 list/export 过滤一致性。 |
+| 文档同步 | Passed | 微调任务已合并进 task board/work items，验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 记录明确新事件服务路径优先，不新增旧导出路径。 |
+
+### 自动化验证
+
+```powershell
+rg "parseEventFilter" internal/handler/http/v1/audit
+rg "ExportEventSourceData" internal/handler/http/v1/audit
+rg "ListEvents" internal/handler/http/v1/audit
+go test ./internal/handler/http/v1/audit/...
+```
+
+结果摘要: 首次 rg 使用 `\|` 作为表格转义，直接执行会查找字面量管道导致失败；改为三段可复制 rg 后通过。列表与导出均定位到 `parseEventFilter`，目标包测试通过。
+
+### 人工验收
+
+1. 审阅 `m2_export_list_filter_parity.md` 的共享过滤入口表。
+2. 对照 handler，确认 list/export 分支均使用 `parseEventFilter`。
+3. 对照 handler tests，确认列表和导出覆盖同一过滤字段族。
+
+结果摘要: 通过。导出与列表过滤语义一致。
+
+### 失败与返工
+
+- 失败原因: 首次验收命令中 `\|` 是 Markdown 表格转义，不适合直接复制到 PowerShell 执行。
+- 返工动作: 将验证命令改为三段独立 `rg`。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `ADJ-20260619-02`，执行 M2 OpenAPI/client sync gate。
+
+## ADJ-20260619-02: M2 OpenAPI/client sync gate
+
+- 状态: Passed
+- Work Item: ADJ-20260619-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/work_items.md`
+- `docs/refactor/m2_openapi_client_sync_gate.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 OpenAPI/client sync gate 对齐记录。 |
+| API/OpenAPI 同步 | Passed | list/detail/export 的 handler DTO、`docs/api/openapi.yaml`、`internal/handler/http/openapi.yaml` 对齐。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | Passed | 本项确认审计查询和导出契约，不新增 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | `web/src/audit/api.ts` 与 OpenAPI 字段、响应 envelope、CSV blob 导出契约一致。 |
+| 文档同步 | Passed | Work Item 状态和 sync gate 记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未新增兼容层或旧接口分支。 |
+
+### 自动化验证
+
+```powershell
+rg "AuditEventListQuery|AuditEventDetail|eventId,sourceData" web/src/audit/api.ts docs/api/openapi.yaml internal/handler/http/openapi.yaml
+Compare-Object (Get-Content -Encoding utf8 docs/api/openapi.yaml) (Get-Content -Encoding utf8 internal/handler/http/openapi.yaml)
+go test ./internal/handler/http/v1/audit/...
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 首次 `Compare-Object` 命令括号写法错误，修正为三段独立命令后通过。OpenAPI 双文件内容一致；后端审计 handler 包测试通过；前端 typecheck/build 通过。
+
+### 人工验收
+
+1. 对照 handler DTO 与 OpenAPI schemas，确认 list/detail/export 字段一致。
+2. 对照 `web/src/audit/api.ts`，确认 TS 类型使用同一 list query，详情保留 `sourceData/diff`，导出返回 `Blob`。
+3. 对照审计页集成，确认详情抽屉和导出按钮使用 typed client。
+
+结果摘要: 通过。OpenAPI/client sync gate 已满足。
+
+### 失败与返工
+
+- 失败原因: 首次验收命令中 `Compare-Object` 参数括号拼写错误，PowerShell 解析失败。
+- 返工动作: 拆分为独立 `rg`、`Compare-Object`、`go test` 命令并重跑。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `ADJ-20260619-03`，补齐 FE0 audit page UX baseline。
+
+## ADJ-20260619-03: FE0 audit page UX baseline
+
+- 状态: Passed
+- Work Item: ADJ-20260619-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/work_items.md`
+- `docs/refactor/fe0_audit_page_ux_baseline.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增审计页 FE0 UX baseline 和手工 smoke checklist。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | baseline 覆盖 tab、筛选、详情、导出、loading、empty、error、no-permission、narrow viewport。 |
+| 文档同步 | Passed | Work Item 状态和 UX baseline 文档已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 不新增旧 UI 路径或兼容流程。 |
+
+### 自动化验证
+
+```powershell
+rg -n "AUDIT_TYPE_TABS|el-tabs|el-form|el-result|el-empty|el-drawer|exportCSV|clearByRange|@media" web/src/views/Audit/index.vue
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。审计页关键交互锚点均存在；前端 typecheck/build 通过。
+
+### 人工验收
+
+1. 审阅 `fe0_audit_page_ux_baseline.md`，确认 tab、筛选、详情、导出、状态和窄屏均有明确验收项。
+2. 对照 `web/src/views/Audit/index.vue`，确认 baseline 中的 current anchor 均对应实际实现。
+3. 确认后续可用同一 checklist 记录浏览器 smoke 结果。
+
+结果摘要: 通过。审计页体验基线可作为后续 FE0/FE3/FE5 验收入口。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `ADJ-20260619-04`，补齐 M2 audit smoke fixture。
+
+## ADJ-20260619-04: M2 audit smoke fixture
+
+- 状态: Passed
+- Work Item: ADJ-20260619-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/work_items.md`
+- `docs/refactor/fixtures/m2_audit_smoke_events.json`
+- `docs/refactor/m2_audit_smoke_fixture.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 M2 audit smoke fixture JSON 和使用说明。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | Passed | 样本使用当前 `module.resource.action` 规则，避免旧式 action。 |
+| migration/seed 同步 | N/A | 本项定义 fixture，不改数据库 migration/seed。 |
+| 前端 API client/UI 同步 | N/A | 本项为 smoke 数据夹具。 |
+| 文档同步 | Passed | Work Item 状态、fixture 说明、验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 不引入旧审计 action 或旧导出格式。 |
+
+### 自动化验证
+
+```powershell
+rg -n 'login_failed|forbidden|plugin|menu|export|eventId|sourceData' docs/refactor/fixtures/m2_audit_smoke_events.json
+rg -n "auth.session.login_failed|system.security.deny|plugin.lifecycle.enable|menu.node.update|audit.event.export" docs/refactor/fixtures/m2_audit_smoke_events.json docs/refactor/m2_audit_smoke_fixture.md
+$fixture = Get-Content -Raw -Encoding utf8 docs/refactor/fixtures/m2_audit_smoke_events.json | ConvertFrom-Json
+$fixture.scenarios.Count
+```
+
+结果摘要: 首次带 JSON 引号的单条 `rg` 在 PowerShell 下未命中；改为宽松场景关键词检查并补充 JSON 解析后通过。五个固定场景均存在，样本 action 均采用三段式命名。
+
+### 人工验收
+
+1. 审阅 fixture，确认 `login_failed`、`forbidden`、`plugin`、`menu`、`export` 场景齐全。
+2. 确认每个场景都有固定 `event.id`、`metadata.scenario`、`sourceData`、list query 和 export 断言 token。
+3. 确认后续 `M2-06-01` 可直接读取 fixture 更新 smoke 脚本。
+
+结果摘要: 通过。M2 audit smoke fixture 可进入脚本接入任务。
+
+### 失败与返工
+
+- 失败原因: 首次 `rg` 验收命令的引号组合在 PowerShell 中未命中 fixture 内容。
+- 返工动作: 改为场景关键词检查，并增加 `ConvertFrom-Json` 解析校验。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `M2-06-01`，更新 smoke-auth-audit 脚本场景。

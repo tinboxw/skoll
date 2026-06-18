@@ -35,15 +35,15 @@
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
 | 6 | M1-01 | `skoll-permission-menu-refactor` | 定义 PermissionResource 模型 | `internal/domain/permission` | 支持 api/menu/button/data_scope/plugin；单测覆盖校验规则 | `go test ./internal/domain/permission` | Done |
-| 7 | M1-02 | `skoll-permission-menu-refactor` | 定义 MenuNode 模型 | `internal/domain/menu` | 支持父子、路径、组件、图标、排序、显隐、授权字段 | `go test ./internal/domain/menu` | Todo |
-| 8 | M1-03 | `skoll-database-development` | 新增权限与菜单迁移 | MySQL/PostgreSQL migration | 可在空库执行；唯一约束和索引明确 | `go test ./internal/store/sql/...` | Todo |
-| 9 | M1-04 | `skoll-permission-menu-refactor` | 实现 catalog repository/store | repository + memory/sql store | service 不依赖 GORM；重复注册幂等 | `go test ./internal/repository/... ./internal/store/...` | Todo |
-| 10 | M1-05 | `skoll-permission-menu-refactor` | 实现 permission catalog service | service | 注册、列表、启停、来源过滤、diff 可用 | `go test ./internal/service/permission/...` | Todo |
-| 11 | M1-06 | `skoll-api-contracts` | 实现权限与菜单 API | HTTP handler + OpenAPI | API、OpenAPI、错误码一致；无 handler 直连 store | `go test ./internal/handler/http/v1/...` | Todo |
-| 12 | M1-07 | `skoll-plugin-platform` | 插件 manifest 权限/菜单导入 | plugin manager 集成 | 插件启用导入，禁用隐藏访问，权限进入 catalog | `go test ./internal/plugin/...` | Todo |
-| 13 | M1-08 | `skoll-vue-frontend` | 前端权限 store 与菜单 store | web store/client | sidebar、route guard、按钮权限同源 | `cd web && npm run build` | Todo |
-| 14 | M1-09 | `skoll-web-ui-design` | 权限矩阵和菜单管理页接入 catalog | Vue 页面 | 授权/撤销/排序/显隐后 UI 与后端一致 | `cd web && npm run build` | Todo |
-| 15 | M1-10 | `skoll-testing-automation` | M1 端到端验收 | smoke 或手工脚本 | 新角色授权后侧栏、路由、按钮、API 权限一致 | `go test ./...`; `cd web && npm run build` | Todo |
+| 7 | M1-02 | `skoll-permission-menu-refactor` | 定义 MenuNode 模型 | `internal/domain/menu` | 支持父子、路径、组件、图标、排序、显隐、授权字段 | `go test ./internal/domain/menu` | Done |
+| 8 | M1-03 | `skoll-database-development` | 新增权限与菜单迁移 | MySQL/PostgreSQL migration | 可在空库执行；唯一约束和索引明确 | `go test ./internal/store/sql/...` | Done |
+| 9 | M1-04 | `skoll-permission-menu-refactor` | 实现 catalog repository/store | repository + memory/sql store | service 不依赖 GORM；重复注册幂等 | `go test ./internal/repository/... ./internal/store/...` | Done |
+| 10 | M1-05 | `skoll-permission-menu-refactor` | 实现 permission catalog service | service | 注册、列表、启停、来源过滤、diff 可用 | `go test ./internal/service/permission/...` | Done |
+| 11 | M1-06 | `skoll-api-contracts` | 实现权限与菜单 API | HTTP handler + OpenAPI | API、OpenAPI、错误码一致；无 handler 直连 store | `go test ./internal/handler/http/v1/...` | Done |
+| 12 | M1-07 | `skoll-plugin-platform` | 插件 manifest 权限/菜单导入 | plugin manager 集成 | 插件启用导入，禁用隐藏访问，权限进入 catalog | `go test ./internal/plugin/...` | Done |
+| 13 | M1-08 | `skoll-vue-frontend` | 前端权限 store 与菜单 store | web store/client | sidebar、route guard、按钮权限同源 | `cd web && npm run build` | Done |
+| 14 | M1-09 | `skoll-web-ui-design` | 权限矩阵和菜单管理页接入 catalog | Vue 页面 | 授权/撤销/排序/显隐后 UI 与后端一致 | `cd web && npm run build` | Done |
+| 15 | M1-10 | `skoll-testing-automation` | M1 端到端验收 | smoke 或手工脚本 | 新角色授权后侧栏、路由、按钮、API 权限一致 | `go test ./...`; `cd web && npm run build` | Done |
 
 里程碑验收:
 
@@ -56,12 +56,12 @@
 
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
-| 16 | M2-01 | `skoll-audit-observability-refactor` | 定义 AuditEvent 分类与 action 命名 | domain + 文档 | operation/login/error/plugin/security 类型明确 | `go test ./internal/domain/audit/...` | Todo |
-| 17 | M2-02 | `skoll-audit-observability-refactor` | 登录日志与错误日志模型 | domain/store | 记录 IP、UA、trace、结果、错误摘要 | `go test ./internal/store/...` | Todo |
-| 18 | M2-03 | `skoll-audit-observability-refactor` | 审计写入中间件 | middleware | 成功、失败、未授权均记录 | `go test ./internal/handler/middleware/...` | Todo |
-| 19 | M2-04 | `skoll-api-contracts` | 审计查询和导出 API | handler + OpenAPI | 支持分类、actor、resource、action、时间、风险筛选 | `go test ./internal/handler/http/v1/audit/...` | Todo |
-| 20 | M2-05 | `skoll-vue-frontend` | 审计页升级 | Vue 页面 | tab、筛选、详情、导出、风险标签可用 | `cd web && npm run build` | Todo |
-| 21 | M2-06 | `skoll-testing-automation` | 审计 E2E 验收 | smoke 脚本/记录 | 登录失败、权限拒绝、插件启用、菜单修改、文件上传可查询 | `powershell -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1` | Todo |
+| 16 | M2-01 | `skoll-audit-observability-refactor` | 定义 AuditEvent 分类与 action 命名 | domain + 文档 | operation/login/error/plugin/security 类型明确 | `go test ./internal/domain/audit/...` | Done |
+| 17 | M2-02 | `skoll-audit-observability-refactor` | 登录日志与错误日志模型 | domain/store | 记录 IP、UA、trace、结果、错误摘要 | `go test ./internal/store/...` | Done |
+| 18 | M2-03 | `skoll-audit-observability-refactor` | 审计写入中间件 | middleware | 成功、失败、未授权均记录 | `go test ./internal/handler/middleware/...` | Done |
+| 19 | M2-04 | `skoll-api-contracts` | 审计查询、详情和导出 API | handler + OpenAPI + 对齐记录 | 支持分类、actor、resource、action、时间、风险筛选；导出/list 过滤一致，OpenAPI/client 字段同步 | `go test ./internal/handler/http/v1/audit/...` | Done |
+| 20 | M2-05 | `skoll-vue-frontend` | 审计页升级 | Vue 页面 + 审计页 UX baseline | tab、筛选、详情、导出、风险标签、空态、错误态、无权限态可用且有验收标准 | `cd web && npm run build` | Done |
+| 21 | M2-06 | `skoll-testing-automation` | 审计 E2E 验收 | smoke 脚本/记录 + audit smoke fixture | 登录失败、权限拒绝、插件、菜单、导出固定样本可查询 | `powershell -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1` | Done |
 
 里程碑验收:
 

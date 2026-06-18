@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "generatedAt": "2026-06-19T00:00:00Z",
+  "scenarios": [
+    {
+      "id": "login_failed",
+      "event": {
+        "id": "m2-smoke-login-failed",
+        "type": "login",
+        "action": "auth.session.login_failed",
+        "actor": {
+          "type": "user",
+          "id": "smoke-admin",
+          "name": "smoke-admin"
+        },
+        "resource": {
+          "type": "auth_session",
+          "id": "login",
+          "name": "Admin login"
+        },
+        "result": "failure",
+        "risk": "medium",
+        "trace": {
+          "traceId": "trace-smoke-login-failed",
+          "requestId": "req-smoke-login-failed",
+          "method": "POST",
+          "path": "/v1/auth/login",
+          "ip": "127.0.0.1",
+          "userAgent": "skoll-smoke"
+        },
+        "metadata": {
+          "scenario": "login_failed",
+          "reason": "invalid_password"
+        },
+        "sourceData": {
+          "account": "admin",
+          "result": "failure",
+          "reason": "invalid_password"
+        },
+        "occurredAt": "2026-06-19T00:00:01Z"
+      },
+      "expectedQueries": {
+        "list": "type=login&action=auth.session.login_failed&result=failure&risk=medium",
+        "exportContains": ["m2-smoke-login-failed", "invalid_password"]
+      }
+    },
+    {
+      "id": "forbidden",
+      "event": {
+        "id": "m2-smoke-forbidden",
+        "type": "security",
+        "action": "system.security.deny",
+        "actor": {
+          "type": "user",
+          "id": "restricted-user",
+          "name": "restricted"
+        },
+        "resource": {
+          "type": "api",
+          "id": "audit.read",
+          "name": "Audit read"
+        },
+        "result": "denied",
+        "risk": "high",
+        "trace": {
+          "traceId": "trace-smoke-forbidden",
+          "requestId": "req-smoke-forbidden",
+          "method": "GET",
+          "path": "/v1/audit",
+          "ip": "127.0.0.1",
+          "userAgent": "skoll-smoke"
+        },
+        "metadata": {
+          "scenario": "forbidden",
+          "permission": "audit.read"
+        },
+        "sourceData": {
+          "permission": "audit.read",
+          "decision": "deny"
+        },
+        "occurredAt": "2026-06-19T00:00:02Z"
+      },
+      "expectedQueries": {
+        "list": "type=security&action=system.security.deny&result=denied&risk=high",
+        "exportContains": ["m2-smoke-forbidden", "audit.read"]
+      }
+    },
+    {
+      "id": "plugin",
+      "event": {
+        "id": "m2-smoke-plugin",
+        "type": "plugin",
+        "action": "plugin.lifecycle.enable",
+        "actor": {
+          "type": "user",
+          "id": "smoke-admin",
+          "name": "smoke-admin"
+        },
+        "resource": {
+          "type": "plugin",
+          "id": "sample-plugin",
+          "name": "Sample Plugin"
+        },
+        "result": "success",
+        "risk": "high",
+        "trace": {
+          "traceId": "trace-smoke-plugin",
+          "requestId": "req-smoke-plugin",
+          "method": "POST",
+          "path": "/v1/plugins/sample-plugin/enable",
+          "ip": "127.0.0.1",
+          "userAgent": "skoll-smoke"
+        },
+        "metadata": {
+          "scenario": "plugin",
+          "pluginId": "sample-plugin"
+        },
+        "sourceData": {
+          "pluginId": "sample-plugin",
+          "status": "enabled"
+        },
+        "occurredAt": "2026-06-19T00:00:03Z"
+      },
+      "expectedQueries": {
+        "list": "type=plugin&action=plugin.lifecycle.enable&resourceType=plugin&resourceId=sample-plugin",
+        "exportContains": ["m2-smoke-plugin", "sample-plugin"]
+      }
+    },
+    {
+      "id": "menu",
+      "event": {
+        "id": "m2-smoke-menu",
+        "type": "operation",
+        "action": "menu.node.update",
+        "actor": {
+          "type": "user",
+          "id": "smoke-admin",
+          "name": "smoke-admin"
+        },
+        "resource": {
+          "type": "menu",
+          "id": "audit",
+          "name": "Audit"
+        },
+        "result": "success",
+        "risk": "medium",
+        "trace": {
+          "traceId": "trace-smoke-menu",
+          "requestId": "req-smoke-menu",
+          "method": "PUT",
+          "path": "/v1/menus/visibility",
+          "ip": "127.0.0.1",
+          "userAgent": "skoll-smoke"
+        },
+        "metadata": {
+          "scenario": "menu",
+          "menuKey": "audit"
+        },
+        "sourceData": {
+          "before": {
+            "visible": false
+          },
+          "after": {
+            "visible": true
+          },
+          "summary": ["audit menu visible"]
+        },
+        "occurredAt": "2026-06-19T00:00:04Z"
+      },
+      "expectedQueries": {
+        "list": "type=operation&action=menu.node.update&resourceType=menu&resourceId=audit",
+        "exportContains": ["m2-smoke-menu", "audit menu visible"]
+      }
+    },
+    {
+      "id": "export",
+      "event": {
+        "id": "m2-smoke-export",
+        "type": "operation",
+        "action": "audit.event.export",
+        "actor": {
+          "type": "user",
+          "id": "smoke-admin",
+          "name": "smoke-admin"
+        },
+        "resource": {
+          "type": "audit",
+          "id": "event-source-data",
+          "name": "Audit event source data"
+        },
+        "result": "success",
+        "risk": "low",
+        "trace": {
+          "traceId": "trace-smoke-export",
+          "requestId": "req-smoke-export",
+          "method": "GET",
+          "path": "/v1/audit/export",
+          "ip": "127.0.0.1",
+          "userAgent": "skoll-smoke"
+        },
+        "metadata": {
+          "scenario": "export",
+          "format": "csv"
+        },
+        "sourceData": {
+          "format": "csv",
+          "columns": ["eventId", "sourceData"]
+        },
+        "occurredAt": "2026-06-19T00:00:05Z"
+      },
+      "expectedQueries": {
+        "list": "type=operation&action=audit.event.export&resourceType=audit&resourceId=event-source-data",
+        "exportContains": ["m2-smoke-export", "eventId", "sourceData"]
+      }
+    }
+  ]
+}
