@@ -209,6 +209,76 @@ func TestEnableDisableResourceAuditHookReserved(t *testing.T) {
 	}
 }
 
+func TestDiffResources(t *testing.T) {
+	ctx := context.Background()
+	store := memory.NewPermissionStore()
+	svc := NewService(store)
+	_, _ = svc.RegisterResource(ctx, RegisterResourceInput{
+		Key:    "plugin.demo:report:list",
+		Type:   domainpermission.ResourceTypeAPI,
+		Module: "report",
+		Source: "plugin.demo",
+		Name:   "List reports",
+	})
+	_, _ = svc.RegisterResource(ctx, RegisterResourceInput{
+		Key:    "plugin.demo:report:delete",
+		Type:   domainpermission.ResourceTypeAPI,
+		Module: "report",
+		Source: "plugin.demo",
+		Name:   "Delete reports",
+	})
+
+	diff, err := svc.DiffResources(ctx, DiffResourcesInput{
+		Source: "plugin.demo",
+		Desired: []RegisterResourceInput{
+			{
+				Key:      "plugin.demo:report:list",
+				Type:     domainpermission.ResourceTypeAPI,
+				Module:   "report",
+				Name:     "List reports updated",
+				Metadata: map[string]string{"owner": "reporting"},
+			},
+			{
+				Key:    "plugin.demo:report:create",
+				Type:   domainpermission.ResourceTypeAPI,
+				Module: "report",
+				Name:   "Create reports",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DiffResources() error = %v", err)
+	}
+	if len(diff.Added) != 1 || diff.Added[0].Key() != "plugin.demo:report:create" {
+		t.Fatalf("added = %+v", diff.Added)
+	}
+	if len(diff.Updated) != 1 || diff.Updated[0].Key() != "plugin.demo:report:list" {
+		t.Fatalf("updated = %+v", diff.Updated)
+	}
+	if len(diff.Removed) != 1 || diff.Removed[0].Key() != "plugin.demo:report:delete" {
+		t.Fatalf("removed = %+v", diff.Removed)
+	}
+}
+
+func TestDiffResourcesValidationAndRepositoryError(t *testing.T) {
+	t.Run("requires source", func(t *testing.T) {
+		svc := NewService(memory.NewPermissionStore())
+		_, err := svc.DiffResources(context.Background(), DiffResourcesInput{})
+		if err == nil || !strings.Contains(strings.ToLower(err.Error()), "permission source") {
+			t.Fatalf("expected source required error, got %v", err)
+		}
+	})
+
+	t.Run("propagates list error", func(t *testing.T) {
+		wantErr := errors.New("store failed")
+		svc := NewService(&failingPermissionRepository{err: wantErr})
+		_, err := svc.DiffResources(context.Background(), DiffResourcesInput{Source: "plugin.demo"})
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("err = %v, want %v", err, wantErr)
+		}
+	})
+}
+
 type failingPermissionRepository struct {
 	err error
 }

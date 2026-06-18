@@ -3,6 +3,8 @@ package permission
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"sort"
 	"strings"
 
 	domainpermission "github.com/tinboxw/skoll/internal/domain/permission"
@@ -22,16 +24,7 @@ func (s *serviceImpl) RegisterResource(ctx context.Context, in RegisterResourceI
 	if s == nil || s.repo == nil {
 		return nil, fmt.Errorf("permission repository is not configured")
 	}
-	risk := in.Risk
-	if risk == "" {
-		risk = domainpermission.RiskLevelLow
-	}
-	resource, err := domainpermission.NewResourceWithMetadata(domainpermission.ResourceIdentity{
-		Key:    in.Key,
-		Type:   in.Type,
-		Module: in.Module,
-		Source: in.Source,
-	}, in.Name, risk, in.Metadata)
+	resource, err := buildPermissionResource(in)
 	if err != nil {
 		return nil, err
 	}
@@ -75,8 +68,63 @@ func (s *serviceImpl) DisableResource(ctx context.Context, key string) error {
 	return s.setResourceEnabled(ctx, key, false)
 }
 
-func (s *serviceImpl) DiffResources(context.Context, DiffResourcesInput) (*DiffResult, error) {
-	return nil, fmt.Errorf("DiffResources is not implemented")
+func (s *serviceImpl) DiffResources(ctx context.Context, in DiffResourcesInput) (*DiffResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("permission repository is not configured")
+	}
+	source := strings.TrimSpace(strings.ToLower(in.Source))
+	if source == "" {
+		return nil, fmt.Errorf("permission source is required")
+	}
+
+	current, err := s.repo.List(ctx, permissionrepo.ListFilter{Source: source}, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	currentByKey := make(map[string]domainpermission.PermissionResource, len(current))
+	for _, item := range current {
+		currentByKey[item.Key()] = item
+	}
+
+	result := &DiffResult{
+		Added:   make([]domainpermission.PermissionResource, 0),
+		Updated: make([]domainpermission.PermissionResource, 0),
+		Removed: make([]domainpermission.PermissionResource, 0),
+	}
+	desiredKeys := make(map[string]struct{}, len(in.Desired))
+	for _, desiredInput := range in.Desired {
+		if strings.TrimSpace(desiredInput.Source) == "" {
+			desiredInput.Source = source
+		}
+		resource, err := buildPermissionResource(desiredInput)
+		if err != nil {
+			return nil, err
+		}
+		if resource.Source() != source {
+			return nil, fmt.Errorf("permission source mismatch")
+		}
+		desiredKeys[resource.Key()] = struct{}{}
+		existing, ok := currentByKey[resource.Key()]
+		if !ok {
+			result.Added = append(result.Added, resource)
+			continue
+		}
+		if permissionResourceChanged(existing, resource) {
+			result.Updated = append(result.Updated, resource)
+		}
+	}
+
+	removedKeys := make([]string, 0)
+	for key := range currentByKey {
+		if _, ok := desiredKeys[key]; !ok {
+			removedKeys = append(removedKeys, key)
+		}
+	}
+	sort.Strings(removedKeys)
+	for _, key := range removedKeys {
+		result.Removed = append(result.Removed, currentByKey[key])
+	}
+	return result, nil
 }
 
 func (s *serviceImpl) setResourceEnabled(ctx context.Context, key string, enabled bool) error {
@@ -94,4 +142,26 @@ func (s *serviceImpl) setResourceEnabled(ctx context.Context, key string, enable
 		return s.auditFn(ctx, key, enabled)
 	}
 	return nil
+}
+
+func buildPermissionResource(in RegisterResourceInput) (domainpermission.PermissionResource, error) {
+	risk := in.Risk
+	if risk == "" {
+		risk = domainpermission.RiskLevelLow
+	}
+	return domainpermission.NewResourceWithMetadata(domainpermission.ResourceIdentity{
+		Key:    in.Key,
+		Type:   in.Type,
+		Module: in.Module,
+		Source: in.Source,
+	}, in.Name, risk, in.Metadata)
+}
+
+func permissionResourceChanged(a domainpermission.PermissionResource, b domainpermission.PermissionResource) bool {
+	return a.Type() != b.Type() ||
+		a.Module() != b.Module() ||
+		a.Source() != b.Source() ||
+		a.Name != b.Name ||
+		a.Risk != b.Risk ||
+		!reflect.DeepEqual(domainpermission.NormalizeMetadata(a.Metadata), domainpermission.NormalizeMetadata(b.Metadata))
 }
