@@ -223,19 +223,23 @@
 | 155 | FE5-02 | FE5 | `skoll-frontend-testing-refactor` | 固化 build 门禁 | package script/CI 文档 | build 是所有前端任务必跑项 | `cd web && npm run build` | Done |
 | 156 | FE5-03 | FE5 | `skoll-frontend-testing-refactor` | 建立核心页面 smoke 清单 | `docs/refactor/fe5_core_page_smoke_checklist.md` | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 有步骤 | `rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Normal|Loading|Empty|Error|No permission|Narrow|Dangerous action|Browser Tooling Status" docs/refactor/fe5_core_page_smoke_checklist.md` | Done |
 | 157 | FE5-04 | FE5 | `skoll-frontend-testing-refactor` | 建立权限态验收清单 | `docs/refactor/fe5_permission_state_acceptance_checklist.md` | admin 和 restricted role 验收步骤明确 | `rg -n "Admin|Restricted|Route guard|Sidebar/menu|Button/action|API denial|Audit signal|Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Negative-Path Evidence|Failure Policy|Browser Tooling Status" docs/refactor/fe5_permission_state_acceptance_checklist.md` | Done |
-| 158 | FE5-05 | FE5 | `skoll-frontend-testing-refactor` | 建立响应式验收清单 | docs/scripts | 至少桌面和窄屏检查项明确 | 文档审阅 | Todo |
-| 159 | FE5-06 | FE5 | `skoll-frontend-testing-refactor` | 评估 Playwright/browser 自动化 | 测试方案 | 是否引入、覆盖范围、执行命令明确 | 文档审阅 | Todo |
-| 160 | FE5-07 | FE5 | `skoll-frontend-testing-refactor` | 前端验收记录接入 acceptance log | `acceptance_log.md` | 前端状态、浏览器、截图/路径字段可记录 | 文档审阅 | Todo |
-| 161 | ADJ-FE-20260619-07 | FE5 | `skoll-frontend-testing-refactor` | FE5 browser smoke minimum set | docs/scripts | 覆盖登录、权限拒绝、插件操作、审计导出、窄屏导航 | 文档审阅 | Todo |
+| 158 | ADJ-TAIL-20260619-01 | FE5 | `skoll-frontend-testing-refactor` | FE5 验收一致性 gate | `docs/refactor/fe5_acceptance_consistency_gate.md` | `work_items.md`、`acceptance_log.md`、最近 git log 对 FE5 已完成项一致；不一致时必须先返工记录 | `rg -n "FE5-01|FE5-02|FE5-03|FE5-04|ADJ-TAIL-20260619-01" docs/refactor/work_items.md docs/refactor/acceptance_log.md docs/refactor/fe5_acceptance_consistency_gate.md; git log --oneline -n 16` | Done |
+| 159 | FE5-05 | FE5 | `skoll-frontend-testing-refactor` | 建立响应式验收清单 | docs/scripts | 至少桌面和窄屏检查项明确 | 文档审阅 | Todo |
+| 160 | ADJ-TAIL-20260619-02 | FE5 | `skoll-frontend-testing-refactor` | browser smoke 最小集执行记录 | 浏览器验收记录 | 登录、权限拒绝、插件操作、审计导出、窄屏导航均有 pass/fail 记录 | 文档审阅 | Todo |
+| 161 | FE5-06 | FE5 | `skoll-frontend-testing-refactor` | 评估 Playwright/browser 自动化 | 测试方案 | 是否引入、覆盖范围、执行命令明确 | 文档审阅 | Todo |
+| 162 | FE5-07 | FE5 | `skoll-frontend-testing-refactor` | 前端验收记录接入 acceptance log | `acceptance_log.md` | 前端状态、浏览器、截图/路径字段可记录 | 文档审阅 | Todo |
+| 163 | ADJ-FE-20260619-07 | FE5 | `skoll-frontend-testing-refactor` | FE5 browser smoke minimum set | docs/scripts | 覆盖登录、权限拒绝、插件操作、审计导出、窄屏导航 | 文档审阅 | Todo |
 
 ## FE6 Work Items: 前端性能与可观测
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 162 | FE6-01 | FE6 | `skoll-frontend-performance-refactor` | 建立 bundle 基线 | 性能记录 | build chunk 和 warning 被记录 | `cd web && npm run build` | Todo |
-| 163 | FE6-02 | FE6 | `skoll-frontend-performance-refactor` | 检查路由懒加载覆盖 | router 清单 | 主要业务页面均懒加载 | `rg "component:\\s*\\(\\)\\s*=>" web/src/router web/src` | Todo |
-| 164 | FE6-03 | FE6 | `skoll-frontend-performance-refactor` | 建立表格性能规则 | 性能文档/组件要求 | 服务端分页、大列表策略、稳定尺寸明确 | 文档审阅 | Todo |
-| 165 | FE6-04 | FE6 | `skoll-frontend-performance-refactor` | 共享数据缓存策略 | store 文档/代码 | 菜单、权限、字典缓存与失效规则明确 | 文档审阅 | Todo |
-| 166 | FE6-05 | FE6 | `skoll-frontend-performance-refactor` | 插件/Dev Portal 性能检查 | 性能记录 | 重面板按需加载，请求数量可控 | 浏览器验收 | Todo |
-| 167 | FE6-06 | FE6 | `skoll-frontend-performance-refactor` | 前端性能验收模板 | `acceptance_log.md` | 记录 bundle 变化、路由加载、请求数量、页面卡顿观察 | 文档审阅 | Todo |
-| 168 | ADJ-FE-20260619-08 | FE6 | `skoll-frontend-performance-refactor` | FE6 performance regression checklist | 性能回归清单 | bundle、懒加载、重表格、请求数量有基线 | 文档审阅 | Todo |
+| 164 | ADJ-TAIL-20260619-03 | FE6 | `skoll-frontend-performance-refactor` | FE6 性能执行顺序清单 | 性能优先级记录 | bundle、路由懒加载、重表格、请求数量、插件重面板均被排序并写入验收标准 | 文档审阅 | Todo |
+| 165 | FE6-01 | FE6 | `skoll-frontend-performance-refactor` | 建立 bundle 基线 | 性能记录 | build chunk 和 warning 被记录 | `cd web && npm run build` | Todo |
+| 166 | FE6-02 | FE6 | `skoll-frontend-performance-refactor` | 检查路由懒加载覆盖 | router 清单 | 主要业务页面均懒加载 | `rg "component:\\s*\\(\\)\\s*=>" web/src/router web/src` | Todo |
+| 167 | FE6-03 | FE6 | `skoll-frontend-performance-refactor` | 建立表格性能规则 | 性能文档/组件要求 | 服务端分页、大列表策略、稳定尺寸明确 | 文档审阅 | Todo |
+| 168 | FE6-04 | FE6 | `skoll-frontend-performance-refactor` | 共享数据缓存策略 | store 文档/代码 | 菜单、权限、字典缓存与失效规则明确 | 文档审阅 | Todo |
+| 169 | FE6-05 | FE6 | `skoll-frontend-performance-refactor` | 插件/Dev Portal 性能检查 | 性能记录 | 重面板按需加载，请求数量可控 | 浏览器验收 | Todo |
+| 170 | FE6-06 | FE6 | `skoll-frontend-performance-refactor` | 前端性能验收模板 | `acceptance_log.md` | 记录 bundle 变化、路由加载、请求数量、页面卡顿观察 | 文档审阅 | Todo |
+| 171 | ADJ-FE-20260619-08 | FE6 | `skoll-frontend-performance-refactor` | FE6 performance regression checklist | 性能回归清单 | bundle、懒加载、重表格、请求数量有基线 | 文档审阅 | Todo |
+| 172 | ADJ-TAIL-20260619-04 | FE6 | `skoll-refactor-governance` | 尾盘阈值检查 | 阈值触发记录 | 下一轮巡检若 Todo < 10，立即启动任务优化流程并校准剩余项 | 文档审阅 | Todo |

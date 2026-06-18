@@ -8930,3 +8930,61 @@ rg -n "Admin|Restricted|Route guard|Sidebar/menu|Button/action|API denial|Audit 
 ### 下一步
 
 - 进入 `FE5-05`，建立响应式验收清单。
+
+## ADJ-TAIL-20260619-01: FE5 验收一致性 gate
+
+- 状态: Passed
+- Work Item: ADJ-TAIL-20260619-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe5_acceptance_consistency_gate.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 微调任务合并 | Passed | 将 ADJ-TAIL-20260619-01/02/03/04 按依赖插入 `work_items.md`，并保持现有 FE5/FE6 顺序可执行。 |
+| FE5-01 一致性 | Passed | Work Item=Done，acceptance_log 有记录，git log 有 `e6d7080 FE5-01: enforce frontend typecheck gate`。 |
+| FE5-02 一致性 | Passed | Work Item=Done，acceptance_log 有记录，git log 有 `4b7f273 FE5-02: enforce frontend build gate`。 |
+| FE5-03 一致性 | Passed | Work Item=Done，acceptance_log 有记录，git log 有 `7eb841f FE5-03: add core page smoke checklist`。 |
+| FE5-04 一致性 | Passed | Work Item=Done，acceptance_log 有记录，git log 有 `7997198 FE5-04: add permission state acceptance checklist`。 |
+| 失败处理 | Passed | 未发现 Done 缺少提交或验收记录的 FE5 已完成项。 |
+| 前端 API client/UI 同步 | N/A | 本项为验收一致性 gate，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "FE5-01|FE5-02|FE5-03|FE5-04|ADJ-TAIL-20260619-01" docs/refactor/work_items.md docs/refactor/acceptance_log.md docs/refactor/fe5_acceptance_consistency_gate.md
+git log --oneline -n 16
+```
+
+结果摘要: 通过。FE5-01 到 FE5-04 的 Work Item 状态、验收日志和 git log 均对齐；新增尾盘微调任务已进入 Work Item 队列。
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项为一致性 gate，不执行真实浏览器点击。
+
+### Performance Hook
+
+- Page/route: N/A
+- Typecheck: N/A
+- Build: N/A
+- Request behavior: N/A
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE5-05`，建立响应式验收清单。
