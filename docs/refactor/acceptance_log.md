@@ -6436,6 +6436,61 @@ rg -n "FE2-05.*Done" docs/refactor/work_items.md
 
 - 进入 `FE2-06`，统一前端错误展示。
 
+## FE2-06: 统一前端错误展示
+
+- 状态: Passed
+- Work Item: FE2-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_error_display_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增前端错误展示标准文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | `ApiError`、`toErrorMessage`、store `lastError`、页面错误态和成功态规则明确。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 不新增旧 toast/alert 兼容层，复用当前 API error 和页面状态模式。 |
+
+### 自动化验证
+
+```powershell
+rg -n "catch|toErrorMessage|ApiError|lastError|throw" web/src docs/refactor/fe2_error_display_standard.md
+rg -n "ApiError source|Message helper|No fake success|Store propagation|Silent catch boundary" docs/refactor/fe2_error_display_standard.md
+rg -n "FE2-06.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。底层 API、audit export、store lastError、页面 catch/toErrorMessage 锚点存在；标准覆盖错误来源、文案转换、成功态、store 传播和静默 catch 边界；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe2_error_display_standard.md`，确认后端错误必须展示、写入错误状态或重抛。
+2. 对照 `api.ts`、`common.ts`、`audit/api.ts`、`stores/permissions.ts`、`stores/navigation.ts`，确认错误语义可追踪。
+3. 对照页面 `catch` 调用点，确认用户触发的业务操作不应空 catch 或显示假成功。
+
+结果摘要: 通过。FE2-06 统一前端错误展示完成。
+
+### 失败与返工
+
+- 失败原因: 原 Work Item 验证命令使用 `\|`，在 ripgrep 正则中容易按字面量管道解析，无法可靠命中 alternation。
+- 返工动作: 将验证命令修正为 `rg -n "catch|toErrorMessage|ApiError|lastError|throw" web/src docs/refactor/fe2_error_display_standard.md`。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `FE2-07`，统一导出/下载交互。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
