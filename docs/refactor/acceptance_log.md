@@ -4469,3 +4469,58 @@ rg -n "type LoginLog|Account|Result|IP|UserAgent|FailureReason|SessionID|NewLogi
 ### 下一步
 
 - 进入 `M2-02-02`，定义 ErrorLog 模型。
+
+## M2-02-02: 定义 ErrorLog 模型
+
+- 状态: Passed
+- Work Item: M2-02-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/audit/error_log.go`
+- `internal/domain/audit/error_log_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 `ErrorLog`、`ErrorLogInput`、`RequestContext` 和 `ErrorLevel`，字段覆盖 trace、request、错误码、等级、摘要。 |
+| API/OpenAPI 同步 | N/A | 本项仅定义 domain 模型，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | ErrorLog 可承载 M2 action catalog 中的 handled/panic 错误事件数据。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构，SQL migration 后续 M2-02-03 处理。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新模型直接服务统一错误日志，不新增旧错误日志兼容结构。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/domain/audit/error_log.go internal/domain/audit/error_log_test.go
+go test ./internal/domain/audit/...
+rg -n "type ErrorLog|Trace|Request|ErrorCode|Level|Summary|NewErrorLog|ErrorLevel" internal/domain/audit/error_log.go internal/domain/audit/error_log_test.go
+```
+
+结果摘要: 通过。trace/request、错误码、等级、摘要、metadata 拷贝和非法输入拒绝均已覆盖。
+
+### 人工验收
+
+1. 审阅 `internal/domain/audit/error_log.go`，确认错误日志字段完整且不依赖 store。
+2. 审阅 `internal/domain/audit/error_log_test.go`，确认 trace/request 与错误等级校验路径均有测试。
+
+结果摘要: 通过。ErrorLog 模型已定义。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-02-03`，新增 audit/log migration。
