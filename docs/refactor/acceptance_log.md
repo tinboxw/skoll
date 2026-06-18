@@ -1809,3 +1809,58 @@ rg "sk_menu_nodes|parent_key|source|path|sort|uk_menu_nodes_key|idx_menu_nodes" 
 ### 下一步
 
 - 进入 `M1-03-03`，增加 gormrepo model。
+
+## M1-03-03: 增加 gormrepo model
+
+- 状态: Passed
+- Work Item: M1-03-03
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/store/sql/gormrepo/permission_menu_model.go`
+- `internal/store/sql/gormrepo/permission_menu_model_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 permission resource 与 menu node 的 GORM model 和 domain 转换。 |
+| API/OpenAPI 同步 | N/A | 本项只新增 SQL model，无 API 影响。 |
+| 权限目录同步 | Passed | `PermissionResourceModel` 字段与 permission domain/migration 对齐。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | Passed | Model 字段与 `000013`、`000014` migration 对齐；暂不引入 seed。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧权限/菜单持久化兼容模型。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/store/sql/gormrepo -run "TestPermissionResourceModelRoundTrip|TestMenuNodeModelRoundTrip"
+go test ./internal/store/sql/gormrepo/...
+```
+
+结果摘要: 默认环境下转换测试和全包验收均受本机 cgo 编译器路径缺失影响失败；关闭 cgo 后转换测试通过。失败原因与 M0 基线一致。
+
+### 人工验收
+
+1. 审阅 `PermissionResourceModel` 与 `20260618_000013_create_permission_resources.sql`。
+2. 审阅 `MenuNodeModel` 与 `20260618_000014_create_menu_nodes.sql`。
+3. 确认字段、表名、JSON 字段和唯一/索引相关字段一致。
+
+结果摘要: 通过。GORM model 字段与 migration 一致。
+
+### 失败与返工
+
+- 失败原因: 全包 gormrepo 测试依赖 SQLite cgo，当前 `CC` 指向缺失的 gcc。
+- 返工动作: 新增不连接 SQLite 的纯转换测试，并单独执行通过；保留环境失败记录。
+- 重新验收结果: 通过。
+
+### 下一步
+
+- 进入 `M1-03-04`，注册新 model 到 all_models。
