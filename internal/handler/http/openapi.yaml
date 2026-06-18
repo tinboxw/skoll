@@ -348,10 +348,89 @@ paths:
           description: Not Found
   /v1/audit/export:
     get:
-      summary: Export audit records as CSV
+      summary: Export audit event source data as CSV
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [operation, login, error, plugin, security]
+        - name: actorId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: action
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}$'
+        - name: resourceType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: resourceId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: result
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [success, failure, denied]
+        - name: risk
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [low, medium, high, critical]
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
       responses:
         '200':
-          description: OK
+          description: CSV with fixed columns eventId and sourceData
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: CSV header is `eventId,sourceData`; sourceData is compact JSON encoded as a CSV field.
+              examples:
+                auditEventSourceData:
+                  value: |
+                    eventId,sourceData
+                    event-1,"{""ip"":""127.0.0.1"",""result"":""denied""}"
+        '400':
+          description: Bad Request
   /v1/audit/actors/{actorId}:
     get:
       summary: List audit records by actor

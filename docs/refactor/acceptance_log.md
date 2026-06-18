@@ -5292,3 +5292,58 @@ rg -n "parseEventFilter|writeAuditEventSourceCSV|ExportEventSourceData|eventId,s
 ### 下一步
 
 - 进入 `M2-04-06`，更新 OpenAPI 文件。
+
+## M2-04-06: 更新 OpenAPI 文件
+
+- 状态: Passed
+- Work Item: M2-04-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | OpenAPI 已补齐审计 list/detail/export 契约。 |
+| API/OpenAPI 同步 | Passed | `docs/api/openapi.yaml` 与 `internal/handler/http/openapi.yaml` SHA256 hash 一致。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | list/export 参数均声明 canonical action pattern 与 type/result/risk 枚举。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 前端 client/UI 后续 M2-05 接入。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | export 契约已从旧 record CSV 更新为事件 sourceData CSV。 |
+
+### 自动化验证
+
+```powershell
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+rg -n "Export audit event source data as CSV|eventId,sourceData|text/csv|AuditEventListAPIResponse|AuditEventDetailAPIResponse|sourceData|diff:" docs/api/openapi.yaml internal/handler/http/openapi.yaml
+```
+
+结果摘要: 通过。两份 OpenAPI 文件 hash 一致，list/detail/export 的关键契约字段均可定位。
+
+### 人工验收
+
+1. 审阅 `/v1/audit` GET，确认列表 filter/page/response 字段明确。
+2. 审阅 `/v1/audit/{id}` GET，确认详情 metadata/sourceData/diff/trace 字段明确。
+3. 审阅 `/v1/audit/export` GET，确认 CSV header 为 `eventId,sourceData` 且过滤参数与列表一致。
+
+结果摘要: 通过。审计 OpenAPI 契约已同步。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-05-01`，新增审计 API client 类型。
