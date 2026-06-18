@@ -21,12 +21,20 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
+		if isSQLiteCGODisabledError(err) {
+			t.Skipf("sqlite test requires cgo: %v", err)
+		}
 		t.Fatalf("open sqlite error: %v", err)
 	}
 	if err := db.AutoMigrate(&testUserModel{}); err != nil {
 		t.Fatalf("migrate error: %v", err)
 	}
 	return db
+}
+
+func isSQLiteCGODisabledError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "requires cgo") || strings.Contains(msg, "cgo_enabled=0")
 }
 
 func TestParseDialect(t *testing.T) {

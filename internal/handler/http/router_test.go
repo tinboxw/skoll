@@ -241,6 +241,122 @@ func TestRouterRegistersPermissionAndMenuRoutes(t *testing.T) {
 	}
 }
 
+func TestRouterM1PermissionMenuIntegration(t *testing.T) {
+	ctx := context.Background()
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+	roleService := rolesvc.NewService(bundle.Roles)
+	menuService := menusvc.NewService(bundle.Menus)
+	permissionService := permissionsvc.NewService(bundle.Permissions)
+
+	roleEntity, err := roleService.Create(ctx, rolesvc.CreateRoleInput{
+		Name:        "Menu Operator",
+		Key:         "menu_operator",
+		Description: "menu operator",
+		Permissions: []string{"menu.read"},
+	})
+	if err != nil {
+		t.Fatalf("create role error: %v", err)
+	}
+
+	nodes := []domainmenu.MenuNode{
+		mustRouterMenuNode(t, "system.dashboard", "", "/skoll/dashboard", 10, true, nil),
+		mustRouterMenuNode(t, "system.menu", "", "/skoll/menu", 20, true, []string{"menu.read"}),
+		mustRouterMenuNode(t, "system.admin", "", "/skoll/admin", 30, true, []string{"menu.manage"}),
+		mustRouterMenuNode(t, "system.hidden", "", "/skoll/hidden", 40, false, nil),
+	}
+	if _, err := menuService.MergeNodes(ctx, menusvc.MergeNodesInput{Nodes: nodes}); err != nil {
+		t.Fatalf("MergeNodes error: %v", err)
+	}
+	if _, err := permissionService.RegisterResource(ctx, permissionsvc.RegisterResourceInput{
+		Key:    "menu.read",
+		Type:   "api",
+		Module: "menu",
+		Source: "system",
+		Name:   "Read menus",
+	}); err != nil {
+		t.Fatalf("RegisterResource error: %v", err)
+	}
+
+	router := NewRouter(Dependencies{
+		RoleService:       roleService,
+		MenuService:       menuService,
+		PermissionService: permissionService,
+	})
+
+	grantReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/roles/"+roleEntity.ID.String()+"/grant", bytes.NewReader([]byte(`{"permission":"menu.manage"}`)))
+	grantResp := httptest.NewRecorder()
+	router.ServeHTTP(grantResp, grantReq)
+	if grantResp.Code != http.StatusOK {
+		t.Fatalf("grant status=%d body=%s", grantResp.Code, grantResp.Body.String())
+	}
+	if !strings.Contains(grantResp.Body.String(), "menu.manage") {
+		t.Fatalf("expected granted permission in response: %s", grantResp.Body.String())
+	}
+
+	revokeReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/roles/"+roleEntity.ID.String()+"/revoke", bytes.NewReader([]byte(`{"permission":"menu.manage"}`)))
+	revokeResp := httptest.NewRecorder()
+	router.ServeHTTP(revokeResp, revokeReq)
+	if revokeResp.Code != http.StatusOK {
+		t.Fatalf("revoke status=%d body=%s", revokeResp.Code, revokeResp.Body.String())
+	}
+	if strings.Contains(revokeResp.Body.String(), "menu.manage") {
+		t.Fatalf("expected revoked permission to be absent: %s", revokeResp.Body.String())
+	}
+
+	menuReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/menus/tree?visible=true&permissions=menu.read", nil)
+	menuResp := httptest.NewRecorder()
+	router.ServeHTTP(menuResp, menuReq)
+	if menuResp.Code != http.StatusOK {
+		t.Fatalf("menu tree status=%d body=%s", menuResp.Code, menuResp.Body.String())
+	}
+	menuBody := menuResp.Body.String()
+	for _, want := range []string{"system.dashboard", "system.menu"} {
+		if !strings.Contains(menuBody, want) {
+			t.Fatalf("expected menu response to contain %q: %s", want, menuBody)
+		}
+	}
+	for _, denied := range []string{"system.admin", "system.hidden"} {
+		if strings.Contains(menuBody, denied) {
+			t.Fatalf("expected menu response to filter %q: %s", denied, menuBody)
+		}
+	}
+
+	badMenuReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/menus/tree?visible=maybe", nil)
+	badMenuResp := httptest.NewRecorder()
+	router.ServeHTTP(badMenuResp, badMenuReq)
+	if badMenuResp.Code != http.StatusBadRequest {
+		t.Fatalf("bad menu query status=%d body=%s", badMenuResp.Code, badMenuResp.Body.String())
+	}
+
+	badPermissionReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/permissions?enabled=maybe", nil)
+	badPermissionResp := httptest.NewRecorder()
+	router.ServeHTTP(badPermissionResp, badPermissionReq)
+	if badPermissionResp.Code != http.StatusBadRequest {
+		t.Fatalf("bad permission query status=%d body=%s", badPermissionResp.Code, badPermissionResp.Body.String())
+	}
+}
+
+func mustRouterMenuNode(t *testing.T, key string, parent string, path string, sort int, visible bool, requiredPermissions []string) domainmenu.MenuNode {
+	t.Helper()
+	node, err := domainmenu.NewNode(domainmenu.NodeIdentity{
+		Key:       key,
+		ParentKey: parent,
+		Source:    "system",
+	}, domainmenu.NodeView{
+		Name: key,
+		Path: path,
+	}, sort)
+	if err != nil {
+		t.Fatalf("NewNode error: %v", err)
+	}
+	node.Visible = visible
+	node.RequiredPermissions = append([]string(nil), requiredPermissions...)
+	return node
+}
+
 type fakePluginManager struct {
 	items     []plugin.Info
 	snapshots map[string]plugin.RegistrySnapshot

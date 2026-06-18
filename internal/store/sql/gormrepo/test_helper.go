@@ -3,6 +3,7 @@ package gormrepo
 import (
 	"log"
 	"os"
+	"strings"
 	"testing"
 
 	"gorm.io/driver/sqlite"
@@ -18,6 +19,9 @@ func TestDB(t *testing.T) *gorm.DB {
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
+		if isSQLiteCGODisabledError(err) {
+			t.Skipf("sqlite test requires cgo: %v", err)
+		}
 		t.Fatalf("failed to open test database: %v", err)
 	}
 
@@ -51,6 +55,9 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
+		if isSQLiteCGODisabledError(err) {
+			t.Skipf("sqlite test requires cgo: %v", err)
+		}
 		t.Fatalf("failed to open test database: %v", err)
 	}
 
@@ -88,4 +95,9 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 	}
 
 	return db, cleanup
+}
+
+func isSQLiteCGODisabledError(err error) bool {
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "requires cgo") || strings.Contains(msg, "cgo_enabled=0")
 }
