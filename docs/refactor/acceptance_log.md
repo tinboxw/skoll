@@ -4195,3 +4195,57 @@ M1 覆盖 permission catalog 与 menu registry 的端到端建设：domain、mig
 ### 下一步
 
 - 进入 M2，从 `M2-01-01` 开始推进审计、登录日志、错误日志统一化。
+
+## M2-01-01: 定义 AuditEventType
+
+- 状态: Passed
+- Work Item: M2-01-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/audit/event_type.go`
+- `internal/domain/audit/event_type_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 `EventType` 值对象、五类事件枚举、解析与校验函数。 |
+| API/OpenAPI 同步 | N/A | 本项仅定义 domain 枚举，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 为后续统一 AuditEvent 分类打底，覆盖 operation/login/error/plugin/security。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新枚举不保留并行旧日志类型，也不改动旧 `Record` 存储路径。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/domain/audit/event_type.go internal/domain/audit/event_type_test.go
+go test ./internal/domain/audit/...
+```
+
+结果摘要: 通过。operation、login、error、plugin、security 五类枚举校验均覆盖。
+
+### 人工验收
+
+1. 审阅 `internal/domain/audit/event_type.go`，确认事件类型只包含 M2 目标五类。
+2. 审阅 `internal/domain/audit/event_type_test.go`，确认合法、非法、归一化、切片拷贝均有测试。
+
+结果摘要: 通过。AuditEventType 已定义，可进入 action 命名规则任务。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-01-02`，定义 AuditAction 命名规则。

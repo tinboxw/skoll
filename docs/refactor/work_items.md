@@ -112,7 +112,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 77 | M2-01-01 | M2-01 | `skoll-audit-observability-refactor` | 定义 AuditEventType | domain code | operation/login/error/plugin/security 枚举校验 | `go test ./internal/domain/audit/...` | Todo |
+| 77 | M2-01-01 | M2-01 | `skoll-audit-observability-refactor` | 定义 AuditEventType | domain code | operation/login/error/plugin/security 枚举校验 | `go test ./internal/domain/audit/...` | Done |
 | 78 | M2-01-02 | M2-01 | `skoll-audit-observability-refactor` | 定义 AuditAction 命名规则 | domain code + docs | `module.resource.action` 校验通过 | `go test ./internal/domain/audit/...` | Todo |
 | 79 | M2-01-03 | M2-01 | `skoll-audit-observability-refactor` | 定义 AuditEvent 统一结构 | domain code | actor/resource/result/trace/risk/metadata 字段完整 | `go test ./internal/domain/audit/...` | Todo |
 | 80 | M2-01-04 | M2-01 | `skoll-audit-observability-refactor` | 补审计 action catalog 文档 | docs/package README | 覆盖 user/role/rbac/plugin/menu/file/system | 文档审阅 | Todo |
