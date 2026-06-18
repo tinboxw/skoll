@@ -8259,3 +8259,78 @@ npm run build
 ### 下一步
 
 - 进入 `FE4-01`，执行插件列表信息架构升级。
+## FE4-01: 插件列表信息架构升级
+
+- 状态: Passed
+- Work Item: FE4-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `web/src/plugins/types.ts`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Plugin 系统/应用插件表格新增信号列，集中展示 risk、health、signature，并保留 version、status、access、actions。 |
+| API/OpenAPI 同步 | N/A | 本项不改 `/v1/plugins` 契约；前端类型仅兼容后续 `signature`、`health`、`vendor`、`serviceHealthURL` 字段。 |
+| 权限目录同步 | Passed | 继续复用 `plugin.read` 与 `plugin.manage`，不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增后端审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 复用现有 plugin store 与页面状态；新增行级 risk/health/signature helper 和中英文本。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/plugin` 当前路由与列表结构，不新增兼容入口。 |
+
+### 自动化验证
+
+```powershell
+rg -n "pluginRiskType|pluginHealthType|pluginSignatureType|plugin\\.table\\.signals|plugin\\.signal\\.(risk|health|signature)|plugin\\.table\\.version|plugin\\.table\\.actions" web/src/views/Plugin/index.vue web/src/i18n/index.ts web/src/plugins/types.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。enabled/status、risk、health、signature、version、actions 扫描锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可调用的 in-app browser 工具；bundled Playwright 运行时缺少 `playwright-core`，无法完成截图或真实点击 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 `/skoll/plugin` 的列表、筛选、信号列、生命周期操作和窄屏路径。
+
+### Performance Hook
+
+- Page/route: Plugin，`/skoll/plugin`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；只新增轻量 helper、tag 渲染和 i18n 文本。
+- Route lazy loading: Passed，router 继续通过 `const PluginPage = () => import("../views/Plugin/index.vue")` 动态导入。
+- Heavy table risk: 新增信号列复用当前 `pluginStore.items` 与 Dev Portal task 状态，不新增列表请求。
+- Request behavior: 不新增 API 请求；signature/health 字段仅作为前端兼容读取。
+- Narrow viewport: 继续复用 Plugin 页面现有 1180px/720px 折列规则；信号列内部 tag 可换行。
+- Follow-up: 后端 `/v1/plugins` 暴露签名验证结果和健康检查结果后，信号列可直接展示真实状态。
+
+### 人工验收
+
+1. 对照 `web/src/views/Plugin/index.vue`，确认系统级和应用级列表均有 `plugin.table.signals` 列。
+2. 确认信号列同时展示 risk、health、signature，并在 meta 中保留 version。
+3. 确认 lifecycle actions、访问、状态、默认首页和 pin tab 操作仍保留原位置。
+4. 确认 `web/src/plugins/types.ts` 对 signature/health 采用可选兼容字段，不要求后端立即改契约。
+
+结果摘要: 通过。Plugin 列表信息架构已满足 FE4-01 对 enabled、risk、signature、version、health、actions 可扫的要求。
+
+### 失败与返工
+
+- 失败原因: 首次 typecheck 发现 `plugin.health` 字符串/对象联合类型窄化不足。
+- 返工动作: 在 `pluginHealthStatus()` 中显式排除字符串后再读取对象 `status`。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `FE4-02`，执行插件详情抽屉/详情页设计。

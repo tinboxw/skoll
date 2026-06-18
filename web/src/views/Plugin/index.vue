@@ -184,6 +184,13 @@ function pluginMatchesKeyword(plugin: FrontendPluginManifest, keyword: string): 
 		plugin.uiTabMode,
 		plugin.entryPath,
 		plugin.backendEndpoint,
+		plugin.serviceHealthURL,
+		plugin.healthStatus,
+		typeof plugin.health === "string" ? plugin.health : plugin.health?.status,
+		plugin.signatureStatus,
+		plugin.signature?.algorithm,
+		plugin.signature?.vendorId,
+		plugin.vendor,
 		plugin.uiMenu?.label,
 		plugin.uiMenu?.labelZhCN,
 		plugin.uiMenu?.labelEnUS,
@@ -227,6 +234,123 @@ function pluginStatusType(pluginID: string): "success" | "info" {
 function pluginStatusText(pluginID: string): string {
 	const plugin = getPluginRecord(pluginID);
 	return plugin?.enabled === false ? t("plugin.status.disabled") : t("plugin.status.enabled");
+}
+
+function pluginFailedTasks(pluginID: string): number {
+	return [
+		...devReleaseTasks.value,
+		...devRolloutTasks.value
+	].filter((item) => String(item.pluginId || "") === pluginID && String(item.taskStatus || "").toLowerCase() === "failed").length;
+}
+
+function pluginRiskType(plugin: FrontendPluginManifest): "success" | "warning" | "danger" | "info" {
+	if (pluginFailedTasks(plugin.id) > 0) {
+		return "danger";
+	}
+	if (plugin.enabled === false || !canVisit(plugin.id) || pluginStore.degradedMode) {
+		return "warning";
+	}
+	return "success";
+}
+
+function pluginRiskText(plugin: FrontendPluginManifest): string {
+	const failedTasks = pluginFailedTasks(plugin.id);
+	if (failedTasks > 0) {
+		return `${t("plugin.risk.failedTasks")}: ${failedTasks}`;
+	}
+	if (plugin.enabled === false) {
+		return t("plugin.risk.disabled");
+	}
+	if (!canVisit(plugin.id)) {
+		return t("plugin.risk.inaccessible");
+	}
+	if (pluginStore.degradedMode) {
+		return t("plugin.risk.degraded");
+	}
+	return t("plugin.risk.clear");
+}
+
+function pluginHealthType(plugin: FrontendPluginManifest): "success" | "warning" | "danger" | "info" {
+	const status = pluginHealthStatus(plugin);
+	if (["error", "failed", "unhealthy", "down"].includes(status)) {
+		return "danger";
+	}
+	if (["degraded", "warning", "warn"].includes(status)) {
+		return "warning";
+	}
+	if (["healthy", "ok", "ready", "success", "online"].includes(status)) {
+		return "success";
+	}
+	if (plugin.enabled === false) {
+		return "info";
+	}
+	return canVisit(plugin.id) ? "success" : "warning";
+}
+
+function pluginHealthText(plugin: FrontendPluginManifest): string {
+	const status = pluginHealthStatus(plugin);
+	if (status !== "") {
+		return status;
+	}
+	if (plugin.enabled === false) {
+		return t("plugin.health.disabled");
+	}
+	if (plugin.serviceHealthURL) {
+		return t("plugin.health.endpoint");
+	}
+	return canVisit(plugin.id) ? t("plugin.health.ready") : t("plugin.health.blocked");
+}
+
+function pluginHealthStatus(plugin: FrontendPluginManifest): string {
+	if (typeof plugin.healthStatus === "string" && plugin.healthStatus.trim() !== "") {
+		return plugin.healthStatus.trim().toLowerCase();
+	}
+	if (typeof plugin.health === "string" && plugin.health.trim() !== "") {
+		return plugin.health.trim().toLowerCase();
+	}
+	const health = plugin.health;
+	if (health && typeof health !== "string" && typeof health.status === "string") {
+		return health.status.trim().toLowerCase();
+	}
+	return "";
+}
+
+function pluginSignatureType(plugin: FrontendPluginManifest): "success" | "warning" | "danger" | "info" {
+	const status = pluginSignatureStatus(plugin);
+	if (["invalid", "failed", "untrusted", "error"].includes(status)) {
+		return "danger";
+	}
+	if (["verified", "valid", "signed", "trusted"].includes(status) || plugin.signature?.value || plugin.systemBuiltin) {
+		return "success";
+	}
+	if (["missing", "unsigned", "unknown"].includes(status)) {
+		return "warning";
+	}
+	return "info";
+}
+
+function pluginSignatureText(plugin: FrontendPluginManifest): string {
+	const status = pluginSignatureStatus(plugin);
+	if (status) {
+		return status;
+	}
+	if (plugin.signature?.algorithm) {
+		return plugin.signature.algorithm;
+	}
+	if (plugin.systemBuiltin) {
+		return t("plugin.signature.builtin");
+	}
+	return t("plugin.signature.unsigned");
+}
+
+function pluginSignatureStatus(plugin: FrontendPluginManifest): string {
+	if (typeof plugin.signatureStatus === "string" && plugin.signatureStatus.trim() !== "") {
+		return plugin.signatureStatus.trim().toLowerCase();
+	}
+	if (plugin.signature?.value) {
+		return "signed";
+	}
+	return "";
 }
 
 function handlePluginCommand(command: string): void {
@@ -1350,6 +1474,16 @@ function resetDefaultHome(): void {
 								<el-tag effect="plain">{{ row.uiMode || "frontend" }}</el-tag>
 							</template>
 						</el-table-column>
+						<el-table-column :label="t('plugin.table.signals')" min-width="260">
+							<template #default="{ row }">
+								<div class="signal-stack">
+									<el-tag :type="pluginRiskType(row)" effect="plain">{{ t("plugin.signal.risk") }}: {{ pluginRiskText(row) }}</el-tag>
+									<el-tag :type="pluginHealthType(row)" effect="plain">{{ t("plugin.signal.health") }}: {{ pluginHealthText(row) }}</el-tag>
+									<el-tag :type="pluginSignatureType(row)" effect="plain">{{ t("plugin.signal.signature") }}: {{ pluginSignatureText(row) }}</el-tag>
+									<span class="signal-meta">{{ t("plugin.table.version") }} {{ row.version || "-" }}</span>
+								</div>
+							</template>
+						</el-table-column>
 						<el-table-column :label="t('plugin.table.status')" width="110">
 							<template #default="{ row }">
 								<el-tag :type="pluginStatusType(row.id)" effect="light">{{ pluginStatusText(row.id) }}</el-tag>
@@ -1427,6 +1561,16 @@ function resetDefaultHome(): void {
 								<el-table-column prop="name" :label="t('plugin.table.name')" min-width="160" show-overflow-tooltip />
 								<el-table-column prop="version" :label="t('plugin.table.version')" width="110" />
 								<el-table-column prop="appId" :label="t('plugin.table.appId')" min-width="120" show-overflow-tooltip />
+								<el-table-column :label="t('plugin.table.signals')" min-width="260">
+									<template #default="{ row }">
+										<div class="signal-stack">
+											<el-tag :type="pluginRiskType(row)" effect="plain">{{ t("plugin.signal.risk") }}: {{ pluginRiskText(row) }}</el-tag>
+											<el-tag :type="pluginHealthType(row)" effect="plain">{{ t("plugin.signal.health") }}: {{ pluginHealthText(row) }}</el-tag>
+											<el-tag :type="pluginSignatureType(row)" effect="plain">{{ t("plugin.signal.signature") }}: {{ pluginSignatureText(row) }}</el-tag>
+											<span class="signal-meta">{{ t("plugin.table.version") }} {{ row.version || "-" }}</span>
+										</div>
+									</template>
+								</el-table-column>
 								<el-table-column :label="t('plugin.table.status')" width="110">
 									<template #default="{ row }">
 										<el-tag :type="pluginStatusType(row.id)" effect="light">{{ pluginStatusText(row.id) }}</el-tag>
@@ -1693,6 +1837,19 @@ function resetDefaultHome(): void {
 
 .row-actions {
 	flex-wrap: wrap;
+}
+
+.signal-stack {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.signal-meta {
+	color: var(--color-text-muted);
+	font-size: 0.78rem;
+	white-space: nowrap;
 }
 
 .app-title {

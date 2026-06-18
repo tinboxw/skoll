@@ -206,7 +206,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 146 | FE4-01 | FE4 | `skoll-frontend-design-refactor` | 插件列表信息架构升级 | Plugin 页面 | enabled、risk、signature、version、health、actions 可扫 | `cd web && npm run build` | Todo |
+| 146 | FE4-01 | FE4 | `skoll-frontend-design-refactor` | 插件列表信息架构升级 | Plugin 页面 | enabled、risk、signature、version、health、actions 可扫 | `rg -n "pluginRiskType|pluginHealthType|pluginSignatureType|plugin\\.table\\.signals|plugin\\.signal\\.(risk|health|signature)|plugin\\.table\\.version|plugin\\.table\\.actions" web/src/views/Plugin/index.vue web/src/i18n/index.ts web/src/plugins/types.ts; cd web && npm run typecheck; npm run build` | Done |
 | 147 | FE4-02 | FE4 | `skoll-frontend-design-refactor` | 插件详情抽屉/详情页设计 | Plugin 页面 | 权限、菜单、配置、资产、日志、发布状态分区清楚 | `cd web && npm run build` | Todo |
 | 148 | FE4-03 | FE4 | `skoll-frontend-design-refactor` | 插件安装预检体验 | Plugin/Marketplace UI | 权限 diff、菜单 diff、风险、签名、迁移影响清楚 | `cd web && npm run build` | Todo |
 | 149 | FE4-04 | FE4 | `skoll-frontend-design-refactor` | 插件风险报告体验 | Plugin UI | 风险等级、因子、阻断原因、审计记录可读 | `cd web && npm run build` | Todo |

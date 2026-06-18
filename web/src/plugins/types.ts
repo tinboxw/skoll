@@ -44,6 +44,14 @@ export type PluginConfigSchema = {
   fields?: PluginConfigField[];
 };
 
+export type PluginSignature = {
+  algorithm?: string;
+  timestamp?: string;
+  value?: string;
+  vendorId?: string;
+  publicKey?: string;
+};
+
 export type FrontendPluginManifest = {
   id: string;
   name: string;
@@ -66,6 +74,13 @@ export type FrontendPluginManifest = {
   systemBuiltin?: boolean;
   route?: RouteRecordRaw;
   backendEndpoint?: string;
+  serviceHealthURL?: string;
+  health?: string | { status?: string; message?: string };
+  healthStatus?: string;
+  signature?: PluginSignature;
+  signatureStatus?: string;
+  vendor?: string;
+  vendorURL?: string;
 };
 
 export type PluginRuntimeContext = {
@@ -97,4 +112,11 @@ export type BackendPluginRecord = {
   configSchema?: PluginConfigSchema;
   frontendEntry?: string;
   systemBuiltin?: boolean;
+  serviceHealthURL?: string;
+  health?: string | { status?: string; message?: string };
+  healthStatus?: string;
+  signature?: PluginSignature;
+  signatureStatus?: string;
+  vendor?: string;
+  vendorURL?: string;
 };
