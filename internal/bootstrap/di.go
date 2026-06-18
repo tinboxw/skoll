@@ -103,7 +103,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		middleware.RateLimit(100, 100),
 	)
 
-	h := buildMiddlewareChain(router, logger, cfg.AuthPolicy, cfg.AppConfig.Server.APIPrefix, cfg.AppConfig.Security.JWTSecret, rbacService)
+	h := buildMiddlewareChain(router, logger, cfg.AuthPolicy, cfg.AppConfig.Server.APIPrefix, cfg.AppConfig.Security.JWTSecret, rbacService, auditEventService)
 	server := &http.Server{
 		Addr:              cfg.AppConfig.Server.Address,
 		Handler:           h,

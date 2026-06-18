@@ -4908,3 +4908,59 @@ $env:CGO_ENABLED='0'; go test ./internal/bootstrap/... ./internal/handler/http/.
 
 ### 下一步
 - 进入 `M2-03-04`，接入权限拒绝审计。
+
+## M2-03-04: 接入权限拒绝审计
+
+- 状态: Passed
+- Work Item: M2-03-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/handler/middleware/security_audit.go`
+- `internal/handler/middleware/security_audit_test.go`
+- `internal/handler/middleware/README.md`
+- `internal/bootstrap/middleware.go`
+- `internal/bootstrap/middleware_test.go`
+- `internal/bootstrap/di.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 permission denied 事件构造器，并在 auth guard 拒绝分支写入 security event。 |
+| API/OpenAPI 同步 | N/A | forbidden 响应契约未改变。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 使用 `system.security.deny`，事件 result 为 `denied`，risk 为 `high`。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | middleware README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | forbidden 审计直接写新 `audit.Event` sink，不写旧 `audit.Record`。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/handler/middleware/security_audit.go internal/handler/middleware/security_audit_test.go internal/bootstrap/middleware.go internal/bootstrap/middleware_test.go internal/bootstrap/di.go
+go test ./internal/handler/middleware/...
+$env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
+```
+
+结果摘要: 通过。middleware 目标测试通过；bootstrap 权限拒绝集成路径在 `CGO_ENABLED=0` 下复验通过。
+
+### 人工验收
+
+1. 审阅 `security_audit.go`，确认事件包含 actor/resource/action/reason。
+2. 审阅 `bootstrap/middleware.go`，确认 checker 缺失、checker 失败、权限拒绝均记录 forbidden 审计。
+3. 审阅测试，确认 denied 事件可从事件 store 查询。
+
+结果摘要: 通过。权限拒绝审计已接入。
+
+### 失败与返工
+- 失败原因: 首次格式化命令误把 `README.md` 传给 `gofmt`，产生 Markdown 非 Go 代码提示；代码测试本身通过。
+- 返工动作: 仅对 Go 文件重新执行 `gofmt`，并重新运行目标测试。
+- 重新验收结果: Passed
+
+### 下一步
+- 进入 `M2-03-05`，接入错误日志捕获。

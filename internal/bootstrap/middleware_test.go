@@ -9,10 +9,13 @@ import (
 	"testing"
 	"time"
 
+	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	httprouter "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/plugin"
+	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
+	"github.com/tinboxw/skoll/internal/store/memory"
 	"github.com/tinboxw/skoll/pkg/logging"
 	"github.com/tinboxw/skoll/pkg/security"
 )
@@ -95,7 +98,7 @@ func TestParseBearerToken(t *testing.T) {
 
 func TestAuthGuardMiddlewareValidatesJWT(t *testing.T) {
 	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/skoll/health": {}}}
-	h := authGuardMiddleware(policy, "/skoll", "test-secret", nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", nil, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -132,7 +135,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	checker := &fakePermissionChecker{allowed: map[string]bool{
 		"user:alice:user:read": true,
 	}}
-	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if claims, ok := security.JWTClaimsFromContext(r.Context()); !ok || claims.Subject == "" {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -174,6 +177,48 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	h.ServeHTTP(respBypass, reqBypass)
 	if respBypass.Code != http.StatusOK {
 		t.Fatalf("expected 200 for super_admin bypass, got %d", respBypass.Code)
+	}
+}
+
+func TestAuthGuardMiddlewareAuditsPermissionDenied(t *testing.T) {
+	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/skoll/health": {}}}
+	checker := &fakePermissionChecker{allowed: map[string]bool{}}
+	events := memory.NewAuditEventStore()
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, events, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	token, err := security.SignJWT("test-secret", "bob", "editor", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign jwt bob: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodDelete, "/skoll/v1/roles/r1", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Request-Id", "req-denied")
+	resp := httptest.NewRecorder()
+
+	h.ServeHTTP(resp, req)
+
+	if resp.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for denied permission, got %d", resp.Code)
+	}
+	items, err := events.ListEvents(context.Background(), auditrepo.EventFilter{Type: domainaudit.EventTypeSecurity})
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one security event, got %d", len(items))
+	}
+	event := items[0]
+	if event.Action != domainaudit.AuditAction("system.security.deny") ||
+		event.Result != domainaudit.EventResultDenied ||
+		event.Actor.ID.String() != "bob" ||
+		event.Actor.Name != "editor" ||
+		event.Resource.Type != "role" ||
+		event.Resource.ID != "delete" ||
+		event.Metadata["reason"] != "permission_denied" ||
+		event.Trace.RequestID != "req-denied" {
+		t.Fatalf("unexpected denied event: %+v", event)
 	}
 }
 
@@ -235,7 +280,7 @@ func TestBuildMiddlewareChainPluginPageBypassesAuth(t *testing.T) {
 		"/skoll/v1/plugins":    {},
 		"/skoll/v1/auth/login": {},
 	}}
-	guarded := buildMiddlewareChain(router, logging.Discard(), policy, "/skoll", "test-secret", nil)
+	guarded := buildMiddlewareChain(router, logging.Discard(), policy, "/skoll", "test-secret", nil, nil)
 
 	pageReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend/page", nil)
 	pageResp := httptest.NewRecorder()

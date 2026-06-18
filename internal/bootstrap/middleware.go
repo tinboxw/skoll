@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
+	"github.com/tinboxw/skoll/internal/domain/shared"
+	auditmw "github.com/tinboxw/skoll/internal/handler/middleware"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/pkg/config"
 	apperrors "github.com/tinboxw/skoll/pkg/errors"
@@ -24,14 +27,14 @@ type permissionChecker interface {
 	CheckPermission(ctx context.Context, in rbacsvc.CheckPermissionInput) (bool, error)
 }
 
-func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker) http.Handler {
+func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, auditSink auditmw.AuditEventSink) http.Handler {
 	h := recoverMiddleware(logger, next)
 	h = accessLogMiddleware(logger, h)
-	h = authGuardMiddleware(policy, apiPrefix, jwtSecret, checker, h)
+	h = authGuardMiddleware(policy, apiPrefix, jwtSecret, checker, auditSink, h)
 	return h
 }
 
-func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, next http.Handler) http.Handler {
+func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, auditSink auditmw.AuditEventSink, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !policy.ShouldAuthenticate(r.URL.Path) {
 			next.ServeHTTP(w, r)
@@ -55,6 +58,7 @@ func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker
 			resource, action, guarded := requiredPermission(r.Method, r.URL.Path, apiPrefix)
 			if guarded {
 				if checker == nil {
+					appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_checker_not_configured")
 					apperrors.WriteHTTP(w, apperrors.New("forbidden", "permission denied", nil))
 					return
 				}
@@ -65,10 +69,12 @@ func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker
 					Action:      action,
 				})
 				if err != nil {
+					appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_check_failed")
 					apperrors.WriteHTTP(w, apperrors.New("forbidden", "permission check failed", nil))
 					return
 				}
 				if !allowed {
+					appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_denied")
 					apperrors.WriteHTTP(w, apperrors.New("forbidden", "permission denied", nil))
 					return
 				}
@@ -77,6 +83,26 @@ func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func appendPermissionDeniedAudit(r *http.Request, sink auditmw.AuditEventSink, actorID, actorName, resource, action, reason string) {
+	if r == nil || sink == nil {
+		return
+	}
+	event, err := auditmw.NewPermissionDeniedAuditEvent(auditmw.PermissionDeniedAuditInput{
+		ID:         shared.ID("audit-event-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)),
+		ActorID:    actorID,
+		ActorName:  actorName,
+		Resource:   resource,
+		Action:     action,
+		Reason:     reason,
+		Request:    r,
+		OccurredAt: time.Now().UTC(),
+	})
+	if err != nil {
+		return
+	}
+	_ = sink.AppendEvent(r.Context(), event)
 }
 
 func isRoleBypass(role string) bool {
