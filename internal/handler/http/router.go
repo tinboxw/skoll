@@ -31,6 +31,7 @@ type Dependencies struct {
 	RoleService       role.Service
 	RBACService       rbac.Service
 	AuditService      audit.Service
+	AuditEventService audit.EventService
 	SystemService     system.Service
 	PermissionService permission.Service
 	MenuService       menu.Service
@@ -67,7 +68,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	userhttp.RegisterUserRoutes(apiMux, deps.UserService, deps.RBACService, deps.AuditService)
 	rolehttp.RegisterRoleRoutes(apiMux, deps.RoleService, deps.UserService, deps.RBACService, deps.AuditService)
 	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService, deps.AuditService)
-	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService)
+	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService, deps.AuditEventService)
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
 	permissionhttp.RegisterPermissionRoutes(apiMux, deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)

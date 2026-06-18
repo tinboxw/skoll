@@ -10,6 +10,7 @@ import (
 
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
 type fakeAuditService struct {
@@ -39,6 +40,73 @@ func (f *fakeAuditService) ListByTimeRange(context.Context, time.Time, time.Time
 
 func (f *fakeAuditService) ClearByTimeRange(context.Context, time.Time, time.Time) (int, error) {
 	return 0, nil
+}
+
+type fakeAuditEventService struct {
+	filter auditsvc.EventFilter
+	items  []*domainaudit.Event
+}
+
+func (f *fakeAuditEventService) AppendEvent(context.Context, *domainaudit.Event) error {
+	return nil
+}
+
+func (f *fakeAuditEventService) GetEventByID(context.Context, string) (*domainaudit.Event, error) {
+	return nil, nil
+}
+
+func (f *fakeAuditEventService) ListEvents(_ context.Context, filter auditsvc.EventFilter) ([]*domainaudit.Event, error) {
+	f.filter = filter
+	return f.items, nil
+}
+
+func (f *fakeAuditEventService) ExportEventSourceData(context.Context, auditsvc.EventFilter) ([]auditsvc.EventSourceData, error) {
+	return nil, nil
+}
+
+func TestAuditHandlerListEventsWithFilters(t *testing.T) {
+	occurredAt := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	event := mustAuditEvent(t, "event-1", domainaudit.EventTypeSecurity, "system.security.deny", "actor-1", "role", "delete", domainaudit.EventResultDenied, domainaudit.EventRiskHigh, occurredAt)
+	event.Trace.RequestID = "req-1"
+	svc := &fakeAuditEventService{items: []*domainaudit.Event{event}}
+	h := &AuditHandler{events: svc}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit?type=security&actorId=actor-1&action=system.security.deny&resourceType=role&resourceId=delete&result=denied&risk=high&from=2026-06-01T00:00:00Z&to=2026-06-30T00:00:00Z&offset=5&limit=250", nil)
+	resp := httptest.NewRecorder()
+
+	h.list(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	if svc.filter.Type != domainaudit.EventTypeSecurity ||
+		svc.filter.ActorID != "actor-1" ||
+		svc.filter.Action != domainaudit.AuditAction("system.security.deny") ||
+		svc.filter.ResourceType != "role" ||
+		svc.filter.ResourceID != "delete" ||
+		svc.filter.Result != domainaudit.EventResultDenied ||
+		svc.filter.Risk != domainaudit.EventRiskHigh ||
+		svc.filter.Offset != 5 ||
+		svc.filter.Limit != 200 {
+		t.Fatalf("unexpected filter: %+v", svc.filter)
+	}
+	body := resp.Body.String()
+	if !strings.Contains(body, `"items"`) || !strings.Contains(body, `"event-1"`) || !strings.Contains(body, `"offset":5`) || !strings.Contains(body, `"limit":200`) || !strings.Contains(body, `"requestId":"req-1"`) {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+func TestAuditHandlerListEventsRejectsInvalidFilter(t *testing.T) {
+	h := &AuditHandler{events: &fakeAuditEventService{}}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit?action=bad", nil)
+	resp := httptest.NewRecorder()
+
+	h.list(resp, req)
+
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
 }
 
 func TestAuditHandlerListWithCombinedFilters(t *testing.T) {
@@ -115,4 +183,28 @@ func TestAuditHandlerListActorOnlyUsesActorPath(t *testing.T) {
 	if svc.byRangeCalls != 0 {
 		t.Fatalf("expected ListByTimeRange not called, got %d", svc.byRangeCalls)
 	}
+}
+
+func mustAuditEvent(t *testing.T, id string, eventType domainaudit.EventType, action string, actorID string, resourceType string, resourceID string, result domainaudit.EventResult, risk domainaudit.EventRisk, occurredAt time.Time) *domainaudit.Event {
+	t.Helper()
+	event, err := domainaudit.NewEvent(domainaudit.EventInput{
+		ID:     shared.ID(id),
+		Type:   eventType,
+		Action: domainaudit.AuditAction(action),
+		Actor: domainaudit.ActorRef{
+			Type: "user",
+			ID:   shared.ID(actorID),
+		},
+		Resource: domainaudit.ResourceRef{
+			Type: resourceType,
+			ID:   resourceID,
+		},
+		Result:     result,
+		Risk:       risk,
+		OccurredAt: occurredAt,
+	})
+	if err != nil {
+		t.Fatalf("NewEvent error: %v", err)
+	}
+	return event
 }

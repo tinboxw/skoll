@@ -86,6 +86,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		RoleService:       roleService,
 		RBACService:       rbacService,
 		AuditService:      auditService,
+		AuditEventService: auditEventService,
 		SystemService:     systemService,
 		PermissionService: permissionService,
 		MenuService:       menuService,

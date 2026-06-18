@@ -12,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	domainmenu "github.com/tinboxw/skoll/internal/domain/menu"
+	"github.com/tinboxw/skoll/internal/domain/shared"
 	"github.com/tinboxw/skoll/internal/plugin"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
@@ -811,6 +813,7 @@ func TestRouterAuditAPIs(t *testing.T) {
 		t.Fatalf("store.NewBundle error: %v", err)
 	}
 	auditService := auditsvc.NewService(bundle.Audit)
+	auditEventService := auditsvc.NewEventService(bundle.AuditEvents)
 
 	rec1, err := auditService.Append(context.Background(), "actor-a", "create", "user", "u1", map[string]any{"k": "v"})
 	if err != nil {
@@ -820,14 +823,39 @@ func TestRouterAuditAPIs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("append rec2 error: %v", err)
 	}
+	event, err := domainaudit.NewEvent(domainaudit.EventInput{
+		ID:     shared.ID("event-1"),
+		Type:   domainaudit.EventTypeOperation,
+		Action: domainaudit.AuditAction("user.account.create"),
+		Actor: domainaudit.ActorRef{
+			Type: "user",
+			ID:   shared.ID("actor-a"),
+		},
+		Resource: domainaudit.ResourceRef{
+			Type: "user",
+			ID:   "u1",
+		},
+		Result:     domainaudit.EventResultSuccess,
+		Risk:       domainaudit.EventRiskMedium,
+		OccurredAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("new audit event error: %v", err)
+	}
+	if err := auditEventService.AppendEvent(context.Background(), event); err != nil {
+		t.Fatalf("append audit event error: %v", err)
+	}
 
-	router := NewRouter(Dependencies{AuditService: auditService})
+	router := NewRouter(Dependencies{AuditService: auditService, AuditEventService: auditEventService})
 
 	listReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit?limit=10", nil)
 	listResp := httptest.NewRecorder()
 	router.ServeHTTP(listResp, listReq)
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status=%d body=%s", listResp.Code, listResp.Body.String())
+	}
+	if !strings.Contains(listResp.Body.String(), "event-1") {
+		t.Fatalf("expected audit event in list response, body=%s", listResp.Body.String())
 	}
 
 	getReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/"+rec1.ID.String(), nil)

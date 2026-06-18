@@ -2,6 +2,7 @@ package audit
 
 import (
 	"encoding/csv"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,41 @@ import (
 
 type AuditHandler struct {
 	service auditsvc.Service
+	events  auditsvc.EventService
+}
+
+type auditEventListData struct {
+	Items  []auditEventDTO `json:"items"`
+	Offset int             `json:"offset"`
+	Limit  int             `json:"limit"`
+}
+
+type auditEventDTO struct {
+	ID         string         `json:"id"`
+	Type       string         `json:"type"`
+	Action     string         `json:"action"`
+	Actor      auditRefDTO    `json:"actor"`
+	Resource   auditRefDTO    `json:"resource"`
+	Result     string         `json:"result"`
+	Risk       string         `json:"risk"`
+	Trace      auditTraceDTO  `json:"trace"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
+	OccurredAt string         `json:"occurredAt"`
+}
+
+type auditRefDTO struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+}
+
+type auditTraceDTO struct {
+	TraceID   string `json:"traceId,omitempty"`
+	RequestID string `json:"requestId,omitempty"`
+	Method    string `json:"method,omitempty"`
+	Path      string `json:"path,omitempty"`
+	IP        string `json:"ip,omitempty"`
+	UserAgent string `json:"userAgent,omitempty"`
 }
 
 type auditRecordDTO struct {
@@ -72,11 +108,15 @@ func toAuditRecordDTOs(items []*domainaudit.Record) []auditRecordDTO {
 	return out
 }
 
-func RegisterAuditRoutes(mux *http.ServeMux, service auditsvc.Service) {
-	if service == nil {
+func RegisterAuditRoutes(mux *http.ServeMux, service auditsvc.Service, eventServices ...auditsvc.EventService) {
+	var events auditsvc.EventService
+	if len(eventServices) > 0 {
+		events = eventServices[0]
+	}
+	if service == nil && events == nil {
 		return
 	}
-	h := &AuditHandler{service: service}
+	h := &AuditHandler{service: service, events: events}
 	mux.HandleFunc("GET /v1/audit", h.list)
 	mux.HandleFunc("GET /v1/audit/export", h.export)
 	mux.HandleFunc("GET /v1/audit/{id}", h.get)
@@ -95,6 +135,15 @@ func (h *AuditHandler) listByActor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuditHandler) list(w http.ResponseWriter, r *http.Request) {
+	if h.events != nil {
+		data, err := h.queryEvents(r)
+		if err != nil {
+			apiv1.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		apiv1.WriteJSON(w, http.StatusOK, data)
+		return
+	}
 	items, err := h.queryRecords(r)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -181,6 +230,147 @@ func (h *AuditHandler) queryRecords(r *http.Request) ([]*domainaudit.Record, err
 		return nil, err
 	}
 	return filterRecords(items, actorID, actorName, action, resource, limit), nil
+}
+
+func (h *AuditHandler) queryEvents(r *http.Request) (auditEventListData, error) {
+	offset, err := parseNonNegativeInt(r.URL.Query().Get("offset"), 0)
+	if err != nil {
+		return auditEventListData{}, err
+	}
+	limit, err := parseBoundedLimit(r.URL.Query().Get("limit"), 50, 200)
+	if err != nil {
+		return auditEventListData{}, err
+	}
+	filter := auditsvc.EventFilter{
+		ActorID:      strings.TrimSpace(r.URL.Query().Get("actorId")),
+		ResourceType: strings.TrimSpace(r.URL.Query().Get("resourceType")),
+		ResourceID:   strings.TrimSpace(r.URL.Query().Get("resourceId")),
+		Offset:       offset,
+		Limit:        limit,
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("type")); raw != "" {
+		eventType, err := domainaudit.ParseEventType(raw)
+		if err != nil {
+			return auditEventListData{}, err
+		}
+		filter.Type = eventType
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("action")); raw != "" {
+		action, err := domainaudit.ParseAuditAction(raw)
+		if err != nil {
+			return auditEventListData{}, err
+		}
+		filter.Action = action
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("result")); raw != "" {
+		result := domainaudit.EventResult(strings.ToLower(raw))
+		if err := result.Validate(); err != nil {
+			return auditEventListData{}, err
+		}
+		filter.Result = result
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("risk")); raw != "" {
+		risk := domainaudit.EventRisk(strings.ToLower(raw))
+		if err := risk.Validate(); err != nil {
+			return auditEventListData{}, err
+		}
+		filter.Risk = risk
+	}
+	fromRaw := strings.TrimSpace(r.URL.Query().Get("from"))
+	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
+	if fromRaw != "" || toRaw != "" {
+		if fromRaw == "" || toRaw == "" {
+			return auditEventListData{}, domainaudit.ErrInvalidTimeRange
+		}
+		from, err := time.Parse(time.RFC3339, fromRaw)
+		if err != nil {
+			return auditEventListData{}, err
+		}
+		to, err := time.Parse(time.RFC3339, toRaw)
+		if err != nil {
+			return auditEventListData{}, err
+		}
+		filter.From = from
+		filter.To = to
+	}
+	items, err := h.events.ListEvents(r.Context(), filter)
+	if err != nil {
+		return auditEventListData{}, err
+	}
+	return auditEventListData{Items: toAuditEventDTOs(items), Offset: offset, Limit: limit}, nil
+}
+
+func toAuditEventDTOs(items []*domainaudit.Event) []auditEventDTO {
+	if len(items) == 0 {
+		return []auditEventDTO{}
+	}
+	out := make([]auditEventDTO, 0, len(items))
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		metadata := item.Metadata
+		if len(metadata) == 0 {
+			metadata = nil
+		}
+		out = append(out, auditEventDTO{
+			ID:     item.ID.String(),
+			Type:   item.Type.String(),
+			Action: item.Action.String(),
+			Actor: auditRefDTO{
+				Type: item.Actor.Type,
+				ID:   item.Actor.ID.String(),
+				Name: item.Actor.Name,
+			},
+			Resource: auditRefDTO{
+				Type: item.Resource.Type,
+				ID:   item.Resource.ID,
+				Name: item.Resource.Name,
+			},
+			Result: string(item.Result),
+			Risk:   string(item.Risk),
+			Trace: auditTraceDTO{
+				TraceID:   item.Trace.TraceID,
+				RequestID: item.Trace.RequestID,
+				Method:    item.Trace.Method,
+				Path:      item.Trace.Path,
+				IP:        item.Trace.IP,
+				UserAgent: item.Trace.UserAgent,
+			},
+			Metadata:   metadata,
+			OccurredAt: item.OccurredAt.Format(time.RFC3339Nano),
+		})
+	}
+	return out
+}
+
+func parseNonNegativeInt(raw string, defaultValue int) (int, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return defaultValue, nil
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, err
+	}
+	if n < 0 {
+		return 0, fmt.Errorf("value must be >= 0")
+	}
+	return n, nil
+}
+
+func parseBoundedLimit(raw string, defaultValue, maxValue int) (int, error) {
+	limit, err := parseNonNegativeInt(raw, defaultValue)
+	if err != nil {
+		return 0, err
+	}
+	if limit <= 0 {
+		limit = defaultValue
+	}
+	if limit > maxValue {
+		limit = maxValue
+	}
+	return limit, nil
 }
 
 func filterRecords(items []*domainaudit.Record, actorID, actorName, action, resource string, limit int) []*domainaudit.Record {

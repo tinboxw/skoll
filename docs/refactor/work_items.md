@@ -128,7 +128,7 @@
 | 90 | M2-03-04 | M2-03 | `skoll-audit-observability-refactor` | 接入权限拒绝审计 | middleware/service | forbidden 事件记录 actor/resource/action | `go test ./internal/handler/middleware/...` | Done |
 | 91 | M2-03-05 | M2-03 | `skoll-audit-observability-refactor` | 接入错误日志捕获 | middleware/logging | panic/handler error 记录 trace | `go test ./internal/handler/middleware/...` | Done |
 | 92 | M2-04-01 | M2-04 | `skoll-api-contracts` | 设计审计列表 API 契约 | OpenAPI | filter/page/response 字段稳定 | OpenAPI review | Done |
-| 93 | M2-04-02 | M2-04 | `skoll-api-contracts` | 实现审计列表 API | handler + tests | 分类、actor、resource、action、时间、风险筛选 | `go test ./internal/handler/http/v1/audit/...` | Todo |
+| 93 | M2-04-02 | M2-04 | `skoll-api-contracts` | 实现审计列表 API | handler + tests | 分类、actor、resource、action、时间、风险筛选 | `go test ./internal/handler/http/v1/audit/...` | Done |
 | 94 | M2-04-03 | M2-04 | `skoll-api-contracts` | 设计审计详情 API 契约 | OpenAPI | metadata/diff/trace 字段明确 | OpenAPI review | Todo |
 | 95 | M2-04-04 | M2-04 | `skoll-api-contracts` | 实现审计详情 API | handler + tests | 不存在返回 not_found，权限失败返回 forbidden | `go test ./internal/handler/http/v1/audit/...` | Todo |
 | 96 | M2-04-05 | M2-04 | `skoll-api-contracts` | 实现审计导出 API | handler + tests | CSV 字段稳定，过滤条件与列表一致 | `go test ./internal/handler/http/v1/audit/...` | Todo |

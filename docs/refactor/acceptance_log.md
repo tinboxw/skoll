@@ -5070,3 +5070,58 @@ git diff -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
 
 ### 下一步
 - 进入 `M2-04-02`，实现审计列表 API。
+
+## M2-04-02: 实现审计列表 API
+
+- 状态: Passed
+- Work Item: M2-04-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/handler/http/v1/audit/handler.go`
+- `internal/handler/http/v1/audit/handler_test.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/router_test.go`
+- `internal/bootstrap/di.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `/v1/audit` GET 接入 `audit.EventService`，返回 `{items, offset, limit}`。 |
+| API/OpenAPI 同步 | Passed | 实现与 M2-04-01 列表契约字段一致。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | action filter 使用 `ParseAuditAction` 校验。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 前端 client/UI 后续 M2-05 接入。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新列表优先走 `EventService`；legacy detail/export/clear 仍按后续任务逐项迁移。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/handler/http/v1/audit/handler.go internal/handler/http/v1/audit/handler_test.go internal/handler/http/router.go internal/handler/http/router_test.go internal/bootstrap/di.go
+go test ./internal/handler/http/v1/audit/...
+$env:CGO_ENABLED='0'; go test ./internal/handler/http/...
+```
+
+结果摘要: 通过。分类、actor、resource、action、时间、risk、offset、limit 过滤映射已由 handler 测试覆盖；router 注入路径通过。
+
+### 人工验收
+
+1. 审阅 `handler.go`，确认列表解析 M2-04-01 契约参数。
+2. 审阅 `handler_test.go`，确认 filter 映射和非法 action 返回 400。
+3. 审阅 `router.go`/`di.go`，确认 `AuditEventService` 已注入 `/v1/audit`。
+
+结果摘要: 通过。审计列表 API 已实现。
+
+### 失败与返工
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+- 进入 `M2-04-03`，设计审计详情 API 契约。
