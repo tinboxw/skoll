@@ -6105,6 +6105,60 @@ rg -n "FE1 .* Done" docs/refactor/task_board.md
 
 - 进入 `FE2-01`，统一 API client 规范。
 
+## ADJ-FE-20260619-01: FE1 component acceptance examples
+
+- 状态: Passed
+- Work Item: ADJ-FE-20260619-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/work_items.md`
+- `docs/refactor/fe1_component_acceptance_examples.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE1 component acceptance examples。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 示例覆盖列表页、编辑页、详情抽屉、空态、错误态、无权限态。 |
+| 文档同步 | Passed | 微调建议已用 `ADJ-FE-20260619-*` 合并进 Work Items，避免与 M2 调整项编号冲突。 |
+| 无兼容方案/无旧路径残留 | Passed | 示例引用当前 FE1 规范和 Element Plus 组件，不引入旧 UI 兼容层。 |
+
+### 自动化验证
+
+```powershell
+rg -n "列表页|编辑页|详情抽屉|空态|错误态|无权限态|List page example|No-permission example" docs/refactor/fe1_component_acceptance_examples.md
+rg -n "ADJ-FE-20260619-01.*Done|ADJ-FE-20260619-02|ADJ-FE-20260619-03|ADJ-FE-20260619-04" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。组件验收示例覆盖列表页、编辑页、详情抽屉、空态、错误态、无权限态；4 个前端微调 Work Items 已合并且编号不冲突。
+
+### 人工验收
+
+1. 审阅 `fe1_component_acceptance_examples.md`，确认示例可供 FE3/FE4 页面升级引用。
+2. 确认 Work Items 中新增 `ADJ-FE-20260619-01` 至 `ADJ-FE-20260619-04`，且顺序字段连续。
+3. 确认当前已满足依赖的 `ADJ-FE-20260619-01` 已完成并进入 Done。
+
+结果摘要: 通过。FE1 组件验收示例完成，后续进入 FE2-01。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE2-01`，统一 API client 规范。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed

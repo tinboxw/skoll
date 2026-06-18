@@ -169,63 +169,67 @@
 | 121 | FE1-05 | FE1 | `skoll-frontend-design-refactor` | 定义状态组件标准 | UI 文档/组件要求 | loading/empty/error/no-permission/success/failed 统一 | 文档审阅 | Done |
 | 122 | FE1-06 | FE1 | `skoll-frontend-coding-refactor` | 抽查全局样式与变量 | 样式清单 | 颜色、间距、字号、状态色来源清楚，无一页一套 | `rg -n "#[0-9A-Fa-f]{3,8}" web/src/styles web/src/views web/src/components -g "*.scss" -g "*.vue"`; `rg -n "var\(" web/src/styles web/src/views web/src/components -g "*.scss" -g "*.vue"` | Done |
 | 123 | FE1-07 | FE1 | `skoll-frontend-design-refactor` | 定义响应式最低标准 | UI 文档 | 窄屏无重叠、无按钮溢出、表格有降级策略 | 文档审阅 | Done |
+| 124 | ADJ-FE-20260619-01 | FE1 | `skoll-frontend-design-refactor` | FE1 component acceptance examples | `docs/refactor/fe1_component_acceptance_examples.md` | 至少覆盖列表页、编辑页、详情抽屉、空态、错误态、无权限态 | 文档审阅 | Done |
 
 ## FE2 Work Items: 前端架构与数据流
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 124 | FE2-01 | FE2 | `skoll-frontend-coding-refactor` | 统一 API client 规范 | API client 文档/代码规范 | 请求、响应、错误、分页、导出封装标准明确 | 文档审阅 | Todo |
-| 125 | FE2-02 | FE2 | `skoll-frontend-coding-refactor` | 统一 Pinia store 规范 | store 文档/代码规范 | loading/error/data/retry/refresh 模式明确 | 文档审阅 | Todo |
-| 126 | FE2-03 | FE2 | `skoll-frontend-coding-refactor` | 统一 route guard 规范 | router/permission 文档 | 菜单、路由、按钮、插件权限同源 | `rg "canAccess\|beforeEach\|v-permission" web/src` | Todo |
-| 127 | FE2-04 | FE2 | `skoll-frontend-coding-refactor` | 统一 SchemaForm 使用规范 | SchemaForm 文档/示例 | 插件配置、系统设置、生成器表单复用边界明确 | 文档审阅 | Todo |
-| 128 | FE2-05 | FE2 | `skoll-frontend-coding-refactor` | 统一确认动作 helper | helper 规范/代码 | 删除、禁用、回滚、发布等危险动作使用统一确认 | `rg "useConfirmAction\|ElMessageBox" web/src` | Todo |
-| 129 | FE2-06 | FE2 | `skoll-frontend-coding-refactor` | 统一前端错误展示 | helper 规范/代码 | 后端错误不会被吞掉或显示假成功 | `rg "catch\|ElMessage.error\|throw" web/src` | Todo |
-| 130 | FE2-07 | FE2 | `skoll-frontend-coding-refactor` | 统一导出/下载交互 | helper 规范/代码 | 导出使用当前筛选条件，失败可见 | 文档审阅 | Todo |
+| 125 | FE2-01 | FE2 | `skoll-frontend-coding-refactor` | 统一 API client 规范 | API client 文档/代码规范 | 请求、响应、错误、分页、导出封装标准明确 | 文档审阅 | Todo |
+| 126 | FE2-02 | FE2 | `skoll-frontend-coding-refactor` | 统一 Pinia store 规范 | store 文档/代码规范 | loading/error/data/retry/refresh 模式明确 | 文档审阅 | Todo |
+| 127 | FE2-03 | FE2 | `skoll-frontend-coding-refactor` | 统一 route guard 规范 | router/permission 文档 | 菜单、路由、按钮、插件权限同源 | `rg "canAccess\|beforeEach\|v-permission" web/src` | Todo |
+| 128 | FE2-04 | FE2 | `skoll-frontend-coding-refactor` | 统一 SchemaForm 使用规范 | SchemaForm 文档/示例 | 插件配置、系统设置、生成器表单复用边界明确 | 文档审阅 | Todo |
+| 129 | ADJ-FE-20260619-02 | FE2 | `skoll-frontend-coding-refactor` | FE2 architecture before FE3 gate | `docs/refactor/fe2_architecture_before_fe3_gate.md` | FE3 页面升级前 API client、store、router、permission、SchemaForm 边界明确 | 文档审阅 | Todo |
+| 130 | FE2-05 | FE2 | `skoll-frontend-coding-refactor` | 统一确认动作 helper | helper 规范/代码 | 删除、禁用、回滚、发布等危险动作使用统一确认 | `rg "useConfirmAction\|ElMessageBox" web/src` | Todo |
+| 131 | FE2-06 | FE2 | `skoll-frontend-coding-refactor` | 统一前端错误展示 | helper 规范/代码 | 后端错误不会被吞掉或显示假成功 | `rg "catch\|ElMessage.error\|throw" web/src` | Todo |
+| 132 | FE2-07 | FE2 | `skoll-frontend-coding-refactor` | 统一导出/下载交互 | helper 规范/代码 | 导出使用当前筛选条件，失败可见 | 文档审阅 | Todo |
 
 ## FE3 Work Items: 核心页面体验升级
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 131 | FE3-01 | FE3 | `skoll-frontend-design-refactor` | Dashboard 体验升级方案 | 页面方案/改动 | 信息密度、系统状态、插件状态、快捷入口合理 | `cd web && npm run build` | Todo |
-| 132 | FE3-02 | FE3 | `skoll-frontend-design-refactor` | User 页面体验升级 | 页面改动 | 筛选、批量、编辑、角色分配、组织归属状态完整 | `cd web && npm run build` | Todo |
-| 133 | FE3-03 | FE3 | `skoll-frontend-design-refactor` | Role 页面体验升级 | 页面改动 | 角色列表、授权入口、关联用户、危险操作清晰 | `cd web && npm run build` | Todo |
-| 134 | FE3-04 | FE3 | `skoll-frontend-design-refactor` | Permission 页面体验升级 | 页面改动 | 权限矩阵可扫、可筛选、保存反馈明确 | `cd web && npm run build` | Todo |
-| 135 | FE3-05 | FE3 | `skoll-frontend-design-refactor` | Menu 页面体验升级 | 页面改动 | 树表、排序、显隐、权限字段、保存确认完整 | `cd web && npm run build` | Todo |
-| 136 | FE3-06 | FE3 | `skoll-frontend-design-refactor` | Plugin 页面体验升级 | 页面改动 | 状态、风险、权限、配置、访问、生命周期动作清晰 | `cd web && npm run build` | Todo |
-| 137 | FE3-07 | FE3 | `skoll-frontend-design-refactor` | Audit 页面体验升级 | 页面改动 | tab、筛选、详情、导出、风险标签、trace 展示完整 | `cd web && npm run build` | Todo |
-| 138 | FE3-08 | FE3 | `skoll-frontend-design-refactor` | Setting 页面体验升级 | 页面改动 | SchemaForm、分组、敏感项、保存反馈、审计提示清晰 | `cd web && npm run build` | Todo |
-| 139 | FE3-09 | FE3 | `skoll-frontend-testing-refactor` | 核心页面状态验收 | 验收记录 | 每页正常/空态/错误/无权限/窄屏至少抽查 | 浏览器验收 | Todo |
+| 133 | ADJ-FE-20260619-03 | FE3 | `skoll-frontend-testing-refactor` | FE3 page-by-page acceptance map | `docs/refactor/fe3_page_acceptance_map.md` | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 每页有状态和命令验收 | 文档审阅 | Todo |
+| 134 | ADJ-FE-20260619-04 | FE3 | `skoll-frontend-performance-refactor` | FE6 performance hook for FE3 | `docs/refactor/fe3_performance_hook_template.md` | 每个核心页面记录构建影响、路由懒加载、重表格风险 | 文档审阅 | Todo |
+| 135 | FE3-01 | FE3 | `skoll-frontend-design-refactor` | Dashboard 体验升级方案 | 页面方案/改动 | 信息密度、系统状态、插件状态、快捷入口合理 | `cd web && npm run build` | Todo |
+| 136 | FE3-02 | FE3 | `skoll-frontend-design-refactor` | User 页面体验升级 | 页面改动 | 筛选、批量、编辑、角色分配、组织归属状态完整 | `cd web && npm run build` | Todo |
+| 137 | FE3-03 | FE3 | `skoll-frontend-design-refactor` | Role 页面体验升级 | 页面改动 | 角色列表、授权入口、关联用户、危险操作清晰 | `cd web && npm run build` | Todo |
+| 138 | FE3-04 | FE3 | `skoll-frontend-design-refactor` | Permission 页面体验升级 | 页面改动 | 权限矩阵可扫、可筛选、保存反馈明确 | `cd web && npm run build` | Todo |
+| 139 | FE3-05 | FE3 | `skoll-frontend-design-refactor` | Menu 页面体验升级 | 页面改动 | 树表、排序、显隐、权限字段、保存确认完整 | `cd web && npm run build` | Todo |
+| 140 | FE3-06 | FE3 | `skoll-frontend-design-refactor` | Plugin 页面体验升级 | 页面改动 | 状态、风险、权限、配置、访问、生命周期动作清晰 | `cd web && npm run build` | Todo |
+| 141 | FE3-07 | FE3 | `skoll-frontend-design-refactor` | Audit 页面体验升级 | 页面改动 | tab、筛选、详情、导出、风险标签、trace 展示完整 | `cd web && npm run build` | Todo |
+| 142 | FE3-08 | FE3 | `skoll-frontend-design-refactor` | Setting 页面体验升级 | 页面改动 | SchemaForm、分组、敏感项、保存反馈、审计提示清晰 | `cd web && npm run build` | Todo |
+| 143 | FE3-09 | FE3 | `skoll-frontend-testing-refactor` | 核心页面状态验收 | 验收记录 | 每页正常/空态/错误/无权限/窄屏至少抽查 | 浏览器验收 | Todo |
 
 ## FE4 Work Items: 插件与开发者门户体验
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 140 | FE4-01 | FE4 | `skoll-frontend-design-refactor` | 插件列表信息架构升级 | Plugin 页面 | enabled、risk、signature、version、health、actions 可扫 | `cd web && npm run build` | Todo |
-| 141 | FE4-02 | FE4 | `skoll-frontend-design-refactor` | 插件详情抽屉/详情页设计 | Plugin 页面 | 权限、菜单、配置、资产、日志、发布状态分区清楚 | `cd web && npm run build` | Todo |
-| 142 | FE4-03 | FE4 | `skoll-frontend-design-refactor` | 插件安装预检体验 | Plugin/Marketplace UI | 权限 diff、菜单 diff、风险、签名、迁移影响清楚 | `cd web && npm run build` | Todo |
-| 143 | FE4-04 | FE4 | `skoll-frontend-design-refactor` | 插件风险报告体验 | Plugin UI | 风险等级、因子、阻断原因、审计记录可读 | `cd web && npm run build` | Todo |
-| 144 | FE4-05 | FE4 | `skoll-frontend-design-refactor` | Dev Portal 发布任务体验 | Developer Portal | 任务状态、步骤、日志、失败原因、重试/回滚清楚 | `cd web && npm run build` | Todo |
-| 145 | FE4-06 | FE4 | `skoll-frontend-performance-refactor` | 插件重面板按需加载 | Plugin/Dev Portal | 日志、风险、发布历史不阻塞首屏 | `cd web && npm run build` | Todo |
+| 144 | FE4-01 | FE4 | `skoll-frontend-design-refactor` | 插件列表信息架构升级 | Plugin 页面 | enabled、risk、signature、version、health、actions 可扫 | `cd web && npm run build` | Todo |
+| 145 | FE4-02 | FE4 | `skoll-frontend-design-refactor` | 插件详情抽屉/详情页设计 | Plugin 页面 | 权限、菜单、配置、资产、日志、发布状态分区清楚 | `cd web && npm run build` | Todo |
+| 146 | FE4-03 | FE4 | `skoll-frontend-design-refactor` | 插件安装预检体验 | Plugin/Marketplace UI | 权限 diff、菜单 diff、风险、签名、迁移影响清楚 | `cd web && npm run build` | Todo |
+| 147 | FE4-04 | FE4 | `skoll-frontend-design-refactor` | 插件风险报告体验 | Plugin UI | 风险等级、因子、阻断原因、审计记录可读 | `cd web && npm run build` | Todo |
+| 148 | FE4-05 | FE4 | `skoll-frontend-design-refactor` | Dev Portal 发布任务体验 | Developer Portal | 任务状态、步骤、日志、失败原因、重试/回滚清楚 | `cd web && npm run build` | Todo |
+| 149 | FE4-06 | FE4 | `skoll-frontend-performance-refactor` | 插件重面板按需加载 | Plugin/Dev Portal | 日志、风险、发布历史不阻塞首屏 | `cd web && npm run build` | Todo |
 
 ## FE5 Work Items: 前端测试与验收体系
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 146 | FE5-01 | FE5 | `skoll-frontend-testing-refactor` | 固化 typecheck 门禁 | package script/CI 文档 | typecheck 可运行或缺口明确 | `cd web && npm run typecheck` | Todo |
-| 147 | FE5-02 | FE5 | `skoll-frontend-testing-refactor` | 固化 build 门禁 | package script/CI 文档 | build 是所有前端任务必跑项 | `cd web && npm run build` | Todo |
-| 148 | FE5-03 | FE5 | `skoll-frontend-testing-refactor` | 建立核心页面 smoke 清单 | docs/scripts | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 有步骤 | 文档审阅 | Todo |
-| 149 | FE5-04 | FE5 | `skoll-frontend-testing-refactor` | 建立权限态验收清单 | docs/scripts | admin 和 restricted role 验收步骤明确 | 文档审阅 | Todo |
-| 150 | FE5-05 | FE5 | `skoll-frontend-testing-refactor` | 建立响应式验收清单 | docs/scripts | 至少桌面和窄屏检查项明确 | 文档审阅 | Todo |
-| 151 | FE5-06 | FE5 | `skoll-frontend-testing-refactor` | 评估 Playwright/browser 自动化 | 测试方案 | 是否引入、覆盖范围、执行命令明确 | 文档审阅 | Todo |
-| 152 | FE5-07 | FE5 | `skoll-frontend-testing-refactor` | 前端验收记录接入 acceptance log | `acceptance_log.md` | 前端状态、浏览器、截图/路径字段可记录 | 文档审阅 | Todo |
+| 150 | FE5-01 | FE5 | `skoll-frontend-testing-refactor` | 固化 typecheck 门禁 | package script/CI 文档 | typecheck 可运行或缺口明确 | `cd web && npm run typecheck` | Todo |
+| 151 | FE5-02 | FE5 | `skoll-frontend-testing-refactor` | 固化 build 门禁 | package script/CI 文档 | build 是所有前端任务必跑项 | `cd web && npm run build` | Todo |
+| 152 | FE5-03 | FE5 | `skoll-frontend-testing-refactor` | 建立核心页面 smoke 清单 | docs/scripts | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 有步骤 | 文档审阅 | Todo |
+| 153 | FE5-04 | FE5 | `skoll-frontend-testing-refactor` | 建立权限态验收清单 | docs/scripts | admin 和 restricted role 验收步骤明确 | 文档审阅 | Todo |
+| 154 | FE5-05 | FE5 | `skoll-frontend-testing-refactor` | 建立响应式验收清单 | docs/scripts | 至少桌面和窄屏检查项明确 | 文档审阅 | Todo |
+| 155 | FE5-06 | FE5 | `skoll-frontend-testing-refactor` | 评估 Playwright/browser 自动化 | 测试方案 | 是否引入、覆盖范围、执行命令明确 | 文档审阅 | Todo |
+| 156 | FE5-07 | FE5 | `skoll-frontend-testing-refactor` | 前端验收记录接入 acceptance log | `acceptance_log.md` | 前端状态、浏览器、截图/路径字段可记录 | 文档审阅 | Todo |
 
 ## FE6 Work Items: 前端性能与可观测
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 153 | FE6-01 | FE6 | `skoll-frontend-performance-refactor` | 建立 bundle 基线 | 性能记录 | build chunk 和 warning 被记录 | `cd web && npm run build` | Todo |
-| 154 | FE6-02 | FE6 | `skoll-frontend-performance-refactor` | 检查路由懒加载覆盖 | router 清单 | 主要业务页面均懒加载 | `rg "component:\\s*\\(\\)\\s*=>" web/src/router web/src` | Todo |
-| 155 | FE6-03 | FE6 | `skoll-frontend-performance-refactor` | 建立表格性能规则 | 性能文档/组件要求 | 服务端分页、大列表策略、稳定尺寸明确 | 文档审阅 | Todo |
-| 156 | FE6-04 | FE6 | `skoll-frontend-performance-refactor` | 共享数据缓存策略 | store 文档/代码 | 菜单、权限、字典缓存与失效规则明确 | 文档审阅 | Todo |
-| 157 | FE6-05 | FE6 | `skoll-frontend-performance-refactor` | 插件/Dev Portal 性能检查 | 性能记录 | 重面板按需加载，请求数量可控 | 浏览器验收 | Todo |
-| 158 | FE6-06 | FE6 | `skoll-frontend-performance-refactor` | 前端性能验收模板 | `acceptance_log.md` | 记录 bundle 变化、路由加载、请求数量、页面卡顿观察 | 文档审阅 | Todo |
+| 157 | FE6-01 | FE6 | `skoll-frontend-performance-refactor` | 建立 bundle 基线 | 性能记录 | build chunk 和 warning 被记录 | `cd web && npm run build` | Todo |
+| 158 | FE6-02 | FE6 | `skoll-frontend-performance-refactor` | 检查路由懒加载覆盖 | router 清单 | 主要业务页面均懒加载 | `rg "component:\\s*\\(\\)\\s*=>" web/src/router web/src` | Todo |
+| 159 | FE6-03 | FE6 | `skoll-frontend-performance-refactor` | 建立表格性能规则 | 性能文档/组件要求 | 服务端分页、大列表策略、稳定尺寸明确 | 文档审阅 | Todo |
+| 160 | FE6-04 | FE6 | `skoll-frontend-performance-refactor` | 共享数据缓存策略 | store 文档/代码 | 菜单、权限、字典缓存与失效规则明确 | 文档审阅 | Todo |
+| 161 | FE6-05 | FE6 | `skoll-frontend-performance-refactor` | 插件/Dev Portal 性能检查 | 性能记录 | 重面板按需加载，请求数量可控 | 浏览器验收 | Todo |
+| 162 | FE6-06 | FE6 | `skoll-frontend-performance-refactor` | 前端性能验收模板 | `acceptance_log.md` | 记录 bundle 变化、路由加载、请求数量、页面卡顿观察 | 文档审阅 | Todo |
