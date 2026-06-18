@@ -222,7 +222,7 @@
 | 154 | FE5-01 | FE5 | `skoll-frontend-testing-refactor` | 固化 typecheck 门禁 | package script/CI 文档 | typecheck 可运行或缺口明确 | `cd web && npm run typecheck` | Done |
 | 155 | FE5-02 | FE5 | `skoll-frontend-testing-refactor` | 固化 build 门禁 | package script/CI 文档 | build 是所有前端任务必跑项 | `cd web && npm run build` | Done |
 | 156 | FE5-03 | FE5 | `skoll-frontend-testing-refactor` | 建立核心页面 smoke 清单 | `docs/refactor/fe5_core_page_smoke_checklist.md` | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 有步骤 | `rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Normal|Loading|Empty|Error|No permission|Narrow|Dangerous action|Browser Tooling Status" docs/refactor/fe5_core_page_smoke_checklist.md` | Done |
-| 157 | FE5-04 | FE5 | `skoll-frontend-testing-refactor` | 建立权限态验收清单 | docs/scripts | admin 和 restricted role 验收步骤明确 | 文档审阅 | Todo |
+| 157 | FE5-04 | FE5 | `skoll-frontend-testing-refactor` | 建立权限态验收清单 | `docs/refactor/fe5_permission_state_acceptance_checklist.md` | admin 和 restricted role 验收步骤明确 | `rg -n "Admin|Restricted|Route guard|Sidebar/menu|Button/action|API denial|Audit signal|Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Negative-Path Evidence|Failure Policy|Browser Tooling Status" docs/refactor/fe5_permission_state_acceptance_checklist.md` | Done |
 | 158 | FE5-05 | FE5 | `skoll-frontend-testing-refactor` | 建立响应式验收清单 | docs/scripts | 至少桌面和窄屏检查项明确 | 文档审阅 | Todo |
 | 159 | FE5-06 | FE5 | `skoll-frontend-testing-refactor` | 评估 Playwright/browser 自动化 | 测试方案 | 是否引入、覆盖范围、执行命令明确 | 文档审阅 | Todo |
 | 160 | FE5-07 | FE5 | `skoll-frontend-testing-refactor` | 前端验收记录接入 acceptance log | `acceptance_log.md` | 前端状态、浏览器、截图/路径字段可记录 | 文档审阅 | Todo |

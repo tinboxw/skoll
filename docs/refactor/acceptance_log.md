@@ -8872,3 +8872,61 @@ rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Normal|Loading|E
 ### 下一步
 
 - 进入 `FE5-04`，建立权限态验收清单。
+
+## FE5-04: 建立权限态验收清单
+
+- 状态: Passed
+- Work Item: FE5-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe5_permission_state_acceptance_checklist.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE5 权限态验收清单。 |
+| admin 路径 | Passed | 清单要求 `super_admin` 或 `*` 权限角色验证所有核心页面和管理动作正向路径。 |
+| restricted role 路径 | Passed | 清单定义 read-only restricted role，并覆盖路由、菜单、按钮和 API denied 负向路径。 |
+| 权限入口覆盖 | Passed | Route guard、Sidebar/menu、Button/action、StateBlock、API denial、Audit signal 均有验收项。 |
+| 核心页面覆盖 | Passed | Dashboard、User、Role、Permission、Menu、Plugin、Audit、Setting 均有 admin/restricted 检查。 |
+| 失败/Blocked 规则 | Passed | 明确 restricted role 越权、可用受保护页面、denied 假成功等失败条件；缺少角色/fixture/browser 时记录 Blocked。 |
+| 前端 API client/UI 同步 | N/A | 本项为权限态验收清单，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key，只引用现有权限入口和角色。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Admin|Restricted|Route guard|Sidebar/menu|Button/action|API denial|Audit signal|Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|Negative-Path Evidence|Failure Policy|Browser Tooling Status" docs/refactor/fe5_permission_state_acceptance_checklist.md
+```
+
+结果摘要: 通过。admin/restricted role、权限入口、8 个核心页面、负向证据、失败策略和浏览器工具阻塞说明锚点均存在。
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立权限态验收清单，不执行真实浏览器点击；当前线程仍未暴露可调用的 in-app browser 工具，且此前 bundled Playwright 缺少 `playwright-core`。
+- 后续: FE5-06/ADJ-FE-20260619-07 将继续评估自动化和最小浏览器 smoke 集合。
+
+### Performance Hook
+
+- Page/route: Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 权限态清单覆盖。
+- Typecheck: N/A，本项为文档清单；FE5-01 已固化 typecheck 门禁。
+- Build: N/A，本项为文档清单；FE5-02 已固化 build 门禁。
+- Request behavior: N/A
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE5-05`，建立响应式验收清单。
