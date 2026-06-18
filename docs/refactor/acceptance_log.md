@@ -4006,3 +4006,61 @@ go test ./...
 ### 下一步
 
 - 进入 `M1-10-02`，编写 M1 前端 smoke 步骤。
+
+## M1-10-02: 编写 M1 前端 smoke 步骤
+
+- 状态: Passed
+- Work Item: M1-10-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/scripts/m1-permission-menu-smoke.mjs`
+- `web/package.json`
+- `docs/refactor/m1_frontend_smoke.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 M1 前端 smoke 脚本和手工 smoke 文档，覆盖侧栏、路由、按钮、菜单保存、权限矩阵确认。 |
+| API/OpenAPI 同步 | N/A | 本项不改 HTTP API 契约。 |
+| 权限目录同步 | Passed | smoke 检查权限矩阵使用后端 catalog store，不再引用本地基础 catalog/defaults。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | smoke 检查侧栏读取 registry-backed navigation store、路由和按钮使用统一权限工具。 |
+| 文档同步 | Passed | Work Item 状态、smoke 步骤文档、验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | smoke 明确排查 `access.can`、本地 permission defaults、旧 route guard 调用残留。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+npm run smoke:m1-permissions
+```
+
+结果摘要: 通过。`smoke:m1-permissions` 8 项检查全部 Passed；build 仅保留既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 按 `docs/refactor/m1_frontend_smoke.md` 审阅自动 smoke 命令和手工核验步骤。
+2. 确认侧栏/路由/按钮权限一致性均有脚本或手工验证入口。
+3. 确认菜单保存、权限 grant/revoke、策略保存确认弹窗仍在 smoke 范围内。
+
+结果摘要: 通过。M1 前端 smoke 步骤已补齐，可用脚本和手工路径双重验收。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-10-03`，更新权限与菜单架构文档。

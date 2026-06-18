@@ -12,6 +12,7 @@
 		"smoke:auth": "node scripts/auth-plugin-smoke.mjs",
 		"smoke:plugins": "node scripts/plugin-sync-smoke.mjs",
 		"smoke:auth-actor": "node scripts/auth-actor-fallback-smoke.mjs",
+		"smoke:m1-permissions": "node scripts/m1-permission-menu-smoke.mjs",
 		"smoke:all": "node scripts/run-smoke-suite.mjs"
 	},
 	"dependencies": {
