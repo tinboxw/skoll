@@ -474,3 +474,57 @@ rg "提交一次代码|一任务一提交" docs/refactor
 ### 下一步
 
 - 进入 `M0-03-01`，运行 Go 全量测试。
+
+## M0-03-01: 运行 Go 全量测试
+
+- 状态: Passed
+- Work Item: M0-03-01
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/quality_baseline.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `go test ./...` 已执行，命令、结果、失败包和失败原因已记录。 |
+| API/OpenAPI 同步 | N/A | 仅质量基线记录任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅质量基线记录任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅质量基线记录任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅质量基线记录任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅质量基线记录任务，无前端实现影响。 |
+| 文档同步 | Passed | 质量基线记录、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只记录真实测试基线，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+go test ./...
+go env CGO_ENABLED CC
+Test-Path 'D:\Program Files\JetBrains\CLion 2024.1.1\bin\mingw\bin\gcc.exe'
+```
+
+结果摘要: `go test ./...` 失败。失败原因是 `CGO_ENABLED=1` 且 `CC` 指向的 gcc 路径不存在；失败包和重跑命令已记录在 `docs/refactor/quality_baseline.md`。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/quality_baseline.md` 的 M0-03-01 记录。
+2. 确认记录包含命令、结果、失败包、失败原因和重跑命令。
+
+结果摘要: 通过。本项验收目标是建立真实 Go 全量测试基线，当前基线为失败且原因明确。
+
+### 失败与返工
+
+- 失败原因: `go test ./...` 因本机 cgo 编译器路径不存在而失败。
+- 返工动作: 记录失败包、失败原因、环境核对结果和重跑命令；不在本项中修改本机工具链。
+- 重新验收结果: 基线记录验收通过；测试失败作为后续质量修复输入。
+
+### 下一步
+
+- 进入 `M0-03-02`，运行 Go 覆盖率统计。
