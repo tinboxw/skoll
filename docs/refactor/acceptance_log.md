@@ -1649,3 +1649,55 @@ go test ./internal/domain/menu
 ### 下一步
 
 - 进入 `M1-02-05`，补充 menu domain README。
+
+## M1-02-05: 补 menu domain README
+
+- 状态: Passed
+- Work Item: M1-02-05
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/menu/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | README 已说明菜单节点、树规则、权限字段和无兼容边界。 |
+| API/OpenAPI 同步 | N/A | 本项只补充包内文档，无 API 影响。 |
+| 权限目录同步 | N/A | 本项不变更权限目录。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | 包 README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | README 明确不保留旧菜单来源或旧路由映射。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/menu
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/domain/menu/README.md`。
+2. 确认已说明菜单节点、树、权限字段。
+
+结果摘要: 通过。menu domain README 已补齐。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-03-01`，设计权限表 migration。
