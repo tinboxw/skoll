@@ -32,6 +32,12 @@ func TestNewResourceDefaultsEnabled(t *testing.T) {
 	if !resource.Enabled {
 		t.Fatal("new resource should be enabled by default")
 	}
+	if resource.Risk != RiskLevelLow {
+		t.Fatalf("risk = %q", resource.Risk)
+	}
+	if len(resource.Metadata) != 0 {
+		t.Fatalf("metadata = %#v", resource.Metadata)
+	}
 	if resource.Key() != "user.read" {
 		t.Fatalf("key = %q", resource.Key())
 	}

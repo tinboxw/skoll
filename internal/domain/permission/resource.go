@@ -22,18 +22,33 @@ type ResourceIdentity struct {
 type PermissionResource struct {
 	Identity ResourceIdentity
 	Name     string
+	Risk     RiskLevel
+	Metadata map[string]string
 	Enabled  bool
 }
 
 func NewResource(identity ResourceIdentity, name string) (PermissionResource, error) {
+	return NewResourceWithMetadata(identity, name, RiskLevelLow, nil)
+}
+
+func NewResourceWithMetadata(identity ResourceIdentity, name string, risk RiskLevel, metadata map[string]string) (PermissionResource, error) {
 	identity = NormalizeIdentity(identity)
 	name = strings.TrimSpace(name)
 	if err := ValidateResource(identity, name); err != nil {
 		return PermissionResource{}, err
 	}
+	if err := ValidateRisk(risk); err != nil {
+		return PermissionResource{}, err
+	}
+	metadata = NormalizeMetadata(metadata)
+	if err := ValidateMetadata(metadata); err != nil {
+		return PermissionResource{}, err
+	}
 	return PermissionResource{
 		Identity: identity,
 		Name:     name,
+		Risk:     risk,
+		Metadata: metadata,
 		Enabled:  true,
 	}, nil
 }

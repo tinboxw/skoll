@@ -11,9 +11,9 @@
 
 ## 当前规划文件
 - doc.go
+- metadata.go
 - resource.go
 - rules.go
 
 ## 后续待补充实现
-- [ ] 实现权限风险与 metadata 校验规则。
 - [ ] 补充序列化边界说明。

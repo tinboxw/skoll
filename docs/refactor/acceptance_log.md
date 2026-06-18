@@ -1322,3 +1322,59 @@ go test ./internal/domain/permission
 ### 下一步
 
 - 进入 `M1-01-04`，实现 permission risk/source metadata。
+
+## M1-01-04: 实现 permission risk/source metadata
+
+- 状态: Passed
+- Work Item: M1-01-04
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/permission/metadata.go`
+- `internal/domain/permission/metadata_test.go`
+- `internal/domain/permission/resource.go`
+- `internal/domain/permission/resource_test.go`
+- `internal/domain/permission/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 实现 risk 枚举、metadata 规范化/校验和 JSON 序列化测试；source 校验沿用 M1-01-03 规则。 |
+| API/OpenAPI 同步 | N/A | 本项只修改 domain 类型，无 API 影响。 |
+| 权限目录同步 | Passed | 权限目录领域模型包含风险和 metadata。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | 包 README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 风险等级只支持当前枚举，未添加旧风险别名或兼容路径。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/permission
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/domain/permission/metadata.go`。
+2. 审阅 `internal/domain/permission/metadata_test.go` 的 risk、metadata 和序列化覆盖。
+
+结果摘要: 通过。PermissionResource 风险与 metadata 能校验并序列化。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-01-05`，补 permission domain README。
