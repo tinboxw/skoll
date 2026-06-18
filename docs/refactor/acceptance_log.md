@@ -4305,3 +4305,58 @@ rg -n "module\\.resource\\.action|AuditAction|login_failed|plugin_catalog_import
 ### 下一步
 
 - 进入 `M2-01-03`，定义 AuditEvent 统一结构。
+
+## M2-01-03: 定义 AuditEvent 统一结构
+
+- 状态: Passed
+- Work Item: M2-01-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/audit/event.go`
+- `internal/domain/audit/event_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增统一 `Event`、`EventInput`、`ActorRef`、`ResourceRef`、`TraceContext`、`EventResult`、`EventRisk`。 |
+| API/OpenAPI 同步 | N/A | 本项仅定义 domain 结构，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | `Event` 强制使用 M2-01-02 的 `AuditAction` 校验规则。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新统一事件结构并列定义，未新增旧日志兼容模型或双写路径。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/domain/audit/event.go internal/domain/audit/event_test.go
+go test ./internal/domain/audit/...
+rg -n "type Event struct|ActorRef|ResourceRef|TraceContext|EventResult|EventRisk|Metadata|NewEvent" internal/domain/audit/event.go internal/domain/audit/event_test.go
+```
+
+结果摘要: 通过。actor/resource/result/trace/risk/metadata 字段完整，默认 risk、非法输入拒绝、metadata 拷贝均有测试。
+
+### 人工验收
+
+1. 审阅 `internal/domain/audit/event.go`，确认统一事件结构不依赖 store/service。
+2. 审阅 `internal/domain/audit/event_test.go`，确认成功、拒绝、风险、trace、metadata 路径均覆盖。
+
+结果摘要: 通过。AuditEvent 统一结构已定义。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-01-04`，补审计 action catalog 文档。
