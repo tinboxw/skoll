@@ -3780,3 +3780,59 @@ npm run build
 ### 下一步
 
 - 进入 `M1-09-03`，菜单管理页读取 registry tree。
+
+## M1-09-03: 菜单管理页读取 registry tree
+
+- 状态: Passed
+- Work Item: M1-09-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Menu/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 菜单管理页通过 navigation store 读取 registry tree，并补齐页面状态。 |
+| API/OpenAPI 同步 | N/A | 本项复用 M1-08 menu client/store，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未改权限目录数据。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 加载态、错误重试、空态和表格 empty text 已覆盖。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 页面继续通过 registry-backed navigation store 加载菜单。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/views/Menu/index.vue`。
+2. 确认错误态提供重试，空态提供新增根菜单入口，表格提供 empty text。
+3. 确认缺失的 `common.retry` 中英文文案已补齐。
+
+结果摘要: 通过。菜单管理页读取 registry tree 的页面状态已补齐。
+
+### 失败与返工
+
+- 失败原因: 初次验收发现 `common.retry` i18n key 缺失。
+- 返工动作: 补齐中英文 `common.retry` 文案。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `M1-09-04`，菜单管理页编辑与保存。

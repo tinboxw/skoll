@@ -22,6 +22,7 @@ const drafts = ref<MenuDraft[]>([]);
 
 const hasCustomizedMenus = computed(() => navigationStore.customized);
 const syncStatus = computed(() => navigationStore.syncStatus);
+const isEmpty = computed(() => !loading.value && !navigationStore.lastError && drafts.value.length === 0);
 
 function createDraft(seed?: Partial<SystemMenuRecord>): MenuDraft {
 	return {
@@ -211,19 +212,27 @@ onMounted(() => {
 			type="error"
 			show-icon
 			:closable="false"
-		/>
+		>
+			<el-button link type="primary" :loading="loading" @click="loadMenus">{{ t("common.retry") }}</el-button>
+		</el-alert>
 
 		<div class="table-actions">
 			<el-button type="primary" plain :icon="Plus" @click="addRootMenu">{{ t("menu.editor.addRoot") }}</el-button>
 			<span>{{ t("menu.editor.status") }}: {{ syncStatus }}</span>
 		</div>
 
+		<el-empty v-if="isEmpty" :description="t('common.empty')">
+			<el-button type="primary" plain :icon="Plus" @click="addRootMenu">{{ t("menu.editor.addRoot") }}</el-button>
+		</el-empty>
+
 		<el-table
+			v-else
 			v-loading="loading"
 			:data="drafts"
 			row-key="id"
 			border
 			default-expand-all
+			:empty-text="t('common.empty')"
 			:tree-props="{ children: 'children' }"
 		>
 			<el-table-column :label="t('menu.editor.label')" min-width="170">

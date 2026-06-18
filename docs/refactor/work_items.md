@@ -100,7 +100,7 @@
 | 67 | M1-08-06 | M1-08 | `skoll-vue-frontend` | 统一按钮权限入口 | directive/utils | 按钮权限不再页面散落判断 | `cd web && npm run build` | Done |
 | 68 | M1-09-01 | M1-09 | `skoll-web-ui-design` | 权限矩阵页读取 catalog | Vue page | 不再使用孤立权限常量 | `cd web && npm run build` | Done |
 | 69 | M1-09-02 | M1-09 | `skoll-web-ui-design` | 权限矩阵授权/撤销接入 API | Vue page | 保存后前后端一致 | `cd web && npm run build` | Done |
-| 70 | M1-09-03 | M1-09 | `skoll-web-ui-design` | 菜单管理页读取 registry tree | Vue page | 加载、空态、错误态完整 | `cd web && npm run build` | Todo |
+| 70 | M1-09-03 | M1-09 | `skoll-web-ui-design` | 菜单管理页读取 registry tree | Vue page | 加载、空态、错误态完整 | `cd web && npm run build` | Done |
 | 71 | M1-09-04 | M1-09 | `skoll-web-ui-design` | 菜单管理页编辑与保存 | Vue page | 显隐、排序、权限字段可保存 | `cd web && npm run build` | Todo |
 | 72 | M1-09-05 | M1-09 | `skoll-web-ui-design` | 菜单和权限页面确认弹窗 | Vue page | 高风险保存有确认和错误反馈 | `cd web && npm run build` | Todo |
 | 73 | M1-10-01 | M1-10 | `skoll-testing-automation` | 编写 M1 后端集成测试 | tests | 角色授权、菜单过滤、API 拒绝路径覆盖 | `go test ./...` | Todo |
