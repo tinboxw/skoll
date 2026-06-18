@@ -22,6 +22,9 @@ docs/archive/legacy-plans/
 | `archive/legacy-plans/plugin_platform_baseline_v1.md` | `task_board.md` M6 | manifest、权限命名、审计、数据边界、插件独立交付 | 版本矩阵只作为发布说明素材，不作为基础建设任务 |
 | `archive/legacy-plans/long_term_roadmap.md` | `README.md` 与 `task_board.md` | Admin 骨架、生成器、插件平台、运维可观测、开源生态阶段 | 旧 S0-S6 状态不作为当前执行状态 |
 | `archive/legacy-plans/open_admin_baseline_plan.md` | `architecture_and_execution_plan.md` | 动态菜单、权限、字典、文件、代码生成、质量门禁主线 | 旧“下一步计划”不再单独执行 |
+| `archive/legacy-plans/feature_implementation_status.md` | `task_board.md` M1-M7 | 已有能力盘点、缺失能力、阶段性风险 | 旧完成度不作为当前验收结论 |
+| `archive/legacy-plans/iteration_plan.md` | `work_items.md` M0-M2 与 FE0-FE6 | 分阶段推进节奏、短周期拆分、质量回归要求 | 旧迭代编号不作为当前执行顺序 |
+| `archive/legacy-plans/plugin_ui_optimization_plan.md` | `frontend_experience_plan.md` 与 FE Work Items | 插件 UI 信息架构、风险展示、生命周期操作体验 | 旧静态 UI 方案不作为验收通过依据 |
 | `gin-vue-admin_analysis.md` | `task_board.md` M1-M7 | GVA 功能面: 权限、菜单、审计、文件、字典、生成器、插件、质量 | 不复制 GVA 实现和许可证受限内容 |
 
 ## 当前事实来源
@@ -31,5 +34,6 @@ docs/archive/legacy-plans/
 | 架构模型与治理原则 | `docs/refactor/architecture_and_execution_plan.md` |
 | 可执行任务顺序 | `docs/refactor/task_board.md` |
 | 验收记录 | `docs/refactor/acceptance_log.md` |
+| 质量基线 | `docs/refactor/quality_baseline.md` |
 | GVA 对标分析 | `docs/refactor/gin-vue-admin_analysis.md` |
 | 文档入口 | `docs/refactor/README.md` |
