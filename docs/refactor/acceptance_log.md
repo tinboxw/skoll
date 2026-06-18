@@ -5631,3 +5631,60 @@ rg -n 'exportAuditEvents|audit\.exported|success\.value' web/src/views/Audit/ind
 ### 下一步
 
 - 进入 `M2-05-06`，审计页空态/错误态/无权限态。
+
+## M2-05-06: 审计页空态/错误态/无权限态
+
+- 状态: Passed
+- Work Item: M2-05-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Audit/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 审计页新增明确空态和 403 无权限态，错误继续通过 alert 显示。 |
+| API/OpenAPI 同步 | Passed | 403 状态按 API 错误响应进入无权限结果态。 |
+| 权限目录同步 | Passed | 无权限说明明确提示 `audit.read`。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 状态处理基于 typed client 抛出的 `ApiError`。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未新增旧 UI 路径或旧 API 请求。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+rg -n "forbidden|el-result|el-empty|audit\.empty|audit\.forbidden" web/src/views/Audit/index.vue web/src/i18n/index.ts
+```
+
+结果摘要: 通过。build 仅输出现有依赖的 Rollup pure annotation 与 Dart Sass legacy API 警告。
+
+### 人工验收
+
+1. 审阅加载失败分支，确认 403 映射到无权限态。
+2. 审阅表格区域，确认空列表展示 `el-empty`。
+3. 审阅顶部 alert，确认普通错误和导出错误仍可见。
+
+结果摘要: 通过。审计页交互状态已补齐。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-06-01`，更新 smoke-auth-audit 脚本场景。

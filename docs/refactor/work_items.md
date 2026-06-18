@@ -138,7 +138,7 @@
 | 100 | M2-05-03 | M2-05 | `skoll-vue-frontend` | 审计页筛选区升级 | Vue page | actor/resource/action/time/risk 筛选可用 | `cd web && npm run build` | Done |
 | 101 | M2-05-04 | M2-05 | `skoll-vue-frontend` | 审计详情抽屉升级 | Vue page | metadata、diff、trace 展示清楚 | `cd web && npm run build` | Done |
 | 102 | M2-05-05 | M2-05 | `skoll-vue-frontend` | 审计导出按钮接入 | Vue page | 导出带当前过滤条件，错误可见 | `cd web && npm run build` | Done |
-| 103 | M2-05-06 | M2-05 | `skoll-web-ui-design` | 审计页空态/错误态/无权限态 | Vue page | 专业后台交互状态完整 | `cd web && npm run build` | Todo |
+| 103 | M2-05-06 | M2-05 | `skoll-web-ui-design` | 审计页空态/错误态/无权限态 | Vue page | 专业后台交互状态完整 | `cd web && npm run build` | Done |
 | 104 | M2-06-01 | M2-06 | `skoll-testing-automation` | 更新 smoke-auth-audit 脚本场景 | script | 覆盖 login_failed、forbidden、plugin、menu、export | `powershell -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1` | Todo |
 | 105 | M2-06-02 | M2-06 | `skoll-testing-automation` | 编写 M2 手工验收步骤 | docs | UI 查询、详情、导出、日志检查步骤完整 | 文档审阅 | Todo |
 | 106 | M2-06-03 | M2-06 | `skoll-testing-automation` | M2 全量回归 | test run record | go test 和前端 build 通过或失败项记录 | `go test ./...`; `cd web && npm run build` | Todo |

@@ -4,7 +4,7 @@ import { computed, ref } from "vue";
 import { exportAuditEvents, getAuditEvent, listAuditEvents, type AuditEvent, type AuditEventDetail, type AuditEventListQuery, type AuditEventRisk, type AuditEventType } from "../../audit/api";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
-import { type ApiResponse, apiDelete } from "../../utils/api";
+import { ApiError, type ApiResponse, apiDelete } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 type AuditRecord = AuditEvent;
@@ -170,6 +170,7 @@ const loading = ref(false);
 const operating = ref(false);
 const error = ref("");
 const success = ref("");
+const forbidden = ref(false);
 const actorName = ref(initialActorName);
 const action = ref(initialAction);
 const resource = ref(initialResource);
@@ -368,11 +369,13 @@ async function loadAuditLogs(): Promise<void> {
 	try {
 		const payload = await listAuditEvents(buildAuditEventQuery());
 		items.value = payload.items.filter((item) => item.id.trim() !== "");
+		forbidden.value = false;
 		page.value = 1;
 		selected.value = null;
 		updateSuggestionHistory();
 	} catch (e) {
 		error.value = toErrorMessage(e);
+		forbidden.value = e instanceof ApiError && e.status === 403;
 		items.value = [];
 		selected.value = null;
 	} finally {
@@ -618,7 +621,18 @@ void loadAuditLogs();
 		</section>
 
 		<section class="panel">
+			<el-result
+				v-if="forbidden"
+				icon="warning"
+				:title="t('audit.forbiddenTitle')"
+				:sub-title="t('audit.forbiddenDesc')"
+			/>
+			<el-empty
+				v-else-if="!loading && !hasRows"
+				:description="t('audit.empty')"
+			/>
 			<el-table
+				v-else
 				v-loading="loading"
 				:data="pagedItems"
 				border
@@ -644,7 +658,7 @@ void loadAuditLogs();
 				</el-table-column>
 			</el-table>
 
-			<div class="pager">
+			<div v-if="hasRows" class="pager">
 				<el-pagination
 					v-model:current-page="page"
 					v-model:page-size="pageSize"
