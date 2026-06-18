@@ -5973,6 +5973,60 @@ rg -n "const DashboardPage|const AuditPage|const MenuPage|const PermissionPage|c
 
 - 进入 `FE0-02`，盘点前端架构与复用点。
 
+## FE0-02: 盘点前端架构与复用点
+
+- 状态: Passed
+- Work Item: FE0-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe0_frontend_architecture_inventory.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增前端架构与复用点清单。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 清单覆盖 API client、stores、router、permissions、SchemaForm、Common 组件边界。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 仅做架构盘点，不新增旧 route/store/API 包装。 |
+
+### 自动化验证
+
+```powershell
+rg "defineStore|SchemaForm|canAccess|v-permission" web/src
+rg -n "apiGet|apiPost|apiPut|apiDelete|createRouter|router.beforeEach|BUTTON_ACCESS|useButtonAccess" web/src
+```
+
+结果摘要: 通过。共享 stores、SchemaForm、权限工具、router guard、API wrapper 均有锚点。
+
+### 人工验收
+
+1. 审阅架构清单，确认 API client、stores、router、permissions、SchemaForm、Common 组件边界清楚。
+2. 确认 Plugin 页面和 CRUD 页面 page-local API 风险已列入 gaps。
+3. 确认后续 FE2 规则可承接这些架构缺口。
+
+结果摘要: 通过。FE0 前端架构盘点完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE0-03`，建立前端构建基线。
+
 ## ADJ-20260619-01: M2 export/list filter parity check
 
 - 状态: Passed
