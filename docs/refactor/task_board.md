@@ -165,7 +165,7 @@
 
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
-| 57 | FE0 | `skoll-frontend-design-refactor` / `skoll-frontend-testing-refactor` / `skoll-frontend-performance-refactor` | 建立前端体验、构建、类型和浏览器验收基线 | 前端基线记录与验收模板 | 当前页面体验、build、typecheck、bundle warning、浏览器检查项均被记录 | `cd web && npm run build`; `cd web && npm run typecheck` | Todo |
+| 57 | FE0 | `skoll-frontend-design-refactor` / `skoll-frontend-testing-refactor` / `skoll-frontend-performance-refactor` | 建立前端体验、构建、类型和浏览器验收基线 | 前端基线记录与验收模板 | 当前页面体验、build、typecheck、bundle warning、浏览器检查项均被记录 | `cd web && npm run build`; `cd web && npm run typecheck` | Done |
 | 58 | FE1 | `skoll-frontend-design-refactor` | 建立 Skoll Admin 设计系统与视觉规范 | 页面布局、表格、表单、状态、响应式规范 | 后台界面专业克制、可扫描；无嵌套卡片、营销页风格、装饰性渐变干扰 | 文档审阅 | Todo |
 | 59 | FE2 | `skoll-frontend-coding-refactor` | 建立前端架构与数据流规范 | API client、Pinia、Router、权限、SchemaForm、错误处理规范 | 前端数据流统一，菜单、路由、按钮、插件权限同源 | `rg "defineStore|beforeEach|SchemaForm|v-permission" web/src` | Todo |
 | 60 | FE3 | `skoll-frontend-design-refactor` / `skoll-frontend-testing-refactor` | 升级核心后台页面体验 | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 页面改造 | 每个核心页面具备正常、加载、空、错误、无权限、保存中和窄屏状态 | `cd web && npm run build`; 浏览器验收 | Todo |

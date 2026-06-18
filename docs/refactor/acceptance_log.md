@@ -6134,6 +6134,89 @@ npm run typecheck
 
 - 进入 `FE0-05`，建立浏览器人工验收模板。
 
+## FE0-05: 建立浏览器人工验收模板
+
+- 状态: Passed
+- Work Item: FE0-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe0_browser_manual_acceptance_template.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增浏览器人工验收模板。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 模板覆盖正常、加载、空态、错误、无权限、窄屏、危险操作、保存/详情状态。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 仅建立验收模板，不新增前端路径。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Normal data|Loading|Empty|Backend error|No permission|Narrow viewport|Dangerous action|Acceptance Log Snippet" docs/refactor/fe0_browser_manual_acceptance_template.md
+```
+
+结果摘要: 通过。浏览器人工验收模板包含 FE0 要求的全部状态。
+
+### 人工验收
+
+1. 审阅模板，确认可复制到后续 acceptance log。
+2. 确认每个可视化任务都不能只靠 build 通过即验收。
+3. 确认无法测试的状态需要标记 Blocked 并说明原因。
+
+结果摘要: 通过。FE0 浏览器人工验收模板完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- FE0 已完成，进入 FE1 设计系统与视觉规范。
+
+## FE0 Milestone: 前端体验基线
+
+- 状态: Passed
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 范围
+
+- FE0-01: 当前前端页面体验盘点
+- FE0-02: 前端架构与复用点盘点
+- FE0-03: 前端构建基线
+- FE0-04: 前端 typecheck 基线
+- FE0-05: 浏览器人工验收模板
+
+### 验收结果
+
+| 项目 | 结果 | 说明 |
+|---|---|---|
+| 页面体验清单 | Passed | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 状态、问题、优先级已记录。 |
+| 架构复用点 | Passed | API client、stores、router、permissions、SchemaForm、Common 组件边界已记录。 |
+| Build 基线 | Passed | `npm run build` 通过，chunk、warning、依赖风险已记录。 |
+| Typecheck 基线 | Passed | `npm run typecheck` 通过，`vue-tsc --noEmit` 无诊断。 |
+| 浏览器验收模板 | Passed | 正常、加载、空态、错误、无权限、窄屏、危险操作均纳入模板。 |
+| task board 同步 | Passed | FE0 父任务状态更新为 Done。 |
+
+### 下一步
+
+- 进入 `FE1-01`，定义 Skoll Admin 视觉原则。
+
 ## ADJ-20260619-01: M2 export/list filter parity check
 
 - 状态: Passed
