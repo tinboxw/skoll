@@ -102,7 +102,7 @@
 | 69 | M1-09-02 | M1-09 | `skoll-web-ui-design` | 权限矩阵授权/撤销接入 API | Vue page | 保存后前后端一致 | `cd web && npm run build` | Done |
 | 70 | M1-09-03 | M1-09 | `skoll-web-ui-design` | 菜单管理页读取 registry tree | Vue page | 加载、空态、错误态完整 | `cd web && npm run build` | Done |
 | 71 | M1-09-04 | M1-09 | `skoll-web-ui-design` | 菜单管理页编辑与保存 | Vue page | 显隐、排序、权限字段可保存 | `cd web && npm run build` | Done |
-| 72 | M1-09-05 | M1-09 | `skoll-web-ui-design` | 菜单和权限页面确认弹窗 | Vue page | 高风险保存有确认和错误反馈 | `cd web && npm run build` | Todo |
+| 72 | M1-09-05 | M1-09 | `skoll-web-ui-design` | 菜单和权限页面确认弹窗 | Vue page | 高风险保存有确认和错误反馈 | `cd web && npm run build` | Done |
 | 73 | M1-10-01 | M1-10 | `skoll-testing-automation` | 编写 M1 后端集成测试 | tests | 角色授权、菜单过滤、API 拒绝路径覆盖 | `go test ./...` | Todo |
 | 74 | M1-10-02 | M1-10 | `skoll-testing-automation` | 编写 M1 前端 smoke 步骤 | docs/scripts | 可手工或脚本验证侧栏/路由/按钮一致性 | `cd web && npm run build` | Todo |
 | 75 | M1-10-03 | M1-10 | `skoll-docs-writer` | 更新权限与菜单架构文档 | docs | 说明 catalog/registry、权限命名、菜单来源 | 文档审阅 | Todo |

@@ -175,6 +175,16 @@ async function saveMenus(): Promise<void> {
 		ElMessage.warning(t("menu.editor.emptyWarning"));
 		return;
 	}
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: t("menu.editor.saveConfirm"),
+		confirmText: t("common.save"),
+		cancelText: t("common.cancel"),
+		type: "warning"
+	});
+	if (!confirmed) {
+		return;
+	}
 	saving.value = true;
 	try {
 		await navigationStore.saveSystemMenus(items);

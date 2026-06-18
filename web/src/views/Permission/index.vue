@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { Check, Close, Refresh, Select, Setting } from "@element-plus/icons-vue";
 
+import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import type { PermissionResource } from "../../permissions/api";
 import { usePermissionStore } from "../../stores/permissions";
@@ -181,6 +182,16 @@ async function toggleMatrixPermission(permission: string, enabled: boolean): Pro
 	if (!selectedRoleId.value || permission === "*") {
 		return;
 	}
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: enabled ? t("permission.grantConfirm") : t("permission.revokeConfirm"),
+		confirmText: t("common.confirm"),
+		cancelText: t("common.cancel"),
+		danger: !enabled
+	});
+	if (!confirmed) {
+		return;
+	}
 	matrixSaving.value = true;
 	error.value = "";
 	success.value = "";
@@ -249,6 +260,16 @@ async function loadPage(): Promise<void> {
 
 async function savePolicies(): Promise<void> {
 	if (!selectedRoleId.value) {
+		return;
+	}
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: t("permission.savePoliciesConfirm"),
+		confirmText: t("common.save"),
+		cancelText: t("common.cancel"),
+		type: "warning"
+	});
+	if (!confirmed) {
 		return;
 	}
 	saving.value = true;
