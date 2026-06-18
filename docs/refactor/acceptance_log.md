@@ -7738,3 +7738,82 @@ npm run build
 ### 下一步
 
 - 进入 `FE3-03`，执行 Role 页面体验升级。
+
+## FE3-03: Role 页面体验升级
+
+- 状态: Passed
+- Work Item: FE3-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Role/list.vue`
+- `web/src/views/Role/edit.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Role list 增加摘要、筛选、权限空态；Role edit 增加授权摘要、权限筛选、关联用户筛选和撤销确认。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 `/v1/roles`、`/v1/roles/{id}/users`、grant/revoke 契约。 |
+| 权限目录同步 | Passed | 复用现有 `role.read/role.create/role.update/role.delete/role.manage/permission.manage/user.update` 权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改变数据库结构或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 页面继续使用现有 API wrapper；错误通过 `toErrorMessage` 可见，撤销权限增加 `confirmAction` 防护。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/role` 与 `/skoll/role/:id/edit` 当前路由，不新增兼容入口。 |
+
+### 自动化验证
+
+```powershell
+rg -n "StateBlock|filteredRows|summary-grid|filters|permissionKeyword|filteredPermissions|filteredUsers|confirmAction|role.filter|role.summary" web/src/views/Role/list.vue web/src/views/Role/edit.vue web/src/i18n/index.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。关键 UI/权限/状态锚点均存在；返工后前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 和 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可用 in-app browser 工具；bundled Playwright 运行时仍缺少 `playwright-core`，无法完成截图或真实点击 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 `/skoll/role` 与 role edit 的默认、筛选、授权、撤销确认、关联用户、窄屏路径。
+
+### Performance Hook
+
+- Page/route: Role list/edit，`/skoll/role`、`/skoll/role/:id/edit`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus、StateBlock、confirmAction、权限工具和现有 API wrapper。
+- Route lazy loading: Passed，router 中通过 `const RoleListPage = () => import("../views/Role/list.vue")` 与 `const RoleEditPage = () => import("../views/Role/edit.vue")` 动态导入。
+- Heavy table risk: Role list 使用 offset/limit 分页；权限和关联用户筛选为当前页/当前角色局部筛选，不触发全量额外拉取。
+- Request behavior: Role list 未新增列表请求；Role edit 仍读取 role detail 与 linked users，grant/revoke/save 沿用既有端点。
+- Loading behavior: 刷新、保存、授权、撤销、关联用户刷新均有 loading/禁用状态和错误提示。
+- Deferred panels: N/A，编辑页无重日志/配置面板；关联用户仍在进入编辑页时加载，后续如用户量增长可移入按需加载。
+- Narrow viewport: 摘要卡、筛选、权限操作和表单在 900px 以下折叠；表格保持 Element Plus 横向处理。
+- Follow-up: 如果关联用户规模变大，应为 `/v1/roles/{id}/users` 增加分页契约并补 OpenAPI/client gate。
+
+### 人工验收
+
+1. 对照 `fe3_page_acceptance_map.md`，确认 Role 覆盖角色列表、创建、删除、授权、关联用户、危险确认和权限状态。
+2. 对照 `web/src/views/Role/list.vue`，确认删除仍使用 `confirmAction`，列表筛选不改变后端 offset/limit 契约。
+3. 对照 `web/src/views/Role/edit.vue`，确认撤销权限已增加确认弹窗，权限和关联用户均可局部筛选。
+4. 确认受限账号缺少读取或管理权限时显示 forbidden StateBlock 或只读状态。
+
+结果摘要: 通过。Role list/edit 已满足 FE3-03 对角色列表、授权入口、关联用户和危险操作清晰度的要求。
+
+### 失败与返工
+
+- 失败原因: 首次 typecheck 发现 `resetFilters` 未在组件顶层定义；随后 build 发现一份误入 `<style>` 的 `resetFilters` 片段导致 PostCSS 解析失败。
+- 返工动作: 补回顶层 `resetFilters` 函数，删除 style 块中的误片段，并重跑 typecheck/build。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `FE3-04`，执行 Permission 页面体验升级。

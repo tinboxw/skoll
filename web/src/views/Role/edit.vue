@@ -2,6 +2,8 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 
+import StateBlock from "../../components/Common/StateBlock.vue";
+import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { BASE_PERMISSION_OPTIONS } from "../../permissions/catalog";
@@ -78,11 +80,28 @@ const permissions = ref<string[]>([]);
 const users = ref<UserRecord[]>([]);
 const usersLoading = ref(false);
 const usersError = ref("");
+const permissionKeyword = ref("");
+const userKeyword = ref("");
 const canUpdateRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleUpdate));
 const canManagePermissions = computed(() => buttonAccess.can({ permissions: [BUTTON_ACCESS.roleManage, BUTTON_ACCESS.permissionManage], mode: "any" }));
 const canUpdateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userUpdate));
 
 const availablePermissionOptions = computed(() => permissionOptions.filter((item) => !permissions.value.includes(item)));
+const filteredPermissions = computed(() => {
+	const term = permissionKeyword.value.trim().toLowerCase();
+	if (!term) {
+		return permissions.value;
+	}
+	return permissions.value.filter((item) => item.toLowerCase().includes(term));
+});
+const filteredUsers = computed(() => {
+	const term = userKeyword.value.trim().toLowerCase();
+	if (!term) {
+		return users.value;
+	}
+	return users.value.filter((item) => [item.id, item.account, item.name, item.email].some((value) => String(value ?? "").toLowerCase().includes(term)));
+});
+const hasRoleAccess = computed(() => canUpdateRole.value || canManagePermissions.value);
 
 async function loadRole(): Promise<void> {
 	if (!roleId.value) {
@@ -191,6 +210,16 @@ async function revokePermission(permission: string): Promise<void> {
 	if (!roleId.value || !permission.trim()) {
 		return;
 	}
+	const confirmed = await confirmAction({
+		title: t("common.confirm"),
+		message: `${t("permission.revokeConfirm")} ${permission}`,
+		confirmText: t("role.revokePermission"),
+		cancelText: t("common.cancel"),
+		danger: true
+	});
+	if (!confirmed) {
+		return;
+	}
 	saving.value = true;
 	error.value = "";
 	success.value = "";
@@ -227,7 +256,27 @@ onMounted(() => {
 		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
 		<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
 
-		<section class="panel">
+		<StateBlock v-if="!hasRoleAccess" type="forbidden" :title="t('role.noPermissionTitle')" :description="t('error.forbidden')" />
+
+		<section v-if="hasRoleAccess" class="summary-grid">
+			<article class="summary-card">
+				<span>{{ t("table.permissions") }}</span>
+				<strong>{{ permissions.length }}</strong>
+				<small>{{ t("role.summary.availablePermissions") }} {{ availablePermissionOptions.length }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("role.usersTitle") }}</span>
+				<strong>{{ users.length }}</strong>
+				<small>{{ t("role.summary.filtered") }} {{ filteredUsers.length }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("role.summary.actions") }}</span>
+				<strong>{{ canManagePermissions ? t("role.addPermission") : "-" }}</strong>
+				<small>{{ canUpdateRole ? t("common.save") : t("role.readOnly") }}</small>
+			</article>
+		</section>
+
+		<section v-if="hasRoleAccess" class="panel">
 			<h3>{{ t("table.description") }}</h3>
 			<el-form label-position="top" class="edit-form" @submit.prevent="saveRole">
 				<el-form-item :label="t('table.name')" required>
@@ -247,7 +296,7 @@ onMounted(() => {
 			</el-form>
 		</section>
 
-		<section class="panel">
+		<section v-if="hasRoleAccess" class="panel">
 			<div class="section-header">
 				<div>
 					<h3>{{ t("table.permissions") }}</h3>
@@ -262,7 +311,12 @@ onMounted(() => {
 					</el-button>
 				</el-form>
 			</div>
-			<el-table v-loading="loading" :data="permissions" border :empty-text="t('common.empty')">
+			<el-form class="inline-filter" label-position="top" @submit.prevent>
+				<el-form-item :label="t('role.filter.permission')">
+					<el-input v-model="permissionKeyword" clearable :placeholder="t('role.filter.permissionPlaceholder')" />
+				</el-form-item>
+			</el-form>
+			<el-table v-loading="loading" :data="filteredPermissions" border :empty-text="permissionKeyword.trim() ? t('role.filter.emptyPermissions') : t('common.empty')">
 				<el-table-column :label="t('table.permissions')" min-width="220">
 					<template #default="{ row }">
 						<el-tag effect="plain">{{ row }}</el-tag>
@@ -276,7 +330,7 @@ onMounted(() => {
 			</el-table>
 		</section>
 
-		<section class="panel">
+		<section v-if="hasRoleAccess" class="panel">
 			<div class="section-header">
 				<div>
 					<h3>{{ t("role.usersTitle") }}</h3>
@@ -285,7 +339,12 @@ onMounted(() => {
 				<el-button :loading="usersLoading" :disabled="saving" @click="loadRoleUsers">{{ t("common.refresh") }}</el-button>
 			</div>
 			<el-alert v-if="usersError" :title="usersError" type="error" show-icon :closable="false" />
-			<el-table v-loading="usersLoading" :data="users" border row-key="id" :empty-text="t('common.empty')">
+			<el-form class="inline-filter" label-position="top" @submit.prevent>
+				<el-form-item :label="t('role.filter.user')">
+					<el-input v-model="userKeyword" clearable :placeholder="t('role.filter.userPlaceholder')" />
+				</el-form-item>
+			</el-form>
+			<el-table v-loading="usersLoading" :data="filteredUsers" border row-key="id" :empty-text="userKeyword.trim() ? t('role.filter.emptyUsers') : t('common.empty')">
 				<el-table-column prop="id" :label="t('table.id')" min-width="190" show-overflow-tooltip />
 				<el-table-column :label="t('table.name')" min-width="160">
 					<template #default="{ row }">{{ row.name || row.account || "-" }}</template>
@@ -329,6 +388,30 @@ onMounted(() => {
 	color: var(--color-text-muted);
 }
 
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.summary-card {
+	display: grid;
+	gap: 4px;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-soft);
+}
+
+.summary-card span,
+.summary-card small {
+	color: var(--color-text-muted);
+}
+
+.summary-card strong {
+	font-size: 1.3rem;
+}
+
 .panel {
 	display: grid;
 	gap: 12px;
@@ -370,6 +453,14 @@ onMounted(() => {
 	flex: 1;
 }
 
+.inline-filter {
+	max-width: 420px;
+}
+
+.inline-filter :deep(.el-form-item) {
+	margin-bottom: 0;
+}
+
 .muted {
 	color: var(--color-text-muted);
 }
@@ -378,7 +469,8 @@ onMounted(() => {
 	.page-header,
 	.section-header,
 	.permission-actions,
-	.edit-form {
+	.edit-form,
+	.summary-grid {
 		display: grid;
 		min-width: 0;
 	}

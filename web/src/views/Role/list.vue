@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 
+import StateBlock from "../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
@@ -49,12 +50,28 @@ const createSuccess = ref("");
 const createName = ref("");
 const createKey = ref("");
 const createDescription = ref("");
+const keyword = ref("");
 
+const filteredRows = computed(() => {
+	const term = keyword.value.trim().toLowerCase();
+	if (!term) {
+		return rows.value;
+	}
+	return rows.value.filter((item) => [item.id, item.name, item.key].some((value) => String(value ?? "").toLowerCase().includes(term)));
+});
+const permissionTotal = computed(() => rows.value.reduce((total, item) => total + (Array.isArray(item.permissions) ? item.permissions.length : 0), 0));
+const guardedRoleCount = computed(() => rows.value.filter((item) => Array.isArray(item.permissions) && item.permissions.length > 0).length);
+const hasActiveFilters = computed(() => keyword.value.trim() !== "");
+const canReadRole = computed(() => buttonAccess.can("role.read"));
 const canCreateRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleCreate));
 const canUpdateRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleUpdate));
 const canDeleteRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleDelete));
 
 async function loadRoles(targetPage = page.value): Promise<void> {
+	if (!canReadRole.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	loading.value = true;
 	error.value = "";
 	try {
@@ -148,6 +165,10 @@ async function deleteRole(roleID: string): Promise<void> {
 	}
 }
 
+function resetFilters(): void {
+	keyword.value = "";
+}
+
 onMounted(() => {
 	void loadRoles(1);
 });
@@ -163,7 +184,27 @@ onMounted(() => {
 			<el-button :loading="loading" :disabled="operating" @click="loadRoles(page)">{{ t("common.refresh") }}</el-button>
 		</header>
 
-		<section v-if="canCreateRole" class="create-panel">
+		<StateBlock v-if="!canReadRole" type="forbidden" :title="t('role.noPermissionTitle')" :description="t('error.forbidden')" />
+
+		<section v-else class="summary-grid">
+			<article class="summary-card">
+				<span>{{ t("role.summary.currentPage") }}</span>
+				<strong>{{ rows.length }}</strong>
+				<small>{{ t("role.summary.filtered") }} {{ filteredRows.length }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("role.summary.guarded") }}</span>
+				<strong>{{ guardedRoleCount }}</strong>
+				<small>{{ t("role.summary.permissions") }} {{ permissionTotal }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("role.summary.actions") }}</span>
+				<strong>{{ canUpdateRole ? t("common.edit") : "-" }}</strong>
+				<small>{{ canDeleteRole ? t("common.delete") : t("role.noRowActions") }}</small>
+			</article>
+		</section>
+
+		<section v-if="canReadRole && canCreateRole" class="create-panel">
 			<h3>{{ t("role.createTitle") }}</h3>
 			<el-form class="create-form" @submit.prevent="createRole">
 				<el-input v-model="createName" :placeholder="t('role.createNamePlaceholder')" :disabled="creating" />
@@ -176,27 +217,48 @@ onMounted(() => {
 		</section>
 		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
 
-		<el-table v-loading="loading" :data="rows" border row-key="id" :empty-text="t('common.empty')">
-			<el-table-column prop="id" :label="t('table.id')" min-width="190" show-overflow-tooltip />
-			<el-table-column prop="name" :label="t('table.name')" min-width="160" />
-			<el-table-column :label="t('table.key')" min-width="150">
-				<template #default="{ row }">
-					<el-tag effect="plain">{{ row.key || "-" }}</el-tag>
-				</template>
-			</el-table-column>
-			<el-table-column :label="t('table.permissions')" width="120" align="center">
-				<template #default="{ row }">{{ Array.isArray(row.permissions) ? row.permissions.length : 0 }}</template>
-			</el-table-column>
-			<el-table-column :label="t('table.actions')" width="170" fixed="right">
-				<template #default="{ row }">
-					<el-button v-if="canUpdateRole" link type="primary" tag="router-link" :to="{ name: 'role-edit', params: { id: row.id } }">{{ t("common.edit") }}</el-button>
-					<el-button v-if="canDeleteRole" link type="danger" :disabled="loading || operating" @click="deleteRole(row.id)">{{ t("common.delete") }}</el-button>
-					<span v-if="!canUpdateRole && !canDeleteRole" class="muted">{{ t("common.empty") }}</span>
-				</template>
-			</el-table-column>
-		</el-table>
+		<template v-if="canReadRole">
+			<el-form class="filters" label-position="top" @submit.prevent="loadRoles(1)">
+				<el-form-item :label="t('role.filter.keyword')">
+					<el-input v-model="keyword" clearable :placeholder="t('role.filter.keywordPlaceholder')" />
+				</el-form-item>
+				<el-form-item class="filter-actions" :label="t('common.actions')">
+					<el-button type="primary" native-type="submit" :loading="loading" :disabled="operating">{{ t("common.refresh") }}</el-button>
+					<el-button :disabled="!hasActiveFilters" @click="resetFilters">{{ t("common.reset") }}</el-button>
+				</el-form-item>
+			</el-form>
 
-		<div class="pager">
+			<div class="table-shell">
+				<el-table v-loading="loading" :data="filteredRows" border row-key="id" :empty-text="hasActiveFilters ? t('role.filter.empty') : t('common.empty')">
+					<el-table-column prop="id" :label="t('table.id')" min-width="190" show-overflow-tooltip />
+					<el-table-column :label="t('table.name')" min-width="170">
+						<template #default="{ row }">
+							<div class="role-cell">
+								<strong>{{ row.name || row.key || row.id }}</strong>
+								<small>{{ row.id }}</small>
+							</div>
+						</template>
+					</el-table-column>
+					<el-table-column :label="t('table.key')" min-width="150">
+						<template #default="{ row }">
+							<el-tag effect="plain">{{ row.key || "-" }}</el-tag>
+						</template>
+					</el-table-column>
+					<el-table-column :label="t('table.permissions')" width="120" align="center">
+						<template #default="{ row }">{{ Array.isArray(row.permissions) ? row.permissions.length : 0 }}</template>
+					</el-table-column>
+					<el-table-column :label="t('table.actions')" width="190" fixed="right">
+						<template #default="{ row }">
+							<el-button v-if="canUpdateRole" link type="primary" tag="router-link" :to="{ name: 'role-edit', params: { id: row.id } }">{{ t("common.edit") }}</el-button>
+							<el-button v-if="canDeleteRole" link type="danger" :disabled="loading || operating" @click="deleteRole(row.id)">{{ t("common.delete") }}</el-button>
+							<span v-if="!canUpdateRole && !canDeleteRole" class="muted">{{ t("role.noRowActions") }}</span>
+						</template>
+					</el-table-column>
+				</el-table>
+			</div>
+		</template>
+
+		<div v-if="canReadRole" class="pager">
 			<el-button :disabled="loading || operating || page <= 1" @click="prevPage">{{ t("common.prev") }}</el-button>
 			<span>{{ t("common.page") }} {{ page }}</span>
 			<el-button :disabled="loading || operating || !canGoNext" @click="nextPage">{{ t("common.next") }}</el-button>
@@ -227,6 +289,31 @@ onMounted(() => {
 	color: var(--color-text-muted);
 }
 
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.summary-card {
+	display: grid;
+	gap: 4px;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-soft);
+}
+
+.summary-card span,
+.summary-card small,
+.role-cell small {
+	color: var(--color-text-muted);
+}
+
+.summary-card strong {
+	font-size: 1.3rem;
+}
+
 .create-panel {
 	display: grid;
 	gap: 10px;
@@ -247,6 +334,36 @@ onMounted(() => {
 	gap: 8px;
 }
 
+.filters {
+	display: grid;
+	grid-template-columns: minmax(220px, 1fr) minmax(170px, auto);
+	gap: 12px;
+	align-items: end;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+}
+
+.filters :deep(.el-form-item) {
+	margin-bottom: 0;
+}
+
+.filter-actions :deep(.el-form-item__content) {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.table-shell {
+	overflow-x: auto;
+}
+
+.role-cell {
+	display: grid;
+	gap: 2px;
+}
+
 .pager {
 	display: flex;
 	align-items: center;
@@ -260,14 +377,17 @@ onMounted(() => {
 
 @media (max-width: 900px) {
 	.page-header,
+	.filters,
 	.pager {
 		display: grid;
 		justify-content: stretch;
 	}
 
+	.summary-grid,
 	.create-form {
 		grid-template-columns: 1fr;
 	}
 }
+
 </style>
 
