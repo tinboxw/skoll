@@ -135,7 +135,7 @@
 | 97 | M2-04-06 | M2-04 | `skoll-api-contracts` | 更新 OpenAPI 文件 | `docs/api/openapi.yaml` | 审计 list/detail/export 契约同步 | OpenAPI lint/review | Done |
 | 98 | M2-05-01 | M2-05 | `skoll-vue-frontend` | 新增审计 API client 类型 | web client | list/detail/export 类型完整 | `cd web && npm run build` | Done |
 | 99 | M2-05-02 | M2-05 | `skoll-vue-frontend` | 审计页 tab 分类 | Vue page | operation/login/error/plugin/security tab 可切换 | `cd web && npm run build` | Done |
-| 100 | M2-05-03 | M2-05 | `skoll-vue-frontend` | 审计页筛选区升级 | Vue page | actor/resource/action/time/risk 筛选可用 | `cd web && npm run build` | Todo |
+| 100 | M2-05-03 | M2-05 | `skoll-vue-frontend` | 审计页筛选区升级 | Vue page | actor/resource/action/time/risk 筛选可用 | `cd web && npm run build` | Done |
 | 101 | M2-05-04 | M2-05 | `skoll-vue-frontend` | 审计详情抽屉升级 | Vue page | metadata、diff、trace 展示清楚 | `cd web && npm run build` | Todo |
 | 102 | M2-05-05 | M2-05 | `skoll-vue-frontend` | 审计导出按钮接入 | Vue page | 导出带当前过滤条件，错误可见 | `cd web && npm run build` | Todo |
 | 103 | M2-05-06 | M2-05 | `skoll-web-ui-design` | 审计页空态/错误态/无权限态 | Vue page | 专业后台交互状态完整 | `cd web && npm run build` | Todo |

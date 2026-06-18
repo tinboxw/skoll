@@ -5460,3 +5460,60 @@ rg -n "AUDIT_TYPE_TABS|selectedType|audit.type|type = selectedType|tab-change" w
 ### 下一步
 
 - 进入 `M2-05-03`，审计页筛选区升级。
+
+## M2-05-03: 审计页筛选区升级
+
+- 状态: Passed
+- Work Item: M2-05-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Audit/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 筛选区支持 actorId、resourceType、resourceId、action、time、risk。 |
+| API/OpenAPI 同步 | Passed | 筛选字段映射到 `/v1/audit` query 契约。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | action 和 risk 均进入 typed audit query。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | UI 状态同步到 `AuditEventListQuery`、URL 和导出查询。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未新增旧 API client 或旧路由别名。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+rg -n "resourceId|risk|AUDIT_RISK_OPTIONS|audit\.risk|actorId|resourceType" web/src/views/Audit/index.vue web/src/i18n/index.ts
+```
+
+结果摘要: 通过。build 仅输出现有依赖的 Rollup pure annotation 与 Dart Sass legacy API 警告。
+
+### 人工验收
+
+1. 审阅筛选表单，确认 actor/resource/action/time/risk 控件存在。
+2. 审阅 `buildAuditEventQuery`，确认筛选字段进入 typed query。
+3. 审阅 `syncQueryToURL` 与 export，确认当前筛选可复用。
+
+结果摘要: 通过。审计筛选区已升级。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-05-04`，审计详情抽屉升级。

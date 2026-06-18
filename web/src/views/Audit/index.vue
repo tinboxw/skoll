@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 
-import { exportAuditEvents, listAuditEvents, type AuditEvent, type AuditEventListQuery, type AuditEventType } from "../../audit/api";
+import { exportAuditEvents, listAuditEvents, type AuditEvent, type AuditEventListQuery, type AuditEventRisk, type AuditEventType } from "../../audit/api";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { type ApiResponse, apiDelete } from "../../utils/api";
@@ -17,6 +17,13 @@ const AUDIT_TYPE_TABS: Array<{ value: AuditTypeFilter; labelKey: string }> = [
 	{ value: "error", labelKey: "audit.type.error" },
 	{ value: "plugin", labelKey: "audit.type.plugin" },
 	{ value: "security", labelKey: "audit.type.security" }
+];
+
+const AUDIT_RISK_OPTIONS: Array<{ value: AuditEventRisk; labelKey: string }> = [
+	{ value: "low", labelKey: "audit.risk.low" },
+	{ value: "medium", labelKey: "audit.risk.medium" },
+	{ value: "high", labelKey: "audit.risk.high" },
+	{ value: "critical", labelKey: "audit.risk.critical" }
 ];
 
 const { t } = useI18n();
@@ -151,7 +158,9 @@ const initialQuery = readInitialQuery();
 const initialActorName = readQueryValue(initialQuery, "actorName");
 const initialAction = readQueryValue(initialQuery, "action");
 const initialResource = readQueryValue(initialQuery, "resource");
+const initialResourceId = readQueryValue(initialQuery, "resourceId");
 const initialType = normalizeAuditTypeFilter(readQueryValue(initialQuery, "type"));
+const initialRisk = readQueryValue(initialQuery, "risk") as AuditEventRisk | "";
 const initialFrom = readQueryValue(initialQuery, "fromLocal");
 const initialTo = readQueryValue(initialQuery, "toLocal");
 const hasExplicitRangeInQuery = initialFrom !== "" || initialTo !== "";
@@ -164,7 +173,9 @@ const success = ref("");
 const actorName = ref(initialActorName);
 const action = ref(initialAction);
 const resource = ref(initialResource);
+const resourceId = ref(initialResourceId);
 const selectedType = ref<AuditTypeFilter>(initialType);
+const risk = ref<AuditEventRisk | "">(AUDIT_RISK_OPTIONS.some((item) => item.value === initialRisk) ? initialRisk : "");
 const from = ref(initialFrom || initialRange.from);
 const to = ref(initialTo || initialRange.to);
 const limit = ref(Number.parseInt(readQueryValue(initialQuery, "limit") || "50", 10) || 50);
@@ -211,6 +222,12 @@ function syncQueryToURL(): void {
 	}
 	if (resource.value.trim() !== "") {
 		params.set("resource", resource.value.trim());
+	}
+	if (resourceId.value.trim() !== "") {
+		params.set("resourceId", resourceId.value.trim());
+	}
+	if (risk.value !== "") {
+		params.set("risk", risk.value);
 	}
 	if (!autoRangeEnabled.value && from.value.trim() !== "") {
 		params.set("fromLocal", from.value.trim());
@@ -297,6 +314,12 @@ function buildQuery(): string {
 	if (resource.value.trim() !== "") {
 		params.set("resourceType", resource.value.trim());
 	}
+	if (resourceId.value.trim() !== "") {
+		params.set("resourceId", resourceId.value.trim());
+	}
+	if (risk.value !== "") {
+		params.set("risk", risk.value);
+	}
 	if (from.value.trim() !== "") {
 		params.set("from", new Date(from.value).toISOString());
 	}
@@ -315,6 +338,8 @@ function buildAuditEventQuery(): AuditEventListQuery {
 		actorId: actorName.value.trim(),
 		action: action.value.trim(),
 		resourceType: resource.value.trim(),
+		resourceId: resourceId.value.trim(),
+		risk: risk.value || undefined,
 		limit: Math.max(1, limit.value || 50)
 	};
 	if (selectedType.value !== "all") {
@@ -393,6 +418,7 @@ function clearActionFilter(): void {
 
 function clearResourceFilter(): void {
 	resource.value = "";
+	resourceId.value = "";
 	void loadAuditLogs();
 }
 
@@ -494,6 +520,14 @@ void loadAuditLogs();
 						<el-option v-for="value in resourceSuggestions" :key="`resource-option-${value}`" :value="value" :label="value" />
 					</el-select>
 				</el-form-item>
+				<el-form-item :label="t('audit.resourceId')">
+					<el-input v-model="resourceId" clearable :disabled="loading || operating" />
+				</el-form-item>
+				<el-form-item :label="t('audit.risk')">
+					<el-select v-model="risk" clearable :disabled="loading || operating">
+						<el-option v-for="item in AUDIT_RISK_OPTIONS" :key="item.value" :value="item.value" :label="t(item.labelKey)" />
+					</el-select>
+				</el-form-item>
 				<el-form-item :label="t('audit.from')">
 					<el-date-picker
 						v-model="from"
@@ -521,7 +555,7 @@ void loadAuditLogs();
 					<el-button type="primary" native-type="submit" :loading="loading" :disabled="operating">{{ t("common.refresh") }}</el-button>
 					<el-button v-if="actorName.trim() !== ''" :disabled="loading || operating" @click="clearQuickActor">{{ t("audit.clearActor") }}</el-button>
 					<el-button v-if="action.trim() !== ''" :disabled="loading || operating" @click="clearActionFilter">{{ t("audit.clearAction") }}</el-button>
-					<el-button v-if="resource.trim() !== ''" :disabled="loading || operating" @click="clearResourceFilter">{{ t("audit.clearResource") }}</el-button>
+					<el-button v-if="resource.trim() !== '' || resourceId.trim() !== ''" :disabled="loading || operating" @click="clearResourceFilter">{{ t("audit.clearResource") }}</el-button>
 				</div>
 			</el-form>
 
