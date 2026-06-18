@@ -222,3 +222,36 @@ npm run build
 cd web
 npm run typecheck
 ```
+
+## M0-03-05: 测试副作用记录
+
+- 命令: `git status --short`
+- 执行日期: 2026-06-18
+- 执行人: Codex
+- 结果: Passed
+
+### 门禁后状态
+
+执行 M0-03-01 至 M0-03-04 后，`git status --short` 输出:
+
+```text
+?? coverage
+```
+
+副作用说明:
+
+- `coverage` 是 `go test ./... -coverprofile=coverage.out` 失败后留下的未跟踪覆盖率文件。
+- 文件路径: `D:\workspace\3rdsrc\tinbox\skoll\coverage`
+- 文件大小: 302781 bytes
+
+### 修复动作
+
+确认路径位于仓库根目录且为本轮命令生成的未跟踪文件后，已删除该副作用文件。
+
+清理后再次执行 `git status --short`，输出为空。
+
+### 重跑命令
+
+```powershell
+git status --short
+```

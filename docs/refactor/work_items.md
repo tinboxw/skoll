@@ -37,7 +37,7 @@
 | 10 | M0-03-02 | M0-03 | `skoll-quality-gate` | 运行 Go 覆盖率统计 | `coverage.out` 或报告 | 记录总覆盖率和低覆盖包清单 | `go test ./... -coverprofile=coverage.out`; `go tool cover -func=coverage.out` | Done |
 | 11 | M0-03-03 | M0-03 | `skoll-quality-gate` | 运行前端构建 | 质量基线记录 | 记录 build 结果和 warning | `cd web && npm run build` | Done |
 | 12 | M0-03-04 | M0-03 | `skoll-quality-gate` | 检查前端 typecheck 命令 | 质量基线记录 | 若脚本存在则执行并记录；不存在则记录缺口 | `cd web && npm run typecheck` | Done |
-| 13 | M0-03-05 | M0-03 | `skoll-quality-gate` | 记录测试副作用 | 质量基线记录 | 运行门禁后 `git status --short` 输出被记录；污染文件列入修复项 | `git status --short` | Todo |
+| 13 | M0-03-05 | M0-03 | `skoll-quality-gate` | 记录测试副作用 | 质量基线记录 | 运行门禁后 `git status --short` 输出被记录；污染文件列入修复项 | `git status --short` | Done |
 | 14 | M0-04-01 | M0-04 | `skoll-refactor-governance` | 校准父任务表状态枚举 | `task_board.md` | 状态枚举与 work item 状态一致 | 文档审阅 | Todo |
 | 15 | M0-04-02 | M0-04 | `skoll-refactor-governance` | 校准父任务与 work item 关系 | `task_board.md`、`work_items.md` | task_board 是父任务，work_items 是最小提交单元 | `rg "Work Item|最小执行" docs/refactor` | Todo |
 | 16 | M0-04-03 | M0-04 | `skoll-refactor-governance` | 校准 M0-M2 Work Item 覆盖率 | `work_items.md` | M0、M1、M2 每个父任务至少有一个 work item | 文档审阅 | Todo |

@@ -687,3 +687,55 @@ npm run typecheck
 ### 下一步
 
 - 进入 `M0-03-05`，记录测试副作用。
+
+## M0-03-05: 记录测试副作用
+
+- 状态: Passed
+- Work Item: M0-03-05
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/quality_baseline.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `git status --short` 输出已记录，污染文件 `coverage` 已列入并清理。 |
+| API/OpenAPI 同步 | N/A | 仅质量基线记录任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅质量基线记录任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅质量基线记录任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅质量基线记录任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 本项只记录测试副作用，无前端代码改动。 |
+| 文档同步 | Passed | 质量基线记录、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只记录并清理测试副作用，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+git status --short
+```
+
+结果摘要: 首次输出 `?? coverage`；确认该文件为本轮覆盖率命令副作用后已清理，再次执行输出为空。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/quality_baseline.md` 的 M0-03-05 记录。
+2. 确认污染文件、修复动作和清理后状态均已记录。
+
+结果摘要: 通过。质量门禁副作用已记录并清理。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 已清理未跟踪覆盖率副作用文件 `coverage`。
+- 重新验收结果: 通过，清理后 `git status --short` 输出为空。
+
+### 下一步
+
+- 进入 `M0-04-01`，校准父任务表状态枚举。
