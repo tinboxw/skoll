@@ -2671,3 +2671,56 @@ go test ./internal/service/menu/...
 ### 下一步
 
 - 进入 `M1-05-07`，实现菜单合并与排序。
+
+## M1-05-07: 实现菜单合并与排序
+
+- 状态: Passed
+- Work Item: M1-05-07
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/service/menu/service_impl.go`
+- `internal/service/menu/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `MergeNodes` 稳定合并系统/插件/生成模块菜单并按同级 sort 展开。 |
+| API/OpenAPI 同步 | N/A | 本项只实现 service 方法，无 API 影响。 |
+| 权限目录同步 | N/A | 本项不变更权限目录。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧菜单合并兼容路径。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/menu/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/service/menu/service_impl.go`。
+2. 确认系统/插件/生成模块菜单稳定合并和排序有测试覆盖。
+
+结果摘要: 通过。菜单合并与排序已实现。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-05-08`，实现菜单权限过滤。
