@@ -2351,3 +2351,57 @@ go test ./internal/store/...
 ### 下一步
 
 - 进入 `M1-05-01`，定义 permission catalog service interface。
+
+## M1-05-01: 定义 permission catalog service interface
+
+- 状态: Passed
+- Work Item: M1-05-01
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/service/permission/service.go`
+- `internal/service/permission/types.go`
+- `internal/service/permission/service_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | permission catalog service interface 覆盖注册、列表、获取、启用、停用和 diff。 |
+| API/OpenAPI 同步 | N/A | 本项只定义 service interface，无 API 影响。 |
+| 权限目录同步 | Passed | service interface 使用 permission domain 类型。 |
+| 审计 action 同步 | N/A | 本项无审计 action 变更。 |
+| migration/seed 同步 | N/A | 本项无数据结构变更。 |
+| 前端 API client/UI 同步 | N/A | 本项无前端实现影响。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未添加旧 permission service 兼容接口。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/permission/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/service/permission/service.go`。
+2. 确认接口覆盖注册、列表、启停、diff。
+
+结果摘要: 通过。permission catalog service interface 已定义。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-05-02`，实现 RegisterResource。
