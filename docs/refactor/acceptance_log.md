@@ -6215,6 +6215,61 @@ rg -n "FE2-02.*Done" docs/refactor/work_items.md
 
 - 进入 `FE2-03`，统一 route guard 规范。
 
+## FE2-03: 统一 route guard 规范
+
+- 状态: Passed
+- Work Item: FE2-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_route_permission_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 route/permission 规范文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | Passed | 文档明确新增 key 需同步权限目录，且本项不新增运行时权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | route guard、菜单、按钮、插件入口权限同源规则明确。 |
+| 文档同步 | Passed | Work Item 状态、验收命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 规范要求新增页面只使用 canonical `/skoll/...` path，不新增旧 route alias。 |
+
+### 自动化验证
+
+```powershell
+rg -n "canAccess|beforeEach|v-permission|withRouteAccessMeta|BUTTON_ACCESS" web/src
+rg -n "Route Guard|Menu permission|Button permission|Plugin route permission|Current gaps|canAccessRoute|withRouteAccessMeta|v-permission|BUTTON_ACCESS" docs/refactor/fe2_route_permission_standard.md
+rg -n "FE2-03.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。route guard、菜单过滤、按钮权限、`v-permission`、插件 route meta 注入均有现有代码锚点；标准文档覆盖同源规则与当前缺口；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe2_route_permission_standard.md`，确认 `canAccess` 是唯一基础权限判定入口。
+2. 对照 `router/index.ts`、`navigation/menu.ts`、`permissions/button.ts`、`permissions/directive.ts`、`plugins/index.ts`，确认 route/menu/button/plugin 四类落点均复用 `permissions` 模块。
+3. 确认原验收命令中的 `canAccess\|beforeEach\|v-permission` 已修正为 ripgrep 可执行的 alternation。
+
+结果摘要: 通过。FE2-03 route guard 规范完成。
+
+### 失败与返工
+
+- 失败原因: 原 Work Item 验证命令使用 `\|`，在 ripgrep 正则中容易按字面量管道解析，无法可靠命中 alternation。
+- 返工动作: 将验证命令修正为 `rg -n "canAccess|beforeEach|v-permission|withRouteAccessMeta|BUTTON_ACCESS" web/src`。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `FE2-04`，统一 SchemaForm 使用规范。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed
