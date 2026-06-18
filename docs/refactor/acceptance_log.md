@@ -634,3 +634,56 @@ npm run build
 ### 下一步
 
 - 进入 `M0-03-04`，检查前端 typecheck 命令。
+
+## M0-03-04: 检查前端 typecheck 命令
+
+- 状态: Passed
+- Work Item: M0-03-04
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/quality_baseline.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | typecheck 脚本存在，命令已执行并记录。 |
+| API/OpenAPI 同步 | N/A | 仅质量基线记录任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅质量基线记录任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅质量基线记录任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅质量基线记录任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 本项只运行 typecheck 并记录结果，无前端代码改动。 |
+| 文档同步 | Passed | 质量基线记录、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只记录真实 typecheck 基线，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+```
+
+结果摘要: 通过。`vue-tsc --noEmit` 未输出类型错误。
+
+### 人工验收
+
+1. 审阅 `web/package.json` 的 `typecheck` 脚本。
+2. 审阅 `docs/refactor/quality_baseline.md` 的 M0-03-04 记录。
+
+结果摘要: 通过。前端 typecheck 基线可复现。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-03-05`，记录测试副作用。

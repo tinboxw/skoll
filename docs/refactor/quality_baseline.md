@@ -196,3 +196,29 @@ built in 9.01s
 cd web
 npm run build
 ```
+
+## M0-03-04: 前端 typecheck
+
+- 命令: `cd web && npm run typecheck`
+- 脚本: `typecheck = vue-tsc --noEmit`
+- 执行日期: 2026-06-18
+- 执行人: Codex
+- 结果: Passed
+
+### 结果摘要
+
+`web/package.json` 存在 `typecheck` 脚本，且 `npm run typecheck` 执行通过。
+
+```text
+> skoll-admin-web@0.1.0 typecheck
+> vue-tsc --noEmit
+```
+
+未观察到 TypeScript 或 Vue 类型错误输出。
+
+### 重跑命令
+
+```powershell
+cd web
+npm run typecheck
+```
