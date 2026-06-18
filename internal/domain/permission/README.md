@@ -11,8 +11,8 @@
 
 ## 当前规划文件
 - doc.go
+- resource.go
 
 ## 后续待补充实现
-- [ ] 定义 `PermissionResource` 类型和值对象。
 - [ ] 实现权限 key、类型、来源、风险与 metadata 校验规则。
 - [ ] 补充单元测试与序列化边界说明。
