@@ -3670,3 +3670,58 @@ npm run build
 ### 下一步
 
 - 进入 `M1-09-01`，权限矩阵页读取 catalog。
+
+## M1-09-01: 权限矩阵页读取 catalog
+
+- 状态: Passed
+- Work Item: M1-09-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Permission/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 权限矩阵页改为读取 `usePermissionStore` catalog。 |
+| API/OpenAPI 同步 | N/A | 本项复用 M1-08 permission client/store，不改 HTTP API。 |
+| 权限目录同步 | Passed | 矩阵资源来自后端权限 catalog，角色权限仅补齐 catalog 未注册项。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 刷新按钮和矩阵 loading 同时覆盖角色与 catalog 加载。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 权限矩阵页不再导入 `BASE_PERMISSION_CATALOG`/`BUILTIN_ROLE_DEFAULTS`。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/views/Permission/index.vue`。
+2. 搜索 `BASE_PERMISSION_CATALOG|BUILTIN_ROLE_DEFAULTS|permissions/catalog`，确认权限矩阵页不再引用孤立权限常量。
+3. 确认资源和动作选项由 catalog 派生，并保留空 catalog 下的最小可用状态。
+
+结果摘要: 通过。权限矩阵页已读取 catalog。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-09-02`，权限矩阵授权/撤销接入 API。

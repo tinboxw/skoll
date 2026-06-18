@@ -3,7 +3,8 @@ import { computed, onMounted, ref, watch } from "vue";
 import { Check, Close, Refresh, Select, Setting } from "@element-plus/icons-vue";
 
 import { useI18n } from "../../i18n";
-import { BASE_PERMISSION_CATALOG, BUILTIN_ROLE_DEFAULTS, type PermissionCatalogItem } from "../../permissions/catalog";
+import type { PermissionResource } from "../../permissions/api";
+import { usePermissionStore } from "../../stores/permissions";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -29,6 +30,13 @@ type PermissionCheckResult = {
 	scope?: PolicyRule["scope"];
 };
 
+type PermissionCatalogItem = {
+	key: string;
+	resource: string;
+	action: string;
+	label: string;
+};
+
 function normalizeRoleRecord(item: unknown): RoleRecord | null {
 	if (!item || typeof item !== "object") {
 		return null;
@@ -50,6 +58,7 @@ function normalizeRoleRecord(item: unknown): RoleRecord | null {
 }
 
 const { t } = useI18n();
+const permissionStore = usePermissionStore();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -62,15 +71,13 @@ const selectedRoleId = ref("");
 const selectedMatrixPermissions = ref<string[]>([]);
 const rules = ref<RuleRow[]>([]);
 
-const resourceOptions = ["user", "role", "rbac", "plugin", "system", "audit"];
-const actionOptions = ["create", "read", "update", "delete", "manage", "*"];
 const effectOptions: Array<"allow" | "deny"> = ["allow", "deny"];
 const scopeOptions: Array<RuleRow["scope"]> = ["self", "dept", "dept_tree", "all", "custom"];
 
 const checkSubjectType = ref("user");
 const checkSubjectId = ref("");
-const checkResource = ref(resourceOptions[0]);
-const checkAction = ref(actionOptions[1]);
+const checkResource = ref("");
+const checkAction = ref("");
 const checkResult = ref<"allowed" | "denied" | "">("");
 const checkScope = ref("");
 
@@ -83,8 +90,8 @@ const roleDefaultRows = computed(() => roles.value.map((item) => ({
 
 const permissionCatalog = computed(() => {
 	const map = new Map<string, PermissionCatalogItem>();
-	for (const item of BASE_PERMISSION_CATALOG) {
-		map.set(item.key, item);
+	for (const item of permissionStore.enabledItems) {
+		map.set(item.key, permissionResourceToCatalogItem(item));
 	}
 	for (const role of roleDefaultRows.value) {
 		for (const permission of role.defaultPermissions) {
@@ -101,6 +108,16 @@ const permissionCatalog = computed(() => {
 		}
 	}
 	return Array.from(map.values()).sort((a, b) => a.resource.localeCompare(b.resource) || a.action.localeCompare(b.action));
+});
+
+const resourceOptions = computed(() => {
+	const values = unique(permissionCatalog.value.map((item) => item.resource));
+	return values.length > 0 ? values : ["system"];
+});
+
+const actionOptions = computed(() => {
+	const values = unique(permissionCatalog.value.map((item) => item.action));
+	return values.length > 0 ? values : ["read", "manage"];
 });
 
 const matrixRows = computed(() => {
@@ -121,17 +138,28 @@ watch(selectedRole, (role) => {
 	selectedMatrixPermissions.value = role ? resolveRolePermissions(role) : [];
 }, { immediate: true });
 
+watch(resourceOptions, (options) => {
+	if (!options.includes(checkResource.value)) {
+		checkResource.value = options[0] ?? "";
+	}
+}, { immediate: true });
+
+watch(actionOptions, (options) => {
+	if (!options.includes(checkAction.value)) {
+		checkAction.value = options.includes("read") ? "read" : options[0] ?? "";
+	}
+}, { immediate: true });
+
 function resolveRolePermissions(role: RoleRecord): string[] {
-	const key = String(role.key || "").trim().toLowerCase();
 	const fromRole = Array.isArray(role.permissions) ? role.permissions.filter((it) => it.trim() !== "") : [];
-	return fromRole.length > 0 ? fromRole : BUILTIN_ROLE_DEFAULTS[key] || [];
+	return fromRole;
 }
 
 function newRuleRow(): RuleRow {
 	return {
 		id: crypto.randomUUID(),
-		resource: resourceOptions[0],
-		action: actionOptions[1],
+		resource: resourceOptions.value[0] ?? "system",
+		action: actionOptions.value.includes("read") ? "read" : actionOptions.value[0] ?? "manage",
 		effect: "allow",
 		scope: "all"
 	};
@@ -199,6 +227,21 @@ async function loadRoles(): Promise<void> {
 	}
 }
 
+async function loadPermissionCatalog(): Promise<void> {
+	try {
+		await permissionStore.load({ limit: 500 }, { force: true });
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	}
+}
+
+async function loadPage(): Promise<void> {
+	await Promise.all([
+		loadRoles(),
+		loadPermissionCatalog()
+	]);
+}
+
 async function savePolicies(): Promise<void> {
 	if (!selectedRoleId.value) {
 		return;
@@ -244,8 +287,43 @@ async function checkPermission(): Promise<void> {
 }
 
 onMounted(() => {
-	void loadRoles();
+	void loadPage();
 });
+
+function permissionResourceToCatalogItem(item: PermissionResource): PermissionCatalogItem {
+	return {
+		key: item.key,
+		resource: item.metadata.resource || item.module || parsePermissionResource(item.key),
+		action: item.metadata.action || parsePermissionAction(item.key) || item.type,
+		label: item.name || item.key
+	};
+}
+
+function parsePermissionResource(permission: string): string {
+	const normalized = permission.trim();
+	if (normalized.includes(".")) {
+		return normalized.split(".")[0] || "custom";
+	}
+	if (normalized.includes(":")) {
+		return normalized.split(":")[0] || "custom";
+	}
+	return "custom";
+}
+
+function parsePermissionAction(permission: string): string {
+	const normalized = permission.trim();
+	if (normalized.includes(".")) {
+		return normalized.split(".").pop() || "manage";
+	}
+	if (normalized.includes(":")) {
+		return normalized.split(":").pop() || "manage";
+	}
+	return "manage";
+}
+
+function unique(values: string[]): string[] {
+	return Array.from(new Set(values.map((item) => item.trim()).filter((item) => item !== ""))).sort();
+}
 </script>
 
 <template>
@@ -255,7 +333,7 @@ onMounted(() => {
 				<h2>{{ t("page.permissions") }}</h2>
 				<p>{{ t("permission.desc") }}</p>
 			</div>
-			<el-button :icon="Refresh" :loading="loading" @click="loadRoles">{{ t("common.refresh") }}</el-button>
+			<el-button :icon="Refresh" :loading="loading || permissionStore.isLoading" @click="loadPage">{{ t("common.refresh") }}</el-button>
 		</header>
 
 		<el-alert v-if="error" type="error" :title="error" show-icon :closable="false" />
@@ -274,7 +352,7 @@ onMounted(() => {
 				</div>
 			</template>
 
-			<el-table :data="matrixRows" border stripe>
+			<el-table v-loading="loading || permissionStore.isLoading" :data="matrixRows" border stripe>
 				<el-table-column prop="resource" label="Resource" width="150" />
 				<el-table-column label="Permissions" min-width="520">
 					<template #default="{ row }">
