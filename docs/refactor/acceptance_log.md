@@ -5176,3 +5176,61 @@ rg -n "Get audit event detail|AuditEventDetailAPIResponse|AuditEventDetail|Audit
 
 ### 下一步
 - 进入 `M2-04-04`，实现审计详情 API。
+
+## M2-04-04: 实现审计详情 API
+
+- 状态: Passed
+- Work Item: M2-04-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/handler/http/v1/audit/handler.go`
+- `internal/handler/http/v1/audit/handler_test.go`
+- `internal/handler/http/router_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `/v1/audit/{id}` GET 已接入 `audit.EventService.GetEventByID`，返回事件详情、sourceData 和 diff。 |
+| API/OpenAPI 同步 | Passed | 实现遵循 M2-04-03 的详情契约，响应仍使用 `code/message/data.item` 包装。 |
+| 权限目录同步 | N/A | 本项未新增权限 key；forbidden 行为由服务错误映射为 403。 |
+| 审计 action 同步 | Passed | 详情 DTO 复用 canonical audit event action/result/risk 字段。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 前端详情抽屉在后续 M2-05 接入。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新详情路径优先走 `EventService`；legacy record detail 仅作为未注入新服务时的旧兜底。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/handler/http/v1/audit/handler.go internal/handler/http/v1/audit/handler_test.go internal/handler/http/router_test.go
+go test ./internal/handler/http/v1/audit/...
+$env:CGO_ENABLED='0'; go test ./internal/handler/http/...
+rg -n "GetEventByID|auditEventDetailData|auditEventDetailDTO|sourceData|errAuditForbidden|M2-04-04" internal/handler/http/v1/audit internal/handler/http/router_test.go docs/refactor/work_items.md docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。详情成功响应、not_found 和 forbidden 分支均有测试覆盖；HTTP 路由集成测试已改为读取新事件详情。
+
+### 人工验收
+
+1. 审阅 `handler.go`，确认详情接口在 `EventService` 存在时读取新审计事件。
+2. 审阅 `handler_test.go`，确认不存在返回 `not_found`，权限失败返回 `forbidden`。
+3. 审阅 `router_test.go`，确认 `/v1/audit/{id}` 路由返回新事件详情。
+
+结果摘要: 通过。审计详情 API 已实现并验收。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-04-05`，实现审计导出 API。

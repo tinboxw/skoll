@@ -858,11 +858,14 @@ func TestRouterAuditAPIs(t *testing.T) {
 		t.Fatalf("expected audit event in list response, body=%s", listResp.Body.String())
 	}
 
-	getReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/"+rec1.ID.String(), nil)
+	getReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/event-1", nil)
 	getResp := httptest.NewRecorder()
 	router.ServeHTTP(getResp, getReq)
 	if getResp.Code != http.StatusOK {
 		t.Fatalf("get status=%d body=%s", getResp.Code, getResp.Body.String())
+	}
+	if !strings.Contains(getResp.Body.String(), "event-1") {
+		t.Fatalf("expected event detail, body=%s", getResp.Body.String())
 	}
 
 	exportReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/audit/export?limit=10", nil)

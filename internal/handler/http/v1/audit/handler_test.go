@@ -45,14 +45,21 @@ func (f *fakeAuditService) ClearByTimeRange(context.Context, time.Time, time.Tim
 type fakeAuditEventService struct {
 	filter auditsvc.EventFilter
 	items  []*domainaudit.Event
+	item   *domainaudit.Event
+	getID  string
+	getErr error
 }
 
 func (f *fakeAuditEventService) AppendEvent(context.Context, *domainaudit.Event) error {
 	return nil
 }
 
-func (f *fakeAuditEventService) GetEventByID(context.Context, string) (*domainaudit.Event, error) {
-	return nil, nil
+func (f *fakeAuditEventService) GetEventByID(_ context.Context, id string) (*domainaudit.Event, error) {
+	f.getID = id
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return f.item, nil
 }
 
 func (f *fakeAuditEventService) ListEvents(_ context.Context, filter auditsvc.EventFilter) ([]*domainaudit.Event, error) {
@@ -106,6 +113,64 @@ func TestAuditHandlerListEventsRejectsInvalidFilter(t *testing.T) {
 
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAuditHandlerGetEventDetail(t *testing.T) {
+	occurredAt := time.Date(2026, 6, 19, 12, 0, 0, 0, time.UTC)
+	event := mustAuditEvent(t, "event-1", domainaudit.EventTypeOperation, "user.account.update", "actor-1", "user", "u1", domainaudit.EventResultSuccess, domainaudit.EventRiskMedium, occurredAt)
+	event.Trace.RequestID = "req-1"
+	event.Metadata = map[string]any{"status": "ok"}
+	event.SourceData = map[string]any{
+		"before": map[string]any{"name": "old"},
+		"after":  map[string]any{"name": "new"},
+	}
+	svc := &fakeAuditEventService{item: event}
+	h := &AuditHandler{events: svc}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit/event-1", nil)
+	req.SetPathValue("id", "event-1")
+	resp := httptest.NewRecorder()
+
+	h.get(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	if svc.getID != "event-1" {
+		t.Fatalf("expected get id event-1, got %q", svc.getID)
+	}
+	body := resp.Body.String()
+	for _, want := range []string{`"item"`, `"event-1"`, `"sourceData"`, `"diff"`, `"before"`, `"after"`, `"requestId":"req-1"`} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("expected %s in body=%s", want, body)
+		}
+	}
+}
+
+func TestAuditHandlerGetEventDetailNotFound(t *testing.T) {
+	h := &AuditHandler{events: &fakeAuditEventService{}}
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit/missing", nil)
+	req.SetPathValue("id", "missing")
+	resp := httptest.NewRecorder()
+
+	h.get(resp, req)
+
+	if resp.Code != http.StatusNotFound || !strings.Contains(resp.Body.String(), "not_found") {
+		t.Fatalf("expected not_found, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestAuditHandlerGetEventDetailForbidden(t *testing.T) {
+	h := &AuditHandler{events: &fakeAuditEventService{getErr: errAuditForbidden}}
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit/event-1", nil)
+	req.SetPathValue("id", "event-1")
+	resp := httptest.NewRecorder()
+
+	h.get(resp, req)
+
+	if resp.Code != http.StatusForbidden || !strings.Contains(resp.Body.String(), "forbidden") {
+		t.Fatalf("expected forbidden, got %d body=%s", resp.Code, resp.Body.String())
 	}
 }
 

@@ -2,6 +2,7 @@ package audit
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -35,6 +36,22 @@ type auditEventDTO struct {
 	Trace      auditTraceDTO  `json:"trace"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
 	OccurredAt string         `json:"occurredAt"`
+}
+
+type auditEventDetailData struct {
+	Item auditEventDetailDTO `json:"item"`
+}
+
+type auditEventDetailDTO struct {
+	auditEventDTO
+	SourceData map[string]any     `json:"sourceData,omitempty"`
+	Diff       *auditEventDiffDTO `json:"diff,omitempty"`
+}
+
+type auditEventDiffDTO struct {
+	Before  map[string]any `json:"before,omitempty"`
+	After   map[string]any `json:"after,omitempty"`
+	Summary []string       `json:"summary,omitempty"`
 }
 
 type auditRefDTO struct {
@@ -156,6 +173,23 @@ func (h *AuditHandler) get(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
 		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "id is required")
+		return
+	}
+	if h.events != nil {
+		item, err := h.events.GetEventByID(r.Context(), id)
+		if err != nil {
+			if isAuditForbiddenError(err) {
+				apiv1.WriteMessage(w, http.StatusForbidden, "forbidden", "permission denied")
+				return
+			}
+			apiv1.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		if item == nil {
+			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "audit event not found")
+			return
+		}
+		apiv1.WriteJSON(w, http.StatusOK, auditEventDetailData{Item: toAuditEventDetailDTO(item)})
 		return
 	}
 	item, err := h.service.GetByID(r.Context(), id)
@@ -300,6 +334,18 @@ func (h *AuditHandler) queryEvents(r *http.Request) (auditEventListData, error) 
 	return auditEventListData{Items: toAuditEventDTOs(items), Offset: offset, Limit: limit}, nil
 }
 
+func toAuditEventDetailDTO(item *domainaudit.Event) auditEventDetailDTO {
+	dto := auditEventDetailDTO{auditEventDTO: toAuditEventDTO(item)}
+	if item == nil {
+		return dto
+	}
+	if len(item.SourceData) > 0 {
+		dto.SourceData = item.SourceData
+		dto.Diff = auditEventDiffFromSourceData(item.SourceData)
+	}
+	return dto
+}
+
 func toAuditEventDTOs(items []*domainaudit.Event) []auditEventDTO {
 	if len(items) == 0 {
 		return []auditEventDTO{}
@@ -343,6 +389,40 @@ func toAuditEventDTOs(items []*domainaudit.Event) []auditEventDTO {
 	}
 	return out
 }
+
+func toAuditEventDTO(item *domainaudit.Event) auditEventDTO {
+	items := toAuditEventDTOs([]*domainaudit.Event{item})
+	if len(items) == 0 {
+		return auditEventDTO{}
+	}
+	return items[0]
+}
+
+func auditEventDiffFromSourceData(sourceData map[string]any) *auditEventDiffDTO {
+	if len(sourceData) == 0 {
+		return nil
+	}
+	diff := &auditEventDiffDTO{}
+	if before, ok := sourceData["before"].(map[string]any); ok && len(before) > 0 {
+		diff.Before = before
+	}
+	if after, ok := sourceData["after"].(map[string]any); ok && len(after) > 0 {
+		diff.After = after
+	}
+	if summary, ok := sourceData["summary"].([]string); ok && len(summary) > 0 {
+		diff.Summary = append([]string(nil), summary...)
+	}
+	if diff.Before == nil && diff.After == nil && len(diff.Summary) == 0 {
+		return nil
+	}
+	return diff
+}
+
+func isAuditForbiddenError(err error) bool {
+	return errors.Is(err, errAuditForbidden) || strings.Contains(strings.ToLower(err.Error()), "forbidden")
+}
+
+var errAuditForbidden = errors.New("audit event forbidden")
 
 func parseNonNegativeInt(raw string, defaultValue int) (int, error) {
 	value := strings.TrimSpace(raw)
