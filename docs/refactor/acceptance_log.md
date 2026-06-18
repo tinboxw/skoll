@@ -4524,3 +4524,59 @@ rg -n "type ErrorLog|Trace|Request|ErrorCode|Level|Summary|NewErrorLog|ErrorLeve
 ### 下一步
 
 - 进入 `M2-02-03`，新增 audit/log migration。
+
+## M2-02-03: 新增 audit/log migration
+
+- 状态: Passed
+- Work Item: M2-02-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `migrations/mysql/20260619_000015_create_audit_events.sql`
+- `migrations/postgres/20260619_000015_create_audit_events.sql`
+- `docs/architecture/database.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 MySQL/PostgreSQL `sk_audit_events` 统一审计事件表迁移。 |
+| API/OpenAPI 同步 | N/A | 本项只改数据库迁移和 schema 文档，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 表结构支持 event_type、action、actor、resource、result、risk、trace/request 和 source_json。 |
+| migration/seed 同步 | Passed | MySQL 与 PostgreSQL 迁移版本号一致，字段和索引语义一致。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | 数据库架构文档、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 选择一张 canonical `sk_audit_events` 表，不新增 operation/login/error 多套并行表。 |
+
+### 自动化验证
+
+```powershell
+rg -n "sk_audit_events|event_type|actor_id|action|resource_type|result|risk|trace_id|request_id|source_json|occurred_at" migrations/mysql/20260619_000015_create_audit_events.sql migrations/postgres/20260619_000015_create_audit_events.sql docs/architecture/database.md
+rg -n "idx_audit_events_type_time|idx_audit_events_actor_time|idx_audit_events_action_time|idx_audit_events_resource_time|idx_audit_events_result_time|idx_audit_events_risk_time|idx_audit_events_trace|idx_audit_events_request" migrations/mysql/20260619_000015_create_audit_events.sql migrations/postgres/20260619_000015_create_audit_events.sql
+```
+
+结果摘要: 通过。字段和查询索引覆盖 type、actor、action、resource、result、risk、trace/request 和 occurred_at。未连接真实 MySQL/PostgreSQL 执行迁移。
+
+### 人工验收
+
+1. 审阅 MySQL 与 PostgreSQL 迁移，确认字段语义一致。
+2. 审阅 `docs/architecture/database.md` 的 `sk_audit_events` 章节。
+3. 确认统一表可承载 operation/login/error/plugin/security，而不是拆出多套并行表。
+
+结果摘要: 通过。audit/log migration 设计明确。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-02-04`，实现 memory audit log store。

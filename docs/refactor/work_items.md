@@ -118,7 +118,7 @@
 | 80 | M2-01-04 | M2-01 | `skoll-audit-observability-refactor` | 补审计 action catalog 文档 | docs/package README | 覆盖 user/role/rbac/plugin/menu/file/system | 文档审阅 | Done |
 | 81 | M2-02-01 | M2-02 | `skoll-audit-observability-refactor` | 定义 LoginLog 模型 | domain/store model | 账号、结果、IP、UA、失败原因、session id 完整 | `go test ./internal/domain/audit/...` | Done |
 | 82 | M2-02-02 | M2-02 | `skoll-audit-observability-refactor` | 定义 ErrorLog 模型 | domain/store model | trace、request、错误码、等级、摘要完整 | `go test ./internal/domain/audit/...` | Done |
-| 83 | M2-02-03 | M2-02 | `skoll-database-development` | 新增 audit/log migration | MySQL/PostgreSQL SQL | operation/login/error 表或统一表设计明确 | migration review | Todo |
+| 83 | M2-02-03 | M2-02 | `skoll-database-development` | 新增 audit/log migration | MySQL/PostgreSQL SQL | operation/login/error 表或统一表设计明确 | migration review | Done |
 | 84 | M2-02-04 | M2-02 | `skoll-database-development` | 实现 memory audit log store | memory store + tests | append/query/detail/export source data 通过 | `go test ./internal/store/memory/...` | Todo |
 | 85 | M2-02-05 | M2-02 | `skoll-database-development` | 实现 SQL audit log store | gormrepo store + tests | 按类型、actor、action、时间过滤通过 | `go test ./internal/store/sql/gormrepo/...` | Todo |
 | 86 | M2-02-06 | M2-02 | `skoll-audit-observability-refactor` | 接入 audit service 查询模型 | service code + tests | service 层不暴露 store 细节 | `go test ./internal/service/audit/...` | Todo |

@@ -95,6 +95,39 @@ Model 定义：`internal/store/sql/gormrepo/audit_model.go`
 
 > **Domain 实体**：`internal/domain/audit/entity.go` → `Record`，`Detail` 字段为 `map[string]any`。
 
+### 2.5.1 统一审计事件表（sk_audit_events）
+
+M2 起新增统一审计事件表，迁移脚本：
+
+- `migrations/mysql/20260619_000015_create_audit_events.sql`
+- `migrations/postgres/20260619_000015_create_audit_events.sql`
+
+`sk_audit_events` 是 operation/login/error/plugin/security 的 canonical 持久化目标。`sk_audit_records` 仍描述当前存量模型，后续 M2 store/API 任务会直接迁移到统一表，不新增旧格式兼容查询路径。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | VARCHAR(64) | PK | 审计事件唯一标识 |
+| `event_type` | VARCHAR(32) | INDEX(event_type, occurred_at) | `operation` / `login` / `error` / `plugin` / `security` |
+| `action` | VARCHAR(192) | INDEX(action, occurred_at) | `module.resource.action` 格式 |
+| `actor_type` | VARCHAR(64) | NOT NULL | 主体类型，如 user、role、system、anonymous |
+| `actor_id` | VARCHAR(64) | INDEX(actor_id, occurred_at) | 主体 ID，可为空字符串 |
+| `actor_name` | VARCHAR(128) | - | 主体显示名 |
+| `resource_type` | VARCHAR(64) | INDEX(resource_type, resource_id, occurred_at) | 资源类型 |
+| `resource_id` | VARCHAR(128) | INDEX(resource_type, resource_id, occurred_at) | 资源 ID |
+| `resource_name` | VARCHAR(128) | - | 资源显示名 |
+| `result` | VARCHAR(32) | INDEX(result, occurred_at) | `success` / `failure` / `denied` |
+| `risk` | VARCHAR(32) | INDEX(risk, occurred_at) | `low` / `medium` / `high` / `critical` |
+| `trace_id` | VARCHAR(128) | INDEX | trace id |
+| `request_id` | VARCHAR(128) | INDEX | request/correlation id |
+| `request_method` | VARCHAR(16) | - | HTTP method |
+| `request_path` | VARCHAR(512) | - | HTTP path |
+| `request_ip` | VARCHAR(64) | - | 客户端 IP |
+| `user_agent` | VARCHAR(512) | - | User-Agent |
+| `metadata_json` | LONGTEXT/TEXT | - | 通用 metadata |
+| `source_json` | LONGTEXT/TEXT | - | 类型专属源数据，如 LoginLog/ErrorLog 原始字段 |
+| `occurred_at` | DATETIME(3)/TIMESTAMPTZ | INDEX | 事件发生时间 |
+| `created_at` | DATETIME(3)/TIMESTAMPTZ | - | 记录写入时间 |
+
 ### 2.6 系统设置表（sk_system_settings）
 
 Model 定义：`internal/store/sql/gormrepo/system_setting_model.go`
