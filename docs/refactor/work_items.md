@@ -168,7 +168,7 @@
 | 120 | FE1-04 | FE1 | `skoll-frontend-design-refactor` | 定义表单和弹窗标准 | UI 文档/组件要求 | 校验、保存中、错误、确认、抽屉/弹窗适用边界明确 | 文档审阅 | Done |
 | 121 | FE1-05 | FE1 | `skoll-frontend-design-refactor` | 定义状态组件标准 | UI 文档/组件要求 | loading/empty/error/no-permission/success/failed 统一 | 文档审阅 | Done |
 | 122 | FE1-06 | FE1 | `skoll-frontend-coding-refactor` | 抽查全局样式与变量 | 样式清单 | 颜色、间距、字号、状态色来源清楚，无一页一套 | `rg -n "#[0-9A-Fa-f]{3,8}" web/src/styles web/src/views web/src/components -g "*.scss" -g "*.vue"`; `rg -n "var\(" web/src/styles web/src/views web/src/components -g "*.scss" -g "*.vue"` | Done |
-| 123 | FE1-07 | FE1 | `skoll-frontend-design-refactor` | 定义响应式最低标准 | UI 文档 | 窄屏无重叠、无按钮溢出、表格有降级策略 | 文档审阅 | Todo |
+| 123 | FE1-07 | FE1 | `skoll-frontend-design-refactor` | 定义响应式最低标准 | UI 文档 | 窄屏无重叠、无按钮溢出、表格有降级策略 | 文档审阅 | Done |
 
 ## FE2 Work Items: 前端架构与数据流
 

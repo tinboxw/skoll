@@ -6015,6 +6015,96 @@ rg -n "FE1-06.*Done" docs/refactor/work_items.md
 
 - 进入 `FE1-07`，定义响应式最低标准。
 
+## FE1-07: 定义响应式最低标准
+
+- 状态: Passed
+- Work Item: FE1-07
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe1_responsive_minimum_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增响应式最低标准文档。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 标准覆盖窄屏无重叠、无按钮溢出、表格降级、drawer/dialog 约束和插件宿主降级。 |
+| 文档同步 | Passed | Work Item 状态、FE1 父任务状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准服务当前 Layout shell 和页面断点，不新增旧响应式分支。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Narrow viewport|No overlap|Table fallback|Drawer/dialog fit|Plugin shell|390px|FE1-07" docs/refactor/fe1_responsive_minimum_standard.md
+rg -n "FE1-07.*Done" docs/refactor/work_items.md
+rg -n "FE1 .* Done" docs/refactor/task_board.md
+```
+
+结果摘要: 通过。响应式最低标准包含窄屏、无重叠、表格降级、drawer/dialog 和插件 shell 约束；Work Item 与 FE1 父任务状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe1_responsive_minimum_standard.md`，确认窄屏无重叠、无按钮溢出、表格有降级策略。
+2. 对照 App shell、Sidebar、PinnedTabs、Audit、Dictionary、Permission、Plugin 页面响应式锚点，确认标准能落地。
+3. 确认 FE1-01 至 FE1-07 均已 Done，FE1 父任务可验收为 Done。
+
+结果摘要: 通过。FE1-07 响应式最低标准完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- FE1 已完成，进入 FE2 前端架构与数据流规范。
+
+## FE1 Milestone: 设计系统与视觉规范
+
+- 状态: Passed
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 范围
+
+- FE1-01: Skoll Admin 视觉原则
+- FE1-02: 页面布局标准
+- FE1-03: 表格体验标准
+- FE1-04: 表单和弹窗标准
+- FE1-05: 状态组件标准
+- FE1-06: 全局样式与变量抽查
+- FE1-07: 响应式最低标准
+
+### 验收结果
+
+| 项目 | 结果 | 说明 |
+|---|---|---|
+| 视觉原则 | Passed | 专业、克制、可扫、插件优先、不做营销页风格已定义。 |
+| 页面布局 | Passed | 标题、工具栏、筛选、表格、详情、抽屉结构已统一。 |
+| 表格体验 | Passed | 稳定列、状态标签、批量动作、紧凑行操作已定义。 |
+| 表单弹窗 | Passed | 校验、保存中、错误、确认、drawer/dialog 边界已定义。 |
+| 状态组件 | Passed | loading/empty/error/no-permission/success/failed 已统一。 |
+| 样式变量 | Passed | 颜色、间距、字号、状态色来源和硬编码收敛点已记录。 |
+| 响应式 | Passed | 390px 窄屏、无重叠、表格降级、drawer/dialog 约束已定义。 |
+| task board 同步 | Passed | FE1 父任务状态更新为 Done。 |
+
+### 下一步
+
+- 进入 `FE2-01`，统一 API client 规范。
+
 ## M2-06-01: 更新 smoke-auth-audit 脚本场景
 
 - 状态: Passed
