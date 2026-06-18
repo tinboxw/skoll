@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 
 import { exportAuditEvents, getAuditEvent, listAuditEvents, type AuditEvent, type AuditEventDetail, type AuditEventListQuery, type AuditEventRisk, type AuditEventType } from "../../audit/api";
+import StateBlock from "../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { downloadBlob } from "../../composables/useDownloadBlob";
 import { useI18n } from "../../i18n";
@@ -615,16 +616,21 @@ void loadAuditLogs();
 		</section>
 
 		<section class="panel">
-			<el-result
+			<StateBlock
 				v-if="forbidden"
-				icon="warning"
+				type="forbidden"
 				:title="t('audit.forbiddenTitle')"
-				:sub-title="t('audit.forbiddenDesc')"
+				:description="t('audit.forbiddenDesc')"
 			/>
-			<el-empty
+			<StateBlock
 				v-else-if="!loading && !hasRows"
+				type="empty"
 				:description="t('audit.empty')"
-			/>
+			>
+				<template #actions>
+					<el-button :loading="loading" :disabled="operating" @click="loadAuditLogs">{{ t("common.refresh") }}</el-button>
+				</template>
+			</StateBlock>
 			<el-table
 				v-else
 				v-loading="loading"

@@ -6549,6 +6549,65 @@ npm run typecheck
 
 - 进入 `FE2-08`，统一空态/错误态/无权限态组件。
 
+## FE2-08: 统一空态/错误态/无权限态组件
+
+- 状态: Passed
+- Work Item: FE2-08
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/components/Common/StateBlock.vue`
+- `web/src/components/Common/README.md`
+- `web/src/views/Audit/index.vue`
+- `docs/refactor/fe2_state_block_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 `StateBlock` 和状态组件标准，Audit 数据区空态/无权限态已接入。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | empty/error/forbidden 状态组件边界、actions slot 和 FE3 迁移顺序明确。 |
+| 文档同步 | Passed | Work Item 状态、Common README、验证命令和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 不新增旧页面路径或第二套状态系统。 |
+
+### 自动化验证
+
+```powershell
+rg -n "StateBlock|empty|error|forbidden|actions" web/src/components/Common web/src/views/Audit/index.vue docs/refactor/fe2_state_block_standard.md
+rg -n "Component boundary|Audit reference|Action slot|No fallback UI path" docs/refactor/fe2_state_block_standard.md
+cd web
+npm run typecheck
+```
+
+结果摘要: 通过。`StateBlock` 组件存在，Audit 空态/无权限态已接入，标准文档覆盖组件边界和迁移规则；前端 typecheck 通过。
+
+### 人工验收
+
+1. 审阅 `StateBlock.vue`，确认组件只负责状态呈现和 actions slot，不处理 API、store、router。
+2. 对照 Audit 页面，确认空态保留 refresh action，无权限态不会静默显示空表。
+3. 对照 FE1 状态标准，确认 FE3 可逐页迁移，不需要一次性替换所有页面。
+
+结果摘要: 通过。FE2-08 统一状态组件完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE2-09`，前端架构 smoke 检查。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed

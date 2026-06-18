@@ -12,6 +12,7 @@
 - `Table.vue`: 兼容原生 table slot，用 Element Plus Card 提供统一外壳。
 - `Form.vue`: 基于 `el-form` 的默认纵向表单容器。
 - `Dialog.vue`: 基于 `el-dialog` 的弹窗封装。
+- `StateBlock.vue`: 统一 empty、error、forbidden 数据区状态，并提供 actions slot。
 
 ## 后续待补充实现
 - [ ] 根据页面迁移情况补充更明确的 props（分页、加载态、表单校验规则等）。
