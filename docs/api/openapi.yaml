@@ -328,7 +328,7 @@ paths:
           description: OK
   /v1/audit/{id}:
     get:
-      summary: Get audit record
+      summary: Get audit event detail
       parameters:
         - name: id
           in: path
@@ -337,7 +337,15 @@ paths:
             type: string
       responses:
         '200':
-          description: OK
+          description: Audit event detail wrapped in the standard response envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventDetailAPIResponse'
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
   /v1/audit/export:
     get:
       summary: Export audit records as CSV
@@ -1283,6 +1291,46 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/AuditEventListData'
+    AuditEventDiff:
+      type: object
+      properties:
+        before:
+          type: object
+          additionalProperties: true
+        after:
+          type: object
+          additionalProperties: true
+        summary:
+          type: array
+          items:
+            type: string
+    AuditEventDetail:
+      allOf:
+        - $ref: '#/components/schemas/AuditEvent'
+        - type: object
+          properties:
+            sourceData:
+              type: object
+              additionalProperties: true
+              description: Raw source log payload, such as login_log or error_log fields.
+            diff:
+              $ref: '#/components/schemas/AuditEventDiff'
+    AuditEventDetailData:
+      type: object
+      required:
+        - item
+      properties:
+        item:
+          $ref: '#/components/schemas/AuditEventDetail'
+    AuditEventDetailAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/AuditEventDetailData'
     PermissionResource:
       type: object
       required:
