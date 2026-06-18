@@ -6105,6 +6105,62 @@ rg -n "FE1 .* Done" docs/refactor/task_board.md
 
 - 进入 `FE2-01`，统一 API client 规范。
 
+## FE2-01: 统一 API client 规范
+
+- 状态: Passed
+- Work Item: FE2-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe2_api_client_standard.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 API client 规范文档。 |
+| API/OpenAPI 同步 | N/A | 本项定义前端 client 规范，不改变后端 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 请求、响应、错误、分页、导出封装标准明确。 |
+| 文档同步 | Passed | Work Item 状态、FE2 父任务状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 标准复用当前 `utils/api.ts`，不新增旧 API wrapper 或兼容路径。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Request standard|Response standard|Error standard|Pagination/export|Migration boundary|ApiResponse|ApiError|apiGet|exportAuditEvents" docs/refactor/fe2_api_client_standard.md
+rg -n "apiGet|apiPost|apiPut|apiDelete|fetch\\(|ApiResponse|ApiError" web/src/utils web/src/audit web/src/navigation web/src/permissions web/src/views
+rg -n "FE2-01.*Done" docs/refactor/work_items.md
+```
+
+结果摘要: 通过。API client 规范覆盖请求、响应、错误、分页、导出和迁移边界；当前 API wrapper、typed clients 和 page-local API 调用锚点已盘点；Work Item 状态已更新为 Done。
+
+### 人工验收
+
+1. 审阅 `fe2_api_client_standard.md`，确认请求、响应、错误、分页、导出封装标准明确。
+2. 对照 `utils/api.ts`、`audit/api.ts`、`navigation/api.ts`、`permissions/api.ts`，确认规范承接现有 typed client。
+3. 确认页面内 direct API 调用已列为后续迁移缺口，而不是在本项中大包改造。
+
+结果摘要: 通过。FE2-01 API client 规范完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE2-02`，统一 Pinia store 规范。
+
 ## ADJ-FE-20260619-01: FE1 component acceptance examples
 
 - 状态: Passed

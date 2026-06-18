@@ -175,7 +175,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 125 | FE2-01 | FE2 | `skoll-frontend-coding-refactor` | 统一 API client 规范 | API client 文档/代码规范 | 请求、响应、错误、分页、导出封装标准明确 | 文档审阅 | Todo |
+| 125 | FE2-01 | FE2 | `skoll-frontend-coding-refactor` | 统一 API client 规范 | API client 文档/代码规范 | 请求、响应、错误、分页、导出封装标准明确 | 文档审阅 | Done |
 | 126 | FE2-02 | FE2 | `skoll-frontend-coding-refactor` | 统一 Pinia store 规范 | store 文档/代码规范 | loading/error/data/retry/refresh 模式明确 | 文档审阅 | Todo |
 | 127 | FE2-03 | FE2 | `skoll-frontend-coding-refactor` | 统一 route guard 规范 | router/permission 文档 | 菜单、路由、按钮、插件权限同源 | `rg "canAccess\|beforeEach\|v-permission" web/src` | Todo |
 | 128 | FE2-04 | FE2 | `skoll-frontend-coding-refactor` | 统一 SchemaForm 使用规范 | SchemaForm 文档/示例 | 插件配置、系统设置、生成器表单复用边界明确 | 文档审阅 | Todo |
