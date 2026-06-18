@@ -209,3 +209,54 @@ rg "domain|service|repository|store|handler|web|plugin" docs/refactor/architectu
 ### 下一步
 
 - 进入 `M0-01-04`，关联重构专用 skills。
+
+## M0-01-04: 关联重构专用 skills
+
+- 状态: Passed
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/architecture_and_execution_plan.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 架构计划明确 Work Item 的 Skill 字段作为任务路由来源。 |
+| API/OpenAPI 同步 | N/A | 仅文档治理任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅文档治理任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅文档治理任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅文档治理任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅文档治理任务，无前端实现影响。 |
+| 文档同步 | Passed | 架构计划、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只关联任务执行 skills，未引入兼容路径。 |
+
+### 自动化验证
+
+```powershell
+rg "skoll-.*refactor" docs/refactor/architecture_and_execution_plan.md
+```
+
+结果摘要: 通过。M0-M6 及前端专项可在重构专用 skills 表中定位到对应 skill。
+
+### 人工验收
+
+1. 审阅 `docs/refactor/architecture_and_execution_plan.md` 的重构专用 Skills 表。
+2. 确认 M0-M6 均能找到对应的 `skoll-*-refactor` skill。
+
+结果摘要: 通过。后续任务可按 Work Item 的 Skill 字段读取对应 skill。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-02-01`，建立验收记录模板字段。

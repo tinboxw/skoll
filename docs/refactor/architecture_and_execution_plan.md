@@ -126,6 +126,8 @@ plugins/
 
 以下 skills 已写入 `C:\Users\tinbox.wu\.codex\skills`，后续执行重构任务时按任务类型触发:
 
+Work Item 表中的 Skill 字段是任务路由来源；执行任务前必须读取对应 skill，若同一任务跨越多个边界，则选择覆盖该边界的最小 skill 集合。
+
 | Skill | 适用任务 |
 |------|----------|
 | `skoll-refactor-governance` | M0、里程碑拆分、验收机制、架构决策、无兼容方案规则 |

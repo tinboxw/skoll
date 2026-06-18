@@ -28,7 +28,7 @@
 | 1 | M0-01-01 | M0-01 | `skoll-refactor-governance` | 校准架构决策文档标题、状态、适用范围 | `architecture_and_execution_plan.md` | 明确当前是唯一架构决策；无旧计划入口引用 | 文档审阅 | Done |
 | 2 | M0-01-02 | M0-01 | `skoll-refactor-governance` | 固化不做兼容方案规则 | `architecture_and_execution_plan.md`、`README.md` | 规则同时出现在执行入口和治理原则中 | `rg "不做旧接口|不做兼容方案" docs/refactor docs/README.md` | Done |
 | 3 | M0-01-03 | M0-01 | `skoll-refactor-governance` | 固化分层依赖规则 | `architecture_and_execution_plan.md` | domain/service/repository/store/handler/web/plugin 边界清晰 | 文档审阅 | Done |
-| 4 | M0-01-04 | M0-01 | `skoll-refactor-governance` | 关联重构专用 skills | `architecture_and_execution_plan.md` | M0-M6 均能找到对应 skill | `rg "skoll-.*refactor" docs/refactor/architecture_and_execution_plan.md` | Todo |
+| 4 | M0-01-04 | M0-01 | `skoll-refactor-governance` | 关联重构专用 skills | `architecture_and_execution_plan.md` | M0-M6 均能找到对应 skill | `rg "skoll-.*refactor" docs/refactor/architecture_and_execution_plan.md` | Done |
 | 5 | M0-02-01 | M0-02 | `skoll-refactor-governance` | 建立验收记录模板字段 | `acceptance_log.md` | 包含状态、日期、执行人、提交、改动文件、验收项 | 文档审阅 | Todo |
 | 6 | M0-02-02 | M0-02 | `skoll-refactor-governance` | 补齐边界同步验收项 | `acceptance_log.md` | API/OpenAPI、权限、审计、migration、前端、文档均有检查项 | 文档审阅 | Todo |
 | 7 | M0-02-03 | M0-02 | `skoll-refactor-governance` | 补齐失败返工记录区 | `acceptance_log.md` | 失败原因、返工动作、重新验收结果字段齐全 | 文档审阅 | Todo |
