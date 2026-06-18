@@ -3276,3 +3276,59 @@ $env:CGO_ENABLED='0'; go test ./internal/plugin/...
 ### 下一步
 
 - 进入 `M1-07-05`，插件权限/菜单导入审计。
+
+## M1-07-05: 插件权限/菜单导入审计
+
+- 状态: Passed
+- Work Item: M1-07-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/plugin/catalog_audit.go`
+- `internal/plugin/manager.go`
+- `internal/plugin/manager_test.go`
+- `internal/bootstrap/di.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | RuntimeManager 支持 catalog audit sink，enable/disable 产生审计事件。 |
+| API/OpenAPI 同步 | N/A | 本项未改 HTTP API。 |
+| 权限目录同步 | Passed | 审计事件记录权限与菜单导入数量。 |
+| 审计 action 同步 | Passed | 新增 `plugin_catalog_import` 与 `plugin_catalog_disable` 事件。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项为后端审计接线。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | bootstrap 使用统一 audit service 适配器，不记录敏感内容。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/plugin/... ./internal/service/audit/...
+$env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/plugin/catalog_audit.go`、`internal/plugin/manager.go` 和 `internal/bootstrap/di.go`。
+2. 确认 enable/disable 审计包含 actor/action/resource/result/counts，不包含密钥、包内容或 token。
+
+结果摘要: 通过。插件权限/菜单导入审计已完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-08-01`，设计 RBAC 授权矩阵契约。

@@ -130,6 +130,8 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 
 func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, pluginsRepo pluginrepo.PluginRepository, auditSvc audit.Service) plugin.Manager {
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
+	runtimeManager.SetCatalogRegistry(plugin.NewMemoryCatalogRegistry())
+	runtimeManager.SetCatalogAuditSink(pluginCatalogAuditSink{auditSvc: auditSvc})
 	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, auditSvc, logger)
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
 	m := &pluginManagerWithExtensions{
@@ -172,6 +174,22 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 	m.persistAll(context.Background())
 
 	return m
+}
+
+type pluginCatalogAuditSink struct {
+	auditSvc audit.Service
+}
+
+func (s pluginCatalogAuditSink) RecordPluginCatalogEvent(event plugin.CatalogAuditEvent) error {
+	if s.auditSvc == nil {
+		return nil
+	}
+	_, err := s.auditSvc.Append(context.Background(), "system", event.Action, "plugin", event.PluginID, map[string]any{
+		"result":      event.Result,
+		"permissions": event.Permissions,
+		"menus":       event.Menus,
+	})
+	return err
 }
 
 func hasPluginManifest(path string) (bool, error) {

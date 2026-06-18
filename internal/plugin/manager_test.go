@@ -186,6 +186,63 @@ ui_menu:
 	}
 }
 
+func TestRuntimeManagerAuditsCatalogImportLifecycle(t *testing.T) {
+	dir := t.TempDir()
+	pluginDir := filepath.Join(dir, "audit-demo")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("mkdir plugin dir: %v", err)
+	}
+	manifest := `id: "audit-demo"
+name: "Audit Demo"
+version: "1.0.0"
+permissions:
+  - "audit-demo.read"
+ui_menu:
+  label: "Audit Demo"
+  path: "/skoll/plugins/audit-demo"
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	catalog := NewMemoryCatalogRegistry()
+	audit := &fakeCatalogAuditSink{}
+	m := NewRuntimeManager(NewFileLoader(), NewTopologicalResolver())
+	m.SetCatalogRegistry(catalog)
+	m.SetCatalogAuditSink(audit)
+	if _, err := m.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin failed: %v", err)
+	}
+	if err := m.Enable("audit-demo"); err != nil {
+		t.Fatalf("enable plugin failed: %v", err)
+	}
+	if err := m.Disable("audit-demo"); err != nil {
+		t.Fatalf("disable plugin failed: %v", err)
+	}
+
+	if len(audit.events) != 2 {
+		t.Fatalf("expected two catalog audit events, got %+v", audit.events)
+	}
+	if audit.events[0].Action != "plugin_catalog_import" || audit.events[0].Result != "ok" {
+		t.Fatalf("unexpected import event: %+v", audit.events[0])
+	}
+	if audit.events[0].Permissions != 1 || audit.events[0].Menus != 1 {
+		t.Fatalf("unexpected import counts: %+v", audit.events[0])
+	}
+	if audit.events[1].Action != "plugin_catalog_disable" || audit.events[1].Result != "ok" {
+		t.Fatalf("unexpected disable event: %+v", audit.events[1])
+	}
+}
+
+type fakeCatalogAuditSink struct {
+	events []CatalogAuditEvent
+}
+
+func (s *fakeCatalogAuditSink) RecordPluginCatalogEvent(event CatalogAuditEvent) error {
+	s.events = append(s.events, event)
+	return nil
+}
+
 func writePluginManifest(t *testing.T, root, id, name, version, dep string) string {
 	t.Helper()
 	dir := filepath.Join(root, id)

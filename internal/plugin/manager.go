@@ -21,6 +21,7 @@ type RuntimeManager struct {
 	loader   MetadataLoader
 	resolver DependencyResolver
 	catalog  CatalogRegistry
+	audit    CatalogAuditSink
 	plugins  map[string]Info
 }
 
@@ -43,6 +44,12 @@ func (m *RuntimeManager) SetCatalogRegistry(registry CatalogRegistry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.catalog = registry
+}
+
+func (m *RuntimeManager) SetCatalogAuditSink(sink CatalogAuditSink) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.audit = sink
 }
 
 func (m *RuntimeManager) Install(path string) (Info, error) {
@@ -101,8 +108,10 @@ func (m *RuntimeManager) Enable(pluginID string) error {
 	if m.catalog != nil {
 		for _, id := range order {
 			if err := m.catalog.ImportPlugin(m.plugins[id]); err != nil {
+				m.recordCatalogAudit(id, "plugin_catalog_import", "failed")
 				return err
 			}
+			m.recordCatalogAudit(id, "plugin_catalog_import", "ok")
 		}
 	}
 
@@ -131,7 +140,11 @@ func (m *RuntimeManager) Disable(pluginID string) error {
 		m.plugins[pluginID] = info
 	}
 	if m.catalog != nil {
-		return m.catalog.DisablePlugin(pluginID)
+		if err := m.catalog.DisablePlugin(pluginID); err != nil {
+			m.recordCatalogAudit(pluginID, "plugin_catalog_disable", "failed")
+			return err
+		}
+		m.recordCatalogAudit(pluginID, "plugin_catalog_disable", "ok")
 	}
 
 	return nil
@@ -160,6 +173,25 @@ func (m *RuntimeManager) Uninstall(pluginID string) error {
 		return m.catalog.RemovePlugin(pluginID)
 	}
 	return nil
+}
+
+func (m *RuntimeManager) recordCatalogAudit(pluginID, action, result string) {
+	if m == nil || m.audit == nil {
+		return
+	}
+	info, ok := m.plugins[pluginID]
+	if !ok {
+		return
+	}
+	permissions, _ := info.CatalogPermissions()
+	menus, _ := info.MenuNodes()
+	_ = m.audit.RecordPluginCatalogEvent(CatalogAuditEvent{
+		PluginID:    pluginID,
+		Action:      action,
+		Result:      result,
+		Permissions: len(permissions),
+		Menus:       len(menus),
+	})
 }
 
 func (m *RuntimeManager) List() []Info {
