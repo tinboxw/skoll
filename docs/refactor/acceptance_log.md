@@ -5919,6 +5919,60 @@ npm run build
 
 - 根据 task board 进入下一里程碑任务。
 
+## FE0-01: 盘点当前前端页面体验
+
+- 状态: Passed
+- Work Item: FE0-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe0_frontend_page_experience_inventory.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增当前前端页面体验清单。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 清单覆盖 Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 状态、问题、优先级。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 仅做体验盘点，不引入旧 UI 路径。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Dashboard|User|Role|Permission|Menu|Plugin|Audit|Setting|P0|P1|P2" docs/refactor/fe0_frontend_page_experience_inventory.md
+rg -n "const DashboardPage|const AuditPage|const MenuPage|const PermissionPage|const PluginPage|const RoleListPage|const SettingPage|const UserListPage" web/src/router/index.ts
+```
+
+结果摘要: 通过。核心页面均纳入体验清单，路由锚点存在。
+
+### 人工验收
+
+1. 审阅页面清单，确认每页有 current state、strengths、gaps、priority。
+2. 确认 P0/P1/P2 优先级和后续 FE 任务可衔接。
+3. 确认 Audit 页作为当前最佳参考页被记录。
+
+结果摘要: 通过。FE0 页面体验盘点完成。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `FE0-02`，盘点前端架构与复用点。
+
 ## ADJ-20260619-01: M2 export/list filter parity check
 
 - 状态: Passed
