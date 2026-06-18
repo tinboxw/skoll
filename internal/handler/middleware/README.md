@@ -12,6 +12,7 @@ HTTP 中间件集合。
 - auth.go
 - logger.go
 - rate_limit.go
+- request_audit.go
 
 ## 后续待补充实现
 - [ ] 按目录职责补齐核心实现代码。

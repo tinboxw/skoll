@@ -4801,3 +4801,55 @@ rg -n "h\.appendAudit\(|appendAuthAudit\(|audit\.Append\(|auditSvc\.Append\(|aud
 
 ### 下一步
 - 进入 `M2-03-02`，实现统一请求审计 middleware。
+
+## M2-03-02: 实现统一请求审计 middleware
+
+- 状态: Passed
+- Work Item: M2-03-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/handler/middleware/request_audit.go`
+- `internal/handler/middleware/request_audit_test.go`
+- `internal/handler/middleware/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增统一 `RequestAudit` middleware，捕获响应状态并写入 `audit.Event`。 |
+| API/OpenAPI 同步 | N/A | 本项不改 HTTP API 契约。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 请求事件使用 canonical `http.request.<method>` action，并写入 `EventTypeOperation`。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | middleware README、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新增 middleware 直接写新 `audit.Event` sink，不依赖旧 `audit.Record`。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/handler/middleware/request_audit.go internal/handler/middleware/request_audit_test.go
+go test ./internal/handler/middleware/...
+```
+
+结果摘要: 通过。成功、失败、未授权、跳过路径、sink 错误不影响响应均已覆盖。
+
+### 人工验收
+
+1. 审阅 `request_audit.go`，确认响应状态映射为 success/failure/denied。
+2. 审阅 `request_audit_test.go`，确认成功、失败、未授权均写入事件。
+3. 审阅 middleware README，确认新增文件已登记。
+
+结果摘要: 通过。统一请求审计 middleware 已实现并验收。
+
+### 失败与返工
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+- 进入 `M2-03-03`，接入登录成功/失败审计。
