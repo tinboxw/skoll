@@ -7660,3 +7660,81 @@ npm run build
 ### 下一步
 
 - 进入 `FE3-02`，执行 User 页面体验升级。
+
+## FE3-02: User 页面体验升级
+
+- 状态: Passed
+- Work Item: FE3-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/User/list.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | User list 增加摘要卡、当前页筛选、组织目录状态提示、权限空态和更清晰的批量角色分配区。 |
+| API/OpenAPI 同步 | N/A | 本项不改变 `/v1/users` 契约；列表请求仍只使用 offset/limit。 |
+| 权限目录同步 | Passed | 复用现有 `user.read/user.create/user.update/user.delete/role.manage` 权限 key，不新增目录项。 |
+| 审计 action 同步 | N/A | 本项不新增审计 action。 |
+| migration/seed 同步 | N/A | 本项不改变数据库结构或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 页面继续使用现有 `apiGet/apiPost/apiDelete` 和 RBAC bind；错误通过 `toErrorMessage` 可见。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/user`、add/edit/batch 现有路由，不新增兼容入口。 |
+
+### 自动化验证
+
+```powershell
+rg -n "StateBlock|filteredRows|summary-grid|filters|bulkAssignHint|organizationLoadError|canReadUser|resetFilters" web/src/views/User/list.vue web/src/i18n/index.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。关键 UI/权限/状态锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 和 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可用 in-app browser 工具；bundled Playwright 运行时仍缺少 `playwright-core`，无法完成截图或真实点击 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 `/skoll/user` 的默认、筛选、空结果、批量分配、窄屏路径。
+
+### Performance Hook
+
+- Page/route: User list，`/skoll/user`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus、StateBlock、权限工具和现有 API wrapper。
+- Route lazy loading: Passed，router 中通过 `const UserListPage = () => import("../views/User/list.vue")` 动态导入。
+- Heavy table risk: 当前后端分页为 offset/limit，表格渲染当前页；筛选为当前页客户端筛选，不触发全量拉取。
+- Request behavior: 未新增用户列表请求；首屏仍为 users、roles、departments、positions 四类既有请求。
+- Loading behavior: 刷新、批量绑定和目录失败分别有 loading、禁用状态、warning/error 表达，不用 spinner 掩盖失败。
+- Deferred panels: N/A，列表页无详情、日志或配置重面板；编辑和批量新增仍走既有懒加载路由。
+- Narrow viewport: 摘要卡、筛选表单、批量分配区在 860px 以下折叠；表格外层允许横向滚动避免按钮和列挤压。
+- Follow-up: 如果后端后续增加服务端筛选，应把当前页筛选升级为 query 参数并补 OpenAPI/client gate。
+
+### 人工验收
+
+1. 对照 `fe3_page_acceptance_map.md`，确认 User 覆盖筛选、分页、创建、编辑、删除、角色分配、组织归属和权限状态。
+2. 对照 `web/src/views/User/list.vue`，确认删除仍使用 `confirmAction`，批量绑定按选中用户执行并保留成功/失败反馈。
+3. 确认组织目录加载失败不会阻断用户列表，且通过 warning 明确展示。
+4. 确认受限账号没有行内操作时显示无可用操作，缺少 `user.read` 时显示 forbidden StateBlock。
+
+结果摘要: 通过。User list 已满足 FE3-02 对筛选、批量、编辑、角色分配和组织归属状态的要求。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE3-03`，执行 Role 页面体验升级。

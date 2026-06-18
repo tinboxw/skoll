@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 
+import StateBlock from "../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
@@ -91,21 +92,44 @@ const rows = ref<UserRecord[]>([]);
 const roles = ref<RoleRecord[]>([]);
 const departments = ref<OrganizationOption[]>([]);
 const positions = ref<OrganizationOption[]>([]);
+const organizationLoadError = ref("");
 const selectedRoleID = ref("");
 const selectedUserIDs = ref<string[]>([]);
 const opSuccess = ref("");
 const page = ref(1);
 const pageSize = 10;
 const canGoNext = ref(false);
+const keyword = ref("");
+const statusFilter = ref("");
+const departmentFilter = ref("");
+const positionFilter = ref("");
 
 const hasSelectedRows = computed(() => selectedUserIDs.value.length > 0);
+const filteredRows = computed(() => {
+	const term = keyword.value.trim().toLowerCase();
+	return rows.value.filter((item) => {
+		const matchesTerm = term === "" || [item.id, item.account, item.name, item.email].some((value) => String(value ?? "").toLowerCase().includes(term));
+		const matchesStatus = statusFilter.value === "" || item.status === statusFilter.value;
+		const matchesDepartment = departmentFilter.value === "" || item.departmentId === departmentFilter.value;
+		const matchesPosition = positionFilter.value === "" || item.positionId === positionFilter.value;
+		return matchesTerm && matchesStatus && matchesDepartment && matchesPosition;
+	});
+});
+const activeUserCount = computed(() => rows.value.filter((item) => item.status === "active").length);
+const inactiveUserCount = computed(() => rows.value.filter((item) => item.status && item.status !== "active").length);
+const hasActiveFilters = computed(() => keyword.value.trim() !== "" || statusFilter.value !== "" || departmentFilter.value !== "" || positionFilter.value !== "");
 const returnTo = computed(() => route.fullPath || "/skoll/user");
+const canReadUser = computed(() => buttonAccess.can("user.read"));
 const canCreateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userCreate));
 const canUpdateUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userUpdate));
 const canDeleteUser = computed(() => buttonAccess.can(BUTTON_ACCESS.userDelete));
 const canAssignRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleManage));
 
 async function loadUsers(targetPage = page.value): Promise<void> {
+	if (!canReadUser.value) {
+		error.value = t("error.forbidden");
+		return;
+	}
 	loading.value = true;
 	error.value = "";
 	try {
@@ -143,6 +167,7 @@ async function loadRoles(): Promise<void> {
 }
 
 async function loadOrganizationOptions(): Promise<void> {
+	organizationLoadError.value = "";
 	try {
 		const [deptPayload, positionPayload] = await Promise.all([
 			apiGet<ApiResponse<{ items?: unknown[] }>>("/v1/system/departments"),
@@ -152,7 +177,8 @@ async function loadOrganizationOptions(): Promise<void> {
 		const positionItems = Array.isArray(positionPayload.data?.items) ? positionPayload.data.items : [];
 		departments.value = deptItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
 		positions.value = positionItems.map((item) => normalizeOrganizationOption(item)).filter((item): item is OrganizationOption => item !== null);
-	} catch {
+	} catch (e) {
+		organizationLoadError.value = toErrorMessage(e);
 		departments.value = [];
 		positions.value = [];
 	}
@@ -215,6 +241,13 @@ function handleSelectionChange(selection: UserRecord[]): void {
 	selectedUserIDs.value = selection.map((item) => item.id);
 }
 
+function resetFilters(): void {
+	keyword.value = "";
+	statusFilter.value = "";
+	departmentFilter.value = "";
+	positionFilter.value = "";
+}
+
 async function bulkAssignRole(): Promise<void> {
 	if (!canAssignRole.value) {
 		error.value = t("error.forbidden");
@@ -265,47 +298,114 @@ void loadOrganizationOptions();
 
 		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
 		<el-alert v-if="opSuccess" :title="opSuccess" type="success" show-icon :closable="false" />
+		<el-alert v-if="organizationLoadError" :title="`${t('user.organizationLoadFailed')}: ${organizationLoadError}`" type="warning" show-icon :closable="false" />
 
-		<section v-if="canAssignRole" class="batch-bar">
-			<el-select v-model="selectedRoleID" :disabled="loading || operating || roles.length === 0" class="role-select">
-				<el-option v-for="role in roles" :key="role.id" :value="role.id" :label="`${role.name} (${role.key || role.id})`" />
-			</el-select>
-			<el-button type="primary" :loading="operating" :disabled="loading || !hasSelectedRows || !selectedRoleID" @click="bulkAssignRole">{{ t("user.bulkAssign") }}</el-button>
+		<StateBlock v-if="!canReadUser" type="forbidden" :title="t('user.noPermissionTitle')" :description="t('error.forbidden')" />
+
+		<section v-else class="summary-grid">
+			<article class="summary-card">
+				<span>{{ t("user.summary.currentPage") }}</span>
+				<strong>{{ rows.length }}</strong>
+				<small>{{ t("user.summary.filtered") }} {{ filteredRows.length }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("user.summary.active") }}</span>
+				<strong>{{ activeUserCount }}</strong>
+				<small>{{ t("user.summary.inactive") }} {{ inactiveUserCount }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("user.summary.selected") }}</span>
+				<strong>{{ selectedUserIDs.length }}</strong>
+				<small>{{ t("user.summary.roles") }} {{ roles.length }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("user.summary.organization") }}</span>
+				<strong>{{ departments.length + positions.length }}</strong>
+				<small>{{ t("table.department") }} {{ departments.length }} · {{ t("table.position") }} {{ positions.length }}</small>
+			</article>
 		</section>
 
-		<el-table
-			v-loading="loading"
-			:data="rows"
-			border
-			row-key="id"
-			:empty-text="t('common.empty')"
-			@selection-change="handleSelectionChange"
-		>
-			<el-table-column type="selection" width="48" :selectable="() => !operating" />
-			<el-table-column prop="id" :label="t('table.id')" min-width="180" show-overflow-tooltip />
-			<el-table-column :label="t('table.name')" min-width="160">
-				<template #default="{ row }">{{ row.name || row.account }}</template>
-			</el-table-column>
-			<el-table-column prop="email" :label="t('table.email')" min-width="210" show-overflow-tooltip />
-			<el-table-column :label="t('table.department')" min-width="140" show-overflow-tooltip>
-				<template #default="{ row }">{{ labelByID(departments, row.departmentId) }}</template>
-			</el-table-column>
-			<el-table-column :label="t('table.position')" min-width="140" show-overflow-tooltip>
-				<template #default="{ row }">{{ labelByID(positions, row.positionId) }}</template>
-			</el-table-column>
-			<el-table-column :label="t('table.status')" width="120">
-				<template #default="{ row }">
-					<el-tag :type="row.status === 'active' ? 'success' : 'info'" effect="plain">{{ row.status || "-" }}</el-tag>
-				</template>
-			</el-table-column>
-			<el-table-column :label="t('table.actions')" width="170" fixed="right">
-				<template #default="{ row }">
-					<el-button v-if="canUpdateUser" link type="primary" tag="router-link" :to="{ name: 'user-edit', params: { id: row.id }, query: { returnTo } }">{{ t("common.edit") }}</el-button>
-					<el-button v-if="canDeleteUser" link type="danger" :disabled="operating || loading" @click="deleteUser(row.id)">{{ t("common.delete") }}</el-button>
-					<span v-if="!canUpdateUser && !canDeleteUser" class="muted">{{ t("common.empty") }}</span>
-				</template>
-			</el-table-column>
-		</el-table>
+		<template v-if="canReadUser">
+			<el-form class="filters" label-position="top" @submit.prevent="loadUsers(1)">
+				<el-form-item :label="t('user.filter.keyword')">
+					<el-input v-model="keyword" clearable :placeholder="t('user.filter.keywordPlaceholder')" />
+				</el-form-item>
+				<el-form-item :label="t('table.status')">
+					<el-select v-model="statusFilter" clearable :placeholder="t('user.filter.allStatus')">
+						<el-option :label="t('user.status.active')" value="active" />
+						<el-option :label="t('user.status.disabled')" value="disabled" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('table.department')">
+					<el-select v-model="departmentFilter" clearable filterable :placeholder="t('user.filter.allDepartments')">
+						<el-option v-for="item in departments" :key="item.id" :label="item.name" :value="item.id" />
+					</el-select>
+				</el-form-item>
+				<el-form-item :label="t('table.position')">
+					<el-select v-model="positionFilter" clearable filterable :placeholder="t('user.filter.allPositions')">
+						<el-option v-for="item in positions" :key="item.id" :label="item.name" :value="item.id" />
+					</el-select>
+				</el-form-item>
+				<el-form-item class="filter-actions" :label="t('common.actions')">
+					<el-button type="primary" native-type="submit" :loading="loading" :disabled="operating">{{ t("common.refresh") }}</el-button>
+					<el-button :disabled="!hasActiveFilters" @click="resetFilters">{{ t("common.reset") }}</el-button>
+				</el-form-item>
+			</el-form>
+
+			<section v-if="canAssignRole" class="batch-bar">
+				<div>
+					<strong>{{ t("user.bulkAssign") }}</strong>
+					<p>{{ t("user.bulkAssignHint") }}</p>
+				</div>
+				<div class="batch-actions">
+					<el-select v-model="selectedRoleID" :disabled="loading || operating || roles.length === 0" class="role-select">
+						<el-option v-for="role in roles" :key="role.id" :value="role.id" :label="`${role.name} (${role.key || role.id})`" />
+					</el-select>
+					<el-button type="primary" :loading="operating" :disabled="loading || !hasSelectedRows || !selectedRoleID" @click="bulkAssignRole">{{ t("user.bulkAssign") }}</el-button>
+				</div>
+			</section>
+
+			<div class="table-shell">
+				<el-table
+					v-loading="loading"
+					:data="filteredRows"
+					border
+					row-key="id"
+					:empty-text="hasActiveFilters ? t('user.filter.empty') : t('common.empty')"
+					@selection-change="handleSelectionChange"
+				>
+					<el-table-column type="selection" width="48" :selectable="() => !operating" />
+					<el-table-column prop="id" :label="t('table.id')" min-width="180" show-overflow-tooltip />
+					<el-table-column :label="t('table.name')" min-width="160">
+						<template #default="{ row }">
+							<div class="user-cell">
+								<strong>{{ row.name || row.account }}</strong>
+								<small>{{ row.account }}</small>
+							</div>
+						</template>
+					</el-table-column>
+					<el-table-column prop="email" :label="t('table.email')" min-width="210" show-overflow-tooltip />
+					<el-table-column :label="t('table.department')" min-width="140" show-overflow-tooltip>
+						<template #default="{ row }">{{ labelByID(departments, row.departmentId) }}</template>
+					</el-table-column>
+					<el-table-column :label="t('table.position')" min-width="140" show-overflow-tooltip>
+						<template #default="{ row }">{{ labelByID(positions, row.positionId) }}</template>
+					</el-table-column>
+					<el-table-column :label="t('table.status')" width="120">
+						<template #default="{ row }">
+							<el-tag :type="row.status === 'active' ? 'success' : 'info'" effect="plain">{{ row.status || "-" }}</el-tag>
+						</template>
+					</el-table-column>
+					<el-table-column :label="t('table.actions')" width="170" fixed="right">
+						<template #default="{ row }">
+							<el-button v-if="canUpdateUser" link type="primary" tag="router-link" :to="{ name: 'user-edit', params: { id: row.id }, query: { returnTo } }">{{ t("common.edit") }}</el-button>
+							<el-button v-if="canDeleteUser" link type="danger" :disabled="operating || loading" @click="deleteUser(row.id)">{{ t("common.delete") }}</el-button>
+							<span v-if="!canUpdateUser && !canDeleteUser" class="muted">{{ t("user.noRowActions") }}</span>
+						</template>
+					</el-table-column>
+				</el-table>
+			</div>
+		</template>
 
 		<div class="pager">
 			<el-button :disabled="loading || operating || page <= 1" @click="prevPage">{{ t("common.prev") }}</el-button>
@@ -346,15 +446,92 @@ void loadOrganizationOptions();
 	justify-content: flex-end;
 }
 
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.summary-card {
+	display: grid;
+	gap: 4px;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-soft);
+}
+
+.summary-card span,
+.summary-card small,
+.batch-bar p,
+.user-cell small {
+	color: var(--color-text-muted);
+}
+
+.summary-card strong {
+	font-size: 1.35rem;
+}
+
+.filters {
+	display: grid;
+	grid-template-columns: minmax(180px, 1.2fr) repeat(3, minmax(150px, 1fr)) minmax(170px, auto);
+	gap: 12px;
+	align-items: end;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+}
+
+.filters :deep(.el-form-item) {
+	margin-bottom: 0;
+}
+
+.filters :deep(.el-select),
+.filters :deep(.el-input) {
+	width: 100%;
+}
+
+.filter-actions :deep(.el-form-item__content) {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
 .batch-bar {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	justify-content: flex-start;
+	justify-content: space-between;
+	padding: 12px 14px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface-soft);
+}
+
+.batch-bar p {
+	margin: 4px 0 0;
+}
+
+.batch-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	flex-wrap: wrap;
 }
 
 .role-select {
 	width: 260px;
+}
+
+.table-shell {
+	overflow-x: auto;
+}
+
+.user-cell {
+	display: grid;
+	gap: 2px;
 }
 
 .pager {
@@ -371,13 +548,29 @@ void loadOrganizationOptions();
 @media (max-width: 860px) {
 	.page-header,
 	.batch-bar,
+	.batch-actions,
 	.pager {
 		display: grid;
 		justify-content: stretch;
 	}
 
+	.summary-grid,
+	.filters {
+		grid-template-columns: 1fr;
+	}
+
 	.role-select {
 		width: 100%;
+	}
+}
+
+@media (min-width: 861px) and (max-width: 1180px) {
+	.summary-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.filters {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
 </style>
