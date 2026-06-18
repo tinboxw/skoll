@@ -1,7 +1,7 @@
 # Skoll 重构细粒度 Work Items
 
 > 执行规则: Work Item 是最小执行和提交单元。每完成一个 Work Item 并通过验收后，提交一次代码。  
-> 当前拆分范围: M0-M2 与 FE0-FE6。M3-M7 在 M2 验收完成后滚动拆分。
+> 当前拆分范围: M0-M2 与 FE0-FE6。M3-M7 在 M2 验收完成后滚动拆分；滚动拆分完成前，M3-M7 父任务只作为路线图，不作为直接执行单元。
 > 覆盖校验: M0-M2 每个父任务至少有一个 Work Item；当前校验结果为 M0-01 至 M0-05、M1-01 至 M1-10、M2-01 至 M2-06 均已覆盖。
 
 状态枚举:
@@ -42,7 +42,7 @@
 | 14 | M0-04-01 | M0-04 | `skoll-refactor-governance` | 校准父任务表状态枚举 | `task_board.md` | 状态枚举与 work item 状态一致 | 文档审阅 | Done |
 | 15 | M0-04-02 | M0-04 | `skoll-refactor-governance` | 校准父任务与 work item 关系 | `task_board.md`、`work_items.md` | task_board 是父任务，work_items 是最小提交单元 | `rg "Work Item\|最小执行" docs/refactor` | Done |
 | 16 | M0-04-03 | M0-04 | `skoll-refactor-governance` | 校准 M0-M2 Work Item 覆盖率 | `work_items.md` | M0、M1、M2 每个父任务至少有一个 work item | 文档审阅 | Done |
-| 17 | M0-04-04 | M0-04 | `skoll-refactor-governance` | 设置 M3-M7 滚动拆分规则 | `work_items.md` | 明确 M2 验收后再拆 M3-M7 | 文档审阅 | Todo |
+| 17 | M0-04-04 | M0-04 | `skoll-refactor-governance` | 设置 M3-M7 滚动拆分规则 | `work_items.md` | 明确 M2 验收后再拆 M3-M7 | 文档审阅 | Done |
 | 18 | M0-05-01 | M0-05 | `skoll-docs-writer` | 更新 `docs/refactor/README.md` 文档结构 | `README.md` | 列出 `work_items.md` | `rg "work_items.md" docs/refactor/README.md` | Todo |
 | 19 | M0-05-02 | M0-05 | `skoll-docs-writer` | 更新顶层 `docs/README.md` 当前入口 | `docs/README.md` | 当前执行入口包含 work items | `rg "work_items.md" docs/README.md` | Todo |
 | 20 | M0-05-03 | M0-05 | `skoll-docs-writer` | 校验旧计划文档归档 | `source_map.md` | 旧计划类文档在 legacy-plans 中，当前入口不引用其为执行源 | `Get-ChildItem docs/archive/legacy-plans` | Todo |
