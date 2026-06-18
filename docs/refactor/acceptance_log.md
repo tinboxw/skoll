@@ -3440,3 +3440,57 @@ npm run build
 ### 下一步
 
 - 进入 `M1-08-03`，新增 menu API client。
+
+## M1-08-03: 新增 menu API client
+
+- 状态: Passed
+- Work Item: M1-08-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/navigation/api.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 menu API client，覆盖 tree/save/reorder/visibility 接口。 |
+| API/OpenAPI 同步 | Passed | client 路径与 M1-06 menu API 契约一致。 |
+| 权限目录同步 | N/A | 本项为前端 client 封装，不改目录数据。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | Passed | 类型定义完整，统一复用 `utils/api` 错误处理。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 新增 registry menu client，未引入页面局部临时请求封装。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。build 仅输出既有 Sass legacy JS API 与 Rollup pure annotation 警告。
+
+### 人工验收
+
+1. 审阅 `web/src/navigation/api.ts`。
+2. 确认 tree/save/reorder/visibility 请求和响应类型清晰，menu tree 归一化逻辑覆盖子节点与权限字段。
+
+结果摘要: 通过。menu API client 已新增。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-08-04`，新增 menu store。

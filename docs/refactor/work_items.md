@@ -94,7 +94,7 @@
 | 61 | M1-07-05 | M1-07 | `skoll-plugin-platform` | 插件权限/菜单导入审计 | plugin/service tests | enable/disable 产生审计事件 | `go test ./internal/plugin/... ./internal/service/audit/...` | Done |
 | 62 | M1-08-01 | M1-08 | `skoll-vue-frontend` | 新增 permission API client | web client | 类型定义完整，错误处理统一 | `cd web && npm run build` | Done |
 | 63 | M1-08-02 | M1-08 | `skoll-vue-frontend` | 新增 permission store | Pinia store | 支持加载、失败、重试、缓存刷新 | `cd web && npm run build` | Done |
-| 64 | M1-08-03 | M1-08 | `skoll-vue-frontend` | 新增 menu API client | web client | tree/save/reorder 接口封装 | `cd web && npm run build` | Todo |
+| 64 | M1-08-03 | M1-08 | `skoll-vue-frontend` | 新增 menu API client | web client | tree/save/reorder 接口封装 | `cd web && npm run build` | Done |
 | 65 | M1-08-04 | M1-08 | `skoll-vue-frontend` | 新增 menu store | Pinia store | 侧栏优先使用 registry tree | `cd web && npm run build` | Todo |
 | 66 | M1-08-05 | M1-08 | `skoll-vue-frontend` | 统一 route guard 权限入口 | router/permissions | 静态、动态、插件页面同源判断 | `cd web && npm run build` | Todo |
 | 67 | M1-08-06 | M1-08 | `skoll-vue-frontend` | 统一按钮权限入口 | directive/utils | 按钮权限不再页面散落判断 | `cd web && npm run build` | Todo |
