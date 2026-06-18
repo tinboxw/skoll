@@ -2,8 +2,10 @@
 import { computed, onMounted, ref } from "vue";
 
 import SchemaForm from "../../components/Common/SchemaForm.vue";
+import StateBlock from "../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
+import { useButtonAccess } from "../../permissions/button";
 import type { PluginConfigSchema } from "../../plugins/types";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -34,6 +36,7 @@ function normalizeSettingRecord(item: unknown): SettingRecord | null {
 }
 
 const { t, locale } = useI18n();
+const buttonAccess = useButtonAccess();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -112,6 +115,12 @@ const groupedSettings = computed(() => {
 	return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
 });
 
+const canManageSettings = computed(() => buttonAccess.can("system.manage"));
+const settingCount = computed(() => allSettings.value.length);
+const namespaceCount = computed(() => groupedSettings.value.length);
+const encryptedCount = computed(() => allSettings.value.filter((item) => item.encrypted || isSensitiveSettingKey(item.key)).length);
+const schemaFieldCount = computed(() => systemConfigSchema.value.fields?.length ?? 0);
+const hasActiveSearch = computed(() => searchKey.value.trim() !== "");
 const busy = computed(() => loading.value || saving.value || resetting.value || schemaLoading.value);
 const schemaModel = computed(() => {
 	if (Object.keys(schemaDraft.value).length > 0) {
@@ -151,6 +160,15 @@ function serializeSettingValue(value: unknown): string {
 		return "";
 	}
 	return String(value);
+}
+
+function isSensitiveSettingKey(key: string): boolean {
+	const normalized = key.toLowerCase();
+	return ["password", "secret", "token", "credential", "private"].some((part) => normalized.includes(part));
+}
+
+function resetSearch(): void {
+	searchKey.value = "";
 }
 
 function normalizeSystemConfigSchema(schema: unknown): PluginConfigSchema | null {
@@ -339,6 +357,32 @@ onMounted(() => {
 		<el-alert v-if="error" :title="error" type="error" show-icon :closable="false" />
 		<el-alert v-if="success" :title="success" type="success" show-icon :closable="false" />
 
+		<StateBlock v-if="!canManageSettings" type="forbidden" :title="t('settings.noPermissionTitle')" :description="t('error.forbidden')" />
+
+		<template v-else>
+		<section class="summary-grid">
+			<article class="summary-card">
+				<span>{{ t("settings.summary.total") }}</span>
+				<strong>{{ settingCount }}</strong>
+				<small>{{ t("settings.summary.namespaces") }} {{ namespaceCount }}</small>
+			</article>
+			<article class="summary-card" :class="{ 'summary-card--warning': encryptedCount > 0 }">
+				<span>{{ t("settings.summary.sensitive") }}</span>
+				<strong>{{ encryptedCount }}</strong>
+				<small>{{ t("settings.auditHint") }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("settings.summary.schema") }}</span>
+				<strong>{{ schemaFieldCount }}</strong>
+				<small>{{ remoteSystemConfigSchema ? t("settings.summary.remoteSchema") : t("settings.summary.fallbackSchema") }}</small>
+			</article>
+			<article class="summary-card">
+				<span>{{ t("settings.summary.filtered") }}</span>
+				<strong>{{ filteredSettings.length }}</strong>
+				<small>{{ hasActiveSearch ? t("settings.summary.filterActive") : t("settings.summary.filterClear") }}</small>
+			</article>
+		</section>
+
 		<section class="panel">
 			<div class="section-header">
 				<div>
@@ -355,6 +399,8 @@ onMounted(() => {
 				@update:model-value="updateSchemaDraft"
 				@update:valid="updateSchemaValid"
 			/>
+			<StateBlock v-if="schemaFieldCount === 0" type="empty" :description="t('settings.schemaEmpty')" />
+			<el-alert type="info" show-icon :closable="false" :title="t('settings.auditHint')" />
 			<div class="form-actions">
 				<el-button type="primary" :loading="schemaSaving" :disabled="busy || !schemaValid" @click="saveSchemaSettings(schemaModel)">{{ t("common.save") }}</el-button>
 			</div>
@@ -381,7 +427,12 @@ onMounted(() => {
 
 		<section class="panel">
 			<h3>{{ t("settings.rawList") }}</h3>
-			<el-empty v-if="!loading && groupedSettings.length === 0" :description="t('common.empty')" />
+			<StateBlock v-if="!loading && groupedSettings.length === 0" type="empty" :description="hasActiveSearch ? t('settings.emptyFiltered') : t('common.empty')">
+				<template #actions>
+					<el-button v-if="hasActiveSearch" @click="resetSearch">{{ t("common.reset") }}</el-button>
+					<el-button :loading="loading" @click="loadSettings">{{ t("common.refresh") }}</el-button>
+				</template>
+			</StateBlock>
 			<div v-else class="group-list">
 				<section v-for="[groupName, items] in groupedSettings" :key="groupName" class="group-panel">
 					<div class="group-title">
@@ -394,7 +445,7 @@ onMounted(() => {
 						<el-table-column :label="t('table.status')" width="120">
 							<template #default="{ row }">
 								<el-tag :type="row.encrypted ? 'warning' : 'info'" effect="plain">
-									{{ row.encrypted ? t("settings.encrypted") : t("settings.plain") }}
+									{{ row.encrypted || isSensitiveSettingKey(row.key) ? t("settings.encrypted") : t("settings.plain") }}
 								</el-tag>
 							</template>
 						</el-table-column>
@@ -407,6 +458,7 @@ onMounted(() => {
 				</section>
 			</div>
 		</section>
+		</template>
 	</section>
 </template>
 
@@ -438,6 +490,42 @@ onMounted(() => {
 	display: flex;
 	align-items: center;
 	gap: 8px;
+}
+
+.summary-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.summary-card {
+	display: grid;
+	gap: 8px;
+	min-height: 112px;
+	padding: 16px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-surface);
+}
+
+.summary-card--warning {
+	border-color: var(--color-warning);
+	background: var(--color-warning-soft);
+}
+
+.summary-card span {
+	color: var(--color-text-muted);
+	font-size: 0.86rem;
+}
+
+.summary-card strong {
+	font-size: 1.7rem;
+	line-height: 1;
+	color: var(--color-primary-strong);
+}
+
+.summary-card small {
+	color: var(--color-text-muted);
 }
 
 .panel {
@@ -493,6 +581,10 @@ onMounted(() => {
 }
 
 @media (max-width: 820px) {
+	.summary-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
 	.page-header,
 	.section-header,
 	.header-actions,
@@ -507,6 +599,12 @@ onMounted(() => {
 
 	.form-actions {
 		justify-content: stretch;
+	}
+}
+
+@media (max-width: 560px) {
+	.summary-grid {
+		grid-template-columns: 1fr;
 	}
 }
 </style>

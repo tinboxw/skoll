@@ -8127,3 +8127,80 @@ npm run build
 ### 下一步
 
 - 进入 `FE3-08`，执行 Setting 页面体验升级。
+## FE3-08: Setting 页面体验升级
+
+- 状态: Passed
+- Work Item: FE3-08
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Setting/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Setting 页面新增无权限 StateBlock、摘要卡、敏感项统计、Schema 空态、筛选空态、审计提示和敏感 key 标识。 |
+| API/OpenAPI 同步 | N/A | 本项不改 system settings list/get/put/reset/schema API 契约。 |
+| 权限目录同步 | Passed | 复用现有 `system.manage` 权限 key，不新增权限目录项。 |
+| 审计 action 同步 | N/A | 本项不新增后端审计 action；页面新增审计提示，提醒保存/重置应进入审计链路。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 继续复用 settings API、SchemaForm、confirmAction 和 `toErrorMessage`；保存、重置、读取成功/失败状态可见。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/setting` 当前路由，不新增兼容入口。 |
+
+### 自动化验证
+
+```powershell
+rg -n "StateBlock|canManageSettings|summary-grid|encryptedCount|schemaFieldCount|isSensitiveSettingKey|resetSearch|settings.summary|settings.auditHint|settings.noPermissionTitle|settings.emptyFiltered|SchemaForm|confirmAction" web/src/views/Setting/index.vue web/src/i18n/index.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。关键 UI/权限/状态/SchemaForm/危险确认锚点均存在；返工后前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可用 in-app browser 工具；bundled Playwright 运行时仍缺少 `playwright-core`，无法完成截图或真实点击 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 `/skoll/setting` 的默认、搜索空态、SchemaForm 保存、raw editor 保存、重置确认、无权限和窄屏路径。
+
+### Performance Hook
+
+- Page/route: Setting，`/skoll/setting`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus、StateBlock、SchemaForm、confirmAction 和现有 API wrapper。
+- Route lazy loading: Passed，router 中通过 `const SettingPage = () => import("../views/Setting/index.vue")` 动态导入。
+- Heavy table risk: 当前 settings list 以 `limit=500` 获取后按 namespace 分组展示；本次未新增额外全量请求。
+- Request behavior: 首屏仍为 schema 与 settings 两类请求；SchemaForm 保存按字段逐项写入，后续可在后端支持后升级为批量保存。
+- Loading behavior: schema loading、settings loading、saving、resetting 均保留禁用与错误反馈。
+- Deferred panels: N/A，页面无日志/详情重面板；raw list 在同页按搜索过滤。
+- Narrow viewport: 摘要卡在 820px/560px 折叠；编辑表单在窄屏单列化；表格保留横向处理。
+- Follow-up: 若配置项数量继续增长，应把 raw list 升级为服务端分页，并增加批量保存 API 减少多字段写入请求。
+
+### 人工验收
+
+1. 对照 `fe3_page_acceptance_map.md`，确认 Setting 覆盖 SchemaForm、raw editor、敏感项、保存反馈、重置确认和权限状态。
+2. 对照 `web/src/views/Setting/index.vue`，确认缺少 `system.manage` 时显示 forbidden StateBlock。
+3. 确认重置仍使用 `confirmAction`，不会绕过危险确认。
+4. 确认保存和重置区域均有审计提示，敏感配置通过 encrypted 或敏感 key 规则可见。
+
+结果摘要: 通过。Setting 页面已满足 FE3-08 对 SchemaForm、分组、敏感项、保存反馈和审计提示清晰度的要求。
+
+### 失败与返工
+
+- 失败原因: 首次 typecheck 发现 `BUTTON_ACCESS.systemManage` 不存在。
+- 返工动作: 改为复用现有模式 `buttonAccess.can("system.manage")`，并重跑 typecheck/build。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `FE3-09`，执行核心页面状态验收。
