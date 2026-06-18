@@ -4360,3 +4360,57 @@ rg -n "type Event struct|ActorRef|ResourceRef|TraceContext|EventResult|EventRisk
 ### 下一步
 
 - 进入 `M2-01-04`，补审计 action catalog 文档。
+
+## M2-01-04: 补审计 action catalog 文档
+
+- 状态: Passed
+- Work Item: M2-01-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/audit/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 包内 README 新增 action catalog，覆盖 user/role/rbac/plugin/menu/file/system。 |
+| API/OpenAPI 同步 | N/A | 本项只补领域包文档，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | 文档列出首版 action、EventType、Result、Risk 与触发场景。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 文档明确新增 action 先进入 catalog，再迁移写入路径，不保留旧命名作为新增规范。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Action Catalog|user\\.account|role\\.role|rbac\\.role|plugin\\.lifecycle|menu\\.node|file\\.object|system\\.setting|system\\.dictionary|system\\.security|auth\\.session|error\\.request" internal/domain/audit/README.md
+go test ./internal/domain/audit/...
+```
+
+结果摘要: 通过。文档覆盖指定模块，登录和错误事件也已列入补充 catalog；audit domain 测试保持通过。
+
+### 人工验收
+
+1. 审阅 `internal/domain/audit/README.md` 的 Action Catalog。
+2. 确认 user/role/rbac/plugin/menu/file/system 七类模块均有 action 示例。
+3. 确认 action 仍符合 M2-01-02 的 `module.resource.action` 命名规则。
+
+结果摘要: 通过。审计 action catalog 文档已补齐。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M2-02-01`，定义 LoginLog 模型。

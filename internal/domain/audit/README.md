@@ -38,6 +38,45 @@
 
 旧式 action（例如 `login_failed`、`plugin_catalog_import`、`update_email`）不再作为新增审计 action 使用。后续 M2 任务会把分散写入点迁移到统一命名。
 
+## Action Catalog
+
+首版 action catalog 覆盖 M2 需要迁移的核心模块。新增 action 先进入本表，再接入 service/middleware 写入路径。
+
+| 模块 | Action | EventType | Result | Risk | 触发场景 |
+|---|---|---|---|---|---|
+| user | `user.account.create` | `operation` | `success`/`failure` | `medium` | 创建用户账号 |
+| user | `user.account.update` | `operation` | `success`/`failure` | `medium` | 更新用户资料、邮箱或状态 |
+| user | `user.account.disable` | `operation` | `success`/`failure` | `high` | 禁用用户 |
+| role | `role.role.create` | `operation` | `success`/`failure` | `medium` | 创建角色 |
+| role | `role.role.update` | `operation` | `success`/`failure` | `medium` | 更新角色信息 |
+| role | `role.role.delete` | `operation` | `success`/`failure` | `high` | 删除角色 |
+| rbac | `rbac.role.grant` | `security` | `success`/`failure` | `high` | 给角色授予权限 |
+| rbac | `rbac.role.revoke` | `security` | `success`/`failure` | `high` | 撤销角色权限 |
+| rbac | `rbac.policy.update` | `security` | `success`/`failure` | `high` | 更新角色策略 |
+| plugin | `plugin.lifecycle.install` | `plugin` | `success`/`failure` | `high` | 安装插件 |
+| plugin | `plugin.lifecycle.enable` | `plugin` | `success`/`failure` | `high` | 启用插件 |
+| plugin | `plugin.lifecycle.disable` | `plugin` | `success`/`failure` | `high` | 禁用插件 |
+| plugin | `plugin.release.rollout` | `plugin` | `success`/`failure` | `critical` | 插件灰度发布 |
+| plugin | `plugin.release.rollback` | `plugin` | `success`/`failure` | `critical` | 插件回滚 |
+| menu | `menu.node.create` | `operation` | `success`/`failure` | `medium` | 新增菜单节点 |
+| menu | `menu.node.update` | `operation` | `success`/`failure` | `medium` | 保存、排序、显隐菜单节点 |
+| menu | `menu.node.delete` | `operation` | `success`/`failure` | `medium` | 删除菜单节点 |
+| file | `file.object.upload` | `operation` | `success`/`failure` | `medium` | 上传文件对象 |
+| file | `file.object.download` | `operation` | `success`/`failure` | `low` | 下载文件对象 |
+| file | `file.object.delete` | `operation` | `success`/`failure` | `high` | 删除文件对象 |
+| system | `system.setting.update` | `operation` | `success`/`failure` | `high` | 更新系统设置 |
+| system | `system.dictionary.update` | `operation` | `success`/`failure` | `medium` | 更新字典项 |
+| system | `system.security.deny` | `security` | `denied` | `high` | 权限拒绝、签名失败或风险配置拒绝 |
+
+登录和错误事件使用独立模块：
+
+| 模块 | Action | EventType | Result | Risk | 触发场景 |
+|---|---|---|---|---|---|
+| auth | `auth.session.login` | `login` | `success` | `low` | 登录成功 |
+| auth | `auth.session.login_failed` | `login` | `failure` | `medium` | 登录失败 |
+| error | `error.request.handled` | `error` | `failure` | `medium` | handler 返回可捕获错误 |
+| error | `error.request.panic` | `error` | `failure` | `critical` | panic 或未处理错误 |
+
 ## 文件组织规范
 
 - `entity.go` 保留当前 `Record` 实体，后续统一事件结构按独立文件补充。
