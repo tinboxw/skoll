@@ -102,6 +102,9 @@ frontend_entry: "/plugins/sample-plugin"
 	if len(info.Permissions) != 2 {
 		t.Fatalf("unexpected permissions: %+v", info.Permissions)
 	}
+	if len(info.PermissionResources) != 2 || info.PermissionResources[0].Key != "user:read" || info.PermissionResources[0].Type != "api" {
+		t.Fatalf("unexpected permission resources: %+v", info.PermissionResources)
+	}
 	if info.UIMode != UIModeSeparated {
 		t.Fatalf("unexpected ui mode: %s", info.UIMode)
 	}
@@ -149,6 +152,84 @@ frontend_entry: "/plugins/sample-plugin"
 	}
 	if info.ConfigSchema.Fields[1].Key != "report.enabled" || info.ConfigSchema.Fields[1].Type != "boolean" {
 		t.Fatalf("unexpected config schema second field: %+v", info.ConfigSchema.Fields[1])
+	}
+}
+
+func TestFileLoaderLoadStructuredPermissions(t *testing.T) {
+	dir := t.TempDir()
+	manifest := `id: "report-plugin"
+name: "Report Plugin"
+version: "1.0.0"
+permissions:
+  - key: "report.read"
+    type: "api"
+    module: "report"
+    name: "Read reports"
+    risk: "medium"
+    metadata.owner: "analytics"
+  - key: "report.export"
+    type: "button"
+    module: "report"
+    name: "Export reports"
+`
+
+	path := filepath.Join(dir, "plugin.yaml")
+	if err := os.WriteFile(path, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	info, err := NewFileLoader().Load(dir)
+	if err != nil {
+		t.Fatalf("loader.Load error: %v", err)
+	}
+	if len(info.Permissions) != 2 || info.Permissions[0] != "report.read" || info.Permissions[1] != "report.export" {
+		t.Fatalf("unexpected permissions: %+v", info.Permissions)
+	}
+	if len(info.PermissionResources) != 2 {
+		t.Fatalf("unexpected permission resources: %+v", info.PermissionResources)
+	}
+	first := info.PermissionResources[0]
+	if first.Key != "report.read" || first.Type != "api" || first.Module != "report" || first.Name != "Read reports" || first.Risk != "medium" {
+		t.Fatalf("unexpected first permission resource: %+v", first)
+	}
+	if first.Metadata["owner"] != "analytics" {
+		t.Fatalf("unexpected permission metadata: %+v", first.Metadata)
+	}
+	second := info.PermissionResources[1]
+	if second.Type != "button" || second.Risk != "low" {
+		t.Fatalf("expected default risk on second resource, got %+v", second)
+	}
+}
+
+func TestFileLoaderRejectsInvalidPermissions(t *testing.T) {
+	cases := map[string]string{
+		"blank key": `permissions:
+  - ""
+`,
+		"duplicate key": `permissions:
+  - "report.read"
+  - key: "report.read"
+`,
+		"invalid type": `permissions:
+  - key: "report.read"
+    type: "legacy"
+`,
+	}
+
+	for name, permissionsBlock := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			manifest := `id: "bad-plugin"
+name: "Bad Plugin"
+version: "1.0.0"
+` + permissionsBlock
+			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+				t.Fatalf("write manifest: %v", err)
+			}
+			if _, err := NewFileLoader().Load(dir); err == nil {
+				t.Fatal("expected manifest validation error")
+			}
+		})
 	}
 }
 

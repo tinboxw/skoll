@@ -3053,3 +3053,60 @@ $env:CGO_ENABLED='0'; go test ./internal/bootstrap/...
 ### 下一步
 
 - 进入 `M1-07-01`，扩展 plugin manifest permission 字段读取。
+
+## M1-07-01: 扩展 plugin manifest permission 字段读取
+
+- 状态: Passed
+- Work Item: M1-07-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/plugin/loader.go`
+- `internal/plugin/loader_test.go`
+- `internal/plugin/types.go`
+- `internal/plugin/types_test.go`
+- `internal/plugin/signature.go`
+- `docs/schemas/plugin-manifest.schema.json`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | plugin manifest 支持字符串与结构化 permission 声明读取。 |
+| API/OpenAPI 同步 | N/A | 本项未改 HTTP API。 |
+| 权限目录同步 | Passed | 结构化声明保留 key/type/module/name/risk/metadata，后续可导入 catalog。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项仅扩展 manifest parser。 |
+| 文档同步 | Passed | manifest JSON schema 与 Work Item 状态已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 旧字符串权限会归一为结构化声明，并走同一套严格校验。 |
+
+### 自动化验证
+
+```powershell
+$env:CGO_ENABLED='0'; go test ./internal/plugin/...
+```
+
+结果摘要: 通过。
+
+### 人工验收
+
+1. 审阅 `internal/plugin/loader.go` 和 `internal/plugin/types.go`。
+2. 确认空权限 key、重复 key、非法 type/risk 都会被拒绝，字符串权限不会绕过校验。
+
+结果摘要: 通过。plugin manifest permission 字段读取已扩展。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M1-07-02`，扩展 plugin manifest menu 字段读取。

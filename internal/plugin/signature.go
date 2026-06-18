@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -307,7 +308,35 @@ func (sc *SignatureChecker) canonicalManifestBytes(info *Info) []byte {
 			buf.WriteString("\n")
 		}
 	}
-	if len(info.Permissions) > 0 {
+	if len(info.PermissionResources) > 0 {
+		buf.WriteString("permissions:\n")
+		for _, perm := range info.PermissionResources {
+			buf.WriteString("  - key: " + strings.TrimSpace(perm.Key) + "\n")
+			if perm.Type != "" {
+				buf.WriteString("    type: " + strings.TrimSpace(perm.Type) + "\n")
+			}
+			if perm.Module != "" {
+				buf.WriteString("    module: " + strings.TrimSpace(perm.Module) + "\n")
+			}
+			if perm.Name != "" {
+				buf.WriteString("    name: " + strings.TrimSpace(perm.Name) + "\n")
+			}
+			if perm.Risk != "" {
+				buf.WriteString("    risk: " + strings.TrimSpace(perm.Risk) + "\n")
+			}
+			if len(perm.Metadata) > 0 {
+				keys := make([]string, 0, len(perm.Metadata))
+				for key := range perm.Metadata {
+					keys = append(keys, key)
+				}
+				sort.Strings(keys)
+				for _, key := range keys {
+					value := perm.Metadata[key]
+					buf.WriteString("    metadata." + strings.TrimSpace(key) + ": " + strings.TrimSpace(value) + "\n")
+				}
+			}
+		}
+	} else if len(info.Permissions) > 0 {
 		buf.WriteString("permissions:\n")
 		for _, perm := range info.Permissions {
 			buf.WriteString("  - " + perm + "\n")

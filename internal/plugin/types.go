@@ -83,6 +83,8 @@ var appIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
 var apiVersionPattern = regexp.MustCompile(`^v[0-9]+$`)
 var migrationVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
 var localePattern = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
+var permissionKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_:.\-]{1,127}$`)
+var permissionModulePattern = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{0,63}$`)
 
 type SignatureAlgorithm string
 
@@ -142,40 +144,50 @@ type ConfigOption struct {
 	Value     string
 }
 
+type PermissionDeclaration struct {
+	Key      string
+	Type     string
+	Module   string
+	Name     string
+	Risk     string
+	Metadata map[string]string
+}
+
 type Info struct {
-	ID                 string
-	Name               string
-	NameZhCN           string
-	NameEnUS           string
-	Version            string
-	APIVersion         string
-	CompatibilitySkoll string
-	ServiceBaseURL     string
-	ServiceHealthURL   string
-	MigrationVersion   string
-	Description        string
-	ConfigJSON         string
-	Dependencies       []Dependency
-	Permissions        []string
-	State              State
-	InstalledAt        time.Time
-	EnabledAt          *time.Time
-	Source             string
-	UIMode             UIMode
-	Level              Level
-	AppID              string
-	MountPolicy        MountPolicy
-	FrontendEntry      string
-	UINavPosition      UINavPosition
-	UIOpenMode         UIOpenMode
-	UITabMode          UITabMode
-	I18nLocales        []string
-	UIMenu             *UIMenu
-	ConfigSchema       *ConfigSchema
-	SystemBuiltin      bool
-	Vendor             string
-	VendorURL          string
-	Signature          *Signature
+	ID                  string
+	Name                string
+	NameZhCN            string
+	NameEnUS            string
+	Version             string
+	APIVersion          string
+	CompatibilitySkoll  string
+	ServiceBaseURL      string
+	ServiceHealthURL    string
+	MigrationVersion    string
+	Description         string
+	ConfigJSON          string
+	Dependencies        []Dependency
+	Permissions         []string
+	PermissionResources []PermissionDeclaration
+	State               State
+	InstalledAt         time.Time
+	EnabledAt           *time.Time
+	Source              string
+	UIMode              UIMode
+	Level               Level
+	AppID               string
+	MountPolicy         MountPolicy
+	FrontendEntry       string
+	UINavPosition       UINavPosition
+	UIOpenMode          UIOpenMode
+	UITabMode           UITabMode
+	I18nLocales         []string
+	UIMenu              *UIMenu
+	ConfigSchema        *ConfigSchema
+	SystemBuiltin       bool
+	Vendor              string
+	VendorURL           string
+	Signature           *Signature
 }
 
 func (i Info) ValidateManifest() error {
@@ -202,6 +214,9 @@ func (i Info) ValidateManifest() error {
 		if dep.ID == "" {
 			return ErrPluginManifestBroken
 		}
+	}
+	if err := validatePermissionDeclarations(i.Permissions, i.PermissionResources); err != nil {
+		return err
 	}
 
 	mode := i.UIMode
@@ -361,6 +376,55 @@ func (i Info) ValidateManifest() error {
 		}
 	}
 
+	return nil
+}
+
+func validatePermissionDeclarations(keys []string, declarations []PermissionDeclaration) error {
+	seen := map[string]struct{}{}
+	if len(declarations) > 0 {
+		for _, declaration := range declarations {
+			key := strings.TrimSpace(strings.ToLower(declaration.Key))
+			if !permissionKeyPattern.MatchString(key) {
+				return ErrPluginManifestBroken
+			}
+			if _, ok := seen[key]; ok {
+				return ErrPluginManifestBroken
+			}
+			seen[key] = struct{}{}
+			resourceType := strings.TrimSpace(strings.ToLower(declaration.Type))
+			switch resourceType {
+			case "", "api", "menu", "button", "data_scope", "plugin":
+			default:
+				return ErrPluginManifestBroken
+			}
+			module := strings.TrimSpace(strings.ToLower(declaration.Module))
+			if module != "" && !permissionModulePattern.MatchString(module) {
+				return ErrPluginManifestBroken
+			}
+			risk := strings.TrimSpace(strings.ToLower(declaration.Risk))
+			switch risk {
+			case "", "low", "medium", "high", "critical":
+			default:
+				return ErrPluginManifestBroken
+			}
+			for metadataKey := range declaration.Metadata {
+				if strings.TrimSpace(metadataKey) == "" {
+					return ErrPluginManifestBroken
+				}
+			}
+		}
+		return nil
+	}
+	for _, key := range keys {
+		normalized := strings.TrimSpace(strings.ToLower(key))
+		if !permissionKeyPattern.MatchString(normalized) {
+			return ErrPluginManifestBroken
+		}
+		if _, ok := seen[normalized]; ok {
+			return ErrPluginManifestBroken
+		}
+		seen[normalized] = struct{}{}
+	}
 	return nil
 }
 

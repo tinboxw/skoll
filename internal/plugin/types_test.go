@@ -202,3 +202,36 @@ func TestInfoValidateManifestUIMenu(t *testing.T) {
 		t.Fatalf("expected validation error for blank ui menu permission")
 	}
 }
+
+func TestInfoValidateManifestPermissions(t *testing.T) {
+	valid := Info{
+		ID:          "report-plugin",
+		Name:        "Report Plugin",
+		Version:     "1.0.0",
+		Permissions: []string{"report.read"},
+		PermissionResources: []PermissionDeclaration{
+			{Key: "report.read", Type: "api", Module: "report", Name: "Read reports", Risk: "low"},
+		},
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid permissions, got %v", err)
+	}
+
+	invalidKey := valid
+	invalidKey.PermissionResources = []PermissionDeclaration{{Key: "", Type: "api"}}
+	if err := invalidKey.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for blank permission key")
+	}
+
+	duplicate := valid
+	duplicate.PermissionResources = []PermissionDeclaration{{Key: "report.read"}, {Key: "report.read"}}
+	if err := duplicate.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for duplicate permission key")
+	}
+
+	invalidRisk := valid
+	invalidRisk.PermissionResources = []PermissionDeclaration{{Key: "report.read", Risk: "warning"}}
+	if err := invalidRisk.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for invalid permission risk")
+	}
+}

@@ -83,8 +83,24 @@ func parseManifest(raw []byte) (Info, error) {
 
 	section := sectionRoot
 	var currentDep *Dependency
+	var currentPermission *PermissionDeclaration
 	var currentConfigField *ConfigField
 	var currentConfigOption *ConfigOption
+
+	flushPermission := func() {
+		if currentPermission == nil {
+			return
+		}
+		info.PermissionResources = append(info.PermissionResources, *currentPermission)
+		currentPermission = nil
+	}
+	flushDependency := func() {
+		if currentDep == nil {
+			return
+		}
+		info.Dependencies = append(info.Dependencies, *currentDep)
+		currentDep = nil
+	}
 
 	scanner := bufio.NewScanner(strings.NewReader(string(raw)))
 	for scanner.Scan() {
@@ -97,31 +113,23 @@ func parseManifest(raw []byte) (Info, error) {
 
 		switch line {
 		case "dependencies:":
-			if currentDep != nil {
-				info.Dependencies = append(info.Dependencies, *currentDep)
-				currentDep = nil
-			}
+			flushDependency()
+			flushPermission()
 			section = sectionDeps
 			continue
 		case "permissions:":
-			if currentDep != nil {
-				info.Dependencies = append(info.Dependencies, *currentDep)
-				currentDep = nil
-			}
+			flushDependency()
+			flushPermission()
 			section = sectionPerm
 			continue
 		case "i18n_locales:":
-			if currentDep != nil {
-				info.Dependencies = append(info.Dependencies, *currentDep)
-				currentDep = nil
-			}
+			flushDependency()
+			flushPermission()
 			section = sectionI18n
 			continue
 		case "ui_menu:":
-			if currentDep != nil {
-				info.Dependencies = append(info.Dependencies, *currentDep)
-				currentDep = nil
-			}
+			flushDependency()
+			flushPermission()
 			if currentConfigOption != nil {
 				currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
 				currentConfigOption = nil
@@ -136,10 +144,8 @@ func parseManifest(raw []byte) (Info, error) {
 			section = sectionUIMenu
 			continue
 		case "config_schema:":
-			if currentDep != nil {
-				info.Dependencies = append(info.Dependencies, *currentDep)
-				currentDep = nil
-			}
+			flushDependency()
+			flushPermission()
 			if currentConfigOption != nil {
 				currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
 				currentConfigOption = nil
@@ -169,7 +175,12 @@ func parseManifest(raw []byte) (Info, error) {
 					currentDep.ID = parseScalar(item)
 				}
 			case sectionPerm:
-				info.Permissions = append(info.Permissions, parseScalar(item))
+				flushPermission()
+				if strings.HasPrefix(item, "key:") {
+					currentPermission = &PermissionDeclaration{Key: parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "key:")))}
+				} else {
+					appendPermissionDeclaration(&info, PermissionDeclaration{Key: parseScalar(item)})
+				}
 			case sectionI18n:
 				info.I18nLocales = append(info.I18nLocales, parseScalar(item))
 			case sectionUIMenuRoles:
@@ -233,6 +244,15 @@ func parseManifest(raw []byte) (Info, error) {
 
 		key = strings.TrimSpace(key)
 		value = parseScalar(strings.TrimSpace(value))
+		if section == sectionPerm {
+			if !isTopLevel && applyPermissionField(currentPermission, key, value) {
+				continue
+			}
+			if isTopLevel {
+				flushPermission()
+				section = sectionRoot
+			}
+		}
 		if section == sectionUIMenu || section == sectionUIMenuRoles || section == sectionUIMenuPermissions {
 			if !isTopLevel && applyUIMenuField(info.UIMenu, key, value, &section) {
 				continue
@@ -354,9 +374,8 @@ func parseManifest(raw []byte) (Info, error) {
 		return Info{}, fmt.Errorf("scan manifest: %w", err)
 	}
 
-	if currentDep != nil {
-		info.Dependencies = append(info.Dependencies, *currentDep)
-	}
+	flushDependency()
+	flushPermission()
 	if currentConfigOption != nil && currentConfigField != nil {
 		currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
 	}
@@ -390,9 +409,104 @@ func parseManifest(raw []byte) (Info, error) {
 	if info.UIMode != UIModeBackendOnly && len(info.I18nLocales) == 0 {
 		info.I18nLocales = []string{"zh-CN", "en-US"}
 	}
+	normalizePermissionDeclarations(&info)
 	info.FrontendEntry = ResolveFrontendEntry(info)
 
 	return info, nil
+}
+
+func appendPermissionDeclaration(info *Info, declaration PermissionDeclaration) {
+	if info == nil {
+		return
+	}
+	declaration = normalizePermissionDeclaration(declaration)
+	info.PermissionResources = append(info.PermissionResources, declaration)
+	info.Permissions = append(info.Permissions, declaration.Key)
+}
+
+func applyPermissionField(declaration *PermissionDeclaration, key, value string) bool {
+	if declaration == nil {
+		return false
+	}
+	switch key {
+	case "key":
+		declaration.Key = value
+	case "type":
+		declaration.Type = value
+	case "module":
+		declaration.Module = value
+	case "name":
+		declaration.Name = value
+	case "risk":
+		declaration.Risk = value
+	default:
+		if strings.HasPrefix(key, "metadata.") {
+			if declaration.Metadata == nil {
+				declaration.Metadata = map[string]string{}
+			}
+			declaration.Metadata[strings.TrimPrefix(key, "metadata.")] = value
+			return true
+		}
+		return false
+	}
+	return true
+}
+
+func normalizePermissionDeclarations(info *Info) {
+	if info == nil {
+		return
+	}
+	out := make([]PermissionDeclaration, 0, len(info.PermissionResources))
+	keys := make([]string, 0, len(info.PermissionResources))
+	for _, declaration := range info.PermissionResources {
+		normalized := normalizePermissionDeclaration(declaration)
+		if normalized.Key == "" {
+			out = append(out, normalized)
+			continue
+		}
+		out = append(out, normalized)
+		keys = append(keys, normalized.Key)
+	}
+	info.PermissionResources = out
+	info.Permissions = keys
+}
+
+func normalizePermissionDeclaration(declaration PermissionDeclaration) PermissionDeclaration {
+	declaration.Key = strings.TrimSpace(strings.ToLower(declaration.Key))
+	declaration.Type = strings.TrimSpace(strings.ToLower(declaration.Type))
+	if declaration.Type == "" {
+		declaration.Type = "api"
+	}
+	declaration.Module = strings.TrimSpace(strings.ToLower(declaration.Module))
+	if declaration.Module == "" {
+		declaration.Module = inferPermissionModule(declaration.Key)
+	}
+	declaration.Name = strings.TrimSpace(declaration.Name)
+	if declaration.Name == "" {
+		declaration.Name = declaration.Key
+	}
+	declaration.Risk = strings.TrimSpace(strings.ToLower(declaration.Risk))
+	if declaration.Risk == "" {
+		declaration.Risk = "low"
+	}
+	if len(declaration.Metadata) > 0 {
+		metadata := make(map[string]string, len(declaration.Metadata))
+		for key, value := range declaration.Metadata {
+			metadata[strings.TrimSpace(strings.ToLower(key))] = strings.TrimSpace(value)
+		}
+		declaration.Metadata = metadata
+	}
+	return declaration
+}
+
+func inferPermissionModule(key string) string {
+	key = strings.TrimSpace(strings.ToLower(key))
+	for _, sep := range []string{".", ":", "_", "-"} {
+		if idx := strings.Index(key, sep); idx > 0 {
+			return key[:idx]
+		}
+	}
+	return "plugin"
 }
 
 func applyConfigSchemaField(schema *ConfigSchema, field *ConfigField, option *ConfigOption, key, value string, section *string) bool {
