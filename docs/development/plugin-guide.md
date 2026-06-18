@@ -129,6 +129,13 @@ i18n_locales:               # 非 backend_only 必须声明
 permissions:
   - menu.read
   - route.read
+  - key: demo.report.export
+    type: api
+    module: demo
+    name: "Export demo reports"
+    risk: medium
+    metadata:
+      routes: "POST /v1/plugins/demo/reports/export"
 dependencies:               # 可选，声明依赖其他插件
   - id: auth
     version: ">=1.0.0"
@@ -141,13 +148,37 @@ dependencies:               # 可选，声明依赖其他插件
 - **ui_open_mode=standalone** 时：`ui_nav_position` 必须为 `none`，`ui_tab_mode` 必须为 `disabled`
 - **ui_menu.path**：若声明必须以 `/` 开头；当前前端支持 `dashboard/users/roles/permissions/audit/plugins/settings` 图标名，未知图标会回退为 `plugins`
 - **ui_menu.required_permissions / required_roles**：用于前端菜单可见性过滤，并会继承到集成式插件前端路由守卫；后端 API 仍必须独立做权限校验兜底
+- **permissions**：可写字符串或对象。字符串会使用该值作为权限 key；对象可声明 `key`、`type`、`module`、`name`、`risk`、`metadata`
 - **config_schema.fields**：用于插件配置面板的结构化表单渲染；当前支持 `string`、`textarea`、`number`、`boolean`、`select`
 - **config_schema.fields[].key**：必须唯一，保存时作为配置 JSON 的字段名；`select` 类型必须提供至少一个 `options`
 - **config_schema 字段校验**：支持 `required`、`min`、`max`、`min_length`、`max_length`、`pattern`；前端会实时校验并阻止保存无效配置
 - **level=app** 时：必须提供 `app_id`，且 `app_id` 不能为 `skoll`
 - **level=system** 时：不能设置 `app_id`
 
-### 3.4 Manifest 校验
+### 3.4 权限目录与菜单 Registry
+
+插件启用后，Skoll 会把 manifest 中的权限与菜单导入 M1 的统一目录：
+
+| Manifest 字段 | 导入目标 | 来源 |
+|---|---|---|
+| `permissions` | Permission Catalog | `plugin.<plugin_id>` |
+| `ui_menu` | Menu Registry | `plugin.<plugin_id>` |
+
+权限 key 必须使用小写、稳定、可授权的业务语义，匹配 `^[a-z][a-z0-9_:.\-]{1,127}$`。推荐按 `<module>.<action>` 或 `<module>:<resource>:<action>` 命名，例如 `demo.report.read`、`demo:report:export`。不要把显示文案、路由路径或临时实验名写进权限 key。
+
+菜单 key 必须匹配 `^[a-z][a-z0-9_.\-]{1,127}$`。未声明 `ui_menu.key` 时，默认使用 `plugin.<plugin_id>`；未声明 `ui_menu.path` 时，默认使用插件前端入口。`ui_menu.required_permissions` 应引用同一份 `permissions` 中声明过、或由系统提供的权限 key。
+
+插件生命周期对目录的影响：
+
+| 操作 | Permission Catalog | Menu Registry |
+|---|---|---|
+| Enable | 导入或更新插件权限，并设为 enabled | 导入或更新插件菜单 |
+| Disable | 保留权限但设为 disabled | 保留菜单但设为不可见 |
+| Uninstall | 移除该插件来源的权限 | 移除该插件来源的菜单 |
+
+插件后端仍必须在自己的 API handler 或 service 中校验权限。菜单显隐和路由守卫只负责前端入口一致性，不能作为后端安全边界。
+
+### 3.5 Manifest 校验
 
 ```bash
 # 单插件校验（CLI 工具）

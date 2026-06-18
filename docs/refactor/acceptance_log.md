@@ -4064,3 +4064,58 @@ npm run smoke:m1-permissions
 ### 下一步
 
 - 进入 `M1-10-03`，更新权限与菜单架构文档。
+
+## M1-10-03: 更新权限与菜单架构文档
+
+- 状态: Passed
+- Work Item: M1-10-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/architecture/rbac.md`
+- `docs/development/plugin-guide.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | RBAC 架构文档新增 M1 Permission Catalog 与 Menu Registry 章节，插件指南补充 manifest 导入规则。 |
+| API/OpenAPI 同步 | N/A | 本项只更新架构和开发文档，不改 HTTP API。 |
+| 权限目录同步 | Passed | 文档说明权限命名、字段、系统 seed、插件权限 source 与启用/禁用行为。 |
+| 审计 action 同步 | N/A | 本项未新增审计 action。 |
+| migration/seed 同步 | N/A | 本项未改数据库结构或 seed 代码。 |
+| 前端 API client/UI 同步 | Passed | 文档说明前端路由、按钮、侧栏统一入口，以及菜单 registry API。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 文档将 `/v1/menus/*` 标为 M1 菜单 registry canonical 入口，未引入旧菜单复制路径。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Permission Catalog|Menu Registry|permission.manage|menu.read|menu.manage|plugin\\.<plugin_id>|required_permissions|canAccessRoute|canUseButton" docs/architecture/rbac.md docs/development/plugin-guide.md
+rg -n "/v1/menus/tree|/v1/menus/reorder|/v1/menus/visibility|permissions|ui_menu" docs/architecture/rbac.md docs/development/plugin-guide.md
+```
+
+结果摘要: 通过。关键说明可检索，覆盖 catalog/registry、权限命名、菜单来源、插件导入和前端统一入口。
+
+### 人工验收
+
+1. 审阅 `docs/architecture/rbac.md` 第 9 节。
+2. 审阅 `docs/development/plugin-guide.md` 的 manifest 示例和“权限目录与菜单 Registry”小节。
+3. 确认说明未承诺未实现能力，且与当前 M1 代码行为一致。
+
+结果摘要: 通过。权限与菜单架构文档已补齐。
+
+### 失败与返工
+
+- 失败原因: 首次审阅发现插件指南正则在 Markdown 语境中过度转义。
+- 返工动作: 将权限 key 与菜单 key 正则改为单层转义，和架构文档保持一致。
+- 重新验收结果: Passed
+
+### 下一步
+
+- 进入 `M1-10-04`，编写 M1 里程碑验收记录。

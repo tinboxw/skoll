@@ -234,3 +234,121 @@ func (p Permission) Key() string {
 - `content:read` — 读取内容
 - `menu:read` — 读取菜单
 - `*:*` — 全部权限（通配符）
+
+## 9. M1 权限目录与菜单 Registry
+
+M1 将“可授权的权限点”和“可展示的侧栏入口”拆成两个可注册目录：
+
+- **Permission Catalog**：由 `internal/domain/permission` 建模，记录权限 key、类型、模块、来源、风险等级、元数据和启用状态。
+- **Menu Registry**：由 `internal/domain/menu` 建模，记录菜单 key、父级、来源、路径、组件、图标、排序、显隐和访问要求。
+
+两者的职责不同：Permission Catalog 是“能否授权”的目录，Menu Registry 是“能否出现在导航里”的目录。菜单节点通过 `RequiredRoles` 和 `RequiredPermissions` 引用角色或权限 key；真正的 API 访问仍要由后端 RBAC、handler 或 service 层校验。
+
+### 9.1 权限命名
+
+权限 key 由 `internal/domain/permission/rules.go` 校验，必须匹配：
+
+```text
+^[a-z][a-z0-9_:.\-]{1,127}$
+```
+
+命名约定：
+
+| 场景 | 推荐格式 | 示例 |
+|---|---|---|
+| 框架级 API | `<module>.<action>` 或 `<module>:<action>` | `permission.manage`, `menu.read`, `menu.manage` |
+| 插件 API | `<plugin-or-module>:<resource>:<action>` | `reports:invoice:read` |
+| 菜单可见性 | 复用对应读取或管理权限 | `report.read` |
+| 高风险操作 | 使用独立 action，不复用 read/list | `plugin.install`, `permission.manage` |
+
+系统启动时由 `internal/bootstrap/permission_menu_seed.go` 注册框架内置权限：
+
+| Key | 类型 | 模块 | 来源 | 风险 | 覆盖范围 |
+|---|---|---|---|---|---|
+| `permission.manage` | `api` | `permission` | `system` | `high` | Permission Catalog 读写与 diff |
+| `menu.read` | `api` | `menu` | `system` | `low` | 读取菜单 registry tree |
+| `menu.manage` | `api` | `menu` | `system` | `medium` | 保存、排序、显隐菜单 registry |
+
+新增权限时必须同步：
+
+1. 在 Permission Catalog 注册资源，或在插件 `plugin.yaml` 的 `permissions` 中声明。
+2. 在角色授权、菜单 `required_permissions`、按钮权限指令中复用同一个 key。
+3. 在测试或 smoke 中覆盖授权、撤销和拒绝路径。
+
+### 9.2 Catalog 字段与来源
+
+`PermissionResource` 的核心字段：
+
+| 字段 | 说明 |
+|---|---|
+| `Key` | 权限唯一标识，保存前会 trim 并转小写 |
+| `Type` | `api`、`menu`、`button`、`data_scope`、`plugin` |
+| `Module` | 业务模块，必须匹配小写模块名规则 |
+| `Source` | 来源，系统权限使用 `system`，插件权限使用 `plugin.<plugin_id>` |
+| `Name` | 面向管理员的显示名 |
+| `Risk` | `low`、`medium`、`high`、`critical` |
+| `Metadata` | 附加信息，例如关联 routes |
+| `Enabled` | 是否可授权；禁用后仍可保留历史记录 |
+
+插件启用时，`RuntimeManager` 调用 catalog registry 导入插件 manifest 中的权限声明；插件禁用时，已导入权限会被标记为 disabled，而不是删除；卸载时再移除对应来源的权限与菜单。
+
+### 9.3 菜单 Registry 字段与来源
+
+菜单 key 由 `internal/domain/menu/rules.go` 校验，必须匹配：
+
+```text
+^[a-z][a-z0-9_.\-]{1,127}$
+```
+
+`MenuNode` 的核心字段：
+
+| 字段 | 说明 |
+|---|---|
+| `Key` | 菜单唯一标识，建议使用层级命名，如 `system.users`、`plugin.reports` |
+| `ParentKey` | 父菜单 key，空值表示根节点 |
+| `Source` | 来源，系统菜单使用 `system`，插件菜单使用 `plugin.<plugin_id>` |
+| `Path` | 前端路由路径，必须以 `/` 开头 |
+| `Component` | 前端组件或插件页面标识 |
+| `Icon` | 前端图标名 |
+| `Sort` | 同级排序，数值越小越靠前 |
+| `Visible` | 是否进入可见菜单树 |
+| `RequiredRoles` | 访问该菜单所需角色 |
+| `RequiredPermissions` | 访问该菜单所需权限 key |
+
+菜单 registry 的 canonical HTTP API 是：
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| `GET` | `/v1/menus/tree` | 按 `source`、`parentKey`、`visible`、`roles`、`permissions` 查询菜单树 |
+| `PUT` | `/v1/menus` | 合并保存菜单节点 |
+| `POST` | `/v1/menus/reorder` | 调整同级菜单顺序 |
+| `PATCH` | `/v1/menus/visibility` | 切换菜单显隐 |
+
+前端侧栏、菜单管理页和 M1 smoke 均以 `web/src/navigation/api.ts`、`web/src/stores/navigation.ts` 为 registry 入口。新增侧栏能力时，应写入 Menu Registry，而不是在页面、路由守卫或本地常量中复制一份菜单树。
+
+### 9.4 插件导入规则
+
+插件 manifest 的 `permissions` 会映射为 Permission Catalog：
+
+- 字符串写法会使用该字符串作为 key，并补齐默认类型与模块。
+- 对象写法可以显式声明 `key`、`type`、`module`、`name`、`risk`、`metadata`。
+- 导入后的 source 统一为 `plugin.<plugin_id>`。
+
+插件 manifest 的 `ui_menu` 会映射为 Menu Registry：
+
+- 未声明 `key` 时，默认使用 `plugin.<plugin_id>`。
+- 未声明 `path` 时，使用插件前端入口解析结果。
+- `required_roles` 和 `required_permissions` 会原样进入菜单访问过滤。
+- 插件禁用时，导入的菜单会被标记为不可见；插件卸载时移除。
+
+### 9.5 前端访问规则
+
+M1 前端统一使用三个入口：
+
+| 场景 | 入口 |
+|---|---|
+| 路由访问 | `web/src/permissions/route.ts` 的 `canAccessRoute`、`isPublicRoute` |
+| 按钮访问 | `web/src/permissions/button.ts` 的 `canUseButton` |
+| 侧栏菜单 | `web/src/stores/navigation.ts` 加载 `/v1/menus/tree` 后生成 |
+
+页面代码不应直接拼权限判断表达式，也不应继续依赖本地默认 permission catalog 作为权限矩阵来源。权限矩阵以后端 catalog 为准，按钮和菜单只消费同一批权限 key。
