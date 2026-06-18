@@ -14,6 +14,7 @@ Skoll 当前处于开源基础建设重构阶段。重构执行入口统一放�
 | [refactor/work_items.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\refactor\work_items.md>) | 细粒度 Work Item 表，作为最小执行和提交单元 |
 | [refactor/frontend_experience_plan.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\refactor\frontend_experience_plan.md>) | 前端体验、视觉、编码、测试、性能专项计划 |
 | [refactor/acceptance_log.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\refactor\acceptance_log.md>) | 任务验收记录模板 |
+| [refactor/quality_baseline.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\refactor\quality_baseline.md>) | M0 质量基线命令结果、失败原因和重跑命令 |
 | [refactor/gin-vue-admin_analysis.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\refactor\gin-vue-admin_analysis.md>) | gin-vue-admin 对标分析 |
 | [refactor/source_map.md](<D:\workspace\3rdsrc\tinbox\skoll\docs\refactor\source_map.md>) | 旧文档吸收记录与归档说明 |
 
@@ -38,6 +39,7 @@ docs/
 │   ├── work_items.md
 │   ├── frontend_experience_plan.md
 │   ├── acceptance_log.md
+│   ├── quality_baseline.md
 │   ├── gin-vue-admin_analysis.md
 │   └── source_map.md
 ├── architecture/

@@ -1000,3 +1000,55 @@ rg "work_items.md" docs/refactor/README.md
 ### 下一步
 
 - 进入 `M0-05-02`，更新顶层 `docs/README.md` 当前入口。
+
+## M0-05-02: 更新顶层 docs/README.md 当前入口
+
+- 状态: Passed
+- Work Item: M0-05-02
+- 日期: 2026-06-18
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 顶层文档入口包含 `work_items.md`，并补充新增的 `quality_baseline.md`。 |
+| API/OpenAPI 同步 | N/A | 仅文档入口任务，无 API 影响。 |
+| 权限目录同步 | N/A | 仅文档入口任务，无权限影响。 |
+| 审计 action 同步 | N/A | 仅文档入口任务，无审计 action 影响。 |
+| migration/seed 同步 | N/A | 仅文档入口任务，无数据结构影响。 |
+| 前端 API client/UI 同步 | N/A | 仅文档入口任务，无前端实现影响。 |
+| 文档同步 | Passed | 顶层文档入口、Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 本项只更新当前入口索引，未引入旧计划执行入口。 |
+
+### 自动化验证
+
+```powershell
+rg "work_items.md" docs/README.md
+```
+
+结果摘要: 通过。`work_items.md` 可从顶层文档入口定位。
+
+### 人工验收
+
+1. 审阅 `docs/README.md` 当前执行入口表。
+2. 确认顶层入口包含 `work_items.md` 和 `quality_baseline.md`。
+
+结果摘要: 通过。顶层文档入口与当前重构文档结构同步。
+
+### 失败与返工
+
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+
+- 进入 `M0-05-03`，校验旧计划文档归档。
