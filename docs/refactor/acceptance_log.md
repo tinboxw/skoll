@@ -7973,3 +7973,80 @@ npm run build
 ### 下一步
 
 - 进入 `FE3-06`，执行 Plugin 页面体验升级。
+## FE3-06: Plugin 页面体验升级
+
+- 状态: Passed
+- Work Item: FE3-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Plugin 页面新增无权限 StateBlock、风险摘要、配置能力统计、关键词/状态筛选、系统/应用插件空态、访问状态列和模式列。 |
+| API/OpenAPI 同步 | N/A | 本项不改 `/v1/plugins`、配置、日志、Dev Portal API 契约。 |
+| 权限目录同步 | Passed | 复用现有 `plugin.read` 与 `plugin.manage` 权限 key；页面级读取、管理和 DevPortal 动作继续走统一权限工具。 |
+| 审计 action 同步 | N/A | 本项不新增后端审计 action。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构或种子数据。 |
+| 前端 API client/UI 同步 | Passed | 继续复用 `usePluginStore`、现有 plugin API wrapper、SchemaForm、confirmAction 和 `toErrorMessage`；错误、成功和操作中状态可见。 |
+| 文档同步 | Passed | Work Item 状态、验证命令和验收日志已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 保持 `/skoll/plugin` 当前路由，不新增兼容入口或旧页面路径。 |
+
+### 自动化验证
+
+```powershell
+rg -n "StateBlock|pluginKeyword|pluginStatusFilter|filteredPlugins|riskPluginCount|resetPluginFilters|plugin.filter|plugin.summary|plugin.access|plugin.table.mode" web/src/views/Plugin/index.vue web/src/i18n/index.ts
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。关键 UI/权限/状态锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可用 in-app browser 工具；bundled Playwright 运行时仍缺少 `playwright-core`，无法完成截图或真实点击 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 `/skoll/plugin` 的默认、筛选、空结果、配置保存、启停/卸载确认、DevPortal 任务和窄屏路径。
+
+### Performance Hook
+
+- Page/route: Plugin，`/skoll/plugin`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus、StateBlock、SchemaForm、Pinia plugin store、confirmAction 和现有 API wrapper。
+- Route lazy loading: Passed，router 中通过 `const PluginPage = () => import("../views/Plugin/index.vue")` 动态导入。
+- Heavy table risk: 插件列表基于当前插件清单分组渲染；新增筛选为客户端局部筛选，未新增额外全量请求。
+- Request behavior: 首屏仍依赖插件 bootstrap/sync；日志、调试、配置与 DevPortal 数据均按用户操作加载，未新增轮询。
+- Loading behavior: 刷新、安装、配置保存、生命周期动作和 DevPortal 动作均保留 loading/禁用/错误反馈。
+- Deferred panels: 配置、日志、调试、DevPortal 任务详情/日志按点击加载，重面板不阻塞首屏。
+- Narrow viewport: 摘要卡、筛选表单、主内容双栏和 DevPortal 双栏在 1180px/720px 以下折叠；表格保留横向处理避免动作列挤压。
+- Follow-up: FE4/FE6 可继续拆分 Plugin/Dev Portal 重面板，增加任务轮询节流与日志大文本虚拟化。
+
+### 人工验收
+
+1. 对照 `fe3_page_acceptance_map.md`，确认 Plugin 覆盖插件列表、启停、卸载、配置 SchemaForm、日志/调试、Dev Portal 任务和权限状态。
+2. 对照 `web/src/views/Plugin/index.vue`，确认缺少 `plugin.read` 时显示 forbidden StateBlock。
+3. 确认 keyword/status 筛选不会触发额外请求，且系统级/应用级插件分别有空态。
+4. 确认停用、卸载、发布、灰度、回滚等风险动作仍使用 `confirmAction` 防护。
+
+结果摘要: 通过。Plugin 页面已满足 FE3-06 对状态、风险、权限、配置、访问和生命周期动作清晰度的要求。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE3-07`，执行 Audit 页面体验升级。

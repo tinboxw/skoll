@@ -20,11 +20,12 @@ import {
 } from "@element-plus/icons-vue";
 
 import SchemaForm from "../../components/Common/SchemaForm.vue";
+import StateBlock from "../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { syncBackendPlugins } from "../../plugins";
-import type { PluginConfigSchema } from "../../plugins/types";
+import type { FrontendPluginManifest, PluginConfigSchema } from "../../plugins/types";
 import { clearDefaultHomePath, createDefaultHomeTarget, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePlugin, resolvePluginEntryPath, setDefaultHomeTarget, usePluginStore } from "../../stores/plugins";
 import { useTabsStore } from "../../stores/tabs";
 import { ApiError, type ApiResponse } from "../../utils/api";
@@ -42,6 +43,8 @@ const loading = ref(false);
 const operating = ref(false);
 const error = ref<string | null>(null);
 const showOnlyEnabled = ref(false);
+const pluginKeyword = ref("");
+const pluginStatusFilter = ref("");
 const debugText = ref("");
 const logText = ref("");
 const configText = ref("{}");
@@ -91,12 +94,21 @@ const visiblePlugins = computed(() => {
 	return pluginStore.items.filter((item) => item.enabled !== false);
 });
 
+const filteredPlugins = computed(() => {
+	const keyword = pluginKeyword.value.trim().toLowerCase();
+	return visiblePlugins.value.filter((item) => {
+		const matchesKeyword = keyword === "" || pluginMatchesKeyword(item, keyword);
+		const matchesStatus = pluginMatchesStatus(item, pluginStatusFilter.value);
+		return matchesKeyword && matchesStatus;
+	});
+});
+
 const systemPlugins = computed(() => {
-	return visiblePlugins.value.filter((item) => item.level !== "app");
+	return filteredPlugins.value.filter((item) => item.level !== "app");
 });
 
 const appPlugins = computed(() => {
-	return visiblePlugins.value.filter((item) => item.level === "app");
+	return filteredPlugins.value.filter((item) => item.level === "app");
 });
 
 const appPluginsGrouped = computed(() => {
@@ -127,6 +139,15 @@ const syncStatusText = computed(() => {
 const enabledPluginCount = computed(() => pluginStore.items.filter((item) => item.enabled !== false).length);
 const disabledPluginCount = computed(() => pluginStore.items.length - enabledPluginCount.value);
 const appCount = computed(() => Object.keys(appPluginsGrouped.value).length);
+const filteredPluginCount = computed(() => filteredPlugins.value.length);
+const inaccessiblePluginCount = computed(() => pluginStore.items.filter((item) => !canVisit(item.id)).length);
+const configSchemaCount = computed(() => pluginStore.items.filter((item) => (item.configSchema?.fields?.length ?? 0) > 0).length);
+const failedDevTaskCount = computed(() => [
+	...devReleaseTasks.value,
+	...devRolloutTasks.value
+].filter((item) => String(item.taskStatus || "").toLowerCase() === "failed").length);
+const riskPluginCount = computed(() => disabledPluginCount.value + inaccessiblePluginCount.value + failedDevTaskCount.value + (pluginStore.degradedMode ? 1 : 0));
+const hasActivePluginFilters = computed(() => showOnlyEnabled.value || pluginKeyword.value.trim() !== "" || pluginStatusFilter.value !== "");
 const canReadPlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginRead));
 const canManagePlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginManage));
 const devPluginOptions = computed(() => {
@@ -146,6 +167,57 @@ const devPluginOptions = computed(() => {
 });
 const devPendingOrders = computed(() => devReleaseOrders.value.filter((item) => String(item.orderStatus || "") === "pending"));
 const devApprovedOrders = computed(() => devReleaseOrders.value.filter((item) => String(item.orderStatus || "") === "approved"));
+
+function pluginMatchesKeyword(plugin: FrontendPluginManifest, keyword: string): boolean {
+	return [
+		plugin.id,
+		plugin.name,
+		plugin.nameZhCN,
+		plugin.nameEnUS,
+		plugin.version,
+		plugin.description,
+		plugin.appId,
+		plugin.level,
+		plugin.uiMode,
+		plugin.mountPolicy,
+		plugin.uiOpenMode,
+		plugin.uiTabMode,
+		plugin.entryPath,
+		plugin.backendEndpoint,
+		plugin.uiMenu?.label,
+		plugin.uiMenu?.labelZhCN,
+		plugin.uiMenu?.labelEnUS,
+		plugin.uiMenu?.path
+	].some((value) => String(value ?? "").toLowerCase().includes(keyword));
+}
+
+function pluginMatchesStatus(plugin: FrontendPluginManifest, status: string): boolean {
+	if (status === "enabled") {
+		return plugin.enabled !== false;
+	}
+	if (status === "disabled") {
+		return plugin.enabled === false;
+	}
+	if (status === "system") {
+		return plugin.level !== "app";
+	}
+	if (status === "app") {
+		return plugin.level === "app";
+	}
+	if (status === "config") {
+		return (plugin.configSchema?.fields?.length ?? 0) > 0;
+	}
+	if (status === "inaccessible") {
+		return !canVisit(plugin.id);
+	}
+	return true;
+}
+
+function resetPluginFilters(): void {
+	showOnlyEnabled.value = false;
+	pluginKeyword.value = "";
+	pluginStatusFilter.value = "";
+}
 
 function pluginStatusType(pluginID: string): "success" | "info" {
 	const plugin = getPluginRecord(pluginID);
@@ -986,37 +1058,62 @@ function resetDefaultHome(): void {
 			show-icon
 			:closable="false"
 		/>
-		<el-alert
-			v-if="!canReadPlugins"
-			class="page-alert"
-			type="warning"
-			:title="t('error.forbidden')"
-			show-icon
-			:closable="false"
-		/>
+		<StateBlock v-if="!canReadPlugins" type="forbidden" :title="t('plugin.noPermissionTitle')" :description="t('error.forbidden')" />
 
-		<section class="summary-grid">
-			<el-card shadow="never" class="summary-card">
-				<div class="summary-label">{{ t("header.plugins") }}</div>
-				<div class="summary-value">{{ pluginStore.items.length }}</div>
-				<div class="summary-note">{{ syncStatusText }} · {{ t("plugin.sync.attempts") }} {{ pluginStore.syncAttempts }}</div>
+		<template v-else>
+			<section class="summary-grid">
+				<el-card shadow="never" class="summary-card">
+					<div class="summary-label">{{ t("header.plugins") }}</div>
+					<div class="summary-value">{{ pluginStore.items.length }}</div>
+					<div class="summary-note">{{ syncStatusText }} · {{ t("plugin.sync.attempts") }} {{ pluginStore.syncAttempts }}</div>
+				</el-card>
+				<el-card shadow="never" class="summary-card">
+					<div class="summary-label">{{ t("plugin.status.enabled") }}</div>
+					<div class="summary-value">{{ enabledPluginCount }}</div>
+					<div class="summary-note">{{ t("plugin.status.disabled") }} {{ disabledPluginCount }}</div>
+				</el-card>
+				<el-card shadow="never" class="summary-card">
+					<div class="summary-label">{{ t("plugin.appLevel") }}</div>
+					<div class="summary-value">{{ appCount }}</div>
+					<div class="summary-note">{{ t("plugin.systemLevel") }} {{ systemPlugins.length }}</div>
+				</el-card>
+				<el-card shadow="never" class="summary-card" :class="{ 'summary-card--warning': riskPluginCount > 0 }">
+					<div class="summary-label">{{ t("plugin.summary.risk") }}</div>
+					<div class="summary-value">{{ riskPluginCount }}</div>
+					<div class="summary-note">{{ t("plugin.summary.inaccessible") }} {{ inaccessiblePluginCount }} · {{ t("plugin.summary.failedTasks") }} {{ failedDevTaskCount }}</div>
+				</el-card>
+				<el-card shadow="never" class="summary-card">
+					<div class="summary-label">{{ t("plugin.summary.configurable") }}</div>
+					<div class="summary-value">{{ configSchemaCount }}</div>
+					<div class="summary-note">{{ t("plugin.summary.filtered") }} {{ filteredPluginCount }}</div>
+				</el-card>
+				<el-card shadow="never" class="summary-card is-wide">
+					<div class="summary-label">{{ t("plugin.currentDefaultHome") }}</div>
+					<div class="summary-path">{{ activeDefaultHome }}</div>
+					<div class="summary-note">{{ t("plugin.defaultHomeHint") }}</div>
+				</el-card>
+			</section>
+
+			<el-card shadow="never" class="filter-panel">
+				<el-form label-position="top" class="plugin-filters" @submit.prevent>
+					<el-form-item :label="t('plugin.filter.keyword')">
+						<el-input v-model="pluginKeyword" clearable :placeholder="t('plugin.filter.keywordPlaceholder')" />
+					</el-form-item>
+					<el-form-item :label="t('plugin.filter.status')">
+						<el-select v-model="pluginStatusFilter" clearable :placeholder="t('plugin.filter.allStatus')">
+							<el-option :label="t('plugin.status.enabled')" value="enabled" />
+							<el-option :label="t('plugin.status.disabled')" value="disabled" />
+							<el-option :label="t('plugin.filter.systemOnly')" value="system" />
+							<el-option :label="t('plugin.filter.appOnly')" value="app" />
+							<el-option :label="t('plugin.filter.configurable')" value="config" />
+							<el-option :label="t('plugin.filter.inaccessible')" value="inaccessible" />
+						</el-select>
+					</el-form-item>
+					<el-form-item class="filter-actions">
+						<el-button :disabled="!hasActivePluginFilters" @click="resetPluginFilters">{{ t("common.reset") }}</el-button>
+					</el-form-item>
+				</el-form>
 			</el-card>
-			<el-card shadow="never" class="summary-card">
-				<div class="summary-label">{{ t("plugin.status.enabled") }}</div>
-				<div class="summary-value">{{ enabledPluginCount }}</div>
-				<div class="summary-note">{{ t("plugin.status.disabled") }} {{ disabledPluginCount }}</div>
-			</el-card>
-			<el-card shadow="never" class="summary-card">
-				<div class="summary-label">{{ t("plugin.appLevel") }}</div>
-				<div class="summary-value">{{ appCount }}</div>
-				<div class="summary-note">{{ t("plugin.systemLevel") }} {{ systemPlugins.length }}</div>
-			</el-card>
-			<el-card shadow="never" class="summary-card is-wide">
-				<div class="summary-label">{{ t("plugin.currentDefaultHome") }}</div>
-				<div class="summary-path">{{ activeDefaultHome }}</div>
-				<div class="summary-note">{{ t("plugin.defaultHomeHint") }}</div>
-			</el-card>
-		</section>
 
 		<el-card shadow="never" class="install-panel">
 			<template #header>
@@ -1243,13 +1340,26 @@ function resetDefaultHome(): void {
 							<el-button size="small" :icon="Link" :disabled="operating" @click="visitSystemConsole">{{ t("plugin.action.visit") }}</el-button>
 						</div>
 					</template>
-					<el-table :data="systemPlugins" stripe border empty-text="No plugins">
+					<StateBlock v-if="systemPlugins.length === 0" type="empty" :description="hasActivePluginFilters ? t('plugin.filter.empty') : t('plugin.empty.system')" />
+					<el-table v-else :data="systemPlugins" stripe border>
 						<el-table-column prop="id" :label="t('plugin.table.id')" min-width="180" show-overflow-tooltip />
 						<el-table-column prop="name" :label="t('plugin.table.name')" min-width="160" show-overflow-tooltip />
 						<el-table-column prop="version" :label="t('plugin.table.version')" width="110" />
+						<el-table-column :label="t('plugin.table.mode')" width="130">
+							<template #default="{ row }">
+								<el-tag effect="plain">{{ row.uiMode || "frontend" }}</el-tag>
+							</template>
+						</el-table-column>
 						<el-table-column :label="t('plugin.table.status')" width="110">
 							<template #default="{ row }">
 								<el-tag :type="pluginStatusType(row.id)" effect="light">{{ pluginStatusText(row.id) }}</el-tag>
+							</template>
+						</el-table-column>
+						<el-table-column :label="t('plugin.table.access')" min-width="170">
+							<template #default="{ row }">
+								<el-tag :type="canVisit(row.id) ? 'success' : 'warning'" effect="plain">
+									{{ canVisit(row.id) ? t("plugin.access.ready") : t("plugin.access.blocked") }}
+								</el-tag>
 							</template>
 						</el-table-column>
 						<el-table-column :label="t('plugin.table.actions')" min-width="320" fixed="right">
@@ -1293,7 +1403,8 @@ function resetDefaultHome(): void {
 							<el-tag effect="plain">{{ appCount }}</el-tag>
 						</div>
 					</template>
-					<el-collapse>
+					<StateBlock v-if="Object.keys(appPluginsGrouped).length === 0" type="empty" :description="hasActivePluginFilters ? t('plugin.filter.empty') : t('plugin.empty.app')" />
+					<el-collapse v-else>
 						<el-collapse-item v-for="(plugins, appId) in appPluginsGrouped" :key="appId" :name="String(appId)">
 							<template #title>
 								<div class="app-title">
@@ -1315,9 +1426,17 @@ function resetDefaultHome(): void {
 								<el-table-column prop="id" :label="t('plugin.table.id')" min-width="180" show-overflow-tooltip />
 								<el-table-column prop="name" :label="t('plugin.table.name')" min-width="160" show-overflow-tooltip />
 								<el-table-column prop="version" :label="t('plugin.table.version')" width="110" />
+								<el-table-column prop="appId" :label="t('plugin.table.appId')" min-width="120" show-overflow-tooltip />
 								<el-table-column :label="t('plugin.table.status')" width="110">
 									<template #default="{ row }">
 										<el-tag :type="pluginStatusType(row.id)" effect="light">{{ pluginStatusText(row.id) }}</el-tag>
+									</template>
+								</el-table-column>
+								<el-table-column :label="t('plugin.table.access')" min-width="170">
+									<template #default="{ row }">
+										<el-tag :type="canVisit(row.id) ? 'success' : 'warning'" effect="plain">
+											{{ canVisit(row.id) ? t("plugin.access.ready") : t("plugin.access.blocked") }}
+										</el-tag>
 									</template>
 								</el-table-column>
 								<el-table-column :label="t('plugin.table.actions')" min-width="300" fixed="right">
@@ -1394,6 +1513,7 @@ function resetDefaultHome(): void {
 				</template>
 			</el-card>
 		</div>
+		</template>
 	</section>
 </template>
 
@@ -1454,6 +1574,11 @@ function resetDefaultHome(): void {
 	min-height: 116px;
 }
 
+.summary-card--warning {
+	border-color: var(--color-warning);
+	background: var(--color-warning-soft);
+}
+
 .summary-card.is-wide {
 	grid-column: span 1;
 }
@@ -1481,6 +1606,30 @@ function resetDefaultHome(): void {
 
 .install-panel {
 	border: 1px solid var(--color-border);
+}
+
+.filter-panel {
+	border: 1px solid var(--color-border);
+}
+
+.plugin-filters {
+	display: grid;
+	grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
+	gap: 12px;
+	align-items: end;
+}
+
+.plugin-filters :deep(.el-form-item) {
+	margin-bottom: 0;
+}
+
+.plugin-filters :deep(.el-select),
+.plugin-filters :deep(.el-input) {
+	width: 100%;
+}
+
+.filter-actions {
+	justify-content: flex-end;
 }
 
 .card-header,
@@ -1599,6 +1748,10 @@ function resetDefaultHome(): void {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
+	.plugin-filters {
+		grid-template-columns: 1fr 1fr;
+	}
+
 	.content-grid {
 		grid-template-columns: 1fr;
 	}
@@ -1620,6 +1773,10 @@ function resetDefaultHome(): void {
 	}
 
 	.inline-fields {
+		grid-template-columns: 1fr;
+	}
+
+	.plugin-filters {
 		grid-template-columns: 1fr;
 	}
 
