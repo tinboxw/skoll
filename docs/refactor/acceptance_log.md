@@ -4700,3 +4700,54 @@ rg -n "AuditEventModel|AppendEvent|GetEventByID|ListEvents|ExportEventSourceData
 ### 下一步
 
 - 进入 `M2-02-06`，接入 audit service 查询模型。
+
+## M2-02-06: 接入 audit service 查询模型
+
+- 状态: Passed
+- Work Item: M2-02-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/service/audit/event_service.go`
+- `internal/service/audit/event_service_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 `EventService` 查询模型，覆盖 append/detail/list/export source data。 |
+| API/OpenAPI 同步 | N/A | 本项只实现 service 层，不改 HTTP API。 |
+| 权限目录同步 | N/A | 本项未新增权限 key。 |
+| 审计 action 同步 | Passed | service 层使用统一 `audit.Event`、`AuditAction`、`EventType`、`EventResult`、`EventRisk`。 |
+| migration/seed 同步 | N/A | 本项不改数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 本项不改前端。 |
+| 文档同步 | Passed | Work Item 状态和验收记录已同步。 |
+| 无兼容方案/无旧路径残留 | Passed | 未扩展旧 `audit.Service` 的 record 查询接口；事件查询走独立 `EventService`，不向调用方暴露 repository/store filter。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/audit/event_service.go internal/service/audit/event_service_test.go
+go test ./internal/service/audit/...
+```
+
+结果摘要: 通过。service DTO 到 repository filter 的映射、无效时间范围、仓储错误透传、nil repository、source data 拷贝隔离均已覆盖。
+
+### 人工验收
+
+1. 审阅 `internal/service/audit/event_service.go`，确认对外类型为 service 自有 `EventFilter` / `EventSourceData`。
+2. 审阅 `internal/service/audit/event_service_test.go`，确认未要求调用方依赖 `auditrepo.EventFilter`。
+3. 审阅旧 `Service` 接口，确认旧 record 审计接口未被混入新事件查询方法。
+
+结果摘要: 通过。audit service 查询模型已接入，store/repository 细节未暴露到 service 调用方。
+
+### 失败与返工
+- 失败原因: 无
+- 返工动作: 无
+- 重新验收结果: 不适用
+
+### 下一步
+- 进入 `M2-03-01`，梳理现有 middleware 写审计路径。

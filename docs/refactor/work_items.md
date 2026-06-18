@@ -121,7 +121,7 @@
 | 83 | M2-02-03 | M2-02 | `skoll-database-development` | 新增 audit/log migration | MySQL/PostgreSQL SQL | operation/login/error 表或统一表设计明确 | migration review | Done |
 | 84 | M2-02-04 | M2-02 | `skoll-database-development` | 实现 memory audit log store | memory store + tests | append/query/detail/export source data 通过 | `go test ./internal/store/memory/...` | Done |
 | 85 | M2-02-05 | M2-02 | `skoll-database-development` | 实现 SQL audit log store | gormrepo store + tests | 按类型、actor、action、时间过滤通过 | `go test ./internal/store/sql/gormrepo/...` | Done |
-| 86 | M2-02-06 | M2-02 | `skoll-audit-observability-refactor` | 接入 audit service 查询模型 | service code + tests | service 层不暴露 store 细节 | `go test ./internal/service/audit/...` | Todo |
+| 86 | M2-02-06 | M2-02 | `skoll-audit-observability-refactor` | 接入 audit service 查询模型 | service code + tests | service 层不暴露 store 细节 | `go test ./internal/service/audit/...` | Done |
 | 87 | M2-03-01 | M2-03 | `skoll-audit-observability-refactor` | 梳理现有 middleware 写审计路径 | 代码清单 | 找出旧分散写入点并列入替换清单 | `rg "audit|operation|login" internal/handler internal/service` | Todo |
 | 88 | M2-03-02 | M2-03 | `skoll-audit-observability-refactor` | 实现统一请求审计 middleware | middleware code + tests | 成功/失败/未授权均记录 | `go test ./internal/handler/middleware/...` | Todo |
 | 89 | M2-03-03 | M2-03 | `skoll-audit-observability-refactor` | 接入登录成功/失败审计 | auth handler/service | login 和 login_failed 可查询 | `go test ./internal/bootstrap/... ./internal/handler/http/...` | Todo |
