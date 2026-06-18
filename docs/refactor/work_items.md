@@ -83,7 +83,7 @@
 | 50 | M1-05-07 | M1-05 | `skoll-permission-menu-refactor` | 实现菜单合并与排序 | service code + tests | 系统/插件/生成模块菜单稳定合并 | `go test ./internal/service/menu/...` | Done |
 | 51 | M1-05-08 | M1-05 | `skoll-permission-menu-refactor` | 实现菜单权限过滤 | service code + tests | requiredRoles/requiredPermissions 生效 | `go test ./internal/service/menu/...` | Done |
 | 52 | M1-06-01 | M1-06 | `skoll-api-contracts` | 设计 permission API 契约 | OpenAPI draft | list/detail/enable/disable/diff 请求响应明确 | OpenAPI review | Done |
-| 53 | M1-06-02 | M1-06 | `skoll-api-contracts` | 实现 permission handler | handler code + tests | HTTP 状态码、错误码、响应格式一致 | `go test ./internal/handler/http/v1/permission/...` | Todo |
+| 53 | M1-06-02 | M1-06 | `skoll-api-contracts` | 实现 permission handler | handler code + tests | HTTP 状态码、错误码、响应格式一致 | `go test ./internal/handler/http/v1/permission/...` | Done |
 | 54 | M1-06-03 | M1-06 | `skoll-api-contracts` | 设计 menu API 契约 | OpenAPI draft | tree/save/reorder/visibility 请求响应明确 | OpenAPI review | Todo |
 | 55 | M1-06-04 | M1-06 | `skoll-api-contracts` | 实现 menu handler | handler code + tests | 不直连 store；鉴权失败路径覆盖 | `go test ./internal/handler/http/v1/menu/...` | Todo |
 | 56 | M1-06-05 | M1-06 | `skoll-api-contracts` | 注册路由与权限 keys | router/OpenAPI/permission seed | API 路由可访问，权限 key 纳入 catalog | `go test ./internal/handler/http/...` | Todo |
