@@ -8524,6 +8524,68 @@ npm run build
 ### 下一步
 
 - 进入 `FE4-05`，执行 Dev Portal 发布任务体验。
+## FE4-05: Dev Portal 发布任务体验
+
+- 状态: Passed
+- Work Item: FE4-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | Dev Portal 新增发布/灰度任务状态总览。 |
+| 任务状态 | Passed | 发布任务和灰度任务状态改为 tag 展示，并聚合 total/running/failed/rollback。 |
+| 步骤 | Passed | 保留任务详情抽屉的 steps timeline。 |
+| 日志 | Passed | 保留任务日志抽屉入口，失败任务可直接查看日志。 |
+| 失败原因 | Passed | 发布任务和灰度任务表均保留 failureReason 列。 |
+| 重试/回滚 | Passed | 失败任务提供重试入口，灰度任务额外提供回滚入口并复用危险确认。 |
+| API/OpenAPI 同步 | N/A | 本项不新增接口；复用现有 Dev Portal action/task/log API。 |
+| 权限目录同步 | Passed | Dev Portal 区域继续受 `plugin.manage` 保护。 |
+
+### 自动化验证
+
+```powershell
+rg -n "devTaskSummary|dev-task-summary|devTaskStatusType|canRetryDevTask|retryDevTask|失败原因|重试|回滚|openDevTaskDrawer" web/src/views/Plugin/index.vue
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。任务状态、步骤、日志、失败原因、重试和回滚锚点均存在；前端 typecheck/build 均通过。build 仅出现既有 Dart Sass legacy JS API 与 `@vueuse/core` 注释 warning。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 当前线程未暴露可调用的 in-app browser 工具；bundled Playwright 运行时缺少 `playwright-core`，无法完成真实点击或截图 smoke。
+- 处理: 本次以页面锚点、typecheck、build 和人工代码审阅完成验收；FE5 smoke 工具链可用后补跑 Dev Portal 发布单、任务详情、日志、失败重试和回滚确认。
+
+### Performance Hook
+
+- Page/route: Plugin，`/skoll/plugin`
+- Typecheck: Passed，`cd web && npm run typecheck`
+- Build: Passed，`cd web && npm run build`
+- Bundle impact: 未新增依赖；复用 Element Plus tag/table/timeline。
+- Request behavior: 不新增首屏请求；重试/回滚沿用用户点击触发的 Dev Portal action。
+- Heavy panel risk: 状态总览基于已加载任务数组计算；任务日志仍按点击加载。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE4-06`，执行插件重面板按需加载。
 ## ADJ-FE-20260619-06: FE4 plugin portal risk map
 
 - 状态: Passed

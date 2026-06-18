@@ -185,6 +185,16 @@ const devPluginOptions = computed(() => {
 });
 const devPendingOrders = computed(() => devReleaseOrders.value.filter((item) => String(item.orderStatus || "") === "pending"));
 const devApprovedOrders = computed(() => devReleaseOrders.value.filter((item) => String(item.orderStatus || "") === "approved"));
+const devTaskSummary = computed(() => {
+	const tasks = [...devReleaseTasks.value, ...devRolloutTasks.value];
+	return {
+		total: tasks.length,
+		running: tasks.filter((item) => isDevTaskStatus(item, ["running", "pending", "queued"])).length,
+		failed: tasks.filter((item) => isDevTaskStatus(item, ["failed", "error"])).length,
+		success: tasks.filter((item) => isDevTaskStatus(item, ["success", "ok", "completed"])).length,
+		rollback: devRolloutTasks.value.filter((item) => String(item.action || "").toLowerCase() === "rollback").length
+	};
+});
 
 function pluginMatchesKeyword(plugin: FrontendPluginManifest, keyword: string): boolean {
 	return [
@@ -361,6 +371,28 @@ function pluginRiskAuditTrail(plugin: FrontendPluginManifest): string {
 		return "system.security.deny";
 	}
 	return "plugin.lifecycle";
+}
+
+function isDevTaskStatus(item: Record<string, unknown>, statuses: string[]): boolean {
+	return statuses.includes(String(item.taskStatus || item.status || "").toLowerCase());
+}
+
+function devTaskStatusType(status: unknown): "success" | "warning" | "danger" | "info" {
+	const value = String(status || "").toLowerCase();
+	if (["success", "ok", "completed"].includes(value)) {
+		return "success";
+	}
+	if (["failed", "error"].includes(value)) {
+		return "danger";
+	}
+	if (["running", "pending", "queued"].includes(value)) {
+		return "warning";
+	}
+	return "info";
+}
+
+function canRetryDevTask(row: Record<string, unknown>): boolean {
+	return isDevTaskStatus(row, ["failed", "error"]) && String(row.pluginId || "").trim() !== "";
 }
 
 function pluginHealthType(plugin: FrontendPluginManifest): "success" | "warning" | "danger" | "info" {
@@ -1066,6 +1098,21 @@ async function executeDevReleaseOrder(order: Record<string, unknown>): Promise<v
 	}
 }
 
+async function retryDevTask(kind: "release" | "rollout", row: Record<string, unknown>): Promise<void> {
+	const pluginID = String(row.pluginId || "").trim();
+	if (!pluginID) {
+		error.value = "任务缺少插件 ID，无法重试。";
+		return;
+	}
+	devSelectedPlugin.value = pluginID;
+	if (kind === "release") {
+		await runDevAction("pipeline");
+		return;
+	}
+	const action = String(row.action || "").toLowerCase() === "rollback" ? "rollback" : "rollout";
+	await runDevAction(action);
+}
+
 function captureDevArtifactPath(payload: unknown): void {
 	const root = payload as { data?: Record<string, unknown> };
 	const data = root?.data;
@@ -1553,6 +1600,24 @@ function resetDefaultHome(): void {
 				</section>
 
 				<section class="devportal-data">
+					<div class="dev-task-summary">
+						<article class="dev-task-card">
+							<span>任务总数</span>
+							<strong>{{ devTaskSummary.total }}</strong>
+						</article>
+						<article class="dev-task-card">
+							<span>进行中</span>
+							<strong>{{ devTaskSummary.running }}</strong>
+						</article>
+						<article class="dev-task-card" :class="{ 'is-danger': devTaskSummary.failed > 0 }">
+							<span>失败</span>
+							<strong>{{ devTaskSummary.failed }}</strong>
+						</article>
+						<article class="dev-task-card">
+							<span>回滚</span>
+							<strong>{{ devTaskSummary.rollback }}</strong>
+						</article>
+					</div>
 					<el-tabs>
 						<el-tab-pane label="项目">
 							<el-table :data="devProjects" stripe border max-height="260">
@@ -1586,13 +1651,18 @@ function resetDefaultHome(): void {
 								<el-table-column prop="taskId" label="Task ID" min-width="180" show-overflow-tooltip />
 								<el-table-column prop="pluginId" label="插件" min-width="140" />
 								<el-table-column prop="targetEnv" label="环境" width="100" />
-								<el-table-column prop="taskStatus" label="状态" width="110" />
+								<el-table-column label="状态" width="120">
+									<template #default="{ row }">
+										<el-tag :type="devTaskStatusType(row.taskStatus)" effect="light">{{ row.taskStatus || "-" }}</el-tag>
+									</template>
+								</el-table-column>
 								<el-table-column prop="failureReason" label="失败原因" min-width="180" show-overflow-tooltip />
-								<el-table-column label="查看" width="150" fixed="right">
+								<el-table-column label="查看" min-width="210" fixed="right">
 									<template #default="{ row }">
 										<div class="row-actions">
 											<el-button size="small" @click="openDevTaskDrawer('release', row, 'detail')">详情</el-button>
 											<el-button size="small" @click="openDevTaskDrawer('release', row, 'logs')">日志</el-button>
+											<el-button size="small" type="warning" :disabled="devLoading || !canRetryDevTask(row)" @click="retryDevTask('release', row)">重试</el-button>
 										</div>
 									</template>
 								</el-table-column>
@@ -1604,13 +1674,19 @@ function resetDefaultHome(): void {
 								<el-table-column prop="pluginId" label="插件" min-width="140" />
 								<el-table-column prop="action" label="动作" width="100" />
 								<el-table-column prop="rolloutPercent" label="比例" width="100" />
-								<el-table-column prop="taskStatus" label="状态" width="110" />
+								<el-table-column label="状态" width="120">
+									<template #default="{ row }">
+										<el-tag :type="devTaskStatusType(row.taskStatus)" effect="light">{{ row.taskStatus || "-" }}</el-tag>
+									</template>
+								</el-table-column>
 								<el-table-column prop="failureReason" label="失败原因" min-width="180" show-overflow-tooltip />
-								<el-table-column label="查看" width="150" fixed="right">
+								<el-table-column label="查看" min-width="230" fixed="right">
 									<template #default="{ row }">
 										<div class="row-actions">
 											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'detail')">详情</el-button>
 											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'logs')">日志</el-button>
+											<el-button size="small" type="warning" :disabled="devLoading || !canRetryDevTask(row)" @click="retryDevTask('rollout', row)">重试</el-button>
+											<el-button size="small" type="danger" :disabled="devLoading || !row.pluginId" @click="retryDevTask('rollout', { ...row, action: 'rollback' })">回滚</el-button>
 										</div>
 									</template>
 								</el-table-column>
@@ -2150,6 +2226,38 @@ function resetDefaultHome(): void {
 	min-width: 0;
 }
 
+.dev-task-summary {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 10px;
+	margin-bottom: 12px;
+}
+
+.dev-task-card {
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	padding: 10px 12px;
+	background: var(--color-surface-soft);
+}
+
+.dev-task-card span {
+	display: block;
+	color: var(--color-text-muted);
+	font-size: 0.78rem;
+}
+
+.dev-task-card strong {
+	display: block;
+	margin-top: 4px;
+	font-size: 1.45rem;
+	line-height: 1;
+}
+
+.dev-task-card.is-danger {
+	border-color: var(--color-danger);
+	background: var(--color-danger-soft);
+}
+
 .table-stack {
 	display: grid;
 	gap: 16px;
@@ -2257,6 +2365,10 @@ function resetDefaultHome(): void {
 
 	.devportal-grid {
 		grid-template-columns: 1fr;
+	}
+
+	.dev-task-summary {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 
 	.inspector-card {
