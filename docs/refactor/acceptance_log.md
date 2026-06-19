@@ -9045,3 +9045,63 @@ rg -n "Desktop|Tablet/Narrow desktop|Minimum narrow|390|Page header|Filters|Tabl
 ### 下一步
 
 - 进入 `ADJ-TAIL-20260619-02`，记录 browser smoke 最小集执行结果。
+
+## ADJ-TAIL-20260619-02: browser smoke 最小集执行记录
+
+- 状态: Passed
+- Work Item: ADJ-TAIL-20260619-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe5_browser_smoke_execution_record.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 browser smoke 最小集执行记录。 |
+| 最小场景覆盖 | Passed | 覆盖 Login、Permission denied、Plugin operation、Audit export、Narrow navigation。 |
+| Login 记录 | Blocked | 当前线程未暴露可调用 browser control tool，无法执行点击和截图。 |
+| Permission denied 记录 | Blocked | 当前线程未暴露可调用 browser control tool，无法执行 restricted role 路径验证。 |
+| Plugin operation 记录 | Blocked | 当前线程未暴露可调用 browser control tool，无法执行插件流程点击。 |
+| Audit export 记录 | Blocked | 当前线程未暴露可调用 browser control tool，无法执行导出流程点击。 |
+| Narrow navigation 记录 | Blocked | 当前线程未暴露可调用 browser control tool，无法执行 390px 视口截图。 |
+| 工具阻塞事实记录 | Passed | 文档记录 tool discovery 未返回 browser control，且此前 bundled Playwright 缺少 `playwright-core`。 |
+| 前端 API client/UI 同步 | N/A | 本项为验收记录，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Login|Permission denied|Plugin operation|Audit export|Narrow navigation|Blocked|Retry conditions|Browser tooling" docs/refactor/fe5_browser_smoke_execution_record.md
+```
+
+结果摘要: 通过。五个最小 smoke 场景、Blocked 结果、重试条件和 Browser Tooling Status 均存在。
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 本任务专门记录 browser smoke 最小集执行结果；由于当前线程没有可调用浏览器工具，且此前 bundled Playwright 缺少 `playwright-core`，五个场景均按真实状态记录为 Blocked，未声明通过。
+- 后续: `FE5-06` 继续评估 Playwright/browser 自动化；`ADJ-FE-20260619-07` 可在工具可用后定义并复跑最小集。
+
+### Performance Hook
+
+- Page/route: Login、Permission denied、Plugin operation、Audit export、Narrow navigation 记录覆盖。
+- Typecheck: N/A，本项为验收记录。
+- Build: N/A，本项为验收记录。
+- Request behavior: N/A，本项未执行真实浏览器请求。
+
+### 失败与返工
+
+- 失败原因: 无。任务交付物为执行记录，已如实记录阻塞状态。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE5-06`，评估 Playwright/browser 自动化方案。
