@@ -40,6 +40,18 @@
 
 结果摘要:
 
+### 前端验收记录
+
+- Affected routes/pages:
+- State coverage: default | loading | empty | backend-error | no-permission | save-success | save-failure | destructive-confirmation | narrow-viewport
+- Browser smoke: Passed | Failed | Blocked | N/A
+- Browser command:
+- Browser evidence: screenshot/trace/report path or blocked reason
+- Responsive evidence: desktop path/status; narrow path/status
+- Permission evidence: admin path/status; restricted role path/status
+- Typecheck: Passed | Failed | Blocked | N/A
+- Build: Passed | Failed | Blocked | N/A
+
 ### 人工验收
 
 1. 
@@ -9163,3 +9175,72 @@ rg -n "Decision|Introduce Playwright|Coverage Scope|Execution Commands|Failure R
 ### 下一步
 
 - 进入 `FE5-07`，将前端验收记录字段接入 `acceptance_log.md` 模板。
+
+## FE5-07: 前端验收记录接入 acceptance log
+
+- 状态: Passed
+- Work Item: FE5-07
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/acceptance_log.md`
+- `docs/refactor/work_items.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `acceptance_log.md` 模板新增前端验收记录字段。 |
+| 前端状态字段 | Passed | 模板可记录 default、loading、empty、backend-error、no-permission、save、dangerous confirmation、narrow viewport。 |
+| 浏览器字段 | Passed | 模板可记录 browser smoke 结果、命令、截图/trace/report 路径或阻塞原因。 |
+| 响应式字段 | Passed | 模板可记录 desktop 和 narrow evidence。 |
+| 权限态字段 | Passed | 模板可记录 admin 和 restricted role evidence。 |
+| typecheck/build 字段 | Passed | 模板可记录 typecheck 与 build 的 Passed/Failed/Blocked/N/A。 |
+| 前端 API client/UI 同步 | N/A | 本项只更新验收日志模板，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "前端验收记录|Affected routes/pages|State coverage|Browser smoke|Browser evidence|Responsive evidence|Permission evidence|Typecheck|Build" docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。前端状态、浏览器、截图/路径、响应式、权限态、typecheck/build 字段均可定位。
+
+### 前端验收记录
+
+- Affected routes/pages: acceptance log template only
+- State coverage: N/A, no visible UI code changed
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, template-only task
+- Responsive evidence: N/A, template-only task
+- Permission evidence: N/A, no permission behavior changed
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项只接入验收记录字段，不执行真实浏览器点击。
+- 后续: `ADJ-FE-20260619-07` 可使用这些字段记录最小 browser smoke 脚本执行结果。
+
+### Performance Hook
+
+- Page/route: N/A
+- Typecheck: N/A，本项为验收模板文档更新。
+- Build: N/A，本项为验收模板文档更新。
+- Request behavior: N/A
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `ADJ-FE-20260619-07`，实现或记录 FE5 browser smoke minimum set。
