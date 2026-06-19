@@ -36,6 +36,7 @@ docs/refactor/
 | [architecture_and_execution_plan.md](architecture_and_execution_plan.md) | 架构选择、治理规则、里程碑设计 |
 | [task_board.md](task_board.md) | 父任务和阶段状态 |
 | [work_items.md](work_items.md) | 最小执行单元，当前批次为 `170/170/0` |
+| [next_work_items.md](next_work_items.md) | 下一批 M3-M7 候选最小任务池 |
 | [acceptance_log.md](acceptance_log.md) | 每项任务的验收记录 |
 | [quality_baseline.md](quality_baseline.md) | 质量门禁和基线记录 |
 | [source_map.md](source_map.md) | 旧文档内容吸收与归档说明 |
@@ -59,6 +60,8 @@ docs/refactor/
 7. 将 Work Item 状态更新为 `Done`，进入下一个 Work Item。
 
 当前批次已全部完成。后续只允许处理发布前质量门禁失败、文档索引缺口和验收记录不一致问题，不再扩散新功能范围。
+
+下一批功能建设从 [next_work_items.md](next_work_items.md) 领取任务。进入开发前，应先从 N0 发布前冻结与质量门禁开始，再按 M3 到 M7 顺序搬入正式执行表。
 
 ## 提交规则
 

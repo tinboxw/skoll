@@ -10008,3 +10008,61 @@ rg -n "ADJ-TAIL-20260619-04|tail_threshold_closeout_2026-06-19|Tail Threshold Cl
 ### 下一步
 
 - FE6 尾盘收口完成；后续进入下一已排期里程碑或发布前文档索引校准，不再扩散 FE6 范围。
+
+## N0-01: 完成态一致性校验
+
+- 状态: Passed
+- Work Item: N0-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/refactor/n0_completion_consistency_check.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| Work Items 完成态 | Passed | `docs/refactor/work_items.md` 当前为 170 项，全部 `Done`。 |
+| 父任务状态解释 | Passed | `docs/refactor/task_board.md` 中 M3-M7 仍为未来路线图 `Todo`，不属于当前 170 项完成批次。 |
+| 尾盘验收记录 | Passed | `acceptance_log.md` 中存在 FE6-04、FE6-05、FE6-06、ADJ-FE-20260619-08、ADJ-TAIL-20260619-04。 |
+| git log 可追溯 | Passed | 最近提交包含 FE6-04 到 ADJ-TAIL-20260619-04，以及文档整理提交 `00e8281`。 |
+| 下一阶段入口 | Passed | M3-M7 后续任务从 `docs/refactor/next_work_items.md` 启动，不回写破坏 `work_items.md` 的完成态。 |
+| 无兼容方案 | Passed | 未引入旧接口、旧数据结构、旧插件格式、旧页面路径兼容方案。 |
+
+### 自动化验证
+
+```powershell
+git log --oneline -8
+rg -n "^## (FE6-04|FE6-05|FE6-06|ADJ-FE-20260619-08|ADJ-TAIL-20260619-04)" docs/refactor/acceptance_log.md
+```
+
+结果摘要:
+
+- `work_items.md`: `170 Counter({'Done': 170})`
+- `task_board.md`: 当前包含 28 个 Done 父任务和 35 个 Todo 后续路线图父任务。
+- 最近提交可追溯到 `FE6-04`、`FE6-05`、`FE6-06`、`ADJ-FE-20260619-08`、`ADJ-TAIL-20260619-04`。
+
+### 治理影响记录
+
+- API/OpenAPI impact: N/A
+- Permission key impact: N/A
+- Audit action impact: N/A
+- Migration and seed impact: N/A
+- Frontend state and UX impact: N/A
+- Removed obsolete paths: N/A
+- No-compatibility policy: Passed
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `N0-02` 文档入口复查。
