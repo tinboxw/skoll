@@ -168,7 +168,7 @@
 | 57 | FE0 | `skoll-frontend-design-refactor` / `skoll-frontend-testing-refactor` / `skoll-frontend-performance-refactor` | 建立前端体验、构建、类型和浏览器验收基线 | 前端基线记录与验收模板 | 当前页面体验、build、typecheck、bundle warning、浏览器检查项均被记录 | `cd web && npm run build`; `cd web && npm run typecheck` | Done |
 | 58 | FE1 | `skoll-frontend-design-refactor` | 建立 Skoll Admin 设计系统与视觉规范 | 页面布局、表格、表单、状态、响应式规范 | 后台界面专业克制、可扫描；无嵌套卡片、营销页风格、装饰性渐变干扰 | 文档审阅 | Done |
 | 59 | FE2 | `skoll-frontend-coding-refactor` | 建立前端架构与数据流规范 | API client、Pinia、Router、权限、SchemaForm、错误处理规范 | 前端数据流统一，菜单、路由、按钮、插件权限同源 | `rg -n "apiGet|defineStore|beforeEach|SchemaForm|StateBlock|v-permission|canAccess" web/src; cd web && npm run typecheck` | Done |
-| 60 | FE3 | `skoll-frontend-design-refactor` / `skoll-frontend-testing-refactor` | 升级核心后台页面体验 | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 页面改造 | 每个核心页面具备正常、加载、空、错误、无权限、保存中和窄屏状态 | `cd web && npm run build`; 浏览器验收 | Doing |
-| 61 | FE4 | `skoll-frontend-design-refactor` / `skoll-frontend-performance-refactor` | 升级插件与开发者门户体验 | Plugin/Marketplace/Dev Portal 页面改造 | 插件权限、风险、配置、日志、发布、回滚、任务状态可读且可操作 | `cd web && npm run build`; 浏览器验收 | Todo |
-| 62 | FE5 | `skoll-frontend-testing-refactor` | 建立前端测试与验收体系 | typecheck/build/smoke/权限/响应式验收清单 | 前端任务不能只以 build 通过作为验收；关键状态必须被记录 | `cd web && npm run typecheck`; `cd web && npm run build` | Todo |
+| 60 | FE3 | `skoll-frontend-design-refactor` / `skoll-frontend-testing-refactor` | 升级核心后台页面体验 | Dashboard/User/Role/Permission/Menu/Plugin/Audit/Setting 页面改造 | 每个核心页面具备正常、加载、空、错误、无权限、保存中和窄屏状态 | `cd web && npm run build`; 浏览器验收 | Done |
+| 61 | FE4 | `skoll-frontend-design-refactor` / `skoll-frontend-performance-refactor` | 升级插件与开发者门户体验 | Plugin/Marketplace/Dev Portal 页面改造 | 插件权限、风险、配置、日志、发布、回滚、任务状态可读且可操作 | `cd web && npm run build`; 浏览器验收 | Done |
+| 62 | FE5 | `skoll-frontend-testing-refactor` | 建立前端测试与验收体系 | typecheck/build/smoke/权限/响应式验收清单 | 前端任务不能只以 build 通过作为验收；关键状态必须被记录 | `cd web && npm run typecheck`; `cd web && npm run build` | Done |
 | 63 | FE6 | `skoll-frontend-performance-refactor` | 建立前端性能与可观测基线 | bundle、懒加载、表格、请求数量、插件重面板性能记录 | 主要页面按需加载；大表格有降级策略；性能变化进入验收记录 | `cd web && npm run build` | Done |
