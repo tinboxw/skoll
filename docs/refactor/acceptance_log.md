@@ -9319,3 +9319,77 @@ npm run smoke:browser:minimum
 ### 下一步
 
 - 进入 `ADJ-TAIL-20260619-03`，整理 FE6 性能执行顺序清单。
+
+## ADJ-TAIL-20260619-03: FE6 性能执行顺序清单
+
+- 状态: Passed
+- Work Item: ADJ-TAIL-20260619-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_performance_execution_order.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE6 性能执行顺序清单。 |
+| Bundle 顺序 | Passed | FE6-01 作为第一步，先建立 build/chunk/warning 基线。 |
+| 路由懒加载顺序 | Passed | FE6-02 排在 bundle 基线之后，先确认 route splitting。 |
+| 重表格顺序 | Passed | FE6-03 在缓存策略前定义分页、稳定尺寸和 virtualization 触发条件。 |
+| 请求数量顺序 | Passed | FE6-04 明确共享缓存、失效和 stale write 风险。 |
+| 插件重面板顺序 | Passed | FE6-05 在通用 bundle/route/table/request 风险之后检查插件重面板。 |
+| 验收与回归收口 | Passed | FE6-06 和 ADJ-FE-20260619-08 分别负责验收模板和回归清单。 |
+| 前端 API client/UI 同步 | N/A | 本项为性能计划文档，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Bundle|Route Lazy Loading|Heavy Tables|Request Count|Plugin Heavy Panels|FE6-01|FE6-02|FE6-03|FE6-04|FE6-05|FE6-06|ADJ-FE-20260619-08|Failure Policy" docs/refactor/fe6_performance_execution_order.md
+```
+
+结果摘要: 通过。bundle、路由懒加载、重表格、请求数量、插件重面板、FE6 后续 work item 和失败策略均可定位。
+
+### 前端验收记录
+
+- Affected routes/pages: FE6 planning baseline only
+- State coverage: N/A, no visible UI code changed
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, planning-only task
+- Responsive evidence: N/A, planning-only task
+- Permission evidence: N/A, no permission behavior changed
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项整理性能执行顺序，不执行真实浏览器点击。
+
+### Performance Hook
+
+- Page/route: FE6 sequence across core admin pages and Plugin/Dev Portal.
+- Typecheck: N/A，本项为性能计划文档。
+- Build: N/A，FE6-01 将建立真实 bundle 基线。
+- Bundle impact: N/A，本项不改前端产物。
+- Route lazy loading: 排入 FE6-02。
+- Heavy table risk: 排入 FE6-03。
+- Request behavior: 排入 FE6-04。
+- Deferred panels: 排入 FE6-05。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE6-01`，建立 bundle 基线。

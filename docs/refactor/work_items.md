@@ -234,7 +234,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 164 | ADJ-TAIL-20260619-03 | FE6 | `skoll-frontend-performance-refactor` | FE6 性能执行顺序清单 | 性能优先级记录 | bundle、路由懒加载、重表格、请求数量、插件重面板均被排序并写入验收标准 | 文档审阅 | Todo |
+| 164 | ADJ-TAIL-20260619-03 | FE6 | `skoll-frontend-performance-refactor` | FE6 性能执行顺序清单 | `docs/refactor/fe6_performance_execution_order.md` | bundle、路由懒加载、重表格、请求数量、插件重面板均被排序并写入验收标准 | `rg -n "Bundle|Route Lazy Loading|Heavy Tables|Request Count|Plugin Heavy Panels|FE6-01|FE6-02|FE6-03|FE6-04|FE6-05|FE6-06|ADJ-FE-20260619-08|Failure Policy" docs/refactor/fe6_performance_execution_order.md` | Done |
 | 165 | FE6-01 | FE6 | `skoll-frontend-performance-refactor` | 建立 bundle 基线 | 性能记录 | build chunk 和 warning 被记录 | `cd web && npm run build` | Todo |
 | 166 | FE6-02 | FE6 | `skoll-frontend-performance-refactor` | 检查路由懒加载覆盖 | router 清单 | 主要业务页面均懒加载 | `rg "component:\\s*\\(\\)\\s*=>" web/src/router web/src` | Todo |
 | 167 | FE6-03 | FE6 | `skoll-frontend-performance-refactor` | 建立表格性能规则 | 性能文档/组件要求 | 服务端分页、大列表策略、稳定尺寸明确 | 文档审阅 | Todo |
