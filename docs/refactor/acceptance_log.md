@@ -9468,3 +9468,79 @@ rg -n "Build Result|Largest JavaScript Assets|Largest CSS Assets|Warning Baselin
 ### 下一步
 
 - 进入 `FE6-02`，检查路由懒加载覆盖。
+
+## FE6-02: 检查路由懒加载覆盖
+
+- 状态: Passed
+- Work Item: FE6-02
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_route_lazy_loading_coverage.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增路由懒加载覆盖清单。 |
+| 核心路由懒加载 | Passed | Login、Dashboard、Plugin、User、Role、Permission、Menu、Dictionary、Organization、Audit、Setting 等静态页面均通过 `const Page = () => import(...)` 声明。 |
+| 静态 views import 检查 | Passed | `web/src/router/index.ts` 未发现 `../views` 的静态 import。 |
+| redirect 例外 | Passed | `/`、`/skoll`、`/skoll/` 为 redirect-only，不拥有页面组件。 |
+| `xlsx` chunk 归属 | Passed | `xlsx` 只在 `User/batch.vue` 源码中导入，且 `/skoll/user/batch-add` 为 lazy route。 |
+| 插件路由记录 | Passed | `/skoll/plugin` 为 lazy route；远端插件 iframe 内容不打入本地 route view bundle，插件宿主成本转入 FE6-05。 |
+| 前端 API client/UI 同步 | N/A | 本项为路由性能清单，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "LoginPage|DashboardPage|PluginPage|UserBatchPage|AuditPage|SettingPage|Lazy-loaded|xlsx|Plugin Routes|No static" docs/refactor/fe6_route_lazy_loading_coverage.md
+rg -n "const .*Page = \(\) => import|component: .*Page" web/src/router/index.ts
+Select-String -Path web/src/router/index.ts -Pattern 'from "../views','from ''../views','import "../views','import ''../views'
+rg -n 'import \* as XLSX|from "xlsx"|from ''xlsx''' web/src -g "*.vue" -g "*.ts"
+```
+
+结果摘要: 通过。路由文件使用 lazy component factory；未发现 router-level 静态 views import；`xlsx` 仅在 lazy 的 User batch 页面源码中出现。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/login`, `/skoll/dashboard`, `/skoll/plugin`, `/skoll/user*`, `/skoll/role*`, `/skoll/permission`, `/skoll/menu`, `/skoll/dictionary`, `/skoll/organization`, `/skoll/audit`, `/skoll/setting`
+- State coverage: N/A, no visible UI code changed
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, route source audit task
+- Responsive evidence: N/A, no layout code changed
+- Permission evidence: route permission metadata observed but behavior not changed
+- Typecheck: N/A
+- Build: N/A, FE6-01 already established bundle baseline
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项为 router source audit，不执行真实浏览器点击。
+
+### Performance Hook
+
+- Page/route: static admin routes and plugin runtime routes.
+- Typecheck: N/A，本项未改 TypeScript 源码。
+- Build: N/A，本项未改产物；FE6-01 已建立 baseline。
+- Bundle impact: No product code changed.
+- Route lazy loading: Passed for static admin routes.
+- Heavy table risk: table chunk follow-up remains FE6-03。
+- Request behavior: N/A。
+- Deferred panels: plugin host and remote iframe behavior follow-up remains FE6-05。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE6-03`，建立表格性能规则。

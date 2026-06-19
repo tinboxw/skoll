@@ -236,7 +236,7 @@
 |---:|---|---|---|---|---|---|---|---|
 | 164 | ADJ-TAIL-20260619-03 | FE6 | `skoll-frontend-performance-refactor` | FE6 性能执行顺序清单 | `docs/refactor/fe6_performance_execution_order.md` | bundle、路由懒加载、重表格、请求数量、插件重面板均被排序并写入验收标准 | `rg -n "Bundle|Route Lazy Loading|Heavy Tables|Request Count|Plugin Heavy Panels|FE6-01|FE6-02|FE6-03|FE6-04|FE6-05|FE6-06|ADJ-FE-20260619-08|Failure Policy" docs/refactor/fe6_performance_execution_order.md` | Done |
 | 165 | FE6-01 | FE6 | `skoll-frontend-performance-refactor` | 建立 bundle 基线 | `docs/refactor/fe6_bundle_baseline.md` | build chunk 和 warning 被记录 | `cd web && npm run build`; `rg -n "Build Result|Largest JavaScript Assets|Largest CSS Assets|Warning Baseline|xlsx|legacy-js-api|FE6-02|FE6-03|FE6-05" docs/refactor/fe6_bundle_baseline.md` | Done |
-| 166 | FE6-02 | FE6 | `skoll-frontend-performance-refactor` | 检查路由懒加载覆盖 | router 清单 | 主要业务页面均懒加载 | `rg "component:\\s*\\(\\)\\s*=>" web/src/router web/src` | Todo |
+| 166 | FE6-02 | FE6 | `skoll-frontend-performance-refactor` | 检查路由懒加载覆盖 | `docs/refactor/fe6_route_lazy_loading_coverage.md` | 主要业务页面均懒加载 | `rg -n "LoginPage|DashboardPage|PluginPage|UserBatchPage|AuditPage|SettingPage|Lazy-loaded|xlsx|Plugin Routes|No static" docs/refactor/fe6_route_lazy_loading_coverage.md; rg -n "const .*Page = \\(\\) => import|component: .*Page" web/src/router/index.ts` | Done |
 | 167 | FE6-03 | FE6 | `skoll-frontend-performance-refactor` | 建立表格性能规则 | 性能文档/组件要求 | 服务端分页、大列表策略、稳定尺寸明确 | 文档审阅 | Todo |
 | 168 | FE6-04 | FE6 | `skoll-frontend-performance-refactor` | 共享数据缓存策略 | store 文档/代码 | 菜单、权限、字典缓存与失效规则明确 | 文档审阅 | Todo |
 | 169 | FE6-05 | FE6 | `skoll-frontend-performance-refactor` | 插件/Dev Portal 性能检查 | 性能记录 | 重面板按需加载，请求数量可控 | 浏览器验收 | Todo |
