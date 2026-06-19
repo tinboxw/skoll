@@ -9617,3 +9617,78 @@ rg -n "Server-Side Pagination|Client-Side Bounded Lists|Virtualization Trigger|S
 ### 下一步
 
 - 进入 `FE6-04`，建立共享数据缓存策略。
+
+## FE6-04: 共享数据缓存策略
+
+- 状态: Passed
+- Work Item: FE6-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_shared_cache_strategy.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE6 共享数据缓存策略文档。 |
+| 菜单缓存规则 | Passed | 明确 `useNavigationStore` 是菜单树 owner，并定义 refresh/patch/reload 与失效事件。 |
+| 权限缓存规则 | Passed | 明确 `usePermissionStore` 现有 query-normalized cache、force refresh、clear 与后续 stale guard。 |
+| 字典缓存规则 | Passed | 明确字典当前 page-local，跨页/生成表单复用时提升为 catalog cache。 |
+| 组织选项缓存规则 | Passed | 明确部门/岗位选项跨 User add/edit/list 复用时提升为 bounded reference cache。 |
+| 插件缓存规则 | Passed | 明确 `usePluginStore`/plugin sync 是插件 inventory owner，安装/禁用需联动权限和菜单刷新。 |
+| stale write/request count | Passed | 明确 sequence/AbortController/query key 三类 guard 和请求数量验收字段。 |
+| 前端 API client/UI 同步 | N/A | 本项为缓存策略文档，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "defineStore|load|refresh|syncStatus|lastLoadedAt|lastQuery|lastSyncedAt|localStorage|force" web/src/stores web/src/views -g "*.ts" -g "*.vue"
+rg -n "Permission catalog|Menu tree|Plugin inventory|Dictionaries|Organization options|Invalidation Matrix|Stale Write Guard|Request Count Rules|Acceptance Checklist" docs/refactor/fe6_shared_cache_strategy.md
+```
+
+结果摘要: 通过。权限、菜单、插件、用户会话 store 和页面级字典/组织/audit 查询现状已扫描；缓存分类、失效矩阵、stale write guard、请求数量规则和验收清单均可定位。
+
+### 前端验收记录
+
+- Affected routes/pages: Dashboard, User, Permission, Menu, Plugin, Dictionary, Organization, Audit, Setting
+- State coverage: N/A, no visible UI code changed
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, strategy-only task
+- Responsive evidence: N/A, no layout code changed
+- Permission evidence: permission catalog/cache rules documented
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立共享数据缓存策略，不执行真实浏览器点击。
+
+### Performance Hook
+
+- Page/route: shared stores and table/filter pages.
+- Typecheck: N/A，本项为文档策略。
+- Build: N/A，本项不改前端产物。
+- Bundle impact: N/A。
+- Route lazy loading: FE6-02 已记录。
+- Heavy table risk: FE6-03 已记录。
+- Request behavior: Passed，缓存/失效/stale write/request count 规则已建立。
+- Deferred panels: Plugin/Dev Portal 继续进入 FE6-05。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE6-05`，检查插件/Dev Portal 性能。
