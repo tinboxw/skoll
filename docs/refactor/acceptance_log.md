@@ -9692,3 +9692,76 @@ rg -n "Permission catalog|Menu tree|Plugin inventory|Dictionaries|Organization o
 ### 下一步
 
 - 进入 `FE6-05`，检查插件/Dev Portal 性能。
+
+## FE6-05: 插件/Dev Portal 性能检查
+
+- 状态: Passed，source/documentation check passed; browser evidence Blocked
+- Work Item: FE6-05
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_plugin_devportal_performance_check.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE6-05 插件/Dev Portal 性能检查文档。 |
+| 重面板按需加载 | Passed | `activeHeavyPanel` 默认进入 inventory，risk 和 Dev Portal 由 `v-if` 延迟渲染。 |
+| 请求数量可控性记录 | Passed | Dev Portal 请求集中在 `refreshDevPortal` 和显式动作；远端 iframe fetch 发生在远端路由挂载时。 |
+| 表格/面板约束 | Passed | Dev Portal 表格存在 `max-height` 约束；risk 表格大数据量 follow-up 已记录。 |
+| 浏览器证据 | Blocked | 当前线程无可调用浏览器工具，无法采集真实 first-paint/request-count 截图证据。 |
+| 前端 API client/UI 同步 | N/A | 本项为源码审计和文档记录，不新增 API client 或可见 UI 代码。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "activeHeavyPanel|Deferred Heavy Panels|Request Behavior|Browser Evidence|Blocked|Dev Portal|createRemotePluginView|max-height" docs/refactor/fe6_plugin_devportal_performance_check.md web/src/views/Plugin/index.vue web/src/plugins/index.ts
+rg -n "FE6-05|fe6_plugin_devportal_performance_check|FE6-06" docs/refactor/work_items.md docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。FE6-05 文档、work item 状态、源码中的重面板 guard、远端插件 iframe 创建逻辑、Dev Portal 表格高度约束均可定位；浏览器证据按实际能力标记为 Blocked。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/plugin`, plugin runtime iframe route, app plugin route, Dev Portal panel
+- State coverage: source-level first paint, deferred panel, request surface, and table constraint check
+- Browser smoke: Blocked
+- Browser command: N/A
+- Browser evidence: Blocked, no callable browser tool in this thread
+- Responsive evidence: N/A, no layout code changed
+- Permission evidence: N/A, no permission behavior changed
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 本项需要浏览器工具或 Playwright 运行时采集 first-paint/request-count 证据；当前线程不可用，已记录后续补验要求。
+
+### Performance Hook
+
+- Page/route: `/skoll/plugin`, plugin runtime iframe route, app plugin route, Dev Portal panel.
+- Typecheck: N/A，本项为源码审计和文档记录。
+- Build: N/A，本项不改前端产物。
+- Bundle impact: N/A。
+- Route lazy loading: FE6-02 已记录 `/skoll/plugin` lazy route。
+- Heavy table risk: Passed，Dev Portal 表格高度约束已定位；risk table 大数据量 follow-up 已记录。
+- Request behavior: Passed，Dev Portal、plugin inventory sync、remote iframe fetch 触发面已记录。
+- Deferred panels: Passed，risk/Dev Portal 均由 `activeHeavyPanel` 和 `v-if` 延迟渲染。
+
+### 失败与返工
+
+- 失败原因: 浏览器证据阻塞，不影响源码/文档验收通过。
+- 返工动作: 无；后续在浏览器工具恢复后补采 FE6-05 browser smoke。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE6-06`，建立前端性能验收模板。
