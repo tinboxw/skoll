@@ -9244,3 +9244,78 @@ rg -n "前端验收记录|Affected routes/pages|State coverage|Browser smoke|Bro
 ### 下一步
 
 - 进入 `ADJ-FE-20260619-07`，实现或记录 FE5 browser smoke minimum set。
+
+## ADJ-FE-20260619-07: FE5 browser smoke minimum set
+
+- 状态: Passed
+- Work Item: ADJ-FE-20260619-07
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe5_browser_smoke_minimum_set.md`
+- `web/scripts/fe5-browser-smoke-minimum.mjs`
+- `web/package.json`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增最小 browser smoke 集合文档和脚本，并接入 `npm run smoke:browser:minimum`。 |
+| Login 覆盖 | Passed | 文档和脚本均包含 Login 场景。 |
+| Permission denied 覆盖 | Passed | 文档和脚本均包含 restricted role 的权限拒绝场景。 |
+| Plugin operation 覆盖 | Passed | 文档和脚本均包含插件页面安全操作场景。 |
+| Audit export 覆盖 | Passed | 文档和脚本均包含审计导出场景。 |
+| Narrow navigation 覆盖 | Passed | 文档和脚本均包含 390px 窄屏导航场景。 |
+| 阻塞边界 | Passed | 缺少浏览器 runner 或凭据时输出 `Blocked`，不声明 browser smoke 通过。 |
+| 前端 API client/UI 同步 | N/A | 本项新增测试脚本和文档，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Login|Permission denied|Plugin operation|Audit export|Narrow navigation|Blocked|smoke:browser:minimum" docs/refactor/fe5_browser_smoke_minimum_set.md web/scripts/fe5-browser-smoke-minimum.mjs web/package.json
+cd web
+npm run smoke:browser:minimum
+```
+
+结果摘要: 通过。五个最小场景、Blocked 规则和 npm script 均可定位；脚本可运行并在当前缺少浏览器验收环境变量时输出 Blocked 记录。
+
+### 前端验收记录
+
+- Affected routes/pages: `/login`, protected route/action, `/plugin`, `/audit`, `/dashboard` narrow navigation
+- State coverage: no-permission, export feedback, operation state, narrow-viewport
+- Browser smoke: Blocked
+- Browser command: `cd web && npm run smoke:browser:minimum`
+- Browser evidence: command output records missing browser fixture environment variables as blocked reason
+- Responsive evidence: 390x844 scenario defined; real screenshot pending browser runner
+- Permission evidence: admin and restricted role scenarios defined; real role execution pending browser runner
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: Blocked
+- 说明: 本项定义并脚本化最小集合；当前没有真实浏览器 runner 和凭据，因此脚本按规则输出 Blocked。
+- 后续: 后续 Playwright 实现应复用相同场景名称和 evidence 字段，将 Blocked 替换为真实 Passed/Failed。
+
+### Performance Hook
+
+- Page/route: `/login`, protected route/action, `/plugin`, `/audit`, `/dashboard`
+- Typecheck: N/A，本项为测试脚本和文档清单。
+- Build: N/A，本项未改可见 UI 代码。
+- Request behavior: N/A，当前脚本不发起浏览器或 API 请求。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `ADJ-TAIL-20260619-03`，整理 FE6 性能执行顺序清单。

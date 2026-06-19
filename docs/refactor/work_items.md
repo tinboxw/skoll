@@ -228,7 +228,7 @@
 | 160 | ADJ-TAIL-20260619-02 | FE5 | `skoll-frontend-testing-refactor` | browser smoke 最小集执行记录 | `docs/refactor/fe5_browser_smoke_execution_record.md` | 登录、权限拒绝、插件操作、审计导出、窄屏导航均有 pass/fail/blocked 记录 | `rg -n "Login|Permission denied|Plugin operation|Audit export|Narrow navigation|Blocked|Retry conditions|Browser tooling" docs/refactor/fe5_browser_smoke_execution_record.md` | Done |
 | 161 | FE5-06 | FE5 | `skoll-frontend-testing-refactor` | 评估 Playwright/browser 自动化 | `docs/refactor/fe5_playwright_browser_automation_plan.md` | 是否引入、覆盖范围、执行命令明确 | `rg -n "Decision|Introduce Playwright|Coverage Scope|Execution Commands|Failure Record Format|test:browser:smoke|Blocked" docs/refactor/fe5_playwright_browser_automation_plan.md` | Done |
 | 162 | FE5-07 | FE5 | `skoll-frontend-testing-refactor` | 前端验收记录接入 acceptance log | `docs/refactor/acceptance_log.md` | 前端状态、浏览器、截图/路径字段可记录 | `rg -n "前端验收记录|Affected routes/pages|State coverage|Browser smoke|Browser evidence|Responsive evidence|Permission evidence|Typecheck|Build" docs/refactor/acceptance_log.md` | Done |
-| 163 | ADJ-FE-20260619-07 | FE5 | `skoll-frontend-testing-refactor` | FE5 browser smoke minimum set | docs/scripts | 覆盖登录、权限拒绝、插件操作、审计导出、窄屏导航 | 文档审阅 | Todo |
+| 163 | ADJ-FE-20260619-07 | FE5 | `skoll-frontend-testing-refactor` | FE5 browser smoke minimum set | `docs/refactor/fe5_browser_smoke_minimum_set.md`; `web/scripts/fe5-browser-smoke-minimum.mjs` | 覆盖登录、权限拒绝、插件操作、审计导出、窄屏导航 | `rg -n "Login|Permission denied|Plugin operation|Audit export|Narrow navigation|Blocked|smoke:browser:minimum" docs/refactor/fe5_browser_smoke_minimum_set.md web/scripts/fe5-browser-smoke-minimum.mjs web/package.json; cd web && npm run smoke:browser:minimum` | Done |
 
 ## FE6 Work Items: 前端性能与可观测
 

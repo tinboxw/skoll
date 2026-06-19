@@ -13,6 +13,7 @@
 		"smoke:plugins": "node scripts/plugin-sync-smoke.mjs",
 		"smoke:auth-actor": "node scripts/auth-actor-fallback-smoke.mjs",
 		"smoke:m1-permissions": "node scripts/m1-permission-menu-smoke.mjs",
+		"smoke:browser:minimum": "node scripts/fe5-browser-smoke-minimum.mjs",
 		"smoke:all": "node scripts/run-smoke-suite.mjs"
 	},
 	"dependencies": {
