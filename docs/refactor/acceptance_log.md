@@ -9544,3 +9544,76 @@ rg -n 'import \* as XLSX|from "xlsx"|from ''xlsx''' web/src -g "*.vue" -g "*.ts"
 ### 下一步
 
 - 进入 `FE6-03`，建立表格性能规则。
+
+## FE6-03: 建立表格性能规则
+
+- 状态: Passed
+- Work Item: FE6-03
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_table_performance_rules.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE6 表格性能规则文档。 |
+| 服务端分页规则 | Passed | 明确 User/Audit/Plugin/generator CRUD 等无界列表必须服务端分页。 |
+| 大列表策略 | Passed | 明确有界客户端列表条件和 virtualization 触发阈值。 |
+| 稳定尺寸规则 | Passed | 明确 row-key、列宽、fixed actions、overflow tooltip、max-height 和状态区域要求。 |
+| 页面风险矩阵 | Passed | 覆盖 User、Role、Permission、Menu、Plugin、Audit、Dictionary、Organization、Setting。 |
+| 前端 API client/UI 同步 | N/A | 本项为性能规则文档，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "el-table|el-pagination|filteredRows|slice\(|max-height|row-key|v-loading" web/src/views -g "*.vue"
+rg -n "Server-Side Pagination|Client-Side Bounded Lists|Virtualization Trigger|Stable Dimensions|Page Risk Matrix|User list|Audit|Permission|Plugin|Acceptance Checklist" docs/refactor/fe6_table_performance_rules.md
+```
+
+结果摘要: 通过。核心页面表格用法已扫描；服务端分页、有界列表、虚拟化阈值、稳定尺寸和页面风险矩阵均可定位。
+
+### 前端验收记录
+
+- Affected routes/pages: User, Role, Permission, Menu, Plugin, Audit, Dictionary, Organization, Setting
+- State coverage: N/A, no visible UI code changed
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, rules-only task
+- Responsive evidence: rules require narrow viewport behavior for table tasks
+- Permission evidence: N/A, no permission behavior changed
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立表格性能规则，不执行真实浏览器点击。
+
+### Performance Hook
+
+- Page/route: table-heavy admin pages.
+- Typecheck: N/A，本项为文档规则。
+- Build: N/A，本项不改前端产物。
+- Bundle impact: N/A。
+- Route lazy loading: FE6-02 已记录。
+- Heavy table risk: Passed，规则和页面风险矩阵已建立。
+- Request behavior: FE6-04 将继续处理缓存、重复请求和 stale write。
+- Deferred panels: Plugin/Dev Portal 表格和重面板转入 FE6-05。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE6-04`，建立共享数据缓存策略。
