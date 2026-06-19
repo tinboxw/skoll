@@ -9929,3 +9929,82 @@ rg -n "ADJ-FE-20260619-08|fe6_performance_regression_checklist|ADJ-TAIL-20260619
 ### 下一步
 
 - 进入 `ADJ-TAIL-20260619-04`，记录尾盘阈值触发和剩余任务收口顺序。
+
+## ADJ-TAIL-20260619-04: 尾盘阈值检查
+
+- 状态: Passed
+- Work Item: ADJ-TAIL-20260619-04
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/tail_threshold_closeout_2026-06-19.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增尾盘阈值触发与 FE6 收口记录。 |
+| 原始触发快照 | Passed | 记录微调文档中的 `170/165/5`，确认 Todo `< 10` 已触发尾盘优化流程。 |
+| 当前收口快照 | Passed | 记录执行本项前 `172/171/1`，本项完成后预期 `172/172/0`。 |
+| FE6 顺序校准 | Passed | 明确 FE6-04 -> FE6-05 -> FE6-06 -> ADJ-FE-20260619-08 -> ADJ-TAIL-20260619-04 已按序执行。 |
+| task_board 同步 | Passed | FE6 父项状态由 `Doing` 同步为 `Done`。 |
+| 范围不扩散 | Passed | 明确未引入兼容层、旧接口、旧路由、旧插件格式或双路径过渡方案。 |
+| 前端 API client/UI 同步 | N/A | 本项为治理文档和任务状态收口，不新增 API client 或 UI 代码。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+$rows = Get-Content docs/refactor/work_items.md | Where-Object { $_ -match '^\|\s*\d+\s*\|' }
+$total = $rows.Count
+$done = ($rows | Where-Object { $_ -match '\|\s*Done\s*\|\s*$' }).Count
+$todo = ($rows | Where-Object { $_ -match '\|\s*Todo\s*\|\s*$' }).Count
+"total=$total done=$done todo=$todo"
+
+rg -n "ADJ-TAIL-20260619-04|tail_threshold_closeout_2026-06-19|Tail Threshold Closeout|Trigger Snapshot|Executed Tail Order|Direction Calibration|FE6 parent row is Done" docs/refactor/tail_threshold_closeout_2026-06-19.md docs/refactor/work_items.md docs/refactor/task_board.md docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。Work Items 预期收口到 `total=172 done=172 todo=0`；尾盘触发快照、当前收口快照、执行顺序、FE6 父项 Done 状态和范围不扩散结论均可定位。
+
+### 治理影响记录
+
+- API/OpenAPI impact: N/A
+- Permission key impact: N/A
+- Audit action impact: N/A
+- Migration and seed impact: N/A
+- Frontend state and UX impact: N/A
+- Removed obsolete paths: N/A
+- No-compatibility policy: Passed，未设计旧系统兼容方案。
+
+### Performance Acceptance
+
+- Page/route: FE6 milestone governance closeout.
+- Change type: Docs
+- Baseline reference: `docs/refactor/fe6_performance_acceptance_template.md`, `docs/refactor/fe6_performance_regression_checklist.md`
+- Typecheck: N/A, docs-only governance task
+- Build: N/A, docs-only governance task
+- Bundle impact: No production bundle change
+- Route lazy loading: N/A, no route code changed
+- Heavy table/list risk: N/A, no UI list code changed
+- Request count or request behavior: N/A, no runtime request code changed
+- Loading behavior: N/A, no UI code changed
+- Deferred panels: N/A, no panel code changed
+- Browser/performance evidence: N/A for this docs-only task
+- Blocked evidence reason: N/A for this docs-only task
+- Follow-up threshold: FE6 tail work is closed; next work must be explicitly scheduled from the next milestone or release-prep index calibration.
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- FE6 尾盘收口完成；后续进入下一已排期里程碑或发布前文档索引校准，不再扩散 FE6 范围。
