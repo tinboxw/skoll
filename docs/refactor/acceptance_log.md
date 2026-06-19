@@ -9765,3 +9765,84 @@ rg -n "FE6-05|fe6_plugin_devportal_performance_check|FE6-06" docs/refactor/work_
 ### 下一步
 
 - 进入 `FE6-06`，建立前端性能验收模板。
+
+## FE6-06: 前端性能验收模板
+
+- 状态: Passed
+- Work Item: FE6-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_performance_acceptance_template.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE6 canonical 前端性能验收模板。 |
+| bundle 变化字段 | Passed | 模板要求记录 baseline、build、bundle impact 和 chunk delta/无产物变化。 |
+| 路由加载字段 | Passed | 模板要求记录 route lazy loading，eager route 必须说明原因。 |
+| 请求数量字段 | Passed | 模板要求记录 first-paint requests、缓存/复用、stale-write guard 或 Blocked 原因。 |
+| 页面卡顿/表格风险字段 | Passed | 模板覆盖 heavy table/list risk、loading behavior、deferred panels 和 follow-up threshold。 |
+| 浏览器证据诚实性 | Passed | 模板明确无 runnable browser tool 时必须写 Blocked reason，不能声称通过。 |
+| 与 ADJ-FE-20260619-08 去重 | Passed | 模板声明 canonical，后续 regression checklist 应引用本模板而不是复制另一套。 |
+| 前端 API client/UI 同步 | N/A | 本项为文档模板，不新增 API client 或 UI 代码。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "FE6 Performance Acceptance Template|Required Record|Bundle impact|Route lazy loading|Request count|Deferred panels|Browser/performance evidence|Blocked evidence reason|Follow-up threshold|Failure Policy|Canonical Validation" docs/refactor/fe6_performance_acceptance_template.md docs/refactor/acceptance_log.md
+rg -n "FE6-06|fe6_performance_acceptance_template|ADJ-FE-20260619-08|ADJ-TAIL-20260619-04" docs/refactor/work_items.md docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。canonical 模板、必填字段、失败策略、Blocked 证据规则、验证命令和后续任务引用关系均可定位。
+
+### 前端验收记录
+
+- Affected routes/pages: all future frontend routes/pages that use FE6 performance acceptance
+- State coverage: N/A, template-only task
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, no visible workflow changed
+- Responsive evidence: N/A, no layout code changed
+- Permission evidence: N/A, no permission behavior changed
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立验收模板，不执行真实浏览器点击；模板本身要求后续可见工作必须记录 browser/performance evidence 或 Blocked reason。
+
+### Performance Acceptance
+
+- Page/route: all future frontend performance-sensitive pages and panels.
+- Change type: Docs
+- Baseline reference: `docs/refactor/fe6_bundle_baseline.md`
+- Typecheck: N/A, docs-only task
+- Build: N/A, docs-only task
+- Bundle impact: No production bundle change
+- Route lazy loading: Template requires explicit status and documented eager-route reason
+- Heavy table/list risk: Template requires pagination/max-height/virtualization/stable-size status
+- Request count or request behavior: Template requires first-paint/cache/stale-write/Blocked status
+- Loading behavior: Template requires meaningful loading-state notes when applicable
+- Deferred panels: Template requires on-demand panel/log/drawer/iframe status
+- Browser/performance evidence: N/A for this docs-only task
+- Blocked evidence reason: N/A for this docs-only task
+- Follow-up threshold: ADJ-FE-20260619-08 must reference this canonical template
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `ADJ-FE-20260619-08`，建立 performance regression checklist，并引用 FE6-06 canonical 模板。
