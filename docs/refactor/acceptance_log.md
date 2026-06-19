@@ -9393,3 +9393,78 @@ rg -n "Bundle|Route Lazy Loading|Heavy Tables|Request Count|Plugin Heavy Panels|
 ### 下一步
 
 - 进入 `FE6-01`，建立 bundle 基线。
+
+## FE6-01: 建立 bundle 基线
+
+- 状态: Passed
+- Work Item: FE6-01
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_bundle_baseline.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE6 bundle 基线记录。 |
+| build 命令 | Passed | `cd web && npm run build` 通过。 |
+| chunk 记录 | Passed | 最大 JS/CSS assets 已记录，包含 `xlsx`、Vue、Element Plus table/alert/tab 相关 chunk。 |
+| warning 记录 | Passed | 记录 `@vueuse/core` pure annotation 与 Dart Sass `legacy-js-api` 既有 warning。 |
+| 后续风险归属 | Passed | `xlsx`/route chunk 归入 FE6-02，table chunk 归入 FE6-03，panel 样式/重面板归入 FE6-05。 |
+| 前端 API client/UI 同步 | N/A | 本项只运行 build 并记录性能基线，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run build
+cd ..
+rg -n "Build Result|Largest JavaScript Assets|Largest CSS Assets|Warning Baseline|xlsx|legacy-js-api|FE6-02|FE6-03|FE6-05" docs/refactor/fe6_bundle_baseline.md
+```
+
+结果摘要: 通过。Vite build 通过，3501 modules transformed，built in 52.65s；最大 JS chunk 为 `xlsx-DLNWaC59.js` 332.45 kB gzip 113.83 kB；既有 warning 已记录。
+
+### 前端验收记录
+
+- Affected routes/pages: production bundle baseline
+- State coverage: N/A, no visible UI code changed
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, build-only baseline task
+- Responsive evidence: N/A, no layout code changed
+- Permission evidence: N/A, no permission behavior changed
+- Typecheck: N/A
+- Build: Passed, `cd web && npm run build`
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立 bundle 基线，不执行真实浏览器点击。
+
+### Performance Hook
+
+- Page/route: production bundle.
+- Typecheck: N/A，本项只要求 build 基线。
+- Build: Passed，Vite 5.4.21，3501 modules transformed，52.65s。
+- Bundle impact: Baseline recorded; no product code changed in this task.
+- Route lazy loading: Follow-up FE6-02。
+- Heavy table risk: `el-table-column` chunk recorded; follow-up FE6-03。
+- Request behavior: N/A。
+- Deferred panels: `el-tab-pane`/panel-related CSS risk feeds FE6-05。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE6-02`，检查路由懒加载覆盖。
