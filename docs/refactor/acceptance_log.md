@@ -9846,3 +9846,86 @@ rg -n "FE6-06|fe6_performance_acceptance_template|ADJ-FE-20260619-08|ADJ-TAIL-20
 ### 下一步
 
 - 进入 `ADJ-FE-20260619-08`，建立 performance regression checklist，并引用 FE6-06 canonical 模板。
+
+## ADJ-FE-20260619-08: FE6 performance regression checklist
+
+- 状态: Passed
+- Work Item: ADJ-FE-20260619-08
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe6_performance_regression_checklist.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 FE6 performance regression checklist。 |
+| 引用 canonical 模板 | Passed | 清单明确使用 `docs/refactor/fe6_performance_acceptance_template.md` 记录结果，避免复制第二套模板。 |
+| bundle 基线检查 | Passed | 清单包含 build 命令、FE6-01 baseline、阈值、证据字段和失败策略。 |
+| 路由懒加载检查 | Passed | 清单包含 router/source 搜索命令、eager route 说明要求和失败策略。 |
+| 重表格检查 | Passed | 清单引用 FE6-03 规则，覆盖 pagination、max-height、virtualization trigger 和 stable dimensions。 |
+| 请求数量检查 | Passed | 清单引用 FE6-04，要求 owner、invalidation、stale-write guard 或 documented repeated requests。 |
+| 插件重面板检查 | Passed | 清单引用 FE6-05，要求 risk/Dev Portal/detail/log/iframe on demand。 |
+| 浏览器证据诚实性 | Passed | 清单要求浏览器证据可运行；否则必须记录具体 Blocked reason。 |
+| 前端 API client/UI 同步 | N/A | 本项为回归清单文档，不新增 API client 或 UI 代码。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Regression Matrix|Bundle baseline|Route lazy loading|Heavy tables/lists|Request count and cache behavior|Plugin heavy panels|Browser/performance evidence|FE6-06|Failure policy|Canonical Validation" docs/refactor/fe6_performance_regression_checklist.md
+rg -n "FE6 Performance Acceptance Template|### Performance Acceptance|Bundle impact|Route lazy loading|Request count|Deferred panels|Blocked evidence reason" docs/refactor/fe6_performance_acceptance_template.md docs/refactor/acceptance_log.md
+rg -n "ADJ-FE-20260619-08|fe6_performance_regression_checklist|ADJ-TAIL-20260619-04" docs/refactor/work_items.md docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。回归矩阵、各风险域命令、阈值、证据路径、失败策略、FE6-06 canonical 模板引用和下一项 tail threshold 均可定位。
+
+### 前端验收记录
+
+- Affected routes/pages: all FE6 performance-sensitive frontend routes/pages by checklist policy
+- State coverage: N/A, checklist-only task
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A, no visible workflow changed
+- Responsive evidence: N/A, no layout code changed
+- Permission evidence: N/A, no permission behavior changed
+- Typecheck: N/A
+- Build: N/A
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项建立回归清单，不执行真实浏览器点击；清单要求后续可见性能验收必须记录 browser/performance evidence 或具体 Blocked reason。
+
+### Performance Acceptance
+
+- Page/route: FE6 bundle, route, table, cache/request, plugin panel, browser evidence surfaces.
+- Change type: Docs
+- Baseline reference: `docs/refactor/fe6_bundle_baseline.md`, `docs/refactor/fe6_performance_acceptance_template.md`
+- Typecheck: N/A, docs-only task
+- Build: N/A, docs-only task
+- Bundle impact: No production bundle change
+- Route lazy loading: Checklist requires route lazy scan and eager-route explanation
+- Heavy table/list risk: Checklist requires FE6-03 bounded rendering evidence
+- Request count or request behavior: Checklist requires FE6-04 cache/request/stale-write evidence
+- Loading behavior: Checklist requires meaningful loading behavior in FE6-06 record when applicable
+- Deferred panels: Checklist requires FE6-05 plugin heavy panel evidence
+- Browser/performance evidence: N/A for this docs-only task
+- Blocked evidence reason: N/A for this docs-only task
+- Follow-up threshold: ADJ-TAIL-20260619-04 must record tail threshold snapshot and remaining task order
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `ADJ-TAIL-20260619-04`，记录尾盘阈值触发和剩余任务收口顺序。
