@@ -9105,3 +9105,61 @@ rg -n "Login|Permission denied|Plugin operation|Audit export|Narrow navigation|B
 ### 下一步
 
 - 进入 `FE5-06`，评估 Playwright/browser 自动化方案。
+
+## FE5-06: 评估 Playwright/browser 自动化
+
+- 状态: Passed
+- Work Item: FE5-06
+- 日期: 2026-06-19
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/fe5_playwright_browser_automation_plan.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 Playwright/browser 自动化评估方案。 |
+| 是否引入明确 | Passed | 方案明确建议引入 Playwright 作为 browser-level smoke，不替代现有 Node smoke。 |
+| 覆盖范围明确 | Passed | 首批覆盖 Login、Permission denied、Plugin operation、Audit export、Narrow navigation。 |
+| 执行命令明确 | Passed | 记录安装命令、local/debug/CI 执行命令和建议 npm scripts。 |
+| 失败记录格式明确 | Passed | 记录 scenario、route、role、viewport、action、expected/actual、result、screenshot/trace path。 |
+| 工具阻塞边界明确 | Passed | 当前任务只做方案评估，不声明 browser smoke 已通过；缺 fixture 或工具时必须记录 Blocked。 |
+| 前端 API client/UI 同步 | N/A | 本项为测试方案文档，不改页面代码或 API client。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Decision|Introduce Playwright|Coverage Scope|Execution Commands|Failure Record Format|test:browser:smoke|Blocked" docs/refactor/fe5_playwright_browser_automation_plan.md
+```
+
+结果摘要: 通过。引入决策、覆盖范围、执行命令、失败记录格式、browser smoke script 名称和 Blocked 规则均存在。
+
+### 浏览器 smoke
+
+- 结果: N/A
+- 说明: 本项为 Playwright/browser 自动化评估方案，不执行真实浏览器点击；真实最小集仍需后续实现脚本并在工具可用后运行。
+- 后续: `FE5-07` 接入验收记录字段；`ADJ-FE-20260619-07` 可基于本方案实现最小 browser smoke 脚本。
+
+### Performance Hook
+
+- Page/route: Login、Permission denied、Plugin operation、Audit export、Narrow navigation 作为首批 browser smoke 目标。
+- Typecheck: N/A，本项为测试方案文档。
+- Build: N/A，本项为测试方案文档。
+- Request behavior: N/A，本项不执行真实请求。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `FE5-07`，将前端验收记录字段接入 `acceptance_log.md` 模板。
