@@ -11255,6 +11255,72 @@ go test ./...
 
 - 进入 `M4-01-01`，实现 DictionaryType/Item domain。
 
+## M4-01-01: DictionaryType/Item domain
+
+- 状态: Passed
+- Work Item: M4-01-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/domain/system/dictionary.go`
+- `internal/domain/system/dictionary_test.go`
+- `internal/domain/system/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 类型模型 | Passed | 新增 `DictionaryType`，覆盖 code/name/description/status/sort/builtin/audit meta。 |
+| 条目模型 | Passed | 新增 `DictionaryItem`，覆盖 typeCode/label/value/status/sort/builtin/audit meta。 |
+| 排序 | Passed | `SortDictionaryItems` 按 sort/value 稳定排序且不修改输入。 |
+| 状态 | Passed | enabled/disabled 状态、Enable/Disable 方法和非法状态校验完整。 |
+| 系统内置标记 | Passed | builtin 标记保留，并通过 `RequireMutable` 阻止内置类型/条目被修改。 |
+| 文档同步 | Passed | 更新 system domain README、work item 和验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未复用 settings-backed dictionary 兼容结构。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/system/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查字典领域模型未依赖 settings store。
+2. 检查 code/status/sort/name/time 边界测试完整。
+3. 检查 builtin guard 可供后续 service/store 复用。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-01-02`，实现字典 migration/store。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
