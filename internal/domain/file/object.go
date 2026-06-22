@@ -46,6 +46,7 @@ type FileObjectInput struct {
 	StorageDriver string
 	Status        Status
 	Source        SourceRef
+	Metadata      map[string]string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
@@ -62,6 +63,7 @@ type FileObject struct {
 	StorageDriver string
 	Status        Status
 	Source        SourceRef
+	Metadata      map[string]string
 	Meta          shared.AuditMeta
 }
 
@@ -82,6 +84,7 @@ func NewFileObject(in FileObjectInput) (*FileObject, error) {
 		StorageDriver: in.StorageDriver,
 		Status:        in.Status,
 		Source:        in.Source,
+		Metadata:      in.Metadata,
 	}
 	obj.Meta.CreatedAt = in.CreatedAt
 	obj.Meta.UpdatedAt = in.UpdatedAt
@@ -117,6 +120,7 @@ func NormalizeFileObjectInput(in FileObjectInput) FileObjectInput {
 	in.Owner = NormalizeOwner(in.Owner)
 	in.StorageDriver = NormalizeIdentifier(in.StorageDriver)
 	in.Source = NormalizeSource(in.Source)
+	in.Metadata = NormalizeObjectMetadata(in.Metadata)
 	if in.Status == "" {
 		in.Status = StatusPending
 	}

@@ -47,6 +47,9 @@ func ValidateFileObjectInput(in FileObjectInput) error {
 	if err := ValidateSource(in.Source); err != nil {
 		return err
 	}
+	if err := ValidateObjectMetadata(in.Metadata); err != nil {
+		return err
+	}
 	return ValidateTimestamps(in.CreatedAt, in.UpdatedAt)
 }
 

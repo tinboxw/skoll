@@ -215,7 +215,7 @@ M3 起新增文件对象元数据表，迁移脚本：
 | `domain/audit.Record` | `AuditRecordModel` (sk_audit_records) | `audit_model.go` |
 | `domain/system.Setting` | `SystemSettingModel` (sk_system_settings) | `system_setting_model.go` |
 | `plugin.Info` | `PluginModel` (sk_plugins) | `plugin_model.go` |
-| `domain/file.FileObject` | 待 M3-03-02 添加 (sk_file_objects) | 待 M3-03-02 添加 |
+| `domain/file.FileObject` | `FileObjectModel` (sk_file_objects) | `file_model.go` |
 
 **ID 转换**：Domain 使用 `shared.ID`（字符串类型），GORM Model 使用 `uint64`。通过 `parseUintID` / `formatUintID` 辅助函数双向转换（审计记录的 `AuditRecordModel` 直接使用字符串 ID）。
 

@@ -12,6 +12,7 @@ func AllModels() []any {
 		&PluginReleaseModel{},
 		&PermissionResourceModel{},
 		&MenuNodeModel{},
+		&FileObjectModel{},
 		&AuditRecordModel{},
 		&AuditEventModel{},
 	}

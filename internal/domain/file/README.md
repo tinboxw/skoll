@@ -29,6 +29,7 @@
 - `StorageDriver`: 存储驱动标识，例如 `local` 或后续稳定 port 后的 `s3`。
 - `Status`: `pending`、`available`、`failed` 或 `deleted`。
 - `Source`: 来源模块与可选插件 ID。
+- `Metadata`: 可选扩展 metadata，key 使用小写规范化。
 - `Meta`: 创建与更新时间。
 
 ## 无兼容规则

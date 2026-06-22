@@ -10466,6 +10466,69 @@ rg -n "sk_file_objects|uk_file_objects_key|idx_file_objects_owner|idx_file_objec
 
 - 进入 `M3-03-02`，实现文件元数据 memory/sql store。
 
+## M3-03-02: 文件元数据 store
+
+- 状态: Passed
+- Work Item: M3-03-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/file/object.go`
+- `internal/domain/file/rules.go`
+- `internal/domain/file/object_test.go`
+- `internal/domain/file/README.md`
+- `internal/repository/file/file_repo.go`
+- `internal/repository/file/file_repo_test.go`
+- `internal/store/memory/file_store.go`
+- `internal/store/memory/file_store_test.go`
+- `internal/store/sql/gormrepo/file_model.go`
+- `internal/store/sql/gormrepo/file_store.go`
+- `internal/store/sql/gormrepo/file_store_test.go`
+- `internal/store/sql/gormrepo/all_models.go`
+- `internal/store/sql/gormrepo/all_models_test.go`
+- `internal/store/sql/gormrepo/test_helper.go`
+- `internal/store/factory.go`
+- `internal/store/sql/mysql/adapter.go`
+- `internal/store/sql/postgres/adapter.go`
+- `docs/architecture/database.md`
+- `migrations/mysql/README.md`
+- `migrations/postgres/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| repository 契约 | Passed | 新增 `file.FileRepository`，覆盖 upsert/get/getByKey/list/setStatus/delete。 |
+| memory store | Passed | `memory.FileStore` 支持 key 唯一、筛选、状态更新和删除。 |
+| SQL store | Passed | `gormrepo.FileStore` 与 `FileObjectModel` 映射 `sk_file_objects`，纳入 `AllModels` 与测试 AutoMigrate。 |
+| Bundle 接入 | Passed | memory/mysql/postgres bundle 均可提供 file repository。 |
+| 文档同步 | Passed | migration README 与数据库架构文档已指向实际 GORM model。 |
+
+### 自动化验证
+
+```powershell
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/store/...
+```
+
+结果摘要: 通过。sqlite-backed gormrepo 测试使用有效 cgo 编译器运行。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-04-01`，实现文件上传 service。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

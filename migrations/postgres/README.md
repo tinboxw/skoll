@@ -49,7 +49,7 @@ PostgreSQL 迁移脚本目录。
 - 唯一约束: `uk_file_objects_key(object_key)`
 - 状态字段: `status`，取值由 domain 限定为 `pending`、`available`、`failed`、`deleted`
 - 查询索引: owner、visibility+status、storage+status、source、status+updated_at、hash
-- 对应 GORM model: 后续 M3-03-02 添加
+- 对应 GORM model: `internal/store/sql/gormrepo.FileObjectModel`
 
 ## 回滚说明
 

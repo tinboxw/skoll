@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	filerepo "github.com/tinboxw/skoll/internal/repository/file"
 	menurepo "github.com/tinboxw/skoll/internal/repository/menu"
 	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
@@ -27,6 +28,7 @@ type Adapter struct {
 	plg  pluginrepo.PluginRepository
 	perm permissionrepo.PermissionRepository
 	menu menurepo.MenuRepository
+	file filerepo.FileRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -51,6 +53,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		plg:  gormrepo.NewPluginStore(db),
 		perm: gormrepo.NewPermissionStore(db),
 		menu: gormrepo.NewMenuStore(db),
+		file: gormrepo.NewFileStore(db),
 	}, nil
 }
 
@@ -80,6 +83,10 @@ func (a *Adapter) PermissionRepository() permissionrepo.PermissionRepository {
 
 func (a *Adapter) MenuRepository() menurepo.MenuRepository {
 	return a.menu
+}
+
+func (a *Adapter) FileRepository() filerepo.FileRepository {
+	return a.file
 }
 
 func (a *Adapter) DB() *gorm.DB {

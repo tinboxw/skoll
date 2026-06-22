@@ -20,6 +20,7 @@ func TestNewFileObjectNormalizesAndDefaults(t *testing.T) {
 		Owner:         OwnerRef{Type: " User ", ID: shared.ID("u-1")},
 		StorageDriver: " Local ",
 		Source:        SourceRef{Module: " System "},
+		Metadata:      map[string]string{" Trace-ID ": " req-1 "},
 		CreatedAt:     now,
 	})
 	if err != nil {
@@ -44,6 +45,9 @@ func TestNewFileObjectNormalizesAndDefaults(t *testing.T) {
 	if obj.StorageDriver != "local" || obj.Source.Module != "system" {
 		t.Fatalf("storage/source = %q/%#v", obj.StorageDriver, obj.Source)
 	}
+	if obj.Metadata["trace-id"] != "req-1" {
+		t.Fatalf("metadata = %#v", obj.Metadata)
+	}
 	if !obj.Meta.CreatedAt.Equal(now) || !obj.Meta.UpdatedAt.Equal(now) {
 		t.Fatalf("meta = %#v", obj.Meta)
 	}
@@ -65,6 +69,7 @@ func TestNewFileObjectRejectsInvalidInput(t *testing.T) {
 		{name: "invalid storage", mutate: func(in *FileObjectInput) { in.StorageDriver = "1local" }},
 		{name: "invalid status", mutate: func(in *FileObjectInput) { in.Status = Status("ready") }},
 		{name: "missing source module", mutate: func(in *FileObjectInput) { in.Source.Module = " " }},
+		{name: "bad metadata", mutate: func(in *FileObjectInput) { in.Metadata = map[string]string{"1bad": "x"} }},
 		{name: "updated before created", mutate: func(in *FileObjectInput) { in.UpdatedAt = in.CreatedAt.Add(-time.Second) }},
 	}
 
@@ -129,6 +134,7 @@ func validFileObjectInput(mutate func(*FileObjectInput)) FileObjectInput {
 		StorageDriver: "local",
 		Status:        StatusPending,
 		Source:        SourceRef{Module: "system"},
+		Metadata:      map[string]string{"trace-id": "req-1"},
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
