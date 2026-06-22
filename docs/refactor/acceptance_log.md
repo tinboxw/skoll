@@ -11043,6 +11043,74 @@ for path in [Path('docs/api/openapi.yaml'), Path('internal/handler/http/openapi.
 
 - 进入 `M3-07-01`，实现文件 API client/store。
 
+## M3-07-01: 文件 API client/store
+
+- 状态: Passed
+- Work Item: M3-07-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `web/src/files/api.ts`
+- `web/src/stores/files.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增文件 API client 和 Pinia file store。 |
+| 上传进度 | Passed | 普通上传与分片 part 上传均通过 XHR `upload.onprogress` 暴露 loaded/total/percent。 |
+| 错误状态 | Passed | store 统一维护 list/detail/mutation 状态与 `lastError`。 |
+| 取消上传 | Passed | store 使用 AbortController map 管理上传任务，可按 taskId 中断。 |
+| 刷新状态 | Passed | `refresh` 维护 query、listStatus、lastRefreshedAt 和 items。 |
+| API/OpenAPI 同步 | Passed | client 路径和字段对齐 M3-05/M3-06 OpenAPI 契约。 |
+| 文档同步 | Passed | 更新 work item 和验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧文件接口或旧上传路径兼容层。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: Passed。`npm run build` 通过；输出包含既有 Sass legacy JS API deprecation 与 Rollup pure annotation 警告，不阻塞本项。
+
+### 前端验收记录
+
+- Affected routes/pages: shared API client/store only
+- State coverage: list/detail/mutation/upload progress/upload error/upload cancelled
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: Passed (`npm run typecheck`)
+- Build: Passed (`npm run build`)
+
+### 人工验收
+
+1. 检查普通上传、下载 URL、删除、列表、详情 client 路径。
+2. 检查 multipart init/upload part/complete/abort client 路径。
+3. 检查 Pinia store 不依赖页面实现，后续 M3-07-02 可直接接入。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首次 typecheck 发现 XHR body 类型过宽、Uint8Array 与 DOM BodyInit 不兼容、action 默认参数使用 `this`。
+- 返工动作: 收窄上传 body 类型；将 action 默认 query 移入函数体；补真实 AbortController map。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M3-07-02`，实现文件管理页面。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
