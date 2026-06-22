@@ -10529,6 +10529,75 @@ go test ./internal/store/...
 
 - 进入 `M3-04-01`，实现文件上传 service。
 
+## M3-04-01: 文件上传 service
+
+- 状态: Passed
+- Work Item: M3-04-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/file/types.go`
+- `internal/service/file/service.go`
+- `internal/service/file/service_impl.go`
+- `internal/service/file/service_impl_test.go`
+- `internal/service/file/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增文件上传 service，按先写对象、再写元数据的顺序创建可用文件记录。 |
+| API/OpenAPI 同步 | N/A | 本项只实现 service，HTTP API 在后续 M3-05 处理。 |
+| 权限目录同步 | N/A | 文件访问权限策略在 M3-04-02 处理。 |
+| 审计 action 同步 | N/A | 文件审计事件在 M3-04-03 处理。 |
+| migration/seed 同步 | N/A | 本项复用 M3-03 已完成的文件元数据 store。 |
+| 前端 API client/UI 同步 | N/A | 本项不涉及前端。 |
+| 文档同步 | Passed | 新增 service README，并更新 work item、task board、验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧接口、旧数据结构、旧页面路径兼容方案。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/file/...
+```
+
+结果摘要: Passed。覆盖上传成功、对象写入失败不产生元数据、元数据写入失败清理对象，避免幽灵记录。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 `Upload` 的状态一致性：对象写入失败直接返回且不写 metadata；metadata 写入失败会删除已写对象。
+2. 检查返回对象状态为 `available`，对象 hash 使用实际写入结果回填。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-04-02`，实现文件访问权限策略。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

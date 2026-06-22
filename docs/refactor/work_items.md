@@ -265,7 +265,7 @@
 | 182 | M3-02-02 | M3-02 | `skoll-security-hardening` | local adapter 路径安全 | tests | 路径穿越、非法 key、覆盖保护测试通过 | `go test ./internal/store/object/...` | Done |
 | 183 | M3-03-01 | M3-03 | `skoll-database-development` | 文件元数据 migration | MySQL/PostgreSQL SQL | 字段、索引、唯一约束、状态字段完整 | migration review | Done |
 | 184 | M3-03-02 | M3-03 | `skoll-database-development` | 文件元数据 store | memory/sql store | metadata 写入、查询、删除、状态更新契约一致 | `go test ./internal/store/...` | Done |
-| 185 | M3-04-01 | M3-04 | `skoll-file-storage-refactor` | 文件上传 service | service | 元数据和对象写入失败时状态一致，不产生幽灵记录 | `go test ./internal/service/file/...` | Todo |
+| 185 | M3-04-01 | M3-04 | `skoll-file-storage-refactor` | 文件上传 service | service | 元数据和对象写入失败时状态一致，不产生幽灵记录 | `go test ./internal/service/file/...` | Done |
 | 186 | M3-04-02 | M3-04 | `skoll-permission-rbac` | 文件访问权限策略 | service tests | private/public/plugin_asset 访问规则明确，无权限不可下载 | `go test ./internal/service/file/... ./internal/service/rbac/...` | Todo |
 | 187 | M3-04-03 | M3-04 | `skoll-observability-audit` | 文件审计事件 | audit integration | upload/download/delete/forbidden 均写审计 | `go test ./internal/service/file/... ./internal/service/audit/...` | Todo |
 | 188 | M3-05-01 | M3-05 | `skoll-api-contracts` | 文件 API 契约 | OpenAPI | upload/download/delete/list/detail 错误码和响应字段明确 | OpenAPI review | Todo |
