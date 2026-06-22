@@ -8,4 +8,5 @@ import (
 
 type Service interface {
 	Upload(ctx context.Context, in UploadInput) (*domainfile.FileObject, error)
+	AuthorizeAccess(ctx context.Context, in AccessInput) (AccessDecision, error)
 }

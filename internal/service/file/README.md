@@ -12,4 +12,13 @@
 4. metadata 写入失败时删除已写入的 object，避免幽灵对象。
 5. object 写入失败时不写 metadata。
 
-本包不处理 HTTP multipart、权限策略、审计事件或本地/S3 具体实现细节。
+## Access 权限策略
+
+`Service.AuthorizeAccess` 对非 public 文件默认拒绝。
+
+1. `public` 文件在状态为 `available` 时可下载。
+2. `private` 文件允许 owner 下载；非 owner 必须通过 RBAC resource `file:private` 与 action `download`。
+3. `plugin_asset` 文件必须通过 RBAC resource `plugin:<plugin_id>:asset` 与 action `download`；没有 plugin id 时回退到 `file:plugin_asset`。
+4. 非 `available` 状态文件在 owner 和 RBAC 检查前直接拒绝。
+
+本包不处理 HTTP multipart、审计事件或本地/S3 具体实现细节。

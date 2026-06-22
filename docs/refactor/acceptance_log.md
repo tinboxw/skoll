@@ -10598,6 +10598,74 @@ go test ./internal/service/file/...
 
 - 进入 `M3-04-02`，实现文件访问权限策略。
 
+## M3-04-02: 文件访问权限策略
+
+- 状态: Passed
+- Work Item: M3-04-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/file/types.go`
+- `internal/service/file/service.go`
+- `internal/service/file/service_impl.go`
+- `internal/service/file/service_impl_test.go`
+- `internal/service/file/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | `AuthorizeAccess` 明确 public/private/plugin_asset 访问规则，并默认拒绝非 public 文件。 |
+| API/OpenAPI 同步 | N/A | 本项为 service 策略，HTTP API 契约在后续任务处理。 |
+| 权限目录同步 | N/A | 本项定义 RBAC resource/action 口径，目录注册将在文件 API/权限目录接入时处理。 |
+| 审计 action 同步 | N/A | 文件审计事件在 M3-04-03 处理。 |
+| migration/seed 同步 | N/A | 不涉及数据库结构。 |
+| 前端 API client/UI 同步 | N/A | 不涉及前端。 |
+| 文档同步 | Passed | `internal/service/file/README.md` 记录访问策略与 RBAC resource。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧接口、旧数据结构、旧页面路径兼容方案。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/file/... ./internal/service/rbac/...
+```
+
+结果摘要: Passed。覆盖 public 可下载、private owner 可下载、private 无权限拒绝、private RBAC 放行、plugin_asset 无权限拒绝、plugin_asset RBAC 放行、非 available 状态拒绝。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查策略为 deny-by-default，非 public 且非 owner 时必须通过 RBAC checker。
+2. 检查 `private` 使用 `file:private` + `download`，`plugin_asset` 使用 `plugin:<plugin_id>:asset` + `download`。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-04-03`，实现文件审计事件。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

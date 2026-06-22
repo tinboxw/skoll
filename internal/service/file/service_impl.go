@@ -3,18 +3,22 @@ package file
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	domainfile "github.com/tinboxw/skoll/internal/domain/file"
+	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	filerepo "github.com/tinboxw/skoll/internal/repository/file"
+	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 )
 
 type serviceImpl struct {
-	repo    filerepo.FileRepository
-	objects domainfile.ObjectStore
-	now     func() time.Time
-	newID   func() shared.ID
+	repo       filerepo.FileRepository
+	objects    domainfile.ObjectStore
+	now        func() time.Time
+	newID      func() shared.ID
+	permission PermissionChecker
 }
 
 func NewService(repo filerepo.FileRepository, objects domainfile.ObjectStore, opts Options) Service {
@@ -26,7 +30,7 @@ func NewService(repo filerepo.FileRepository, objects domainfile.ObjectStore, op
 	if newID == nil {
 		newID = func() shared.ID { return shared.ID(fmt.Sprintf("file-%d", now().UnixNano())) }
 	}
-	return &serviceImpl{repo: repo, objects: objects, now: now, newID: newID}
+	return &serviceImpl{repo: repo, objects: objects, now: now, newID: newID, permission: opts.Permission}
 }
 
 func (s *serviceImpl) Upload(ctx context.Context, in UploadInput) (*domainfile.FileObject, error) {
@@ -84,4 +88,92 @@ func (s *serviceImpl) Upload(ctx context.Context, in UploadInput) (*domainfile.F
 		return nil, err
 	}
 	return object, nil
+}
+
+func (s *serviceImpl) AuthorizeAccess(ctx context.Context, in AccessInput) (AccessDecision, error) {
+	if s == nil || s.repo == nil {
+		return AccessDecision{Reason: "repository_not_configured"}, fmt.Errorf("file repository is not configured")
+	}
+	if err := ctx.Err(); err != nil {
+		return AccessDecision{Reason: "context_canceled"}, err
+	}
+	action := normalizeAccessAction(in.Action)
+	object, err := s.resolveAccessObject(ctx, in)
+	if err != nil {
+		return AccessDecision{Reason: "lookup_failed"}, err
+	}
+	if object == nil {
+		return AccessDecision{Reason: "not_found"}, nil
+	}
+	resource := accessResource(*object)
+	if object.Status != domainfile.StatusAvailable {
+		return AccessDecision{Resource: resource, Reason: "not_available"}, nil
+	}
+	if object.Visibility == domainfile.VisibilityPublic {
+		return AccessDecision{Allowed: true, Resource: resource, Reason: "public"}, nil
+	}
+	if accessSubjectOwnsObject(in, *object) {
+		return AccessDecision{Allowed: true, Resource: resource, Reason: "owner"}, nil
+	}
+	if s.permission == nil || in.SubjectID.IsZero() {
+		return AccessDecision{Resource: resource, Reason: "permission_required"}, nil
+	}
+	subjectType := in.SubjectType
+	if subjectType == "" {
+		subjectType = domainrbac.SubjectUser
+	}
+	allowed, err := s.permission.CheckPermission(ctx, rbacsvc.CheckPermissionInput{
+		SubjectType: subjectType,
+		SubjectID:   in.SubjectID.String(),
+		Resource:    resource,
+		Action:      action,
+	})
+	if err != nil {
+		return AccessDecision{Resource: resource, Reason: "permission_check_failed"}, err
+	}
+	if !allowed {
+		return AccessDecision{Resource: resource, Reason: "permission_denied"}, nil
+	}
+	return AccessDecision{Allowed: true, Resource: resource, Reason: "permission"}, nil
+}
+
+func (s *serviceImpl) resolveAccessObject(ctx context.Context, in AccessInput) (*domainfile.FileObject, error) {
+	if in.Object != nil {
+		object := *in.Object
+		return &object, nil
+	}
+	if !in.FileID.IsZero() {
+		return s.repo.Get(ctx, in.FileID)
+	}
+	key := strings.TrimSpace(in.Key)
+	if key != "" {
+		return s.repo.GetByKey(ctx, key)
+	}
+	return nil, fmt.Errorf("file id or key is required")
+}
+
+func normalizeAccessAction(action string) string {
+	action = strings.ToLower(strings.TrimSpace(action))
+	if action == "" {
+		return AccessActionDownload
+	}
+	return action
+}
+
+func accessSubjectOwnsObject(in AccessInput, object domainfile.FileObject) bool {
+	if in.SubjectID.IsZero() || object.Owner.ID.IsZero() || in.SubjectID != object.Owner.ID {
+		return false
+	}
+	subjectType := in.SubjectType
+	if subjectType == "" {
+		subjectType = domainrbac.SubjectUser
+	}
+	return string(subjectType) == object.Owner.Type
+}
+
+func accessResource(object domainfile.FileObject) string {
+	if object.Visibility == domainfile.VisibilityPluginAsset && object.Source.PluginID != "" {
+		return "plugin:" + object.Source.PluginID + ":asset"
+	}
+	return "file:" + string(object.Visibility)
 }
