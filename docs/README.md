@@ -14,6 +14,7 @@ Skoll 当前处于开源基础建设阶段。文档按读者和用途分层，�
 | [refactor/work_items.md](refactor/work_items.md) | 最小 Work Item 表，作为执行、验收、提交单元 |
 | [refactor/next_work_items.md](refactor/next_work_items.md) | N0 与 M3-M7 细粒度任务来源和候选池记录 |
 | [refactor/acceptance_log.md](refactor/acceptance_log.md) | 已完成任务的验收记录 |
+| [refactor/release_scope_freeze.md](refactor/release_scope_freeze.md) | N0 发布前范围冻结、后续任务领取和质量门禁延续规则 |
 | [refactor/frontend-foundation.md](refactor/frontend-foundation.md) | 前端体验、视觉系统、架构和核心页面规范 |
 | [refactor/frontend-quality-performance.md](refactor/frontend-quality-performance.md) | 前端测试、浏览器验收、响应式、性能基线 |
 | [refactor/milestone-closeout.md](refactor/milestone-closeout.md) | M2、FE0-FE6、尾盘优化和发布前收口摘要 |

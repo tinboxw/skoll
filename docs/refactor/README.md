@@ -24,6 +24,7 @@ docs/refactor/
 ├── acceptance_log.md                 # 验收记录
 ├── quality_baseline.md               # M0 质量基线
 ├── source_map.md                     # 旧文档吸收与归档说明
+├── release_scope_freeze.md           # N0 发布前范围冻结说明
 ├── frontend-foundation.md            # FE0-FE4 前端体验、视觉、架构、页面与插件门户规范
 ├── frontend-quality-performance.md   # FE5-FE6 测试、浏览器验收、响应式、性能基线
 └── milestone-closeout.md             # M2、FE0-FE6、尾盘优化和发布前收口摘要
@@ -40,6 +41,7 @@ docs/refactor/
 | [acceptance_log.md](acceptance_log.md) | 每项任务的验收记录 |
 | [quality_baseline.md](quality_baseline.md) | 质量门禁和基线记录 |
 | [source_map.md](source_map.md) | 旧文档内容吸收与归档说明 |
+| [release_scope_freeze.md](release_scope_freeze.md) | N0 发布前范围冻结、后续任务领取和质量门禁延续规则 |
 
 ## 专题合并文档
 
@@ -59,7 +61,7 @@ docs/refactor/
 6. 验收通过后提交代码。
 7. 将 Work Item 状态更新为 `Done`，进入下一个 Work Item。
 
-当前正式执行表已合并 N0 与 M3-M7 细粒度任务。执行时继续从 [work_items.md](work_items.md) 选择最前 `Todo`，先完成 N0 发布前冻结与质量门禁，再按 M3 到 M7 顺序推进。
+当前正式执行表已合并 N0 与 M3-M7 细粒度任务。N0 完成后，执行时继续从 [work_items.md](work_items.md) 选择最前 `Todo`，按 M3 到 M7 顺序推进；冻结边界见 [release_scope_freeze.md](release_scope_freeze.md)。
 
 ## 提交规则
 

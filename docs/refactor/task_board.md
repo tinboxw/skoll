@@ -177,4 +177,4 @@
 
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
-| 64 | N0 | `skoll-refactor-governance` / `skoll-quality-gate` / `skoll-docs-writer` | 发布前冻结与质量门禁 | 文档入口、质量门禁记录、范围冻结说明 | N0-01 到 N0-05 全部通过验收；不引入兼容方案或新范围扩散 | `rg -n "N0-01|N0-02|N0-03|N0-04|N0-05" docs/refactor/work_items.md docs/refactor/acceptance_log.md` | Doing |
+| 64 | N0 | `skoll-refactor-governance` / `skoll-quality-gate` / `skoll-docs-writer` | 发布前冻结与质量门禁 | 文档入口、质量门禁记录、范围冻结说明 | N0-01 到 N0-05 全部通过验收；不引入兼容方案或新范围扩散 | `rg -n "N0-01|N0-02|N0-03|N0-04|N0-05" docs/refactor/work_items.md docs/refactor/acceptance_log.md` | Done |

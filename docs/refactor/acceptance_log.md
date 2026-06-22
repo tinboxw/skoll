@@ -10145,6 +10145,52 @@ npm run build
 
 - 进入 `N0-05`，补齐发布前范围冻结说明。
 
+## N0-05: 发布前范围冻结说明
+
+- 状态: Passed
+- Work Item: N0-05
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/release_scope_freeze.md`
+- `docs/refactor/README.md`
+- `docs/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 范围冻结说明 | Passed | `release_scope_freeze.md` 明确正式任务来源、候选池边界、允许变更、禁止范围和质量门禁延续规则。 |
+| 下一阶段领取规则 | Passed | 明确 M3-M7 后续任务只从 `work_items.md` 的最前 `Todo` 领取。 |
+| 不追加兼容方案 | Passed | 明确禁止旧 API 路径、旧数据结构、旧插件 manifest、旧页面路由兼容层。 |
+| 文档入口同步 | Passed | `docs/refactor/README.md` 与 `docs/README.md` 均新增冻结说明入口。 |
+| 父任务状态 | Passed | N0 父任务在 N0-01 到 N0-05 全部完成后标记为 `Done`。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Release Scope Freeze|Formal task source|M3-01-01|release_scope_freeze" docs/refactor/release_scope_freeze.md docs/refactor/README.md docs/README.md
+rg -n "N0-01|N0-02|N0-03|N0-04|N0-05" docs/refactor/work_items.md docs/refactor/acceptance_log.md
+```
+
+结果摘要: 通过。发布前冻结说明可从文档索引进入，N0-05 已写入正式 Work Item 表，N0 父任务完成态已同步。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-01-01`，开始文件与对象存储平台的 FileObject 模型任务。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
