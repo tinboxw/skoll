@@ -10329,6 +10329,51 @@ go test ./internal/domain/file/...
 
 - 进入 `M3-02-01`，实现 local object adapter。
 
+## M3-02-01: 实现 local object adapter
+
+- 状态: Passed after retry
+- Work Item: M3-02-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/store/object/local_store.go`
+- `internal/store/object/local_store_test.go`
+- `internal/store/object/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| local adapter | Passed | 新增 `LocalStore`，实现 `Put`、`Get`、`Delete`、`Stat`、`Presign`。 |
+| 上传/读取/删除/stat | Passed | 测试覆盖写入对象、读取内容、读取 metadata、删除对象和 sidecar。 |
+| metadata sidecar | Passed | 写入 `.meta.json` 保存 key、size、mime、hash、etag、lastModified、metadata。 |
+| root 边界 | Passed | key 经 domain 校验后解析为 root 内路径，`resolve` 不创建目录。 |
+| 存储边界 | Passed | 未接入 DB 元数据、权限判断、审计事件或 HTTP 路由。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/store/object/...
+```
+
+结果摘要: 初次失败后重试通过。初次失败原因是 Windows 上测试在读取句柄未关闭前删除文件；修正测试关闭顺序后通过。
+
+### 失败与返工
+
+- 失败原因: `TestLocalStorePutGetStatDelete` 在 Windows 上未关闭 `Get` 返回的 `Body` 就调用 `Delete`，导致文件被占用。
+- 返工动作: 在测试中显式读取并关闭 `Body` 后再删除。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M3-02-02`，补 local adapter 路径安全测试。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
