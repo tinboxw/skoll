@@ -281,7 +281,7 @@
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
 | 195 | M4-01-01 | M4-01 | `skoll-dictionary-organization-refactor` | DictionaryType/Item domain | domain | 类型、条目、排序、状态、系统内置标记校验完整 | `go test ./internal/domain/system/...` | Done |
-| 196 | M4-01-02 | M4-01 | `skoll-database-development` | 字典 migration/store | migration + store | memory/sql 契约一致，唯一约束完整 | `go test ./internal/store/...` | Todo |
+| 196 | M4-01-02 | M4-01 | `skoll-database-development` | 字典 migration/store | migration + store | memory/sql 契约一致，唯一约束完整 | `go test ./internal/store/...` | Done |
 | 197 | M4-02-01 | M4-02 | `skoll-cache-development` | 字典缓存策略 | cache/service | 更新后缓存失效，错误不污染缓存 | `go test ./internal/cache/... ./internal/service/system/...` | Todo |
 | 198 | M4-03-01 | M4-03 | `skoll-api-contracts` | 字典 API 契约与 handler | OpenAPI + handler | 类型、条目、状态、搜索、排序完整 | `go test ./internal/handler/http/v1/system/...` | Todo |
 | 199 | M4-03-02 | M4-03 | `skoll-vue-frontend` | 字典管理 UI | Vue page | 类型/条目管理、启停、排序、空态、错误态完整 | `cd web && npm run build` | Todo |

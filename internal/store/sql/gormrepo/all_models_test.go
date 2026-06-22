@@ -17,6 +17,12 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 	if !containsModel[FileObjectModel](models) {
 		t.Fatal("AllModels() should include FileObjectModel")
 	}
+	if !containsModel[DictionaryTypeModel](models) {
+		t.Fatal("AllModels() should include DictionaryTypeModel")
+	}
+	if !containsModel[DictionaryItemModel](models) {
+		t.Fatal("AllModels() should include DictionaryItemModel")
+	}
 }
 
 func containsModel[T any](models []any) bool {

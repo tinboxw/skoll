@@ -11378,3 +11378,81 @@ rg -n "^## (FE6-04|FE6-05|FE6-06|ADJ-FE-20260619-08|ADJ-TAIL-20260619-04)" docs/
 ### 下一步
 
 - 进入 `N0-02` 文档入口复查。
+
+## M4-01-02: 字典 migration/store
+
+- 状态: Passed
+- Work Item: M4-01-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/repository/system/system_repo.go`
+- `internal/store/memory/system_store.go`
+- `internal/store/memory/system_dictionary_store_test.go`
+- `internal/store/sql/gormrepo/dictionary_model.go`
+- `internal/store/sql/gormrepo/dictionary_store.go`
+- `internal/store/sql/gormrepo/dictionary_store_test.go`
+- `internal/store/sql/gormrepo/all_models.go`
+- `internal/store/sql/gormrepo/all_models_test.go`
+- `internal/store/sql/gormrepo/test_helper.go`
+- `migrations/mysql/20260622_000017_create_dictionary.sql`
+- `migrations/postgres/20260622_000017_create_dictionary.sql`
+- `migrations/mysql/README.md`
+- `migrations/postgres/README.md`
+- `docs/architecture/database.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| migration | Passed | 新增 MySQL/Postgres `sk_dictionary_types` 与 `sk_dictionary_items`，包含唯一约束、排序索引和 type_code 外键。 |
+| repository 契约 | Passed | SystemRepository 增加字典类型/条目的 get/list/save/delete 与 type+value 查询方法。 |
+| memory store | Passed | 类型 code 与条目 type+value 唯一，条目保存要求类型存在，列表按 sort/value 或 sort/code 稳定排序。 |
+| SQL store | Passed | GORM model 与 domain 双向转换；AutoMigrate 注册；保存、查询、分页、重复唯一约束、删除类型清理条目通过测试。 |
+| 契约一致性 | Passed | memory 与 SQL 覆盖相同行为：大小写归一化、分页、重复拒绝、缺失类型拒绝、类型删除清理条目。 |
+| 文档同步 | Passed | 更新 migration README 与数据库架构文档，说明表结构、索引、外键和字符串 ID。 |
+| 父任务收口 | Passed | `M4-01-01` 与 `M4-01-02` 均完成，`task_board.md` 中 `M4-01` 标记为 Done。 |
+
+### 自动化验证
+
+```powershell
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'; go test ./internal/store/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查字典没有复用 settings 表或旧兼容结构。
+2. 检查 memory/sql store 方法名与 repository 契约一致。
+3. 检查 migration 唯一约束覆盖 type code 与 item type+value。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-02-01`，实现字典缓存策略。

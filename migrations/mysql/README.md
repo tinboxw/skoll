@@ -18,6 +18,7 @@ MySQL 迁移脚本目录。
 - 20260618_000014_create_menu_nodes.sql
 - 20260619_000015_create_audit_events.sql
 - 20260622_000016_create_file_objects.sql
+- 20260622_000017_create_dictionary.sql
 
 ## 执行顺序
 
@@ -52,7 +53,18 @@ MySQL 迁移脚本目录。
 - 查询索引: owner、visibility+status、storage+status、source、status+updated_at、hash
 - 对应 GORM model: `internal/store/sql/gormrepo.FileObjectModel`
 
+## 新增字典表
+
+### 20260622_000017_create_dictionary.sql
+
+- 表名: `sk_dictionary_types`、`sk_dictionary_items`
+- 用途: 持久化 system domain 中的字典类型和字典条目。
+- 唯一约束: `uk_dictionary_types_code(code)`、`uk_dictionary_items_type_value(type_code, value)`
+- 查询索引: type status+sort、item type+sort、item status+sort
+- 外键约束: `sk_dictionary_items.type_code` 引用 `sk_dictionary_types.code`，类型删除时级联删除条目。
+- 对应 GORM model: `internal/store/sql/gormrepo.DictionaryTypeModel`、`internal/store/sql/gormrepo.DictionaryItemModel`
+
 ## 回滚说明
 
-当前项目未集成自动迁移工具，也未维护 down migration 文件。需要回滚时由维护者按依赖倒序手动处理：先处理 `sk_file_objects`，再处理 `sk_menu_nodes`、`sk_permission_resources`，并在执行前备份业务数据。
+当前项目未集成自动迁移工具，也未维护 down migration 文件。需要回滚时由维护者按依赖倒序手动处理：先处理 `sk_dictionary_items`、`sk_dictionary_types` 和 `sk_file_objects`，再处理 `sk_menu_nodes`、`sk_permission_resources`，并在执行前备份业务数据。
 

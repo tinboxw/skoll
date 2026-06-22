@@ -197,6 +197,34 @@ M3 起新增文件对象元数据表，迁移脚本：
 
 > **Domain 实体**：`internal/domain/file/object.go` → `FileObject`，包含 key、name、size、mime、hash、owner、visibility、storage driver、status、source 与 `AuditMeta`。
 
+### 2.9 字典表（sk_dictionary_types / sk_dictionary_items）
+
+M4 起新增系统字典类型与字典条目表，迁移脚本：
+
+- `migrations/mysql/20260622_000017_create_dictionary.sql`
+- `migrations/postgres/20260622_000017_create_dictionary.sql`
+
+`sk_dictionary_types` 保存字典分类；`sk_dictionary_items` 保存分类下可排序、可启停的条目。条目通过 `type_code` 引用类型 `code`，删除类型时级联删除条目。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `sk_dictionary_types.id` | VARCHAR(64) | PK | 字典类型 ID |
+| `sk_dictionary_types.code` | VARCHAR(128) | UNIQUE, NOT NULL | 类型编码，按 domain 规则归一化 |
+| `sk_dictionary_types.name` | VARCHAR(255) | NOT NULL | 类型名称 |
+| `sk_dictionary_types.description` | VARCHAR(512) | - | 类型说明 |
+| `sk_dictionary_types.status` | VARCHAR(32) | INDEX(status, sort) | `enabled` / `disabled` |
+| `sk_dictionary_types.sort` | INT/INTEGER | INDEX(status, sort) | 类型排序 |
+| `sk_dictionary_types.builtin` | BOOL/BOOLEAN | - | 系统内置标记 |
+| `sk_dictionary_items.id` | VARCHAR(64) | PK | 字典条目 ID |
+| `sk_dictionary_items.type_code` | VARCHAR(128) | UNIQUE(type_code, value), FK | 所属类型编码 |
+| `sk_dictionary_items.label` | VARCHAR(255) | NOT NULL | 条目展示名 |
+| `sk_dictionary_items.value` | VARCHAR(255) | UNIQUE(type_code, value), NOT NULL | 条目值 |
+| `sk_dictionary_items.status` | VARCHAR(32) | INDEX(status, sort) | `enabled` / `disabled` |
+| `sk_dictionary_items.sort` | INT/INTEGER | INDEX(type_code, sort) | 条目排序 |
+| `sk_dictionary_items.builtin` | BOOL/BOOLEAN | - | 系统内置标记 |
+
+> **Domain 实体**：`internal/domain/system/dictionary.go` → `DictionaryType`、`DictionaryItem`。
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：
@@ -216,8 +244,10 @@ M3 起新增文件对象元数据表，迁移脚本：
 | `domain/system.Setting` | `SystemSettingModel` (sk_system_settings) | `system_setting_model.go` |
 | `plugin.Info` | `PluginModel` (sk_plugins) | `plugin_model.go` |
 | `domain/file.FileObject` | `FileObjectModel` (sk_file_objects) | `file_model.go` |
+| `domain/system.DictionaryType` | `DictionaryTypeModel` (sk_dictionary_types) | `dictionary_model.go` |
+| `domain/system.DictionaryItem` | `DictionaryItemModel` (sk_dictionary_items) | `dictionary_model.go` |
 
-**ID 转换**：Domain 使用 `shared.ID`（字符串类型），GORM Model 使用 `uint64`。通过 `parseUintID` / `formatUintID` 辅助函数双向转换（审计记录的 `AuditRecordModel` 直接使用字符串 ID）。
+**ID 转换**：Domain 使用 `shared.ID`（字符串类型）。用户、角色、系统设置等早期 GORM Model 使用 `uint64`，通过 `parseUintID` / `formatUintID` 辅助函数双向转换；审计事件、文件对象、字典类型与字典条目直接使用字符串 ID。
 
 **JSON 序列化**：`Permissions`、`Dependencies`、`Detail`、`Signature` 等复杂字段在 GORM Model 中以 JSON 字符串存储，通过 `json.Marshal` / `json.Unmarshal` 与 Domain 实体转换。
 
