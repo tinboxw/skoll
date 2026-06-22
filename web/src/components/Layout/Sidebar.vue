@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ClipboardList, LayoutDashboard, ListTree, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
+import { ClipboardList, FolderOpen, LayoutDashboard, ListTree, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
 import type { SidebarItem } from "../../navigation/menu";
 
 defineProps<{
@@ -15,7 +15,8 @@ const iconMap = {
 	menus: ListTree,
 	audit: ClipboardList,
 	plugins: Puzzle,
-	settings: Settings2
+	settings: Settings2,
+	files: FolderOpen
 } as const;
 
 function resolveIconComponent(icon: string) {

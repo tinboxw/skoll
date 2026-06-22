@@ -11111,6 +11111,79 @@ npm run build
 
 - 进入 `M3-07-02`，实现文件管理页面。
 
+## M3-07-02: 文件管理页面
+
+- 状态: Passed
+- Work Item: M3-07-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `web/src/views/File/index.vue`
+- `web/src/router/index.ts`
+- `web/src/navigation/menu.ts`
+- `web/src/components/Layout/Sidebar.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增文件管理页并接入 `/skoll/files` 路由与侧栏。 |
+| 搜索/筛选 | Passed | 支持关键词、可见性、状态筛选。 |
+| 上传进度 | Passed | 上传按钮接入 file store，页面展示上传任务进度、取消和移除。 |
+| 预览/详情 | Passed | 双击行或详情按钮打开抽屉，展示 key、hash、mime、大小、来源、时间。 |
+| 下载/删除 | Passed | 下载接入短期 URL，删除使用危险确认。 |
+| 空态/错误态/无权限态 | Passed | 表格 empty、页面 error alert、403/请求错误沿用 API 错误展示。 |
+| 前端路由/菜单同步 | Passed | 新增 i18n、sidebar icon、route 和 system sidebar fallback menu。 |
+| 文档同步 | Passed | 更新 work item、task board 和验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧文件页面或旧上传路径兼容层。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: Passed。首次 typecheck 发现 lucide 图标名和 `replaceAll` 目标库兼容问题，修正后通过；build 通过，仍有既有 Sass legacy JS API deprecation 与 Rollup pure annotation 警告。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/files`
+- State coverage: loading, empty, error, upload progress, upload cancel, detail drawer, delete confirm
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: CSS narrow layout rules checked in implementation
+- Permission evidence: API 403 displays page error via shared error handling
+- Typecheck: Passed (`npm run typecheck`)
+- Build: Passed (`npm run build`)
+
+### 人工验收
+
+1. 检查页面未使用营销式 hero 或嵌套卡片。
+2. 检查表格列、筛选、上传任务和详情抽屉在窄屏下可纵向排列。
+3. 检查删除动作通过 `confirmAction` 二次确认。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首次 typecheck 失败，`lucide-vue-next` 无 `Refresh` 导出，当前 TypeScript target 不支持 `replaceAll`。
+- 返工动作: 改用 `RefreshCw`，将 `replaceAll` 改为 `split().join()`。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M3-08-01`，实现文件安全 smoke。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
