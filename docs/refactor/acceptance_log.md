@@ -10419,6 +10419,53 @@ go test ./internal/store/object/...
 
 - 进入 `M3-03-01`，设计文件元数据 migration。
 
+## M3-03-01: 文件元数据 migration
+
+- 状态: Passed
+- Work Item: M3-03-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `migrations/mysql/20260622_000016_create_file_objects.sql`
+- `migrations/postgres/20260622_000016_create_file_objects.sql`
+- `migrations/mysql/README.md`
+- `migrations/postgres/README.md`
+- `docs/architecture/database.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| MySQL migration | Passed | 新增 `sk_file_objects` 表，包含 file metadata 字段、唯一约束和查询索引。 |
+| PostgreSQL migration | Passed | 新增同构 `sk_file_objects` 表与 `IF NOT EXISTS` 索引。 |
+| 字段完整 | Passed | 覆盖 key/name/size/mime/hash/owner/visibility/storage/status/source/metadata/timestamps。 |
+| 索引完整 | Passed | 覆盖 object_key unique、owner、visibility+status、storage+status、source、status+updated_at、hash。 |
+| 文档同步 | Passed | migration README 与 `docs/architecture/database.md` 已记录表用途、字段和后续 GORM model 边界。 |
+
+### 自动化验证
+
+```powershell
+rg -n "sk_file_objects|uk_file_objects_key|idx_file_objects_owner|idx_file_objects_visibility_status|idx_file_objects_storage_status|idx_file_objects_source|idx_file_objects_status_updated|idx_file_objects_hash" migrations/mysql/20260622_000016_create_file_objects.sql migrations/postgres/20260622_000016_create_file_objects.sql docs/architecture/database.md
+```
+
+结果摘要: 通过。当前项目未集成自动迁移工具，本项按 migration review 验收。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-03-02`，实现文件元数据 memory/sql store。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

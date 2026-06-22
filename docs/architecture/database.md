@@ -167,6 +167,36 @@ Model 定义：`internal/store/sql/gormrepo/plugin_model.go`，迁移脚本：`m
 
 插件路由和发布相关的附属表：`sk_plugin_routes`、`sk_plugin_releases`（`migrations/mysql/20260510_000011_create_plugin_routes_releases.sql`）。
 
+### 2.8 文件对象元数据表（sk_file_objects）
+
+M3 起新增文件对象元数据表，迁移脚本：
+
+- `migrations/mysql/20260622_000016_create_file_objects.sql`
+- `migrations/postgres/20260622_000016_create_file_objects.sql`
+
+`sk_file_objects` 只保存文件 metadata。对象内容由 object store adapter 管理，本表不保存二进制内容，也不引入旧上传路径兼容字段。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `id` | VARCHAR(64) | PK | 文件元数据记录 ID |
+| `object_key` | VARCHAR(256) | UNIQUE, NOT NULL | 对象存储 key |
+| `name` | VARCHAR(255) | NOT NULL | 原始文件名或展示名 |
+| `size_bytes` | BIGINT | NOT NULL | 文件大小 |
+| `mime` | VARCHAR(128) | NOT NULL | MIME 类型 |
+| `hash` | VARCHAR(256) | INDEX | 内容哈希 |
+| `owner_type` | VARCHAR(64) | INDEX(owner_type, owner_id) | 所属主体类型 |
+| `owner_id` | VARCHAR(64) | INDEX(owner_type, owner_id) | 所属主体 ID |
+| `visibility` | VARCHAR(32) | INDEX(visibility, status) | `private` / `public` / `plugin_asset` |
+| `storage_driver` | VARCHAR(64) | INDEX(storage_driver, status) | 存储驱动，例如 `local` |
+| `status` | VARCHAR(32) | INDEX | `pending` / `available` / `failed` / `deleted` |
+| `source_module` | VARCHAR(64) | INDEX(source_module, source_plugin_id) | 来源模块 |
+| `source_plugin_id` | VARCHAR(64) | INDEX(source_module, source_plugin_id) | 来源插件 ID，可为空字符串 |
+| `metadata_json` | LONGTEXT/TEXT | - | 扩展 metadata |
+| `created_at` | DATETIME(3)/TIMESTAMPTZ | - | 创建时间 |
+| `updated_at` | DATETIME(3)/TIMESTAMPTZ | INDEX(status, updated_at) | 更新时间 |
+
+> **Domain 实体**：`internal/domain/file/object.go` → `FileObject`，包含 key、name、size、mime、hash、owner、visibility、storage driver、status、source 与 `AuditMeta`。
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：
@@ -185,6 +215,7 @@ Model 定义：`internal/store/sql/gormrepo/plugin_model.go`，迁移脚本：`m
 | `domain/audit.Record` | `AuditRecordModel` (sk_audit_records) | `audit_model.go` |
 | `domain/system.Setting` | `SystemSettingModel` (sk_system_settings) | `system_setting_model.go` |
 | `plugin.Info` | `PluginModel` (sk_plugins) | `plugin_model.go` |
+| `domain/file.FileObject` | 待 M3-03-02 添加 (sk_file_objects) | 待 M3-03-02 添加 |
 
 **ID 转换**：Domain 使用 `shared.ID`（字符串类型），GORM Model 使用 `uint64`。通过 `parseUintID` / `formatUintID` 辅助函数双向转换（审计记录的 `AuditRecordModel` 直接使用字符串 ID）。
 

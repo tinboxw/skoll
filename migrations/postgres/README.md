@@ -15,6 +15,8 @@ PostgreSQL 迁移脚本目录。
 - 20260616_000012_add_user_organization.sql
 - 20260618_000013_create_permission_resources.sql
 - 20260618_000014_create_menu_nodes.sql
+- 20260619_000015_create_audit_events.sql
+- 20260622_000016_create_file_objects.sql
 
 ## 执行顺序
 
@@ -38,7 +40,18 @@ PostgreSQL 迁移脚本目录。
 - 查询索引: parent+sort、source、path、sort、visible
 - 对应 GORM model: `internal/store/sql/gormrepo.MenuNodeModel`
 
+## 新增文件元数据表
+
+### 20260622_000016_create_file_objects.sql
+
+- 表名: `sk_file_objects`
+- 用途: 持久化 file domain 中的文件对象元数据；对象内容仍由 object store adapter 管理。
+- 唯一约束: `uk_file_objects_key(object_key)`
+- 状态字段: `status`，取值由 domain 限定为 `pending`、`available`、`failed`、`deleted`
+- 查询索引: owner、visibility+status、storage+status、source、status+updated_at、hash
+- 对应 GORM model: 后续 M3-03-02 添加
+
 ## 回滚说明
 
-当前项目未集成自动迁移工具，也未维护 down migration 文件。需要回滚时由维护者按依赖倒序手动处理：先处理 `sk_menu_nodes`，再处理 `sk_permission_resources`，并在执行前备份业务数据。
+当前项目未集成自动迁移工具，也未维护 down migration 文件。需要回滚时由维护者按依赖倒序手动处理：先处理 `sk_file_objects`，再处理 `sk_menu_nodes`、`sk_permission_resources`，并在执行前备份业务数据。
 
