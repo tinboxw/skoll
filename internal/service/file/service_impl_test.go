@@ -70,6 +70,36 @@ func TestUploadMetadataFailureDeletesObject(t *testing.T) {
 	}
 }
 
+func TestUploadRejectsSecurityBoundaryInputs(t *testing.T) {
+	cases := []struct {
+		name   string
+		mutate func(*UploadInput)
+	}{
+		{name: "path traversal key", mutate: func(in *UploadInput) { in.Key = "../secret.txt" }},
+		{name: "invalid mime", mutate: func(in *UploadInput) { in.MIME = "text plain" }},
+		{name: "too large", mutate: func(in *UploadInput) { in.Size = domainfile.MaxFileSizeBytes + 1 }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeRepo()
+			objects := &fakeObjectStore{}
+			svc := testService(repo, objects)
+			in := validUploadInput()
+			tc.mutate(&in)
+
+			if _, err := svc.Upload(context.Background(), in); err == nil {
+				t.Fatal("expected upload validation error")
+			}
+			if objects.putCalled {
+				t.Fatal("object store should not be called for invalid upload")
+			}
+			if len(repo.items) != 0 {
+				t.Fatalf("metadata should not be written: %+v", repo.items)
+			}
+		})
+	}
+}
+
 func TestUploadAppendsSuccessAuditEvent(t *testing.T) {
 	repo := newFakeRepo()
 	objects := &fakeObjectStore{}
@@ -360,6 +390,29 @@ func TestDownloadPresignsAllowedFile(t *testing.T) {
 	}
 	if result.Presign.URL == "" {
 		t.Fatalf("presign url should be returned")
+	}
+}
+
+func TestDownloadDeniedDoesNotPresignObject(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	repo.items[object.ID] = object
+	objects := &fakeObjectStore{}
+	svc := testService(repo, objects)
+
+	result, err := svc.Download(context.Background(), DownloadInput{
+		FileID:      object.ID,
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-2",
+	})
+	if err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+	if result == nil || result.Decision.Allowed || result.Decision.Reason != "permission_required" {
+		t.Fatalf("unexpected denied result: %+v", result)
+	}
+	if objects.presignInput.Key != "" {
+		t.Fatalf("presign should not be called when denied: %+v", objects.presignInput)
 	}
 }
 

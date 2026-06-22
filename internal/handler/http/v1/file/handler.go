@@ -140,7 +140,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_file_upload", err.Error())
+		writeUploadFailure(w, err)
 		return
 	}
 	part, header, err := r.FormFile("file")
@@ -204,7 +204,7 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 		AuditMetadata: map[string]any{"path": r.URL.Path},
 	})
 	if err != nil {
-		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_file_upload", err.Error())
+		writeUploadFailure(w, err)
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{"item": fileRecordFromDomain(*object)})
@@ -422,6 +422,14 @@ func writeAccessFailure(w http.ResponseWriter, decision filesvc.AccessDecision) 
 	default:
 		apiv1.WriteMessage(w, http.StatusForbidden, "file_forbidden", "file access denied")
 	}
+}
+
+func writeUploadFailure(w http.ResponseWriter, err error) {
+	if errors.Is(err, domainfile.ErrFileTooLarge) || strings.Contains(strings.ToLower(err.Error()), "request body too large") {
+		apiv1.WriteMessage(w, http.StatusRequestEntityTooLarge, "file_too_large", "file is too large")
+		return
+	}
+	apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_file_upload", err.Error())
 }
 
 func fileRecords(items []domainfile.FileObject) []fileRecord {

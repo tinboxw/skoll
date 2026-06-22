@@ -11184,6 +11184,77 @@ npm run build
 
 - 进入 `M3-08-01`，实现文件安全 smoke。
 
+## M3-08-01: 文件安全 smoke
+
+- 状态: Passed
+- Work Item: M3-08-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/domain/file/rules.go`
+- `internal/service/file/service_impl_test.go`
+- `internal/handler/http/v1/file/handler.go`
+- `internal/handler/http/v1/file/handler_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 路径穿越覆盖 | Passed | service 上传校验拒绝相对路径 key，object store 既有路径穿越测试继续通过。 |
+| 非法 mime 覆盖 | Passed | service 上传校验拒绝非法 MIME，handler 映射为 `invalid_file_upload`。 |
+| 超大文件拒绝 | Passed | domain 新增 `MaxFileSizeBytes` 与 `ErrFileTooLarge`，handler 映射为 `413 file_too_large`。 |
+| 未授权下载覆盖 | Passed | service 测试确认 denied 下载不会调用 presign；handler 既有 forbidden/not_found 路径通过。 |
+| API/OpenAPI 同步 | Passed | `file_too_large` 已在 M3-05 OpenAPI 上传响应中声明，本项实现对应映射。 |
+| 文档同步 | Passed | 更新 work item、task board 和验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧上传路径或兼容绕过。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/file/... ./internal/store/object/... ./internal/service/file/... ./internal/handler/http/v1/file/...
+
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./...
+```
+
+结果摘要: Passed。全量 Go 测试通过；Windows 下显式设置 CGO 编译器。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查文件安全负向测试覆盖路径穿越、非法 mime、超大文件、未授权下载。
+2. 检查过大文件错误与 OpenAPI `file_too_large` 保持一致。
+3. 检查未授权下载不会创建 presign URL。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-01-01`，实现 DictionaryType/Item domain。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

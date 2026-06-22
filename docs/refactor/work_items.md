@@ -274,7 +274,7 @@
 | 191 | M3-06-02 | M3-06 | `skoll-api-contracts` | 分片上传 API | handler + OpenAPI | 分片接口契约、错误码、清理策略明确 | `go test ./internal/handler/http/v1/file/...` | Done |
 | 192 | M3-07-01 | M3-07 | `skoll-vue-frontend` | 文件 API client/store | web client/store | 上传进度、错误、取消、刷新状态统一 | `cd web && npm run typecheck` | Done |
 | 193 | M3-07-02 | M3-07 | `skoll-frontend-design-refactor` | 文件管理页面 | Vue page | 搜索、预览、下载、删除、空态、错误态、无权限态完整 | `cd web && npm run build` | Done |
-| 194 | M3-08-01 | M3-08 | `skoll-testing-automation` | 文件安全 smoke | tests/scripts | 路径穿越、非法 mime、超大文件、未授权下载覆盖 | `go test ./...` | Todo |
+| 194 | M3-08-01 | M3-08 | `skoll-testing-automation` | 文件安全 smoke | tests/scripts | 路径穿越、非法 mime、超大文件、未授权下载覆盖 | `go test ./...` | Done |
 
 ## N2/M4 Work Items: 字典、配置、组织与数据范围
 

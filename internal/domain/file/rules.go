@@ -1,6 +1,7 @@
 package file
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -12,6 +13,10 @@ var (
 	identifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{0,63}$`)
 	mimePattern       = regexp.MustCompile(`^[a-z0-9][a-z0-9!#$&^_.+\-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+\-]{0,126}$`)
 )
+
+const MaxFileSizeBytes int64 = 100 * 1024 * 1024
+
+var ErrFileTooLarge = errors.New("file size exceeds limit")
 
 func ValidateFileObjectInput(in FileObjectInput) error {
 	if in.ID.IsZero() {
@@ -91,6 +96,9 @@ func ValidateName(name string) error {
 func ValidateSize(size int64) error {
 	if size < 0 {
 		return fmt.Errorf("file size must be non-negative")
+	}
+	if size > MaxFileSizeBytes {
+		return ErrFileTooLarge
 	}
 	return nil
 }

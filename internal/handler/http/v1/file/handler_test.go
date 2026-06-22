@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -79,6 +80,46 @@ func TestFileHandlerUpload(t *testing.T) {
 	}
 	if svc.uploadInput.Metadata["trace-id"] != "req-1" {
 		t.Fatalf("upload metadata = %+v", svc.uploadInput.Metadata)
+	}
+}
+
+func TestFileHandlerUploadSecurityFailures(t *testing.T) {
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{name: "path traversal", err: fmt.Errorf("file key must not contain relative path segments"), wantStatus: http.StatusBadRequest, wantCode: "invalid_file_upload"},
+		{name: "invalid mime", err: fmt.Errorf("file mime type is invalid"), wantStatus: http.StatusBadRequest, wantCode: "invalid_file_upload"},
+		{name: "too large", err: domainfile.ErrFileTooLarge, wantStatus: http.StatusRequestEntityTooLarge, wantCode: "file_too_large"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &fakeFileService{uploadErr: tc.err}
+			mux := http.NewServeMux()
+			RegisterFileRoutes(mux, svc)
+
+			var body bytes.Buffer
+			writer := multipart.NewWriter(&body)
+			_ = writer.WriteField("key", "uploads/a.txt")
+			_ = writer.WriteField("visibility", "private")
+			_ = writer.WriteField("ownerId", "u-1")
+			part, err := writer.CreateFormFile("file", "a.txt")
+			if err != nil {
+				t.Fatalf("CreateFormFile error: %v", err)
+			}
+			_, _ = part.Write([]byte("hello"))
+			_ = writer.Close()
+
+			req := withClaims(httptest.NewRequest(http.MethodPost, "/v1/files", &body), "u-1")
+			req.Header.Set("Content-Type", writer.FormDataContentType())
+			resp := httptest.NewRecorder()
+			mux.ServeHTTP(resp, req)
+			if resp.Code != tc.wantStatus || decodeBody(t, resp)["code"] != tc.wantCode {
+				t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+			}
+		})
 	}
 }
 
@@ -242,6 +283,7 @@ type fakeFileService struct {
 	multipartAbortInput    filesvc.MultipartAbortInput
 	items                  []domainfile.FileObject
 	uploadObject           domainfile.FileObject
+	uploadErr              error
 	multipartInitResult    *filesvc.MultipartInitResult
 	multipartPart          domainfile.MultipartPart
 	completeObject         domainfile.FileObject
@@ -254,6 +296,9 @@ type fakeFileService struct {
 
 func (s *fakeFileService) Upload(_ context.Context, in filesvc.UploadInput) (*domainfile.FileObject, error) {
 	s.uploadInput = in
+	if s.uploadErr != nil {
+		return nil, s.uploadErr
+	}
 	object := s.uploadObject
 	if object.ID.IsZero() {
 		object = mustFileObject(nil)
