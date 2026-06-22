@@ -17,5 +17,7 @@
 ## 边界规则
 
 - object key 必须通过 `domain/file` 的 key 校验。
+- local adapter 会在 domain 规范化前拒绝绝对路径、前导 `/`/`\`、反斜杠和相对路径段。
 - 本地路径通过 `filepath.Rel` 确认仍在 store root 内。
+- `Put` 默认拒绝覆盖已有对象或已有 metadata sidecar。
 - 本包不处理文件元数据数据库、不做权限判断、不写审计事件。

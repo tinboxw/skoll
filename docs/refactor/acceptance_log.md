@@ -10374,6 +10374,51 @@ go test ./internal/store/object/...
 
 - 进入 `M3-02-02`，补 local adapter 路径安全测试。
 
+## M3-02-02: local adapter 路径安全
+
+- 状态: Passed after retry
+- Work Item: M3-02-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/store/object/local_store.go`
+- `internal/store/object/local_store_test.go`
+- `internal/store/object/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 路径穿越防护 | Passed | 测试覆盖 `../secret.txt`、`uploads/../secret.txt`、反斜杠路径等非法 key。 |
+| 绝对路径防护 | Passed | local adapter 在 domain 规范化前拒绝前导 `/`/`\` 和绝对路径形态。 |
+| 非法 key 防护 | Passed | 测试覆盖空格 key 和反斜杠分隔符。 |
+| 覆盖保护 | Passed | `Put` 默认拒绝已有对象或已有 metadata sidecar，返回 `ErrObjectExists`。 |
+| 父任务收口 | Passed | M3-02-01 与 M3-02-02 均完成，M3-02 父任务标记为 `Done`。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/store/object/...
+```
+
+结果摘要: 初次失败后重试通过。初次失败暴露 `Put` 在 adapter raw key 检查前调用 domain 规范化，导致前导 `/` 被修剪；已将 raw key 检查前置。
+
+### 失败与返工
+
+- 失败原因: `/absolute.txt` 用例未被 `Put` 拒绝。
+- 返工动作: 在 `Put` 和 `Presign` 入口先执行 raw key 检查，再进入 domain 规范化。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M3-03-01`，设计文件元数据 migration。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

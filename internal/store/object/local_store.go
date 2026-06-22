@@ -3,6 +3,7 @@ package object
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -15,6 +16,8 @@ import (
 )
 
 const metadataSuffix = ".meta.json"
+
+var ErrObjectExists = errors.New("object already exists")
 
 type LocalStore struct {
 	root string
@@ -49,6 +52,9 @@ func (s *LocalStore) Put(ctx context.Context, in domainfile.PutObjectInput) (dom
 	if err := ctx.Err(); err != nil {
 		return domainfile.ObjectInfo{}, err
 	}
+	if err := validateRawLocalKey(in.Key); err != nil {
+		return domainfile.ObjectInfo{}, err
+	}
 	in = domainfile.NormalizePutObjectInput(in)
 	if err := domainfile.ValidatePutObjectInput(in); err != nil {
 		return domainfile.ObjectInfo{}, err
@@ -58,6 +64,9 @@ func (s *LocalStore) Put(ctx context.Context, in domainfile.PutObjectInput) (dom
 		return domainfile.ObjectInfo{}, err
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return domainfile.ObjectInfo{}, err
+	}
+	if err := ensureObjectAbsent(target); err != nil {
 		return domainfile.ObjectInfo{}, err
 	}
 
@@ -151,6 +160,9 @@ func (s *LocalStore) Presign(ctx context.Context, in domainfile.PresignInput) (d
 	if err := ctx.Err(); err != nil {
 		return domainfile.PresignedObject{}, err
 	}
+	if err := validateRawLocalKey(in.Key); err != nil {
+		return domainfile.PresignedObject{}, err
+	}
 	in = domainfile.NormalizePresignInput(in)
 	if err := domainfile.ValidatePresignInput(in); err != nil {
 		return domainfile.PresignedObject{}, err
@@ -176,6 +188,9 @@ func (s *LocalStore) Presign(ctx context.Context, in domainfile.PresignInput) (d
 }
 
 func (s *LocalStore) resolve(key string) (string, error) {
+	if err := validateRawLocalKey(key); err != nil {
+		return "", err
+	}
 	key = domainfile.NormalizeKey(key)
 	if err := domainfile.ValidateKey(key); err != nil {
 		return "", err
@@ -249,4 +264,32 @@ func (s *LocalStore) readInfo(target string) (domainfile.ObjectInfo, error) {
 
 func metadataPath(target string) string {
 	return target + metadataSuffix
+}
+
+func validateRawLocalKey(key string) error {
+	raw := strings.TrimSpace(key)
+	if raw == "" {
+		return fmt.Errorf("object key is required")
+	}
+	if filepath.IsAbs(raw) || strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, `\`) {
+		return fmt.Errorf("object key must be relative")
+	}
+	if strings.Contains(raw, `\`) {
+		return fmt.Errorf("object key must use slash separators")
+	}
+	return nil
+}
+
+func ensureObjectAbsent(target string) error {
+	if _, err := os.Stat(target); err == nil {
+		return ErrObjectExists
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if _, err := os.Stat(metadataPath(target)); err == nil {
+		return ErrObjectExists
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

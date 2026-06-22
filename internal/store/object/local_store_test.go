@@ -76,15 +76,68 @@ func TestLocalStoreRejectsInvalidRootAndKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewLocalStore() error = %v", err)
 	}
-	_, err = store.Put(context.Background(), domainfile.PutObjectInput{
-		Key:  "../secret.txt",
-		Size: 1,
+
+	keys := []string{
+		"../secret.txt",
+		"uploads/../secret.txt",
+		"/absolute.txt",
+		`\absolute.txt`,
+		`uploads\..\secret.txt`,
+		"bad key.txt",
+	}
+	for _, key := range keys {
+		t.Run(key, func(t *testing.T) {
+			_, err = store.Put(context.Background(), domainfile.PutObjectInput{
+				Key:  key,
+				Size: 1,
+				MIME: "text/plain",
+				Hash: "abcdef123456",
+				Body: strings.NewReader("x"),
+			})
+			if err == nil {
+				t.Fatal("expected invalid key error")
+			}
+		})
+	}
+}
+
+func TestLocalStoreRejectsOverwrite(t *testing.T) {
+	store, err := NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("NewLocalStore() error = %v", err)
+	}
+	input := domainfile.PutObjectInput{
+		Key:  "uploads/a.txt",
+		Size: 5,
 		MIME: "text/plain",
 		Hash: "abcdef123456",
-		Body: strings.NewReader("x"),
-	})
-	if err == nil {
-		t.Fatal("expected invalid key error")
+		Body: strings.NewReader("hello"),
+	}
+	if _, err := store.Put(context.Background(), input); err != nil {
+		t.Fatalf("Put() error = %v", err)
+	}
+
+	input.Body = strings.NewReader("other")
+	input.Hash = "bbbbbbbb"
+	err = putOnlyError(store, input)
+	if !errors.Is(err, ErrObjectExists) {
+		t.Fatalf("overwrite error = %v, want ErrObjectExists", err)
+	}
+
+	stream, err := store.Get(context.Background(), "uploads/a.txt")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	body, readErr := io.ReadAll(stream.Body)
+	closeErr := stream.Body.Close()
+	if readErr != nil {
+		t.Fatalf("ReadAll() error = %v", readErr)
+	}
+	if closeErr != nil {
+		t.Fatalf("Close() error = %v", closeErr)
+	}
+	if string(body) != "hello" {
+		t.Fatalf("body after rejected overwrite = %q", body)
 	}
 }
 
@@ -144,4 +197,9 @@ func TestLocalStoreResolveStaysUnderRoot(t *testing.T) {
 	if _, err := os.Stat(filepath.Dir(target)); err == nil {
 		t.Fatal("resolve should not create directories")
 	}
+}
+
+func putOnlyError(store *LocalStore, input domainfile.PutObjectInput) error {
+	_, err := store.Put(context.Background(), input)
+	return err
 }
