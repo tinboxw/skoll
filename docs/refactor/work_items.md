@@ -269,7 +269,7 @@
 | 186 | M3-04-02 | M3-04 | `skoll-permission-rbac` | 文件访问权限策略 | service tests | private/public/plugin_asset 访问规则明确，无权限不可下载 | `go test ./internal/service/file/... ./internal/service/rbac/...` | Done |
 | 187 | M3-04-03 | M3-04 | `skoll-observability-audit` | 文件审计事件 | audit integration | upload/download/delete/forbidden 均写审计 | `go test ./internal/service/file/... ./internal/service/audit/...` | Done |
 | 188 | M3-05-01 | M3-05 | `skoll-api-contracts` | 文件 API 契约 | OpenAPI | upload/download/delete/list/detail 错误码和响应字段明确 | OpenAPI review | Done |
-| 189 | M3-05-02 | M3-05 | `skoll-api-contracts` | 文件 API handler | handler tests | 上传、下载、删除、列表、权限拒绝路径测试通过 | `go test ./internal/handler/http/v1/file/...` | Todo |
+| 189 | M3-05-02 | M3-05 | `skoll-api-contracts` | 文件 API handler | handler tests | 上传、下载、删除、列表、权限拒绝路径测试通过 | `go test ./internal/handler/http/v1/file/...` | Done |
 | 190 | M3-06-01 | M3-06 | `skoll-file-storage-refactor` | 分片上传 service | service | init/upload/complete/abort 可用，hash 失败不可完成 | `go test ./internal/service/file/...` | Todo |
 | 191 | M3-06-02 | M3-06 | `skoll-api-contracts` | 分片上传 API | handler + OpenAPI | 分片接口契约、错误码、清理策略明确 | `go test ./internal/handler/http/v1/file/...` | Todo |
 | 192 | M3-07-01 | M3-07 | `skoll-vue-frontend` | 文件 API client/store | web client/store | 上传进度、错误、取消、刷新状态统一 | `cd web && npm run typecheck` | Todo |

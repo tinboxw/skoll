@@ -147,6 +147,112 @@ func (s *serviceImpl) Upload(ctx context.Context, in UploadInput) (*domainfile.F
 	return object, nil
 }
 
+func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]domainfile.FileObject, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("file repository is not configured")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return s.repo.List(ctx, in.Filter, in.Offset, in.Limit)
+}
+
+func (s *serviceImpl) Get(ctx context.Context, in GetInput) (*domainfile.FileObject, AccessDecision, error) {
+	decision, err := s.AuthorizeAccess(ctx, AccessInput{
+		FileID:      in.FileID,
+		Action:      AccessActionRead,
+		SubjectType: in.SubjectType,
+		SubjectID:   in.SubjectID,
+		ActorName:   in.ActorName,
+		Trace:       in.Trace,
+		Metadata:    in.Metadata,
+	})
+	if err != nil {
+		return nil, decision, err
+	}
+	if !decision.Allowed {
+		return nil, decision, nil
+	}
+	object, err := s.repo.Get(ctx, in.FileID)
+	if err != nil {
+		return nil, decision, err
+	}
+	return object, decision, nil
+}
+
+func (s *serviceImpl) Download(ctx context.Context, in DownloadInput) (*DownloadResult, error) {
+	if s == nil || s.objects == nil {
+		return nil, fmt.Errorf("object store is not configured")
+	}
+	expiresIn := in.ExpiresIn
+	if expiresIn <= 0 {
+		expiresIn = 5 * time.Minute
+	}
+	decision, err := s.AuthorizeAccess(ctx, AccessInput{
+		FileID:      in.FileID,
+		Action:      AccessActionDownload,
+		SubjectType: in.SubjectType,
+		SubjectID:   in.SubjectID,
+		ActorName:   in.ActorName,
+		Trace:       in.Trace,
+		Metadata:    in.Metadata,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !decision.Allowed {
+		return &DownloadResult{Decision: decision}, nil
+	}
+	object, err := s.repo.Get(ctx, in.FileID)
+	if err != nil {
+		return nil, err
+	}
+	if object == nil {
+		return &DownloadResult{Decision: AccessDecision{Reason: "not_found"}}, nil
+	}
+	presign, err := s.objects.Presign(ctx, domainfile.PresignInput{
+		Key:       object.Key,
+		Operation: domainfile.PresignOperationGet,
+		ExpiresIn: expiresIn,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &DownloadResult{Object: object, Presign: presign, Decision: decision}, nil
+}
+
+func (s *serviceImpl) Delete(ctx context.Context, in DeleteInput) (AccessDecision, error) {
+	if s == nil || s.objects == nil {
+		return AccessDecision{Reason: "object_store_not_configured"}, fmt.Errorf("object store is not configured")
+	}
+	decision, err := s.AuthorizeAccess(ctx, AccessInput{
+		FileID:      in.FileID,
+		Action:      AccessActionDelete,
+		SubjectType: in.SubjectType,
+		SubjectID:   in.SubjectID,
+		ActorName:   in.ActorName,
+		Trace:       in.Trace,
+		Metadata:    in.Metadata,
+	})
+	if err != nil || !decision.Allowed {
+		return decision, err
+	}
+	object, err := s.repo.Get(ctx, in.FileID)
+	if err != nil {
+		return decision, err
+	}
+	if object == nil {
+		return AccessDecision{Reason: "not_found"}, nil
+	}
+	if err := s.objects.Delete(ctx, object.Key); err != nil {
+		return decision, err
+	}
+	if err := s.repo.SetStatus(ctx, object.ID, domainfile.StatusDeleted, s.now()); err != nil {
+		return decision, err
+	}
+	return decision, nil
+}
+
 func (s *serviceImpl) AuthorizeAccess(ctx context.Context, in AccessInput) (AccessDecision, error) {
 	if s == nil || s.repo == nil {
 		return AccessDecision{Reason: "repository_not_configured"}, fmt.Errorf("file repository is not configured")
@@ -168,7 +274,7 @@ func (s *serviceImpl) AuthorizeAccess(ctx context.Context, in AccessInput) (Acce
 		s.appendAccessAudit(ctx, in, *object, decision, action)
 		return decision, nil
 	}
-	if object.Visibility == domainfile.VisibilityPublic && action == AccessActionDownload {
+	if object.Visibility == domainfile.VisibilityPublic && (action == AccessActionRead || action == AccessActionDownload) {
 		decision := AccessDecision{Allowed: true, Resource: resource, Reason: "public"}
 		s.appendAccessAudit(ctx, in, *object, decision, action)
 		return decision, nil

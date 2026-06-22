@@ -10810,6 +10810,81 @@ rg -n "/v1/files|File(Object|UploadRequest|ListAPIResponse|DetailAPIResponse|Dow
 
 - 进入 `M3-05-02`，实现文件 API handler。
 
+## M3-05-02: 文件 API handler
+
+- 状态: Passed
+- Work Item: M3-05-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/file/types.go`
+- `internal/service/file/service.go`
+- `internal/service/file/service_impl.go`
+- `internal/handler/http/v1/file/handler.go`
+- `internal/handler/http/v1/file/handler_test.go`
+- `internal/handler/http/router.go`
+- `internal/bootstrap/di.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增文件 API handler，覆盖上传、列表、详情、下载 URL、删除。 |
+| API/OpenAPI 同步 | Passed | handler 路径与 M3-05-01 OpenAPI 契约一致。 |
+| 权限目录同步 | N/A | 本项未新增权限 catalog seed；访问控制复用 file service 策略。 |
+| 审计 action 同步 | Passed | handler 通过 file service 写入 upload/download/delete/forbidden 审计事件。 |
+| migration/seed 同步 | N/A | 不涉及 schema 变更。 |
+| 前端 API client/UI 同步 | N/A | 文件前端 client/store 在后续 M3-07-01 处理。 |
+| 文档同步 | Passed | 更新 work item、task board、验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧接口、旧响应 envelope 或旧路径兼容方案。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/handler/http/v1/file/... ./internal/service/file/...
+
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/handler/http/... ./internal/bootstrap/...
+```
+
+结果摘要: Passed。首次扩展测试因默认 CGO 编译器路径不存在失败，设置有效 `CC` 后通过；handler 专项测试覆盖上传、下载、删除、列表、详情和 forbidden/not_found 映射。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 handler 返回统一 `code/message/data` envelope。
+2. 检查 `file_forbidden`、`file_not_found`、`invalid_file_upload`、`file_storage_error` 错误码映射。
+3. 检查 router 与 bootstrap DI 已接入 file service 和本地 object store。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 扩展测试首次失败，原因为默认 CGO 编译器 `D:\Program Files\JetBrains\CLion 2024.1.1\bin\mingw\bin\gcc.exe` 不存在。
+- 返工动作: 设置 `$env:CC='D:\workspace\mingw64\bin\gcc.exe'` 后重跑。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M3-06-01`，实现分片上传 service。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

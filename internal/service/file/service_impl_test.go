@@ -340,6 +340,55 @@ func TestAuthorizeAccessDeniesUnavailableFile(t *testing.T) {
 	}
 }
 
+func TestDownloadPresignsAllowedFile(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	object.Visibility = domainfile.VisibilityPublic
+	repo.items[object.ID] = object
+	objects := &fakeObjectStore{}
+	svc := testService(repo, objects)
+
+	result, err := svc.Download(context.Background(), DownloadInput{FileID: object.ID})
+	if err != nil {
+		t.Fatalf("Download() error = %v", err)
+	}
+	if result == nil || result.Object == nil || !result.Decision.Allowed {
+		t.Fatalf("unexpected download result: %+v", result)
+	}
+	if objects.presignInput.Key != object.Key || objects.presignInput.Operation != domainfile.PresignOperationGet {
+		t.Fatalf("presign input = %+v", objects.presignInput)
+	}
+	if result.Presign.URL == "" {
+		t.Fatalf("presign url should be returned")
+	}
+}
+
+func TestDeleteRemovesObjectAndMarksMetadataDeleted(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	repo.items[object.ID] = object
+	objects := &fakeObjectStore{}
+	svc := testService(repo, objects)
+
+	decision, err := svc.Delete(context.Background(), DeleteInput{
+		FileID:      object.ID,
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   object.Owner.ID,
+	})
+	if err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if !decision.Allowed {
+		t.Fatalf("expected delete allowed, got %+v", decision)
+	}
+	if !objects.deleteCalled || objects.deletedKey != object.Key {
+		t.Fatalf("delete called=%v key=%q", objects.deleteCalled, objects.deletedKey)
+	}
+	if repo.items[object.ID].Status != domainfile.StatusDeleted {
+		t.Fatalf("metadata status = %q", repo.items[object.ID].Status)
+	}
+}
+
 func testService(repo filerepo.FileRepository, objects domainfile.ObjectStore) Service {
 	return testServiceWithOptions(repo, objects, nil, nil)
 }
@@ -460,7 +509,9 @@ func (r *fakeRepo) Delete(_ context.Context, id shared.ID) error {
 type fakeObjectStore struct {
 	putCalled    bool
 	deleteCalled bool
+	deletedKey   string
 	putErr       error
+	presignInput domainfile.PresignInput
 }
 
 func (s *fakeObjectStore) Put(_ context.Context, in domainfile.PutObjectInput) (domainfile.ObjectInfo, error) {
@@ -483,8 +534,9 @@ func (s *fakeObjectStore) Get(context.Context, string) (domainfile.ObjectStream,
 	return domainfile.ObjectStream{}, nil
 }
 
-func (s *fakeObjectStore) Delete(context.Context, string) error {
+func (s *fakeObjectStore) Delete(_ context.Context, key string) error {
 	s.deleteCalled = true
+	s.deletedKey = domainfile.NormalizeKey(key)
 	return nil
 }
 
@@ -492,8 +544,14 @@ func (s *fakeObjectStore) Stat(context.Context, string) (domainfile.ObjectInfo, 
 	return domainfile.ObjectInfo{}, nil
 }
 
-func (s *fakeObjectStore) Presign(context.Context, domainfile.PresignInput) (domainfile.PresignedObject, error) {
-	return domainfile.PresignedObject{}, nil
+func (s *fakeObjectStore) Presign(_ context.Context, in domainfile.PresignInput) (domainfile.PresignedObject, error) {
+	s.presignInput = domainfile.NormalizePresignInput(in)
+	return domainfile.PresignedObject{
+		Key:       s.presignInput.Key,
+		Operation: s.presignInput.Operation,
+		URL:       "local://object/" + s.presignInput.Key,
+		ExpiresAt: time.Now().UTC().Add(s.presignInput.ExpiresIn),
+	}, nil
 }
 
 type fakePermissionChecker struct {

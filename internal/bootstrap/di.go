@@ -26,6 +26,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/internal/service/audit"
+	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	"github.com/tinboxw/skoll/internal/service/rbac"
@@ -33,6 +34,7 @@ import (
 	"github.com/tinboxw/skoll/internal/service/system"
 	"github.com/tinboxw/skoll/internal/service/user"
 	"github.com/tinboxw/skoll/internal/store"
+	objectstore "github.com/tinboxw/skoll/internal/store/object"
 	"github.com/tinboxw/skoll/pkg/config"
 	"github.com/tinboxw/skoll/pkg/logging"
 	"github.com/tinboxw/skoll/pkg/security"
@@ -79,6 +81,14 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
+	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
+	if err != nil {
+		return nil, err
+	}
+	fileService := filesvc.NewService(bundle.Files, objectStore, filesvc.Options{
+		Permission: rbacService,
+		Audit:      auditEventService,
+	})
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
@@ -87,6 +97,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		RBACService:       rbacService,
 		AuditService:      auditService,
 		AuditEventService: auditEventService,
+		FileService:       fileService,
 		SystemService:     systemService,
 		PermissionService: permissionService,
 		MenuService:       menuService,

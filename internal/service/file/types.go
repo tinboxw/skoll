@@ -9,9 +9,11 @@ import (
 	domainfile "github.com/tinboxw/skoll/internal/domain/file"
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	filerepo "github.com/tinboxw/skoll/internal/repository/file"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 )
 
+const AccessActionRead = "read"
 const AccessActionDownload = "download"
 const AccessActionDelete = "delete"
 
@@ -56,6 +58,46 @@ type AccessDecision struct {
 	Allowed  bool
 	Resource string
 	Reason   string
+}
+
+type ListInput struct {
+	Filter filerepo.ListFilter
+	Offset int
+	Limit  int
+}
+
+type GetInput struct {
+	FileID      shared.ID
+	SubjectType domainrbac.SubjectType
+	SubjectID   shared.ID
+	ActorName   string
+	Trace       domainaudit.TraceContext
+	Metadata    map[string]any
+}
+
+type DownloadInput struct {
+	FileID      shared.ID
+	ExpiresIn   time.Duration
+	SubjectType domainrbac.SubjectType
+	SubjectID   shared.ID
+	ActorName   string
+	Trace       domainaudit.TraceContext
+	Metadata    map[string]any
+}
+
+type DownloadResult struct {
+	Object   *domainfile.FileObject
+	Presign  domainfile.PresignedObject
+	Decision AccessDecision
+}
+
+type DeleteInput struct {
+	FileID      shared.ID
+	SubjectType domainrbac.SubjectType
+	SubjectID   shared.ID
+	ActorName   string
+	Trace       domainaudit.TraceContext
+	Metadata    map[string]any
 }
 
 type Options struct {

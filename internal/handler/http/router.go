@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	audithttp "github.com/tinboxw/skoll/internal/handler/http/v1/audit"
+	filehttp "github.com/tinboxw/skoll/internal/handler/http/v1/file"
 	menuhttp "github.com/tinboxw/skoll/internal/handler/http/v1/menu"
 	permissionhttp "github.com/tinboxw/skoll/internal/handler/http/v1/permission"
 	pluginhttp "github.com/tinboxw/skoll/internal/handler/http/v1/plugin"
@@ -15,6 +16,7 @@ import (
 	userhttp "github.com/tinboxw/skoll/internal/handler/http/v1/user"
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/service/audit"
+	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	"github.com/tinboxw/skoll/internal/service/menu"
 	"github.com/tinboxw/skoll/internal/service/permission"
 	"github.com/tinboxw/skoll/internal/service/rbac"
@@ -32,6 +34,7 @@ type Dependencies struct {
 	RBACService       rbac.Service
 	AuditService      audit.Service
 	AuditEventService audit.EventService
+	FileService       filesvc.Service
 	SystemService     system.Service
 	PermissionService permission.Service
 	MenuService       menu.Service
@@ -69,6 +72,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	rolehttp.RegisterRoleRoutes(apiMux, deps.RoleService, deps.UserService, deps.RBACService, deps.AuditService)
 	rbachttp.RegisterRBACRoutes(apiMux, deps.RBACService, deps.AuditService)
 	audithttp.RegisterAuditRoutes(apiMux, deps.AuditService, deps.AuditEventService)
+	filehttp.RegisterFileRoutes(apiMux, deps.FileService)
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
 	permissionhttp.RegisterPermissionRoutes(apiMux, deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
