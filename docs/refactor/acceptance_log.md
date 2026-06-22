@@ -10191,6 +10191,53 @@ rg -n "N0-01|N0-02|N0-03|N0-04|N0-05" docs/refactor/work_items.md docs/refactor/
 
 - 进入 `M3-01-01`，开始文件与对象存储平台的 FileObject 模型任务。
 
+## M3-01-01: 定义 FileObject 值对象
+
+- 状态: Passed
+- Work Item: M3-01-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/file/doc.go`
+- `internal/domain/file/object.go`
+- `internal/domain/file/rules.go`
+- `internal/domain/file/object_test.go`
+- `internal/domain/file/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| FileObject 字段覆盖 | Passed | 模型覆盖 key、name、size、mime、hash、owner、visibility、storage driver、status、timestamps、module/plugin source。 |
+| 值对象与枚举 | Passed | 定义 `Visibility`、`Status`、`OwnerRef`、`SourceRef`，默认 private/pending。 |
+| 校验规则 | Passed | 覆盖 key、name、size、mime、hash、owner、visibility、storage、status、source、timestamp 校验。 |
+| 无兼容方案 | Passed | 未添加旧上传路径、旧对象 key、旧 provider 字段或兼容 wrapper。 |
+| 边界保持 | Passed | `internal/domain/file` 不依赖 store、service、handler、GORM、HTTP multipart 或具体存储 SDK。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/file/...
+```
+
+结果摘要: 通过。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-01-02`，定义 ObjectStore port。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

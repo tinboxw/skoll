@@ -73,7 +73,7 @@
 
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
-| 22 | M3-01 | `skoll-file-storage-refactor` | 定义 FileObject 与 ObjectStore port | domain + port | 字段覆盖 key、name、size、mime、hash、owner、visibility、storage、status | `go test ./internal/domain/file/...` | Todo |
+| 22 | M3-01 | `skoll-file-storage-refactor` | 定义 FileObject 与 ObjectStore port | domain + port | 字段覆盖 key、name、size、mime、hash、owner、visibility、storage、status | `go test ./internal/domain/file/...` | Doing |
 | 23 | M3-02 | `skoll-file-storage-refactor` | 实现 local adapter | store adapter | 上传、下载、删除、路径穿越防护通过 | `go test ./internal/store/object/...` | Todo |
 | 24 | M3-03 | `skoll-database-development` | 文件元数据 store | SQL/memory store | 元数据与对象写入失败状态一致 | `go test ./internal/store/...` | Todo |
 | 25 | M3-04 | `skoll-api-contracts` | 文件 API | handler + OpenAPI | 上传、下载、删除、列表、权限校验完整 | `go test ./internal/handler/http/v1/file/...` | Todo |
