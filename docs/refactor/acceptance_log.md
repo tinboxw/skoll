@@ -10666,6 +10666,74 @@ go test ./internal/service/file/... ./internal/service/rbac/...
 
 - 进入 `M3-04-03`，实现文件审计事件。
 
+## M3-04-03: 文件审计事件
+
+- 状态: Passed
+- Work Item: M3-04-03
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/file/types.go`
+- `internal/service/file/service_impl.go`
+- `internal/service/file/service_impl_test.go`
+- `internal/service/file/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 文件 service 通过可选 `AuditEventSink` 写入 upload/download/delete/forbidden 审计事件。 |
+| API/OpenAPI 同步 | N/A | 本项为 service 审计集成；HTTP handler/OpenAPI 仍按后续 M3-05 任务接入。 |
+| 权限目录同步 | N/A | 本项不新增权限目录。 |
+| 审计 action 同步 | Passed | 使用 `file.object.upload`、`file.object.download`、`file.object.delete`、`file.object.forbidden`。 |
+| migration/seed 同步 | N/A | 复用既有 audit event repository，不涉及 schema 变更。 |
+| 前端 API client/UI 同步 | N/A | 不涉及前端。 |
+| 文档同步 | Passed | `internal/service/file/README.md` 增加审计事件说明。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧接口、旧数据结构、旧页面路径兼容方案。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/file/... ./internal/service/audit/...
+```
+
+结果摘要: Passed。覆盖 upload success/failure、download success、delete success、forbidden denied 审计事件字段，并验证 audit sink 故障不阻断上传主流程。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查审计事件包含 actor、action、resource、result、trace、metadata/sourceData。
+2. 检查审计失败不会阻断上传或访问授权主流程，与现有请求/登录审计保持一致。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-05-01`，实现文件 API 契约。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

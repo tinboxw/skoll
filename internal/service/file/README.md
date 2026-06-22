@@ -21,4 +21,13 @@
 3. `plugin_asset` 文件必须通过 RBAC resource `plugin:<plugin_id>:asset` 与 action `download`；没有 plugin id 时回退到 `file:plugin_asset`。
 4. 非 `available` 状态文件在 owner 和 RBAC 检查前直接拒绝。
 
-本包不处理 HTTP multipart、审计事件或本地/S3 具体实现细节。
+## Audit 事件
+
+服务层通过可选 `AuditEventSink` 追加文件事件，审计失败不阻断主流程。
+
+1. 上传成功或失败写入 `file.object.upload`。
+2. 下载放行写入 `file.object.download`。
+3. 删除放行写入 `file.object.delete`。
+4. 下载或删除拒绝写入 `file.object.forbidden`，结果为 `denied`，并记录拒绝原因与请求 action。
+
+本包不处理 HTTP multipart 或本地/S3 具体实现细节。

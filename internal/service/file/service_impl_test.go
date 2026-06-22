@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	domainfile "github.com/tinboxw/skoll/internal/domain/file"
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
@@ -69,6 +70,65 @@ func TestUploadMetadataFailureDeletesObject(t *testing.T) {
 	}
 }
 
+func TestUploadAppendsSuccessAuditEvent(t *testing.T) {
+	repo := newFakeRepo()
+	objects := &fakeObjectStore{}
+	audit := &fakeAuditSink{}
+	svc := testServiceWithOptions(repo, objects, nil, audit)
+	in := validUploadInput()
+	in.Trace.RequestID = "req-upload"
+	in.AuditMetadata = map[string]any{"tenant": "main"}
+
+	if _, err := svc.Upload(context.Background(), in); err != nil {
+		t.Fatalf("Upload() error = %v", err)
+	}
+	event := audit.last(t)
+	if event.Action != domainaudit.AuditAction("file.object.upload") || event.Result != domainaudit.EventResultSuccess {
+		t.Fatalf("unexpected audit event: action=%s result=%s", event.Action, event.Result)
+	}
+	if event.Actor.Type != "user" || event.Actor.ID != "u-1" || event.Resource.Type != "file_object" {
+		t.Fatalf("unexpected audit actor/resource: actor=%+v resource=%+v", event.Actor, event.Resource)
+	}
+	if event.Trace.RequestID != "req-upload" || event.Metadata["tenant"] != "main" || event.SourceData["key"] != "uploads/a.txt" {
+		t.Fatalf("unexpected audit trace/metadata/source: trace=%+v metadata=%+v source=%+v", event.Trace, event.Metadata, event.SourceData)
+	}
+}
+
+func TestUploadFailureAppendsAuditEvent(t *testing.T) {
+	repo := newFakeRepo()
+	objects := &fakeObjectStore{putErr: fmt.Errorf("disk full")}
+	audit := &fakeAuditSink{}
+	svc := testServiceWithOptions(repo, objects, nil, audit)
+
+	if _, err := svc.Upload(context.Background(), validUploadInput()); err == nil {
+		t.Fatal("expected upload error")
+	}
+	event := audit.last(t)
+	if event.Action != domainaudit.AuditAction("file.object.upload") || event.Result != domainaudit.EventResultFailure {
+		t.Fatalf("unexpected audit event: action=%s result=%s", event.Action, event.Result)
+	}
+	if event.Metadata["reason"] != "object_write_failed" {
+		t.Fatalf("unexpected audit metadata: %+v", event.Metadata)
+	}
+}
+
+func TestUploadAuditFailureDoesNotBlockUpload(t *testing.T) {
+	repo := newFakeRepo()
+	objects := &fakeObjectStore{}
+	audit := &fakeAuditSink{err: fmt.Errorf("audit down")}
+	svc := testServiceWithOptions(repo, objects, nil, audit)
+
+	if _, err := svc.Upload(context.Background(), validUploadInput()); err != nil {
+		t.Fatalf("Upload() should ignore audit error, got %v", err)
+	}
+	if len(audit.events) != 1 {
+		t.Fatalf("expected one attempted audit event, got %d", len(audit.events))
+	}
+	if len(repo.items) != 1 {
+		t.Fatalf("metadata should still be written, got %+v", repo.items)
+	}
+}
+
 func TestAuthorizeAccessAllowsPublicAvailableFile(t *testing.T) {
 	repo := newFakeRepo()
 	object := validFileObject()
@@ -82,6 +142,85 @@ func TestAuthorizeAccessAllowsPublicAvailableFile(t *testing.T) {
 	}
 	if !decision.Allowed || decision.Reason != "public" || decision.Resource != "file:public" {
 		t.Fatalf("unexpected decision: %+v", decision)
+	}
+}
+
+func TestAuthorizeAccessAppendsDownloadAuditEvent(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	object.Visibility = domainfile.VisibilityPublic
+	repo.items[object.ID] = object
+	audit := &fakeAuditSink{}
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, audit)
+
+	decision, err := svc.AuthorizeAccess(context.Background(), AccessInput{
+		FileID: object.ID,
+		Trace:  domainaudit.TraceContext{RequestID: "req-download"},
+	})
+	if err != nil {
+		t.Fatalf("AuthorizeAccess() error = %v", err)
+	}
+	if !decision.Allowed {
+		t.Fatalf("expected access allowed, got %+v", decision)
+	}
+	event := audit.last(t)
+	if event.Action != domainaudit.AuditAction("file.object.download") || event.Result != domainaudit.EventResultSuccess {
+		t.Fatalf("unexpected audit event: action=%s result=%s", event.Action, event.Result)
+	}
+	if event.Actor.Type != "anonymous" || event.Trace.RequestID != "req-download" {
+		t.Fatalf("unexpected audit actor/trace: actor=%+v trace=%+v", event.Actor, event.Trace)
+	}
+}
+
+func TestAuthorizeAccessAppendsDeleteAuditEvent(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	repo.items[object.ID] = object
+	audit := &fakeAuditSink{}
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, audit)
+
+	decision, err := svc.AuthorizeAccess(context.Background(), AccessInput{
+		FileID:      object.ID,
+		Action:      AccessActionDelete,
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-1",
+	})
+	if err != nil {
+		t.Fatalf("AuthorizeAccess() error = %v", err)
+	}
+	if !decision.Allowed {
+		t.Fatalf("expected delete allowed for owner, got %+v", decision)
+	}
+	event := audit.last(t)
+	if event.Action != domainaudit.AuditAction("file.object.delete") || event.Result != domainaudit.EventResultSuccess {
+		t.Fatalf("unexpected audit event: action=%s result=%s", event.Action, event.Result)
+	}
+}
+
+func TestAuthorizeAccessAppendsForbiddenAuditEvent(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	repo.items[object.ID] = object
+	audit := &fakeAuditSink{}
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, audit)
+
+	decision, err := svc.AuthorizeAccess(context.Background(), AccessInput{
+		FileID:      object.ID,
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   "u-2",
+	})
+	if err != nil {
+		t.Fatalf("AuthorizeAccess() error = %v", err)
+	}
+	if decision.Allowed {
+		t.Fatalf("expected access denied, got %+v", decision)
+	}
+	event := audit.last(t)
+	if event.Action != domainaudit.AuditAction("file.object.forbidden") || event.Result != domainaudit.EventResultDenied || event.Risk != domainaudit.EventRiskHigh {
+		t.Fatalf("unexpected audit event: action=%s result=%s risk=%s", event.Action, event.Result, event.Risk)
+	}
+	if event.Metadata["decisionReason"] != "permission_required" || event.Metadata["requestedAction"] != AccessActionDownload {
+		t.Fatalf("unexpected forbidden metadata: %+v", event.Metadata)
 	}
 }
 
@@ -202,15 +341,21 @@ func TestAuthorizeAccessDeniesUnavailableFile(t *testing.T) {
 }
 
 func testService(repo filerepo.FileRepository, objects domainfile.ObjectStore) Service {
-	return testServiceWithPermission(repo, objects, nil)
+	return testServiceWithOptions(repo, objects, nil, nil)
 }
 
 func testServiceWithPermission(repo filerepo.FileRepository, objects domainfile.ObjectStore, permission PermissionChecker) Service {
+	return testServiceWithOptions(repo, objects, permission, nil)
+}
+
+func testServiceWithOptions(repo filerepo.FileRepository, objects domainfile.ObjectStore, permission PermissionChecker, audit AuditEventSink) Service {
 	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 	return NewService(repo, objects, Options{
 		Now:        func() time.Time { return now },
 		NewID:      func() shared.ID { return "file-1" },
+		NewAuditID: func() shared.ID { return "audit-1" },
 		Permission: permission,
+		Audit:      audit,
 	})
 }
 
@@ -364,6 +509,24 @@ func (c *fakePermissionChecker) CheckPermission(_ context.Context, in rbacsvc.Ch
 	}
 	key := string(in.SubjectType) + ":" + in.SubjectID + "|" + in.Resource + "|" + in.Action
 	return c.allowed[key], nil
+}
+
+type fakeAuditSink struct {
+	events []*domainaudit.Event
+	err    error
+}
+
+func (s *fakeAuditSink) AppendEvent(_ context.Context, event *domainaudit.Event) error {
+	s.events = append(s.events, event)
+	return s.err
+}
+
+func (s *fakeAuditSink) last(t *testing.T) *domainaudit.Event {
+	t.Helper()
+	if len(s.events) == 0 {
+		t.Fatal("expected audit event")
+	}
+	return s.events[len(s.events)-1]
 }
 
 var _ io.Reader = strings.NewReader("")
