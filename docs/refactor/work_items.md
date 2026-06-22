@@ -259,7 +259,7 @@
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
 | 178 | M3-01-01 | M3-01 | `skoll-file-storage-refactor` | 定义 FileObject 值对象 | `internal/domain/file` | key/name/size/mime/hash/owner/visibility/storage/status 字段和校验完整 | `go test ./internal/domain/file/...` | Done |
-| 179 | M3-01-02 | M3-01 | `skoll-file-storage-refactor` | 定义 ObjectStore port | port interface | Put/Get/Delete/Stat/Presign 接口不依赖具体存储实现 | `go test ./internal/domain/file/...` | Todo |
+| 179 | M3-01-02 | M3-01 | `skoll-file-storage-refactor` | 定义 ObjectStore port | port interface | Put/Get/Delete/Stat/Presign 接口不依赖具体存储实现 | `go test ./internal/domain/file/...` | Done |
 | 180 | M3-01-03 | M3-01 | `skoll-file-storage-refactor` | 定义 multipart port | port interface | Init/UploadPart/Complete/Abort 支持 hash 校验上下文 | `go test ./internal/domain/file/...` | Todo |
 | 181 | M3-02-01 | M3-02 | `skoll-file-storage-refactor` | 实现 local object adapter | local adapter | 上传、读取、删除、stat 可用 | `go test ./internal/store/object/...` | Todo |
 | 182 | M3-02-02 | M3-02 | `skoll-security-hardening` | local adapter 路径安全 | tests | 路径穿越、非法 key、覆盖保护测试通过 | `go test ./internal/store/object/...` | Todo |

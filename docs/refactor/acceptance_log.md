@@ -10238,6 +10238,51 @@ go test ./internal/domain/file/...
 
 - 进入 `M3-01-02`，定义 ObjectStore port。
 
+## M3-01-02: 定义 ObjectStore port
+
+- 状态: Passed
+- Work Item: M3-01-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/file/store.go`
+- `internal/domain/file/store_rules.go`
+- `internal/domain/file/store_test.go`
+- `internal/domain/file/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| ObjectStore port | Passed | 定义 `Put`、`Get`、`Delete`、`Stat`、`Presign` 五个单对象能力。 |
+| 存储无关 | Passed | port 只依赖 Go 标准库 `context`、`io`、`time`，未依赖本地文件系统、S3 SDK、HTTP handler 或 GORM。 |
+| 请求响应值对象 | Passed | 定义 `PutObjectInput`、`ObjectInfo`、`ObjectStream`、`PresignInput`、`PresignedObject`。 |
+| 校验规则 | Passed | 覆盖 put、stat info、object key、presign input/result、metadata 校验。 |
+| 分片边界 | Passed | 未提前引入 multipart 语义，留给 `M3-01-03`。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/file/...
+```
+
+结果摘要: 通过。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-01-03`，定义 multipart port。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

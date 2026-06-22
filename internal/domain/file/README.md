@@ -9,6 +9,8 @@
 - `doc.go`
 - `object.go`
 - `rules.go`
+- `store.go`
+- `store_rules.go`
 
 ## FileObject
 
@@ -32,3 +34,15 @@
 - 不添加旧上传路径、旧对象 key 或旧 provider 字段的兼容层。
 - domain 包不依赖 store、service、handler、GORM model、HTTP multipart 或具体存储 SDK。
 - 本地存储和 S3 协议存储必须通过后续 object-store port 接入，不能反向污染本包模型。
+
+## ObjectStore Port
+
+`ObjectStore` 是对象内容读写的稳定端口，当前只覆盖单对象能力:
+
+- `Put`: 写入对象内容，输入包含 key、size、mime、hash、body 和 metadata。
+- `Get`: 读取对象内容，返回 `ObjectStream`，调用方负责关闭 `Body`。
+- `Delete`: 删除对象内容。
+- `Stat`: 查询对象元信息。
+- `Presign`: 生成 get/put/delete 预签名访问结果。
+
+该 port 不引入本地文件系统、S3 SDK、HTTP handler 或 multipart 语义；分片上传将在独立 port 中定义。
