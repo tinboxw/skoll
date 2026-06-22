@@ -92,7 +92,7 @@
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
 | 29 | M4-01 | `skoll-dictionary-organization-refactor` | 字典独立模型和迁移 | domain + migration | DictionaryType/DictionaryItem 独立表 | `go test ./internal/domain/system/... ./internal/store/...` | Done |
-| 30 | M4-02 | `skoll-cache-development` | 字典缓存策略 | cache/service | 更新字典后缓存失效 | `go test ./internal/cache/... ./internal/service/system/...` | Todo |
+| 30 | M4-02 | `skoll-cache-development` | 字典缓存策略 | cache/service | 更新字典后缓存失效 | `go test ./internal/cache/... ./internal/service/system/...` | Done |
 | 31 | M4-03 | `skoll-api-contracts` | 字典 API/UI 接入 | handler + Vue | 类型、条目、状态、排序、搜索完整 | `go test ./...`; `cd web && npm run build` | Todo |
 | 32 | M4-04 | `skoll-data-dictionary-config` | 配置 schema 注册 | domain/service/UI | 系统与插件配置通过 schema 渲染和校验 | `go test ./internal/service/system/...`; `cd web && npm run build` | Todo |
 | 33 | M4-05 | `skoll-dictionary-organization-refactor` | 组织/部门/岗位模型 | domain/store/API | 部门树、岗位、用户归属可用 | `go test ./...` | Todo |

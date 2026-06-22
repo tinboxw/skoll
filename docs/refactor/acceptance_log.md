@@ -11456,3 +11456,75 @@ $env:CC='D:\workspace\mingw64\bin\gcc.exe'; go test ./internal/store/...
 ### 下一步
 
 - 进入 `M4-02-01`，实现字典缓存策略。
+
+## M4-02-01: 字典缓存策略
+
+- 状态: Passed
+- Work Item: M4-02-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/cache/factory.go`
+- `internal/cache/factory_test.go`
+- `internal/cache/README.md`
+- `internal/service/system/service.go`
+- `internal/service/system/types.go`
+- `internal/service/system/service_impl.go`
+- `internal/service/system/service_impl_test.go`
+- `internal/service/system/dictionary_cache_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 缓存命名空间 | Passed | Cache Bundle 新增 `Dictionary` bytes cache，local/redis/memcached 模式均提供 `dictionary:` 命名空间。 |
+| 字典 service | Passed | System service 增加字典类型和条目的 save/get/list/delete 方法，默认服务不强制启用缓存。 |
+| 命中与回源 | Passed | 字典 type/item/list 成功读取后写入缓存；命中时不再访问 repository。 |
+| 失效策略 | Passed | 保存/删除字典类型或条目后删除对应 type/item/list 缓存；ID 下 code/typeCode 变更时同时失效旧 key。 |
+| TTL | Passed | `NewCachedService` 支持 TTL，默认 5 分钟；测试覆盖短 TTL 过期后回源。 |
+| 错误不污染缓存 | Passed | repository 返回错误时不写缓存，后续恢复后仍会回源读取。 |
+| 文档同步 | Passed | `internal/cache/README.md` 记录 `dictionary:` 命名空间、默认 TTL 与失效责任。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/cache/... ./internal/service/system/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查缓存 key 均以 `dictionary:` 命名空间开头。
+2. 检查写路径先成功落库再失效缓存，失败路径不污染缓存。
+3. 检查缓存功能通过 `NewCachedService` 显式开启，未改变默认 service 构造行为。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-03-01`，实现字典 API 契约与 handler。

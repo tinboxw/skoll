@@ -20,7 +20,7 @@ func TestNewBundleModes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewBundle error: %v", err)
 			}
-			if b.Session == nil || b.User == nil || b.Permission == nil || b.Page == nil || b.Config == nil {
+			if b.Session == nil || b.User == nil || b.Permission == nil || b.Page == nil || b.Config == nil || b.Dictionary == nil {
 				t.Fatalf("bundle has nil cache field")
 			}
 
@@ -32,6 +32,11 @@ func TestNewBundleModes(t *testing.T) {
 			b.Page.Set("/dashboard", []byte("html"), time.Minute)
 			if got, ok := b.Page.Get("/dashboard"); !ok || string(got) != "html" {
 				t.Fatalf("page cache contract broken")
+			}
+
+			b.Dictionary.Set("type:code:system.locale", []byte("dictionary-data"), time.Minute)
+			if got, ok := b.Dictionary.Get("type:code:system.locale"); !ok || string(got) != "dictionary-data" {
+				t.Fatalf("dictionary cache contract broken")
 			}
 		})
 	}

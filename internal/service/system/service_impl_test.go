@@ -68,6 +68,46 @@ func (f *failingSystemRepo) DeleteSetting(_ context.Context, id shared.ID) error
 	return nil
 }
 
+func (f *failingSystemRepo) GetDictionaryTypeByID(_ context.Context, _ shared.ID) (*domainsystem.DictionaryType, error) {
+	return nil, nil
+}
+
+func (f *failingSystemRepo) GetDictionaryTypeByCode(_ context.Context, _ string) (*domainsystem.DictionaryType, error) {
+	return nil, nil
+}
+
+func (f *failingSystemRepo) ListDictionaryTypes(_ context.Context, _ int, _ int) ([]domainsystem.DictionaryType, error) {
+	return nil, nil
+}
+
+func (f *failingSystemRepo) SaveDictionaryType(_ context.Context, _ *domainsystem.DictionaryType) error {
+	return nil
+}
+
+func (f *failingSystemRepo) DeleteDictionaryType(_ context.Context, _ shared.ID) error {
+	return nil
+}
+
+func (f *failingSystemRepo) GetDictionaryItemByID(_ context.Context, _ shared.ID) (*domainsystem.DictionaryItem, error) {
+	return nil, nil
+}
+
+func (f *failingSystemRepo) GetDictionaryItemByTypeAndValue(_ context.Context, _, _ string) (*domainsystem.DictionaryItem, error) {
+	return nil, nil
+}
+
+func (f *failingSystemRepo) ListDictionaryItems(_ context.Context, _ string, _ int, _ int) ([]domainsystem.DictionaryItem, error) {
+	return nil, nil
+}
+
+func (f *failingSystemRepo) SaveDictionaryItem(_ context.Context, _ *domainsystem.DictionaryItem) error {
+	return nil
+}
+
+func (f *failingSystemRepo) DeleteDictionaryItem(_ context.Context, _ shared.ID) error {
+	return nil
+}
+
 func TestSystemServiceValidationPaths(t *testing.T) {
 	t.Run("nil repository", func(t *testing.T) {
 		svc := NewService(nil)

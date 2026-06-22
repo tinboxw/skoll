@@ -37,6 +37,7 @@ type Bundle struct {
 	Permission BytesCache
 	Page       BytesCache
 	Config     BytesCache
+	Dictionary BytesCache
 }
 
 type localNamespaceCache struct {
@@ -66,6 +67,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Permission: &localNamespaceCache{cache: lru, prefix: "perm:"},
 			Page:       &localNamespaceCache{cache: lru, prefix: "page:"},
 			Config:     &localNamespaceCache{cache: lru, prefix: "config:"},
+			Dictionary: &localNamespaceCache{cache: lru, prefix: "dictionary:"},
 		}, nil
 	case ModeRedis:
 		a, err := redis.NewAdapter(opts.RedisAddr)
@@ -78,6 +80,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Permission: redis.NewPermissionCache(a),
 			Page:       &localNamespaceCache{cache: local.NewLRUCache(2048), prefix: "page:"},
 			Config:     &localNamespaceCache{cache: local.NewLRUCache(2048), prefix: "config:"},
+			Dictionary: &localNamespaceCache{cache: local.NewLRUCache(2048), prefix: "dictionary:"},
 		}, nil
 	case ModeMemcached:
 		a, err := memcached.NewAdapter(opts.MemcachedAddr)
@@ -90,6 +93,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Permission: &localNamespaceCache{cache: local.NewLRUCache(2048), prefix: "perm:"},
 			Page:       memcached.NewPageCache(a),
 			Config:     memcached.NewConfigCache(a),
+			Dictionary: &localNamespaceCache{cache: local.NewLRUCache(2048), prefix: "dictionary:"},
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported cache mode: %q", opts.Mode)
