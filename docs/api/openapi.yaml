@@ -1251,6 +1251,264 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
+  /v1/files:
+    get:
+      summary: List file objects
+      parameters:
+        - name: ownerType
+          in: query
+          schema:
+            type: string
+        - name: ownerId
+          in: query
+          schema:
+            type: string
+        - name: visibility
+          in: query
+          schema:
+            type: string
+            enum: [private, public, plugin_asset]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, available, failed, deleted]
+        - name: sourceModule
+          in: query
+          schema:
+            type: string
+        - name: sourcePluginId
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: File object list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileListAPIResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          x-error-codes: [file_forbidden]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Upload file object
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FileUploadRequest'
+      responses:
+        '201':
+          description: Uploaded file object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDetailAPIResponse'
+        '400':
+          description: Bad Request
+          x-error-codes: [invalid_file_request, invalid_file_upload]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          x-error-codes: [file_forbidden]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict
+          x-error-codes: [file_conflict]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '413':
+          description: Payload Too Large
+          x-error-codes: [file_too_large]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '415':
+          description: Unsupported Media Type
+          x-error-codes: [unsupported_media_type]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Storage Error
+          x-error-codes: [file_storage_error]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/{id}:
+    get:
+      summary: Get file object detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File object detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDetailAPIResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          x-error-codes: [file_forbidden]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found
+          x-error-codes: [file_not_found]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete file object
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted file object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDeleteAPIResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          x-error-codes: [file_forbidden]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found
+          x-error-codes: [file_not_found]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Storage Error
+          x-error-codes: [file_storage_error]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/{id}/download:
+    get:
+      summary: Create file download URL
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: disposition
+          in: query
+          schema:
+            type: string
+            enum: [inline, attachment]
+            default: attachment
+      responses:
+        '200':
+          description: Short-lived authorized download URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDownloadAPIResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          x-error-codes: [file_forbidden]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not Found
+          x-error-codes: [file_not_found]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Storage Error
+          x-error-codes: [file_storage_error]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     MessageResponse:
@@ -1711,6 +1969,211 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/MenuVisibilityData'
+    FileOwnerRef:
+      type: object
+      required:
+        - type
+        - id
+      properties:
+        type:
+          type: string
+          example: user
+        id:
+          type: string
+    FileSourceRef:
+      type: object
+      required:
+        - module
+      properties:
+        module:
+          type: string
+          example: system
+        pluginId:
+          type: string
+    FileObject:
+      type: object
+      required:
+        - id
+        - key
+        - name
+        - size
+        - mime
+        - hash
+        - owner
+        - visibility
+        - storageDriver
+        - status
+        - source
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+          example: uploads/2026/06/report.pdf
+        name:
+          type: string
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+        mime:
+          type: string
+          example: application/pdf
+        hash:
+          type: string
+        owner:
+          $ref: '#/components/schemas/FileOwnerRef'
+        visibility:
+          type: string
+          enum: [private, public, plugin_asset]
+        storageDriver:
+          type: string
+          example: local
+        status:
+          type: string
+          enum: [pending, available, failed, deleted]
+        source:
+          $ref: '#/components/schemas/FileSourceRef'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FileUploadRequest:
+      type: object
+      required:
+        - file
+        - visibility
+      properties:
+        file:
+          type: string
+          format: binary
+        key:
+          type: string
+          description: Optional object key. Server may generate one when omitted.
+        name:
+          type: string
+        visibility:
+          type: string
+          enum: [private, public, plugin_asset]
+          default: private
+        ownerType:
+          type: string
+          default: user
+        ownerId:
+          type: string
+        sourceModule:
+          type: string
+          default: system
+        sourcePluginId:
+          type: string
+        metadata:
+          type: string
+          description: JSON object encoded as a string; keys and values are normalized by the server.
+    FileListData:
+      type: object
+      required:
+        - items
+        - offset
+        - limit
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FileObject'
+        offset:
+          type: integer
+          minimum: 0
+        limit:
+          type: integer
+          minimum: 1
+        total:
+          type: integer
+          minimum: 0
+          description: Optional total count when the backing store can compute it efficiently.
+    FileDetailData:
+      type: object
+      required:
+        - item
+      properties:
+        item:
+          $ref: '#/components/schemas/FileObject'
+    FileDownloadData:
+      type: object
+      required:
+        - id
+        - url
+        - method
+        - expiresAt
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri-reference
+        method:
+          type: string
+          enum: [GET]
+        expiresAt:
+          type: string
+          format: date-time
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+    FileDeleteData:
+      type: object
+      required:
+        - id
+        - deleted
+      properties:
+        id:
+          type: string
+        deleted:
+          type: boolean
+    FileListAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/FileListData'
+    FileDetailAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/FileDetailData'
+    FileDownloadAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/FileDownloadData'
+    FileDeleteAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/FileDeleteData'
     ErrorResponse:
       type: object
       required:

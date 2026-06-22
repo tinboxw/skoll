@@ -10734,6 +10734,82 @@ go test ./internal/service/file/... ./internal/service/audit/...
 
 - 进入 `M3-05-01`，实现文件 API 契约。
 
+## M3-05-01: 文件 API 契约
+
+- 状态: Passed
+- Work Item: M3-05-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/api/openapi.yaml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | OpenAPI 新增 `/v1/files`、`/v1/files/{id}`、`/v1/files/{id}/download` 契约。 |
+| API/OpenAPI 同步 | Passed | 定义 upload/download/delete/list/detail 响应 envelope、字段与错误码。 |
+| 权限目录同步 | N/A | 本项只定义 HTTP 契约；权限目录接入随 handler/seed 后续处理。 |
+| 审计 action 同步 | N/A | 文件 service 审计已在 M3-04-03 完成。 |
+| migration/seed 同步 | N/A | 不涉及数据库变更。 |
+| 前端 API client/UI 同步 | N/A | 本项不修改前端 client，后续文件 API client/store 任务处理。 |
+| 文档同步 | Passed | 更新 `docs/api/openapi.yaml` 并记录验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧接口、旧响应 envelope 或旧路径兼容方案。 |
+
+### 自动化验证
+
+```powershell
+@'
+import yaml
+doc = yaml.safe_load(open("docs/api/openapi.yaml", encoding="utf-8"))
+assert "/v1/files" in doc["paths"]
+assert "/v1/files/{id}" in doc["paths"]
+assert "/v1/files/{id}/download" in doc["paths"]
+for name in ["FileObject", "FileUploadRequest", "FileListAPIResponse", "FileDetailAPIResponse", "FileDownloadAPIResponse", "FileDeleteAPIResponse"]:
+    assert name in doc["components"]["schemas"]
+'@ | python -
+
+rg -n "/v1/files|File(Object|UploadRequest|ListAPIResponse|DetailAPIResponse|DownloadAPIResponse|DeleteAPIResponse)|x-error-codes|file_forbidden|file_not_found|file_storage_error" docs/api/openapi.yaml
+```
+
+结果摘要: Passed。YAML 可解析，文件 API 路径、响应 schema 与错误码锚点均存在。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查上传使用 multipart/form-data，响应为 `FileDetailAPIResponse`。
+2. 检查下载契约返回短期 download URL，保持 `code/message/data` envelope。
+3. 检查 400/401/403/404/409/413/415/500 错误码覆盖上传、下载、删除、详情与列表路径。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-05-02`，实现文件 API handler。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
