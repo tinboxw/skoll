@@ -1509,6 +1509,169 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/multipart/init:
+    post:
+      summary: Initialize multipart file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileMultipartInitRequest'
+      responses:
+        '201':
+          description: Multipart upload initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileMultipartInitAPIResponse'
+        '400':
+          description: Bad Request
+          x-error-codes: [invalid_multipart_request]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/multipart/{uploadId}/parts/{partNumber}:
+    put:
+      summary: Upload multipart file part
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: partNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 10000
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: size
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - name: hash
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Uploaded multipart part
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileMultipartPartAPIResponse'
+        '400':
+          description: Bad Request
+          x-error-codes: [invalid_multipart_request]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/multipart/{uploadId}/complete:
+    post:
+      summary: Complete multipart file upload
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileMultipartCompleteRequest'
+      responses:
+        '200':
+          description: Completed multipart file upload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileDetailAPIResponse'
+        '400':
+          description: Bad Request
+          x-error-codes: [invalid_multipart_request, multipart_hash_mismatch]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/files/multipart/{uploadId}/abort:
+    post:
+      summary: Abort multipart file upload
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileMultipartAbortRequest'
+      responses:
+        '200':
+          description: Aborted multipart file upload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileMultipartAbortAPIResponse'
+        '400':
+          description: Bad Request
+          x-error-codes: [invalid_multipart_request]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          x-error-codes: [unauthorized]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
     MessageResponse:
@@ -2138,6 +2301,143 @@ components:
           type: string
         deleted:
           type: boolean
+    FileMultipartInitRequest:
+      type: object
+      required:
+        - key
+        - name
+        - size
+        - mime
+        - hash
+        - visibility
+      properties:
+        key:
+          type: string
+        name:
+          type: string
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+        mime:
+          type: string
+        hash:
+          type: string
+        ownerType:
+          type: string
+          default: user
+        ownerId:
+          type: string
+        visibility:
+          type: string
+          enum: [private, public, plugin_asset]
+          default: private
+        storageDriver:
+          type: string
+          default: local
+        sourceModule:
+          type: string
+          default: system
+        sourcePluginId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    FileMultipartUpload:
+      type: object
+      required:
+        - uploadId
+        - key
+        - expiresAt
+      properties:
+        uploadId:
+          type: string
+        key:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    FileMultipartInitData:
+      type: object
+      required:
+        - item
+        - upload
+      properties:
+        item:
+          $ref: '#/components/schemas/FileObject'
+        upload:
+          $ref: '#/components/schemas/FileMultipartUpload'
+    FileMultipartPart:
+      type: object
+      required:
+        - partNumber
+        - size
+        - hash
+      properties:
+        partNumber:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+        hash:
+          type: string
+        etag:
+          type: string
+    FileMultipartPartData:
+      type: object
+      required:
+        - part
+      properties:
+        part:
+          $ref: '#/components/schemas/FileMultipartPart'
+    FileMultipartCompleteRequest:
+      type: object
+      required:
+        - fileId
+        - expectedSize
+        - expectedHash
+        - parts
+      properties:
+        fileId:
+          type: string
+        key:
+          type: string
+        expectedSize:
+          type: integer
+          format: int64
+          minimum: 1
+        expectedHash:
+          type: string
+        parts:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FileMultipartPart'
+    FileMultipartAbortRequest:
+      type: object
+      properties:
+        fileId:
+          type: string
+        key:
+          type: string
+    FileMultipartAbortData:
+      type: object
+      required:
+        - uploadId
+        - aborted
+      properties:
+        uploadId:
+          type: string
+        aborted:
+          type: boolean
     FileListAPIResponse:
       allOf:
         - $ref: '#/components/schemas/MessageResponse'
@@ -2174,6 +2474,33 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/FileDeleteData'
+    FileMultipartInitAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/FileMultipartInitData'
+    FileMultipartPartAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/FileMultipartPartData'
+    FileMultipartAbortAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/FileMultipartAbortData'
     ErrorResponse:
       type: object
       required:

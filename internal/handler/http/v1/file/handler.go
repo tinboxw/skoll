@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,6 +34,10 @@ func RegisterFileRoutes(mux *http.ServeMux, service filesvc.Service) {
 	h := &Handler{service: service}
 	mux.HandleFunc("GET /v1/files", h.list)
 	mux.HandleFunc("POST /v1/files", h.upload)
+	mux.HandleFunc("POST /v1/files/multipart/init", h.multipartInit)
+	mux.HandleFunc("PUT /v1/files/multipart/{uploadId}/parts/{partNumber}", h.multipartUploadPart)
+	mux.HandleFunc("POST /v1/files/multipart/{uploadId}/complete", h.multipartComplete)
+	mux.HandleFunc("POST /v1/files/multipart/{uploadId}/abort", h.multipartAbort)
 	mux.HandleFunc("GET /v1/files/{id}", h.get)
 	mux.HandleFunc("DELETE /v1/files/{id}", h.delete)
 	mux.HandleFunc("GET /v1/files/{id}/download", h.download)
@@ -63,6 +68,48 @@ type ownerRecord struct {
 type sourceRecord struct {
 	Module   string `json:"module"`
 	PluginID string `json:"pluginId,omitempty"`
+}
+
+type multipartInitRequest struct {
+	Key            string            `json:"key"`
+	Name           string            `json:"name"`
+	Size           int64             `json:"size"`
+	MIME           string            `json:"mime"`
+	Hash           string            `json:"hash"`
+	OwnerType      string            `json:"ownerType"`
+	OwnerID        string            `json:"ownerId"`
+	Visibility     string            `json:"visibility"`
+	StorageDriver  string            `json:"storageDriver"`
+	SourceModule   string            `json:"sourceModule"`
+	SourcePluginID string            `json:"sourcePluginId"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+}
+
+type multipartUploadRecord struct {
+	UploadID  string            `json:"uploadId"`
+	Key       string            `json:"key"`
+	ExpiresAt string            `json:"expiresAt"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+}
+
+type multipartPartRecord struct {
+	PartNumber int    `json:"partNumber"`
+	Size       int64  `json:"size"`
+	Hash       string `json:"hash"`
+	ETag       string `json:"etag,omitempty"`
+}
+
+type multipartCompleteRequest struct {
+	FileID       string                `json:"fileId"`
+	Key          string                `json:"key"`
+	ExpectedSize int64                 `json:"expectedSize"`
+	ExpectedHash string                `json:"expectedHash"`
+	Parts        []multipartPartRecord `json:"parts"`
+}
+
+type multipartAbortRequest struct {
+	FileID string `json:"fileId"`
+	Key    string `json:"key"`
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +208,142 @@ func (h *Handler) upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{"item": fileRecordFromDomain(*object)})
+}
+
+func (h *Handler) multipartInit(w http.ResponseWriter, r *http.Request) {
+	var req multipartInitRequest
+	if err := decodeJSON(r, &req); err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", err.Error())
+		return
+	}
+	actorID, actorName := actorFromRequest(r)
+	ownerID := strings.TrimSpace(req.OwnerID)
+	if ownerID == "" {
+		ownerID = actorID
+	}
+	if ownerID == "" {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", "ownerId is required")
+		return
+	}
+	ownerType := strings.TrimSpace(req.OwnerType)
+	if ownerType == "" {
+		ownerType = "user"
+	}
+	sourceModule := strings.TrimSpace(req.SourceModule)
+	if sourceModule == "" {
+		sourceModule = "system"
+	}
+	storageDriver := strings.TrimSpace(req.StorageDriver)
+	if storageDriver == "" {
+		storageDriver = "local"
+	}
+	result, err := h.service.InitMultipart(r.Context(), filesvc.MultipartInitInput{
+		Key:           req.Key,
+		Name:          req.Name,
+		Size:          req.Size,
+		MIME:          req.MIME,
+		Hash:          req.Hash,
+		Owner:         domainfile.OwnerRef{Type: ownerType, ID: shared.ID(ownerID)},
+		Visibility:    domainfile.Visibility(strings.TrimSpace(req.Visibility)),
+		StorageDriver: storageDriver,
+		Source:        domainfile.SourceRef{Module: sourceModule, PluginID: strings.TrimSpace(req.SourcePluginID)},
+		Metadata:      domainfile.NormalizeObjectMetadata(req.Metadata),
+		Actor:         domainaudit.ActorRef{Type: "user", ID: shared.ID(actorID), Name: actorName},
+		Trace:         traceFromRequest(r),
+		AuditMetadata: map[string]any{"path": r.URL.Path},
+	})
+	if err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", err.Error())
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{
+		"item":   fileRecordFromDomain(*result.Object),
+		"upload": multipartUploadFromDomain(result.Upload),
+	})
+}
+
+func (h *Handler) multipartUploadPart(w http.ResponseWriter, r *http.Request) {
+	uploadID := strings.TrimSpace(r.PathValue("uploadId"))
+	partNumber, err := strconv.Atoi(strings.TrimSpace(r.PathValue("partNumber")))
+	if err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", "partNumber must be an integer")
+		return
+	}
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", err.Error())
+		return
+	}
+	size, err := parseInt64Default(r.URL.Query().Get("size"), int64(len(raw)))
+	if err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", "size must be an integer")
+		return
+	}
+	part, err := h.service.UploadMultipartPart(r.Context(), filesvc.MultipartUploadPartInput{
+		UploadID:      uploadID,
+		Key:           r.URL.Query().Get("key"),
+		PartNumber:    partNumber,
+		Size:          size,
+		Hash:          r.URL.Query().Get("hash"),
+		Body:          bytes.NewReader(raw),
+		Trace:         traceFromRequest(r),
+		AuditMetadata: map[string]any{"path": r.URL.Path},
+	})
+	if err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", err.Error())
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"part": multipartPartFromDomain(part)})
+}
+
+func (h *Handler) multipartComplete(w http.ResponseWriter, r *http.Request) {
+	var req multipartCompleteRequest
+	if err := decodeJSON(r, &req); err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", err.Error())
+		return
+	}
+	actorID, actorName := actorFromRequest(r)
+	object, err := h.service.CompleteMultipart(r.Context(), filesvc.MultipartCompleteInput{
+		FileID:        shared.ID(strings.TrimSpace(req.FileID)),
+		UploadID:      strings.TrimSpace(r.PathValue("uploadId")),
+		Key:           req.Key,
+		ExpectedSize:  req.ExpectedSize,
+		ExpectedHash:  req.ExpectedHash,
+		Parts:         multipartPartsToDomain(req.Parts),
+		Actor:         domainaudit.ActorRef{Type: "user", ID: shared.ID(actorID), Name: actorName},
+		Trace:         traceFromRequest(r),
+		AuditMetadata: map[string]any{"path": r.URL.Path},
+	})
+	if err != nil {
+		code := "invalid_multipart_request"
+		if errors.Is(err, filesvc.ErrMultipartHashMismatch) {
+			code = "multipart_hash_mismatch"
+		}
+		apiv1.WriteMessage(w, http.StatusBadRequest, code, err.Error())
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": fileRecordFromDomain(*object)})
+}
+
+func (h *Handler) multipartAbort(w http.ResponseWriter, r *http.Request) {
+	var req multipartAbortRequest
+	if err := decodeJSON(r, &req); err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", err.Error())
+		return
+	}
+	actorID, actorName := actorFromRequest(r)
+	if err := h.service.AbortMultipart(r.Context(), filesvc.MultipartAbortInput{
+		FileID:        shared.ID(strings.TrimSpace(req.FileID)),
+		UploadID:      strings.TrimSpace(r.PathValue("uploadId")),
+		Key:           req.Key,
+		Actor:         domainaudit.ActorRef{Type: "user", ID: shared.ID(actorID), Name: actorName},
+		Trace:         traceFromRequest(r),
+		AuditMetadata: map[string]any{"path": r.URL.Path},
+	}); err != nil {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_multipart_request", err.Error())
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"uploadId": strings.TrimSpace(r.PathValue("uploadId")), "aborted": true})
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
@@ -278,6 +461,51 @@ func parseMetadata(raw string) (map[string]string, error) {
 		return nil, fmt.Errorf("metadata must be a JSON object string: %w", err)
 	}
 	return domainfile.NormalizeObjectMetadata(metadata), nil
+}
+
+func decodeJSON(r *http.Request, out any) error {
+	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
+	decoder.DisallowUnknownFields()
+	return decoder.Decode(out)
+}
+
+func parseInt64Default(raw string, fallback int64) (int64, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, nil
+	}
+	return strconv.ParseInt(raw, 10, 64)
+}
+
+func multipartUploadFromDomain(upload domainfile.MultipartUpload) multipartUploadRecord {
+	return multipartUploadRecord{
+		UploadID:  upload.UploadID,
+		Key:       upload.Key,
+		ExpiresAt: upload.ExpiresAt.Format(time.RFC3339Nano),
+		Metadata:  domainfile.NormalizeObjectMetadata(upload.Metadata),
+	}
+}
+
+func multipartPartFromDomain(part domainfile.MultipartPart) multipartPartRecord {
+	return multipartPartRecord{
+		PartNumber: part.PartNumber,
+		Size:       part.Size,
+		Hash:       part.Hash,
+		ETag:       part.ETag,
+	}
+}
+
+func multipartPartsToDomain(parts []multipartPartRecord) []domainfile.MultipartPart {
+	out := make([]domainfile.MultipartPart, 0, len(parts))
+	for _, part := range parts {
+		out = append(out, domainfile.MultipartPart{
+			PartNumber: part.PartNumber,
+			Size:       part.Size,
+			Hash:       part.Hash,
+			ETag:       part.ETag,
+		})
+	}
+	return out
 }
 
 func actorFromRequest(r *http.Request) (string, string) {

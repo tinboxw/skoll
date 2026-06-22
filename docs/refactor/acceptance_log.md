@@ -10960,6 +10960,89 @@ go test ./internal/handler/http/... ./internal/bootstrap/...
 
 - 进入 `M3-06-02`，实现分片上传 API 与 OpenAPI 契约。
 
+## M3-06-02: 分片上传 API
+
+- 状态: Passed
+- Work Item: M3-06-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/handler/http/v1/file/handler.go`
+- `internal/handler/http/v1/file/handler_test.go`
+- `internal/service/file/types.go`
+- `internal/service/file/service_impl.go`
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | 新增 multipart init、upload part、complete、abort 四个 HTTP endpoint。 |
+| API/OpenAPI 同步 | Passed | `docs/api/openapi.yaml` 与 `internal/handler/http/openapi.yaml` 均包含分片路径、request/response schema 与错误码。 |
+| 错误码明确 | Passed | `invalid_multipart_request` 覆盖请求/存储校验失败，`multipart_hash_mismatch` 覆盖 hash 完成校验失败。 |
+| 权限目录同步 | N/A | 本项未新增权限 catalog。 |
+| 审计 action 同步 | Passed | handler 透传 actor/trace/audit metadata 到 file service，由 service 记录 multipart 审计。 |
+| migration/seed 同步 | N/A | 不涉及 schema 变更。 |
+| 前端 API client/UI 同步 | N/A | 文件前端 client/store 在后续 M3-07-01 处理。 |
+| 文档同步 | Passed | 更新 OpenAPI、work item 和验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧上传路径兼容层。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/handler/http/v1/file/... ./internal/service/file/...
+
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/handler/http/... ./internal/bootstrap/...
+
+@'
+import yaml
+from pathlib import Path
+for path in [Path('docs/api/openapi.yaml'), Path('internal/handler/http/openapi.yaml')]:
+    doc = yaml.safe_load(path.read_text(encoding='utf-8'))
+    for key in ['/v1/files/multipart/init', '/v1/files/multipart/{uploadId}/parts/{partNumber}', '/v1/files/multipart/{uploadId}/complete', '/v1/files/multipart/{uploadId}/abort']:
+        assert key in doc['paths'], key
+'@ | python -
+```
+
+结果摘要: Passed。handler 测试覆盖 init/upload part/complete/abort 输入映射与 hash mismatch 错误码；扩展测试确认 router/bootstrap 仍可通过。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查所有响应保持 `code/message/data` envelope。
+2. 检查 part 上传使用 raw body，并通过 query 提供 `key/size/hash`。
+3. 检查 public OpenAPI 与 embedded OpenAPI 内容一致。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-07-01`，实现文件 API client/store。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

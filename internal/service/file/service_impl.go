@@ -316,7 +316,7 @@ func (s *serviceImpl) CompleteMultipart(ctx context.Context, in MultipartComplet
 			Metadata: mergeAuditMetadata(in.AuditMetadata, map[string]any{"reason": "hash_mismatch"}),
 			Object:   object,
 		})
-		return nil, fmt.Errorf("multipart object hash mismatch")
+		return nil, ErrMultipartHashMismatch
 	}
 	if err := object.MarkAvailable(info.Hash, s.now()); err != nil {
 		_ = s.repo.SetStatus(ctx, object.ID, domainfile.StatusFailed, s.now())

@@ -125,6 +125,79 @@ func TestFileHandlerDownloadAndDelete(t *testing.T) {
 	}
 }
 
+func TestFileHandlerMultipartFlow(t *testing.T) {
+	object := mustPendingFileObject(t)
+	svc := &fakeFileService{
+		multipartInitResult: &filesvc.MultipartInitResult{
+			Object: &object,
+			Upload: domainfile.MultipartUpload{
+				UploadID:  "upload-1",
+				Key:       object.Key,
+				ExpiresAt: time.Date(2026, 6, 22, 11, 0, 0, 0, time.UTC),
+			},
+		},
+		multipartPart:  domainfile.MultipartPart{PartNumber: 1, Size: 5, Hash: strings.Repeat("1", 8), ETag: strings.Repeat("1", 8)},
+		completeObject: mustFileObject(t),
+	}
+	mux := http.NewServeMux()
+	RegisterFileRoutes(mux, svc)
+
+	initBody := strings.NewReader(`{"key":"uploads/large.bin","name":"large.bin","size":10,"mime":"application/octet-stream","hash":"abcdef123456","ownerId":"u-1","visibility":"private","metadata":{"trace-id":"req-1"}}`)
+	initReq := withClaims(httptest.NewRequest(http.MethodPost, "/v1/files/multipart/init", initBody), "u-1")
+	initResp := httptest.NewRecorder()
+	mux.ServeHTTP(initResp, initReq)
+	if initResp.Code != http.StatusCreated {
+		t.Fatalf("multipart init status=%d body=%s", initResp.Code, initResp.Body.String())
+	}
+	if svc.multipartInitInput.Key != "uploads/large.bin" || svc.multipartInitInput.Owner.ID != "u-1" {
+		t.Fatalf("multipart init input = %+v", svc.multipartInitInput)
+	}
+
+	partReq := withClaims(httptest.NewRequest(http.MethodPut, "/v1/files/multipart/upload-1/parts/1?key=uploads/large.bin&size=5&hash=11111111", strings.NewReader("hello")), "u-1")
+	partResp := httptest.NewRecorder()
+	mux.ServeHTTP(partResp, partReq)
+	if partResp.Code != http.StatusOK {
+		t.Fatalf("multipart part status=%d body=%s", partResp.Code, partResp.Body.String())
+	}
+	if svc.multipartPartInput.UploadID != "upload-1" || svc.multipartPartInput.PartNumber != 1 || svc.multipartPartInput.Size != 5 {
+		t.Fatalf("multipart part input = %+v", svc.multipartPartInput)
+	}
+
+	completeBody := strings.NewReader(`{"fileId":"file-1","expectedSize":10,"expectedHash":"abcdef123456","parts":[{"partNumber":1,"size":5,"hash":"11111111"},{"partNumber":2,"size":5,"hash":"22222222"}]}`)
+	completeReq := withClaims(httptest.NewRequest(http.MethodPost, "/v1/files/multipart/upload-1/complete", completeBody), "u-1")
+	completeResp := httptest.NewRecorder()
+	mux.ServeHTTP(completeResp, completeReq)
+	if completeResp.Code != http.StatusOK {
+		t.Fatalf("multipart complete status=%d body=%s", completeResp.Code, completeResp.Body.String())
+	}
+	if svc.multipartCompleteInput.UploadID != "upload-1" || len(svc.multipartCompleteInput.Parts) != 2 {
+		t.Fatalf("multipart complete input = %+v", svc.multipartCompleteInput)
+	}
+
+	abortReq := withClaims(httptest.NewRequest(http.MethodPost, "/v1/files/multipart/upload-1/abort", strings.NewReader(`{"fileId":"file-1"}`)), "u-1")
+	abortResp := httptest.NewRecorder()
+	mux.ServeHTTP(abortResp, abortReq)
+	if abortResp.Code != http.StatusOK {
+		t.Fatalf("multipart abort status=%d body=%s", abortResp.Code, abortResp.Body.String())
+	}
+	if svc.multipartAbortInput.UploadID != "upload-1" || svc.multipartAbortInput.FileID != "file-1" {
+		t.Fatalf("multipart abort input = %+v", svc.multipartAbortInput)
+	}
+}
+
+func TestFileHandlerMultipartHashMismatch(t *testing.T) {
+	svc := &fakeFileService{completeErr: filesvc.ErrMultipartHashMismatch}
+	mux := http.NewServeMux()
+	RegisterFileRoutes(mux, svc)
+
+	req := withClaims(httptest.NewRequest(http.MethodPost, "/v1/files/multipart/upload-1/complete", strings.NewReader(`{"fileId":"file-1","parts":[{"partNumber":1,"size":5,"hash":"11111111"}]}`)), "u-1")
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest || decodeBody(t, resp)["code"] != "multipart_hash_mismatch" {
+		t.Fatalf("hash mismatch status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
 func TestFileHandlerForbiddenAndNotFound(t *testing.T) {
 	svc := &fakeFileService{
 		getDecision:     filesvc.AccessDecision{Reason: "permission_required"},
@@ -158,17 +231,25 @@ func TestFileHandlerForbiddenAndNotFound(t *testing.T) {
 }
 
 type fakeFileService struct {
-	uploadInput     filesvc.UploadInput
-	listInput       filesvc.ListInput
-	getInput        filesvc.GetInput
-	downloadInput   filesvc.DownloadInput
-	deleteInput     filesvc.DeleteInput
-	items           []domainfile.FileObject
-	uploadObject    domainfile.FileObject
-	getDecision     filesvc.AccessDecision
-	downloadResult  *filesvc.DownloadResult
-	deleteDecision  filesvc.AccessDecision
-	downloadNilBody bool
+	uploadInput            filesvc.UploadInput
+	listInput              filesvc.ListInput
+	getInput               filesvc.GetInput
+	downloadInput          filesvc.DownloadInput
+	deleteInput            filesvc.DeleteInput
+	multipartInitInput     filesvc.MultipartInitInput
+	multipartPartInput     filesvc.MultipartUploadPartInput
+	multipartCompleteInput filesvc.MultipartCompleteInput
+	multipartAbortInput    filesvc.MultipartAbortInput
+	items                  []domainfile.FileObject
+	uploadObject           domainfile.FileObject
+	multipartInitResult    *filesvc.MultipartInitResult
+	multipartPart          domainfile.MultipartPart
+	completeObject         domainfile.FileObject
+	completeErr            error
+	getDecision            filesvc.AccessDecision
+	downloadResult         *filesvc.DownloadResult
+	deleteDecision         filesvc.AccessDecision
+	downloadNilBody        bool
 }
 
 func (s *fakeFileService) Upload(_ context.Context, in filesvc.UploadInput) (*domainfile.FileObject, error) {
@@ -180,19 +261,37 @@ func (s *fakeFileService) Upload(_ context.Context, in filesvc.UploadInput) (*do
 	return &object, nil
 }
 
-func (s *fakeFileService) InitMultipart(context.Context, filesvc.MultipartInitInput) (*filesvc.MultipartInitResult, error) {
-	return nil, nil
+func (s *fakeFileService) InitMultipart(_ context.Context, in filesvc.MultipartInitInput) (*filesvc.MultipartInitResult, error) {
+	s.multipartInitInput = in
+	if s.multipartInitResult != nil {
+		return s.multipartInitResult, nil
+	}
+	object := mustPendingFileObject(nil)
+	return &filesvc.MultipartInitResult{Object: &object, Upload: domainfile.MultipartUpload{UploadID: "upload-1", Key: object.Key, ExpiresAt: time.Now().UTC()}}, nil
 }
 
-func (s *fakeFileService) UploadMultipartPart(context.Context, filesvc.MultipartUploadPartInput) (domainfile.MultipartPart, error) {
-	return domainfile.MultipartPart{}, nil
+func (s *fakeFileService) UploadMultipartPart(_ context.Context, in filesvc.MultipartUploadPartInput) (domainfile.MultipartPart, error) {
+	s.multipartPartInput = in
+	if s.multipartPart.PartNumber != 0 {
+		return s.multipartPart, nil
+	}
+	return domainfile.MultipartPart{PartNumber: in.PartNumber, Size: in.Size, Hash: in.Hash, ETag: in.Hash}, nil
 }
 
-func (s *fakeFileService) CompleteMultipart(context.Context, filesvc.MultipartCompleteInput) (*domainfile.FileObject, error) {
-	return nil, nil
+func (s *fakeFileService) CompleteMultipart(_ context.Context, in filesvc.MultipartCompleteInput) (*domainfile.FileObject, error) {
+	s.multipartCompleteInput = in
+	if s.completeErr != nil {
+		return nil, s.completeErr
+	}
+	object := s.completeObject
+	if object.ID.IsZero() {
+		object = mustFileObject(nil)
+	}
+	return &object, nil
 }
 
-func (s *fakeFileService) AbortMultipart(context.Context, filesvc.MultipartAbortInput) error {
+func (s *fakeFileService) AbortMultipart(_ context.Context, in filesvc.MultipartAbortInput) error {
+	s.multipartAbortInput = in
 	return nil
 }
 
@@ -251,6 +350,17 @@ func mustFileObject(t *testing.T) domainfile.FileObject {
 		panic(err)
 	}
 	return *object
+}
+
+func mustPendingFileObject(t *testing.T) domainfile.FileObject {
+	object := mustFileObject(t)
+	object.Key = "uploads/large.bin"
+	object.Name = "large.bin"
+	object.Size = 10
+	object.MIME = "application/octet-stream"
+	object.Hash = "abcdef123456"
+	object.Status = domainfile.StatusPending
+	return object
 }
 
 func withClaims(req *http.Request, subject string) *http.Request {

@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 const AccessActionRead = "read"
 const AccessActionDownload = "download"
 const AccessActionDelete = "delete"
+
+var ErrMultipartHashMismatch = errors.New("multipart object hash mismatch")
 
 type UploadInput struct {
 	Key           string
