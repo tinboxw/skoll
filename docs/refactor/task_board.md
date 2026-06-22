@@ -172,3 +172,9 @@
 | 61 | FE4 | `skoll-frontend-design-refactor` / `skoll-frontend-performance-refactor` | 升级插件与开发者门户体验 | Plugin/Marketplace/Dev Portal 页面改造 | 插件权限、风险、配置、日志、发布、回滚、任务状态可读且可操作 | `cd web && npm run build`; 浏览器验收 | Done |
 | 62 | FE5 | `skoll-frontend-testing-refactor` | 建立前端测试与验收体系 | typecheck/build/smoke/权限/响应式验收清单 | 前端任务不能只以 build 通过作为验收；关键状态必须被记录 | `cd web && npm run typecheck`; `cd web && npm run build` | Done |
 | 63 | FE6 | `skoll-frontend-performance-refactor` | 建立前端性能与可观测基线 | bundle、懒加载、表格、请求数量、插件重面板性能记录 | 主要页面按需加载；大表格有降级策略；性能变化进入验收记录 | `cd web && npm run build` | Done |
+
+## N0: 发布前冻结与质量门禁
+
+| 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
+|---:|---|---|---|---|---|---|---|
+| 64 | N0 | `skoll-refactor-governance` / `skoll-quality-gate` / `skoll-docs-writer` | 发布前冻结与质量门禁 | 文档入口、质量门禁记录、范围冻结说明 | N0-01 到 N0-05 全部通过验收；不引入兼容方案或新范围扩散 | `rg -n "N0-01|N0-02|N0-03|N0-04|N0-05" docs/refactor/work_items.md docs/refactor/acceptance_log.md` | Doing |

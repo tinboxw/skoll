@@ -34,7 +34,7 @@
 | `archive/legacy-plans/iteration_plan.md`、`archive/legacy-plans/feature_implementation_status.md` | `work_items.md`、`task_board.md` | 分阶段推进节奏、短周期拆分、缺失能力盘点 |
 | `archive/legacy-plans/plugin_ui_optimization_plan.md`、`frontend_experience_plan.md`、`fe0_*` 到 `fe4_*` | `frontend-foundation.md` | 前端体验、视觉规范、页面架构、核心页面、插件门户体验 |
 | `fe5_*`、`fe6_*` | `frontend-quality-performance.md` | 前端测试、浏览器验收、响应式、性能基线和回归清单 |
-| `progress_inspection_2026-06-19.md`、`task_adjustment_proposals_2026-06-19.md`、`tail_threshold_closeout_2026-06-19.md` | `milestone-closeout.md` | 进度巡检、尾盘阈值、任务微调和发布前收口建议 |
+| 过程巡检、任务微调和尾盘收口材料 | `milestone-closeout.md` | 进度巡检、尾盘阈值、任务微调和发布前收口建议 |
 | `gin-vue-admin_analysis.md` | `architecture_and_execution_plan.md`、`task_board.md`、`work_items.md` | GVA 功能面: 权限、菜单、审计、文件、字典、生成器、插件、质量 |
 
 ## 不再采用

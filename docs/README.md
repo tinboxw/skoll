@@ -12,7 +12,7 @@ Skoll 当前处于开源基础建设阶段。文档按读者和用途分层，�
 | [refactor/architecture_and_execution_plan.md](refactor/architecture_and_execution_plan.md) | 架构模型、治理原则、里程碑计划 |
 | [refactor/task_board.md](refactor/task_board.md) | 父任务表和里程碑级状态 |
 | [refactor/work_items.md](refactor/work_items.md) | 最小 Work Item 表，作为执行、验收、提交单元 |
-| [refactor/next_work_items.md](refactor/next_work_items.md) | 下一批 M3-M7 候选最小任务池 |
+| [refactor/next_work_items.md](refactor/next_work_items.md) | N0 与 M3-M7 细粒度任务来源和候选池记录 |
 | [refactor/acceptance_log.md](refactor/acceptance_log.md) | 已完成任务的验收记录 |
 | [refactor/frontend-foundation.md](refactor/frontend-foundation.md) | 前端体验、视觉系统、架构和核心页面规范 |
 | [refactor/frontend-quality-performance.md](refactor/frontend-quality-performance.md) | 前端测试、浏览器验收、响应式、性能基线 |

@@ -10009,6 +10009,54 @@ rg -n "ADJ-TAIL-20260619-04|tail_threshold_closeout_2026-06-19|Tail Threshold Cl
 
 - FE6 尾盘收口完成；后续进入下一已排期里程碑或发布前文档索引校准，不再扩散 FE6 范围。
 
+## N0-02: 文档入口复查
+
+- 状态: Passed
+- Work Item: N0-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/README.md`
+- `docs/refactor/README.md`
+- `docs/refactor/source_map.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 微调任务合并 | Passed | 将 N0 与 M3-M7 细粒度任务从 `next_work_items.md` 合并到 `work_items.md`，并在 `task_board.md` 追加 N0 父任务。 |
+| 文档入口复查 | Passed | `docs/README.md` 和 `docs/refactor/README.md` 指向正式执行表与候选池来源，不再把候选池描述为未合并任务。 |
+| 过程文档直链清理 | Passed | `source_map.md` 使用概括描述替代过程文档文件名，避免主入口继续指向已归档过程材料。 |
+| 验证命令 | Passed | N0-02 指定 `rg` 命令无输出，说明未命中已移除主目录过程文档引用。 |
+| API/OpenAPI 同步 | N/A | 本项仅更新文档和任务表，不涉及 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 前端状态和 UX | N/A | 本项不改前端运行时代码。 |
+
+### 自动化验证
+
+```powershell
+rg -n "docs/refactor/fe|progress_inspection_2026-06-19|task_adjustment" docs/README.md docs/refactor/README.md docs/refactor/source_map.md
+rg -n "N0-01|N0-02|M3-01-01|M7-06-02|N0 Work Items|N1/M3 Work Items|N5/M7 Work Items" docs/refactor/work_items.md docs/refactor/task_board.md
+```
+
+结果摘要: 通过。第一条命令无输出；第二条命令可定位 N0 合并、M3-M7 细粒度任务边界和 N0 父任务。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `N0-03`，执行 Go 全量测试并记录质量门禁结果。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
