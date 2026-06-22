@@ -251,7 +251,7 @@
 | 173 | N0-01 | N0 | `skoll-refactor-governance` | 完成态一致性校验 | `docs/refactor/n0_completion_consistency_check.md` | 旧批次完成态、acceptance_log 和 git log 已覆盖 FE6 尾盘；M3-M7 被识别为后续路线图 | `git log --oneline -20`; 文档审阅 | Done |
 | 174 | N0-02 | N0 | `skoll-docs-writer` | 文档入口复查 | 文档索引修正 | `docs/README.md`、`docs/refactor/README.md`、`source_map.md` 不指向已移除主目录文件 | `rg -n "docs/refactor/fe|progress_inspection_2026-06-19|task_adjustment" docs/README.md docs/refactor/README.md docs/refactor/source_map.md` | Done |
 | 175 | N0-03 | N0 | `skoll-quality-gate` | Go 全量测试 | 质量门禁记录 | `go test ./...` 结果记录；失败项列入返工任务 | `CC=D:\workspace\mingw64\bin\gcc.exe go test ./...` | Done |
-| 176 | N0-04 | N0 | `skoll-quality-gate` | 前端类型和构建门禁 | 质量门禁记录 | typecheck 与 build 结果记录；失败项列入返工任务 | `cd web && npm run typecheck`; `cd web && npm run build` | Todo |
+| 176 | N0-04 | N0 | `skoll-quality-gate` | 前端类型和构建门禁 | 质量门禁记录 | typecheck 与 build 结果记录；失败项列入返工任务 | `cd web && npm run typecheck`; `cd web && npm run build` | Done |
 | 177 | N0-05 | N0 | `skoll-open-source-framework` | 发布前范围冻结说明 | release scope note | 明确下一阶段只从本文件领取任务，不追加兼容方案 | 文档审阅 | Todo |
 
 ## N1/M3 Work Items: 文件与对象存储平台

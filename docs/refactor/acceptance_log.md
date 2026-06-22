@@ -10101,6 +10101,50 @@ go test ./...
 
 - 进入 `N0-04`，执行前端 typecheck 与 build 门禁。
 
+## N0-04: 前端类型和构建门禁
+
+- 状态: Passed
+- Work Item: N0-04
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 前端类型检查 | Passed | `npm run typecheck` 通过，`vue-tsc --noEmit` 未报告类型错误。 |
+| 前端生产构建 | Passed | `npm run build` 通过，Vite 完成生产构建并输出 `web/dist`。 |
+| 构建告警记录 | Passed | 构建输出包含 Dart Sass legacy JS API deprecation 与 Rollup PURE 注释告警；均为非阻断告警。 |
+| API/OpenAPI 同步 | N/A | 本项只运行前端质量门禁，不修改 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 可见 UI 验收 | N/A | 本项不修改可见页面或交互流程。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: 通过。`vue-tsc --noEmit` 成功完成；Vite 构建完成并输出生产资源。构建告警已记录，未触发返工。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `N0-05`，补齐发布前范围冻结说明。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
