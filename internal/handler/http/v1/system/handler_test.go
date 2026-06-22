@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
@@ -15,11 +16,17 @@ import (
 )
 
 type fakeSystemService struct {
-	items map[string]*domainsystem.Setting
+	items     map[string]*domainsystem.Setting
+	dictTypes map[string]*domainsystem.DictionaryType
+	dictItems map[string]map[string]*domainsystem.DictionaryItem
 }
 
 func newFakeSystemService() *fakeSystemService {
-	return &fakeSystemService{items: map[string]*domainsystem.Setting{}}
+	return &fakeSystemService{
+		items:     map[string]*domainsystem.Setting{},
+		dictTypes: map[string]*domainsystem.DictionaryType{},
+		dictItems: map[string]map[string]*domainsystem.DictionaryItem{},
+	}
 }
 
 func (f *fakeSystemService) Upsert(_ context.Context, in systemsvc.UpsertInput) (*domainsystem.Setting, error) {
@@ -50,6 +57,114 @@ func (f *fakeSystemService) Reset(_ context.Context) (int, error) {
 	count := len(f.items)
 	f.items = map[string]*domainsystem.Setting{}
 	return count, nil
+}
+
+func (f *fakeSystemService) SaveDictionaryType(_ context.Context, in systemsvc.DictionaryTypeInput) (*domainsystem.DictionaryType, error) {
+	now := time.Date(2026, time.June, 6, 12, 0, 0, 0, time.UTC)
+	id := shared.ID(in.ID)
+	if id.IsZero() {
+		id = shared.ID("type-" + in.Code)
+	}
+	item, err := domainsystem.NewDictionaryType(domainsystem.DictionaryTypeInput{
+		ID:          id,
+		Code:        in.Code,
+		Name:        in.Name,
+		Description: in.Description,
+		Status:      domainsystem.DictionaryStatus(in.Status),
+		Sort:        in.Sort,
+		Builtin:     in.Builtin,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	f.dictTypes[item.Code] = item
+	return item, nil
+}
+
+func (f *fakeSystemService) GetDictionaryTypeByCode(_ context.Context, code string) (*domainsystem.DictionaryType, error) {
+	return f.dictTypes[code], nil
+}
+
+func (f *fakeSystemService) ListDictionaryTypes(_ context.Context, _ systemsvc.DictionaryTypeListInput) ([]domainsystem.DictionaryType, error) {
+	out := make([]domainsystem.DictionaryType, 0, len(f.dictTypes))
+	for _, item := range f.dictTypes {
+		out = append(out, *item)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Sort == out[j].Sort {
+			return out[i].Code < out[j].Code
+		}
+		return out[i].Sort < out[j].Sort
+	})
+	return out, nil
+}
+
+func (f *fakeSystemService) DeleteDictionaryType(_ context.Context, id string) error {
+	for code, item := range f.dictTypes {
+		if item.ID.String() == id {
+			delete(f.dictTypes, code)
+			delete(f.dictItems, code)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (f *fakeSystemService) SaveDictionaryItem(_ context.Context, in systemsvc.DictionaryItemInput) (*domainsystem.DictionaryItem, error) {
+	now := time.Date(2026, time.June, 6, 12, 0, 0, 0, time.UTC)
+	id := shared.ID(in.ID)
+	if id.IsZero() {
+		id = shared.ID("item-" + in.TypeCode + "-" + in.Value)
+	}
+	item, err := domainsystem.NewDictionaryItem(domainsystem.DictionaryItemInput{
+		ID:        id,
+		TypeCode:  in.TypeCode,
+		Label:     in.Label,
+		Value:     in.Value,
+		Status:    domainsystem.DictionaryStatus(in.Status),
+		Sort:      in.Sort,
+		Builtin:   in.Builtin,
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if f.dictItems[item.TypeCode] == nil {
+		f.dictItems[item.TypeCode] = map[string]*domainsystem.DictionaryItem{}
+	}
+	f.dictItems[item.TypeCode][item.Value] = item
+	return item, nil
+}
+
+func (f *fakeSystemService) GetDictionaryItemByTypeAndValue(_ context.Context, typeCode, value string) (*domainsystem.DictionaryItem, error) {
+	if f.dictItems[typeCode] == nil {
+		return nil, nil
+	}
+	return f.dictItems[typeCode][value], nil
+}
+
+func (f *fakeSystemService) ListDictionaryItems(_ context.Context, in systemsvc.DictionaryItemListInput) ([]domainsystem.DictionaryItem, error) {
+	itemsByValue := f.dictItems[in.TypeCode]
+	out := make([]domainsystem.DictionaryItem, 0, len(itemsByValue))
+	for _, item := range itemsByValue {
+		out = append(out, *item)
+	}
+	return domainsystem.SortDictionaryItems(out), nil
+}
+
+func (f *fakeSystemService) DeleteDictionaryItem(_ context.Context, id string) error {
+	for typeCode, itemsByValue := range f.dictItems {
+		for value, item := range itemsByValue {
+			if item.ID.String() == id {
+				delete(f.dictItems[typeCode], value)
+				return nil
+			}
+		}
+	}
+	return nil
 }
 
 func TestSystemMenusDefaultAndOverride(t *testing.T) {
@@ -152,22 +267,18 @@ func TestSystemDictionariesDefaultOverrideAndLookup(t *testing.T) {
 	resp := httptest.NewRecorder()
 	mux.ServeHTTP(resp, httptest.NewRequest(http.MethodGet, "/v1/system/dictionaries", nil))
 	if resp.Code != http.StatusOK {
-		t.Fatalf("default dictionaries status=%d body=%s", resp.Code, resp.Body.String())
+		t.Fatalf("empty dictionaries status=%d body=%s", resp.Code, resp.Body.String())
 	}
-	var defaultBody struct {
+	var emptyBody struct {
 		Data struct {
-			Items      []DictionaryType `json:"items"`
-			Customized bool             `json:"customized"`
+			Items []DictionaryType `json:"items"`
 		} `json:"data"`
 	}
-	if err := json.Unmarshal(resp.Body.Bytes(), &defaultBody); err != nil {
-		t.Fatalf("decode default dictionaries: %v", err)
+	if err := json.Unmarshal(resp.Body.Bytes(), &emptyBody); err != nil {
+		t.Fatalf("decode empty dictionaries: %v", err)
 	}
-	if defaultBody.Data.Customized {
-		t.Fatalf("default dictionaries should not be customized")
-	}
-	if len(defaultBody.Data.Items) == 0 {
-		t.Fatalf("expected default dictionaries")
+	if len(emptyBody.Data.Items) != 0 {
+		t.Fatalf("expected empty dictionary list, got %+v", emptyBody.Data.Items)
 	}
 
 	payload := []byte(`{"items":[{"type":"order.status","name":"Order Status","description":"Order lifecycle","status":"enabled","order":30,"items":[{"label":"Paid","value":"paid","status":"enabled","order":20},{"label":"Pending","value":"pending","status":"enabled","order":10},{"label":"","value":"bad"}]},{"type":"","name":"Bad"}]}`)
@@ -185,10 +296,7 @@ func TestSystemDictionariesDefaultOverrideAndLookup(t *testing.T) {
 	if err := json.Unmarshal(putResp.Body.Bytes(), &putBody); err != nil {
 		t.Fatalf("decode put dictionaries: %v", err)
 	}
-	if !putBody.Data.Customized {
-		t.Fatalf("put dictionaries should be customized")
-	}
-	if len(putBody.Data.Items) != 1 || putBody.Data.Items[0].Type != "order.status" {
+	if len(putBody.Data.Items) != 1 || putBody.Data.Items[0].Code != "order.status" || putBody.Data.Items[0].Type != "order.status" {
 		t.Fatalf("unexpected normalized dictionaries: %+v", putBody.Data.Items)
 	}
 	if got := putBody.Data.Items[0].Items; len(got) != 2 || got[0].Value != "pending" {
@@ -200,11 +308,75 @@ func TestSystemDictionariesDefaultOverrideAndLookup(t *testing.T) {
 	if lookupResp.Code != http.StatusOK {
 		t.Fatalf("lookup dictionary status=%d body=%s", lookupResp.Code, lookupResp.Body.String())
 	}
+	var lookupBody struct {
+		Data struct {
+			Item DictionaryType `json:"item"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(lookupResp.Body.Bytes(), &lookupBody); err != nil {
+		t.Fatalf("decode lookup dictionary: %v", err)
+	}
+	if lookupBody.Data.Item.Code != "order.status" || len(lookupBody.Data.Item.Items) != 2 {
+		t.Fatalf("unexpected lookup dictionary: %+v", lookupBody.Data.Item)
+	}
+
+	filterResp := httptest.NewRecorder()
+	mux.ServeHTTP(filterResp, httptest.NewRequest(http.MethodGet, "/v1/system/dictionaries?search=order&status=enabled", nil))
+	if filterResp.Code != http.StatusOK {
+		t.Fatalf("filter dictionary status=%d body=%s", filterResp.Code, filterResp.Body.String())
+	}
+	var filterBody struct {
+		Data struct {
+			Items []DictionaryType `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(filterResp.Body.Bytes(), &filterBody); err != nil {
+		t.Fatalf("decode filter dictionary: %v", err)
+	}
+	if len(filterBody.Data.Items) != 1 {
+		t.Fatalf("expected one filtered dictionary, got %+v", filterBody.Data.Items)
+	}
+
+	itemPayload := []byte(`{"label":"Refunded","status":"disabled","sort":30}`)
+	itemResp := httptest.NewRecorder()
+	mux.ServeHTTP(itemResp, httptest.NewRequest(http.MethodPut, "/v1/system/dictionaries/order.status/items/refunded", bytes.NewReader(itemPayload)))
+	if itemResp.Code != http.StatusOK {
+		t.Fatalf("put dictionary item status=%d body=%s", itemResp.Code, itemResp.Body.String())
+	}
+
+	itemsResp := httptest.NewRecorder()
+	mux.ServeHTTP(itemsResp, httptest.NewRequest(http.MethodGet, "/v1/system/dictionaries/order.status/items?status=disabled&search=refund", nil))
+	if itemsResp.Code != http.StatusOK {
+		t.Fatalf("list dictionary items status=%d body=%s", itemsResp.Code, itemsResp.Body.String())
+	}
+	var itemsBody struct {
+		Data struct {
+			Items []DictionaryItem `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(itemsResp.Body.Bytes(), &itemsBody); err != nil {
+		t.Fatalf("decode dictionary items: %v", err)
+	}
+	if len(itemsBody.Data.Items) != 1 || itemsBody.Data.Items[0].Value != "refunded" {
+		t.Fatalf("unexpected filtered items: %+v", itemsBody.Data.Items)
+	}
+
+	deleteItemResp := httptest.NewRecorder()
+	mux.ServeHTTP(deleteItemResp, httptest.NewRequest(http.MethodDelete, "/v1/system/dictionaries/order.status/items/refunded", nil))
+	if deleteItemResp.Code != http.StatusOK {
+		t.Fatalf("delete dictionary item status=%d body=%s", deleteItemResp.Code, deleteItemResp.Body.String())
+	}
 
 	missingResp := httptest.NewRecorder()
 	mux.ServeHTTP(missingResp, httptest.NewRequest(http.MethodGet, "/v1/system/dictionaries/missing", nil))
 	if missingResp.Code != http.StatusNotFound {
 		t.Fatalf("missing dictionary status=%d body=%s", missingResp.Code, missingResp.Body.String())
+	}
+
+	deleteTypeResp := httptest.NewRecorder()
+	mux.ServeHTTP(deleteTypeResp, httptest.NewRequest(http.MethodDelete, "/v1/system/dictionaries/order.status", nil))
+	if deleteTypeResp.Code != http.StatusOK {
+		t.Fatalf("delete dictionary type status=%d body=%s", deleteTypeResp.Code, deleteTypeResp.Body.String())
 	}
 }
 

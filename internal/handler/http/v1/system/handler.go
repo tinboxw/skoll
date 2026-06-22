@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	domainsystem "github.com/tinboxw/skoll/internal/domain/system"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	systemsvc "github.com/tinboxw/skoll/internal/service/system"
@@ -38,19 +39,26 @@ type MenuItem struct {
 }
 
 type DictionaryType struct {
+	ID          string           `json:"id,omitempty"`
 	Type        string           `json:"type"`
+	Code        string           `json:"code"`
 	Name        string           `json:"name"`
 	Description string           `json:"description,omitempty"`
 	Status      string           `json:"status"`
+	Sort        int              `json:"sort"`
 	Order       int              `json:"order"`
+	Builtin     bool             `json:"builtin"`
 	Items       []DictionaryItem `json:"items"`
 }
 
 type DictionaryItem struct {
-	Label  string `json:"label"`
-	Value  string `json:"value"`
-	Status string `json:"status"`
-	Order  int    `json:"order"`
+	ID      string `json:"id,omitempty"`
+	Label   string `json:"label"`
+	Value   string `json:"value"`
+	Status  string `json:"status"`
+	Sort    int    `json:"sort"`
+	Order   int    `json:"order"`
+	Builtin bool   `json:"builtin"`
 }
 
 type DepartmentRecord struct {
@@ -83,7 +91,12 @@ func RegisterSystemRoutes(mux *http.ServeMux, service systemsvc.Service, auditSv
 	mux.HandleFunc("POST /v1/system/settings/reset", h.reset)
 	mux.HandleFunc("GET /v1/system/dictionaries", h.getDictionaries)
 	mux.HandleFunc("PUT /v1/system/dictionaries", h.putDictionaries)
+	mux.HandleFunc("PUT /v1/system/dictionaries/{type}", h.putDictionaryType)
+	mux.HandleFunc("DELETE /v1/system/dictionaries/{type}", h.deleteDictionaryType)
 	mux.HandleFunc("GET /v1/system/dictionaries/{type}", h.getDictionaryByType)
+	mux.HandleFunc("GET /v1/system/dictionaries/{type}/items", h.getDictionaryItems)
+	mux.HandleFunc("PUT /v1/system/dictionaries/{type}/items/{value}", h.putDictionaryItem)
+	mux.HandleFunc("DELETE /v1/system/dictionaries/{type}/items/{value}", h.deleteDictionaryItem)
 	mux.HandleFunc("GET /v1/system/departments", h.getDepartments)
 	mux.HandleFunc("PUT /v1/system/departments", h.putDepartments)
 	mux.HandleFunc("GET /v1/system/positions", h.getPositions)
@@ -238,31 +251,57 @@ func (h *SystemHandler) putMenus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SystemHandler) getDictionaries(w http.ResponseWriter, r *http.Request) {
-	items, customized, err := h.loadDictionaries(r)
+	query := r.URL.Query()
+	offset, _ := strconv.Atoi(query.Get("offset"))
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	status := normalizeDictionaryStatusFilter(query.Get("status"))
+	search := strings.ToLower(strings.TrimSpace(query.Get("search")))
+
+	items, err := h.service.ListDictionaryTypes(r.Context(), systemsvc.DictionaryTypeListInput{Offset: 0, Limit: 0})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
+	records := make([]DictionaryType, 0, len(items))
+	for _, item := range items {
+		if status != "" && string(item.Status) != status {
+			continue
+		}
+		if search != "" && !strings.Contains(strings.ToLower(item.Code+" "+item.Name+" "+item.Description), search) {
+			continue
+		}
+		dictItems, err := h.service.ListDictionaryItems(r.Context(), systemsvc.DictionaryItemListInput{TypeCode: item.Code})
+		if err != nil {
+			apiv1.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		records = append(records, dictionaryTypeRecord(item, dictItems))
+	}
+	records = paginateDictionaryTypeRecords(records, offset, limit)
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{
-		"items":      items,
-		"customized": customized,
+		"items":  records,
+		"offset": offset,
+		"limit":  limit,
 	})
 }
 
 func (h *SystemHandler) getDictionaryByType(w http.ResponseWriter, r *http.Request) {
 	dictType := strings.TrimSpace(r.PathValue("type"))
-	items, _, err := h.loadDictionaries(r)
+	item, err := h.service.GetDictionaryTypeByCode(r.Context(), dictType)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	for _, item := range items {
-		if item.Type == dictType {
-			apiv1.WriteJSON(w, http.StatusOK, item)
-			return
-		}
+	if item == nil {
+		apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "dictionary type not found")
+		return
 	}
-	apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "dictionary type not found")
+	items, err := h.service.ListDictionaryItems(r.Context(), systemsvc.DictionaryItemListInput{TypeCode: item.Code})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": dictionaryTypeRecord(*item, items)})
 }
 
 func (h *SystemHandler) putDictionaries(w http.ResponseWriter, r *http.Request) {
@@ -274,44 +313,172 @@ func (h *SystemHandler) putDictionaries(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	items := normalizeDictionaryTypes(req.Items)
-	raw, err := json.Marshal(items)
-	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
-		return
+	out := make([]DictionaryType, 0, len(items))
+	for _, item := range items {
+		saved, err := h.saveDictionaryTypeRecord(r, item)
+		if err != nil {
+			apiv1.WriteError(w, http.StatusBadRequest, err)
+			return
+		}
+		out = append(out, saved)
 	}
-	before, _ := h.service.GetByKey(r.Context(), systemDictionarySettingKey)
-	_, err = h.service.Upsert(r.Context(), systemsvc.UpsertInput{
-		Key:   systemDictionarySettingKey,
-		Value: string(raw),
-	})
-	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
-		return
-	}
-	detail := map[string]any{"after": len(items)}
-	if before != nil {
-		detail["before"] = len(parseStoredDictionaries(before.Value))
-	}
-	h.appendAudit(r, "upsert_dictionaries", "system_dictionary", systemDictionarySettingKey, detail)
+	h.appendAudit(r, "upsert_dictionaries", "system_dictionary", "", map[string]any{"after": len(out)})
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{
-		"items":      items,
-		"customized": true,
+		"items": out,
 	})
 }
 
-func (h *SystemHandler) loadDictionaries(r *http.Request) ([]DictionaryType, bool, error) {
-	item, err := h.service.GetByKey(r.Context(), systemDictionarySettingKey)
+func (h *SystemHandler) putDictionaryType(w http.ResponseWriter, r *http.Request) {
+	var req DictionaryType
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	pathType := strings.TrimSpace(r.PathValue("type"))
+	if req.Code == "" && req.Type == "" {
+		req.Code = pathType
+		req.Type = pathType
+	}
+	normalized := normalizeDictionaryTypes([]DictionaryType{req})
+	if len(normalized) == 0 {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "error", "dictionary type is required")
+		return
+	}
+	saved, err := h.saveDictionaryTypeRecord(r, normalized[0])
 	if err != nil {
-		return nil, false, err
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
 	}
-	if item == nil || strings.TrimSpace(item.Value) == "" {
-		return defaultDictionaries(), false, nil
+	h.appendAudit(r, "upsert_dictionary_type", "system_dictionary", saved.Code, map[string]any{"code": saved.Code})
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": saved})
+}
+
+func (h *SystemHandler) deleteDictionaryType(w http.ResponseWriter, r *http.Request) {
+	code := strings.TrimSpace(r.PathValue("type"))
+	item, err := h.service.GetDictionaryTypeByCode(r.Context(), code)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
 	}
-	dictionaries := parseStoredDictionaries(item.Value)
-	if len(dictionaries) == 0 {
-		return defaultDictionaries(), false, nil
+	if item == nil {
+		apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "dictionary type not found")
+		return
 	}
-	return dictionaries, true, nil
+	if err := h.service.DeleteDictionaryType(r.Context(), item.ID.String()); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	h.appendAudit(r, "delete_dictionary_type", "system_dictionary", item.Code, map[string]any{"code": item.Code})
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"code": item.Code, "deleted": true})
+}
+
+func (h *SystemHandler) getDictionaryItems(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query()
+	offset, _ := strconv.Atoi(query.Get("offset"))
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	status := normalizeDictionaryStatusFilter(query.Get("status"))
+	search := strings.ToLower(strings.TrimSpace(query.Get("search")))
+	typeCode := strings.TrimSpace(r.PathValue("type"))
+	items, err := h.service.ListDictionaryItems(r.Context(), systemsvc.DictionaryItemListInput{TypeCode: typeCode})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	records := make([]DictionaryItem, 0, len(items))
+	for _, item := range items {
+		if status != "" && string(item.Status) != status {
+			continue
+		}
+		if search != "" && !strings.Contains(strings.ToLower(item.Label+" "+item.Value), search) {
+			continue
+		}
+		records = append(records, dictionaryItemRecord(item))
+	}
+	records = paginateDictionaryItemRecords(records, offset, limit)
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": records, "offset": offset, "limit": limit})
+}
+
+func (h *SystemHandler) putDictionaryItem(w http.ResponseWriter, r *http.Request) {
+	var req DictionaryItem
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	typeCode := strings.TrimSpace(r.PathValue("type"))
+	if strings.TrimSpace(req.Value) == "" {
+		req.Value = strings.TrimSpace(r.PathValue("value"))
+	}
+	saved, err := h.service.SaveDictionaryItem(r.Context(), systemsvc.DictionaryItemInput{
+		ID:       req.ID,
+		TypeCode: typeCode,
+		Label:    req.Label,
+		Value:    req.Value,
+		Status:   req.Status,
+		Sort:     dictionarySort(req.Sort, req.Order),
+		Builtin:  req.Builtin,
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	h.appendAudit(r, "upsert_dictionary_item", "system_dictionary_item", saved.TypeCode+":"+saved.Value, map[string]any{"type": saved.TypeCode, "value": saved.Value})
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": dictionaryItemRecord(*saved)})
+}
+
+func (h *SystemHandler) deleteDictionaryItem(w http.ResponseWriter, r *http.Request) {
+	typeCode := strings.TrimSpace(r.PathValue("type"))
+	value := strings.TrimSpace(r.PathValue("value"))
+	item, err := h.service.GetDictionaryItemByTypeAndValue(r.Context(), typeCode, value)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if item == nil {
+		apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "dictionary item not found")
+		return
+	}
+	if err := h.service.DeleteDictionaryItem(r.Context(), item.ID.String()); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	h.appendAudit(r, "delete_dictionary_item", "system_dictionary_item", item.TypeCode+":"+item.Value, map[string]any{"type": item.TypeCode, "value": item.Value})
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"type": item.TypeCode, "value": item.Value, "deleted": true})
+}
+
+func (h *SystemHandler) saveDictionaryTypeRecord(r *http.Request, item DictionaryType) (DictionaryType, error) {
+	code := strings.TrimSpace(item.Code)
+	if code == "" {
+		code = strings.TrimSpace(item.Type)
+	}
+	saved, err := h.service.SaveDictionaryType(r.Context(), systemsvc.DictionaryTypeInput{
+		ID:          item.ID,
+		Code:        code,
+		Name:        item.Name,
+		Description: item.Description,
+		Status:      item.Status,
+		Sort:        dictionarySort(item.Sort, item.Order),
+		Builtin:     item.Builtin,
+	})
+	if err != nil {
+		return DictionaryType{}, err
+	}
+	outItems := make([]domainsystem.DictionaryItem, 0, len(item.Items))
+	for _, child := range item.Items {
+		savedChild, err := h.service.SaveDictionaryItem(r.Context(), systemsvc.DictionaryItemInput{
+			ID:       child.ID,
+			TypeCode: saved.Code,
+			Label:    child.Label,
+			Value:    child.Value,
+			Status:   child.Status,
+			Sort:     dictionarySort(child.Sort, child.Order),
+			Builtin:  child.Builtin,
+		})
+		if err != nil {
+			return DictionaryType{}, err
+		}
+		outItems = append(outItems, *savedChild)
+	}
+	return dictionaryTypeRecord(*saved, outItems), nil
 }
 
 func (h *SystemHandler) getDepartments(w http.ResponseWriter, r *http.Request) {
@@ -525,7 +692,10 @@ func normalizeDictionaryTypes(items []DictionaryType) []DictionaryType {
 	seenTypes := map[string]struct{}{}
 	out := make([]DictionaryType, 0, len(items))
 	for _, item := range items {
-		dictType := strings.TrimSpace(item.Type)
+		dictType := strings.TrimSpace(item.Code)
+		if dictType == "" {
+			dictType = strings.TrimSpace(item.Type)
+		}
 		name := strings.TrimSpace(item.Name)
 		if dictType == "" || name == "" {
 			continue
@@ -536,17 +706,20 @@ func normalizeDictionaryTypes(items []DictionaryType) []DictionaryType {
 		seenTypes[dictType] = struct{}{}
 		status := normalizeDictionaryStatus(item.Status)
 		item.Type = dictType
+		item.Code = dictType
 		item.Name = name
 		item.Description = strings.TrimSpace(item.Description)
 		item.Status = status
+		item.Sort = dictionarySort(item.Sort, item.Order)
+		item.Order = item.Sort
 		item.Items = normalizeDictionaryItems(item.Items)
 		out = append(out, item)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Order == out[j].Order {
+		if out[i].Sort == out[j].Sort {
 			return out[i].Type < out[j].Type
 		}
-		return out[i].Order < out[j].Order
+		return out[i].Sort < out[j].Sort
 	})
 	return out
 }
@@ -567,15 +740,100 @@ func normalizeDictionaryItems(items []DictionaryItem) []DictionaryItem {
 		item.Label = label
 		item.Value = value
 		item.Status = normalizeDictionaryStatus(item.Status)
+		item.Sort = dictionarySort(item.Sort, item.Order)
+		item.Order = item.Sort
 		out = append(out, item)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Order == out[j].Order {
+		if out[i].Sort == out[j].Sort {
 			return out[i].Value < out[j].Value
 		}
-		return out[i].Order < out[j].Order
+		return out[i].Sort < out[j].Sort
 	})
 	return out
+}
+
+func dictionaryTypeRecord(item domainsystem.DictionaryType, items []domainsystem.DictionaryItem) DictionaryType {
+	out := DictionaryType{
+		ID:          item.ID.String(),
+		Type:        item.Code,
+		Code:        item.Code,
+		Name:        item.Name,
+		Description: item.Description,
+		Status:      string(item.Status),
+		Sort:        item.Sort,
+		Order:       item.Sort,
+		Builtin:     item.Builtin,
+		Items:       make([]DictionaryItem, 0, len(items)),
+	}
+	for _, child := range items {
+		out.Items = append(out.Items, dictionaryItemRecord(child))
+	}
+	return out
+}
+
+func dictionaryItemRecord(item domainsystem.DictionaryItem) DictionaryItem {
+	return DictionaryItem{
+		ID:      item.ID.String(),
+		Label:   item.Label,
+		Value:   item.Value,
+		Status:  string(item.Status),
+		Sort:    item.Sort,
+		Order:   item.Sort,
+		Builtin: item.Builtin,
+	}
+}
+
+func dictionarySort(sortValue, orderValue int) int {
+	if sortValue != 0 {
+		return sortValue
+	}
+	return orderValue
+}
+
+func normalizeDictionaryStatusFilter(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "", "all":
+		return ""
+	case "enabled", "disabled":
+		return strings.ToLower(strings.TrimSpace(status))
+	default:
+		return "__invalid__"
+	}
+}
+
+func paginateDictionaryTypeRecords(items []DictionaryType, offset, limit int) []DictionaryType {
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = len(items)
+	}
+	if offset > len(items) {
+		return []DictionaryType{}
+	}
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	return append([]DictionaryType(nil), items[offset:end]...)
+}
+
+func paginateDictionaryItemRecords(items []DictionaryItem, offset, limit int) []DictionaryItem {
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = len(items)
+	}
+	if offset > len(items) {
+		return []DictionaryItem{}
+	}
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	return append([]DictionaryItem(nil), items[offset:end]...)
 }
 
 func normalizeDictionaryStatus(status string) string {

@@ -11528,3 +11528,69 @@ go test ./internal/cache/... ./internal/service/system/...
 ### 下一步
 
 - 进入 `M4-03-01`，实现字典 API 契约与 handler。
+
+## M4-03-01: 字典 API 契约与 handler
+
+- 状态: Passed
+- Work Item: M4-03-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/handler/http/v1/system/handler.go`
+- `internal/handler/http/v1/system/handler_test.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| API 契约 | Passed | OpenAPI 同步字典类型列表、类型详情、类型 upsert/delete、条目列表、条目 upsert/delete。 |
+| 独立存储路径 | Passed | 字典 handler 改为调用 system dictionary service，不再通过 settings JSON 读写字典。 |
+| 类型管理 | Passed | 支持 code/type、name、description、status、sort/order、builtin 字段读写和搜索/状态筛选。 |
+| 条目管理 | Passed | 支持 label、value、status、sort/order、builtin 字段读写、状态筛选、搜索与删除。 |
+| 响应 envelope | Passed | 保持 `code/message/data` 响应 envelope，404 使用 `not_found`。 |
+| 测试覆盖 | Passed | Handler 测试覆盖列表、过滤、详情、bulk upsert、单条目 upsert/delete、missing 404。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/handler/http/v1/system/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: `/v1/system/dictionaries`, `/v1/system/dictionaries/{type}`, `/v1/system/dictionaries/{type}/items`
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 OpenAPI 与 handler 路径一致。
+2. 检查字典读写不再使用 `skoll.dictionary.types` settings 作为持久化来源。
+3. 检查响应保留 `type/order` 兼容展示字段，同时新增 `code/sort` 明确字段。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-03-02`，实现字典管理 UI。

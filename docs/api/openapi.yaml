@@ -985,11 +985,29 @@ paths:
   /v1/system/dictionaries:
     get:
       summary: List system dictionaries
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [enabled, disabled]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
       responses:
         '200':
           description: OK
     put:
-      summary: Save system dictionaries
+      summary: Bulk upsert system dictionaries
       requestBody:
         required: true
         content:
@@ -1009,6 +1027,106 @@ paths:
       summary: Get system dictionary by type
       parameters:
         - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+    put:
+      summary: Upsert system dictionary type
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete system dictionary type
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: Not Found
+  /v1/system/dictionaries/{type}/items:
+    get:
+      summary: List system dictionary items
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [enabled, disabled]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: offset
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: OK
+  /v1/system/dictionaries/{type}/items/{value}:
+    put:
+      summary: Upsert system dictionary item
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: value
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+    delete:
+      summary: Delete system dictionary item
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: value
           in: path
           required: true
           schema:
