@@ -10885,6 +10885,81 @@ go test ./internal/handler/http/... ./internal/bootstrap/...
 
 - 进入 `M3-06-01`，实现分片上传 service。
 
+## M3-06-01: 分片上传 service
+
+- 状态: Passed
+- Work Item: M3-06-01
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/file/types.go`
+- `internal/service/file/service.go`
+- `internal/service/file/service_impl.go`
+- `internal/service/file/service_impl_test.go`
+- `internal/handler/http/v1/file/handler_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 任务交付物完成 | Passed | file service 新增 `InitMultipart`、`UploadMultipartPart`、`CompleteMultipart`、`AbortMultipart`。 |
+| hash 失败不可完成 | Passed | complete 返回 hash 与 expected hash 不一致时，元数据标记为 `failed`，并清理已完成对象。 |
+| 元数据/对象一致性 | Passed | init 先创建 pending 元数据；complete 成功后标记 available；abort 标记 failed。 |
+| API/OpenAPI 同步 | N/A | 本项仅实现 service；分片 HTTP API 与 OpenAPI 在 `M3-06-02` 处理。 |
+| 权限目录同步 | N/A | 本项未新增权限 catalog。 |
+| 审计 action 同步 | Passed | service 记录 multipart init/complete/abort/failure 审计动作。 |
+| migration/seed 同步 | N/A | 不涉及 schema 变更。 |
+| 前端 API client/UI 同步 | N/A | 文件前端 client/store 在后续 M3-07-01 处理。 |
+| 文档同步 | Passed | 更新 work item 和验收日志。 |
+| 无兼容方案/无旧路径残留 | Passed | 未引入旧上传路径兼容层或 provider-specific shortcut。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/file/...
+go test ./internal/handler/http/v1/file/... ./internal/service/file/...
+
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/handler/http/... ./internal/bootstrap/...
+```
+
+结果摘要: Passed。service 测试覆盖 init、upload part、complete、hash mismatch、abort；扩展测试确认 handler fake 和 bootstrap 未受接口扩展影响。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查分片上传仍通过 `domainfile.MultipartStore` port，不绑定具体本地/S3 实现。
+2. 检查 complete 成功前不会把元数据置为 available。
+3. 检查 hash mismatch 后不会保留 available 元数据。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-06-02`，实现分片上传 API 与 OpenAPI 契约。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed

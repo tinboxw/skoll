@@ -100,10 +100,65 @@ type DeleteInput struct {
 	Metadata    map[string]any
 }
 
+type MultipartInitInput struct {
+	Key           string
+	Name          string
+	Size          int64
+	MIME          string
+	Hash          string
+	Owner         domainfile.OwnerRef
+	Visibility    domainfile.Visibility
+	StorageDriver string
+	Source        domainfile.SourceRef
+	Metadata      map[string]string
+	TTL           time.Duration
+	Actor         domainaudit.ActorRef
+	Trace         domainaudit.TraceContext
+	AuditMetadata map[string]any
+}
+
+type MultipartInitResult struct {
+	Object *domainfile.FileObject
+	Upload domainfile.MultipartUpload
+}
+
+type MultipartUploadPartInput struct {
+	UploadID      string
+	Key           string
+	PartNumber    int
+	Size          int64
+	Hash          string
+	Body          io.Reader
+	Trace         domainaudit.TraceContext
+	AuditMetadata map[string]any
+}
+
+type MultipartCompleteInput struct {
+	FileID        shared.ID
+	UploadID      string
+	Key           string
+	ExpectedSize  int64
+	ExpectedHash  string
+	Parts         []domainfile.MultipartPart
+	Actor         domainaudit.ActorRef
+	Trace         domainaudit.TraceContext
+	AuditMetadata map[string]any
+}
+
+type MultipartAbortInput struct {
+	FileID        shared.ID
+	UploadID      string
+	Key           string
+	Actor         domainaudit.ActorRef
+	Trace         domainaudit.TraceContext
+	AuditMetadata map[string]any
+}
+
 type Options struct {
 	Now        func() time.Time
 	NewID      func() shared.ID
 	NewAuditID func() shared.ID
 	Permission PermissionChecker
 	Audit      AuditEventSink
+	Multipart  domainfile.MultipartStore
 }

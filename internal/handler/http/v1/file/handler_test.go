@@ -180,6 +180,22 @@ func (s *fakeFileService) Upload(_ context.Context, in filesvc.UploadInput) (*do
 	return &object, nil
 }
 
+func (s *fakeFileService) InitMultipart(context.Context, filesvc.MultipartInitInput) (*filesvc.MultipartInitResult, error) {
+	return nil, nil
+}
+
+func (s *fakeFileService) UploadMultipartPart(context.Context, filesvc.MultipartUploadPartInput) (domainfile.MultipartPart, error) {
+	return domainfile.MultipartPart{}, nil
+}
+
+func (s *fakeFileService) CompleteMultipart(context.Context, filesvc.MultipartCompleteInput) (*domainfile.FileObject, error) {
+	return nil, nil
+}
+
+func (s *fakeFileService) AbortMultipart(context.Context, filesvc.MultipartAbortInput) error {
+	return nil
+}
+
 func (s *fakeFileService) List(_ context.Context, in filesvc.ListInput) ([]domainfile.FileObject, error) {
 	s.listInput = in
 	return s.items, nil

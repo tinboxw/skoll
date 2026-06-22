@@ -74,7 +74,7 @@ func TestUploadAppendsSuccessAuditEvent(t *testing.T) {
 	repo := newFakeRepo()
 	objects := &fakeObjectStore{}
 	audit := &fakeAuditSink{}
-	svc := testServiceWithOptions(repo, objects, nil, audit)
+	svc := testServiceWithOptions(repo, objects, nil, nil, audit)
 	in := validUploadInput()
 	in.Trace.RequestID = "req-upload"
 	in.AuditMetadata = map[string]any{"tenant": "main"}
@@ -98,7 +98,7 @@ func TestUploadFailureAppendsAuditEvent(t *testing.T) {
 	repo := newFakeRepo()
 	objects := &fakeObjectStore{putErr: fmt.Errorf("disk full")}
 	audit := &fakeAuditSink{}
-	svc := testServiceWithOptions(repo, objects, nil, audit)
+	svc := testServiceWithOptions(repo, objects, nil, nil, audit)
 
 	if _, err := svc.Upload(context.Background(), validUploadInput()); err == nil {
 		t.Fatal("expected upload error")
@@ -116,7 +116,7 @@ func TestUploadAuditFailureDoesNotBlockUpload(t *testing.T) {
 	repo := newFakeRepo()
 	objects := &fakeObjectStore{}
 	audit := &fakeAuditSink{err: fmt.Errorf("audit down")}
-	svc := testServiceWithOptions(repo, objects, nil, audit)
+	svc := testServiceWithOptions(repo, objects, nil, nil, audit)
 
 	if _, err := svc.Upload(context.Background(), validUploadInput()); err != nil {
 		t.Fatalf("Upload() should ignore audit error, got %v", err)
@@ -151,7 +151,7 @@ func TestAuthorizeAccessAppendsDownloadAuditEvent(t *testing.T) {
 	object.Visibility = domainfile.VisibilityPublic
 	repo.items[object.ID] = object
 	audit := &fakeAuditSink{}
-	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, audit)
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, nil, audit)
 
 	decision, err := svc.AuthorizeAccess(context.Background(), AccessInput{
 		FileID: object.ID,
@@ -177,7 +177,7 @@ func TestAuthorizeAccessAppendsDeleteAuditEvent(t *testing.T) {
 	object := validFileObject()
 	repo.items[object.ID] = object
 	audit := &fakeAuditSink{}
-	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, audit)
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, nil, audit)
 
 	decision, err := svc.AuthorizeAccess(context.Background(), AccessInput{
 		FileID:      object.ID,
@@ -202,7 +202,7 @@ func TestAuthorizeAccessAppendsForbiddenAuditEvent(t *testing.T) {
 	object := validFileObject()
 	repo.items[object.ID] = object
 	audit := &fakeAuditSink{}
-	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, audit)
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, nil, nil, audit)
 
 	decision, err := svc.AuthorizeAccess(context.Background(), AccessInput{
 		FileID:      object.ID,
@@ -389,15 +389,142 @@ func TestDeleteRemovesObjectAndMarksMetadataDeleted(t *testing.T) {
 	}
 }
 
+func TestInitMultipartCreatesPendingMetadata(t *testing.T) {
+	repo := newFakeRepo()
+	multipart := &fakeMultipartStore{}
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, multipart, nil, nil)
+
+	result, err := svc.InitMultipart(context.Background(), validMultipartInitInput())
+	if err != nil {
+		t.Fatalf("InitMultipart() error = %v", err)
+	}
+	if result == nil || result.Object == nil || result.Upload.UploadID == "" {
+		t.Fatalf("unexpected init result: %+v", result)
+	}
+	if !multipart.initCalled || multipart.initInput.Key != "uploads/large.bin" {
+		t.Fatalf("multipart init input = %+v", multipart.initInput)
+	}
+	stored := repo.items[result.Object.ID]
+	if stored.Status != domainfile.StatusPending || stored.Hash != "abcdef123456" {
+		t.Fatalf("stored metadata = %+v", stored)
+	}
+}
+
+func TestUploadMultipartPartDelegatesToStore(t *testing.T) {
+	multipart := &fakeMultipartStore{}
+	svc := testServiceWithOptions(newFakeRepo(), &fakeObjectStore{}, multipart, nil, nil)
+
+	part, err := svc.UploadMultipartPart(context.Background(), MultipartUploadPartInput{
+		UploadID:   "upload-1",
+		Key:        "uploads/large.bin",
+		PartNumber: 1,
+		Size:       5,
+		Hash:       "11111111",
+		Body:       strings.NewReader("hello"),
+	})
+	if err != nil {
+		t.Fatalf("UploadMultipartPart() error = %v", err)
+	}
+	if !multipart.partCalled || multipart.partInput.PartNumber != 1 || part.Hash != "11111111" {
+		t.Fatalf("part=%+v input=%+v", part, multipart.partInput)
+	}
+}
+
+func TestCompleteMultipartMarksMetadataAvailable(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	object.Key = "uploads/large.bin"
+	object.Name = "large.bin"
+	object.Size = 10
+	object.Hash = "abcdef123456"
+	object.Status = domainfile.StatusPending
+	repo.items[object.ID] = object
+	multipart := &fakeMultipartStore{completeHash: "abcdef123456"}
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, multipart, nil, nil)
+
+	got, err := svc.CompleteMultipart(context.Background(), MultipartCompleteInput{
+		FileID:       object.ID,
+		UploadID:     "upload-1",
+		ExpectedSize: object.Size,
+		ExpectedHash: object.Hash,
+		Parts: []domainfile.MultipartPart{
+			{PartNumber: 1, Size: 5, Hash: "11111111"},
+			{PartNumber: 2, Size: 5, Hash: "22222222"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CompleteMultipart() error = %v", err)
+	}
+	if got.Status != domainfile.StatusAvailable || repo.items[object.ID].Status != domainfile.StatusAvailable {
+		t.Fatalf("metadata status got=%q stored=%q", got.Status, repo.items[object.ID].Status)
+	}
+	if !multipart.completeCalled || multipart.completeInput.ExpectedHash != object.Hash {
+		t.Fatalf("complete input = %+v", multipart.completeInput)
+	}
+}
+
+func TestCompleteMultipartHashMismatchMarksFailed(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	object.Key = "uploads/large.bin"
+	object.Size = 10
+	object.Hash = "abcdef123456"
+	object.Status = domainfile.StatusPending
+	repo.items[object.ID] = object
+	objects := &fakeObjectStore{}
+	multipart := &fakeMultipartStore{completeHash: "99999999"}
+	svc := testServiceWithOptions(repo, objects, multipart, nil, nil)
+
+	_, err := svc.CompleteMultipart(context.Background(), MultipartCompleteInput{
+		FileID:       object.ID,
+		UploadID:     "upload-1",
+		ExpectedSize: object.Size,
+		ExpectedHash: object.Hash,
+		Parts: []domainfile.MultipartPart{
+			{PartNumber: 1, Size: 5, Hash: "11111111"},
+			{PartNumber: 2, Size: 5, Hash: "22222222"},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected hash mismatch error")
+	}
+	if repo.items[object.ID].Status != domainfile.StatusFailed {
+		t.Fatalf("metadata status = %q", repo.items[object.ID].Status)
+	}
+	if !objects.deleteCalled || objects.deletedKey != object.Key {
+		t.Fatalf("completed object should be cleaned up: called=%v key=%q", objects.deleteCalled, objects.deletedKey)
+	}
+}
+
+func TestAbortMultipartMarksMetadataFailed(t *testing.T) {
+	repo := newFakeRepo()
+	object := validFileObject()
+	object.Key = "uploads/large.bin"
+	object.Status = domainfile.StatusPending
+	repo.items[object.ID] = object
+	multipart := &fakeMultipartStore{}
+	svc := testServiceWithOptions(repo, &fakeObjectStore{}, multipart, nil, nil)
+
+	if err := svc.AbortMultipart(context.Background(), MultipartAbortInput{FileID: object.ID, UploadID: "upload-1"}); err != nil {
+		t.Fatalf("AbortMultipart() error = %v", err)
+	}
+	if !multipart.abortCalled || multipart.abortInput.Key != object.Key {
+		t.Fatalf("abort input = %+v", multipart.abortInput)
+	}
+	if repo.items[object.ID].Status != domainfile.StatusFailed {
+		t.Fatalf("metadata status = %q", repo.items[object.ID].Status)
+	}
+}
+
 func testService(repo filerepo.FileRepository, objects domainfile.ObjectStore) Service {
-	return testServiceWithOptions(repo, objects, nil, nil)
+	return testServiceWithOptions(repo, objects, nil, nil, nil)
 }
 
 func testServiceWithPermission(repo filerepo.FileRepository, objects domainfile.ObjectStore, permission PermissionChecker) Service {
-	return testServiceWithOptions(repo, objects, permission, nil)
+	return testServiceWithOptions(repo, objects, nil, permission, nil)
 }
 
-func testServiceWithOptions(repo filerepo.FileRepository, objects domainfile.ObjectStore, permission PermissionChecker, audit AuditEventSink) Service {
+func testServiceWithOptions(repo filerepo.FileRepository, objects domainfile.ObjectStore, multipart domainfile.MultipartStore, permission PermissionChecker, audit AuditEventSink) Service {
 	now := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
 	return NewService(repo, objects, Options{
 		Now:        func() time.Time { return now },
@@ -405,6 +532,7 @@ func testServiceWithOptions(repo filerepo.FileRepository, objects domainfile.Obj
 		NewAuditID: func() shared.ID { return "audit-1" },
 		Permission: permission,
 		Audit:      audit,
+		Multipart:  multipart,
 	})
 }
 
@@ -445,6 +573,21 @@ func validFileObject() domainfile.FileObject {
 		panic(err)
 	}
 	return *object
+}
+
+func validMultipartInitInput() MultipartInitInput {
+	return MultipartInitInput{
+		Key:           " Uploads/Large.BIN ",
+		Name:          "large.bin",
+		Size:          10,
+		MIME:          " application/octet-stream ",
+		Hash:          " abcdef123456 ",
+		Owner:         domainfile.OwnerRef{Type: "user", ID: "u-1"},
+		Visibility:    domainfile.VisibilityPrivate,
+		StorageDriver: "local",
+		Source:        domainfile.SourceRef{Module: "system"},
+		Metadata:      map[string]string{"trace-id": "req-1"},
+	}
 }
 
 type fakeRepo struct {
@@ -552,6 +695,63 @@ func (s *fakeObjectStore) Presign(_ context.Context, in domainfile.PresignInput)
 		URL:       "local://object/" + s.presignInput.Key,
 		ExpiresAt: time.Now().UTC().Add(s.presignInput.ExpiresIn),
 	}, nil
+}
+
+type fakeMultipartStore struct {
+	initCalled     bool
+	partCalled     bool
+	completeCalled bool
+	abortCalled    bool
+	initInput      domainfile.MultipartInitInput
+	partInput      domainfile.MultipartUploadPartInput
+	completeInput  domainfile.MultipartCompleteInput
+	abortInput     domainfile.MultipartAbortInput
+	completeHash   string
+}
+
+func (s *fakeMultipartStore) Init(_ context.Context, in domainfile.MultipartInitInput) (domainfile.MultipartUpload, error) {
+	s.initCalled = true
+	s.initInput = domainfile.NormalizeMultipartInitInput(in)
+	return domainfile.MultipartUpload{
+		UploadID:  "upload-1",
+		Key:       s.initInput.Key,
+		ExpiresAt: time.Now().UTC().Add(time.Hour),
+		Metadata:  s.initInput.Metadata,
+	}, nil
+}
+
+func (s *fakeMultipartStore) UploadPart(_ context.Context, in domainfile.MultipartUploadPartInput) (domainfile.MultipartPart, error) {
+	s.partCalled = true
+	s.partInput = domainfile.NormalizeMultipartUploadPartInput(in)
+	return domainfile.MultipartPart{
+		PartNumber: s.partInput.PartNumber,
+		Size:       s.partInput.Size,
+		Hash:       s.partInput.Hash,
+		ETag:       s.partInput.Hash,
+	}, nil
+}
+
+func (s *fakeMultipartStore) Complete(_ context.Context, in domainfile.MultipartCompleteInput) (domainfile.ObjectInfo, error) {
+	s.completeCalled = true
+	s.completeInput = domainfile.NormalizeMultipartCompleteInput(in)
+	hash := s.completeHash
+	if hash == "" {
+		hash = s.completeInput.ExpectedHash
+	}
+	return domainfile.ObjectInfo{
+		Key:          s.completeInput.Key,
+		Size:         s.completeInput.ExpectedSize,
+		MIME:         "application/octet-stream",
+		Hash:         hash,
+		ETag:         hash,
+		LastModified: time.Now().UTC(),
+	}, nil
+}
+
+func (s *fakeMultipartStore) Abort(_ context.Context, in domainfile.MultipartAbortInput) error {
+	s.abortCalled = true
+	s.abortInput = domainfile.NormalizeMultipartAbortInput(in)
+	return nil
 }
 
 type fakePermissionChecker struct {

@@ -17,6 +17,7 @@ import (
 type serviceImpl struct {
 	repo       filerepo.FileRepository
 	objects    domainfile.ObjectStore
+	multipart  domainfile.MultipartStore
 	now        func() time.Time
 	newID      func() shared.ID
 	newAuditID func() shared.ID
@@ -37,7 +38,7 @@ func NewService(repo filerepo.FileRepository, objects domainfile.ObjectStore, op
 	if newAuditID == nil {
 		newAuditID = func() shared.ID { return shared.ID(fmt.Sprintf("file-audit-%d", now().UnixNano())) }
 	}
-	return &serviceImpl{repo: repo, objects: objects, now: now, newID: newID, newAuditID: newAuditID, permission: opts.Permission, audit: opts.Audit}
+	return &serviceImpl{repo: repo, objects: objects, multipart: opts.Multipart, now: now, newID: newID, newAuditID: newAuditID, permission: opts.Permission, audit: opts.Audit}
 }
 
 func (s *serviceImpl) Upload(ctx context.Context, in UploadInput) (*domainfile.FileObject, error) {
@@ -145,6 +146,238 @@ func (s *serviceImpl) Upload(ctx context.Context, in UploadInput) (*domainfile.F
 		Object:   object,
 	})
 	return object, nil
+}
+
+func (s *serviceImpl) InitMultipart(ctx context.Context, in MultipartInitInput) (*MultipartInitResult, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("file repository is not configured")
+	}
+	if s.multipart == nil {
+		return nil, fmt.Errorf("multipart object store is not configured")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	now := s.now()
+	object, err := domainfile.NewFileObject(domainfile.FileObjectInput{
+		ID:            s.newID(),
+		Key:           in.Key,
+		Name:          in.Name,
+		Size:          in.Size,
+		MIME:          in.MIME,
+		Hash:          in.Hash,
+		Owner:         in.Owner,
+		Visibility:    in.Visibility,
+		StorageDriver: in.StorageDriver,
+		Status:        domainfile.StatusPending,
+		Source:        in.Source,
+		Metadata:      in.Metadata,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	upload, err := s.multipart.Init(ctx, domainfile.MultipartInitInput{
+		Key:          object.Key,
+		Size:         object.Size,
+		MIME:         object.MIME,
+		ExpectedHash: object.Hash,
+		Metadata:     object.Metadata,
+	})
+	if err != nil {
+		s.appendFileAudit(ctx, fileAuditInput{
+			Action:   "multipart_init",
+			Actor:    uploadAuditActor(UploadInput{Actor: in.Actor}, *object),
+			Resource: auditResourceFromObject(*object),
+			Result:   domainaudit.EventResultFailure,
+			Risk:     domainaudit.EventRiskMedium,
+			Trace:    in.Trace,
+			Metadata: mergeAuditMetadata(in.AuditMetadata, map[string]any{"reason": "multipart_init_failed"}),
+			Object:   object,
+		})
+		return nil, err
+	}
+	if err := s.repo.Upsert(ctx, object); err != nil {
+		_ = s.multipart.Abort(ctx, domainfile.MultipartAbortInput{UploadID: upload.UploadID, Key: upload.Key})
+		s.appendFileAudit(ctx, fileAuditInput{
+			Action:   "multipart_init",
+			Actor:    uploadAuditActor(UploadInput{Actor: in.Actor}, *object),
+			Resource: auditResourceFromObject(*object),
+			Result:   domainaudit.EventResultFailure,
+			Risk:     domainaudit.EventRiskMedium,
+			Trace:    in.Trace,
+			Metadata: mergeAuditMetadata(in.AuditMetadata, map[string]any{"reason": "metadata_write_failed", "cleanup": "aborted"}),
+			Object:   object,
+		})
+		return nil, err
+	}
+	s.appendFileAudit(ctx, fileAuditInput{
+		Action:   "multipart_init",
+		Actor:    uploadAuditActor(UploadInput{Actor: in.Actor}, *object),
+		Resource: auditResourceFromObject(*object),
+		Result:   domainaudit.EventResultSuccess,
+		Risk:     domainaudit.EventRiskLow,
+		Trace:    in.Trace,
+		Metadata: in.AuditMetadata,
+		Object:   object,
+	})
+	return &MultipartInitResult{Object: object, Upload: upload}, nil
+}
+
+func (s *serviceImpl) UploadMultipartPart(ctx context.Context, in MultipartUploadPartInput) (domainfile.MultipartPart, error) {
+	if s == nil || s.multipart == nil {
+		return domainfile.MultipartPart{}, fmt.Errorf("multipart object store is not configured")
+	}
+	if err := ctx.Err(); err != nil {
+		return domainfile.MultipartPart{}, err
+	}
+	part, err := s.multipart.UploadPart(ctx, domainfile.MultipartUploadPartInput{
+		UploadID:   in.UploadID,
+		Key:        in.Key,
+		PartNumber: in.PartNumber,
+		Size:       in.Size,
+		Hash:       in.Hash,
+		Body:       in.Body,
+	})
+	if err != nil {
+		s.appendFileAudit(ctx, fileAuditInput{
+			Action:   "multipart_part",
+			Actor:    domainaudit.ActorRef{Type: "system"},
+			Resource: domainaudit.ResourceRef{Type: "file_object", ID: in.Key, Name: in.Key},
+			Result:   domainaudit.EventResultFailure,
+			Risk:     domainaudit.EventRiskMedium,
+			Trace:    in.Trace,
+			Metadata: mergeAuditMetadata(in.AuditMetadata, map[string]any{"reason": "multipart_part_failed", "partNumber": in.PartNumber}),
+		})
+		return domainfile.MultipartPart{}, err
+	}
+	return part, nil
+}
+
+func (s *serviceImpl) CompleteMultipart(ctx context.Context, in MultipartCompleteInput) (*domainfile.FileObject, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("file repository is not configured")
+	}
+	if s.multipart == nil {
+		return nil, fmt.Errorf("multipart object store is not configured")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	object, err := s.multipartObject(ctx, in.FileID, in.Key)
+	if err != nil {
+		return nil, err
+	}
+	if object == nil {
+		return nil, fmt.Errorf("multipart file metadata not found")
+	}
+	expectedHash := strings.TrimSpace(in.ExpectedHash)
+	if expectedHash == "" {
+		expectedHash = object.Hash
+	}
+	expectedSize := in.ExpectedSize
+	if expectedSize <= 0 {
+		expectedSize = object.Size
+	}
+	info, err := s.multipart.Complete(ctx, domainfile.MultipartCompleteInput{
+		UploadID:     in.UploadID,
+		Key:          object.Key,
+		ExpectedSize: expectedSize,
+		ExpectedHash: expectedHash,
+		Parts:        in.Parts,
+	})
+	if err != nil {
+		_ = s.repo.SetStatus(ctx, object.ID, domainfile.StatusFailed, s.now())
+		s.appendFileAudit(ctx, fileAuditInput{
+			Action:   "multipart_complete",
+			Actor:    uploadAuditActor(UploadInput{Actor: in.Actor}, *object),
+			Resource: auditResourceFromObject(*object),
+			Result:   domainaudit.EventResultFailure,
+			Risk:     domainaudit.EventRiskMedium,
+			Trace:    in.Trace,
+			Metadata: mergeAuditMetadata(in.AuditMetadata, map[string]any{"reason": "multipart_complete_failed"}),
+			Object:   object,
+		})
+		return nil, err
+	}
+	if domainfile.NormalizeHash(info.Hash) != domainfile.NormalizeHash(expectedHash) {
+		_ = s.repo.SetStatus(ctx, object.ID, domainfile.StatusFailed, s.now())
+		if s.objects != nil {
+			_ = s.objects.Delete(ctx, info.Key)
+		}
+		s.appendFileAudit(ctx, fileAuditInput{
+			Action:   "multipart_complete",
+			Actor:    uploadAuditActor(UploadInput{Actor: in.Actor}, *object),
+			Resource: auditResourceFromObject(*object),
+			Result:   domainaudit.EventResultFailure,
+			Risk:     domainaudit.EventRiskHigh,
+			Trace:    in.Trace,
+			Metadata: mergeAuditMetadata(in.AuditMetadata, map[string]any{"reason": "hash_mismatch"}),
+			Object:   object,
+		})
+		return nil, fmt.Errorf("multipart object hash mismatch")
+	}
+	if err := object.MarkAvailable(info.Hash, s.now()); err != nil {
+		_ = s.repo.SetStatus(ctx, object.ID, domainfile.StatusFailed, s.now())
+		return nil, err
+	}
+	if err := s.repo.Upsert(ctx, object); err != nil {
+		if s.objects != nil {
+			_ = s.objects.Delete(ctx, info.Key)
+		}
+		return nil, err
+	}
+	s.appendFileAudit(ctx, fileAuditInput{
+		Action:   "multipart_complete",
+		Actor:    uploadAuditActor(UploadInput{Actor: in.Actor}, *object),
+		Resource: auditResourceFromObject(*object),
+		Result:   domainaudit.EventResultSuccess,
+		Risk:     domainaudit.EventRiskLow,
+		Trace:    in.Trace,
+		Metadata: in.AuditMetadata,
+		Object:   object,
+	})
+	return object, nil
+}
+
+func (s *serviceImpl) AbortMultipart(ctx context.Context, in MultipartAbortInput) error {
+	if s == nil || s.repo == nil {
+		return fmt.Errorf("file repository is not configured")
+	}
+	if s.multipart == nil {
+		return fmt.Errorf("multipart object store is not configured")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	object, err := s.multipartObject(ctx, in.FileID, in.Key)
+	if err != nil {
+		return err
+	}
+	key := in.Key
+	if object != nil {
+		key = object.Key
+	}
+	if err := s.multipart.Abort(ctx, domainfile.MultipartAbortInput{UploadID: in.UploadID, Key: key}); err != nil {
+		return err
+	}
+	if object != nil {
+		if err := s.repo.SetStatus(ctx, object.ID, domainfile.StatusFailed, s.now()); err != nil {
+			return err
+		}
+		s.appendFileAudit(ctx, fileAuditInput{
+			Action:   "multipart_abort",
+			Actor:    uploadAuditActor(UploadInput{Actor: in.Actor}, *object),
+			Resource: auditResourceFromObject(*object),
+			Result:   domainaudit.EventResultSuccess,
+			Risk:     domainaudit.EventRiskLow,
+			Trace:    in.Trace,
+			Metadata: in.AuditMetadata,
+			Object:   object,
+		})
+	}
+	return nil
 }
 
 func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]domainfile.FileObject, error) {
@@ -312,6 +545,17 @@ func (s *serviceImpl) AuthorizeAccess(ctx context.Context, in AccessInput) (Acce
 	decision := AccessDecision{Allowed: true, Resource: resource, Reason: "permission"}
 	s.appendAccessAudit(ctx, in, *object, decision, action)
 	return decision, nil
+}
+
+func (s *serviceImpl) multipartObject(ctx context.Context, id shared.ID, key string) (*domainfile.FileObject, error) {
+	if !id.IsZero() {
+		return s.repo.Get(ctx, id)
+	}
+	key = strings.TrimSpace(key)
+	if key != "" {
+		return s.repo.GetByKey(ctx, key)
+	}
+	return nil, fmt.Errorf("file id or key is required")
 }
 
 func (s *serviceImpl) resolveAccessObject(ctx context.Context, in AccessInput) (*domainfile.FileObject, error) {
