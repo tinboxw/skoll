@@ -11,6 +11,8 @@
 - `rules.go`
 - `store.go`
 - `store_rules.go`
+- `multipart.go`
+- `multipart_rules.go`
 
 ## FileObject
 
@@ -46,3 +48,14 @@
 - `Presign`: 生成 get/put/delete 预签名访问结果。
 
 该 port 不引入本地文件系统、S3 SDK、HTTP handler 或 multipart 语义；分片上传将在独立 port 中定义。
+
+## MultipartStore Port
+
+`MultipartStore` 是分片上传的稳定端口:
+
+- `Init`: 初始化上传，输入包含 key、size、mime、expected hash 和 metadata。
+- `UploadPart`: 上传单个分片，输入包含 upload id、key、part number、size、hash 和 body。
+- `Complete`: 完成上传，输入包含 expected size、expected hash 和全部 part hash/etag 上下文。
+- `Abort`: 中止上传。
+
+该 port 只描述领域边界和校验上下文，不绑定具体分片协议、临时目录布局或 S3 multipart SDK。

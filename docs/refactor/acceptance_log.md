@@ -10283,6 +10283,52 @@ go test ./internal/domain/file/...
 
 - 进入 `M3-01-03`，定义 multipart port。
 
+## M3-01-03: 定义 multipart port
+
+- 状态: Passed
+- Work Item: M3-01-03
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `internal/domain/file/multipart.go`
+- `internal/domain/file/multipart_rules.go`
+- `internal/domain/file/multipart_test.go`
+- `internal/domain/file/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| MultipartStore port | Passed | 定义 `Init`、`UploadPart`、`Complete`、`Abort` 四个分片上传能力。 |
+| hash 校验上下文 | Passed | init/complete 输入包含 expected hash；part 包含 hash/etag；complete 校验 expected size 与 part size 总和。 |
+| 分片约束 | Passed | 校验 upload id、part number 范围、part size、hash、body、重复 part number。 |
+| 存储无关 | Passed | port 不依赖具体分片协议、临时目录布局、本地文件系统或 S3 SDK。 |
+| 父任务收口 | Passed | M3-01-01 到 M3-01-03 均完成，M3-01 父任务标记为 `Done`。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/file/...
+```
+
+结果摘要: 通过。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M3-02-01`，实现 local object adapter。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
