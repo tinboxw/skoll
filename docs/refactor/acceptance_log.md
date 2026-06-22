@@ -10057,6 +10057,50 @@ rg -n "N0-01|N0-02|M3-01-01|M7-06-02|N0 Work Items|N1/M3 Work Items|N5/M7 Work I
 
 - 进入 `N0-03`，执行 Go 全量测试并记录质量门禁结果。
 
+## N0-03: Go 全量测试
+
+- 状态: Passed after retry
+- Work Item: N0-03
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 本任务提交
+
+### 改动文件
+
+- `docs/refactor/work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 初次执行记录 | Failed | `go test ./...` 使用默认 `CC` 失败，原因是 `D:\Program Files\JetBrains\CLion 2024.1.1\bin\mingw\bin\gcc.exe` 不存在。 |
+| 失败原因归类 | Passed | 失败为本机 cgo 编译器路径配置问题，不是业务测试断言失败。 |
+| 返工动作 | Passed | 临时设置 `CC=D:\workspace\mingw64\bin\gcc.exe` 后重试全量 Go 测试。 |
+| 全量 Go 测试 | Passed | `go test ./...` 在有效 gcc 下通过。 |
+| API/OpenAPI 同步 | N/A | 本项只运行质量门禁，不修改 API 契约。 |
+| 权限目录同步 | N/A | 本项不新增权限 key。 |
+| 前端状态和 UX | N/A | 本项不改前端运行时代码。 |
+
+### 自动化验证
+
+```powershell
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./...
+```
+
+结果摘要: 通过。所有 Go 包测试通过；`tests/integration` 也通过。初次失败已记录为环境配置问题，并通过有效 `CC` 重试完成验收。
+
+### 失败与返工
+
+- 失败原因: 默认 `CC` 指向不存在的 CLion MinGW gcc。
+- 返工动作: 使用 `D:\workspace\mingw64\bin\gcc.exe` 作为临时 `CC` 重跑。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `N0-04`，执行前端 typecheck 与 build 门禁。
+
 ## N0-01: 完成态一致性校验
 
 - 状态: Passed
