@@ -11594,3 +11594,69 @@ go test ./internal/handler/http/v1/system/...
 ### 下一步
 
 - 进入 `M4-03-02`，实现字典管理 UI。
+
+## M4-03-02: 字典管理 UI
+
+- 状态: Passed
+- Work Item: M4-03-02
+- 日期: 2026-06-22
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `web/src/views/Dictionary/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| API 接入 | Passed | 页面适配新字典 API 的 `code/sort/id/builtin` 字段，并保留 `type/order` 展示字段。 |
+| 类型管理 | Passed | 支持类型新增、编辑、启停、排序、保存和已持久化类型删除。 |
+| 条目管理 | Passed | 支持条目新增、编辑、启停、排序、保存和已持久化条目删除。 |
+| 空态/错误态 | Passed | 保留 loading、empty、error、success 状态；后端错误通过 `toErrorMessage` 展示。 |
+| 构建验收 | Passed | `npm run typecheck` 与 `npm run build` 均通过。 |
+| 父任务收口 | Passed | `M4-03-01` 与 `M4-03-02` 均完成，`task_board.md` 中 `M4-03` 标记为 Done。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: Passed。构建仍输出项目既有 Sass legacy JS API 与 Rollup pure annotation warning，未新增阻断。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/dictionary`
+- State coverage: loading、empty、error、success、saving
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: CSS grid keeps existing responsive collapse at 1080px
+- Permission evidence: Existing route/menu permission unchanged (`dict.read`)
+- Typecheck: Passed
+- Build: Passed
+
+### 人工验收
+
+1. 检查页面不再依赖 `customized` settings 来源标记。
+2. 检查删除已持久化类型/条目会调用新 DELETE API。
+3. 检查保存仍可批量提交当前编辑结果，适配后端 bulk upsert。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-04-01`，实现配置 schema registry。

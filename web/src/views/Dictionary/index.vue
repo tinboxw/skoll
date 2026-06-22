@@ -3,28 +3,34 @@ import { computed, onMounted, ref } from "vue";
 
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
-import { type ApiResponse, apiGet, apiPut } from "../../utils/api";
+import { type ApiResponse, apiDelete, apiGet, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
 type DictionaryItem = {
+	id?: string;
 	label: string;
 	value: string;
 	status: "enabled" | "disabled";
+	sort?: number;
 	order: number;
+	builtin?: boolean;
 };
 
 type DictionaryType = {
+	id?: string;
 	type: string;
+	code?: string;
 	name: string;
 	description?: string;
 	status: "enabled" | "disabled";
+	sort?: number;
 	order: number;
+	builtin?: boolean;
 	items: DictionaryItem[];
 };
 
 type DictionaryPayload = {
 	items?: DictionaryType[];
-	customized?: boolean;
 };
 
 const { t } = useI18n();
@@ -34,7 +40,6 @@ const saving = ref(false);
 const error = ref("");
 const success = ref("");
 const search = ref("");
-const customized = ref(false);
 const dictionaries = ref<DictionaryType[]>([]);
 const selectedType = ref("");
 
@@ -55,23 +60,46 @@ function normalizeStatus(value: unknown): "enabled" | "disabled" {
 
 function normalizeDictionaries(items: DictionaryType[]): DictionaryType[] {
 	return items
-		.map((item) => ({
-			type: String(item.type || "").trim(),
+		.map((item) => {
+			const code = String(item.code || item.type || "").trim();
+			const order = normalizedOrder(item.sort, item.order);
+			return {
+			id: String(item.id || "").trim() || undefined,
+			type: code,
+			code,
 			name: String(item.name || "").trim(),
 			description: String(item.description || "").trim(),
 			status: normalizeStatus(item.status),
-			order: Number.isFinite(item.order) ? Number(item.order) : 0,
+			sort: order,
+			order,
+			builtin: Boolean(item.builtin),
 			items: Array.isArray(item.items)
-				? item.items.map((child) => ({
+				? item.items.map((child) => {
+					const childOrder = normalizedOrder(child.sort, child.order);
+					return {
+					id: String(child.id || "").trim() || undefined,
 					label: String(child.label || "").trim(),
 					value: String(child.value || "").trim(),
 					status: normalizeStatus(child.status),
-					order: Number.isFinite(child.order) ? Number(child.order) : 0
-				})).filter((child) => child.label !== "" && child.value !== "")
+					sort: childOrder,
+					order: childOrder,
+					builtin: Boolean(child.builtin)
+				};
+				}).filter((child) => child.label !== "" && child.value !== "")
 				: []
-		}))
+		};
+		})
 		.filter((item) => item.type !== "" && item.name !== "")
 		.sort((a, b) => a.order - b.order || a.type.localeCompare(b.type));
+}
+
+function normalizedOrder(sortValue: unknown, orderValue: unknown): number {
+	const sort = Number(sortValue);
+	if (Number.isFinite(sort) && sort !== 0) {
+		return sort;
+	}
+	const order = Number(orderValue);
+	return Number.isFinite(order) ? order : 0;
 }
 
 async function loadDictionaries(): Promise<void> {
@@ -80,7 +108,6 @@ async function loadDictionaries(): Promise<void> {
 	try {
 		const payload = await apiGet<ApiResponse<DictionaryPayload>>("/v1/system/dictionaries");
 		dictionaries.value = normalizeDictionaries(payload.data?.items ?? []);
-		customized.value = Boolean(payload.data?.customized);
 		if (!selectedType.value || !dictionaries.value.some((item) => item.type === selectedType.value)) {
 			selectedType.value = dictionaries.value[0]?.type ?? "";
 		}
@@ -100,7 +127,6 @@ async function saveDictionaries(): Promise<void> {
 			items: normalizeDictionaries(dictionaries.value)
 		});
 		dictionaries.value = normalizeDictionaries(payload.data?.items ?? []);
-		customized.value = Boolean(payload.data?.customized);
 		success.value = t("dictionary.saveDone");
 		if (!selectedType.value || !dictionaries.value.some((item) => item.type === selectedType.value)) {
 			selectedType.value = dictionaries.value[0]?.type ?? "";
@@ -133,6 +159,7 @@ function selectDictionary(row: DictionaryType | null): void {
 }
 
 async function removeDictionaryType(type: string): Promise<void> {
+	const target = dictionaries.value.find((item) => item.type === type);
 	const confirmed = await confirmAction({
 		title: t("common.confirm"),
 		message: t("dictionary.removeTypeConfirm"),
@@ -143,8 +170,21 @@ async function removeDictionaryType(type: string): Promise<void> {
 	if (!confirmed) {
 		return;
 	}
-	dictionaries.value = dictionaries.value.filter((item) => item.type !== type);
-	selectedType.value = dictionaries.value[0]?.type ?? "";
+	saving.value = true;
+	error.value = "";
+	success.value = "";
+	try {
+		if (target?.id) {
+			await apiDelete<ApiResponse<{ deleted: boolean }>>(`/v1/system/dictionaries/${encodeURIComponent(target.type)}`);
+		}
+		dictionaries.value = dictionaries.value.filter((item) => item.type !== type);
+		selectedType.value = dictionaries.value[0]?.type ?? "";
+		success.value = t("dictionary.saveDone");
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		saving.value = false;
+	}
 }
 
 function addDictionaryItem(): void {
@@ -164,6 +204,7 @@ async function removeDictionaryItem(index: number): Promise<void> {
 	if (!selectedDictionary.value) {
 		return;
 	}
+	const item = selectedDictionary.value.items[index];
 	const confirmed = await confirmAction({
 		title: t("common.confirm"),
 		message: t("dictionary.removeItemConfirm"),
@@ -174,7 +215,20 @@ async function removeDictionaryItem(index: number): Promise<void> {
 	if (!confirmed) {
 		return;
 	}
-	selectedDictionary.value.items.splice(index, 1);
+	saving.value = true;
+	error.value = "";
+	success.value = "";
+	try {
+		if (selectedDictionary.value.id && item?.id) {
+			await apiDelete<ApiResponse<{ deleted: boolean }>>(`/v1/system/dictionaries/${encodeURIComponent(selectedDictionary.value.type)}/items/${encodeURIComponent(item.value)}`);
+		}
+		selectedDictionary.value.items.splice(index, 1);
+		success.value = t("dictionary.saveDone");
+	} catch (e) {
+		error.value = toErrorMessage(e);
+	} finally {
+		saving.value = false;
+	}
 }
 
 onMounted(() => {
@@ -190,9 +244,6 @@ onMounted(() => {
 				<p>{{ t("dictionary.desc") }}</p>
 			</div>
 			<div class="header-actions">
-				<el-tag :type="customized ? 'success' : 'info'" effect="plain">
-					{{ customized ? t("menu.editor.customized") : t("menu.editor.defaultSource") }}
-				</el-tag>
 				<el-button :loading="loading" :disabled="saving" @click="loadDictionaries">{{ t("common.refresh") }}</el-button>
 				<el-button type="primary" :loading="saving" :disabled="loading" @click="saveDictionaries">{{ t("common.save") }}</el-button>
 			</div>
