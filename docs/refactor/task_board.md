@@ -109,7 +109,7 @@
 
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
-| 36 | M5-01 | `skoll-generator-refactor` | GeneratorSpec 模型 | domain | 描述模块、表、字段、索引、校验、菜单、权限、页面 | `go test ./internal/domain/generator/...` | Todo |
+| 36 | M5-01 | `skoll-generator-refactor` | GeneratorSpec 模型 | domain | 描述模块、表、字段、索引、校验、菜单、权限、页面 | `go test ./internal/domain/generator/...` | Done |
 | 37 | M5-02 | `skoll-generator-refactor` | 模板规范 | docs/templates | 输出路径、命名、冲突策略明确 | 文档审阅 | Todo |
 | 38 | M5-03 | `skoll-generator-refactor` | dry-run 与 diff | service | 写入前展示文件清单和 diff | `go test ./internal/service/generator/...` | Todo |
 | 39 | M5-04 | `skoll-code-generator` | 后端 CRUD 生成 | generator templates | 输出 domain/service/store/handler/migration/OpenAPI | `go test ./...` | Todo |

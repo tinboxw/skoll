@@ -2,10 +2,17 @@ package generator
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
+)
+
+var (
+	generatorNamePattern    = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
+	generatorKeyPattern     = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{1,127}$`)
+	generatorPermKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_:.\-]{1,127}$`)
 )
 
 type FieldType string
@@ -327,34 +334,194 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 	if in.Module.Name == "" || in.Module.Package == "" || in.Module.DisplayName == "" {
 		return fmt.Errorf("generator module spec is incomplete")
 	}
+	if err := validateGeneratorName(in.Module.Name, "module name"); err != nil {
+		return err
+	}
+	if err := validateGeneratorName(in.Module.Package, "module package"); err != nil {
+		return err
+	}
 	if in.Table.Name == "" || in.Table.DomainName == "" || in.Table.CollectionName == "" {
 		return fmt.Errorf("generator table spec is incomplete")
+	}
+	if err := validateGeneratorName(in.Table.Name, "table name"); err != nil {
+		return err
 	}
 	if len(in.Fields) == 0 {
 		return fmt.Errorf("generator fields are required")
 	}
+	fieldNames := make(map[string]struct{}, len(in.Fields))
+	columnNames := make(map[string]struct{}, len(in.Fields))
 	for _, field := range in.Fields {
 		if field.Name == "" || field.ColumnName == "" || field.Label == "" || field.Type == "" {
 			return fmt.Errorf("generator field spec is incomplete")
 		}
+		if err := validateGeneratorName(field.Name, "field name"); err != nil {
+			return err
+		}
+		if err := validateGeneratorName(field.ColumnName, "column name"); err != nil {
+			return err
+		}
+		if err := validateFieldType(field.Type); err != nil {
+			return err
+		}
+		if _, ok := fieldNames[field.Name]; ok {
+			return fmt.Errorf("generator field name conflict: %s", field.Name)
+		}
+		if _, ok := columnNames[field.ColumnName]; ok {
+			return fmt.Errorf("generator column name conflict: %s", field.ColumnName)
+		}
+		fieldNames[field.Name] = struct{}{}
+		columnNames[field.ColumnName] = struct{}{}
+		for _, rule := range field.Validation {
+			if err := validateValidationRule(rule); err != nil {
+				return err
+			}
+		}
 	}
-	if in.Permissions.Resource == "" || in.Permissions.ReadKey == "" {
+	for _, index := range in.Indexes {
+		if err := validateIndexSpec(index, fieldNames); err != nil {
+			return err
+		}
+	}
+	if in.Permissions.Resource == "" || in.Permissions.ReadKey == "" || in.Permissions.CreateKey == "" || in.Permissions.UpdateKey == "" || in.Permissions.DeleteKey == "" || in.Permissions.ManageKey == "" {
 		return fmt.Errorf("generator permission spec is incomplete")
+	}
+	if err := validatePermissionSpec(in.Permissions); err != nil {
+		return err
 	}
 	if in.Menu.Key == "" || in.Menu.Path == "" || in.Menu.Component == "" {
 		return fmt.Errorf("generator menu spec is incomplete")
 	}
+	if err := validateMenuSpec(in.Menu, in.Permissions); err != nil {
+		return err
+	}
 	if in.Page.Title == "" || in.Page.RouteName == "" {
 		return fmt.Errorf("generator page spec is incomplete")
 	}
+	if err := validatePageSpec(in.Page, fieldNames); err != nil {
+		return err
+	}
 	if in.Audit.Resource == "" || len(in.Audit.Actions) == 0 {
 		return fmt.Errorf("generator audit spec is incomplete")
+	}
+	if err := validateAuditSpec(in.Audit); err != nil {
+		return err
 	}
 	if in.CreatedAt.IsZero() || in.UpdatedAt.IsZero() {
 		return fmt.Errorf("generator spec timestamps are required")
 	}
 	if in.UpdatedAt.Before(in.CreatedAt) {
 		return fmt.Errorf("generator spec updated time must not be before created time")
+	}
+	return nil
+}
+
+func validateGeneratorName(value, label string) error {
+	if !generatorNamePattern.MatchString(value) {
+		return fmt.Errorf("generator %s must match %s", label, generatorNamePattern.String())
+	}
+	return nil
+}
+
+func validateFieldType(fieldType FieldType) error {
+	switch fieldType {
+	case FieldTypeString, FieldTypeText, FieldTypeInt, FieldTypeDecimal, FieldTypeBool, FieldTypeTime, FieldTypeJSON, FieldTypeID:
+		return nil
+	default:
+		return fmt.Errorf("generator field type is invalid: %s", fieldType)
+	}
+}
+
+func validateValidationRule(rule ValidationRule) error {
+	switch rule.Type {
+	case ValidationRequired:
+		return nil
+	case ValidationMin, ValidationMax, ValidationPattern, ValidationEnum:
+		if strings.TrimSpace(rule.Value) == "" {
+			return fmt.Errorf("generator validation value is required for %s", rule.Type)
+		}
+		return nil
+	default:
+		return fmt.Errorf("generator validation rule type is invalid: %s", rule.Type)
+	}
+}
+
+func validateIndexSpec(index IndexSpec, fields map[string]struct{}) error {
+	if index.Name == "" {
+		return fmt.Errorf("generator index name is required")
+	}
+	if err := validateGeneratorName(index.Name, "index name"); err != nil {
+		return err
+	}
+	if len(index.Fields) == 0 {
+		return fmt.Errorf("generator index fields are required")
+	}
+	for _, field := range index.Fields {
+		if _, ok := fields[field]; !ok {
+			return fmt.Errorf("generator index %s references unknown field: %s", index.Name, field)
+		}
+	}
+	return nil
+}
+
+func validatePermissionSpec(spec PermissionSpec) error {
+	keys := []string{spec.Resource, spec.ReadKey, spec.CreateKey, spec.UpdateKey, spec.DeleteKey, spec.ManageKey}
+	for _, key := range keys {
+		if !generatorPermKeyPattern.MatchString(key) {
+			return fmt.Errorf("generator permission key must match %s", generatorPermKeyPattern.String())
+		}
+	}
+	return nil
+}
+
+func validateMenuSpec(spec MenuSpec, permissions PermissionSpec) error {
+	if !generatorKeyPattern.MatchString(spec.Key) {
+		return fmt.Errorf("generator menu key must match %s", generatorKeyPattern.String())
+	}
+	if spec.ParentKey != "" && !generatorKeyPattern.MatchString(spec.ParentKey) {
+		return fmt.Errorf("generator menu parent key must match %s", generatorKeyPattern.String())
+	}
+	if !strings.HasPrefix(spec.Path, "/") || strings.ContainsAny(spec.Path, " \t\r\n") {
+		return fmt.Errorf("generator menu path must start with / and must not contain whitespace")
+	}
+	if spec.Order < 0 {
+		return fmt.Errorf("generator menu order must be non-negative")
+	}
+	permissionSet := map[string]struct{}{
+		permissions.ReadKey:   {},
+		permissions.CreateKey: {},
+		permissions.UpdateKey: {},
+		permissions.DeleteKey: {},
+		permissions.ManageKey: {},
+	}
+	for _, key := range spec.RequiredPermissions {
+		if _, ok := permissionSet[key]; !ok {
+			return fmt.Errorf("generator menu references unknown permission: %s", key)
+		}
+	}
+	return nil
+}
+
+func validatePageSpec(spec PageSpec, fields map[string]struct{}) error {
+	if !generatorKeyPattern.MatchString(spec.RouteName) {
+		return fmt.Errorf("generator page route name must match %s", generatorKeyPattern.String())
+	}
+	for _, field := range append(append([]string{}, spec.List.Columns...), append(spec.List.Filters, spec.Form.Fields...)...) {
+		if _, ok := fields[field]; !ok {
+			return fmt.Errorf("generator page references unknown field: %s", field)
+		}
+	}
+	return nil
+}
+
+func validateAuditSpec(spec AuditSpec) error {
+	if !generatorPermKeyPattern.MatchString(spec.Resource) {
+		return fmt.Errorf("generator audit resource must match %s", generatorPermKeyPattern.String())
+	}
+	for _, action := range spec.Actions {
+		if err := validateGeneratorName(action, "audit action"); err != nil {
+			return err
+		}
 	}
 	return nil
 }

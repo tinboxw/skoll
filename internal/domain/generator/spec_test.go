@@ -112,3 +112,145 @@ func TestNewGeneratorSpecRejectsIncompleteSections(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestNewGeneratorSpecValidationRules(t *testing.T) {
+	cases := []struct {
+		name    string
+		mutate  func(*GeneratorSpecInput)
+		wantErr string
+	}{
+		{
+			name: "invalid module name",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Module.Name = "bad-name"
+			},
+			wantErr: "module name",
+		},
+		{
+			name: "invalid field type",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Fields[1].Type = FieldType("money")
+			},
+			wantErr: "field type",
+		},
+		{
+			name: "duplicate field name",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Fields[2].Name = "name"
+			},
+			wantErr: "field name conflict",
+		},
+		{
+			name: "duplicate column name",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Fields[2].ColumnName = "product_name"
+			},
+			wantErr: "column name conflict",
+		},
+		{
+			name: "index unknown field",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Indexes[0].Fields = []string{"missing"}
+			},
+			wantErr: "unknown field",
+		},
+		{
+			name: "invalid permission key",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Permissions.ReadKey = "Product Read"
+			},
+			wantErr: "permission key",
+		},
+		{
+			name: "menu permission unknown",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Menu.RequiredPermissions = []string{"product.export"}
+			},
+			wantErr: "unknown permission",
+		},
+		{
+			name: "page unknown field",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Page.List.Columns = []string{"id", "missing"}
+			},
+			wantErr: "unknown field",
+		},
+		{
+			name: "validation rule needs value",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Fields[1].Validation = []ValidationRule{{Type: ValidationMax}}
+			},
+			wantErr: "validation value",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			in := validGeneratorSpecInput()
+			tc.mutate(&in)
+			_, err := NewGeneratorSpec(in)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+func validGeneratorSpecInput() GeneratorSpecInput {
+	now := time.Now().UTC()
+	return GeneratorSpecInput{
+		ID: shared.ID("spec-product"),
+		Module: ModuleSpec{
+			Name:        "product",
+			Package:     "product",
+			DisplayName: "Product",
+		},
+		Table: TableSpec{
+			Name:           "products",
+			DomainName:     "Product",
+			CollectionName: "Products",
+		},
+		Fields: []FieldSpec{
+			{Name: "id", Label: "ID", Type: FieldTypeID, PrimaryKey: true, Required: true},
+			{Name: "name", ColumnName: "product_name", Label: "Name", Type: FieldTypeString, Required: true, Validation: []ValidationRule{{Type: ValidationMax, Value: "128"}}},
+			{Name: "price", Label: "Price", Type: FieldTypeDecimal, Required: true},
+		},
+		Indexes: []IndexSpec{
+			{Name: "idx_products_name", Fields: []string{"name"}},
+		},
+		Permissions: PermissionSpec{
+			Resource:  "product",
+			ReadKey:   "product.read",
+			CreateKey: "product.create",
+			UpdateKey: "product.update",
+			DeleteKey: "product.delete",
+			ManageKey: "product.manage",
+		},
+		Menu: MenuSpec{
+			Key:                 "product",
+			Path:                "/skoll/products",
+			Component:           "ProductList",
+			RequiredPermissions: []string{"product.read"},
+		},
+		Page: PageSpec{
+			Title:     "Products",
+			RouteName: "product-list",
+			List: PageListSpec{
+				Columns: []string{"id", "name", "price"},
+				Filters: []string{"name"},
+			},
+			Form: PageFormSpec{
+				Fields: []string{"name", "price"},
+				Mode:   "drawer",
+			},
+		},
+		Audit: AuditSpec{
+			Resource: "product",
+			Actions:  []string{"create", "update", "delete"},
+		},
+		CreatedAt: now,
+	}
+}

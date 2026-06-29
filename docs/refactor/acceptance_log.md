@@ -12269,3 +12269,64 @@ go test ./internal/domain/generator/...
 
 ### 下一步
 - 进入 `M5-01-02`，补齐 GeneratorSpec validation。
+
+## M5-01-02: GeneratorSpec validation
+
+- 状态: Passed
+- Work Item: M5-01-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/domain/generator/spec.go`
+- `internal/domain/generator/spec_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 命名校验 | Passed | 模块、包名、表名、字段名、列名、索引名、审计 action 使用 generator 命名规则。 |
+| 字段类型校验 | Passed | `string/text/int/decimal/bool/time/json/id` 枚举外类型会失败。 |
+| 冲突校验 | Passed | 字段名和列名重复会失败，索引与页面引用未知字段会失败。 |
+| 权限 key 校验 | Passed | 权限 key 使用 permission catalog 兼容规则，菜单权限引用必须来自 spec 权限集合。 |
+| 任务状态更新 | Passed | `M5-01-02` 已标记 Done，`M5-01` 父任务已标记 Done。 |
+
+### 自动化验证
+```powershell
+go test ./internal/domain/generator/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查命名、字段类型、冲突和权限 key 失败路径均有单测。
+2. 检查 validation 仍位于 domain 层，不依赖 service/store/template。
+3. 检查 `M5-01` 父任务随 `M5-01-01` 和 `M5-01-02` 完成而收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-02-01`，编写模板输出规范。
