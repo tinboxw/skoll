@@ -12520,3 +12520,72 @@ go test ./internal/service/generator/...
 
 ### 下一步
 - 进入 `M5-04-01`，实现后端 domain/store 生成。
+
+## M5-04-01: 后端 domain/store 生成
+
+- 状态: Passed
+- Work Item: M5-04-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/backend_templates.go`
+- `internal/service/generator/service_impl.go`
+- `internal/service/generator/service_impl_test.go`
+- `internal/handler/http/v1/user/handler_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| domain 模板 | Passed | dry-run 生成 domain doc/entity 内容，包含输入结构、构造函数、基础校验和 `shared.AuditMeta`。 |
+| repository 模板 | Passed | 生成 service-facing repository interface，保持 GORM 无依赖。 |
+| memory store 模板 | Passed | 生成内存 store CRUD/list 骨架，用于后续生成文件落盘和测试夹具。 |
+| GORM store/model 模板 | Passed | 生成 GORM model、TableName、store CRUD/list/delete 骨架。 |
+| migration 模板 | Passed | 生成 MySQL/Postgres `CREATE TABLE` 与索引 SQL。 |
+| 模板语法校验 | Passed | 单测使用 Go parser 校验生成的后端 Go 模板语法，并检查 migration 内容。 |
+| 全量测试 | Passed | 修复 user handler 测试桩后，`go test ./...` 通过。 |
+| 任务状态更新 | Passed | `M5-04-01` 已标记 Done，`M5-04` 父任务保留 Todo，等待 `M5-04-02`。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/backend_templates.go internal/service/generator/service_impl.go internal/service/generator/service_impl_test.go internal/handler/http/v1/user/handler_test.go
+go test ./internal/service/generator/...
+go test ./internal/handler/http/v1/user
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./...
+```
+
+结果摘要: Passed。首次全量测试失败于 `internal/handler/http/v1/user` 的 fake RBAC service 缺少 `ResolveDataScope`，补齐测试桩后全量重跑通过。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 M5-04-01 只覆盖后端 domain/repository/store/migration 模板，不提前实现 service/handler/OpenAPI 生成。
+2. 检查生成内容仍由 dry-run 返回，不直接写盘或覆盖用户文件。
+3. 检查 `M5-04` 父任务继续等待 `M5-04-02` 收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: 全量 `go test ./...` 首次失败，因为 `internal/handler/http/v1/user/handler_test.go` 的 `fakeRBACService` 未实现 RBAC service 新增的 `ResolveDataScope` 方法。
+- 返工动作: 补齐 `fakeRBACService.ResolveDataScope`，并重跑 `go test ./internal/handler/http/v1/user`、`go test ./internal/service/generator/...` 和全量 `go test ./...`。
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-04-02`，实现后端 service/handler/OpenAPI 生成。

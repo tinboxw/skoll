@@ -2,6 +2,8 @@ package generator
 
 import (
 	"context"
+	"go/parser"
+	"go/token"
 	"strings"
 	"testing"
 	"time"
@@ -69,7 +71,7 @@ func TestDryRunClassifiesExistingFiles(t *testing.T) {
 	assertPlanPath(t, result.Files, repoPlan.Path, FileStatusUpdateClean)
 	assertPlanPath(t, result.Files, storePlan.Path, FileStatusConflict)
 	assertPlanPath(t, result.Files, handlerPlan.Path, FileStatusConflict)
-	if plan := findPlan(t, result.Files, repoPlan.Path); !strings.Contains(plan.Diff, "--- current/") || !strings.Contains(plan.Diff, "-old repository content") || !strings.Contains(plan.Diff, "+backend.repository") {
+	if plan := findPlan(t, result.Files, repoPlan.Path); !strings.Contains(plan.Diff, "--- current/") || !strings.Contains(plan.Diff, "-old repository content") || !strings.Contains(plan.Diff, "+type ProductRepository interface") {
 		t.Fatalf("update diff is not readable: %q", plan.Diff)
 	}
 	if plan := findPlan(t, result.Files, storePlan.Path); !strings.Contains(plan.Diff, "-user edited store") || !strings.Contains(plan.Reason, "differs") {
@@ -77,6 +79,40 @@ func TestDryRunClassifiesExistingFiles(t *testing.T) {
 	}
 	if result.Summary.Unchanged != 1 || result.Summary.UpdateClean != 1 || result.Summary.Conflict != 2 {
 		t.Fatalf("summary = %+v", result.Summary)
+	}
+}
+
+func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
+	svc := NewService()
+	spec := mustSpec(t)
+	result, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		MigrationTimestamp: "20260629_010203",
+	})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+	goPaths := []string{
+		"internal/domain/product/doc.go",
+		"internal/domain/product/entity.go",
+		"internal/repository/product/product_repo.go",
+		"internal/store/memory/product_store.go",
+		"internal/store/sql/gormrepo/product_model.go",
+		"internal/store/sql/gormrepo/product_store.go",
+	}
+	for _, path := range goPaths {
+		plan := findPlan(t, result.Files, path)
+		if _, err := parser.ParseFile(token.NewFileSet(), path, plan.GeneratedContent, parser.AllErrors); err != nil {
+			t.Fatalf("generated Go for %s is invalid: %v\n%s", path, err, plan.GeneratedContent)
+		}
+	}
+	mysql := findPlan(t, result.Files, "migrations/mysql/20260629_010203_create_products.sql")
+	if !strings.Contains(mysql.GeneratedContent, "CREATE TABLE products") || !strings.Contains(mysql.GeneratedContent, "CREATE INDEX idx_products_name") {
+		t.Fatalf("mysql migration content = %q", mysql.GeneratedContent)
+	}
+	postgres := findPlan(t, result.Files, "migrations/postgres/20260629_010203_create_products.sql")
+	if !strings.Contains(postgres.GeneratedContent, "CREATE TABLE products") || !strings.Contains(postgres.GeneratedContent, "name VARCHAR(255) NOT NULL") {
+		t.Fatalf("postgres migration content = %q", postgres.GeneratedContent)
 	}
 }
 

@@ -97,12 +97,7 @@ func candidate(templateID, path string, spec domaingenerator.GeneratorSpec) file
 	return fileCandidate{
 		Path:       normalizePath(path),
 		TemplateID: templateID,
-		Payload: fmt.Sprintf("%s|%s|%s|%s|%s",
-			templateID,
-			spec.ID.String(),
-			spec.Module.Package,
-			spec.Table.Name,
-			strings.Join(spec.FieldNames(), ",")),
+		Payload:    renderCandidateContent(templateID, spec),
 	}
 }
 
