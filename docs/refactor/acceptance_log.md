@@ -12084,3 +12084,66 @@ go test ./internal/store/...
 
 ### 下一步
 - 进入 `M4-07-01`，实现组织管理 UI。
+
+## M4-07-01: 组织管理 UI
+
+- 状态: Passed
+- Work Item: M4-07-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `web/src/views/Organization/index.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 部门树 | Passed | 组织页新增部门树视图，支持选择部门并联动用户归属列表。 |
+| 岗位维护 | Passed | 岗位表继续支持新增、编辑、启停、排序和删除。 |
+| 用户归属编辑 | Passed | 组织页新增用户归属列表和抽屉编辑，支持修改用户部门与岗位。 |
+| 权限状态 | Passed | `org.read` 控制页面访问，`org.manage` 控制组织数据编辑，`user.update` 控制用户归属保存。 |
+| 任务状态更新 | Passed | `work_items.md` 和 `next_work_items.md` 中 `M4-07-01` 已标记 Done；`M4-07` 父任务保留 Todo，等待 `M4-07-02`。 |
+
+### 自动化验证
+```powershell
+cd web
+npm run typecheck
+npm run build
+Invoke-WebRequest -Uri 'http://127.0.0.1:5173/skoll/organization' -UseBasicParsing -TimeoutSec 10
+```
+
+结果摘要: Passed。build 仍有既有 Dart Sass legacy JS API 与 Rollup pure annotation warning。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/organization`
+- State coverage: default, loading, empty, backend-error, no-permission, save-success, save-failure, narrow-viewport
+- Browser smoke: Passed
+- Browser command: `Invoke-WebRequest -Uri 'http://127.0.0.1:5173/skoll/organization' -UseBasicParsing -TimeoutSec 10`
+- Browser evidence: HTTP 200; in-app browser control tool unavailable in this turn
+- Responsive evidence: CSS includes single-column fallback below 1100px/900px
+- Permission evidence: page and edit controls gated by `org.read`, `org.manage`, `user.update`
+- Typecheck: Passed
+- Build: Passed
+
+### 人工验收
+
+1. 检查组织页首屏包含部门树、部门表、岗位表和用户归属表。
+2. 检查部门树选择会联动用户归属列表，清空选择可回到全部部门。
+3. 检查用户归属抽屉保存时调用用户更新 API，并保留用户姓名、邮箱、状态字段。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M4-07-02`，补充数据范围验收清单。

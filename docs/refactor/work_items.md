@@ -291,7 +291,7 @@
 | 203 | M4-05-02 | M4-05 | `skoll-database-development` | 组织 migration/store | migration + store | 部门树查询、岗位关联、用户归属可用 | `go test ./internal/store/...` | Done |
 | 204 | M4-06-01 | M4-06 | `skoll-permission-rbac` | DataScope domain/service | domain/service | all/department/department_tree/self/custom 解析明确 | `go test ./internal/service/rbac/...` | Done |
 | 205 | M4-06-02 | M4-06 | `skoll-permission-rbac` | 用户列表数据范围过滤 | service/store | 不同角色返回不同用户列表，super_admin 绕过明确 | `go test ./internal/service/user/... ./internal/service/rbac/...` | Done |
-| 206 | M4-07-01 | M4-07 | `skoll-vue-frontend` | 组织管理 UI | Vue page | 部门树、岗位、用户归属编辑可用 | `cd web && npm run build` | Todo |
+| 206 | M4-07-01 | M4-07 | `skoll-vue-frontend` | 组织管理 UI | Vue page | 部门树、岗位、用户归属编辑可用 | `cd web && npm run build` | Done |
 | 207 | M4-07-02 | M4-07 | `skoll-frontend-testing-refactor` | 数据范围验收清单 | docs/smoke | admin、部门管理员、普通用户三类结果可复查 | 文档审阅; `cd web && npm run build` | Todo |
 
 ## N3/M5 Work Items: 代码生成器 v1
