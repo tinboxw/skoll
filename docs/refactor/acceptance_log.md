@@ -12208,3 +12208,64 @@ npm run build
 
 ### 下一步
 - 进入 `M5-01-01`，实现 GeneratorSpec domain。
+
+## M5-01-01: GeneratorSpec domain
+
+- 状态: Passed
+- Work Item: M5-01-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/domain/generator/doc.go`
+- `internal/domain/generator/spec.go`
+- `internal/domain/generator/spec_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 模块与表描述 | Passed | `GeneratorSpec` 包含 module/table/domain/collection 元数据。 |
+| 字段与索引描述 | Passed | `FieldSpec` 覆盖字段类型、Go/TS 类型、列表/表单/筛选/排序、引用和 validation；`IndexSpec` 覆盖字段组合和唯一索引。 |
+| 权限、菜单、页面、审计描述 | Passed | spec 包含 permission keys、menu route/component、page list/form 和 audit actions。 |
+| 基础完整性校验 | Passed | `NewGeneratorSpec` 校验主要段落必填与时间戳；命名/冲突/类型细校验留给 `M5-01-02`。 |
+| 任务状态更新 | Passed | `work_items.md` 与 `next_work_items.md` 中 `M5-01-01` 已标记 Done；`M5-01` 父任务保留 Todo。 |
+
+### 自动化验证
+```powershell
+go test ./internal/domain/generator/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 spec 已覆盖模块、表、字段、索引、校验、权限、菜单、页面和审计动作。
+2. 检查 domain 包不依赖 service/store/handler/template。
+3. 检查 `M5-01` 父任务仍等待 `M5-01-02` validation 细化。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-01-02`，补齐 GeneratorSpec validation。

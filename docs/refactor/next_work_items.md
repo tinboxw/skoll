@@ -86,7 +86,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 36 | M5-01-01 | M5-01 | `skoll-generator-refactor` | GeneratorSpec domain | domain | 模块、表、字段、索引、校验、权限、菜单、页面描述完整 | `go test ./internal/domain/generator/...` | Todo |
+| 36 | M5-01-01 | M5-01 | `skoll-generator-refactor` | GeneratorSpec domain | domain | 模块、表、字段、索引、校验、权限、菜单、页面描述完整 | `go test ./internal/domain/generator/...` | Done |
 | 37 | M5-01-02 | M5-01 | `skoll-generator-refactor` | GeneratorSpec validation | domain tests | 命名、字段类型、冲突、权限 key 校验覆盖 | `go test ./internal/domain/generator/...` | Todo |
 | 38 | M5-02-01 | M5-02 | `skoll-generator-refactor` | 模板输出规范 | docs/templates | 输出路径、命名、禁止覆盖用户改动策略明确 | 文档审阅 | Todo |
 | 39 | M5-03-01 | M5-03 | `skoll-generator-refactor` | dry-run 文件清单 | service | 生成前展示文件清单和变更摘要 | `go test ./internal/service/generator/...` | Todo |
