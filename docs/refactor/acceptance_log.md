@@ -13342,3 +13342,71 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-03-01`，实现远程 index adapter。
+
+## M6-03-01: 远程 index adapter
+
+- 状态: Passed
+- Work Item: M6-03-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/remote_marketplace.go`
+- `internal/plugin/remote_marketplace_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 远程 index 拉取 | Passed | `RemoteMarketplaceAdapter` 使用 context-aware HTTP GET 拉取 JSON marketplace index，并设置 `Accept: application/json`。 |
+| index 契约复用 | Passed | 远程响应复用 `MarketplaceIndex` 与 `ValidateMarketplaceIndex`，无效 schema、签名、source、版本冲突等仍由统一校验器拦截。 |
+| 错误可见 | Passed | 远程失败包装为 `ErrRemoteMarketplaceUnavailable`，错误文本包含 URL 与 HTTP status。 |
+| 本地不受影响 | Passed | `MarketplaceCatalogService.List` 先返回本地 catalog；远程失败时不返回硬错误，只填充 `RemoteError`。 |
+| 安全边界 | Passed | 本项只读拉取/解析/校验 index，不下载插件包、不执行安装、不修改本地插件状态。 |
+| 父任务状态 | Passed | `M6-03-01` 标记 Done；`M6-03` 仍等待安装预检 service 和 UI 子项。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/plugin/remote_marketplace.go internal/plugin/remote_marketplace_test.go
+go test ./internal/plugin/...
+rg -n "RemoteMarketplaceAdapter|MarketplaceCatalogService|ErrRemoteMarketplaceUnavailable|M6-03-01" internal/plugin docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查远程 adapter 只做 index fetch/parse/validate，不下载或安装插件。
+2. 检查远程 5xx 失败时，聚合 service 仍保留本地 catalog 且返回可展示错误。
+3. 检查 `M6-03` 父任务仍等待 `M6-03-02` 安装预检 service 与 `M6-03-03` 安装预检 UI。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M6-03-02`，实现安装预检 service。

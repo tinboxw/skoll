@@ -320,7 +320,7 @@
 | 222 | M6-01-02 | M6-01 | `skoll-plugin-marketplace-refactor` | index 校验器 | service/tests | 无效索引、重复插件、版本冲突能报错 | `go test ./internal/plugin/...` | Done |
 | 223 | M6-02-01 | M6-02 | `skoll-plugin-platform` | 本地市场 service/API | service/API | 本地插件、可安装包、签名、风险可展示 | `go test ./internal/plugin/... ./internal/handler/http/v1/plugin/...` | Done |
 | 224 | M6-02-02 | M6-02 | `skoll-vue-frontend` | 市场列表 UI | Vue page | 搜索、筛选、风险、签名、版本、安装入口完整 | `cd web && npm run build` | Done |
-| 225 | M6-03-01 | M6-03 | `skoll-plugin-marketplace-refactor` | 远程 index adapter | service | 远程失败不影响本地插件，错误可见 | `go test ./internal/plugin/...` | Todo |
+| 225 | M6-03-01 | M6-03 | `skoll-plugin-marketplace-refactor` | 远程 index adapter | service | 远程失败不影响本地插件，错误可见 | `go test ./internal/plugin/...` | Done |
 | 226 | M6-03-02 | M6-03 | `skoll-plugin-marketplace-refactor` | 安装预检 service | service | 权限 diff、菜单 diff、配置、资源、迁移、签名、风险完整 | `go test ./internal/plugin/...` | Todo |
 | 227 | M6-03-03 | M6-03 | `skoll-web-ui-design` | 安装预检 UI | Vue page | 高风险动作确认、阻断原因、审计线索可读 | `cd web && npm run build` | Todo |
 | 228 | M6-04-01 | M6-04 | `skoll-plugin-platform` | 插件迁移 hook | plugin/service | install/upgrade/downgrade/uninstall 状态可追踪 | `go test ./internal/plugin/...` | Todo |
