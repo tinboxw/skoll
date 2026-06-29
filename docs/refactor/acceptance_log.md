@@ -13124,3 +13124,73 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-01-02`，实现 marketplace index 校验器。
+
+## M6-01-02: index 校验器
+
+- 状态: Passed
+- Work Item: M6-01-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/marketplace_index.go`
+- `internal/plugin/marketplace_index_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| index 类型 | Passed | 新增 `MarketplaceIndex`、release、publisher、risk、signature、source、changelog 等结构。 |
+| 无效索引 | Passed | 校验 schema_version、plugin id、skoll_version、signature、digest、changelog 等无效输入。 |
+| 重复插件 release | Passed | 完全相同的 `(id, version)` 返回 `ErrMarketplaceDuplicateRelease`。 |
+| 版本冲突 | Passed | 同一插件 `0.2.0` 与 `v0.2.0` 规范化后冲突，返回 `ErrMarketplaceVersionConflict`。 |
+| 多版本支持 | Passed | 同一插件不同 semver release 可共存，供市场展示多个可安装版本。 |
+| 来源/签名边界 | Passed | source 限定 http/https、sha256、size；signature 强制 RSA-SHA256 且 required=true。 |
+| 父任务收口 | Passed | `M6-01-01` 与 `M6-01-02` 均 Done，`M6-01` 父任务已标记 Done。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/plugin/marketplace_index.go internal/plugin/marketplace_index_test.go
+go test ./internal/plugin/...
+rg -n "MarketplaceIndex|ValidateMarketplaceIndex|ErrMarketplaceDuplicateRelease|ErrMarketplaceVersionConflict|M6-01-02" internal/plugin docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查校验器只验证 marketplace index 契约，不执行插件安装或状态变更。
+2. 检查重复 release、版本规范化冲突、无效索引均有独立错误路径。
+3. 检查 `M6-01` 父任务随 schema 与 validator 两项完成而收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M6-02-01`，实现本地市场 service/API。
