@@ -155,6 +155,73 @@ func TestDryRunRejectsMissingSpecAndBadSnapshots(t *testing.T) {
 	}
 }
 
+func TestRecordAndGetGenerationHistory(t *testing.T) {
+	svc := NewService()
+	spec := mustSpec(t)
+	dryRun, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "batch-history",
+		ActorID:            "actor-1",
+		MigrationTimestamp: "20260629_010203",
+	})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+	createdAt := time.Date(2026, 6, 29, 2, 0, 0, 0, time.UTC)
+	history, err := svc.RecordHistory(context.Background(), RecordHistoryInput{
+		DryRun:    dryRun,
+		Spec:      spec,
+		CreatedAt: createdAt,
+	})
+	if err != nil {
+		t.Fatalf("RecordHistory() error = %v", err)
+	}
+	if history.BatchID != "batch-history" || history.ActorID != "actor-1" || history.SpecID != "spec-product" || history.SpecHash == "" || history.SpecSnapshot == "" {
+		t.Fatalf("history identity = %+v", history)
+	}
+	if !history.CreatedAt.Equal(createdAt) {
+		t.Fatalf("createdAt = %s", history.CreatedAt)
+	}
+	if len(history.Files) != len(dryRun.Files) {
+		t.Fatalf("history files = %d, dry-run files = %d", len(history.Files), len(dryRun.Files))
+	}
+	for _, file := range history.Files {
+		if file.Path == "" || file.TemplateID == "" || file.Hash == "" {
+			t.Fatalf("incomplete file record: %+v", file)
+		}
+	}
+	got, err := svc.GetHistory(context.Background(), "batch-history")
+	if err != nil {
+		t.Fatalf("GetHistory() error = %v", err)
+	}
+	got.Files[0].Path = "mutated"
+	again, err := svc.GetHistory(context.Background(), "batch-history")
+	if err != nil {
+		t.Fatalf("GetHistory(second) error = %v", err)
+	}
+	if again.Files[0].Path == "mutated" {
+		t.Fatalf("history store returned mutable file slice")
+	}
+}
+
+func TestRecordHistoryValidation(t *testing.T) {
+	svc := NewService()
+	spec := mustSpec(t)
+	if _, err := svc.RecordHistory(context.Background(), RecordHistoryInput{Spec: spec}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "dry-run") {
+		t.Fatalf("expected dry-run required error, got %v", err)
+	}
+	dryRun, err := svc.DryRun(context.Background(), DryRunInput{Spec: spec, BatchID: "batch-no-actor"})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+	if _, err := svc.RecordHistory(context.Background(), RecordHistoryInput{DryRun: dryRun, Spec: spec}); err == nil || !strings.Contains(strings.ToLower(err.Error()), "actor") {
+		t.Fatalf("expected actor required error, got %v", err)
+	}
+	if _, err := svc.GetHistory(context.Background(), "missing"); err == nil || !strings.Contains(strings.ToLower(err.Error()), "not found") {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
 func assertPlanPath(t *testing.T, files []FilePlan, path string, status FileStatus) {
 	t.Helper()
 	plan := findPlan(t, files, path)

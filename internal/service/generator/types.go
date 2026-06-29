@@ -1,6 +1,7 @@
 package generator
 
 import domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
+import "time"
 
 type FileStatus string
 
@@ -15,6 +16,7 @@ const (
 type DryRunInput struct {
 	Spec               *domaingenerator.GeneratorSpec
 	BatchID            string
+	ActorID            string
 	MigrationTimestamp string
 	ExistingFiles      []FileSnapshot
 }
@@ -49,8 +51,34 @@ type DryRunSummary struct {
 }
 
 type DryRunResult struct {
-	BatchID string
-	SpecID  string
-	Files   []FilePlan
-	Summary DryRunSummary
+	BatchID  string
+	SpecID   string
+	ActorID  string
+	SpecHash string
+	Files    []FilePlan
+	Summary  DryRunSummary
+}
+
+type RecordHistoryInput struct {
+	DryRun    *DryRunResult
+	Spec      *domaingenerator.GeneratorSpec
+	ActorID   string
+	CreatedAt time.Time
+}
+
+type GeneratedFileRecord struct {
+	Path       string
+	TemplateID string
+	Status     FileStatus
+	Hash       string
+}
+
+type GenerationHistory struct {
+	BatchID      string
+	ActorID      string
+	SpecID       string
+	SpecHash     string
+	SpecSnapshot string
+	Files        []GeneratedFileRecord
+	CreatedAt    time.Time
 }

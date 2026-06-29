@@ -4,17 +4,34 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
 )
 
-type serviceImpl struct{}
+type HistoryStore interface {
+	Save(ctx context.Context, history GenerationHistory) error
+	Get(ctx context.Context, batchID string) (*GenerationHistory, error)
+}
+
+type serviceImpl struct {
+	history HistoryStore
+}
 
 func NewService() Service {
-	return &serviceImpl{}
+	return &serviceImpl{history: NewMemoryHistoryStore()}
+}
+
+func NewServiceWithHistory(history HistoryStore) Service {
+	if history == nil {
+		history = NewMemoryHistoryStore()
+	}
+	return &serviceImpl{history: history}
 }
 
 func (s *serviceImpl) DryRun(_ context.Context, in DryRunInput) (*DryRunResult, error) {
@@ -25,6 +42,7 @@ func (s *serviceImpl) DryRun(_ context.Context, in DryRunInput) (*DryRunResult, 
 	if batchID == "" {
 		batchID = "dry-run"
 	}
+	actorID := strings.TrimSpace(in.ActorID)
 	migrationTimestamp := strings.TrimSpace(in.MigrationTimestamp)
 	if migrationTimestamp == "" {
 		migrationTimestamp = in.Spec.Meta.CreatedAt.UTC().Format("20060102_150405")
@@ -52,11 +70,71 @@ func (s *serviceImpl) DryRun(_ context.Context, in DryRunInput) (*DryRunResult, 
 		return files[i].Path < files[j].Path
 	})
 	return &DryRunResult{
-		BatchID: batchID,
-		SpecID:  in.Spec.ID.String(),
-		Files:   files,
-		Summary: summary,
+		BatchID:  batchID,
+		SpecID:   in.Spec.ID.String(),
+		ActorID:  actorID,
+		SpecHash: specHash(*in.Spec),
+		Files:    files,
+		Summary:  summary,
 	}, nil
+}
+
+func (s *serviceImpl) RecordHistory(ctx context.Context, in RecordHistoryInput) (*GenerationHistory, error) {
+	if in.DryRun == nil {
+		return nil, fmt.Errorf("generator dry-run result is required")
+	}
+	if in.Spec == nil {
+		return nil, fmt.Errorf("generator spec is required")
+	}
+	if s == nil || s.history == nil {
+		return nil, fmt.Errorf("generator history store is not configured")
+	}
+	actorID := strings.TrimSpace(in.ActorID)
+	if actorID == "" {
+		actorID = strings.TrimSpace(in.DryRun.ActorID)
+	}
+	if actorID == "" {
+		return nil, fmt.Errorf("generator actor id is required")
+	}
+	createdAt := in.CreatedAt
+	if createdAt.IsZero() {
+		createdAt = time.Now().UTC()
+	}
+	history := GenerationHistory{
+		BatchID:      strings.TrimSpace(in.DryRun.BatchID),
+		ActorID:      actorID,
+		SpecID:       in.Spec.ID.String(),
+		SpecHash:     specHash(*in.Spec),
+		SpecSnapshot: specSnapshot(*in.Spec),
+		Files:        make([]GeneratedFileRecord, 0, len(in.DryRun.Files)),
+		CreatedAt:    createdAt,
+	}
+	if history.BatchID == "" {
+		return nil, fmt.Errorf("generator batch id is required")
+	}
+	for _, file := range in.DryRun.Files {
+		history.Files = append(history.Files, GeneratedFileRecord{
+			Path:       file.Path,
+			TemplateID: file.TemplateID,
+			Status:     file.Status,
+			Hash:       file.ContentHash,
+		})
+	}
+	if err := s.history.Save(ctx, history); err != nil {
+		return nil, err
+	}
+	return &history, nil
+}
+
+func (s *serviceImpl) GetHistory(ctx context.Context, batchID string) (*GenerationHistory, error) {
+	if s == nil || s.history == nil {
+		return nil, fmt.Errorf("generator history store is not configured")
+	}
+	batchID = strings.TrimSpace(batchID)
+	if batchID == "" {
+		return nil, fmt.Errorf("generator batch id is required")
+	}
+	return s.history.Get(ctx, batchID)
 }
 
 type fileCandidate struct {
@@ -164,6 +242,51 @@ func (s *DryRunSummary) add(status FileStatus) {
 func contentHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
+}
+
+func specHash(spec domaingenerator.GeneratorSpec) string {
+	return contentHash(specSnapshot(spec))
+}
+
+func specSnapshot(spec domaingenerator.GeneratorSpec) string {
+	data, err := json.Marshal(spec)
+	if err != nil {
+		return spec.ID.String()
+	}
+	return string(data)
+}
+
+type memoryHistoryStore struct {
+	mu      sync.RWMutex
+	records map[string]GenerationHistory
+}
+
+func NewMemoryHistoryStore() HistoryStore {
+	return &memoryHistoryStore{records: make(map[string]GenerationHistory)}
+}
+
+func (s *memoryHistoryStore) Save(_ context.Context, history GenerationHistory) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	copyHistory := cloneHistory(history)
+	s.records[history.BatchID] = copyHistory
+	return nil
+}
+
+func (s *memoryHistoryStore) Get(_ context.Context, batchID string) (*GenerationHistory, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	history, ok := s.records[batchID]
+	if !ok {
+		return nil, fmt.Errorf("generator history not found")
+	}
+	copyHistory := cloneHistory(history)
+	return &copyHistory, nil
+}
+
+func cloneHistory(history GenerationHistory) GenerationHistory {
+	history.Files = append([]GeneratedFileRecord(nil), history.Files...)
+	return history
 }
 
 func buildCreateDiff(path, generated string) string {

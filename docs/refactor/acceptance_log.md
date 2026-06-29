@@ -12786,3 +12786,68 @@ npm run build
 
 ### 下一步
 - 进入 `M5-06-01`，实现生成历史记录。
+
+## M5-06-01: 生成历史记录
+
+- 状态: Passed
+- Work Item: M5-06-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/service.go`
+- `internal/service/generator/types.go`
+- `internal/service/generator/service_impl.go`
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 历史服务接口 | Passed | `Service` 新增 `RecordHistory` 和 `GetHistory`。 |
+| 历史 store | Passed | 新增内存 history store，可保存和查询生成历史，并复制文件列表避免外部修改。 |
+| 批次与操作者 | Passed | 历史记录包含 batchID、actorID、createdAt。 |
+| spec/hash | Passed | 历史记录包含 specID、specSnapshot、specHash。 |
+| 文件清单 | Passed | 历史记录保存每个生成文件的 path、templateID、status、hash。 |
+| 测试覆盖 | Passed | 单测覆盖记录、查询、防可变切片泄漏、缺少 dry-run、缺少 actor 和 not found。 |
+| 任务状态更新 | Passed | `M5-06-01` 已标记 Done，`M5-06` 父任务保留 Todo，等待 `M5-06-02`。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/service.go internal/service/generator/types.go internal/service/generator/service_impl.go internal/service/generator/service_impl_test.go
+go test ./internal/service/generator/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 history 记录足以支持后续 rollback 的 hash 和文件清单判断。
+2. 检查 actor/spec/batch 均可追踪。
+3. 检查 `M5-06` 父任务继续等待 `M5-06-02` 回滚机制收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-06-02`，实现回滚机制。
