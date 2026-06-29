@@ -23,6 +23,7 @@ type FileSnapshot struct {
 	Path                  string
 	CurrentHash           string
 	PreviousGeneratedHash string
+	CurrentContent        string
 }
 
 type FilePlan struct {
@@ -30,8 +31,10 @@ type FilePlan struct {
 	TemplateID            string
 	Status                FileStatus
 	ContentHash           string
+	GeneratedContent      string
 	CurrentHash           string
 	PreviousGeneratedHash string
+	Diff                  string
 	Summary               string
 	Reason                string
 }

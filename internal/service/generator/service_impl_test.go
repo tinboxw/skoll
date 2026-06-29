@@ -32,6 +32,9 @@ func TestDryRunBuildsDeterministicFileList(t *testing.T) {
 	assertPlanPath(t, result.Files, "internal/repository/product/product_repo.go", FileStatusCreate)
 	assertPlanPath(t, result.Files, "migrations/mysql/20260629_010203_create_products.sql", FileStatusCreate)
 	assertPlanPath(t, result.Files, "web/src/views/Product/index.vue", FileStatusCreate)
+	if plan := findPlan(t, result.Files, "internal/domain/product/entity.go"); !strings.Contains(plan.Diff, "--- /dev/null") || !strings.Contains(plan.Diff, "+++ generated/internal/domain/product/entity.go") {
+		t.Fatalf("create diff is not readable: %q", plan.Diff)
+	}
 }
 
 func TestDryRunClassifiesExistingFiles(t *testing.T) {
@@ -54,8 +57,8 @@ func TestDryRunClassifiesExistingFiles(t *testing.T) {
 		MigrationTimestamp: "20260629_010203",
 		ExistingFiles: []FileSnapshot{
 			{Path: domainPlan.Path, CurrentHash: domainPlan.ContentHash},
-			{Path: repoPlan.Path, CurrentHash: "old-generated-hash", PreviousGeneratedHash: "old-generated-hash"},
-			{Path: storePlan.Path, CurrentHash: "user-edited-hash", PreviousGeneratedHash: "old-generated-hash"},
+			{Path: repoPlan.Path, CurrentHash: "old-generated-hash", PreviousGeneratedHash: "old-generated-hash", CurrentContent: "old repository content"},
+			{Path: storePlan.Path, CurrentHash: "user-edited-hash", PreviousGeneratedHash: "old-generated-hash", CurrentContent: "user edited store"},
 			{Path: handlerPlan.Path, CurrentHash: "unknown-existing-hash"},
 		},
 	})
@@ -66,6 +69,12 @@ func TestDryRunClassifiesExistingFiles(t *testing.T) {
 	assertPlanPath(t, result.Files, repoPlan.Path, FileStatusUpdateClean)
 	assertPlanPath(t, result.Files, storePlan.Path, FileStatusConflict)
 	assertPlanPath(t, result.Files, handlerPlan.Path, FileStatusConflict)
+	if plan := findPlan(t, result.Files, repoPlan.Path); !strings.Contains(plan.Diff, "--- current/") || !strings.Contains(plan.Diff, "-old repository content") || !strings.Contains(plan.Diff, "+backend.repository") {
+		t.Fatalf("update diff is not readable: %q", plan.Diff)
+	}
+	if plan := findPlan(t, result.Files, storePlan.Path); !strings.Contains(plan.Diff, "-user edited store") || !strings.Contains(plan.Reason, "differs") {
+		t.Fatalf("conflict diff is not readable: %+v", plan)
+	}
 	if result.Summary.Unchanged != 1 || result.Summary.UpdateClean != 1 || result.Summary.Conflict != 2 {
 		t.Fatalf("summary = %+v", result.Summary)
 	}

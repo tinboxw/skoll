@@ -109,9 +109,10 @@ func candidate(templateID, path string, spec domaingenerator.GeneratorSpec) file
 func classifyCandidate(candidate fileCandidate, snapshot FileSnapshot) FilePlan {
 	hash := contentHash(candidate.Payload)
 	plan := FilePlan{
-		Path:        candidate.Path,
-		TemplateID:  candidate.TemplateID,
-		ContentHash: hash,
+		Path:             candidate.Path,
+		TemplateID:       candidate.TemplateID,
+		ContentHash:      hash,
+		GeneratedContent: candidate.Payload,
 	}
 	if !allowedOutputPath(candidate.Path) {
 		plan.Status = FileStatusBlocked
@@ -121,6 +122,7 @@ func classifyCandidate(candidate fileCandidate, snapshot FileSnapshot) FilePlan 
 	}
 	if snapshot.Path == "" {
 		plan.Status = FileStatusCreate
+		plan.Diff = buildCreateDiff(candidate.Path, candidate.Payload)
 		plan.Summary = "create: " + candidate.Path
 		return plan
 	}
@@ -133,6 +135,7 @@ func classifyCandidate(candidate fileCandidate, snapshot FileSnapshot) FilePlan 
 	}
 	if plan.PreviousGeneratedHash != "" && plan.CurrentHash == plan.PreviousGeneratedHash {
 		plan.Status = FileStatusUpdateClean
+		plan.Diff = buildChangeDiff(candidate.Path, snapshot.CurrentContent, candidate.Payload)
 		plan.Summary = "update-clean: " + candidate.Path
 		return plan
 	}
@@ -142,6 +145,7 @@ func classifyCandidate(candidate fileCandidate, snapshot FileSnapshot) FilePlan 
 	} else {
 		plan.Reason = "existing file differs from previous generated hash"
 	}
+	plan.Diff = buildChangeDiff(candidate.Path, snapshot.CurrentContent, candidate.Payload)
 	plan.Summary = "conflict: " + candidate.Path
 	return plan
 }
@@ -165,6 +169,52 @@ func (s *DryRunSummary) add(status FileStatus) {
 func contentHash(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
+}
+
+func buildCreateDiff(path, generated string) string {
+	var b strings.Builder
+	b.WriteString("--- /dev/null\n")
+	b.WriteString("+++ generated/")
+	b.WriteString(path)
+	b.WriteString("\n@@\n")
+	for _, line := range splitDiffLines(generated) {
+		b.WriteString("+")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func buildChangeDiff(path, current, generated string) string {
+	if current == "" {
+		current = "(current content unavailable)"
+	}
+	var b strings.Builder
+	b.WriteString("--- current/")
+	b.WriteString(path)
+	b.WriteString("\n+++ generated/")
+	b.WriteString(path)
+	b.WriteString("\n@@\n")
+	for _, line := range splitDiffLines(current) {
+		b.WriteString("-")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	for _, line := range splitDiffLines(generated) {
+		b.WriteString("+")
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func splitDiffLines(value string) []string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.TrimSuffix(value, "\n")
+	if value == "" {
+		return []string{""}
+	}
+	return strings.Split(value, "\n")
 }
 
 func normalizePath(path string) string {
