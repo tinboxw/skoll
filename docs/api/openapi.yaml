@@ -449,6 +449,28 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/plugins/marketplace/local:
+    get:
+      summary: List local plugin marketplace entries
+      parameters:
+        - name: pluginsRoot
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocalMarketplaceAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/plugins/{id}:
     get:
       summary: Get plugin detail
@@ -2909,6 +2931,95 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/RolloutData'
+    LocalMarketplaceSignature:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [signed, unsigned, incomplete, unknown]
+        algorithm:
+          type: string
+        vendorId:
+          type: string
+        signedAt:
+          type: string
+          format: date-time
+    LocalMarketplaceRiskSummary:
+      type: object
+      properties:
+        level:
+          type: string
+          enum: [low, medium, high, critical, unknown]
+        permissions:
+          type: array
+          items:
+            type: string
+        migrations:
+          type: array
+          items:
+            type: string
+        network:
+          type: array
+          items:
+            type: string
+        assets:
+          type: array
+          items:
+            type: string
+    LocalMarketplaceItem:
+      type: object
+      required:
+        - id
+        - name
+        - version
+        - installable
+        - signature
+        - risk
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        description:
+          type: string
+        manifestPath:
+          type: string
+        packagePath:
+          type: string
+        packageDigest:
+          type: string
+        packageSizeBytes:
+          type: integer
+          format: int64
+        installable:
+          type: boolean
+        signature:
+          $ref: '#/components/schemas/LocalMarketplaceSignature'
+        risk:
+          $ref: '#/components/schemas/LocalMarketplaceRiskSummary'
+    LocalMarketplaceData:
+      type: object
+      required:
+        - pluginsRoot
+        - items
+      properties:
+        pluginsRoot:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LocalMarketplaceItem'
+    LocalMarketplaceAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/LocalMarketplaceData'
     RolloutTaskListAPIResponse:
       allOf:
         - $ref: '#/components/schemas/MessageResponse'

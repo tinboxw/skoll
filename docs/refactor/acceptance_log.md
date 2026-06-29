@@ -13194,3 +13194,82 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-02-01`，实现本地市场 service/API。
+
+## M6-02-01: 本地市场 service/API
+
+- 状态: Passed
+- Work Item: M6-02-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/local_marketplace.go`
+- `internal/plugin/local_marketplace_test.go`
+- `internal/handler/http/v1/plugin/handler.go`
+- `internal/handler/http/v1/plugin/handler_test.go`
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 本地插件展示 | Passed | `LocalMarketplaceService` 扫描 allowlist root 下的 `plugin.yaml` 并返回 id/name/version/manifestPath。 |
+| 可安装包展示 | Passed | 扫描 `_dist/*.zip`，计算 package sha256 和 size，并与同 id/version manifest 合并为 installable。 |
+| 签名展示 | Passed | 输出 signed/unsigned/incomplete/unknown 状态，以及 algorithm/vendorId/signedAt。 |
+| 风险展示 | Passed | 汇总权限、迁移、网络、前端资产风险，并计算 low/medium/high/critical 等级。 |
+| HTTP API | Passed | 新增 `GET /v1/plugins/marketplace/local`，支持 allowlist 内 `pluginsRoot` 查询。 |
+| API 契约同步 | Passed | `docs/api/openapi.yaml` 与 `internal/handler/http/openapi.yaml` 同步新增路径和 response schema。 |
+| 安全边界 | Passed | 本项只读列出本地市场，不执行 install/enable/disable 或文件写入。 |
+| 任务状态更新 | Passed | `M6-02-01` 已标记 Done；`M6-02` 因 UI 子项未完成保持 Todo。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/plugin/local_marketplace.go internal/plugin/local_marketplace_test.go internal/handler/http/v1/plugin/handler.go internal/handler/http/v1/plugin/handler_test.go
+go test ./internal/plugin/... ./internal/handler/http/v1/plugin/...
+@'
+import yaml
+for path in ['docs/api/openapi.yaml','internal/handler/http/openapi.yaml']:
+    yaml.safe_load(open(path, encoding='utf-8'))
+'@ | python -
+rg -n "LocalMarketplace|marketplace/local|PackageDigest|Signature|Risk|M6-02-01" internal/plugin internal/handler/http/v1/plugin docs/api/openapi.yaml internal/handler/http/openapi.yaml docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查本地市场 API 返回信息足以让后续 UI 展示本地插件、安装包、签名和风险。
+2. 检查 API 使用现有响应 envelope，并且 OpenAPI 与 handler 路径一致。
+3. 检查 `M6-02` 父任务仍等待 `M6-02-02` 市场列表 UI。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M6-02-02`，实现市场列表 UI。

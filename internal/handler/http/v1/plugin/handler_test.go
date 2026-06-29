@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -269,6 +270,69 @@ func TestPluginHandlerEnabledFilterFallback(t *testing.T) {
 	}
 	if body.Data[0].Level != string(plugin.LevelSystem) {
 		t.Fatalf("unexpected fallback level: %s", body.Data[0].Level)
+	}
+}
+
+func TestPluginHandlerLocalMarketplace(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	pluginDir := filepath.Join(pluginsRoot, "demo")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("mkdir plugin: %v", err)
+	}
+	manifest := strings.Join([]string{
+		"id: demo",
+		"name: Demo Plugin",
+		"version: 0.2.0",
+		"api_version: v1",
+		`compatibility_skoll: ">=1.0.0 <2.0.0"`,
+		"ui_mode: frontend_only",
+		"sign_algo: RSA-SHA256",
+		"sign_timestamp: 2026-06-29T00:00:00Z",
+		"sign_value: signed",
+		"i18n_locales:",
+		"  - zh-CN",
+		"permissions:",
+		"  - key: demo.export",
+		"    type: api",
+		"    module: demo",
+		"    name: Export demo",
+		"    risk: high",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	dist := filepath.Join(pluginsRoot, "_dist")
+	if err := os.MkdirAll(dist, 0o755); err != nil {
+		t.Fatalf("mkdir dist: %v", err)
+	}
+	writeHandlerZip(t, filepath.Join(dist, "demo-0.2.0.zip"))
+
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{}}, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/plugins/marketplace/local?pluginsRoot="+filepath.ToSlash(pluginsRoot), nil)
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("local marketplace status=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	var body struct {
+		Data plugin.LocalMarketplaceCatalog `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode marketplace response: %v", err)
+	}
+	if len(body.Data.Items) != 1 {
+		t.Fatalf("expected one marketplace item, got %+v", body.Data.Items)
+	}
+	item := body.Data.Items[0]
+	if item.ID != "demo" || !item.Installable || item.Signature.Status != "signed" || item.Risk.Level != "high" {
+		t.Fatalf("unexpected marketplace item: %+v", item)
+	}
+	if item.PackageDigest == "" || item.PackageSizeBytes == 0 {
+		t.Fatalf("expected package evidence: %+v", item)
 	}
 }
 
@@ -1302,4 +1366,22 @@ func TestFakePluginManagerImplementsManager(t *testing.T) {
 	var _ PluginExtensionSnapshotProvider = (*fakePluginManager)(nil)
 	var _ PluginConfigUpdater = (*fakePluginManager)(nil)
 	t.Log("compile assertions passed")
+}
+
+func writeHandlerZip(t *testing.T, path string) {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create zip: %v", err)
+	}
+	defer file.Close()
+	writer := zip.NewWriter(file)
+	defer writer.Close()
+	entry, err := writer.Create("plugin.yaml")
+	if err != nil {
+		t.Fatalf("create zip entry: %v", err)
+	}
+	if _, err := entry.Write([]byte("id: demo\n")); err != nil {
+		t.Fatalf("write zip entry: %v", err)
+	}
 }

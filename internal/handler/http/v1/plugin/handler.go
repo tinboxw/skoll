@@ -371,6 +371,7 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	h.logger = logging.New(h.logLevel)
 	mux.HandleFunc("GET /v1/plugins/dev/config", h.devConfig)
 	mux.HandleFunc("GET /v1/plugins/dev/permission-catalog", h.devPermissionCatalog)
+	mux.HandleFunc("GET /v1/plugins/marketplace/local", h.localMarketplace)
 	mux.HandleFunc("GET /v1/plugins", h.list)
 	mux.HandleFunc("GET /v1/plugins/{id}", h.get)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
@@ -464,6 +465,22 @@ func (h *PluginHandler) get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiv1.WriteJSON(w, http.StatusOK, pluginRecordFromInfo(item))
+}
+
+func (h *PluginHandler) localMarketplace(w http.ResponseWriter, r *http.Request) {
+	pluginsRoot, err := h.resolveDevPluginsRoot(r.URL.Query().Get("pluginsRoot"))
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	catalog, err := plugin.NewLocalMarketplaceService(h.loader).List(pluginsRoot)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	apiv1.WriteJSON(w, http.StatusOK, catalog)
 }
 
 func (h *PluginHandler) records() []pluginRecord {
