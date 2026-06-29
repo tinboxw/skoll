@@ -12851,3 +12851,69 @@ go test ./internal/service/generator/...
 
 ### 下一步
 - 进入 `M5-06-02`，实现回滚机制。
+
+## M5-06-02: 回滚机制
+
+- 状态: Passed
+- Work Item: M5-06-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/service.go`
+- `internal/service/generator/types.go`
+- `internal/service/generator/service_impl.go`
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| rollback plan 接口 | Passed | `Service` 新增 `PlanRollback`，基于 batch history 和当前文件快照输出回滚计划。 |
+| 未修改 create 文件 | Passed | 当前 hash 等于生成历史 hash 时，create 文件可输出 `delete` 动作。 |
+| 未修改 update-clean 文件 | Passed | 当前 hash 等于生成历史 hash 时，update-clean 文件可输出 `restore` 动作，并携带 previous hash/content。 |
+| 冲突文件处理 | Passed | 当前 hash 与生成历史 hash 不一致时输出 `conflict`，未写入文件输出 `manual`。 |
+| 安全边界 | Passed | 本任务只生成回滚计划，不直接删除或写入磁盘。 |
+| 测试覆盖 | Passed | 单测覆盖 delete、restore、manual、conflict 和缺失 history 查询。 |
+| 任务状态更新 | Passed | `M5-06-02` 已标记 Done，`M5-06` 父任务已标记 Done。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/service.go internal/service/generator/types.go internal/service/generator/service_impl.go internal/service/generator/service_impl_test.go
+go test ./internal/service/generator/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查回滚机制只依赖 hash 判断，不覆盖用户改动。
+2. 检查冲突文件进入人工处理清单，不执行自动恢复。
+3. 检查 `M5-06` 父任务随 history 与 rollback 完成而收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-07-01`，补 generator golden tests。

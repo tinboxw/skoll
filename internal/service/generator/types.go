@@ -35,6 +35,7 @@ type FilePlan struct {
 	ContentHash           string
 	GeneratedContent      string
 	CurrentHash           string
+	CurrentContent        string
 	PreviousGeneratedHash string
 	Diff                  string
 	Summary               string
@@ -67,10 +68,13 @@ type RecordHistoryInput struct {
 }
 
 type GeneratedFileRecord struct {
-	Path       string
-	TemplateID string
-	Status     FileStatus
-	Hash       string
+	Path             string
+	TemplateID       string
+	Status           FileStatus
+	Hash             string
+	GeneratedContent string
+	PreviousHash     string
+	PreviousContent  string
 }
 
 type GenerationHistory struct {
@@ -81,4 +85,35 @@ type GenerationHistory struct {
 	SpecSnapshot string
 	Files        []GeneratedFileRecord
 	CreatedAt    time.Time
+}
+
+type RollbackAction string
+
+const (
+	RollbackActionDelete   RollbackAction = "delete"
+	RollbackActionRestore  RollbackAction = "restore"
+	RollbackActionNoop     RollbackAction = "noop"
+	RollbackActionConflict RollbackAction = "conflict"
+	RollbackActionManual   RollbackAction = "manual"
+)
+
+type RollbackInput struct {
+	BatchID      string
+	CurrentFiles []FileSnapshot
+}
+
+type RollbackFilePlan struct {
+	Path            string
+	Action          RollbackAction
+	Reason          string
+	ExpectedHash    string
+	CurrentHash     string
+	RestoredHash    string
+	RestoredContent string
+}
+
+type RollbackPlan struct {
+	BatchID   string
+	Files     []RollbackFilePlan
+	Conflicts []RollbackFilePlan
 }

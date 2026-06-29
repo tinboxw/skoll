@@ -114,10 +114,13 @@ func (s *serviceImpl) RecordHistory(ctx context.Context, in RecordHistoryInput) 
 	}
 	for _, file := range in.DryRun.Files {
 		history.Files = append(history.Files, GeneratedFileRecord{
-			Path:       file.Path,
-			TemplateID: file.TemplateID,
-			Status:     file.Status,
-			Hash:       file.ContentHash,
+			Path:             file.Path,
+			TemplateID:       file.TemplateID,
+			Status:           file.Status,
+			Hash:             file.ContentHash,
+			GeneratedContent: file.GeneratedContent,
+			PreviousHash:     file.CurrentHash,
+			PreviousContent:  file.CurrentContent,
 		})
 	}
 	if err := s.history.Save(ctx, history); err != nil {
@@ -135,6 +138,35 @@ func (s *serviceImpl) GetHistory(ctx context.Context, batchID string) (*Generati
 		return nil, fmt.Errorf("generator batch id is required")
 	}
 	return s.history.Get(ctx, batchID)
+}
+
+func (s *serviceImpl) PlanRollback(ctx context.Context, in RollbackInput) (*RollbackPlan, error) {
+	history, err := s.GetHistory(ctx, in.BatchID)
+	if err != nil {
+		return nil, err
+	}
+	current := make(map[string]FileSnapshot, len(in.CurrentFiles))
+	for _, file := range in.CurrentFiles {
+		path := normalizePath(file.Path)
+		if path == "" {
+			return nil, fmt.Errorf("rollback current file path is required")
+		}
+		file.Path = path
+		current[path] = file
+	}
+	plan := &RollbackPlan{
+		BatchID:   history.BatchID,
+		Files:     make([]RollbackFilePlan, 0, len(history.Files)),
+		Conflicts: make([]RollbackFilePlan, 0),
+	}
+	for _, file := range history.Files {
+		item := rollbackFile(file, current[file.Path])
+		plan.Files = append(plan.Files, item)
+		if item.Action == RollbackActionConflict || item.Action == RollbackActionManual {
+			plan.Conflicts = append(plan.Conflicts, item)
+		}
+	}
+	return plan, nil
 }
 
 type fileCandidate struct {
@@ -200,6 +232,7 @@ func classifyCandidate(candidate fileCandidate, snapshot FileSnapshot) FilePlan 
 		return plan
 	}
 	plan.CurrentHash = strings.TrimSpace(snapshot.CurrentHash)
+	plan.CurrentContent = snapshot.CurrentContent
 	plan.PreviousGeneratedHash = strings.TrimSpace(snapshot.PreviousGeneratedHash)
 	if plan.CurrentHash == hash {
 		plan.Status = FileStatusUnchanged
@@ -287,6 +320,48 @@ func (s *memoryHistoryStore) Get(_ context.Context, batchID string) (*Generation
 func cloneHistory(history GenerationHistory) GenerationHistory {
 	history.Files = append([]GeneratedFileRecord(nil), history.Files...)
 	return history
+}
+
+func rollbackFile(record GeneratedFileRecord, current FileSnapshot) RollbackFilePlan {
+	item := RollbackFilePlan{
+		Path:         record.Path,
+		ExpectedHash: record.Hash,
+		CurrentHash:  strings.TrimSpace(current.CurrentHash),
+	}
+	if record.Status == FileStatusUnchanged {
+		item.Action = RollbackActionNoop
+		item.Reason = "file was unchanged by generation"
+		return item
+	}
+	if record.Status == FileStatusConflict || record.Status == FileStatusBlocked {
+		item.Action = RollbackActionManual
+		item.Reason = "file was not written by generation"
+		return item
+	}
+	if current.Path == "" {
+		item.Action = RollbackActionNoop
+		item.Reason = "generated file is already absent"
+		return item
+	}
+	if item.CurrentHash != record.Hash {
+		item.Action = RollbackActionConflict
+		item.Reason = "current file differs from generated history hash"
+		return item
+	}
+	switch record.Status {
+	case FileStatusCreate:
+		item.Action = RollbackActionDelete
+		item.Reason = "generated file can be removed"
+	case FileStatusUpdateClean:
+		item.Action = RollbackActionRestore
+		item.Reason = "generated file can be restored to previous content"
+		item.RestoredHash = record.PreviousHash
+		item.RestoredContent = record.PreviousContent
+	default:
+		item.Action = RollbackActionManual
+		item.Reason = "rollback action is not defined for file status"
+	}
+	return item
 }
 
 func buildCreateDiff(path, generated string) string {

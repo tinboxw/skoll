@@ -222,6 +222,90 @@ func TestRecordHistoryValidation(t *testing.T) {
 	}
 }
 
+func TestPlanRollback(t *testing.T) {
+	svc := NewService()
+	spec := mustSpec(t)
+	base, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "batch-rollback",
+		ActorID:            "actor-1",
+		MigrationTimestamp: "20260629_010203",
+	})
+	if err != nil {
+		t.Fatalf("DryRun(base) error = %v", err)
+	}
+	repoPlan := findPlan(t, base.Files, "internal/repository/product/product_repo.go")
+	storePlan := findPlan(t, base.Files, "internal/store/memory/product_store.go")
+	dryRun, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "batch-rollback",
+		ActorID:            "actor-1",
+		MigrationTimestamp: "20260629_010203",
+		ExistingFiles: []FileSnapshot{
+			{Path: repoPlan.Path, CurrentHash: "old-repo-hash", PreviousGeneratedHash: "old-repo-hash", CurrentContent: "old repository content"},
+			{Path: storePlan.Path, CurrentHash: "user-edited-hash", PreviousGeneratedHash: "old-store-hash", CurrentContent: "user edited store"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("DryRun(update) error = %v", err)
+	}
+	if _, err := svc.RecordHistory(context.Background(), RecordHistoryInput{DryRun: dryRun, Spec: spec}); err != nil {
+		t.Fatalf("RecordHistory() error = %v", err)
+	}
+	createFile := findPlan(t, dryRun.Files, "internal/domain/product/entity.go")
+	updateFile := findPlan(t, dryRun.Files, repoPlan.Path)
+	conflictFile := findPlan(t, dryRun.Files, storePlan.Path)
+
+	plan, err := svc.PlanRollback(context.Background(), RollbackInput{
+		BatchID: "batch-rollback",
+		CurrentFiles: []FileSnapshot{
+			{Path: createFile.Path, CurrentHash: createFile.ContentHash},
+			{Path: updateFile.Path, CurrentHash: updateFile.ContentHash},
+			{Path: conflictFile.Path, CurrentHash: conflictFile.ContentHash},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PlanRollback() error = %v", err)
+	}
+	assertRollbackAction(t, plan, createFile.Path, RollbackActionDelete)
+	restore := assertRollbackAction(t, plan, updateFile.Path, RollbackActionRestore)
+	if restore.RestoredHash != "old-repo-hash" || restore.RestoredContent != "old repository content" {
+		t.Fatalf("restore plan = %+v", restore)
+	}
+	manual := assertRollbackAction(t, plan, conflictFile.Path, RollbackActionManual)
+	if !strings.Contains(manual.Reason, "not written") {
+		t.Fatalf("manual plan = %+v", manual)
+	}
+
+	modified, err := svc.PlanRollback(context.Background(), RollbackInput{
+		BatchID: "batch-rollback",
+		CurrentFiles: []FileSnapshot{
+			{Path: createFile.Path, CurrentHash: "user-modified-after-generation"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PlanRollback(modified) error = %v", err)
+	}
+	conflict := assertRollbackAction(t, modified, createFile.Path, RollbackActionConflict)
+	if !strings.Contains(conflict.Reason, "differs") {
+		t.Fatalf("conflict plan = %+v", conflict)
+	}
+}
+
+func assertRollbackAction(t *testing.T, plan *RollbackPlan, path string, action RollbackAction) RollbackFilePlan {
+	t.Helper()
+	for _, file := range plan.Files {
+		if file.Path == path {
+			if file.Action != action {
+				t.Fatalf("rollback action for %s = %s, want %s: %+v", path, file.Action, action, file)
+			}
+			return file
+		}
+	}
+	t.Fatalf("missing rollback file %s in %+v", path, plan.Files)
+	return RollbackFilePlan{}
+}
+
 func assertPlanPath(t *testing.T, files []FilePlan, path string, status FileStatus) {
 	t.Helper()
 	plan := findPlan(t, files, path)
