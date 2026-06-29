@@ -1,4 +1,4 @@
-# Skoll 重构父任务表
+﻿# Skoll 重构父任务表
 
 > 执行规则: 本文档是父任务表。实际执行与提交以 [work_items.md](work_items.md) 的 Work Item 为最小单元。每个 Work Item 验收通过后提交一次代码。父任务用于里程碑分组和验收聚合，不作为最小执行或提交单元。
 
@@ -110,7 +110,7 @@
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
 | 36 | M5-01 | `skoll-generator-refactor` | GeneratorSpec 模型 | domain | 描述模块、表、字段、索引、校验、菜单、权限、页面 | `go test ./internal/domain/generator/...` | Done |
-| 37 | M5-02 | `skoll-generator-refactor` | 模板规范 | docs/templates | 输出路径、命名、冲突策略明确 | 文档审阅 | Todo |
+| 37 | M5-02 | `skoll-generator-refactor` | 模板规范 | docs/templates | 输出路径、命名、冲突策略明确 | 文档审阅 | Done |
 | 38 | M5-03 | `skoll-generator-refactor` | dry-run 与 diff | service | 写入前展示文件清单和 diff | `go test ./internal/service/generator/...` | Todo |
 | 39 | M5-04 | `skoll-code-generator` | 后端 CRUD 生成 | generator templates | 输出 domain/service/store/handler/migration/OpenAPI | `go test ./...` | Todo |
 | 40 | M5-05 | `skoll-code-generator` | 前端 CRUD 生成 | Vue/API/store/templates | 输出列表、表单、API client、菜单 | `cd web && npm run build` | Todo |

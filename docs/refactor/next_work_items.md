@@ -1,4 +1,4 @@
-# Skoll 后续细化 Work Items
+﻿# Skoll 后续细化 Work Items
 
 > 日期: 2026-06-19
 > 适用范围: 当前 `work_items.md` 已完成后的下一批 M3-M7 任务。
@@ -88,7 +88,7 @@
 |---:|---|---|---|---|---|---|---|---|
 | 36 | M5-01-01 | M5-01 | `skoll-generator-refactor` | GeneratorSpec domain | domain | 模块、表、字段、索引、校验、权限、菜单、页面描述完整 | `go test ./internal/domain/generator/...` | Done |
 | 37 | M5-01-02 | M5-01 | `skoll-generator-refactor` | GeneratorSpec validation | domain tests | 命名、字段类型、冲突、权限 key 校验覆盖 | `go test ./internal/domain/generator/...` | Done |
-| 38 | M5-02-01 | M5-02 | `skoll-generator-refactor` | 模板输出规范 | docs/templates | 输出路径、命名、禁止覆盖用户改动策略明确 | 文档审阅 | Todo |
+| 38 | M5-02-01 | M5-02 | `skoll-generator-refactor` | 模板输出规范 | docs/templates | 输出路径、命名、禁止覆盖用户改动策略明确 | 文档审阅 | Done |
 | 39 | M5-03-01 | M5-03 | `skoll-generator-refactor` | dry-run 文件清单 | service | 生成前展示文件清单和变更摘要 | `go test ./internal/service/generator/...` | Todo |
 | 40 | M5-03-02 | M5-03 | `skoll-generator-refactor` | dry-run diff | service | 新增、修改、冲突文件 diff 可读 | `go test ./internal/service/generator/...` | Todo |
 | 41 | M5-04-01 | M5-04 | `skoll-code-generator` | 后端 domain/store 生成 | templates | domain、migration、store、repository 输出可编译 | `go test ./...` | Todo |

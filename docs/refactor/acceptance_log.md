@@ -12330,3 +12330,65 @@ go test ./internal/domain/generator/...
 
 ### 下一步
 - 进入 `M5-02-01`，编写模板输出规范。
+
+## M5-02-01: 模板输出规范
+
+- 状态: Passed
+- Work Item: M5-02-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/refactor/generator_template_output_spec.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 输出路径 | Passed | 规范列出 domain、repository、memory/sql store、migration、service、handler、OpenAPI、权限、菜单、审计、前端 API/store/view 和历史记录输出位置。 |
+| 命名规则 | Passed | 规范明确 module、package、table、field、permission、menu、route、audit action 的命名来源和约束。 |
+| 冲突策略 | Passed | 规范定义 `create`、`unchanged`、`update-clean`、`conflict`、`blocked` 状态和报告字段。 |
+| 禁止覆盖用户改动 | Passed | 未被生成历史 hash 证明可安全更新的既有文件一律视为用户拥有，生成器不得覆盖。 |
+| dry-run/hash/rollback | Passed | 规范要求写入前 dry-run，记录 spec、actor、路径、hash、模板版本，并限制 rollback 只处理 hash 匹配文件。 |
+| 任务状态更新 | Passed | `M5-02-01` 已标记 Done，`M5-02` 父任务已标记 Done。 |
+
+### 自动化验证
+```powershell
+rg -n "Generator Template Output Spec|Output Path Matrix|Naming Rules|Conflict Policy|No Overwrite|Dry Run|Hash|Canonical Validation" docs/refactor/generator_template_output_spec.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查模板输出规范覆盖当前 Skoll 分层架构，不引入旧路径、旧接口或兼容适配。
+2. 检查冲突策略以生成历史 hash 为准，用户改动文件默认不覆盖。
+3. 检查后续 `M5-03` dry-run/diff 可直接按本规范实现文件计划和冲突报告。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-03-01`，实现 dry-run 文件清单。
