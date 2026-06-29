@@ -12917,3 +12917,68 @@ go test ./internal/service/generator/...
 
 ### 下一步
 - 进入 `M5-07-01`，补 generator golden tests。
+
+## M5-07-01: generator golden tests
+
+- 状态: Passed
+- Work Item: M5-07-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| golden snapshot | Passed | 新增 deterministic file plan snapshot hash，覆盖路径、templateID、状态和内容 hash。 |
+| 幂等测试 | Passed | 同一 spec、batch 和 migration timestamp 连续 dry-run 输出完全一致。 |
+| 冲突检测 | Passed | 既有测试覆盖 unknown ownership 与 user-edited hash 的 conflict 分类。 |
+| 回滚测试 | Passed | 既有测试覆盖 delete、restore、manual、conflict rollback plan。 |
+| 模板输出测试 | Passed | 既有测试覆盖 Go parser、OpenAPI、权限 seed、前端 API/store/view 关键输出。 |
+| 全量测试 | Passed | `$env:CC='D:\workspace\mingw64\bin\gcc.exe'; go test ./...` 通过。 |
+| 任务状态更新 | Passed | `M5-07-01` 已标记 Done，`M5-07` 父任务已标记 Done。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/service_impl_test.go
+go test ./internal/service/generator/...
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 golden snapshot 不依赖外部 fixture 文件，避免污染 tracked fixtures。
+2. 检查测试覆盖 M5-07 要求的幂等、冲突、回滚和模板输出。
+3. 检查 `M5-07` 父任务随唯一 work item 完成而收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: 首次 golden snapshot 使用占位 hash，测试按预期失败并输出实际 snapshot hash。
+- 返工动作: 将预期 hash 固定为实际 deterministic snapshot hash，并重跑 generator 单测和全量 Go 测试。
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-08-01`，执行 demo_product 生成验收。

@@ -2,6 +2,8 @@ package generator
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"go/parser"
 	"go/token"
 	"strings"
@@ -142,6 +144,38 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 		!strings.Contains(view.GeneratedContent, "store.hasError") ||
 		!strings.Contains(view.GeneratedContent, "useProductStore") {
 		t.Fatalf("frontend view content = %q", view.GeneratedContent)
+	}
+}
+
+func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
+	svc := NewService()
+	spec := mustSpec(t)
+	first, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "batch-golden",
+		ActorID:            "actor-1",
+		MigrationTimestamp: "20260629_010203",
+	})
+	if err != nil {
+		t.Fatalf("DryRun(first) error = %v", err)
+	}
+	second, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "batch-golden",
+		ActorID:            "actor-1",
+		MigrationTimestamp: "20260629_010203",
+	})
+	if err != nil {
+		t.Fatalf("DryRun(second) error = %v", err)
+	}
+	firstSnapshot := goldenSnapshot(first)
+	secondSnapshot := goldenSnapshot(second)
+	if firstSnapshot != secondSnapshot {
+		t.Fatalf("dry-run is not idempotent\nfirst=%s\nsecond=%s", firstSnapshot, secondSnapshot)
+	}
+	const expectedSnapshotHash = "d0170c3922d3e2cf6da24695b9f6a93cc738a414ff3a41aed60d003ca24ac39f"
+	if got := sha256Hex(firstSnapshot); got != expectedSnapshotHash {
+		t.Fatalf("golden snapshot hash = %s, want %s\n%s", got, expectedSnapshotHash, firstSnapshot)
 	}
 }
 
@@ -326,6 +360,26 @@ func findPlan(t *testing.T, files []FilePlan, path string) FilePlan {
 	}
 	t.Fatalf("missing plan path %s in %+v", path, files)
 	return FilePlan{}
+}
+
+func goldenSnapshot(result *DryRunResult) string {
+	var b strings.Builder
+	for _, file := range result.Files {
+		b.WriteString(file.Path)
+		b.WriteString("|")
+		b.WriteString(file.TemplateID)
+		b.WriteString("|")
+		b.WriteString(string(file.Status))
+		b.WriteString("|")
+		b.WriteString(file.ContentHash)
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func sha256Hex(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }
 
 func mustSpec(t *testing.T) *domaingenerator.GeneratorSpec {
