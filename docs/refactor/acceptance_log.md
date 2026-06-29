@@ -12392,3 +12392,67 @@ git diff --check
 
 ### 下一步
 - 进入 `M5-03-01`，实现 dry-run 文件清单。
+
+## M5-03-01: dry-run 文件清单
+
+- 状态: Passed
+- Work Item: M5-03-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/service.go`
+- `internal/service/generator/types.go`
+- `internal/service/generator/service_impl.go`
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| dry-run 服务接口 | Passed | 新增 `generator.Service` 和 `DryRun`，输入 `GeneratorSpec`、批次号、migration timestamp 与已有文件快照。 |
+| 文件清单 | Passed | 输出 domain、repository、store、migration、service、handler、OpenAPI、权限 seed、前端 API/store/view 等路径。 |
+| 变更摘要 | Passed | `DryRunSummary` 汇总 `create`、`unchanged`、`update-clean`、`conflict`、`blocked` 数量。 |
+| 冲突保护 | Passed | 根据 current hash 和 previous generated hash 区分用户改动冲突、干净更新和未变化文件。 |
+| 禁止写盘 | Passed | 本任务只生成计划和 hash，不执行文件写入，后续 diff/write 继续受 dry-run 结果约束。 |
+| 任务状态更新 | Passed | `M5-03-01` 已标记 Done，`M5-03` 父任务保留 Todo，等待 `M5-03-02`。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/service.go internal/service/generator/types.go internal/service/generator/service_impl.go internal/service/generator/service_impl_test.go
+go test ./internal/service/generator/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 dry-run 文件路径与 `generator_template_output_spec.md` 的输出矩阵一致。
+2. 检查已有文件未带 previous generated hash 时被视为冲突，不会被覆盖。
+3. 检查本任务没有实现 diff 内容输出，保留给 `M5-03-02`。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-03-02`，实现 dry-run diff。
