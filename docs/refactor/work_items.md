@@ -286,7 +286,7 @@
 | 198 | M4-03-01 | M4-03 | `skoll-api-contracts` | 字典 API 契约与 handler | OpenAPI + handler | 类型、条目、状态、搜索、排序完整 | `go test ./internal/handler/http/v1/system/...` | Done |
 | 199 | M4-03-02 | M4-03 | `skoll-vue-frontend` | 字典管理 UI | Vue page | 类型/条目管理、启停、排序、空态、错误态完整 | `cd web && npm run build` | Done |
 | 200 | M4-04-01 | M4-04 | `skoll-data-dictionary-config` | 配置 schema registry | domain/service | 系统和插件配置均可用 schema 描述字段、校验、默认值 | `go test ./internal/service/system/...` | Done |
-| 201 | M4-04-02 | M4-04 | `skoll-vue-frontend` | SchemaForm 配置接入 | Vue page | 系统设置和插件配置复用 SchemaForm | `cd web && npm run typecheck`; `cd web && npm run build` | Todo |
+| 201 | M4-04-02 | M4-04 | `skoll-vue-frontend` | SchemaForm 配置接入 | Vue page | 系统设置和插件配置复用 SchemaForm | `cd web && npm run typecheck`; `cd web && npm run build` | Done |
 | 202 | M4-05-01 | M4-05 | `skoll-dictionary-organization-refactor` | 组织/部门/岗位 domain | domain | 部门树、岗位、用户归属模型完整 | `go test ./internal/domain/organization/...` | Todo |
 | 203 | M4-05-02 | M4-05 | `skoll-database-development` | 组织 migration/store | migration + store | 部门树查询、岗位关联、用户归属可用 | `go test ./internal/store/...` | Todo |
 | 204 | M4-06-01 | M4-06 | `skoll-permission-rbac` | DataScope domain/service | domain/service | all/department/department_tree/self/custom 解析明确 | `go test ./internal/service/rbac/...` | Todo |

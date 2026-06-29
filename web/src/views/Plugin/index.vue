@@ -25,6 +25,7 @@ import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
 import { syncBackendPlugins } from "../../plugins";
+import { applyConfigDefaults, normalizePluginConfigSchema } from "../../plugins/config-schema";
 import type { FrontendPluginManifest, PluginConfigSchema } from "../../plugins/types";
 import { clearDefaultHomePath, createDefaultHomeTarget, getDefaultHomePath, getSystemDefaultHomePath, isDefaultHomePlugin, resolvePluginEntryPath, setDefaultHomeTarget, usePluginStore } from "../../stores/plugins";
 import { useTabsStore } from "../../stores/tabs";
@@ -690,7 +691,7 @@ async function openConfig(pluginID: string): Promise<void> {
 	try {
 		const payload = await apiGet<ApiResponse<{ pluginId?: string; config?: Record<string, unknown>; configSchema?: PluginConfigSchema | null }>>(`/v1/plugins/${pluginID}/config`);
 		const config = payload.data?.config ?? {};
-		configSchema.value = payload.data?.configSchema ?? getPluginRecord(pluginID)?.configSchema ?? null;
+		configSchema.value = normalizePluginConfigSchema(payload.data?.configSchema) ?? normalizePluginConfigSchema(getPluginRecord(pluginID)?.configSchema) ?? null;
 		configForm.value = applyConfigDefaults(config, configSchema.value);
 		configText.value = JSON.stringify(configForm.value, null, 2);
 	} catch (e) {
@@ -786,24 +787,6 @@ async function installPluginPath(): Promise<void> {
 	} finally {
 		operating.value = false;
 	}
-}
-
-function applyConfigDefaults(config: Record<string, unknown>, schema: PluginConfigSchema | null): Record<string, unknown> {
-	const out = { ...config };
-	for (const field of schema?.fields ?? []) {
-		if (!field.key || out[field.key] !== undefined) {
-			continue;
-		}
-		if (field.type === "boolean") {
-			out[field.key] = field.default === "true" || field.default === "1";
-		} else if (field.type === "number") {
-			const parsed = Number(field.default ?? 0);
-			out[field.key] = Number.isFinite(parsed) ? parsed : 0;
-		} else {
-			out[field.key] = field.default ?? "";
-		}
-	}
-	return out;
 }
 
 function handleConfigFormUpdate(next: Record<string, unknown>): void {

@@ -6,6 +6,7 @@ import StateBlock from "../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { useButtonAccess } from "../../permissions/button";
+import { applyConfigDefaults, coerceConfigValue, normalizePluginConfigSchema, serializeConfigValue } from "../../plugins/config-schema";
 import type { PluginConfigSchema } from "../../plugins/types";
 import { type ApiResponse, apiGet, apiPost, apiPut } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
@@ -129,7 +130,7 @@ const schemaModel = computed(() => {
 	const out: Record<string, unknown> = {};
 	for (const field of systemConfigSchema.value.fields ?? []) {
 		const item = allSettings.value.find((setting) => setting.key === field.key);
-		out[field.key] = item ? coerceSettingValue(item.value, field.type) : coerceSettingValue(field.default ?? "", field.type);
+		out[field.key] = item ? coerceConfigValue(item.value, field.type) : coerceConfigValue(field.default, field.type);
 	}
 	return out;
 });
@@ -141,27 +142,6 @@ const schemaEncryptedMap = computed(() => {
 	return out;
 });
 
-function coerceSettingValue(value: unknown, type?: string): unknown {
-	if (type === "boolean") {
-		return value === true || value === "true" || value === "1";
-	}
-	if (type === "number") {
-		const parsed = Number(value ?? 0);
-		return Number.isFinite(parsed) ? parsed : 0;
-	}
-	return value ?? "";
-}
-
-function serializeSettingValue(value: unknown): string {
-	if (typeof value === "boolean") {
-		return value ? "true" : "false";
-	}
-	if (value === null || value === undefined) {
-		return "";
-	}
-	return String(value);
-}
-
 function isSensitiveSettingKey(key: string): boolean {
 	const normalized = key.toLowerCase();
 	return ["password", "secret", "token", "credential", "private"].some((part) => normalized.includes(part));
@@ -171,28 +151,11 @@ function resetSearch(): void {
 	searchKey.value = "";
 }
 
-function normalizeSystemConfigSchema(schema: unknown): PluginConfigSchema | null {
-	if (!schema || typeof schema !== "object") {
-		return null;
-	}
-	const row = schema as PluginConfigSchema;
-	const fields = Array.isArray(row.fields)
-		? row.fields.filter((field) => field && typeof field === "object" && typeof field.key === "string" && field.key.trim() !== "")
-		: [];
-	if (fields.length === 0) {
-		return null;
-	}
-	return {
-		...row,
-		fields
-	};
-}
-
 async function loadSettingsSchema(): Promise<void> {
 	schemaLoading.value = true;
 	try {
 		const payload = await apiGet<ApiResponse<PluginConfigSchema>>("/v1/system/settings/schema");
-		remoteSystemConfigSchema.value = normalizeSystemConfigSchema(payload.data);
+		remoteSystemConfigSchema.value = normalizePluginConfigSchema(payload.data);
 	} catch {
 		remoteSystemConfigSchema.value = null;
 	} finally {
@@ -220,12 +183,11 @@ async function loadSettings(): Promise<void> {
 }
 
 function buildSchemaModelFromSettings(): Record<string, unknown> {
-	const out: Record<string, unknown> = {};
-	for (const field of systemConfigSchema.value.fields ?? []) {
-		const item = allSettings.value.find((setting) => setting.key === field.key);
-		out[field.key] = item ? coerceSettingValue(item.value, field.type) : coerceSettingValue(field.default ?? "", field.type);
+	const storedValues: Record<string, unknown> = {};
+	for (const item of allSettings.value) {
+		storedValues[item.key] = item.value;
 	}
-	return out;
+	return applyConfigDefaults(storedValues, systemConfigSchema.value);
 }
 
 function selectSetting(item: SettingRecord): void {
@@ -287,7 +249,7 @@ async function saveSchemaSettings(next: Record<string, unknown>): Promise<void> 
 				continue;
 			}
 			await apiPut<ApiResponse<SettingRecord>>(`/v1/system/settings/${encodeURIComponent(field.key)}`, {
-				value: serializeSettingValue(next[field.key]),
+				value: serializeConfigValue(next[field.key]),
 				encrypted: schemaEncryptedMap.value[field.key] ?? false
 			});
 		}

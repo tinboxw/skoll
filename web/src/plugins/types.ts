@@ -37,6 +37,8 @@ export type PluginConfigField = {
 };
 
 export type PluginConfigSchema = {
+  scope?: "system" | "plugin";
+  owner?: string;
   title?: string;
   titleZhCN?: string;
   titleEnUS?: string;

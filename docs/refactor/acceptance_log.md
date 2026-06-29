@@ -11730,3 +11730,71 @@ go test ./internal/handler/http/v1/system/...
 ### 下一步
 
 - 进入 `M4-04-02`，实现 SchemaForm 配置接入。
+
+## M4-04-02: SchemaForm 配置接入
+
+- 状态: Passed
+- Work Item: M4-04-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `web/src/plugins/config-schema.ts`
+- `web/src/plugins/types.ts`
+- `web/src/views/Setting/index.vue`
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 系统配置 SchemaForm 接入 | Passed | Setting 页面继续读取 `/v1/system/settings/schema`，并通过共享 schema 工具校验字段、默认值和类型转换。 |
+| 插件配置 SchemaForm 接入 | Passed | Plugin 页面配置面板复用同一 schema normalize/default 工具，并保留 JSON fallback。 |
+| 共享字段契约 | Passed | `PluginConfigSchema` 支持后端 registry 返回的 `scope`/`owner`，字段类型统一收窄。 |
+| 父任务收口 | Passed | `M4-04-01` 与 `M4-04-02` 均 Done，`task_board.md` 中 `M4-04` 已标记 Done。 |
+
+### 自动化验证
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+结果摘要: Passed。build 仍输出项目既有 Dart Sass legacy JS API 与 `@vueuse/core` Rollup pure annotation warning，未新增阻断。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/setting`, `/skoll/plugin`
+- State coverage: SchemaForm normal/defaults/validation path; JSON fallback retained for plugin config without schema.
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A, no layout/CSS change.
+- Permission evidence: Existing `system.manage`, `plugin.read`, and `plugin.manage` checks unchanged.
+- Typecheck: Passed
+- Build: Passed
+
+### 人工验收
+
+1. 检查 Setting 与 Plugin 不再各自维护重复 schema normalize/default 逻辑。
+2. 检查 schema 无字段或非法字段时仍回退到 fallback schema 或 JSON editor。
+3. 检查本次未新增第二套表单生成器，仍复用 `SchemaForm.vue`。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-05-01`，实现组织/部门/岗位 domain。
