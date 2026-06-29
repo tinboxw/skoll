@@ -8,6 +8,7 @@ import (
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 	filerepo "github.com/tinboxw/skoll/internal/repository/file"
 	menurepo "github.com/tinboxw/skoll/internal/repository/menu"
+	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
@@ -37,17 +38,18 @@ type Options struct {
 }
 
 type Bundle struct {
-	Users       userrepo.UserRepository
-	Roles       rolerepo.RoleRepository
-	RBAC        rbacrepo.RBACRepository
-	Audit       auditrepo.AuditRepository
-	System      systemrepo.SystemRepository
-	Plugins     pluginrepo.PluginRepository
-	Permissions permissionrepo.PermissionRepository
-	Menus       menurepo.MenuRepository
-	UnitOfWork  repository.UnitOfWork
-	AuditEvents auditrepo.EventRepository
-	Files       filerepo.FileRepository
+	Users        userrepo.UserRepository
+	Roles        rolerepo.RoleRepository
+	RBAC         rbacrepo.RBACRepository
+	Audit        auditrepo.AuditRepository
+	System       systemrepo.SystemRepository
+	Plugins      pluginrepo.PluginRepository
+	Permissions  permissionrepo.PermissionRepository
+	Menus        menurepo.MenuRepository
+	UnitOfWork   repository.UnitOfWork
+	AuditEvents  auditrepo.EventRepository
+	Files        filerepo.FileRepository
+	Organization organizationrepo.OrganizationRepository
 }
 
 func NewBundle(opts Options) (*Bundle, error) {
@@ -63,7 +65,8 @@ func NewBundle(opts Options) (*Bundle, error) {
 		permissions := memory.NewPermissionStore()
 		menus := memory.NewMenuStore()
 		files := memory.NewFileStore()
-		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions, Menus: menus, UnitOfWork: sql.NewUnitOfWork(), AuditEvents: auditEvents, Files: files}, nil
+		organization := memory.NewOrganizationStore()
+		return &Bundle{Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions, Menus: menus, UnitOfWork: sql.NewUnitOfWork(), AuditEvents: auditEvents, Files: files, Organization: organization}, nil
 	case ModeMySQL:
 		primary, err := mysql.NewAdapter(opts.PrimaryDSN)
 		if err != nil {
@@ -72,17 +75,18 @@ func NewBundle(opts Options) (*Bundle, error) {
 		auditRepo := primary.AuditRepository()
 		auditEvents, _ := auditRepo.(auditrepo.EventRepository)
 		return &Bundle{
-			Users:       primary.UserRepository(),
-			Roles:       primary.RoleRepository(),
-			RBAC:        primary.RBACRepository(),
-			Audit:       auditRepo,
-			System:      primary.SystemRepository(),
-			Plugins:     primary.PluginRepository(),
-			Permissions: primary.PermissionRepository(),
-			Menus:       primary.MenuRepository(),
-			UnitOfWork:  sql.NewUnitOfWorkWithDB(primary.DB()),
-			AuditEvents: auditEvents,
-			Files:       primary.FileRepository(),
+			Users:        primary.UserRepository(),
+			Roles:        primary.RoleRepository(),
+			RBAC:         primary.RBACRepository(),
+			Audit:        auditRepo,
+			System:       primary.SystemRepository(),
+			Plugins:      primary.PluginRepository(),
+			Permissions:  primary.PermissionRepository(),
+			Menus:        primary.MenuRepository(),
+			UnitOfWork:   sql.NewUnitOfWorkWithDB(primary.DB()),
+			AuditEvents:  auditEvents,
+			Files:        primary.FileRepository(),
+			Organization: primary.OrganizationRepository(),
 		}, nil
 	case ModePostgres:
 		primary, err := postgres.NewAdapter(opts.PrimaryDSN)
@@ -94,17 +98,18 @@ func NewBundle(opts Options) (*Bundle, error) {
 			return nil, err
 		}
 		return &Bundle{
-			Users:       primary.UserRepository(),
-			Roles:       primary.RoleRepository(),
-			RBAC:        primary.RBACRepository(),
-			Audit:       audit.AuditRepository(),
-			System:      primary.SystemRepository(),
-			Plugins:     primary.PluginRepository(),
-			Permissions: primary.PermissionRepository(),
-			Menus:       primary.MenuRepository(),
-			UnitOfWork:  sql.NewUnitOfWorkWithDB(primary.DB()),
-			AuditEvents: gormrepo.NewAuditStore(primary.DB()),
-			Files:       primary.FileRepository(),
+			Users:        primary.UserRepository(),
+			Roles:        primary.RoleRepository(),
+			RBAC:         primary.RBACRepository(),
+			Audit:        audit.AuditRepository(),
+			System:       primary.SystemRepository(),
+			Plugins:      primary.PluginRepository(),
+			Permissions:  primary.PermissionRepository(),
+			Menus:        primary.MenuRepository(),
+			UnitOfWork:   sql.NewUnitOfWorkWithDB(primary.DB()),
+			AuditEvents:  gormrepo.NewAuditStore(primary.DB()),
+			Files:        primary.FileRepository(),
+			Organization: primary.OrganizationRepository(),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported store mode: %q", opts.Mode)

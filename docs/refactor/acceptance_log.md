@@ -11862,3 +11862,81 @@ go test ./internal/domain/organization/...
 ### 下一步
 
 - 进入 `M4-05-02`，实现组织 migration/store。
+
+## M4-05-02: 组织 migration/store
+
+- 状态: Passed
+- Work Item: M4-05-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/repository/organization/organization_repo.go`
+- `internal/store/memory/organization_store.go`
+- `internal/store/memory/organization_store_test.go`
+- `internal/store/sql/gormrepo/organization_model.go`
+- `internal/store/sql/gormrepo/organization_store.go`
+- `internal/store/sql/gormrepo/organization_store_test.go`
+- `internal/store/sql/gormrepo/all_models.go`
+- `internal/store/sql/gormrepo/test_helper.go`
+- `internal/store/factory.go`
+- `internal/store/sql/mysql/adapter.go`
+- `internal/store/sql/postgres/adapter.go`
+- `migrations/mysql/20260629_000018_create_organization.sql`
+- `migrations/postgres/20260629_000018_create_organization.sql`
+- `docs/architecture/database.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| repository contract | Passed | 新增 OrganizationRepository，覆盖部门、岗位和用户组织归属。 |
+| memory store parity | Passed | 内存 store 支持部门树引用校验、岗位引用、归属查询、删除清理。 |
+| SQL/GORM store parity | Passed | GORM store 与 memory 行为一致，并接入 AllModels、MySQL/Postgres adapter 和 store bundle。 |
+| migration | Passed | 新增 MySQL/Postgres 组织表迁移，包含部门、岗位和用户归属索引。 |
+| schema docs | Passed | `docs/architecture/database.md` 补充组织表结构说明。 |
+| 任务状态更新 | Passed | `work_items.md` 和 `next_work_items.md` 中 `M4-05-02` 已标记 Done。 |
+
+### 自动化验证
+
+```powershell
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/store/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查组织数据已进入一等 repository/store，不再通过 settings-backed 结构作为持久化主路径。
+2. 检查 memory 与 SQL store 对缺失父部门、缺失岗位、重复编码、删除部门子树和删除岗位清理归属的行为一致。
+3. 检查当前 `/v1/system/departments`、`/v1/system/positions` 仍是既有 settings-backed API；`task_board.md` 中 `M4-05` 父项暂不标记 Done，等待后续 first-class API 接入或任务补充分解。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首轮 `go test ./internal/store/...` 超时；缩小范围后发现 memory subtree 删除遍历 map value/key 用错，随后 GORM 删除岗位触发 `UpdatedAt` 自动更新时间导致固定未来测试数据回读失败。
+- 返工动作: 修正 subtree map 遍历；GORM 清空 assignment `position_id` 改用 `UpdateColumn` 避免隐式更新时间。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M4-06-01`，实现 DataScope domain/service。

@@ -225,6 +225,36 @@ M4 起新增系统字典类型与字典条目表，迁移脚本：
 
 > **Domain 实体**：`internal/domain/system/dictionary.go` → `DictionaryType`、`DictionaryItem`。
 
+### 2.10 组织表（sk_departments / sk_positions / sk_user_organization_assignments）
+
+M4 新增一等组织模型表，迁移脚本：
+- `migrations/mysql/20260629_000018_create_organization.sql`
+- `migrations/postgres/20260629_000018_create_organization.sql`
+
+`sk_departments` 保存部门树节点；`sk_positions` 保存岗位；`sk_user_organization_assignments` 保存用户和部门/岗位归属。旧 `sk_users.department_id`、`sk_users.position_id` 字段保留给用户列表和兼容读取，新的组织归属以 assignment 表为准。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `sk_departments.id` | VARCHAR(64) | PK | 部门 ID |
+| `sk_departments.parent_id` | VARCHAR(64) | INDEX(parent_id, sort) | 父部门 ID，根节点为空字符串 |
+| `sk_departments.code` | VARCHAR(128) | UNIQUE, NOT NULL | 部门编码，按 domain 规则归一化 |
+| `sk_departments.name` | VARCHAR(255) | NOT NULL | 部门名称 |
+| `sk_departments.leader_user_id` | VARCHAR(64) | INDEX | 部门负责人用户 ID |
+| `sk_departments.status` | VARCHAR(32) | INDEX(status, sort) | `enabled` / `disabled` |
+| `sk_departments.sort` | INT/INTEGER | INDEX(parent_id, sort) | 同级排序 |
+| `sk_positions.id` | VARCHAR(64) | PK | 岗位 ID |
+| `sk_positions.code` | VARCHAR(128) | UNIQUE, NOT NULL | 岗位编码 |
+| `sk_positions.name` | VARCHAR(255) | NOT NULL | 岗位名称 |
+| `sk_positions.description` | VARCHAR(512) | - | 岗位说明 |
+| `sk_positions.status` | VARCHAR(32) | INDEX(status, sort) | `enabled` / `disabled` |
+| `sk_positions.sort` | INT/INTEGER | INDEX(status, sort) | 岗位排序 |
+| `sk_user_organization_assignments.user_id` | VARCHAR(64) | PK | 用户 ID |
+| `sk_user_organization_assignments.department_id` | VARCHAR(64) | INDEX | 归属部门 ID |
+| `sk_user_organization_assignments.position_id` | VARCHAR(64) | INDEX | 归属岗位 ID，可为空字符串 |
+| `sk_user_organization_assignments.primary_assignment` | BOOL/BOOLEAN | - | 是否主归属 |
+
+> **Domain 实体**：`internal/domain/organization/organization.go` → `Department`、`Position`、`UserAssignment`。
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：

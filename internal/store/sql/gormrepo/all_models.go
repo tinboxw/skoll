@@ -15,6 +15,9 @@ func AllModels() []any {
 		&FileObjectModel{},
 		&DictionaryTypeModel{},
 		&DictionaryItemModel{},
+		&DepartmentModel{},
+		&PositionModel{},
+		&UserAssignmentModel{},
 		&AuditRecordModel{},
 		&AuditEventModel{},
 	}

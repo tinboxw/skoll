@@ -288,7 +288,7 @@
 | 200 | M4-04-01 | M4-04 | `skoll-data-dictionary-config` | 配置 schema registry | domain/service | 系统和插件配置均可用 schema 描述字段、校验、默认值 | `go test ./internal/service/system/...` | Done |
 | 201 | M4-04-02 | M4-04 | `skoll-vue-frontend` | SchemaForm 配置接入 | Vue page | 系统设置和插件配置复用 SchemaForm | `cd web && npm run typecheck`; `cd web && npm run build` | Done |
 | 202 | M4-05-01 | M4-05 | `skoll-dictionary-organization-refactor` | 组织/部门/岗位 domain | domain | 部门树、岗位、用户归属模型完整 | `go test ./internal/domain/organization/...` | Done |
-| 203 | M4-05-02 | M4-05 | `skoll-database-development` | 组织 migration/store | migration + store | 部门树查询、岗位关联、用户归属可用 | `go test ./internal/store/...` | Todo |
+| 203 | M4-05-02 | M4-05 | `skoll-database-development` | 组织 migration/store | migration + store | 部门树查询、岗位关联、用户归属可用 | `go test ./internal/store/...` | Done |
 | 204 | M4-06-01 | M4-06 | `skoll-permission-rbac` | DataScope domain/service | domain/service | all/department/department_tree/self/custom 解析明确 | `go test ./internal/service/rbac/...` | Todo |
 | 205 | M4-06-02 | M4-06 | `skoll-permission-rbac` | 用户列表数据范围过滤 | service/store | 不同角色返回不同用户列表，super_admin 绕过明确 | `go test ./internal/service/user/... ./internal/service/rbac/...` | Todo |
 | 206 | M4-07-01 | M4-07 | `skoll-vue-frontend` | 组织管理 UI | Vue page | 部门树、岗位、用户归属编辑可用 | `cd web && npm run build` | Todo |

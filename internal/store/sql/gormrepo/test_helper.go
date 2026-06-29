@@ -41,6 +41,9 @@ func TestDB(t *testing.T) *gorm.DB {
 		FileObjectModel{},
 		DictionaryTypeModel{},
 		DictionaryItemModel{},
+		DepartmentModel{},
+		PositionModel{},
+		UserAssignmentModel{},
 		AuditEventModel{},
 	)
 	if err != nil {
@@ -91,6 +94,9 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 		FileObjectModel{},
 		DictionaryTypeModel{},
 		DictionaryItemModel{},
+		DepartmentModel{},
+		PositionModel{},
+		UserAssignmentModel{},
 		AuditEventModel{},
 	)
 	if err != nil {

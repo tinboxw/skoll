@@ -11,6 +11,7 @@ import (
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 	filerepo "github.com/tinboxw/skoll/internal/repository/file"
 	menurepo "github.com/tinboxw/skoll/internal/repository/menu"
+	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
@@ -35,6 +36,7 @@ type Adapter struct {
 	perm permissionrepo.PermissionRepository
 	menu menurepo.MenuRepository
 	file filerepo.FileRepository
+	org  organizationrepo.OrganizationRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -79,6 +81,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		perm: gormrepo.NewPermissionStore(db),
 		menu: gormrepo.NewMenuStore(db),
 		file: gormrepo.NewFileStore(db),
+		org:  gormrepo.NewOrganizationStore(db),
 	}, nil
 }
 
@@ -115,6 +118,10 @@ func (a *Adapter) MenuRepository() menurepo.MenuRepository {
 
 func (a *Adapter) FileRepository() filerepo.FileRepository {
 	return a.file
+}
+
+func (a *Adapter) OrganizationRepository() organizationrepo.OrganizationRepository {
+	return a.org
 }
 
 func (a *Adapter) DB() *gorm.DB {
