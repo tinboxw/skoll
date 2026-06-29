@@ -39,6 +39,10 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderOpenAPI(spec)
 	case "backend.permission.seed":
 		return formatGoTemplate(renderPermissionSeed(spec))
+	case "frontend.api":
+		return renderFrontendAPI(spec)
+	case "frontend.store":
+		return renderFrontendStore(spec)
 	default:
 		return fmt.Sprintf("// template %s for %s\n", templateID, spec.Module.Package)
 	}
@@ -426,6 +430,49 @@ func renderPermissionSeed(spec domaingenerator.GeneratorSpec) string {
 	return b.String()
 }
 
+func renderFrontendAPI(spec domaingenerator.GeneratorSpec) string {
+	module := spec.Module.Package
+	typeName := spec.Table.DomainName
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "import { apiDelete, apiGet, apiPost, apiPut, type ApiResponse } from \"../utils/api\";\n\n")
+	fmt.Fprintf(&b, "export type %s = {\n", typeName)
+	for _, field := range spec.Fields {
+		fmt.Fprintf(&b, "\t%s: %s;\n", field.Name, tsFieldType(field))
+	}
+	fmt.Fprintf(&b, "};\n\n")
+	fmt.Fprintf(&b, "export type %sListQuery = {\n\tkeyword?: string;\n\toffset?: number;\n\tlimit?: number;\n};\n\n", typeName)
+	fmt.Fprintf(&b, "export type %sInput = Partial<Omit<%s, \"id\">>;\n\n", typeName, typeName)
+	fmt.Fprintf(&b, "const basePath = %q;\n\n", spec.Menu.Path)
+	fmt.Fprintf(&b, "export async function list%s(query: %sListQuery = {}): Promise<%s[]> {\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\tconst params = new URLSearchParams();\n\tif (query.keyword) params.set(\"keyword\", query.keyword);\n\tif (query.offset !== undefined) params.set(\"offset\", String(query.offset));\n\tif (query.limit !== undefined) params.set(\"limit\", String(query.limit));\n\tconst suffix = params.toString();\n\tconst resp = await apiGet<ApiResponse<%s[]>>(`${basePath}${suffix ? `?${suffix}` : \"\"}`);\n\treturn resp.data;\n}\n\n", typeName)
+	fmt.Fprintf(&b, "export async function create%s(input: %sInput): Promise<%s> {\n\tconst resp = await apiPost<ApiResponse<%s>>(basePath, input);\n\treturn resp.data;\n}\n\n", typeName, typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export async function update%s(id: string, input: %sInput): Promise<%s> {\n\tconst resp = await apiPut<ApiResponse<%s>>(`${basePath}/${id}`, input);\n\treturn resp.data;\n}\n\n", typeName, typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export async function delete%s(id: string): Promise<void> {\n\tawait apiDelete<ApiResponse<null>>(`${basePath}/${id}`);\n}\n", typeName)
+	_ = module
+	return b.String()
+}
+
+func renderFrontendStore(spec domaingenerator.GeneratorSpec) string {
+	module := spec.Module.Package
+	typeName := spec.Table.DomainName
+	storeName := exportedName(module)
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "import { defineStore } from \"pinia\";\n")
+	fmt.Fprintf(&b, "import { create%s, delete%s, list%s, update%s, type %s, type %sInput, type %sListQuery } from \"../api/%s\";\n\n", typeName, typeName, typeName, typeName, typeName, typeName, typeName, module)
+	fmt.Fprintf(&b, "type LoadStatus = \"idle\" | \"loading\" | \"success\" | \"error\";\n\n")
+	fmt.Fprintf(&b, "type %sState = {\n\titems: %s[];\n\tlistStatus: LoadStatus;\n\tmutationStatus: LoadStatus;\n\tlastError: string | null;\n\tlastQuery: %sListQuery;\n};\n\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export const use%sStore = defineStore(\"%s\", {\n", storeName, module)
+	fmt.Fprintf(&b, "\tstate: (): %sState => ({\n\t\titems: [],\n\t\tlistStatus: \"idle\",\n\t\tmutationStatus: \"idle\",\n\t\tlastError: null,\n\t\tlastQuery: {}\n\t}),\n", typeName)
+	fmt.Fprintf(&b, "\tgetters: {\n\t\tisLoading: (state): boolean => state.listStatus === \"loading\" || state.mutationStatus === \"loading\",\n\t\thasError: (state): boolean => state.listStatus === \"error\" || state.mutationStatus === \"error\"\n\t},\n")
+	fmt.Fprintf(&b, "\tactions: {\n\t\tasync load(query: %sListQuery = {}): Promise<void> {\n\t\t\tthis.listStatus = \"loading\";\n\t\t\tthis.lastQuery = query;\n\t\t\ttry {\n\t\t\t\tthis.items = await list%s(query);\n\t\t\t\tthis.listStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t} catch (error) {\n\t\t\t\tthis.listStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName)
+	fmt.Fprintf(&b, "\t\tasync retry(): Promise<void> {\n\t\t\tawait this.load(this.lastQuery);\n\t\t},\n")
+	fmt.Fprintf(&b, "\t\tasync create(input: %sInput): Promise<%s> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tconst item = await create%s(input);\n\t\t\t\tthis.items = [item, ...this.items];\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t\treturn item;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\t\tasync update(id: string, input: %sInput): Promise<%s> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tconst item = await update%s(id, input);\n\t\t\t\tthis.items = this.items.map((current) => current.id === id ? item : current);\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t\treturn item;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\t\tasync remove(id: string): Promise<void> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tawait delete%s(id);\n\t\t\t\tthis.items = this.items.filter((item) => item.id !== id);\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t}\n\t}\n});\n\n", typeName)
+	fmt.Fprintf(&b, "function toErrorMessage(error: unknown): string {\n\treturn error instanceof Error && error.message.trim() !== \"\" ? error.message : \"%s_request_failed\";\n}\n", module)
+	return b.String()
+}
+
 func renderServiceInputFields(b *bytes.Buffer, spec domaingenerator.GeneratorSpec, update bool) {
 	for _, field := range spec.Fields {
 		if update && field.PrimaryKey {
@@ -535,4 +582,20 @@ func sqlNullability(field domaingenerator.FieldSpec) string {
 		return " NOT NULL"
 	}
 	return ""
+}
+
+func tsFieldType(field domaingenerator.FieldSpec) string {
+	if strings.TrimSpace(field.TypeScript) != "" {
+		return strings.TrimSpace(field.TypeScript)
+	}
+	switch field.Type {
+	case domaingenerator.FieldTypeInt, domaingenerator.FieldTypeDecimal:
+		return "number"
+	case domaingenerator.FieldTypeBool:
+		return "boolean"
+	case domaingenerator.FieldTypeJSON:
+		return "Record<string, unknown>"
+	default:
+		return "string"
+	}
 }

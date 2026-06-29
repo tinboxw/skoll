@@ -127,6 +127,14 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 	if !strings.Contains(seed.GeneratedContent, "ProductGeneratedPermissions") || !strings.Contains(seed.GeneratedContent, "product.manage") {
 		t.Fatalf("permission seed content = %q", seed.GeneratedContent)
 	}
+	api := findPlan(t, result.Files, "web/src/api/product.ts")
+	if !strings.Contains(api.GeneratedContent, "apiGet") || !strings.Contains(api.GeneratedContent, "export type Product") || !strings.Contains(api.GeneratedContent, "createProduct") {
+		t.Fatalf("frontend api content = %q", api.GeneratedContent)
+	}
+	store := findPlan(t, result.Files, "web/src/stores/product.ts")
+	if !strings.Contains(store.GeneratedContent, "defineStore") || !strings.Contains(store.GeneratedContent, "useProductStore") || !strings.Contains(store.GeneratedContent, "async retry") || !strings.Contains(store.GeneratedContent, "lastError") {
+		t.Fatalf("frontend store content = %q", store.GeneratedContent)
+	}
 }
 
 func TestDryRunRejectsMissingSpecAndBadSnapshots(t *testing.T) {

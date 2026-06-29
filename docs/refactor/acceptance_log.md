@@ -12656,3 +12656,67 @@ go test ./...
 
 ### 下一步
 - 进入 `M5-05-01`，实现前端 API/store 生成。
+
+## M5-05-01: 前端 API/store 生成
+
+- 状态: Passed
+- Work Item: M5-05-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/backend_templates.go`
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| API client 模板 | Passed | 生成类型定义、list/create/update/delete 函数，并复用 `web/src/utils/api` helper。 |
+| Pinia store 模板 | Passed | 生成 items、listStatus、mutationStatus、lastError、lastQuery、load/retry/create/update/remove。 |
+| 错误状态 | Passed | store 模板在 list/mutation 失败时写入 `lastError` 并保留重试入口。 |
+| 内容校验 | Passed | generator 单测检查 API helper、类型、store、retry、lastError 等关键输出。 |
+| 前端 typecheck | Passed | `cd web; npm run typecheck` 通过。 |
+| 任务状态更新 | Passed | `M5-05-01` 已标记 Done，`M5-05` 父任务保留 Todo，等待 `M5-05-02`。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/backend_templates.go internal/service/generator/service_impl_test.go
+go test ./internal/service/generator/...
+cd web
+npm run typecheck
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: generated API/store templates only
+- State coverage: loading, success, error, retry
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: Passed
+- Build: N/A
+
+### 人工验收
+
+1. 检查前端 API/store 模板只作为 dry-run 内容返回，不落盘覆盖用户文件。
+2. 检查模板使用当前 `apiGet/apiPost/apiPut/apiDelete` helper 和 Pinia `defineStore`。
+3. 检查 `M5-05` 父任务继续等待 `M5-05-02` 页面模板收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-05-02`，实现前端 list/form 页面生成。
