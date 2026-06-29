@@ -1,0 +1,111 @@
+{
+  "id": "spec-demo-product",
+  "module": {
+    "name": "demo_product",
+    "package": "demo_product",
+    "displayName": "Demo Product",
+    "description": "Generated single-table CRUD example"
+  },
+  "table": {
+    "name": "demo_products",
+    "domainName": "DemoProduct",
+    "collectionName": "DemoProducts",
+    "comment": "Demo product catalog"
+  },
+  "fields": [
+    {
+      "name": "id",
+      "columnName": "id",
+      "label": "ID",
+      "type": "id",
+      "goType": "shared.ID",
+      "typeScript": "string",
+      "primaryKey": true,
+      "required": true,
+      "listVisible": true,
+      "formVisible": false
+    },
+    {
+      "name": "name",
+      "columnName": "name",
+      "label": "Name",
+      "type": "string",
+      "goType": "string",
+      "typeScript": "string",
+      "required": true,
+      "filterable": true,
+      "sortable": true,
+      "listVisible": true,
+      "formVisible": true,
+      "validation": [
+        { "type": "required", "message": "Name is required" }
+      ]
+    },
+    {
+      "name": "price",
+      "columnName": "price",
+      "label": "Price",
+      "type": "decimal",
+      "goType": "float64",
+      "typeScript": "number",
+      "required": true,
+      "sortable": true,
+      "listVisible": true,
+      "formVisible": true,
+      "validation": [
+        { "type": "min", "value": "0", "message": "Price must be non-negative" }
+      ]
+    },
+    {
+      "name": "enabled",
+      "columnName": "enabled",
+      "label": "Enabled",
+      "type": "bool",
+      "goType": "bool",
+      "typeScript": "boolean",
+      "required": true,
+      "filterable": true,
+      "listVisible": true,
+      "formVisible": true
+    }
+  ],
+  "indexes": [
+    { "name": "idx_demo_products_name", "fields": ["name"], "unique": false }
+  ],
+  "permissions": {
+    "resource": "demo_product",
+    "readKey": "demo_product.read",
+    "createKey": "demo_product.create",
+    "updateKey": "demo_product.update",
+    "deleteKey": "demo_product.delete",
+    "manageKey": "demo_product.manage"
+  },
+  "menu": {
+    "key": "demo_product",
+    "parentKey": "system",
+    "path": "/demo-products",
+    "component": "DemoProduct/index",
+    "icon": "Package",
+    "order": 60,
+    "requiredPermissions": ["demo_product.read"]
+  },
+  "page": {
+    "title": "Demo Products",
+    "routeName": "demo_product.list",
+    "list": {
+      "columns": ["id", "name", "price", "enabled"],
+      "filters": ["name", "enabled"],
+      "actions": ["create", "update", "delete"]
+    },
+    "form": {
+      "fields": ["name", "price", "enabled"],
+      "mode": "drawer"
+    }
+  },
+  "audit": {
+    "resource": "demo_product",
+    "actions": ["create", "update", "delete"]
+  },
+  "createdAt": "2026-06-29T00:00:00Z",
+  "updatedAt": "2026-06-29T00:00:00Z"
+}

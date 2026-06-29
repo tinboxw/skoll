@@ -116,7 +116,7 @@
 | 40 | M5-05 | `skoll-code-generator` | 前端 CRUD 生成 | Vue/API/store/templates | 输出列表、表单、API client、菜单 | `cd web && npm run build` | Done |
 | 41 | M5-06 | `skoll-generator-refactor` | 生成历史与回滚 | store/service | 记录批次、hash、spec；只回滚未被用户改动文件 | `go test ./internal/service/generator/...` | Done |
 | 42 | M5-07 | `skoll-testing-automation` | 生成器 golden 测试 | tests | 幂等、冲突检测、回滚测试通过 | `go test ./...` | Done |
-| 43 | M5-08 | `skoll-generator-refactor` | 示例模块生成验收 | examples/plugins | 单表 CRUD 生成后前后端跑通 | `go test ./...`; `cd web && npm run build` | Todo |
+| 43 | M5-08 | `skoll-generator-refactor` | 示例模块生成验收 | examples/plugins | 单表 CRUD 生成后前后端跑通 | `go test ./...`; `cd web && npm run build` | Done |
 
 里程碑验收:
 

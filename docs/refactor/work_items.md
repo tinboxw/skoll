@@ -310,7 +310,7 @@
 | 217 | M5-06-01 | M5-06 | `skoll-generator-refactor` | 生成历史记录 | store/service | 批次、hash、spec、操作者、文件清单可查 | `go test ./internal/service/generator/...` | Done |
 | 218 | M5-06-02 | M5-06 | `skoll-generator-refactor` | 回滚机制 | service | 未修改文件可回滚，冲突文件给人工处理清单 | `go test ./internal/service/generator/...` | Done |
 | 219 | M5-07-01 | M5-07 | `skoll-testing-automation` | generator golden tests | tests | 幂等、冲突、回滚、模板输出测试通过 | `go test ./...` | Done |
-| 220 | M5-08-01 | M5-08 | `skoll-testing-automation` | demo_product 生成验收 | example | 单表 CRUD 从 spec 到前后端页面跑通 | `go test ./...`; `cd web && npm run build` | Todo |
+| 220 | M5-08-01 | M5-08 | `skoll-testing-automation` | demo_product 生成验收 | example | 单表 CRUD 从 spec 到前后端页面跑通 | `go test ./...`; `cd web && npm run build` | Done |
 
 ## N4/M6 Work Items: 插件市场与生命周期
 

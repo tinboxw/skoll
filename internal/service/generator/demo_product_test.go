@@ -1,0 +1,108 @@
+package generator
+
+import (
+	"context"
+	"encoding/json"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
+)
+
+func TestDemoProductGenerationAcceptance(t *testing.T) {
+	spec := loadDemoProductSpec(t)
+	svc := NewService()
+	result, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "demo-product-acceptance",
+		ActorID:            "codex",
+		MigrationTimestamp: "20260629_030000",
+	})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+	if result.Summary.Conflict != 0 || result.Summary.Blocked != 0 {
+		t.Fatalf("dry-run has conflicts or blocked files: %+v", result.Summary)
+	}
+
+	goPaths := []string{
+		"internal/domain/demo_product/entity.go",
+		"internal/repository/demo_product/demo_product_repo.go",
+		"internal/store/memory/demo_product_store.go",
+		"internal/service/demo_product/service.go",
+		"internal/service/demo_product/service_impl.go",
+		"internal/handler/http/v1/demo_product/handler.go",
+	}
+	for _, path := range goPaths {
+		plan := findPlan(t, result.Files, path)
+		if _, err := parser.ParseFile(token.NewFileSet(), path, plan.GeneratedContent, parser.AllErrors); err != nil {
+			t.Fatalf("generated Go for %s is invalid: %v\n%s", path, err, plan.GeneratedContent)
+		}
+	}
+
+	assertGeneratedContains(t, result, "migrations/mysql/20260629_030000_create_demo_products.sql", "CREATE TABLE demo_products", "idx_demo_products_name")
+	assertGeneratedContains(t, result, "docs/api/openapi.yaml", "/demo-products:", "operationId: listDemoProduct", "DemoProduct:")
+	assertGeneratedContains(t, result, "web/src/api/demo_product.ts", "export type DemoProduct", "listDemoProduct", "createDemoProduct")
+	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts", "useDemoProductStore", "lastError", "async retry")
+	assertGeneratedContains(t, result, "web/src/views/DemoProduct/index.vue", "<el-table", "<el-drawer", "demo_product.create")
+
+	history, err := svc.RecordHistory(context.Background(), RecordHistoryInput{
+		DryRun:    result,
+		Spec:      spec,
+		CreatedAt: time.Date(2026, 6, 29, 3, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("RecordHistory() error = %v", err)
+	}
+	if history.SpecID != "spec-demo-product" || history.ActorID != "codex" || len(history.Files) != len(result.Files) {
+		t.Fatalf("history = %+v", history)
+	}
+
+	current := make([]FileSnapshot, 0, len(result.Files))
+	for _, file := range result.Files {
+		current = append(current, FileSnapshot{Path: file.Path, CurrentHash: file.ContentHash})
+	}
+	rollback, err := svc.PlanRollback(context.Background(), RollbackInput{
+		BatchID:      "demo-product-acceptance",
+		CurrentFiles: current,
+	})
+	if err != nil {
+		t.Fatalf("PlanRollback() error = %v", err)
+	}
+	if len(rollback.Conflicts) != 0 {
+		t.Fatalf("rollback conflicts = %+v", rollback.Conflicts)
+	}
+}
+
+func loadDemoProductSpec(t *testing.T) *domaingenerator.GeneratorSpec {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", "examples", "demo_product", "spec.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read demo product spec: %v", err)
+	}
+	var in domaingenerator.GeneratorSpecInput
+	if err := json.Unmarshal(data, &in); err != nil {
+		t.Fatalf("decode demo product spec: %v", err)
+	}
+	spec, err := domaingenerator.NewGeneratorSpec(in)
+	if err != nil {
+		t.Fatalf("NewGeneratorSpec() error = %v", err)
+	}
+	return spec
+}
+
+func assertGeneratedContains(t *testing.T, result *DryRunResult, path string, values ...string) {
+	t.Helper()
+	content := findPlan(t, result.Files, path).GeneratedContent
+	for _, value := range values {
+		if !strings.Contains(content, value) {
+			t.Fatalf("%s does not contain %q\n%s", path, value, content)
+		}
+	}
+}

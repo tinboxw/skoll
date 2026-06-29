@@ -12982,3 +12982,76 @@ go test ./...
 
 ### 下一步
 - 进入 `M5-08-01`，执行 demo_product 生成验收。
+
+## M5-08-01: demo_product 生成验收
+
+- 状态: Passed
+- Work Item: M5-08-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `examples/demo_product/README.md`
+- `examples/demo_product/spec.json`
+- `internal/service/generator/demo_product_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| demo spec | Passed | 新增 `examples/demo_product/spec.json`，覆盖模块、表、字段、索引、权限、菜单、页面、审计配置。 |
+| 后端生成验收 | Passed | 测试解析生成的 domain、repository、memory store、service、service impl、HTTP handler Go 输出。 |
+| 数据库与 API 输出 | Passed | 测试覆盖 migration、OpenAPI path/schema/operationId 和权限 seed 关键输出。 |
+| 前端生成验收 | Passed | 测试覆盖 API client、Pinia store、列表/表单页面、权限按钮和错误状态输出。 |
+| 生成历史与回滚 | Passed | demo fixture 记录 history 后可生成 rollback plan，未出现 conflict。 |
+| 全量质量门禁 | Passed | `go test ./...` 与 `cd web && npm run build` 均通过。 |
+| 任务状态更新 | Passed | `M5-08-01` 已标记 Done，`M5-08` 父任务已标记 Done。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/service/generator/demo_product_test.go
+go test ./internal/service/generator/...
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./...
+cd web
+npm run build
+```
+
+结果摘要: Passed。前端构建仅出现既有 Dart Sass legacy JS API 和 Rollup pure annotation 警告。
+
+### 前端验收记录
+
+- Affected routes/pages: Generated `web/src/views/DemoProduct/index.vue`
+- State coverage: list/form/loading/error/permission button output covered by generated content assertions
+- Browser smoke: N/A, generated page is validated through generator fixture rather than mounted route
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: `v-permission` and `demo_product.create` output asserted
+- Typecheck: Covered by generated TypeScript content assertions and prior M5 frontend gates
+- Build: `cd web && npm run build` Passed
+
+### 人工验收
+
+1. 检查 demo_product fixture 是否能从 spec 覆盖单表 CRUD 的前后端主要输出。
+2. 检查测试只消费 dry-run 输出，不把生成文件写入业务目录。
+3. 检查 `M5-08` 父任务随唯一 work item 完成而收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M6-01-01`，定义 marketplace index schema。
