@@ -7,6 +7,7 @@ import (
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	"github.com/tinboxw/skoll/internal/domain/user"
+	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 )
 
 func TestUserStore_GetByID(t *testing.T) {
@@ -144,6 +145,44 @@ func TestUserStore_List(t *testing.T) {
 	})
 }
 
+func TestUserStore_ListFiltered(t *testing.T) {
+	db := TestDB(t)
+	store := NewUserStore(db)
+	ctx := context.Background()
+
+	users := []*user.User{
+		{ID: shared.ID("1"), Account: "alice", Name: "Alice", Email: user.Email("alice@test.com"), DepartmentID: "dept-a"},
+		{ID: shared.ID("2"), Account: "bob", Name: "Bob", Email: user.Email("bob@test.com"), DepartmentID: "dept-b"},
+		{ID: shared.ID("3"), Account: "carol", Name: "Carol", Email: user.Email("carol@test.com"), DepartmentID: "dept-c"},
+		{ID: shared.ID("4"), Account: "dave", Name: "Dave", Email: user.Email("dave@test.com"), DepartmentID: "dept-b"},
+	}
+	for _, u := range users {
+		u.Meta.Touch(time.Now())
+		if err := store.Save(ctx, u); err != nil {
+			t.Fatalf("failed to save user: %v", err)
+		}
+	}
+
+	result, err := store.ListFiltered(ctx, userrepo.ListFilter{
+		UserIDs:       []shared.ID{"1"},
+		DepartmentIDs: []string{"dept-b"},
+	}, 0, 10)
+	if err != nil {
+		t.Fatalf("ListFiltered error: %v", err)
+	}
+	if accounts := gormUserAccounts(result); accounts != "alice,bob,dave" {
+		t.Fatalf("unexpected filtered accounts: %s", accounts)
+	}
+
+	paged, err := store.ListFiltered(ctx, userrepo.ListFilter{DepartmentIDs: []string{"dept-b"}}, 1, 1)
+	if err != nil {
+		t.Fatalf("ListFiltered paged error: %v", err)
+	}
+	if accounts := gormUserAccounts(paged); accounts != "dave" {
+		t.Fatalf("unexpected paged accounts: %s", accounts)
+	}
+}
+
 func TestUserStore_SaveAndUpdate(t *testing.T) {
 	db := TestDB(t)
 	store := NewUserStore(db)
@@ -186,6 +225,17 @@ func TestUserStore_SaveAndUpdate(t *testing.T) {
 	if result.Name != "Updated Name" {
 		t.Errorf("expected name 'Updated Name', got '%s'", result.Name)
 	}
+}
+
+func gormUserAccounts(items []*user.User) string {
+	out := ""
+	for i, item := range items {
+		if i > 0 {
+			out += ","
+		}
+		out += item.Account
+	}
+	return out
 }
 
 func TestUserStore_Delete(t *testing.T) {

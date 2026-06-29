@@ -4,7 +4,12 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
+	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
+	"github.com/tinboxw/skoll/internal/domain/shared"
+	domainuser "github.com/tinboxw/skoll/internal/domain/user"
+	rbacservice "github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/store"
 )
 
@@ -160,6 +165,94 @@ func TestUserServiceCreateBatchAtomicStopsOnFirstError(t *testing.T) {
 	}
 }
 
+func TestUserServiceListAppliesDataScope(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+	ctx := context.Background()
+	for _, item := range []*domainuser.User{
+		newScopedUser("1", "alice", "dept-a"),
+		newScopedUser("2", "bob", "dept-b"),
+		newScopedUser("3", "carol", "dept-c"),
+		newScopedUser("4", "dave", "dept-b-child"),
+	} {
+		if err := bundle.Users.Save(ctx, item); err != nil {
+			t.Fatalf("seed user %s error: %v", item.ID, err)
+		}
+	}
+
+	svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, rbacservice.NewService(bundle.RBAC))
+
+	cases := []struct {
+		name string
+		in   ListInput
+		want []string
+	}{
+		{
+			name: "self",
+			in:   ListInput{DataScope: domainrbac.DataScopeSelf, ActorUserID: "2"},
+			want: []string{"bob"},
+		},
+		{
+			name: "department",
+			in:   ListInput{DataScope: domainrbac.DataScopeDepartment, ActorDepartmentID: "dept-b"},
+			want: []string{"bob"},
+		},
+		{
+			name: "department tree",
+			in: ListInput{
+				DataScope:         domainrbac.DataScopeDepartmentTree,
+				ActorDepartmentID: "dept-b",
+				DepartmentTreeIDs: []string{"dept-b-child"},
+			},
+			want: []string{"bob", "dave"},
+		},
+		{
+			name: "custom",
+			in:   ListInput{DataScope: domainrbac.DataScopeCustom, CustomDepartmentIDs: []string{"dept-a", "dept-c"}},
+			want: []string{"alice", "carol"},
+		},
+		{
+			name: "super admin bypass",
+			in:   ListInput{DataScope: domainrbac.DataScopeSelf, ActorUserID: "2", SuperAdmin: true},
+			want: []string{"alice", "bob", "carol", "dave"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := svc.List(ctx, tc.in)
+			if err != nil {
+				t.Fatalf("List error: %v", err)
+			}
+			gotAccounts := make([]string, 0, len(got))
+			for _, item := range got {
+				gotAccounts = append(gotAccounts, item.Account)
+			}
+			if strings.Join(gotAccounts, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("expected accounts %v, got %v", tc.want, gotAccounts)
+			}
+		})
+	}
+}
+
+func TestUserServiceListRejectsMissingDataScopeContext(t *testing.T) {
+	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
+	if err != nil {
+		t.Fatalf("store.NewBundle error: %v", err)
+	}
+
+	svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, rbacservice.NewService(bundle.RBAC))
+	_, err = svc.List(context.Background(), ListInput{DataScope: domainrbac.DataScopeSelf})
+	if err == nil {
+		t.Fatalf("expected missing actor error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "actor user id") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestUserServiceUpdateRejectsUnsupportedStatus(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
 	if err != nil {
@@ -185,6 +278,21 @@ func TestUserServiceUpdateRejectsUnsupportedStatus(t *testing.T) {
 	if !strings.Contains(strings.ToLower(err.Error()), "unsupported status") {
 		t.Fatalf("unexpected error: %v", err)
 	}
+}
+
+func newScopedUser(id, account, departmentID string) *domainuser.User {
+	now := time.Now().UTC()
+	u := &domainuser.User{
+		ID:           shared.ID(id),
+		Account:      account,
+		Name:         account + " user",
+		Email:        domainuser.Email(account + "@example.com"),
+		Status:       domainuser.StatusActive,
+		Password:     domainuser.PasswordHash("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		DepartmentID: departmentID,
+	}
+	u.Meta.Touch(now)
+	return u
 }
 
 func TestUserServiceDeleteRequiresID(t *testing.T) {

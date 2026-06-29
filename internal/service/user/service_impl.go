@@ -9,30 +9,42 @@ import (
 	"time"
 
 	"github.com/tinboxw/skoll/internal/domain/audit"
+	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 	"github.com/tinboxw/skoll/internal/repository"
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	servicecommon "github.com/tinboxw/skoll/internal/service/common"
+	rbacservice "github.com/tinboxw/skoll/internal/service/rbac"
 )
 
+type DataScopeResolver interface {
+	ResolveDataScope(ctx context.Context, in rbacservice.ResolveDataScopeInput) (rbacservice.DataScopeDecision, error)
+}
+
 type serviceImpl struct {
-	repo  userrepo.UserRepository
-	audit auditrepo.AuditRepository
-	tx    *servicecommon.TransactionManager
-	nowFn func() time.Time
-	idFn  func(prefix string) shared.ID
+	repo              userrepo.UserRepository
+	audit             auditrepo.AuditRepository
+	tx                *servicecommon.TransactionManager
+	dataScopeResolver DataScopeResolver
+	nowFn             func() time.Time
+	idFn              func(prefix string) shared.ID
 }
 
 var sha256HexPattern = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
 
 func NewService(repo userrepo.UserRepository, auditRepo auditrepo.AuditRepository, tx repository.UnitOfWork) Service {
+	return NewServiceWithDataScope(repo, auditRepo, tx, nil)
+}
+
+func NewServiceWithDataScope(repo userrepo.UserRepository, auditRepo auditrepo.AuditRepository, tx repository.UnitOfWork, resolver DataScopeResolver) Service {
 	return &serviceImpl{
-		repo:  repo,
-		audit: auditRepo,
-		tx:    servicecommon.NewTransactionManager(tx),
-		nowFn: func() time.Time { return time.Now().UTC() },
+		repo:              repo,
+		audit:             auditRepo,
+		tx:                servicecommon.NewTransactionManager(tx),
+		dataScopeResolver: resolver,
+		nowFn:             func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
 			if prefix == "audit" {
 				return shared.ID(strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
@@ -205,7 +217,49 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]*domainuser.Use
 	if err := validateListInput(in); err != nil {
 		return nil, err
 	}
-	return s.repo.List(ctx, in.Offset, in.Limit)
+	if in.SuperAdmin {
+		return s.repo.List(ctx, in.Offset, in.Limit)
+	}
+
+	scope := domainrbac.NormalizeDataScope(in.DataScope)
+	if scope == "" {
+		return s.repo.List(ctx, in.Offset, in.Limit)
+	}
+	if err := scope.Validate(); err != nil {
+		return nil, err
+	}
+	if scope == domainrbac.DataScopeAll {
+		return s.repo.List(ctx, in.Offset, in.Limit)
+	}
+	if s.dataScopeResolver == nil {
+		return nil, fmt.Errorf("data scope resolver is required")
+	}
+
+	decision, err := s.dataScopeResolver.ResolveDataScope(ctx, rbacservice.ResolveDataScopeInput{
+		Scope:               scope,
+		ActorUserID:         in.ActorUserID,
+		ActorDepartmentID:   in.ActorDepartmentID,
+		DepartmentTreeIDs:   in.DepartmentTreeIDs,
+		CustomDepartmentIDs: in.CustomDepartmentIDs,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if decision.All {
+		return s.repo.List(ctx, in.Offset, in.Limit)
+	}
+
+	filter := userrepo.ListFilter{
+		UserIDs:       make([]shared.ID, 0, len(decision.UserIDs)),
+		DepartmentIDs: decision.DepartmentIDs,
+	}
+	for _, id := range decision.UserIDs {
+		filter.UserIDs = append(filter.UserIDs, shared.ID(id))
+	}
+	if filter.Empty() {
+		return []*domainuser.User{}, nil
+	}
+	return s.repo.ListFiltered(ctx, filter, in.Offset, in.Limit)
 }
 
 func (s *serviceImpl) Update(ctx context.Context, in UpdateUserInput) (*domainuser.User, error) {

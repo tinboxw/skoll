@@ -1,5 +1,7 @@
 package user
 
+import domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
+
 type CreateUserInput struct {
 	Account      string `json:"account"`
 	Name         string `json:"name"`
@@ -39,6 +41,12 @@ type UpdateUserInput struct {
 }
 
 type ListInput struct {
-	Offset int `json:"offset"`
-	Limit  int `json:"limit"`
+	Offset              int                  `json:"offset"`
+	Limit               int                  `json:"limit"`
+	DataScope           domainrbac.DataScope `json:"dataScope"`
+	ActorUserID         string               `json:"actorUserId"`
+	ActorDepartmentID   string               `json:"actorDepartmentId"`
+	DepartmentTreeIDs   []string             `json:"departmentTreeIds"`
+	CustomDepartmentIDs []string             `json:"customDepartmentIds"`
+	SuperAdmin          bool                 `json:"superAdmin"`
 }

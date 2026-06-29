@@ -12015,3 +12015,72 @@ go test ./internal/store/sql/gormrepo/... -run "TestRBAC|TestPolicy|TestDataScop
 ### 下一步
 
 - 进入 `M4-06-02`，实现用户列表数据范围过滤。
+
+## M4-06-02: 用户列表数据范围过滤
+
+- 状态: Passed
+- Work Item: M4-06-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/repository/user/user_repo.go`
+- `internal/store/memory/user_store.go`
+- `internal/store/memory/user_store_test.go`
+- `internal/store/sql/gormrepo/user_store.go`
+- `internal/store/sql/gormrepo/user_store_test.go`
+- `internal/service/user/types.go`
+- `internal/service/user/service_impl.go`
+- `internal/service/user/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 数据范围解析接入 | Passed | 用户列表新增可选 `DataScopeResolver`，通过 RBAC `ResolveDataScope` 解析 self/department/department_tree/custom/all。 |
+| super_admin 绕过 | Passed | `ListInput.SuperAdmin` 显式绕过数据范围过滤，直接返回全量列表。 |
+| store 下推过滤 | Passed | `UserRepository.ListFiltered` 支持 userIds 和 departmentIds 过滤，memory 与 GORM 均实现。 |
+| 不同范围结果 | Passed | 服务测试覆盖 self、department、department_tree、custom 与 super_admin。 |
+| 任务状态更新 | Passed | `work_items.md`、`next_work_items.md` 中 `M4-06-02` 已标记 Done，`task_board.md` 中 `M4-06` 已标记 Done。 |
+
+### 自动化验证
+```powershell
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/service/user/... ./internal/service/rbac/...
+go test ./internal/store/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查未传数据范围的用户列表仍走旧的全量列表路径，避免破坏既有调用。
+2. 检查 `all` 与 `super_admin` 均显式返回全量列表，普通范围必须经过 RBAC 数据范围解析。
+3. 检查过滤在仓储层按用户 ID 或部门 ID 下推，分页发生在过滤结果之后。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M4-07-01`，实现组织管理 UI。
