@@ -11798,3 +11798,67 @@ npm run build
 ### 下一步
 
 - 进入 `M4-05-01`，实现组织/部门/岗位 domain。
+
+## M4-05-01: 组织/部门/岗位 domain
+
+- 状态: Passed
+- Work Item: M4-05-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/domain/organization/organization.go`
+- `internal/domain/organization/organization_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 部门模型 | Passed | 新增 Department，覆盖 parent、code、name、leader、status、sort 和审计时间。 |
+| 部门树 | Passed | 新增 BuildDepartmentTree/ValidateDepartmentTree，覆盖排序、孤儿父节点、重复 ID/code 和环检测。 |
+| 岗位模型 | Passed | 新增 Position，覆盖 code、name、description、status、sort 和更新行为。 |
+| 用户归属模型 | Passed | 新增 UserAssignment，表达用户部门和岗位归属，支持 primary 标记。 |
+| 任务状态更新 | Passed | `work_items.md` 和 `next_work_items.md` 中 `M4-05-01` 已标记 Done。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/organization/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查组织模型为独立 domain，不再复用 settings-backed 组织结构。
+2. 检查部门树校验能支撑后续 store/API 的树形编辑。
+3. 检查 M4-05 父任务仍为 Todo，等待 `M4-05-02` migration/store 完成。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 无。
+- 返工动作: 无。
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M4-05-02`，实现组织 migration/store。
