@@ -97,7 +97,7 @@
 | 32 | M4-04 | `skoll-data-dictionary-config` | 配置 schema 注册 | domain/service/UI | 系统与插件配置通过 schema 渲染和校验 | `go test ./internal/service/system/...`; `cd web && npm run build` | Done |
 | 33 | M4-05 | `skoll-dictionary-organization-refactor` | 组织/部门/岗位模型 | domain/store/API | 部门树、岗位、用户归属可用 | `go test ./...` | Todo |
 | 34 | M4-06 | `skoll-permission-rbac` | 数据范围查询过滤 | service/store | 用户列表按 all/department/department_tree/self/custom 返回不同结果 | `go test ./internal/service/rbac/... ./internal/service/user/...` | Done |
-| 35 | M4-07 | `skoll-vue-frontend` | 组织管理与数据范围 UI | Vue 页面 | 授权时可选择数据范围，用户归属可编辑 | `cd web && npm run build` | Todo |
+| 35 | M4-07 | `skoll-vue-frontend` | 组织管理与数据范围 UI | Vue 页面 | 授权时可选择数据范围，用户归属可编辑 | `cd web && npm run build` | Done |
 
 里程碑验收:
 

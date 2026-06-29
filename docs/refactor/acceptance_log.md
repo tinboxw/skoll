@@ -12147,3 +12147,64 @@ Invoke-WebRequest -Uri 'http://127.0.0.1:5173/skoll/organization' -UseBasicParsi
 
 ### 下一步
 - 进入 `M4-07-02`，补充数据范围验收清单。
+
+## M4-07-02: 数据范围验收清单
+
+- 状态: Passed
+- Work Item: M4-07-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/refactor/m4_data_scope_acceptance_checklist.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 三类角色覆盖 | Passed | 清单覆盖 `super_admin`、部门管理员、普通用户，并补充 custom scope 可选场景。 |
+| 可复查结果 | Passed | 每个场景包含准备数据、前端路径、API 交叉检查、预期用户列表和失败记录字段。 |
+| 前端验收规则 | Passed | 清单要求 UI/API 结果一致，并记录 no-permission、save、empty、error、narrow viewport 等状态。 |
+| 任务状态更新 | Passed | `M4-07-02` 已标记 Done，`M4-07` 父任务已标记 Done。 |
+
+### 自动化验证
+```powershell
+rg -n "Scenario Matrix|Admin|Department Manager|Normal User|API Cross-Checks|Failure Record|Acceptance Gate" docs/refactor/m4_data_scope_acceptance_checklist.md
+cd web
+npm run build
+```
+
+结果摘要: Passed。build 仍有既有 Dart Sass legacy JS API 与 Rollup pure annotation warning。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/user`, `/skoll/organization`, `/skoll/permission`, `/skoll/role`
+- State coverage: default, loading, empty, backend-error, no-permission, save-success/failure, narrow-viewport
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: 本项为手工 smoke 清单，不执行真实浏览器点击
+- Responsive evidence: 清单要求记录组织页窄屏结果
+- Permission evidence: 清单覆盖 admin、部门管理员、普通用户
+- Typecheck: N/A
+- Build: Passed
+
+### 人工验收
+
+1. 审阅清单，确认 admin、部门管理员、普通用户三类结果均可复查。
+2. 确认 UI 与 API 结果一致被列为验收门。
+3. 确认失败记录字段包含 expected/actual、route/API、证据和复测结果。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-01-01`，实现 GeneratorSpec domain。
