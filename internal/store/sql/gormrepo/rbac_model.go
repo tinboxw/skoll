@@ -26,7 +26,7 @@ func BindingModelFromDomain(entity *rbac.Binding) BindingModel {
 		SubjectType: string(entity.SubjectType),
 		SubjectID:   parseUintID(entity.SubjectID.String()),
 		RoleID:      parseUintID(entity.RoleID.String()),
-		Scope:       string(entity.Scope),
+		Scope:       string(rbac.NormalizeDataScope(entity.Scope)),
 		CreatedAt:   entity.Meta.CreatedAt,
 		UpdatedAt:   entity.Meta.UpdatedAt,
 	}
@@ -38,7 +38,7 @@ func (m BindingModel) ToDomain() *rbac.Binding {
 		SubjectType: rbac.SubjectType(m.SubjectType),
 		SubjectID:   shared.ID(formatUintID(m.SubjectID)),
 		RoleID:      shared.ID(formatUintID(m.RoleID)),
-		Scope:       rbac.DataScope(m.Scope),
+		Scope:       rbac.NormalizeDataScope(rbac.DataScope(m.Scope)),
 		Meta: shared.AuditMeta{
 			CreatedAt: m.CreatedAt,
 			UpdatedAt: m.UpdatedAt,
@@ -63,7 +63,7 @@ func PolicyRuleModelFromDomain(roleID shared.ID, rule rbac.PolicyRule) PolicyRul
 		Resource: strings.TrimSpace(rule.Resource),
 		Action:   strings.TrimSpace(rule.Action),
 		Effect:   string(rule.Effect),
-		Scope:    string(rule.Scope),
+		Scope:    string(rbac.NormalizeDataScope(rule.Scope)),
 	}
 }
 
@@ -72,6 +72,6 @@ func (m PolicyRuleModel) ToDomain() rbac.PolicyRule {
 		Resource: m.Resource,
 		Action:   m.Action,
 		Effect:   rbac.Effect(m.Effect),
-		Scope:    rbac.DataScope(m.Scope),
+		Scope:    rbac.NormalizeDataScope(rbac.DataScope(m.Scope)),
 	}
 }

@@ -29,7 +29,14 @@ func (p PolicyRule) Validate() error {
 	if p.Effect != EffectAllow && p.Effect != EffectDeny {
 		return fmt.Errorf("effect must be allow or deny")
 	}
-	return p.Scope.Validate()
+	return NormalizeDataScope(p.Scope).Validate()
+}
+
+func (p PolicyRule) Normalized() PolicyRule {
+	p.Resource = strings.TrimSpace(p.Resource)
+	p.Action = strings.TrimSpace(p.Action)
+	p.Scope = NormalizeDataScope(p.Scope)
+	return p
 }
 
 func (p PolicyRule) Matches(resource, action string) bool {

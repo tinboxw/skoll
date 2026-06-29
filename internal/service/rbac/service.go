@@ -13,5 +13,6 @@ type Service interface {
 	SetRolePolicies(ctx context.Context, in SetRolePoliciesInput) error
 	CheckPermission(ctx context.Context, in CheckPermissionInput) (bool, error)
 	ResolvePermission(ctx context.Context, in CheckPermissionInput) (PermissionDecision, error)
+	ResolveDataScope(ctx context.Context, in ResolveDataScopeInput) (DataScopeDecision, error)
 	ListBindingsByUser(ctx context.Context, userID string) ([]*domainrbac.Binding, error)
 }

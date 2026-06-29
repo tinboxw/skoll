@@ -31,6 +31,7 @@ func NewBinding(id shared.ID, subjectType SubjectType, subjectID, roleID shared.
 	if subjectType != SubjectUser && subjectType != SubjectRole {
 		return nil, fmt.Errorf("unsupported subject type: %s", subjectType)
 	}
+	scope = NormalizeDataScope(scope)
 	if err := scope.Validate(); err != nil {
 		return nil, err
 	}

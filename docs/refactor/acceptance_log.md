@@ -11940,3 +11940,78 @@ go test ./internal/store/...
 ### 下一步
 
 - 进入 `M4-06-01`，实现 DataScope domain/service。
+
+## M4-06-01: DataScope domain/service
+
+- 状态: Passed
+- Work Item: M4-06-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/domain/rbac/data_scope.go`
+- `internal/domain/rbac/entity.go`
+- `internal/domain/rbac/policy.go`
+- `internal/domain/rbac/policy_test.go`
+- `internal/service/rbac/types.go`
+- `internal/service/rbac/service.go`
+- `internal/service/rbac/service_impl.go`
+- `internal/service/rbac/service_impl_test.go`
+- `internal/store/sql/gormrepo/rbac_model.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| canonical scope | Passed | DataScope 统一为 `all`、`department`、`department_tree`、`self`、`custom`。 |
+| legacy alias | Passed | 旧 `dept`、`dept_tree` 输入归一化为 canonical 值，避免旧调用/旧数据直接失效。 |
+| service 解析 | Passed | 新增 `ResolveDataScope`，输出 all/userIds/departmentIds，供后续用户列表过滤复用。 |
+| 权限决策 | Passed | `ResolvePermission` 继续选择 binding 与 policy rule 中更严格的数据范围，deny 优先不变。 |
+| 持久化兼容 | Passed | GORM RBAC model 读写 scope 时归一化。 |
+| 任务状态更新 | Passed | `work_items.md` 和 `next_work_items.md` 中 `M4-06-01` 已标记 Done。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/service/rbac/...
+go test ./internal/domain/rbac/...
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/store/sql/gormrepo/... -run "TestRBAC|TestPolicy|TestDataScope|TestBinding|Test.*RBAC"
+```
+
+结果摘要: Passed。一次组合测试中 `internal/domain/rbac` 的 test exe 在 Windows 临时目录遇到 `Access is denied`，单包重跑通过。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 DataScope canonical 文案与 M4-06-01 任务要求一致。
+2. 检查旧短名 alias 只作为输入兼容，不作为新持久化输出。
+3. 检查 M4-06 父任务仍为 Todo，等待 `M4-06-02` 用户列表数据范围过滤完成。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 组合测试中 `internal/domain/rbac` test exe 一次性遇到 Windows `Access is denied`。
+- 返工动作: 单包重跑确认通过；无代码返工。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M4-06-02`，实现用户列表数据范围过滤。

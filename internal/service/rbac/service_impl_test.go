@@ -47,8 +47,12 @@ func (f *fakeRBACRepo) ListPolicyRulesByRoleID(_ context.Context, roleID shared.
 	return f.policyRulesByRole[roleID.String()], nil
 }
 
-func (f *fakeRBACRepo) ReplacePolicyRules(_ context.Context, _ shared.ID, _ []domainrbac.PolicyRule) error {
+func (f *fakeRBACRepo) ReplacePolicyRules(_ context.Context, roleID shared.ID, rules []domainrbac.PolicyRule) error {
 	f.replacePolicyRulesCall = true
+	if f.policyRulesByRole == nil {
+		f.policyRulesByRole = map[string][]domainrbac.PolicyRule{}
+	}
+	f.policyRulesByRole[roleID.String()] = append([]domainrbac.PolicyRule(nil), rules...)
 	return f.replacePolicyRulesErr
 }
 
@@ -137,7 +141,7 @@ func TestRBACServiceResolvePermissionUsesMostRestrictiveScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolvePermission read error: %v", err)
 	}
-	if !readDecision.Allowed || readDecision.Scope != domainrbac.DataScopeDept {
+	if !readDecision.Allowed || readDecision.Scope != domainrbac.DataScopeDepartment {
 		t.Fatalf("expected dept scope, got %+v", readDecision)
 	}
 
@@ -150,8 +154,91 @@ func TestRBACServiceResolvePermissionUsesMostRestrictiveScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolvePermission update error: %v", err)
 	}
-	if !updateDecision.Allowed || updateDecision.Scope != domainrbac.DataScopeDeptTree {
+	if !updateDecision.Allowed || updateDecision.Scope != domainrbac.DataScopeDepartmentTree {
 		t.Fatalf("expected dept_tree scope, got %+v", updateDecision)
+	}
+}
+
+func TestRBACServiceSetRolePoliciesNormalizesDataScope(t *testing.T) {
+	repo := &fakeRBACRepo{}
+	svc := NewService(repo)
+
+	err := svc.SetRolePolicies(context.Background(), SetRolePoliciesInput{
+		RoleID: "r-1",
+		Rules:  []domainrbac.PolicyRule{{Resource: " user:* ", Action: " read ", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScope("dept_tree")}},
+	})
+	if err != nil {
+		t.Fatalf("SetRolePolicies error: %v", err)
+	}
+	rules := repo.policyRulesByRole["r-1"]
+	if len(rules) != 1 || rules[0].Scope != domainrbac.DataScopeDepartmentTree || rules[0].Resource != "user:*" || rules[0].Action != "read" {
+		t.Fatalf("expected normalized rules, got %+v", rules)
+	}
+}
+
+func TestRBACServiceResolveDataScope(t *testing.T) {
+	svc := NewService(memory.NewRBACStore())
+	ctx := context.Background()
+
+	all, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScopeAll})
+	if err != nil {
+		t.Fatalf("ResolveDataScope all error: %v", err)
+	}
+	if !all.All || all.Scope != domainrbac.DataScopeAll {
+		t.Fatalf("unexpected all decision: %+v", all)
+	}
+
+	self, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScopeSelf, ActorUserID: " user-1 "})
+	if err != nil {
+		t.Fatalf("ResolveDataScope self error: %v", err)
+	}
+	if len(self.UserIDs) != 1 || self.UserIDs[0] != "user-1" {
+		t.Fatalf("unexpected self decision: %+v", self)
+	}
+
+	department, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScope("dept"), ActorDepartmentID: "dept-sales"})
+	if err != nil {
+		t.Fatalf("ResolveDataScope department error: %v", err)
+	}
+	if department.Scope != domainrbac.DataScopeDepartment || len(department.DepartmentIDs) != 1 || department.DepartmentIDs[0] != "dept-sales" {
+		t.Fatalf("unexpected department decision: %+v", department)
+	}
+
+	departmentTree, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{
+		Scope:             domainrbac.DataScope("dept_tree"),
+		ActorDepartmentID: "dept-sales",
+		DepartmentTreeIDs: []string{"dept-sales", "dept-east", " "},
+	})
+	if err != nil {
+		t.Fatalf("ResolveDataScope department_tree error: %v", err)
+	}
+	if departmentTree.Scope != domainrbac.DataScopeDepartmentTree || strings.Join(departmentTree.DepartmentIDs, ",") != "dept-sales,dept-east" {
+		t.Fatalf("unexpected department_tree decision: %+v", departmentTree)
+	}
+
+	custom, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScopeCustom, CustomDepartmentIDs: []string{"dept-a", "dept-a", "dept-b"}})
+	if err != nil {
+		t.Fatalf("ResolveDataScope custom error: %v", err)
+	}
+	if custom.Scope != domainrbac.DataScopeCustom || strings.Join(custom.DepartmentIDs, ",") != "dept-a,dept-b" {
+		t.Fatalf("unexpected custom decision: %+v", custom)
+	}
+}
+
+func TestRBACServiceResolveDataScopeRejectsMissingContext(t *testing.T) {
+	svc := NewService(memory.NewRBACStore())
+	ctx := context.Background()
+
+	cases := []ResolveDataScopeInput{
+		{Scope: domainrbac.DataScopeSelf},
+		{Scope: domainrbac.DataScopeDepartment},
+		{Scope: domainrbac.DataScopeDepartmentTree},
+		{Scope: domainrbac.DataScopeCustom},
+	}
+	for _, tc := range cases {
+		if _, err := svc.ResolveDataScope(ctx, tc); err == nil {
+			t.Fatalf("expected missing context error for scope %s", tc.Scope)
+		}
 	}
 }
 

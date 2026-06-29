@@ -2,6 +2,7 @@ package rbac
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -64,12 +65,14 @@ func (s *serviceImpl) ListBindings(ctx context.Context, subjectType domainrbac.S
 }
 
 func (s *serviceImpl) SetRolePolicies(ctx context.Context, in SetRolePoliciesInput) error {
+	rules := make([]domainrbac.PolicyRule, 0, len(in.Rules))
 	for _, rule := range in.Rules {
 		if err := rule.Validate(); err != nil {
 			return err
 		}
+		rules = append(rules, rule.Normalized())
 	}
-	return s.repo.ReplacePolicyRules(ctx, shared.ID(in.RoleID), in.Rules)
+	return s.repo.ReplacePolicyRules(ctx, shared.ID(in.RoleID), rules)
 }
 
 func (s *serviceImpl) CheckPermission(ctx context.Context, in CheckPermissionInput) (bool, error) {
@@ -123,7 +126,46 @@ func (s *serviceImpl) ListBindingsByUser(ctx context.Context, userID string) ([]
 	return s.ListBindings(ctx, domainrbac.SubjectUser, target)
 }
 
+func (s *serviceImpl) ResolveDataScope(_ context.Context, in ResolveDataScopeInput) (DataScopeDecision, error) {
+	scope := domainrbac.NormalizeDataScope(in.Scope)
+	if err := scope.Validate(); err != nil {
+		return DataScopeDecision{}, err
+	}
+	decision := DataScopeDecision{Scope: scope}
+	switch scope {
+	case domainrbac.DataScopeAll:
+		decision.All = true
+	case domainrbac.DataScopeSelf:
+		userID := strings.TrimSpace(in.ActorUserID)
+		if userID == "" {
+			return DataScopeDecision{}, fmt.Errorf("actor user id is required for self data scope")
+		}
+		decision.UserIDs = []string{userID}
+	case domainrbac.DataScopeDepartment:
+		departmentID := strings.TrimSpace(in.ActorDepartmentID)
+		if departmentID == "" {
+			return DataScopeDecision{}, fmt.Errorf("actor department id is required for department data scope")
+		}
+		decision.DepartmentIDs = []string{departmentID}
+	case domainrbac.DataScopeDepartmentTree:
+		departmentIDs := compactUniqueStrings(append([]string{in.ActorDepartmentID}, in.DepartmentTreeIDs...))
+		if len(departmentIDs) == 0 {
+			return DataScopeDecision{}, fmt.Errorf("department tree ids are required for department_tree data scope")
+		}
+		decision.DepartmentIDs = departmentIDs
+	case domainrbac.DataScopeCustom:
+		departmentIDs := compactUniqueStrings(in.CustomDepartmentIDs)
+		if len(departmentIDs) == 0 {
+			return DataScopeDecision{}, fmt.Errorf("custom department ids are required for custom data scope")
+		}
+		decision.DepartmentIDs = departmentIDs
+	}
+	return decision, nil
+}
+
 func moreRestrictiveScope(left, right domainrbac.DataScope) domainrbac.DataScope {
+	left = domainrbac.NormalizeDataScope(left)
+	right = domainrbac.NormalizeDataScope(right)
 	if scopeRank(left) <= scopeRank(right) {
 		return left
 	}
@@ -131,12 +173,12 @@ func moreRestrictiveScope(left, right domainrbac.DataScope) domainrbac.DataScope
 }
 
 func scopeRank(scope domainrbac.DataScope) int {
-	switch scope {
+	switch domainrbac.NormalizeDataScope(scope) {
 	case domainrbac.DataScopeSelf:
 		return 0
-	case domainrbac.DataScopeDept:
+	case domainrbac.DataScopeDepartment:
 		return 1
-	case domainrbac.DataScopeDeptTree:
+	case domainrbac.DataScopeDepartmentTree:
 		return 2
 	case domainrbac.DataScopeCustom:
 		return 3
@@ -145,4 +187,21 @@ func scopeRank(scope domainrbac.DataScope) int {
 	default:
 		return 4
 	}
+}
+
+func compactUniqueStrings(items []string) []string {
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+	return out
 }

@@ -25,3 +25,18 @@ type PermissionDecision struct {
 	Allowed bool                 `json:"allowed"`
 	Scope   domainrbac.DataScope `json:"scope,omitempty"`
 }
+
+type ResolveDataScopeInput struct {
+	Scope               domainrbac.DataScope
+	ActorUserID         string
+	ActorDepartmentID   string
+	DepartmentTreeIDs   []string
+	CustomDepartmentIDs []string
+}
+
+type DataScopeDecision struct {
+	Scope         domainrbac.DataScope `json:"scope"`
+	All           bool                 `json:"all"`
+	UserIDs       []string             `json:"userIds,omitempty"`
+	DepartmentIDs []string             `json:"departmentIds,omitempty"`
+}
