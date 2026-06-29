@@ -167,6 +167,34 @@ func (f *fakeSystemService) DeleteDictionaryItem(_ context.Context, id string) e
 	return nil
 }
 
+func (f *fakeSystemService) RegisterConfigSchema(_ context.Context, in systemsvc.ConfigSchemaInput) (*systemsvc.ConfigSchema, error) {
+	return &systemsvc.ConfigSchema{
+		Scope:       in.Scope,
+		Owner:       in.Owner,
+		Title:       in.Title,
+		TitleZhCN:   in.TitleZhCN,
+		TitleEnUS:   in.TitleEnUS,
+		Description: in.Description,
+		Fields:      append([]systemsvc.ConfigField(nil), in.Fields...),
+	}, nil
+}
+
+func (f *fakeSystemService) GetConfigSchema(_ context.Context, scope systemsvc.ConfigScope, _ string) (*systemsvc.ConfigSchema, error) {
+	if scope != "" && scope != systemsvc.ConfigScopeSystem {
+		return nil, nil
+	}
+	schema := systemsvc.DefaultSystemConfigSchema()
+	return &schema, nil
+}
+
+func (f *fakeSystemService) ListConfigSchemas(_ context.Context, _ systemsvc.ConfigSchemaListInput) ([]systemsvc.ConfigSchema, error) {
+	return []systemsvc.ConfigSchema{systemsvc.DefaultSystemConfigSchema()}, nil
+}
+
+func (f *fakeSystemService) ValidateConfigValues(_ context.Context, _ systemsvc.ConfigScope, _ string, values map[string]any) (map[string]any, error) {
+	return values, nil
+}
+
 func TestSystemMenusDefaultAndOverride(t *testing.T) {
 	svc := newFakeSystemService()
 	mux := http.NewServeMux()

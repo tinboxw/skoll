@@ -23,6 +23,11 @@ type Service interface {
 	GetDictionaryItemByTypeAndValue(ctx context.Context, typeCode, value string) (*domainsystem.DictionaryItem, error)
 	ListDictionaryItems(ctx context.Context, in DictionaryItemListInput) ([]domainsystem.DictionaryItem, error)
 	DeleteDictionaryItem(ctx context.Context, id string) error
+
+	RegisterConfigSchema(ctx context.Context, in ConfigSchemaInput) (*ConfigSchema, error)
+	GetConfigSchema(ctx context.Context, scope ConfigScope, owner string) (*ConfigSchema, error)
+	ListConfigSchemas(ctx context.Context, in ConfigSchemaListInput) ([]ConfigSchema, error)
+	ValidateConfigValues(ctx context.Context, scope ConfigScope, owner string, values map[string]any) (map[string]any, error)
 }
 
 func NewCachedService(repo systemrepo.SystemRepository, dictionaryCache cache.BytesCache, ttl time.Duration) Service {

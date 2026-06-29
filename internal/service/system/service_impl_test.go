@@ -2,6 +2,7 @@ package system
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -163,5 +164,194 @@ func TestSystemServiceResetCountsAndStopsOnError(t *testing.T) {
 	}
 	if deleted != 1 {
 		t.Fatalf("expected deleted count 1 before failure, got %d", deleted)
+	}
+}
+
+func TestSystemServiceDefaultConfigSchema(t *testing.T) {
+	svc := NewService(memory.NewSystemStore())
+
+	schema, err := svc.GetConfigSchema(context.Background(), ConfigScopeSystem, "")
+	if err != nil {
+		t.Fatalf("GetConfigSchema error: %v", err)
+	}
+	if schema == nil {
+		t.Fatalf("expected default system schema")
+	}
+	if schema.Scope != ConfigScopeSystem || schema.Owner != "system" {
+		t.Fatalf("unexpected schema identity: %+v", schema)
+	}
+	if len(schema.Fields) < 4 {
+		t.Fatalf("expected default fields, got %+v", schema.Fields)
+	}
+	if schema.Fields[0].Key != "audit.retention_days" || schema.Fields[0].Type != ConfigFieldNumber {
+		t.Fatalf("unexpected first field: %+v", schema.Fields[0])
+	}
+	if schema.Fields[0].Min == nil || *schema.Fields[0].Min != 1 {
+		t.Fatalf("expected min validation rule, got %+v", schema.Fields[0].Min)
+	}
+
+	values, err := svc.ValidateConfigValues(context.Background(), ConfigScopeSystem, "", map[string]any{
+		"audit.retention_days": "90",
+	})
+	if err != nil {
+		t.Fatalf("ValidateConfigValues error: %v", err)
+	}
+	if values["audit.retention_days"] != 90.0 {
+		t.Fatalf("expected numeric retention value, got %#v", values["audit.retention_days"])
+	}
+	if values["plugin.auto_enable"] != false || values["plugin.dev_portal_enabled"] != true {
+		t.Fatalf("expected boolean defaults, got %+v", values)
+	}
+}
+
+func TestSystemServicePluginConfigSchemaRegistry(t *testing.T) {
+	svc := NewService(memory.NewSystemStore())
+	minLen := 3
+	minRate := 0.0
+	maxRate := 1.0
+
+	schema, err := svc.RegisterConfigSchema(context.Background(), ConfigSchemaInput{
+		Scope:       ConfigScopePlugin,
+		Owner:       "reports",
+		Title:       "Reports",
+		Description: "Reports plugin configuration.",
+		Fields: []ConfigField{
+			{
+				Key:      "reports.mode",
+				Type:     ConfigFieldSelect,
+				Required: true,
+				Default:  "daily",
+				Options: []ConfigOption{
+					{Label: "Daily", Value: "daily"},
+					{Label: "Weekly", Value: "weekly"},
+				},
+			},
+			{Key: "reports.prefix", Type: ConfigFieldString, Default: "ops", MinLength: &minLen, Pattern: "^[a-z]+$"},
+			{Key: "reports.rate", Type: ConfigFieldNumber, Default: "0.5", Min: &minRate, Max: &maxRate},
+			{Key: "reports.enabled", Type: ConfigFieldBoolean},
+		},
+	})
+	if err != nil {
+		t.Fatalf("RegisterConfigSchema error: %v", err)
+	}
+	if schema.Owner != "reports" || len(schema.Fields) != 4 {
+		t.Fatalf("unexpected registered schema: %+v", schema)
+	}
+
+	got, err := svc.GetConfigSchema(context.Background(), ConfigScopePlugin, "reports")
+	if err != nil {
+		t.Fatalf("GetConfigSchema plugin error: %v", err)
+	}
+	if got == nil || got.Fields[0].Key != "reports.mode" {
+		t.Fatalf("unexpected plugin schema: %+v", got)
+	}
+	got.Fields[0].Key = "mutated"
+	again, err := svc.GetConfigSchema(context.Background(), ConfigScopePlugin, "reports")
+	if err != nil {
+		t.Fatalf("GetConfigSchema again error: %v", err)
+	}
+	if again.Fields[0].Key != "reports.mode" {
+		t.Fatalf("expected cloned schema, got %+v", again.Fields[0])
+	}
+
+	items, err := svc.ListConfigSchemas(context.Background(), ConfigSchemaListInput{Scope: ConfigScopePlugin})
+	if err != nil {
+		t.Fatalf("ListConfigSchemas error: %v", err)
+	}
+	if len(items) != 1 || items[0].Owner != "reports" {
+		t.Fatalf("unexpected plugin schema list: %+v", items)
+	}
+
+	values, err := svc.ValidateConfigValues(context.Background(), ConfigScopePlugin, "reports", map[string]any{
+		"reports.mode": "weekly",
+		"reports.rate": json.Number("0.7"),
+	})
+	if err != nil {
+		t.Fatalf("ValidateConfigValues plugin error: %v", err)
+	}
+	if values["reports.mode"] != "weekly" || values["reports.prefix"] != "ops" || values["reports.rate"] != 0.7 || values["reports.enabled"] != false {
+		t.Fatalf("unexpected normalized values: %+v", values)
+	}
+}
+
+func TestSystemServiceConfigSchemaValidationRejectsInvalidRules(t *testing.T) {
+	svc := NewService(memory.NewSystemStore())
+	min := 10.0
+	max := 1.0
+
+	cases := []struct {
+		name  string
+		input ConfigSchemaInput
+	}{
+		{
+			name: "plugin owner required",
+			input: ConfigSchemaInput{
+				Scope:  ConfigScopePlugin,
+				Fields: []ConfigField{{Key: "plugin.mode"}},
+			},
+		},
+		{
+			name: "invalid field key",
+			input: ConfigSchemaInput{
+				Scope:  ConfigScopeSystem,
+				Fields: []ConfigField{{Key: "Bad Key"}},
+			},
+		},
+		{
+			name: "invalid type",
+			input: ConfigSchemaInput{
+				Scope:  ConfigScopeSystem,
+				Fields: []ConfigField{{Key: "valid.key", Type: "date"}},
+			},
+		},
+		{
+			name: "invalid range",
+			input: ConfigSchemaInput{
+				Scope:  ConfigScopeSystem,
+				Fields: []ConfigField{{Key: "valid.number", Type: ConfigFieldNumber, Min: &min, Max: &max}},
+			},
+		},
+		{
+			name: "select options required",
+			input: ConfigSchemaInput{
+				Scope:  ConfigScopeSystem,
+				Fields: []ConfigField{{Key: "valid.select", Type: ConfigFieldSelect}},
+			},
+		},
+		{
+			name: "select default invalid",
+			input: ConfigSchemaInput{
+				Scope: ConfigScopeSystem,
+				Fields: []ConfigField{{
+					Key:     "valid.select",
+					Type:    ConfigFieldSelect,
+					Default: "missing",
+					Options: []ConfigOption{
+						{Value: "enabled"},
+					},
+				}},
+			},
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := svc.RegisterConfigSchema(context.Background(), tt.input); err == nil {
+				t.Fatalf("expected validation error")
+			}
+		})
+	}
+}
+
+func TestSystemServiceValidateConfigValuesRejectsInvalidValues(t *testing.T) {
+	svc := NewService(memory.NewSystemStore())
+
+	if _, err := svc.ValidateConfigValues(context.Background(), ConfigScopeSystem, "", map[string]any{
+		"audit.retention_days": "0",
+	}); err == nil || !strings.Contains(err.Error(), "audit.retention_days") {
+		t.Fatalf("expected retention range error, got %v", err)
+	}
+
+	if _, err := svc.ValidateConfigValues(context.Background(), ConfigScopePlugin, "missing", map[string]any{}); err == nil {
+		t.Fatalf("expected missing schema error")
 	}
 }

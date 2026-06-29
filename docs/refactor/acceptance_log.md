@@ -11660,3 +11660,73 @@ npm run build
 ### 下一步
 
 - 进入 `M4-04-01`，实现配置 schema registry。
+
+## M4-04-01: 配置 schema registry
+
+- 状态: Passed
+- Work Item: M4-04-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/system/types.go`
+- `internal/service/system/service.go`
+- `internal/service/system/service_impl.go`
+- `internal/service/system/service_impl_test.go`
+- `internal/handler/http/v1/system/handler.go`
+- `internal/handler/http/v1/system/handler_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 系统 schema 默认可用 | Passed | `DefaultSystemConfigSchema` 注册系统设置字段、校验和默认值，并由 `/v1/system/settings/schema` 通过 service 读取。 |
+| 插件 schema 可注册 | Passed | `RegisterConfigSchema` 支持 `plugin` scope 与 owner 隔离，`ListConfigSchemas` 可按 scope 查询。 |
+| 字段规则校验 | Passed | 覆盖 key、type、min/max、minLength/maxLength、pattern、select options 和默认值合法性。 |
+| 配置值校验 | Passed | `ValidateConfigValues` 应用默认值并校验 number、boolean、select、string/textarea 规则。 |
+| 任务状态更新 | Passed | `work_items.md` 和 `next_work_items.md` 中 `M4-04-01` 已标记 Done。 |
+
+### 自动化验证
+
+```powershell
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./internal/service/system/...
+go test ./internal/handler/http/v1/system/...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: `/v1/system/settings/schema`
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 schema registry 只保存配置元数据，不混入 system settings 或 plugin config 的实际值。
+2. 检查系统 schema 与现有 SchemaForm 字段契约保持一致。
+3. 检查 M4-04 父任务仍为 Todo，等待 `M4-04-02` 前端 SchemaForm 配置接入完成后再收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首轮 `go test ./internal/service/system/...` 缺少测试 import `encoding/json`。
+- 返工动作: 补充 import 并重新格式化。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M4-04-02`，实现 SchemaForm 配置接入。

@@ -149,8 +149,17 @@ func (h *SystemHandler) list(w http.ResponseWriter, r *http.Request) {
 	apiv1.WriteJSON(w, http.StatusOK, items)
 }
 
-func (h *SystemHandler) getSettingsSchema(w http.ResponseWriter, _ *http.Request) {
-	apiv1.WriteJSON(w, http.StatusOK, defaultSettingsSchema())
+func (h *SystemHandler) getSettingsSchema(w http.ResponseWriter, r *http.Request) {
+	schema, err := h.service.GetConfigSchema(r.Context(), systemsvc.ConfigScopeSystem, "")
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	if schema == nil {
+		apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "settings schema not found")
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, schema)
 }
 
 func (h *SystemHandler) getByKey(w http.ResponseWriter, r *http.Request) {
