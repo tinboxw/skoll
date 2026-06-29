@@ -12720,3 +12720,69 @@ npm run typecheck
 
 ### 下一步
 - 进入 `M5-05-02`，实现前端 list/form 页面生成。
+
+## M5-05-02: 前端 list/form 页面生成
+
+- 状态: Passed
+- Work Item: M5-05-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/backend_templates.go`
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| list 页面模板 | Passed | 生成 toolbar、筛选区、`el-table`、加载状态、空态文案和错误 alert。 |
+| form 页面模板 | Passed | 生成 drawer 表单、create/edit 保存逻辑和 resetForm。 |
+| 权限按钮 | Passed | create/update/delete 动作使用 generated permission key 绑定 `v-permission`。 |
+| store/API 接入 | Passed | 页面模板导入 generated store 和 API 类型，使用 `load/create/update/remove`。 |
+| 响应式基础 | Passed | 模板包含窄屏下 toolbar/filter 的纵向布局规则。 |
+| 前端 build | Passed | `cd web; npm run build` 通过，保留既有 Sass legacy JS API 与 Rollup pure annotation warning。 |
+| 任务状态更新 | Passed | `M5-05-02` 已标记 Done，`M5-05` 父任务已标记 Done。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/backend_templates.go internal/service/generator/service_impl_test.go
+go test ./internal/service/generator/...
+cd web
+npm run build
+```
+
+结果摘要: Passed。build 仍有既有 Dart Sass legacy JS API deprecation 与 Rollup pure annotation warnings。
+
+### 前端验收记录
+
+- Affected routes/pages: generated Vue list/form template
+- State coverage: loading, empty, backend-error, save-success/failure, narrow-viewport, permission-gated actions
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: generated CSS includes narrow fallback below 720px
+- Permission evidence: generated create/update/delete buttons use `v-permission`
+- Typecheck: N/A
+- Build: Passed
+
+### 人工验收
+
+1. 检查页面模板覆盖列表、筛选、抽屉表单、状态反馈和权限按钮。
+2. 检查模板内容仍通过 dry-run 返回，不写入真实 `web/src/views` 文件。
+3. 检查 `M5-05` 父任务随 API/store 和 list/form 模板完成而收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-06-01`，实现生成历史记录。

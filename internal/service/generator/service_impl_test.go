@@ -135,6 +135,14 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 	if !strings.Contains(store.GeneratedContent, "defineStore") || !strings.Contains(store.GeneratedContent, "useProductStore") || !strings.Contains(store.GeneratedContent, "async retry") || !strings.Contains(store.GeneratedContent, "lastError") {
 		t.Fatalf("frontend store content = %q", store.GeneratedContent)
 	}
+	view := findPlan(t, result.Files, "web/src/views/Product/index.vue")
+	if !strings.Contains(view.GeneratedContent, "<el-table") ||
+		!strings.Contains(view.GeneratedContent, "<el-drawer") ||
+		!strings.Contains(view.GeneratedContent, "v-permission=\"createPermission\"") ||
+		!strings.Contains(view.GeneratedContent, "store.hasError") ||
+		!strings.Contains(view.GeneratedContent, "useProductStore") {
+		t.Fatalf("frontend view content = %q", view.GeneratedContent)
+	}
 }
 
 func TestDryRunRejectsMissingSpecAndBadSnapshots(t *testing.T) {

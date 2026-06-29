@@ -43,6 +43,8 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderFrontendAPI(spec)
 	case "frontend.store":
 		return renderFrontendStore(spec)
+	case "frontend.view":
+		return renderFrontendView(spec)
 	default:
 		return fmt.Sprintf("// template %s for %s\n", templateID, spec.Module.Package)
 	}
@@ -470,6 +472,61 @@ func renderFrontendStore(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "\t\tasync update(id: string, input: %sInput): Promise<%s> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tconst item = await update%s(id, input);\n\t\t\t\tthis.items = this.items.map((current) => current.id === id ? item : current);\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t\treturn item;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName, typeName)
 	fmt.Fprintf(&b, "\t\tasync remove(id: string): Promise<void> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tawait delete%s(id);\n\t\t\t\tthis.items = this.items.filter((item) => item.id !== id);\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t}\n\t}\n});\n\n", typeName)
 	fmt.Fprintf(&b, "function toErrorMessage(error: unknown): string {\n\treturn error instanceof Error && error.message.trim() !== \"\" ? error.message : \"%s_request_failed\";\n}\n", module)
+	return b.String()
+}
+
+func renderFrontendView(spec domaingenerator.GeneratorSpec) string {
+	module := spec.Module.Package
+	typeName := spec.Table.DomainName
+	storeName := exportedName(module)
+	keywordField := "keyword"
+	if len(spec.Page.List.Filters) > 0 {
+		keywordField = spec.Page.List.Filters[0]
+	}
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "<template>\n")
+	fmt.Fprintf(&b, "\t<section class=\"generated-page\">\n")
+	fmt.Fprintf(&b, "\t\t<header class=\"generated-toolbar\">\n\t\t\t<h1>%s</h1>\n\t\t\t<el-button v-permission=\"createPermission\" type=\"primary\" :loading=\"store.mutationStatus === 'loading'\" @click=\"openCreate\">Create</el-button>\n\t\t</header>\n", spec.Page.Title)
+	fmt.Fprintf(&b, "\t\t<div class=\"generated-filters\">\n\t\t\t<el-input v-model=\"filters.keyword\" clearable placeholder=\"Search\" @keyup.enter=\"load\" />\n\t\t\t<el-button :loading=\"store.listStatus === 'loading'\" @click=\"load\">Search</el-button>\n\t\t</div>\n")
+	fmt.Fprintf(&b, "\t\t<el-alert v-if=\"store.hasError\" type=\"error\" :title=\"store.lastError || 'Load failed'\" show-icon />\n")
+	fmt.Fprintf(&b, "\t\t<el-table v-loading=\"store.listStatus === 'loading'\" :data=\"store.items\" empty-text=\"No data\">\n")
+	for _, fieldName := range spec.Page.List.Columns {
+		if field, ok := spec.FieldByName(fieldName); ok {
+			fmt.Fprintf(&b, "\t\t\t<el-table-column prop=\"%s\" label=\"%s\" />\n", field.Name, field.Label)
+		}
+	}
+	fmt.Fprintf(&b, "\t\t\t<el-table-column fixed=\"right\" label=\"Actions\" width=\"180\">\n\t\t\t\t<template #default=\"{ row }\">\n\t\t\t\t\t<el-button v-permission=\"updatePermission\" text type=\"primary\" @click=\"openEdit(row)\">Edit</el-button>\n\t\t\t\t\t<el-button v-permission=\"deletePermission\" text type=\"danger\" @click=\"remove(row.id)\">Delete</el-button>\n\t\t\t\t</template>\n\t\t\t</el-table-column>\n")
+	fmt.Fprintf(&b, "\t\t</el-table>\n")
+	fmt.Fprintf(&b, "\t\t<el-drawer v-model=\"drawerOpen\" :title=\"editingId ? 'Edit' : 'Create'\" size=\"420px\">\n\t\t\t<el-form label-position=\"top\" @submit.prevent>\n")
+	for _, fieldName := range spec.Page.Form.Fields {
+		if field, ok := spec.FieldByName(fieldName); ok {
+			fmt.Fprintf(&b, "\t\t\t\t<el-form-item label=\"%s\">\n\t\t\t\t\t<el-input v-model=\"form.%s\" />\n\t\t\t\t</el-form-item>\n", field.Label, field.Name)
+		}
+	}
+	fmt.Fprintf(&b, "\t\t\t\t<el-button type=\"primary\" :loading=\"store.mutationStatus === 'loading'\" @click=\"save\">Save</el-button>\n\t\t\t</el-form>\n\t\t</el-drawer>\n")
+	fmt.Fprintf(&b, "\t</section>\n</template>\n\n")
+	fmt.Fprintf(&b, "<script setup lang=\"ts\">\n")
+	fmt.Fprintf(&b, "import { onMounted, reactive, ref } from \"vue\";\n")
+	fmt.Fprintf(&b, "import { use%sStore } from \"../../stores/%s\";\n", storeName, module)
+	fmt.Fprintf(&b, "import type { %s, %sInput } from \"../../api/%s\";\n\n", typeName, typeName, module)
+	fmt.Fprintf(&b, "const store = use%sStore();\n", storeName)
+	fmt.Fprintf(&b, "const createPermission = %q;\nconst updatePermission = %q;\nconst deletePermission = %q;\n", spec.Permissions.CreateKey, spec.Permissions.UpdateKey, spec.Permissions.DeleteKey)
+	fmt.Fprintf(&b, "const filters = reactive({ keyword: \"\" });\nconst drawerOpen = ref(false);\nconst editingId = ref<string | null>(null);\nconst form = reactive<%sInput>({});\n\n", typeName)
+	fmt.Fprintf(&b, "async function load(): Promise<void> {\n\tawait store.load({ keyword: filters.keyword || undefined, offset: 0, limit: 20 });\n}\n\n")
+	fmt.Fprintf(&b, "function openCreate(): void {\n\teditingId.value = null;\n\tresetForm();\n\tdrawerOpen.value = true;\n}\n\n")
+	fmt.Fprintf(&b, "function openEdit(row: %s): void {\n\teditingId.value = row.id;\n\tObject.assign(form, row);\n\tdrawerOpen.value = true;\n}\n\n", typeName)
+	fmt.Fprintf(&b, "async function save(): Promise<void> {\n\tif (editingId.value) {\n\t\tawait store.update(editingId.value, form);\n\t} else {\n\t\tawait store.create(form);\n\t}\n\tdrawerOpen.value = false;\n}\n\n")
+	fmt.Fprintf(&b, "async function remove(id: string): Promise<void> {\n\tawait store.remove(id);\n}\n\n")
+	fmt.Fprintf(&b, "function resetForm(): void {\n")
+	for _, fieldName := range spec.Page.Form.Fields {
+		if field, ok := spec.FieldByName(fieldName); ok {
+			fmt.Fprintf(&b, "\tform.%s = undefined;\n", field.Name)
+		}
+	}
+	fmt.Fprintf(&b, "}\n\nonMounted(load);\n")
+	fmt.Fprintf(&b, "</script>\n\n")
+	fmt.Fprintf(&b, "<style scoped>\n.generated-page { display: grid; gap: 16px; }\n.generated-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }\n.generated-toolbar h1 { margin: 0; font-size: 20px; font-weight: 650; }\n.generated-filters { display: flex; gap: 8px; max-width: 520px; }\n@media (max-width: 720px) { .generated-toolbar, .generated-filters { align-items: stretch; flex-direction: column; } }\n</style>\n")
+	_ = keywordField
 	return b.String()
 }
 
