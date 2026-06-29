@@ -12589,3 +12589,70 @@ go test ./...
 
 ### 下一步
 - 进入 `M5-04-02`，实现后端 service/handler/OpenAPI 生成。
+
+## M5-04-02: 后端 service/handler/OpenAPI 生成
+
+- 状态: Passed
+- Work Item: M5-04-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/backend_templates.go`
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| service 模板 | Passed | 生成 Service interface、Create/Update/Get/List/Delete input 与实现骨架，并包含审计 action 常量。 |
+| handler 模板 | Passed | 生成 HTTP handler 注册和 list 响应骨架，保持 handler 只调用 service。 |
+| router 模板 | Passed | 生成 v1 路由注册函数，使用 canonical v1 route，不引入旧路径别名。 |
+| OpenAPI 模板 | Passed | 生成 list/create path、operationId、tag 和 schema 骨架。 |
+| 权限/菜单 seed 模板 | Passed | 生成权限 key 集合和菜单 route/component/requiredPermissions 描述。 |
+| 模板语法与内容校验 | Passed | 单测使用 Go parser 校验新增 Go 模板，并检查 OpenAPI 与 permission seed 内容。 |
+| 全量测试 | Passed | `$env:CC='D:\workspace\mingw64\bin\gcc.exe'; go test ./...` 通过。 |
+| 任务状态更新 | Passed | `M5-04-02` 已标记 Done，`M5-04` 父任务已标记 Done。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/service/generator/backend_templates.go internal/service/generator/service_impl_test.go
+go test ./internal/service/generator/...
+$env:CC='D:\workspace\mingw64\bin\gcc.exe'
+go test ./...
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查后端 CRUD 模板覆盖 M5-04 父任务要求的 service、handler、OpenAPI、权限、审计同步。
+2. 检查模板内容仍通过 dry-run 返回，不直接写入文件或覆盖用户改动。
+3. 检查 `M5-04` 父任务随 `M5-04-01` 与 `M5-04-02` 完成而收口。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M5-05-01`，实现前端 API/store 生成。

@@ -27,6 +27,18 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderMigration(spec, "mysql")
 	case "backend.migration.postgres":
 		return renderMigration(spec, "postgres")
+	case "backend.service":
+		return formatGoTemplate(renderService(spec))
+	case "backend.service.impl":
+		return formatGoTemplate(renderServiceImpl(spec))
+	case "backend.handler":
+		return formatGoTemplate(renderHandler(spec))
+	case "backend.router":
+		return formatGoTemplate(renderRouter(spec))
+	case "backend.openapi.docs", "backend.openapi.runtime":
+		return renderOpenAPI(spec)
+	case "backend.permission.seed":
+		return formatGoTemplate(renderPermissionSeed(spec))
 	default:
 		return fmt.Sprintf("// template %s for %s\n", templateID, spec.Module.Package)
 	}
@@ -265,6 +277,173 @@ func renderMigration(spec domaingenerator.GeneratorSpec, dialect string) string 
 		fmt.Fprintf(&b, "CREATE %sINDEX %s ON %s (%s);\n", unique, index.Name, spec.Table.Name, strings.Join(columns, ", "))
 	}
 	return b.String()
+}
+
+func renderService(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	pkg := spec.Module.Package
+	alias := "domain" + pkg
+	domainName := spec.Table.DomainName
+	fmt.Fprintf(&b, "package %s\n\n", pkg)
+	fmt.Fprintf(&b, "import (\n\t\"context\"\n\n\t%s \"github.com/tinboxw/skoll/internal/domain/%s\"\n\t\"github.com/tinboxw/skoll/internal/domain/shared\"\n)\n\n", alias, pkg)
+	fmt.Fprintf(&b, "type Service interface {\n")
+	fmt.Fprintf(&b, "\tCreate(ctx context.Context, in CreateInput) (*%s.%s, error)\n", alias, domainName)
+	fmt.Fprintf(&b, "\tUpdate(ctx context.Context, id shared.ID, in UpdateInput) (*%s.%s, error)\n", alias, domainName)
+	fmt.Fprintf(&b, "\tGet(ctx context.Context, id shared.ID) (*%s.%s, error)\n", alias, domainName)
+	fmt.Fprintf(&b, "\tList(ctx context.Context, in ListInput) ([]%s.%s, error)\n", alias, domainName)
+	fmt.Fprintf(&b, "\tDelete(ctx context.Context, id shared.ID) error\n")
+	fmt.Fprintf(&b, "}\n\n")
+	fmt.Fprintf(&b, "type CreateInput struct {\n")
+	renderServiceInputFields(&b, spec, false)
+	fmt.Fprintf(&b, "}\n\n")
+	fmt.Fprintf(&b, "type UpdateInput struct {\n")
+	renderServiceInputFields(&b, spec, true)
+	fmt.Fprintf(&b, "}\n\n")
+	fmt.Fprintf(&b, "type ListInput struct {\n\tKeyword string\n\tOffset int\n\tLimit int\n}\n")
+	return b.String()
+}
+
+func renderServiceImpl(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	pkg := spec.Module.Package
+	domainName := spec.Table.DomainName
+	alias := "domain" + pkg
+	repoAlias := pkg + "repo"
+	fmt.Fprintf(&b, "package %s\n\n", pkg)
+	fmt.Fprintf(&b, "import (\n\t\"context\"\n\t\"time\"\n\n")
+	fmt.Fprintf(&b, "\t%s \"github.com/tinboxw/skoll/internal/domain/%s\"\n\t\"github.com/tinboxw/skoll/internal/domain/shared\"\n", alias, pkg)
+	fmt.Fprintf(&b, "\t%s \"github.com/tinboxw/skoll/internal/repository/%s\"\n)\n\n", repoAlias, pkg)
+	fmt.Fprintf(&b, "const (\n")
+	for _, action := range spec.Audit.Actions {
+		fmt.Fprintf(&b, "\tAuditAction%s%s = \"%s.%s\"\n", domainName, exportedName(action), spec.Audit.Resource, action)
+	}
+	fmt.Fprintf(&b, ")\n\n")
+	fmt.Fprintf(&b, "type serviceImpl struct {\n\trepo %s.%sRepository\n\tauditFn func(ctx context.Context, action string, resourceID string) error\n}\n\n", repoAlias, domainName)
+	fmt.Fprintf(&b, "func NewService(repo %s.%sRepository) Service {\n\treturn &serviceImpl{repo: repo}\n}\n\n", repoAlias, domainName)
+	fmt.Fprintf(&b, "func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (*%s.%s, error) {\n", alias, domainName)
+	fmt.Fprintf(&b, "\tnow := time.Now().UTC()\n\titem, err := %s.New%s(%s.%sInput{\n", alias, domainName, alias, domainName)
+	renderConstructorAssignments(&b, spec, "in", false)
+	fmt.Fprintf(&b, "\t\tCreatedAt: now,\n\t\tUpdatedAt: now,\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := s.repo.Create(ctx, *item); err != nil {\n\t\treturn nil, err\n\t}\n\ts.audit(ctx, AuditAction%sCreate, item.ID.String())\n\treturn item, nil\n}\n\n", domainName)
+	fmt.Fprintf(&b, "func (s *serviceImpl) Update(ctx context.Context, id shared.ID, in UpdateInput) (*%s.%s, error) {\n", alias, domainName)
+	fmt.Fprintf(&b, "\tcurrent, err := s.repo.Get(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnow := time.Now().UTC()\n\titem, err := %s.New%s(%s.%sInput{\n", alias, domainName, alias, domainName)
+	renderConstructorAssignments(&b, spec, "in", true)
+	fmt.Fprintf(&b, "\t\tCreatedAt: current.Meta.CreatedAt,\n\t\tUpdatedAt: now,\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := s.repo.Update(ctx, *item); err != nil {\n\t\treturn nil, err\n\t}\n\ts.audit(ctx, AuditAction%sUpdate, item.ID.String())\n\treturn item, nil\n}\n\n", domainName)
+	fmt.Fprintf(&b, "func (s *serviceImpl) Get(ctx context.Context, id shared.ID) (*%s.%s, error) {\n\treturn s.repo.Get(ctx, id)\n}\n\n", alias, domainName)
+	fmt.Fprintf(&b, "func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]%s.%s, error) {\n\treturn s.repo.List(ctx, %s.ListFilter{Keyword: in.Keyword}, in.Offset, in.Limit)\n}\n\n", alias, domainName, repoAlias)
+	fmt.Fprintf(&b, "func (s *serviceImpl) Delete(ctx context.Context, id shared.ID) error {\n\tif err := s.repo.Delete(ctx, id); err != nil {\n\t\treturn err\n\t}\n\ts.audit(ctx, AuditAction%sDelete, id.String())\n\treturn nil\n}\n\n", domainName)
+	fmt.Fprintf(&b, "func (s *serviceImpl) audit(ctx context.Context, action string, resourceID string) {\n\tif s.auditFn != nil {\n\t\t_ = s.auditFn(ctx, action, resourceID)\n\t}\n}\n")
+	return b.String()
+}
+
+func renderHandler(spec domaingenerator.GeneratorSpec) string {
+	pkg := spec.Module.Package
+	route := spec.Menu.Path
+	return fmt.Sprintf(`package %s
+
+import (
+	"encoding/json"
+	"net/http"
+)
+
+type Handler struct {
+	service Service
+}
+
+func NewHandler(service Service) *Handler {
+	return &Handler{service: service}
+}
+
+func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("%s", h.list)
+}
+
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	items, err := h.service.List(r.Context(), ListInput{})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(items)
+}
+`, pkg, route)
+}
+
+func renderRouter(spec domaingenerator.GeneratorSpec) string {
+	pkg := spec.Module.Package
+	return fmt.Sprintf(`package v1
+
+import (
+	"net/http"
+
+	%s "github.com/tinboxw/skoll/internal/handler/http/v1/%s"
+)
+
+func Register%sRoutes(mux *http.ServeMux, service %s.Service) {
+	%s.NewHandler(service).Register(mux)
+}
+`, pkg, pkg, spec.Table.DomainName, pkg, pkg)
+}
+
+func renderOpenAPI(spec domaingenerator.GeneratorSpec) string {
+	route := spec.Menu.Path
+	domainName := spec.Table.DomainName
+	return fmt.Sprintf(`paths:
+  %s:
+    get:
+      operationId: list%s
+      tags:
+        - %s
+      responses:
+        "200":
+          description: OK
+    post:
+      operationId: create%s
+      tags:
+        - %s
+      responses:
+        "201":
+          description: Created
+components:
+  schemas:
+    %s:
+      type: object
+`, route, domainName, spec.Module.Name, domainName, spec.Module.Name, domainName)
+}
+
+func renderPermissionSeed(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "package bootstrap\n\n")
+	fmt.Fprintf(&b, "var %sGeneratedPermissions = []string{\n", spec.Table.DomainName)
+	for _, key := range []string{spec.Permissions.ReadKey, spec.Permissions.CreateKey, spec.Permissions.UpdateKey, spec.Permissions.DeleteKey, spec.Permissions.ManageKey} {
+		fmt.Fprintf(&b, "\t%q,\n", key)
+	}
+	fmt.Fprintf(&b, "}\n\n")
+	fmt.Fprintf(&b, "var %sGeneratedMenu = map[string]any{\n", spec.Table.DomainName)
+	fmt.Fprintf(&b, "\t\"key\": %q,\n\t\"path\": %q,\n\t\"component\": %q,\n", spec.Menu.Key, spec.Menu.Path, spec.Menu.Component)
+	fmt.Fprintf(&b, "\t\"requiredPermissions\": []string{%q},\n", strings.Join(spec.Menu.RequiredPermissions, ","))
+	fmt.Fprintf(&b, "}\n")
+	return b.String()
+}
+
+func renderServiceInputFields(b *bytes.Buffer, spec domaingenerator.GeneratorSpec, update bool) {
+	for _, field := range spec.Fields {
+		if update && field.PrimaryKey {
+			continue
+		}
+		fmt.Fprintf(b, "\t%s %s\n", exportedName(field.Name), goFieldType(field))
+	}
+}
+
+func renderConstructorAssignments(b *bytes.Buffer, spec domaingenerator.GeneratorSpec, inputName string, update bool) {
+	for _, field := range spec.Fields {
+		name := exportedName(field.Name)
+		if update && field.PrimaryKey {
+			fmt.Fprintf(b, "\t\t%s: id,\n", name)
+			continue
+		}
+		fmt.Fprintf(b, "\t\t%s: %s.%s,\n", name, inputName, name)
+	}
 }
 
 func formatGoTemplate(source string) string {

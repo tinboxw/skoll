@@ -304,7 +304,7 @@
 | 211 | M5-03-01 | M5-03 | `skoll-generator-refactor` | dry-run 文件清单 | service | 生成前展示文件清单和变更摘要 | `go test ./internal/service/generator/...` | Done |
 | 212 | M5-03-02 | M5-03 | `skoll-generator-refactor` | dry-run diff | service | 新增、修改、冲突文件 diff 可读 | `go test ./internal/service/generator/...` | Done |
 | 213 | M5-04-01 | M5-04 | `skoll-code-generator` | 后端 domain/store 生成 | templates | domain、migration、store、repository 输出可编译 | `go test ./...` | Done |
-| 214 | M5-04-02 | M5-04 | `skoll-code-generator` | 后端 service/handler/OpenAPI 生成 | templates | CRUD API、权限、审计、OpenAPI 同步 | `go test ./...` | Todo |
+| 214 | M5-04-02 | M5-04 | `skoll-code-generator` | 后端 service/handler/OpenAPI 生成 | templates | CRUD API、权限、审计、OpenAPI 同步 | `go test ./...` | Done |
 | 215 | M5-05-01 | M5-05 | `skoll-code-generator` | 前端 API/store 生成 | templates | API client、Pinia store、错误状态生成 | `cd web && npm run typecheck` | Todo |
 | 216 | M5-05-02 | M5-05 | `skoll-code-generator` | 前端 list/form 页面生成 | templates | 列表、筛选、表单、状态组件、权限按钮生成 | `cd web && npm run build` | Todo |
 | 217 | M5-06-01 | M5-06 | `skoll-generator-refactor` | 生成历史记录 | store/service | 批次、hash、spec、操作者、文件清单可查 | `go test ./internal/service/generator/...` | Todo |

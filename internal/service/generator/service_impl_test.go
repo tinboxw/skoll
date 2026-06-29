@@ -99,6 +99,11 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 		"internal/store/memory/product_store.go",
 		"internal/store/sql/gormrepo/product_model.go",
 		"internal/store/sql/gormrepo/product_store.go",
+		"internal/service/product/service.go",
+		"internal/service/product/service_impl.go",
+		"internal/handler/http/v1/product/handler.go",
+		"internal/handler/http/v1/router.go",
+		"internal/bootstrap/permission_menu_seed.go",
 	}
 	for _, path := range goPaths {
 		plan := findPlan(t, result.Files, path)
@@ -113,6 +118,14 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 	postgres := findPlan(t, result.Files, "migrations/postgres/20260629_010203_create_products.sql")
 	if !strings.Contains(postgres.GeneratedContent, "CREATE TABLE products") || !strings.Contains(postgres.GeneratedContent, "name VARCHAR(255) NOT NULL") {
 		t.Fatalf("postgres migration content = %q", postgres.GeneratedContent)
+	}
+	openapi := findPlan(t, result.Files, "docs/api/openapi.yaml")
+	if !strings.Contains(openapi.GeneratedContent, "/products:") || !strings.Contains(openapi.GeneratedContent, "operationId: listProduct") || !strings.Contains(openapi.GeneratedContent, "Product:") {
+		t.Fatalf("openapi content = %q", openapi.GeneratedContent)
+	}
+	seed := findPlan(t, result.Files, "internal/bootstrap/permission_menu_seed.go")
+	if !strings.Contains(seed.GeneratedContent, "ProductGeneratedPermissions") || !strings.Contains(seed.GeneratedContent, "product.manage") {
+		t.Fatalf("permission seed content = %q", seed.GeneratedContent)
 	}
 }
 
