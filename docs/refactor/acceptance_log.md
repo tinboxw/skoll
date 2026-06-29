@@ -13273,3 +13273,72 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-02-02`，实现市场列表 UI。
+
+## M6-02-02: 市场列表 UI
+
+- 状态: Passed
+- Work Item: M6-02-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 市场列表展示 | Passed | 插件页新增“本地市场”重面板，读取 `/v1/plugins/marketplace/local` 并展示插件名、id、版本、manifest/package 路径。 |
+| 搜索和筛选 | Passed | 支持关键词、风险等级、签名状态筛选，并提供重置入口。 |
+| 风险展示 | Passed | 展示 low/medium/high/critical/unknown 风险标签，并列出权限、迁移、网络、前端资产等风险摘要。 |
+| 签名展示 | Passed | 展示 signed/unsigned/incomplete/unknown 签名状态，保留 vendorId、algorithm、signedAt 等扩展信息。 |
+| 安装入口 | Passed | 管理员可从市场条目填充安装路径并进入现有安装校验流程；包路径保留预检提示。 |
+| 状态覆盖 | Passed | 覆盖 loading、empty、error、只读权限、可安装/不可安装条目和刷新状态。 |
+| 父任务收口 | Passed | `M6-02-01` 与 `M6-02-02` 均 Done，`M6-02` 父任务标记 Done。 |
+
+### 自动化验证
+
+```powershell
+cd web; npm run typecheck
+cd web; npm run build
+rg -n "M6-02-02|本地市场|LocalMarketplace|marketplace/local|安装入口|marketplace-panel" web/src/views/Plugin/index.vue docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。`npm run build` 仅保留既有 Dart Sass legacy JS API 与 Rollup pure annotation warnings。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/plugin`
+- State coverage: loading、empty、error、只读权限、管理员安装入口、风险/签名筛选。
+- Browser smoke: Passed。使用 Playwright Chrome channel，mock `/skoll/v1/auth/me`、`/skoll/v1/plugins/marketplace/local`、`/skoll/v1/plugins` 后进入插件页，点击“本地市场”和“刷新市场”。
+- Browser command: Playwright local smoke via Node REPL.
+- Browser evidence: `D:/workspace/3rdsrc/tinbox/skoll/web/dist/plugin-marketplace-smoke.png`
+- Responsive evidence: CSS 为市场筛选区添加窄屏单列布局；本次未新增独立移动截图。
+- Permission evidence: `canManagePlugins` 控制安装入口；无管理权限时显示只读标签。
+- Typecheck: Passed。
+- Build: Passed。
+
+### 人工验收
+
+1. 检查市场面板可以从本地市场 API 展示插件、版本、签名、风险和安装入口。
+2. 检查搜索、风险筛选、签名筛选、重置、刷新和空态/错误态均可见。
+3. 检查安装入口不直接执行安装，只填充现有安装表单并复用校验链路。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 初次浏览器 smoke 被本地登录态和 API 依赖阻断，且按钮权限指令在 mock super_admin 场景下未稳定显示安装入口。
+- 返工动作: 改为 mock 认证和市场 API 进行页面级 smoke；安装入口显示条件改为与页面现有 `canManagePlugins` 一致。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M6-03-01`，实现远程 index adapter。

@@ -129,7 +129,7 @@
 | 顺序 | ID | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|
 | 44 | M6-01 | `skoll-plugin-marketplace-refactor` | marketplace index schema | schema/docs | 定义 id、version、skoll_version、risk、signature、source、changelog | schema 校验 | Done |
-| 45 | M6-02 | `skoll-plugin-platform` | 本地市场 service/API | service/API | 展示本地插件、可安装包、签名、风险 | `go test ./internal/plugin/... ./internal/handler/http/v1/plugin/...` | Todo |
+| 45 | M6-02 | `skoll-plugin-platform` | 本地市场 service/API | service/API | 展示本地插件、可安装包、签名、风险 | `go test ./internal/plugin/... ./internal/handler/http/v1/plugin/...` | Done |
 | 46 | M6-03 | `skoll-plugin-marketplace-refactor` | 插件安装预检 | service/UI | 展示权限、菜单、配置、资产、迁移、风险、签名 diff | `go test ./...`; `cd web && npm run build` | Todo |
 | 47 | M6-04 | `skoll-plugin-platform` | 插件迁移 hook | plugin/service | install/upgrade/downgrade/uninstall 状态可追踪 | `go test ./internal/plugin/...` | Todo |
 | 48 | M6-05 | `skoll-security-hardening` | 插件签名策略升级 | plugin/security | 签名覆盖 manifest、资产清单、入口和前端资产 hash | `go test ./internal/plugin/...` | Todo |

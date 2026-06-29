@@ -46,7 +46,7 @@ const error = ref<string | null>(null);
 const showOnlyEnabled = ref(false);
 const pluginKeyword = ref("");
 const pluginStatusFilter = ref("");
-const activeHeavyPanel = ref<"inventory" | "risk" | "devportal">("inventory");
+const activeHeavyPanel = ref<"inventory" | "marketplace" | "risk" | "devportal">("inventory");
 const debugText = ref("");
 const logText = ref("");
 const configText = ref("{}");
@@ -62,6 +62,38 @@ const pluginPath = ref("");
 const activeDefaultHome = ref(getDefaultHomePath());
 const systemDefaultHome = getSystemDefaultHomePath();
 const info = ref<string | null>(null);
+type MarketplaceSignatureStatus = "signed" | "unsigned" | "incomplete" | "unknown";
+type MarketplaceRiskLevel = "low" | "medium" | "high" | "critical" | "unknown";
+type LocalMarketplaceItem = {
+	id: string;
+	name: string;
+	version: string;
+	description?: string;
+	manifestPath?: string;
+	packagePath?: string;
+	packageDigest?: string;
+	packageSizeBytes?: number;
+	installable: boolean;
+	signature: {
+		status: MarketplaceSignatureStatus;
+		algorithm?: string;
+		vendorId?: string;
+		signedAt?: string;
+	};
+	risk: {
+		level: MarketplaceRiskLevel;
+		permissions?: string[];
+		migrations?: string[];
+		network?: string[];
+		assets?: string[];
+	};
+};
+const marketplaceLoading = ref(false);
+const marketplaceError = ref<string | null>(null);
+const marketplaceKeyword = ref("");
+const marketplaceRiskFilter = ref("");
+const marketplaceSignatureFilter = ref("");
+const marketplaceItems = ref<LocalMarketplaceItem[]>([]);
 const devLoading = ref(false);
 const devPluginsRoot = ref("plugins");
 const devSelectedPlugin = ref("");
@@ -154,6 +186,33 @@ const failedDevTaskCount = computed(() => [
 ].filter((item) => String(item.taskStatus || "").toLowerCase() === "failed").length);
 const riskPluginCount = computed(() => disabledPluginCount.value + inaccessiblePluginCount.value + failedDevTaskCount.value + (pluginStore.degradedMode ? 1 : 0));
 const hasActivePluginFilters = computed(() => showOnlyEnabled.value || pluginKeyword.value.trim() !== "" || pluginStatusFilter.value !== "");
+const hasMarketplaceFilters = computed(() => marketplaceKeyword.value.trim() !== "" || marketplaceRiskFilter.value !== "" || marketplaceSignatureFilter.value !== "");
+const filteredMarketplaceItems = computed(() => {
+	const keyword = marketplaceKeyword.value.trim().toLowerCase();
+	return marketplaceItems.value.filter((item) => {
+		const matchesKeyword = keyword === "" || [
+			item.id,
+			item.name,
+			item.version,
+			item.description,
+			item.manifestPath,
+			item.packagePath,
+			item.packageDigest,
+			item.signature.algorithm,
+			item.signature.vendorId,
+			...(item.risk.permissions ?? []),
+			...(item.risk.migrations ?? []),
+			...(item.risk.network ?? []),
+			...(item.risk.assets ?? [])
+		].some((value) => String(value ?? "").toLowerCase().includes(keyword));
+		const matchesRisk = marketplaceRiskFilter.value === "" || item.risk.level === marketplaceRiskFilter.value;
+		const matchesSignature = marketplaceSignatureFilter.value === "" || item.signature.status === marketplaceSignatureFilter.value;
+		return matchesKeyword && matchesRisk && matchesSignature;
+	});
+});
+const marketplaceInstallableCount = computed(() => marketplaceItems.value.filter((item) => item.installable).length);
+const marketplaceHighRiskCount = computed(() => marketplaceItems.value.filter((item) => ["high", "critical"].includes(item.risk.level)).length);
+const marketplaceUnsignedCount = computed(() => marketplaceItems.value.filter((item) => item.signature.status !== "signed").length);
 const canReadPlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginRead));
 const canManagePlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginManage));
 const installPreflightReady = computed(() => installPreflight.value !== null && pluginPath.value.trim() === validatedPluginPath.value);
@@ -254,6 +313,91 @@ function resetPluginFilters(): void {
 	showOnlyEnabled.value = false;
 	pluginKeyword.value = "";
 	pluginStatusFilter.value = "";
+}
+
+function resetMarketplaceFilters(): void {
+	marketplaceKeyword.value = "";
+	marketplaceRiskFilter.value = "";
+	marketplaceSignatureFilter.value = "";
+}
+
+function marketplaceRiskType(level: MarketplaceRiskLevel): "success" | "warning" | "danger" | "info" {
+	if (level === "critical" || level === "high") {
+		return "danger";
+	}
+	if (level === "medium") {
+		return "warning";
+	}
+	if (level === "unknown") {
+		return "info";
+	}
+	return "success";
+}
+
+function marketplaceSignatureType(status: MarketplaceSignatureStatus): "success" | "warning" | "danger" | "info" {
+	if (status === "signed") {
+		return "success";
+	}
+	if (status === "incomplete") {
+		return "danger";
+	}
+	if (status === "unsigned") {
+		return "warning";
+	}
+	return "info";
+}
+
+function marketplaceRiskItems(item: LocalMarketplaceItem): string[] {
+	return [
+		...(item.risk.permissions ?? []),
+		...(item.risk.migrations ?? []),
+		...(item.risk.network ?? []),
+		...(item.risk.assets ?? [])
+	];
+}
+
+function marketplaceInstallPath(item: LocalMarketplaceItem): string {
+	return item.manifestPath || item.packagePath || "";
+}
+
+async function loadMarketplace(): Promise<void> {
+	if (!ensurePluginAccess("plugin.read")) {
+		return;
+	}
+	marketplaceLoading.value = true;
+	marketplaceError.value = null;
+	const query = new URLSearchParams();
+	if (devPluginsRoot.value.trim()) {
+		query.set("pluginsRoot", devPluginsRoot.value.trim());
+	}
+	try {
+		const payload = await apiGet<ApiResponse<{ items?: LocalMarketplaceItem[] }>>(`/v1/plugins/marketplace/local?${query.toString()}`);
+		marketplaceItems.value = payload.data?.items ?? [];
+	} catch (e) {
+		marketplaceError.value = toErrorMessage(e);
+		marketplaceItems.value = [];
+	} finally {
+		marketplaceLoading.value = false;
+	}
+}
+
+async function prepareMarketplaceInstall(item: LocalMarketplaceItem): Promise<void> {
+	if (!ensurePluginAccess("plugin.manage")) {
+		return;
+	}
+	const path = marketplaceInstallPath(item);
+	if (!path) {
+		error.value = "当前市场条目缺少可安装路径。";
+		return;
+	}
+	pluginPath.value = path;
+	activeInspectorPanel.value = "";
+	selectedPlugin.value = "";
+	if (item.manifestPath) {
+		await validatePluginPath();
+		return;
+	}
+	info.value = "已填入本地安装包路径，请等待安装预检支持包校验后继续。";
 }
 
 function pluginStatusType(pluginID: string): "success" | "info" {
@@ -812,6 +956,7 @@ async function refreshDevPortal(): Promise<void> {
 			devPluginsRoot.value = defaultRoot;
 		}
 		await Promise.all([
+			loadMarketplace(),
 			loadDevProjects(),
 			loadDevReleaseOrders(),
 			loadDevReleaseTasks(),
@@ -1468,10 +1613,92 @@ function resetDefaultHome(): void {
 		<div class="heavy-panel-tabs" aria-label="插件重面板">
 			<el-button-group>
 				<el-button :type="activeHeavyPanel === 'inventory' ? 'primary' : 'default'" @click="activeHeavyPanel = 'inventory'">插件列表</el-button>
+				<el-button :type="activeHeavyPanel === 'marketplace' ? 'primary' : 'default'" @click="activeHeavyPanel = 'marketplace'">本地市场</el-button>
 				<el-button :type="activeHeavyPanel === 'risk' ? 'primary' : 'default'" @click="activeHeavyPanel = 'risk'">风险报告</el-button>
 				<el-button :type="activeHeavyPanel === 'devportal' ? 'primary' : 'default'" :disabled="!canManagePlugins" @click="activeHeavyPanel = 'devportal'">DevPortal</el-button>
 			</el-button-group>
 		</div>
+
+		<el-card v-if="activeHeavyPanel === 'marketplace'" shadow="never" class="marketplace-panel">
+			<template #header>
+				<div class="card-header">
+					<div>
+						<h3>本地插件市场</h3>
+						<p>{{ devPluginsRoot }} · {{ marketplaceItems.length }} 项 · 可安装 {{ marketplaceInstallableCount }} · 高风险 {{ marketplaceHighRiskCount }} · 未签名 {{ marketplaceUnsignedCount }}</p>
+					</div>
+					<el-button type="primary" :icon="Refresh" :loading="marketplaceLoading" :disabled="!canReadPlugins" @click="loadMarketplace">刷新市场</el-button>
+				</div>
+			</template>
+			<el-alert v-if="marketplaceError" class="page-alert" type="error" :title="marketplaceError" show-icon :closable="false" />
+			<el-form label-position="top" class="marketplace-filters" @submit.prevent>
+				<el-form-item label="关键词">
+					<el-input v-model="marketplaceKeyword" clearable placeholder="搜索 ID、名称、版本、路径、权限或摘要" />
+				</el-form-item>
+				<el-form-item label="风险">
+					<el-select v-model="marketplaceRiskFilter" clearable placeholder="全部风险">
+						<el-option label="low" value="low" />
+						<el-option label="medium" value="medium" />
+						<el-option label="high" value="high" />
+						<el-option label="critical" value="critical" />
+						<el-option label="unknown" value="unknown" />
+					</el-select>
+				</el-form-item>
+				<el-form-item label="签名">
+					<el-select v-model="marketplaceSignatureFilter" clearable placeholder="全部签名">
+						<el-option label="signed" value="signed" />
+						<el-option label="unsigned" value="unsigned" />
+						<el-option label="incomplete" value="incomplete" />
+						<el-option label="unknown" value="unknown" />
+					</el-select>
+				</el-form-item>
+				<el-form-item class="filter-actions">
+					<el-button :disabled="!hasMarketplaceFilters" @click="resetMarketplaceFilters">{{ t("common.reset") }}</el-button>
+				</el-form-item>
+			</el-form>
+			<StateBlock v-if="!marketplaceLoading && filteredMarketplaceItems.length === 0" type="empty" description="暂无本地市场条目。" />
+			<el-table v-else v-loading="marketplaceLoading" :data="filteredMarketplaceItems" stripe border>
+				<el-table-column prop="id" label="插件" min-width="150" show-overflow-tooltip />
+				<el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
+				<el-table-column prop="version" label="版本" width="110" />
+				<el-table-column label="风险" min-width="190">
+					<template #default="{ row }">
+						<div class="signal-stack">
+							<el-tag :type="marketplaceRiskType(row.risk.level)" effect="light">{{ row.risk.level }}</el-tag>
+							<span class="signal-meta">{{ marketplaceRiskItems(row).length }} 项</span>
+						</div>
+					</template>
+				</el-table-column>
+				<el-table-column label="签名" min-width="190">
+					<template #default="{ row }">
+						<div class="signal-stack">
+							<el-tag :type="marketplaceSignatureType(row.signature.status)" effect="plain">{{ row.signature.status }}</el-tag>
+							<span class="signal-meta">{{ row.signature.algorithm || "-" }}</span>
+						</div>
+					</template>
+				</el-table-column>
+				<el-table-column label="安装包" min-width="260" show-overflow-tooltip>
+					<template #default="{ row }">
+						<div class="package-cell">
+							<strong>{{ row.installable ? "ready" : "source" }}</strong>
+							<span>{{ row.packageDigest || row.manifestPath || "-" }}</span>
+						</div>
+					</template>
+				</el-table-column>
+				<el-table-column label="路径" min-width="260" show-overflow-tooltip>
+					<template #default="{ row }">
+						{{ marketplaceInstallPath(row) || "-" }}
+					</template>
+				</el-table-column>
+				<el-table-column label="操作" width="170" fixed="right">
+					<template #default="{ row }">
+						<el-button v-if="canManagePlugins" size="small" type="primary" :icon="Upload" :disabled="!marketplaceInstallPath(row) || operating" @click="prepareMarketplaceInstall(row)">
+							安装入口
+						</el-button>
+						<el-tag v-else type="info" effect="plain">只读</el-tag>
+					</template>
+				</el-table-column>
+			</el-table>
+		</el-card>
 
 		<el-card v-if="activeHeavyPanel === 'risk'" shadow="never" class="risk-report-panel plugin-risk-report">
 			<template #header>
@@ -2121,6 +2348,10 @@ function resetDefaultHome(): void {
 	border: 1px solid var(--color-border);
 }
 
+.marketplace-panel {
+	border: 1px solid var(--color-border);
+}
+
 .filter-panel {
 	border: 1px solid var(--color-border);
 }
@@ -2138,6 +2369,23 @@ function resetDefaultHome(): void {
 
 .plugin-filters :deep(.el-select),
 .plugin-filters :deep(.el-input) {
+	width: 100%;
+}
+
+.marketplace-filters {
+	display: grid;
+	grid-template-columns: minmax(240px, 1fr) minmax(150px, 190px) minmax(150px, 190px) auto;
+	gap: 12px;
+	align-items: end;
+	margin-bottom: 12px;
+}
+
+.marketplace-filters :deep(.el-form-item) {
+	margin-bottom: 0;
+}
+
+.marketplace-filters :deep(.el-select),
+.marketplace-filters :deep(.el-input) {
 	width: 100%;
 }
 
@@ -2283,6 +2531,26 @@ function resetDefaultHome(): void {
 	white-space: nowrap;
 }
 
+.package-cell {
+	display: grid;
+	gap: 3px;
+	min-width: 0;
+}
+
+.package-cell strong {
+	font-size: 0.78rem;
+	text-transform: uppercase;
+	color: var(--color-primary-strong);
+}
+
+.package-cell span {
+	overflow: hidden;
+	color: var(--color-text-muted);
+	font-size: 0.78rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .app-title {
 	display: inline-flex;
 	align-items: center;
@@ -2361,6 +2629,10 @@ function resetDefaultHome(): void {
 		grid-template-columns: 1fr 1fr;
 	}
 
+	.marketplace-filters {
+		grid-template-columns: 1fr 1fr;
+	}
+
 	.content-grid {
 		grid-template-columns: 1fr;
 	}
@@ -2390,6 +2662,10 @@ function resetDefaultHome(): void {
 	}
 
 	.plugin-filters {
+		grid-template-columns: 1fr;
+	}
+
+	.marketplace-filters {
 		grid-template-columns: 1fr;
 	}
 
