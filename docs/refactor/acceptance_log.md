@@ -13410,3 +13410,73 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-03-02`，实现安装预检 service。
+
+## M6-03-02: 安装预检 service
+
+- 状态: Passed
+- Work Item: M6-03-02
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/install_preflight.go`
+- `internal/plugin/install_preflight_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 权限 diff | Passed | `InstallPreflightService` 输出权限 add/update/conflict，冲突会成为 blocker。 |
+| 菜单 diff | Passed | 输出菜单 add/update/conflict，包含 path、requiredRoles、requiredPermissions，冲突会成为 blocker。 |
+| 配置摘要 | Passed | 输出 config schema 是否存在、字段数、必填字段和默认值字段。 |
+| 资源摘要 | Passed | 输出 uiMode、frontendEntry、service base/health URL 和依赖列表。 |
+| 迁移预检 | Passed | manifest 声明 migration_version 时读取 `Migrator.Plan()`；缺失/非法迁移计划会阻断。 |
+| 签名摘要 | Passed | 输出 signed/unsigned/incomplete/unsupported，unsigned 为 warning，incomplete/unsupported 为 blocker。 |
+| 风险汇总 | Passed | 综合权限风险、签名、迁移、网络、前端资产和阻断项计算 low/medium/high/critical。 |
+| 安全边界 | Passed | 本项只读读取 manifest/migrations，不执行安装、不写入插件状态。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/plugin/install_preflight.go internal/plugin/install_preflight_test.go
+go test ./internal/plugin/...
+rg -n "InstallPreflightService|InstallPreflightResult|M6-03-02|安装预检 service" internal/plugin docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。首次 `go test ./internal/plugin/...` 因 `menuPreviewSource` 字段访问错误失败；修复为访问内部字段后重试通过。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查预检 service 输出结构覆盖 UI 需要展示的权限、菜单、配置、资源、迁移、签名和风险。
+2. 检查同 ID 已安装、权限冲突、菜单冲突、迁移计划错误、签名不完整会成为 blocker。
+3. 检查 unsigned 只作为 warning，不阻断安装；后续签名策略升级任务再强化。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首次编译时菜单预览结构访问了不存在的导出字段。
+- 返工动作: 修正为访问 `menuPreviewSource` 的内部字段并重新格式化。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M6-03-03`，实现安装预检 UI。
