@@ -13055,3 +13055,72 @@ npm run build
 ### 下一步
 
 - 进入 `M6-01-01`，定义 marketplace index schema。
+
+## M6-01-01: marketplace index schema
+
+- 状态: Passed
+- Work Item: M6-01-01
+- 日期: 2026-06-29
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/schemas/plugin-marketplace-index.schema.json`
+- `docs/development/plugin-marketplace-index.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| index 根结构 | Passed | schema 定义 `schema_version`、`generated_at`、`publisher`、`plugins`，插件条目按 release 粒度表达。 |
+| 必填字段 | Passed | `id`、`version`、`skoll_version`、`risk`、`signature`、`source`、`changelog` 均为 release 必填字段。 |
+| 风险字段 | Passed | `risk` 覆盖权限、迁移、网络、资产四类风险，并提供 low/medium/high/critical 等级。 |
+| 签名字段 | Passed | `signature` 要求 `RSA-SHA256`、public key id、签名摘要和值，且 `required` 固定为 true。 |
+| 来源字段 | Passed | `source` 要求 HTTPS URL、sha256 digest、size_bytes，并限定 zip/oci/git_release。 |
+| changelog 字段 | Passed | `changelog` 要求 summary 和 items，支持 breaking 与外部 URL。 |
+| 文档说明 | Passed | 新增开发文档说明字段矩阵、示例、index 规则和 preflight handoff。 |
+| 任务状态更新 | Passed | `M6-01-01` 已标记 Done；`M6-01` 父任务因 `M6-01-02` 未完成保持 Todo。 |
+
+### 自动化验证
+
+```powershell
+Get-Content -Encoding UTF8 docs/schemas/plugin-marketplace-index.schema.json | ConvertFrom-Json | Out-Null
+rg -n "id|version|skoll_version|risk|signature|source|changelog|RSA-SHA256|sha256" docs/schemas/plugin-marketplace-index.schema.json docs/development/plugin-marketplace-index.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 marketplace index v1 是否只支持当前 manifest-governed 插件生命周期。
+2. 检查 schema 是否为下一项 index 校验器提供明确的重复版本、签名、来源、风险校验边界。
+3. 检查文档示例是否完整覆盖 id/version/skoll_version/risk/signature/source/changelog。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M6-01-02`，实现 marketplace index 校验器。

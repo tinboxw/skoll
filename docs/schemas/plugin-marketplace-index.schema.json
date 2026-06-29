@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skoll.local/schemas/plugin-marketplace-index.schema.json",
+  "title": "Skoll Plugin Marketplace Index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "plugins"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "publisher": {
+      "$ref": "#/$defs/publisher"
+    },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/plugin_release"
+      }
+    }
+  },
+  "$defs": {
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stable_id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "contact": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "plugin_release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "version",
+        "skoll_version",
+        "risk",
+        "signature",
+        "source",
+        "changelog"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stable_id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "skoll_version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Compatibility expression for Skoll core, for example >=1.0.0 <2.0.0."
+        },
+        "manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "digest"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "risk": {
+          "$ref": "#/$defs/risk_report"
+        },
+        "signature": {
+          "$ref": "#/$defs/signature"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "changelog": {
+          "$ref": "#/$defs/changelog"
+        },
+        "published_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "deprecated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "risk_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "summary", "permissions", "migrations", "network", "assets"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "permissions": {
+          "$ref": "#/$defs/risk_section"
+        },
+        "migrations": {
+          "$ref": "#/$defs/risk_section"
+        },
+        "network": {
+          "$ref": "#/$defs/risk_section"
+        },
+        "assets": {
+          "$ref": "#/$defs/risk_section"
+        }
+      }
+    },
+    "risk_section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "items"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "algorithm", "public_key_id", "digest", "value"],
+      "properties": {
+        "required": {
+          "type": "boolean",
+          "const": true
+        },
+        "algorithm": {
+          "type": "string",
+          "enum": ["RSA-SHA256"]
+        },
+        "public_key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "url", "digest", "size_bytes"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["zip", "oci", "git_release"]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "digest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "homepage": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "repository": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        }
+      }
+    },
+    "changelog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "items"],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://"
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "breaking": {
+          "type": "boolean"
+        }
+      }
+    },
+    "stable_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.-]{1,127}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

@@ -316,7 +316,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 221 | M6-01-01 | M6-01 | `skoll-plugin-marketplace-refactor` | marketplace index schema | schema/docs | id/version/skoll_version/risk/signature/source/changelog 完整 | schema review | Todo |
+| 221 | M6-01-01 | M6-01 | `skoll-plugin-marketplace-refactor` | marketplace index schema | schema/docs | id/version/skoll_version/risk/signature/source/changelog 完整 | schema review | Done |
 | 222 | M6-01-02 | M6-01 | `skoll-plugin-marketplace-refactor` | index 校验器 | service/tests | 无效索引、重复插件、版本冲突能报错 | `go test ./internal/plugin/...` | Todo |
 | 223 | M6-02-01 | M6-02 | `skoll-plugin-platform` | 本地市场 service/API | service/API | 本地插件、可安装包、签名、风险可展示 | `go test ./internal/plugin/... ./internal/handler/http/v1/plugin/...` | Todo |
 | 224 | M6-02-02 | M6-02 | `skoll-vue-frontend` | 市场列表 UI | Vue page | 搜索、筛选、风险、签名、版本、安装入口完整 | `cd web && npm run build` | Todo |
