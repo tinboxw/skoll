@@ -328,20 +328,21 @@
 | 230 | M6-06-01 | M6-06 | `skoll-plugin-marketplace-refactor` | 灰度策略 service | service | 路由、菜单、功能可见性受灰度策略影响 | `go test ./internal/plugin/...` | Done |
 | 231 | M6-06-02 | M6-06 | `skoll-plugin-marketplace-refactor` | 回滚 service/UI | service/frontend | 回滚后版本、菜单、权限、配置、资产一致 | `go test ./...`; `cd web && npm run build` | Done |
 | 232 | M6-07-01 | M6-07 | `skoll-testing-automation` | 插件生命周期验收 | tests | install/enable/disable/upgrade/rollback 全链路通过 | `go test ./...` | Done |
+| 233 | M6-07-02 | M6-07 | `skoll-web-ui-design` | 插件安全报告 UI | Vue 页面 | 安装前后均可查看风险和权限影响 | `cd web && npm run build` | Done |
 
 ## N5/M7 Work Items: 开源发布质量与体验
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 233 | M7-01-01 | M7-01 | `skoll-quality-gate` | CI Go 门禁 | CI | gofmt/go test/coverage 进入 CI | CI review | Todo |
-| 234 | M7-01-02 | M7-01 | `skoll-quality-gate` | CI 前端门禁 | CI | typecheck/build/browser smoke 最小集进入 CI 或文档化阻塞原因 | CI review | Todo |
-| 235 | M7-01-03 | M7-01 | `skoll-api-contracts` | OpenAPI/manifest 校验门禁 | CI | OpenAPI 和 plugin manifest schema 校验进入 CI | CI review | Todo |
-| 236 | M7-02-01 | M7-02 | `skoll-testing-automation` | 覆盖率目标和例外名单 | docs/CI | 核心包覆盖率目标、暂缓包、提升计划明确 | `go test ./... -coverprofile=coverage.out` | Todo |
-| 237 | M7-03-01 | M7-03 | `skoll-performance-scaling` | 后端性能基线脚本 | scripts/docs | login/user list/role list/plugin list/audit query 有 QPS/P95/P99 | k6 或 vegeta 脚本 | Todo |
-| 238 | M7-03-02 | M7-03 | `skoll-frontend-performance-refactor` | 前端性能采样记录 | docs | 首屏、路由切换、重表格、插件面板有基线 | `cd web && npm run build` | Todo |
-| 239 | M7-04-01 | M7-04 | `skoll-docs-writer` | 快速开始手册 | docs | 新环境 30 分钟内启动、登录、执行核心流程 | 手工复现 | Todo |
-| 240 | M7-04-02 | M7-04 | `skoll-docs-writer` | 运维手册 | docs | 配置、部署、备份、日志、常见故障路径明确 | 文档审阅 | Todo |
-| 241 | M7-05-01 | M7-05 | `skoll-open-source-framework` | 示例模块 | examples | 至少一个生成模块可运行 | `go test ./...`; `cd web && npm run build` | Todo |
-| 242 | M7-05-02 | M7-05 | `skoll-open-source-framework` | 示例插件 | examples | 至少一个插件可安装、启停、回滚 | `go test ./...`; `cd web && npm run build` | Todo |
-| 243 | M7-06-01 | M7-06 | `skoll-community-governance` | 开源贡献模板 | docs/.github | issue/PR/security/contributing 模板完整 | 文档审阅 | Todo |
-| 244 | M7-06-02 | M7-06 | `skoll-devops-deployment` | Release checklist | docs | 版本号、迁移、镜像、OpenAPI、示例、质量门禁清单完整 | 文档审阅 | Todo |
+| 234 | M7-01-01 | M7-01 | `skoll-quality-gate` | CI Go 门禁 | CI | gofmt/go test/coverage 进入 CI | CI review | Todo |
+| 235 | M7-01-02 | M7-01 | `skoll-quality-gate` | CI 前端门禁 | CI | typecheck/build/browser smoke 最小集进入 CI 或文档化阻塞原因 | CI review | Todo |
+| 236 | M7-01-03 | M7-01 | `skoll-api-contracts` | OpenAPI/manifest 校验门禁 | CI | OpenAPI 和 plugin manifest schema 校验进入 CI | CI review | Todo |
+| 237 | M7-02-01 | M7-02 | `skoll-testing-automation` | 覆盖率目标和例外名单 | docs/CI | 核心包覆盖率目标、暂缓包、提升计划明确 | `go test ./... -coverprofile=coverage.out` | Todo |
+| 238 | M7-03-01 | M7-03 | `skoll-performance-scaling` | 后端性能基线脚本 | scripts/docs | login/user list/role list/plugin list/audit query 有 QPS/P95/P99 | k6 或 vegeta 脚本 | Todo |
+| 239 | M7-03-02 | M7-03 | `skoll-frontend-performance-refactor` | 前端性能采样记录 | docs | 首屏、路由切换、重表格、插件面板有基线 | `cd web && npm run build` | Todo |
+| 240 | M7-04-01 | M7-04 | `skoll-docs-writer` | 快速开始手册 | docs | 新环境 30 分钟内启动、登录、执行核心流程 | 手工复现 | Todo |
+| 241 | M7-04-02 | M7-04 | `skoll-docs-writer` | 运维手册 | docs | 配置、部署、备份、日志、常见故障路径明确 | 文档审阅 | Todo |
+| 242 | M7-05-01 | M7-05 | `skoll-open-source-framework` | 示例模块 | examples | 至少一个生成模块可运行 | `go test ./...`; `cd web && npm run build` | Todo |
+| 243 | M7-05-02 | M7-05 | `skoll-open-source-framework` | 示例插件 | examples | 至少一个插件可安装、启停、回滚 | `go test ./...`; `cd web && npm run build` | Todo |
+| 244 | M7-06-01 | M7-06 | `skoll-community-governance` | 开源贡献模板 | docs/.github | issue/PR/security/contributing 模板完整 | 文档审阅 | Todo |
+| 245 | M7-06-02 | M7-06 | `skoll-devops-deployment` | Release checklist | docs | 版本号、迁移、镜像、OpenAPI、示例、质量门禁清单完整 | 文档审阅 | Todo |

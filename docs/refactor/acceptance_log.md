@@ -13914,3 +13914,67 @@ git diff --check
 
 ### 下一步
 - 进入下一个 Todo：`M6-07` 插件安全报告 UI 或后续 M7 发布质量任务，需先按 task_board/work item 编号差异校准领取顺序。
+
+## M6-07-02: 插件安全报告 UI
+
+- 状态: Passed
+- Work Item: M6-07-02
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 微调任务合并 | Passed | 从 task_board 中补齐缺失的 `M6-07` 子任务，追加为 `M6-07-02` 并顺延后续序号。 |
+| 安装前风险 | Passed | 风险报告新增“安装前”页签，展示本地市场条目的风险等级、签名状态、权限影响、风险因子和预检审计线索。 |
+| 安装后风险 | Passed | “安装后”页签展示已安装插件的风险等级、权限影响、运行风险、阻断原因、入口和审计线索。 |
+| 权限影响可见 | Passed | 安装前来自 marketplace risk permissions，安装后来自插件菜单 required permissions。 |
+| 父任务收口 | Passed | `M6-07-02` Done，`task_board.md` 中 `M6-07` 标记 Done。 |
+
+### 自动化验证
+```powershell
+codegraph status .
+cd web; npm run typecheck
+cd web; npm run build
+rg -n "M6-07-02|插件安全报告 UI|visiblePreInstallRiskRows|riskReportSummary|risk-report-signals" web/src/views/Plugin/index.vue docs/refactor
+git diff --check
+```
+
+结果摘要: Passed。`npm run build` 仍有既有 Sass legacy-js-api 与 Rollup PURE annotation warning，不影响构建结果。
+
+### 前端验收记录
+
+- Affected routes/pages: `web/src/views/Plugin/index.vue` 风险报告面板
+- State coverage: 安装前/安装后空态、表格态、风险 tag、签名 tag、权限影响 tag
+- Browser smoke: Blocked
+- Browser command: `npm run dev -- --host 127.0.0.1 --port 5177`; Playwright + system Chrome open `/skoll/plugins`
+- Browser evidence: redirected to `/skoll/login?redirect=/skoll/plugins`; backend/login session not running in this turn
+- Responsive evidence: 风险信号使用 flex wrap，窄屏可换行
+- Permission evidence: 面板沿用插件页 `plugin.read` 数据加载和既有权限门禁
+- Typecheck: `npm run typecheck` Passed
+- Build: `npm run build` Passed
+
+### 人工验收
+
+1. 检查风险报告能同时覆盖安装前市场/预检风险和安装后运行风险。
+2. 检查权限影响在两个页签均可见，且不需要从 JSON 原文中查找。
+3. 检查本次只补齐 M6-07 安全报告 UI，不改后端生命周期行为。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+- 进入 `M7-01-01`，执行 CI Go 门禁任务。

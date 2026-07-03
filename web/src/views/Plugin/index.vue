@@ -311,10 +311,31 @@ const pluginRiskRows = computed(() => pluginStore.items.map((plugin) => ({
 	name: plugin.name,
 	level: pluginRiskLevel(plugin),
 	factors: pluginRiskFactors(plugin),
+	permissions: pluginRequiredPermissions(plugin),
+	configFields: plugin.configSchema?.fields?.length ?? 0,
+	entryPath: plugin.entryPath || resolvePluginEntryPath(plugin),
 	blockers: pluginRiskBlockers(plugin),
 	audit: pluginRiskAuditTrail(plugin)
 })));
 const visibleRiskRows = computed(() => pluginRiskRows.value.filter((row) => row.level !== "low" || row.factors.length > 0));
+const preInstallRiskRows = computed(() => filteredMarketplaceItems.value.map((item) => ({
+	id: item.id,
+	name: item.name,
+	version: item.version,
+	level: item.risk.level,
+	signature: item.signature.status,
+	installable: item.installable,
+	permissions: item.risk.permissions ?? [],
+	impacts: marketplaceRiskItems(item),
+	source: marketplaceInstallPath(item),
+	audit: "plugin.install.preflight"
+})));
+const visiblePreInstallRiskRows = computed(() => preInstallRiskRows.value.filter((row) => row.level !== "low" || row.signature !== "signed" || row.impacts.length > 0 || !row.installable));
+const riskReportSummary = computed(() => ({
+	preInstall: visiblePreInstallRiskRows.value.length,
+	installed: visibleRiskRows.value.length,
+	permissions: visibleRiskRows.value.reduce((total, row) => total + row.permissions.length, 0) + visiblePreInstallRiskRows.value.reduce((total, row) => total + row.permissions.length, 0)
+}));
 const detailPlugin = computed(() => getPluginRecord(detailPluginID.value));
 const detailReleaseOrders = computed(() => devReleaseOrders.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
 const detailReleaseTasks = computed(() => devReleaseTasks.value.filter((item) => taskBelongsToPlugin(item, detailPluginID.value)));
@@ -1911,28 +1932,73 @@ function resetDefaultHome(): void {
 				<div class="card-header">
 					<div>
 						<h3>插件风险报告</h3>
-						<p>汇总停用、不可访问、降级、签名和发布任务失败等风险信号。</p>
+						<p>汇总安装前风险、权限影响、签名状态和安装后运行风险。</p>
 					</div>
-					<el-tag :type="visibleRiskRows.length > 0 ? 'warning' : 'success'" effect="light">{{ visibleRiskRows.length }}</el-tag>
+					<div class="risk-report-signals">
+						<el-tag :type="riskReportSummary.preInstall > 0 ? 'warning' : 'success'" effect="light">安装前 {{ riskReportSummary.preInstall }}</el-tag>
+						<el-tag :type="riskReportSummary.installed > 0 ? 'warning' : 'success'" effect="light">安装后 {{ riskReportSummary.installed }}</el-tag>
+						<el-tag type="info" effect="plain">权限 {{ riskReportSummary.permissions }}</el-tag>
+					</div>
 				</div>
 			</template>
-			<StateBlock v-if="visibleRiskRows.length === 0" type="empty" description="暂无插件风险。" />
-			<el-table v-else :data="visibleRiskRows" stripe border>
-				<el-table-column prop="id" label="插件" min-width="170" show-overflow-tooltip />
-				<el-table-column label="风险等级" width="120">
-					<template #default="{ row }">
-						<el-tag :type="pluginRiskLevelType(row.level)" effect="light">{{ row.level }}</el-tag>
-					</template>
-				</el-table-column>
-				<el-table-column label="风险因子" min-width="220">
-					<template #default="{ row }">
-						<el-tag v-for="item in row.factors" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
-						<span v-if="row.factors.length === 0">-</span>
-					</template>
-				</el-table-column>
-				<el-table-column prop="blockers" label="阻断原因" min-width="180" show-overflow-tooltip />
-				<el-table-column prop="audit" label="审计线索" min-width="200" show-overflow-tooltip />
-			</el-table>
+			<el-tabs>
+				<el-tab-pane label="安装前">
+					<StateBlock v-if="visiblePreInstallRiskRows.length === 0" type="empty" description="暂无安装前风险。" />
+					<el-table v-else :data="visiblePreInstallRiskRows" stripe border>
+						<el-table-column prop="id" label="插件" min-width="150" show-overflow-tooltip />
+						<el-table-column prop="version" label="版本" width="100" />
+						<el-table-column label="风险" width="110">
+							<template #default="{ row }">
+								<el-tag :type="marketplaceRiskType(row.level)" effect="light">{{ row.level }}</el-tag>
+							</template>
+						</el-table-column>
+						<el-table-column label="签名" width="120">
+							<template #default="{ row }">
+								<el-tag :type="marketplaceSignatureType(row.signature)" effect="plain">{{ row.signature }}</el-tag>
+							</template>
+						</el-table-column>
+						<el-table-column label="权限影响" min-width="180">
+							<template #default="{ row }">
+								<el-tag v-for="item in row.permissions" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
+								<span v-if="row.permissions.length === 0">-</span>
+							</template>
+						</el-table-column>
+						<el-table-column label="风险因子" min-width="220">
+							<template #default="{ row }">
+								<el-tag v-for="item in row.impacts" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
+								<span v-if="row.impacts.length === 0">-</span>
+							</template>
+						</el-table-column>
+						<el-table-column prop="audit" label="审计线索" min-width="180" show-overflow-tooltip />
+					</el-table>
+				</el-tab-pane>
+				<el-tab-pane label="安装后">
+					<StateBlock v-if="visibleRiskRows.length === 0" type="empty" description="暂无安装后风险。" />
+					<el-table v-else :data="visibleRiskRows" stripe border>
+						<el-table-column prop="id" label="插件" min-width="170" show-overflow-tooltip />
+						<el-table-column label="风险等级" width="120">
+							<template #default="{ row }">
+								<el-tag :type="pluginRiskLevelType(row.level)" effect="light">{{ row.level }}</el-tag>
+							</template>
+						</el-table-column>
+						<el-table-column label="权限影响" min-width="180">
+							<template #default="{ row }">
+								<el-tag v-for="item in row.permissions" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
+								<span v-if="row.permissions.length === 0">-</span>
+							</template>
+						</el-table-column>
+						<el-table-column label="风险因子" min-width="220">
+							<template #default="{ row }">
+								<el-tag v-for="item in row.factors" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
+								<span v-if="row.factors.length === 0">-</span>
+							</template>
+						</el-table-column>
+						<el-table-column prop="blockers" label="阻断原因" min-width="180" show-overflow-tooltip />
+						<el-table-column prop="entryPath" label="入口" min-width="180" show-overflow-tooltip />
+						<el-table-column prop="audit" label="审计线索" min-width="200" show-overflow-tooltip />
+					</el-table>
+				</el-tab-pane>
+			</el-tabs>
 		</el-card>
 
 		<el-card v-if="activeHeavyPanel === 'devportal'" v-permission="'plugin.manage'" shadow="never" class="devportal-panel">
@@ -2572,6 +2638,13 @@ function resetDefaultHome(): void {
 
 .risk-report-panel {
 	border: 1px solid var(--color-border);
+}
+
+.risk-report-signals {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 8px;
 }
 
 .marketplace-panel {
