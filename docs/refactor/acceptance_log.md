@@ -13632,3 +13632,73 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-05-01`，实现插件签名策略升级。
+
+## M6-05-01: 插件签名策略升级
+
+- 状态: Passed
+- Work Item: M6-05-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/signature_policy.go`
+- `internal/plugin/signature_policy_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| manifest hash 覆盖 | Passed | `CheckSignatureCoverage` 强制 `plugin.yaml` 出现在 `.skoll/signature-assets.json` 并校验 sha256。 |
+| 资产清单 | Passed | 新增 `SignatureAssetManifest`，要求 `schema_version=v1`、files 非空、sha256 合法且路径不能逃逸插件目录。 |
+| 后端入口覆盖 | Passed | backend/monolith/separated 插件会发现 `backend/main.go` 等入口并要求 hash 覆盖。 |
+| 前端资产覆盖 | Passed | frontend/monolith/separated 插件会扫描 `frontend/dist` 或 `static` 并要求每个资产 hash 覆盖。 |
+| 篡改阻断 | Passed | 已覆盖 digest mismatch 负向测试，资产内容被修改后返回 `ErrSignatureCoverage`。 |
+| 缺失阻断 | Passed | 已覆盖前端资产缺失清单项的负向测试。 |
+| 父任务收口 | Passed | `M6-05-01` Done，`M6-05` 父任务标记 Done。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/plugin/signature_policy.go internal/plugin/signature_policy_test.go
+go test ./internal/plugin/...
+rg -n "CheckSignatureCoverage|SignatureAssetManifest|ErrSignatureCoverage|M6-05-01|插件签名策略升级" internal/plugin docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查签名覆盖策略包含 manifest、资产清单、后端入口、前端资产。
+2. 检查缺失资产和 hash 篡改均为拒绝路径。
+3. 检查策略仅做覆盖校验，不执行插件安装或本地状态变更。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M6-06-01`，实现灰度策略 service。
