@@ -14117,3 +14117,71 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-01-03`，执行 OpenAPI/manifest 校验门禁任务。
+
+## M7-01-03: OpenAPI/manifest 校验门禁
+
+- 状态: Passed
+- Work Item: M7-01-03
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `.github/workflows/ci.yml`
+- `internal/handler/http/router_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| OpenAPI 同步校验 | Passed | 新增 `TestOpenAPIContractFilesStayInSync`，校验嵌入 OpenAPI 基础结构，并确保 `docs/api/openapi.yaml` 与 `internal/handler/http/openapi.yaml` 同步。 |
+| OpenAPI CI 门禁 | Passed | CI 新增 `Validate OpenAPI contract` 步骤，显式运行 OpenAPI 契约测试。 |
+| Manifest CI 门禁 | Passed | CI 已包含 `Validate plugin manifests`，显式运行插件 manifest 兼容性测试。 |
+| 父任务收口 | Passed | `M7-01-03` Done，`task_board.md` 中 `M7-01` 标记 Done。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+go test ./internal/handler/http -run TestOpenAPIContractFilesStayInSync -count=1
+go test ./internal/plugin -run TestValidatePluginManifestsUnderPluginsDir -count=1
+go test ./internal/handler/http ./internal/plugin
+git diff --check
+```
+
+结果摘要: Passed。首次 OpenAPI 结构测试使用了不存在的 `ApiResponse` marker，已改为当前规范中的 `MessageResponse` 后重跑通过。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 OpenAPI 校验不引入额外 CI 依赖，使用仓库 Go 测试即可运行。
+2. 检查 manifest 校验仍在 CI 中显式可见。
+3. 检查 `M7-01` 三个子任务均 Done 后再关闭父任务。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首次 OpenAPI 结构测试检查了不存在的 `ApiResponse` schema marker。
+- 返工动作: 将测试 marker 调整为当前 OpenAPI 规范中的 `MessageResponse`。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M7-02-01`，执行覆盖率目标和例外名单任务。

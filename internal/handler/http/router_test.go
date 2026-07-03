@@ -80,6 +80,36 @@ func TestRouterDocumentationRoutesWithCustomPrefix(t *testing.T) {
 	}
 }
 
+func TestOpenAPIContractFilesStayInSync(t *testing.T) {
+	embedded := strings.TrimSpace(openAPIYAMLDocument)
+	if embedded == "" {
+		t.Fatal("embedded OpenAPI document is empty")
+	}
+	for _, marker := range []string{
+		"openapi: 3.0.3",
+		"info:",
+		"servers:",
+		"paths:",
+		"components:",
+		"schemas:",
+		"MessageResponse:",
+	} {
+		if !strings.Contains(embedded, marker) {
+			t.Fatalf("embedded OpenAPI document missing marker %q", marker)
+		}
+	}
+
+	docsPath := filepath.Join("..", "..", "..", "docs", "api", "openapi.yaml")
+	docsRaw, err := os.ReadFile(docsPath)
+	if err != nil {
+		t.Fatalf("read docs OpenAPI document: %v", err)
+	}
+	docs := strings.TrimSpace(string(docsRaw))
+	if docs != embedded {
+		t.Fatalf("docs/api/openapi.yaml is out of sync with internal/handler/http/openapi.yaml")
+	}
+}
+
 func TestRouterUserCreateAndGet(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
 	if err != nil {

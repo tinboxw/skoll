@@ -206,6 +206,11 @@ jobs:
             artifacts/coverage.txt
           if-no-files-found: error
 
+      - name: Validate OpenAPI contract
+        if: steps.module.outputs.has_module == 'true'
+        shell: bash
+        run: go test ./internal/handler/http -run TestOpenAPIContractFilesStayInSync -count=1
+
       - name: Validate plugin manifests
         if: steps.module.outputs.has_module == 'true'
         shell: bash
