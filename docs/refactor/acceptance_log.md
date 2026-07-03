@@ -15232,3 +15232,80 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-06-04`，执行发布候选最终巡检任务。
+
+## M7-06-04: 发布候选最终巡检
+
+- 状态: Passed
+- Work Item: M7-06-04
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/refactor/final_release_readiness_2026-07-04.md`
+- `docs/refactor/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 正式任务表 | Passed | `work_items.md` 中 252 个正式 Work Item 全部为 `Done`。 |
+| 父任务表 | Passed | `task_board.md` 中父任务全部为 `Done`。 |
+| 候选池同步 | Passed | `next_work_items.md` 中 M7 尾盘行状态已同步；旧候选行继续作为历史来源保留。 |
+| 验收日志 | Passed | M7-04、M7-05、M7-06 的关键验收记录完整追加。 |
+| git log | Passed | `git log --oneline -30` 覆盖 M6 收口与 M7-01 至 M7-06-03 提交链。 |
+| 质量门禁 | Passed | CodeGraph、Go、OpenAPI、plugin manifest、前端 typecheck/build 和 diff 检查通过。 |
+| 无兼容漂移 | Passed | 未新增旧 API、旧路由、旧数据、旧插件格式兼容任务；版本约束仅作为当前契约校验。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+go test ./...
+cd web; npm run typecheck
+cd web; npm run build
+go test ./internal/handler/http -run TestOpenAPIContractFilesStayInSync -count=1
+go test ./internal/plugin -run TestValidatePluginManifestsUnderPluginsDir -count=1
+git log --oneline -30
+rg -n "\| Todo \|" docs/refactor/work_items.md docs/refactor/task_board.md
+rg -n "final_release_readiness_2026-07-04|M7-06-04" docs/refactor/README.md docs/refactor/final_release_readiness_2026-07-04.md docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md docs/refactor/progress_inspection_2026-07-04.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: `cd web; npm run typecheck` Passed
+- Build: `cd web; npm run build` Passed，存在已知 Sass legacy JS API 与 VueUse/Rollup PURE annotation 非阻塞告警。
+
+### 人工验收
+
+1. 检查最终巡检文档覆盖任务表、父任务表、验收日志、git log、质量门禁和发布证据。
+2. 检查 `docs/release-checklist.md` 可作为后续 tag、镜像、迁移、备份、回滚和发布后验证入口。
+3. 检查 M7-06 父任务在 M7-06-04 完成后关闭。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 发布负责人可按照 `docs/release-checklist.md` 准备 release candidate、tag、镜像和发布后验证。

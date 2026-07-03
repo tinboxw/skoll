@@ -28,7 +28,8 @@ docs/refactor/
 ├── frontend-foundation.md            # FE0-FE4 前端体验、视觉、架构、页面与插件门户规范
 ├── frontend-quality-performance.md   # FE5-FE6 测试、浏览器验收、响应式、性能基线
 ├── milestone-closeout.md             # M2、FE0-FE6、尾盘优化和发布前收口摘要
-└── progress_inspection_2026-07-04.md # 进度巡检、尾盘微调和 M7 收口拆解
+├── progress_inspection_2026-07-04.md # 进度巡检、尾盘微调和 M7 收口拆解
+└── final_release_readiness_2026-07-04.md # M7-06-04 发布候选最终巡检
 ```
 
 ## 执行与验收入口
@@ -44,6 +45,7 @@ docs/refactor/
 | [source_map.md](source_map.md) | 旧文档内容吸收与归档说明 |
 | [release_scope_freeze.md](release_scope_freeze.md) | N0 发布前范围冻结、后续任务领取和质量门禁延续规则 |
 | [progress_inspection_2026-07-04.md](progress_inspection_2026-07-04.md) | 2026-07-04 进度巡检、尾盘任务微调和后续里程碑拆解 |
+| [final_release_readiness_2026-07-04.md](final_release_readiness_2026-07-04.md) | M7-06-04 发布候选最终巡检、质量门禁和发布证据汇总 |
 
 ## 专题合并文档
 

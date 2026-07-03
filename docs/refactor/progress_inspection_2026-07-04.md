@@ -9,14 +9,14 @@
 | --- | --- |
 | Formal execution table | `docs/refactor/work_items.md` |
 | Total formal work items | 252 |
-| Completed formal work items | 242 |
-| Remaining formal work items | 10 |
+| Completed formal work items | 252 |
+| Remaining formal work items | 0 |
 | Trigger threshold | Original remaining work items were 5, so the `< 10` refinement threshold was triggered |
 | Candidate pool | `docs/refactor/next_work_items.md` remains a historical candidate source, not the current execution source |
 | Parent task table | `docs/refactor/task_board.md` |
-| Completed parent tasks | 61 |
-| Remaining parent tasks | 3 |
-| Recent progress | M7 quality gates, coverage target, backend/frontend performance baselines, and quick start have been completed |
+| Completed parent tasks | 64 |
+| Remaining parent tasks | 0 |
+| Recent progress | M7 quality gates, coverage target, performance baselines, quick start, operations, examples, governance, release checklist, and final readiness inspection have been completed |
 
 Completed delivery quality is generally acceptable:
 
@@ -39,8 +39,8 @@ Current deviation from the original plan:
 | Candidate pool stale | Medium | `next_work_items.md` still contains old Todo rows for N0/M3/M4 tasks that are already represented in `work_items.md` | Do not use it for execution; use only `work_items.md` until final release |
 | Parent/task state drift | Medium | `M4-05` parent state lagged behind completed work items | Corrected in `task_board.md`; final release inspection must recheck parent-child consistency |
 | Tail tasks too broad | High | Original remaining 5 tasks mixed docs, examples, templates, release, tests, and manual reproduction | Split into 12 atomic tasks with clear verification; current remaining count is 10 |
-| Release proof still incomplete | High | Quick start exists, but operations manual, examples, open-source templates, and release checklist are not yet done | Execute M7-04 through M7-06 in order |
-| No-compat rule needs final audit | Medium | Code search still contains `legacy` and `compatibility` strings; some are valid negative tests or plugin version constraints, but each must be classified before release | Add final release inspection task `M7-06-04` |
+| Release proof incomplete | Closed | Quick start, operations manual, examples, open-source templates, release checklist, and final readiness report are complete | See `final_release_readiness_2026-07-04.md` |
+| No-compat rule final audit | Closed | Final release inspection confirmed no compatibility task was added; version constraints remain current-contract validation only | See `final_release_readiness_2026-07-04.md` |
 | Acceptance log encoding display | Low | Console output shows mojibake in older `acceptance_log.md` tail content | Do not rewrite history now; final release inspection should validate source encoding and readable rendered docs |
 
 Direction check:
@@ -66,7 +66,7 @@ The tail tasks have been refined in `docs/refactor/work_items.md`. Parallel deve
 | M7-06-01 | Done | P1 | M7-05-05 | Open-source contribution guide | Contribution, security, conduct, and maintainer notes are complete |
 | M7-06-02 | Done | P1 | M7-06-01 | Issue and PR templates | Bug, feature, task, and PR templates include reproduction, acceptance, and no-compat confirmation |
 | M7-06-03 | Done | P0 | M7-06-02 | Release checklist | Version, migration, image, OpenAPI, examples, and quality gates are checkable |
-| M7-06-04 | Todo | P0 | M7-06-03 | Final release readiness inspection | `work_items.md`, `task_board.md`, `acceptance_log.md`, `git log`, and quality gates are consistent |
+| M7-06-04 | Done | P0 | M7-06-03 | Final release readiness inspection | `work_items.md`, `task_board.md`, `acceptance_log.md`, `git log`, and quality gates are consistent |
 
 Rejected or deferred adjustments:
 
