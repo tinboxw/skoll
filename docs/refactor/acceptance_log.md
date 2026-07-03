@@ -14670,3 +14670,71 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-05-01`，执行示例模块 spec 与生成清单任务。
+
+## M7-05-01: 示例模块 spec 与生成清单
+
+- 状态: Passed
+- Work Item: M7-05-01
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `examples/demo_product/README.md`
+- `examples/demo_product/generated_files.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| spec 可审阅 | Passed | `README.md` 记录 spec ID、模块、表、domain、collection、菜单声明。 |
+| 生成文件清单 | Passed | `generated_files.md` 记录 20 个 dry-run 输出路径、template ID 和 clean repo 预期状态。 |
+| 权限键完整 | Passed | read/create/update/delete/manage 五个权限键在 spec、README 和生成清单中可追溯。 |
+| 菜单声明完整 | Passed | menu key、parent、path、component、icon、order、required permissions 均已记录。 |
+| 生成器验收 | Passed | demo_product dry-run 测试覆盖 Go 解析、OpenAPI、前端 API/store/view、history 和 rollback。 |
+| 父任务状态 | Passed | `M7-05` 保持 Todo，等待 M7-05-02 到 M7-05-05 完成。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/generator/... ./internal/service/generator/...
+rg -n "demo_product.read|demo_product.create|demo_product.update|demo_product.delete|demo_product.manage|DemoProduct/index|/demo-products|backend.domain.doc|frontend.view|20260629_030000_create_demo_products" examples/demo_product/spec.json examples/demo_product/README.md examples/demo_product/generated_files.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: generated `web/src/views/DemoProduct/index.vue` dry-run target
+- State coverage: spec/list/form declaration only
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: generated view target references `demo_product.create`; spec/menu require `demo_product.read`
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查示例模块是框架能力证明，不引入一次性业务实现。
+2. 检查生成清单覆盖后端、迁移、OpenAPI、权限菜单、前端 API/store/view。
+3. 检查本项只完成 spec 与清单，后端/前端真实运行验收留给 M7-05-02/M7-05-03。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-05-02`，执行示例模块后端验收任务。

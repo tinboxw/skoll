@@ -134,7 +134,7 @@
 | 69 | M7-04-02 | M7-04 | `skoll-docs-writer` | 运维手册：配置与部署 | docs | 配置项、环境变量、Docker/Compose、服务启动和停止路径明确 | 文档审阅 | Done |
 | 70 | M7-04-03 | M7-04 | `skoll-docs-writer` | 运维手册：备份、日志与故障处理 | docs | 数据备份/恢复、日志定位、常见故障恢复步骤可执行 | 文档审阅 | Done |
 | 71 | M7-04-04 | M7-04 | `skoll-testing-automation` | 运维手册复现验收 | docs/smoke | 新环境可按 quick start + 运维手册完成启动、登录、停止、恢复检查 | 手工复现记录 | Done |
-| 72 | M7-05-01 | M7-05 | `skoll-open-source-framework` | 示例模块 spec 与生成清单 | examples | demo_product spec、生成文件清单、权限和菜单声明完整 | 文档审阅; `go test ./internal/domain/generator/...` | Todo |
+| 72 | M7-05-01 | M7-05 | `skoll-open-source-framework` | 示例模块 spec 与生成清单 | examples | demo_product spec、生成文件清单、权限和菜单声明完整 | 文档审阅; `go test ./internal/domain/generator/...` | Done |
 | 73 | M7-05-02 | M7-05 | `skoll-testing-automation` | 示例模块后端验收 | examples/tests | demo_product 后端 API、权限、审计、store/service 流程可测试 | `go test ./...` | Todo |
 | 74 | M7-05-03 | M7-05 | `skoll-vue-frontend` | 示例模块前端验收 | examples/web | demo_product 列表、表单、空态、错误态、权限按钮可构建 | `cd web && npm run typecheck`; `cd web && npm run build` | Todo |
 | 75 | M7-05-04 | M7-05 | `skoll-plugin-platform` | 示例插件 manifest 与资产 | examples/plugins | demo plugin manifest、权限、菜单、配置 schema、签名/风险字段完整 | manifest schema review | Todo |
