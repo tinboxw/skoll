@@ -27,6 +27,7 @@ Skoll 当前处于开源基础建设阶段。文档按读者和用途分层，�
 | [configuration.md](configuration.md) | 配置项、默认值、环境变量映射 |
 | [development_skills.md](development_skills.md) | Codex 项目专用 skills 与协作规则 |
 | [collaboration.md](collaboration.md) | 团队职能、沟通节奏、任务流转和验收协作机制 |
+| [release-checklist.md](release-checklist.md) | 发布候选版本质量门禁、部署、迁移、示例和回滚清单 |
 
 ## 架构文档
 

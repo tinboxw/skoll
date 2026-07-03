@@ -15163,3 +15163,72 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-06-03`，执行 Release checklist 任务。
+
+## M7-06-03: Release checklist
+
+- 状态: Passed
+- Work Item: M7-06-03
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/release-checklist.md`
+- `docs/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 版本号 | Passed | checklist 覆盖版本、release notes、commit range 和 no-legacy 最终确认。 |
+| 质量门禁 | Passed | checklist 覆盖 Go、coverage、OpenAPI、manifest、frontend typecheck/build/browser smoke。 |
+| OpenAPI/schema | Passed | checklist 覆盖 OpenAPI、plugin manifest schema、marketplace schema。 |
+| 示例 | Passed | checklist 覆盖 demo_product 和 demo plugin 验收记录。 |
+| 镜像/部署 | Passed | checklist 覆盖 Docker、Compose、Kubernetes、配置、健康检查和日志。 |
+| 迁移/备份/回滚 | Passed | checklist 覆盖数据库迁移、备份恢复、文件/插件资产、应用/DB/plugin 回滚。 |
+| 文档入口 | Passed | `docs/README.md` 新增 release checklist 入口。 |
+| 父任务状态 | Passed | `M7-06` 保持 Todo，等待最终巡检 M7-06-04。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Release Identity|Quality Gates|API and Schema Artifacts|Deployment and Configuration|Database, Files, and Plugin Assets|Rollback Plan|Post-Release Verification|release-checklist.md|M7-06-03" docs/release-checklist.md docs/README.md docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 checklist 覆盖发布前、发布中、回滚和发布后验证。
+2. 检查 checklist 可以被 release owner 逐项打勾。
+3. 检查 M7-06 父任务未提前关闭。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-06-04`，执行发布候选最终巡检任务。
