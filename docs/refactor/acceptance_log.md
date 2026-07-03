@@ -14321,3 +14321,72 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-03-02`，执行前端性能采样记录任务。
+
+## M7-03-02: 前端性能采样记录
+
+- 状态: Passed
+- Work Item: M7-03-02
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/refactor/frontend_performance_sampling.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| Build 基线 | Passed | `cd web && npm run build` 通过，记录 build time、模块数、最大 chunk 和 warning。 |
+| 首屏基线 | Passed | 文档记录 router 动态 import、默认路由和 `xlsx` 重依赖风险。 |
+| 路由切换基线 | Passed | 文档覆盖 Dashboard/User/Role/Permission/Menu/Dictionary/Organization/Audit/Plugin 等主要路由。 |
+| 重表格/列表基线 | Passed | 文档覆盖 user、role、audit、permission/menu、plugin 的列表性能风险。 |
+| 插件面板基线 | Passed | 文档记录 plugin route、bootstrap、risk/config/log 等重面板加载边界。 |
+| 父任务收口 | Passed | `M7-03-02` Done，`task_board.md` 中 `M7-03` 标记 Done。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+cd web; npm run build
+rg -n "const .*Page = \\(\\) => import" web/src/router/index.ts
+rg -n "Build Baseline|First-Screen Baseline|Route-Switch Baseline|Heavy Table/List Baseline|Plugin Panel Baseline|Follow-Up Thresholds" docs/refactor/frontend_performance_sampling.md
+git diff --check
+```
+
+结果摘要: Passed。`npm run build` 仍有既有 Sass legacy-js-api 和 Rollup PURE annotation warnings，已记录为基线 warning。
+
+### 前端验收记录
+
+- Affected routes/pages: 全部主要管理台路由的性能采样文档
+- State coverage: 首屏、路由切换、重表格/列表、插件重面板
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: 重表格/列表后续阈值中记录大列表默认不得无界获取
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: `npm run build` Passed
+
+### 人工验收
+
+1. 检查最大资产和 warning 均记录在文档中。
+2. 检查主要页面均使用 route-level dynamic import。
+3. 检查本次只记录采样基线和后续阈值，不隐藏或跳过真实性能问题。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-04-01`，执行快速开始手册任务。
