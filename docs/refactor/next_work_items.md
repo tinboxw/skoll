@@ -138,7 +138,7 @@
 | 73 | M7-05-02 | M7-05 | `skoll-testing-automation` | 示例模块后端验收 | examples/tests | demo_product 后端 API、权限、审计、store/service 流程可测试 | `go test ./...` | Done |
 | 74 | M7-05-03 | M7-05 | `skoll-vue-frontend` | 示例模块前端验收 | examples/web | demo_product 列表、表单、空态、错误态、权限按钮可构建 | `cd web && npm run typecheck`; `cd web && npm run build` | Done |
 | 75 | M7-05-04 | M7-05 | `skoll-plugin-platform` | 示例插件 manifest 与资产 | examples/plugins | demo plugin manifest、权限、菜单、配置 schema、签名/风险字段完整 | manifest schema review | Done |
-| 76 | M7-05-05 | M7-05 | `skoll-testing-automation` | 示例插件生命周期验收 | examples/plugins/tests | demo plugin 可安装、启用、禁用、升级、回滚；审计事件可查 | `go test ./...`; `cd web && npm run build` | Todo |
+| 76 | M7-05-05 | M7-05 | `skoll-testing-automation` | 示例插件生命周期验收 | examples/plugins/tests | demo plugin 可安装、启用、禁用、升级、回滚；审计事件可查 | `go test ./...`; `cd web && npm run build` | Done |
 | 77 | M7-06-01 | M7-06 | `skoll-community-governance` | 开源贡献指南 | docs/.github | CONTRIBUTING、SECURITY、行为准则或维护者说明完整 | 文档审阅 | Todo |
 | 78 | M7-06-02 | M7-06 | `skoll-community-governance` | Issue/PR 模板 | `.github` | bug、feature、task、PR 模板包含复现、验收、无兼容规则确认 | 文档审阅 | Todo |
 | 79 | M7-06-03 | M7-06 | `skoll-devops-deployment` | Release checklist | docs | 版本号、迁移、镜像、OpenAPI、示例、质量门禁清单完整 | 文档审阅 | Todo |

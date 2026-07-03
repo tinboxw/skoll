@@ -14954,3 +14954,73 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-05-05`，执行示例插件生命周期验收任务。
+
+## M7-05-05: 示例插件生命周期验收
+
+- 状态: Passed
+- Work Item: M7-05-05
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `plugins/demo/lifecycle_acceptance.md`
+- `plugins/demo/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| install/enable/disable | Passed | 全量 Go 测试覆盖插件生命周期状态迁移与目录副作用。 |
+| upgrade/rollback | Passed | 生命周期/回滚测试覆盖发布顺序、回滚计划、权限/菜单/配置/资产恢复和任务日志。 |
+| 审计事件可查 | Passed | 全量 Go 测试覆盖插件 handler/service 与审计相关包。 |
+| 示例记录 | Passed | `plugins/demo/lifecycle_acceptance.md` 记录生命周期覆盖、命令和 warning baseline。 |
+| 前端构建 | Passed | `npm run build` 通过。 |
+| 父任务收口 | Passed | `M7-05-01` 到 `M7-05-05` 均 Done，父任务 `M7-05` 标记 Done。 |
+
+### 自动化验证
+
+```powershell
+go test ./...
+cd web
+npm run build
+git diff --check
+```
+
+结果摘要: Passed。build 仅保留既有 Sass legacy-js-api 与 Rollup PURE annotation warning。
+
+### 前端验收记录
+
+- Affected routes/pages: plugin runtime route `/skoll/plugins/demo`
+- State coverage: lifecycle acceptance via tests and build gate
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: demo plugin manifest and lifecycle tests cover permissions/menu/catalog restoration
+- Typecheck: N/A
+- Build: Passed (`npm run build`)
+
+### 人工验收
+
+1. 检查示例插件生命周期记录没有声明未执行的浏览器操作。
+2. 检查 M7-05 父任务只在 M7-05-01 到 M7-05-05 全部完成后收口。
+3. 检查后续 M7-06 开源发布收口任务仍为 Todo。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-06-01`，执行开源贡献指南任务。

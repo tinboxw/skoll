@@ -51,3 +51,7 @@
 | 风险字段 | `demo.report.export` 标记为 `medium`，其余最小读取权限为 `low` |
 | 签名覆盖 | `.skoll/signature-assets.json` 覆盖 `plugin.yaml`、`backend/main.go` 和 `frontend/dist/*` |
 
+## 生命周期验收
+
+见 [lifecycle_acceptance.md](lifecycle_acceptance.md)，记录 install/enable/disable/upgrade/rollback、审计测试覆盖和前端 build 门禁。
+
