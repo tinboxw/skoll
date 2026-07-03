@@ -323,7 +323,7 @@
 | 225 | M6-03-01 | M6-03 | `skoll-plugin-marketplace-refactor` | 远程 index adapter | service | 远程失败不影响本地插件，错误可见 | `go test ./internal/plugin/...` | Done |
 | 226 | M6-03-02 | M6-03 | `skoll-plugin-marketplace-refactor` | 安装预检 service | service | 权限 diff、菜单 diff、配置、资源、迁移、签名、风险完整 | `go test ./internal/plugin/...` | Done |
 | 227 | M6-03-03 | M6-03 | `skoll-web-ui-design` | 安装预检 UI | Vue page | 高风险动作确认、阻断原因、审计线索可读 | `cd web && npm run build` | Done |
-| 228 | M6-04-01 | M6-04 | `skoll-plugin-platform` | 插件迁移 hook | plugin/service | install/upgrade/downgrade/uninstall 状态可追踪 | `go test ./internal/plugin/...` | Todo |
+| 228 | M6-04-01 | M6-04 | `skoll-plugin-platform` | 插件迁移 hook | plugin/service | install/upgrade/downgrade/uninstall 状态可追踪 | `go test ./internal/plugin/...` | Done |
 | 229 | M6-05-01 | M6-05 | `skoll-security-hardening` | 插件签名策略升级 | security/plugin | manifest、资产清单、后端入口、前端资产 hash 覆盖 | `go test ./internal/plugin/...` | Todo |
 | 230 | M6-06-01 | M6-06 | `skoll-plugin-marketplace-refactor` | 灰度策略 service | service | 路由、菜单、功能可见性受灰度策略影响 | `go test ./internal/plugin/...` | Todo |
 | 231 | M6-06-02 | M6-06 | `skoll-plugin-marketplace-refactor` | 回滚 service/UI | service/frontend | 回滚后版本、菜单、权限、配置、资产一致 | `go test ./...`; `cd web && npm run build` | Todo |

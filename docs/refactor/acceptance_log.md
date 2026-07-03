@@ -13562,3 +13562,73 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-04-01`，实现插件迁移 hook。
+
+## M6-04-01: 插件迁移 hook
+
+- 状态: Passed
+- Work Item: M6-04-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/migration_hook.go`
+- `internal/plugin/migration_hook_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| install hook | Passed | `PluginMigrationHook` 对 install 执行 pending up migrations，并记录 started/succeeded。 |
+| upgrade hook | Passed | upgrade 复用 pending up migrations，支持 limit 约束。 |
+| downgrade hook | Passed | downgrade 执行 rollback，并记录 from/to version。 |
+| uninstall hook | Passed | uninstall 回滚已应用迁移，步骤按反向版本顺序记录。 |
+| 状态可追踪 | Passed | `MemoryPluginMigrationRecorder` 可返回 started/succeeded/failed 事件、步骤、错误和时间。 |
+| 失败可追踪 | Passed | migration 目录缺失等错误会记录 failed 事件并返回原始错误。 |
+| 父任务收口 | Passed | `M6-04-01` Done，`M6-04` 父任务标记 Done。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/plugin/migration_hook.go internal/plugin/migration_hook_test.go
+go test ./internal/plugin/...
+rg -n "PluginMigrationHook|PluginMigrationRecorder|M6-04-01|插件迁移 hook" internal/plugin docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 hook 覆盖 install、upgrade、downgrade、uninstall 四类 lifecycle action。
+2. 检查 started/succeeded/failed 均有可追踪事件结构。
+3. 检查本项仅提供 hook/service，不直接接入 HTTP 或执行未授权 lifecycle 操作。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M6-05-01`，实现插件签名策略升级。
