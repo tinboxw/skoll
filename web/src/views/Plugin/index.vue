@@ -54,7 +54,7 @@ const configForm = ref<Record<string, unknown>>({});
 const configSchema = ref<PluginConfigSchema | null>(null);
 const configFormValid = ref(true);
 const operationText = ref("");
-const installPreflight = ref<Record<string, unknown> | null>(null);
+const installPreflight = ref<InstallPreflightResult | null>(null);
 const validatedPluginPath = ref("");
 const selectedPlugin = ref("");
 const activeInspectorPanel = ref<"info" | "logs" | "config" | "">("");
@@ -64,6 +64,81 @@ const systemDefaultHome = getSystemDefaultHomePath();
 const info = ref<string | null>(null);
 type MarketplaceSignatureStatus = "signed" | "unsigned" | "incomplete" | "unknown";
 type MarketplaceRiskLevel = "low" | "medium" | "high" | "critical" | "unknown";
+type InstallPreflightStatus = "pass" | "blocked";
+type InstallPreflightRiskLevel = "low" | "medium" | "high" | "critical";
+type InstallPreflightResult = {
+	status: InstallPreflightStatus;
+	plugin: {
+		id: string;
+		name: string;
+		version: string;
+		description?: string;
+		source: string;
+	};
+	blockers?: string[];
+	warnings?: string[];
+	permissions: InstallPreflightDiff<InstallPreflightPermission>;
+	menus: InstallPreflightDiff<InstallPreflightMenu>;
+	config: {
+		hasSchema: boolean;
+		fieldCount: number;
+		requiredFields?: string[];
+		defaultFields?: string[];
+	};
+	resources: {
+		uiMode?: string;
+		frontendEntry?: string;
+		serviceBaseUrl?: string;
+		serviceHealthUrl?: string;
+		dependencies?: string[];
+	};
+	migration: {
+		version?: string;
+		pending?: InstallPreflightMigrationStep[];
+		applied?: InstallPreflightMigrationStep[];
+		error?: string;
+	};
+	signature: {
+		status: MarketplaceSignatureStatus | "unsupported";
+		algorithm?: string;
+		vendorId?: string;
+		signedAt?: string;
+	};
+	risk: {
+		level: InstallPreflightRiskLevel;
+		summary?: string[];
+	};
+};
+type InstallPreflightDiff<T> = {
+	add?: T[];
+	update?: T[];
+	conflict?: T[];
+};
+type InstallPreflightPermission = {
+	key: string;
+	type?: string;
+	module?: string;
+	name?: string;
+	risk?: string;
+	source?: string;
+	existing?: string;
+};
+type InstallPreflightMenu = {
+	key: string;
+	parentKey?: string;
+	path?: string;
+	name?: string;
+	source?: string;
+	existing?: string;
+	requiredRoles?: string[];
+	requiredPermissions?: string[];
+};
+type InstallPreflightMigrationStep = {
+	version: number;
+	name: string;
+	upPath?: string;
+	downPath?: string;
+};
 type LocalMarketplaceItem = {
 	id: string;
 	name: string;
@@ -215,7 +290,7 @@ const marketplaceHighRiskCount = computed(() => marketplaceItems.value.filter((i
 const marketplaceUnsignedCount = computed(() => marketplaceItems.value.filter((item) => item.signature.status !== "signed").length);
 const canReadPlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginRead));
 const canManagePlugins = computed(() => buttonAccess.can(BUTTON_ACCESS.pluginManage));
-const installPreflightReady = computed(() => installPreflight.value !== null && pluginPath.value.trim() === validatedPluginPath.value);
+const installPreflightReady = computed(() => installPreflight.value !== null && installPreflight.value.status !== "blocked" && pluginPath.value.trim() === validatedPluginPath.value);
 const pluginRiskRows = computed(() => pluginStore.items.map((plugin) => ({
 	id: plugin.id,
 	name: plugin.name,
@@ -661,21 +736,52 @@ function pluginAssetRows(plugin: FrontendPluginManifest): Array<{ label: string;
 	];
 }
 
-function preflightValue(key: string): string {
-	const value = installPreflight.value?.[key];
-	if (value === undefined || value === null || value === "") {
-		return "-";
+function preflightStatusType(status?: InstallPreflightStatus): "success" | "danger" | "info" {
+	if (status === "pass") {
+		return "success";
 	}
-	return String(value);
+	if (status === "blocked") {
+		return "danger";
+	}
+	return "info";
 }
 
-function preflightCount(key: string): number {
-	const value = installPreflight.value?.[key];
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+function preflightRiskType(level?: InstallPreflightRiskLevel): "success" | "warning" | "danger" | "info" {
+	if (level === "critical" || level === "high") {
+		return "danger";
+	}
+	if (level === "medium") {
+		return "warning";
+	}
+	if (level === "low") {
+		return "success";
+	}
+	return "info";
 }
 
-function preflightRiskType(): "success" | "warning" {
-	return preflightCount("permissions") > 0 || preflightCount("dependencies") > 0 ? "warning" : "success";
+function preflightSignatureType(status?: InstallPreflightResult["signature"]["status"]): "success" | "warning" | "danger" | "info" {
+	if (status === "signed") {
+		return "success";
+	}
+	if (status === "incomplete" || status === "unsupported") {
+		return "danger";
+	}
+	if (status === "unsigned") {
+		return "warning";
+	}
+	return "info";
+}
+
+function preflightDiffCount<T>(diff?: InstallPreflightDiff<T>): number {
+	return (diff?.add?.length ?? 0) + (diff?.update?.length ?? 0) + (diff?.conflict?.length ?? 0);
+}
+
+function preflightDependencyText(): string {
+	return installPreflight.value?.resources.dependencies?.join(", ") || "-";
+}
+
+function preflightMigrationCount(): number {
+	return (installPreflight.value?.migration.pending?.length ?? 0) + (installPreflight.value?.migration.applied?.length ?? 0);
 }
 
 function handlePluginCommand(command: string): void {
@@ -888,10 +994,10 @@ async function validatePluginPath(): Promise<void> {
 	installPreflight.value = null;
 	validatedPluginPath.value = "";
 	try {
-		const payload = await apiPost<ApiResponse<unknown>>("/v1/plugins/validate", {
+		const payload = await apiPost<ApiResponse<InstallPreflightResult>>("/v1/plugins/preflight", {
 			path: pluginPath.value.trim()
 		});
-		installPreflight.value = payload.data && typeof payload.data === "object" ? payload.data as Record<string, unknown> : {};
+		installPreflight.value = payload.data ?? null;
 		validatedPluginPath.value = pluginPath.value.trim();
 		operationText.value = JSON.stringify(payload.data, null, 2);
 	} catch (e) {
@@ -1590,22 +1696,77 @@ function resetDefaultHome(): void {
 			<div v-if="installPreflight" class="preflight-panel plugin-install-preflight">
 				<div class="preflight-header">
 					<div>
-						<strong>安装预检</strong>
-						<p>{{ validatedPluginPath }}</p>
+						<strong>{{ installPreflight.plugin.name || installPreflight.plugin.id }}</strong>
+						<p>{{ installPreflight.plugin.id }}@{{ installPreflight.plugin.version }} · {{ validatedPluginPath }}</p>
 					</div>
-					<el-tag :type="preflightRiskType()" effect="light">{{ preflightRiskType() === "warning" ? "需要复核" : "低风险" }}</el-tag>
+					<div class="preflight-tags">
+						<el-tag :type="preflightStatusType(installPreflight.status)" effect="light">{{ installPreflight.status === "blocked" ? "阻断" : "可安装" }}</el-tag>
+						<el-tag :type="preflightRiskType(installPreflight.risk.level)" effect="light">{{ installPreflight.risk.level }}</el-tag>
+						<el-tag :type="preflightSignatureType(installPreflight.signature.status)" effect="light">{{ installPreflight.signature.status }}</el-tag>
+					</div>
 				</div>
+				<el-alert v-if="installPreflight.blockers?.length" class="page-alert" type="error" title="安装被阻断" show-icon :closable="false">
+					<ul class="preflight-list">
+						<li v-for="item in installPreflight.blockers" :key="item">{{ item }}</li>
+					</ul>
+				</el-alert>
+				<el-alert v-if="installPreflight.warnings?.length" class="page-alert" type="warning" title="需要复核" show-icon :closable="false">
+					<ul class="preflight-list">
+						<li v-for="item in installPreflight.warnings" :key="item">{{ item }}</li>
+					</ul>
+				</el-alert>
 				<el-descriptions :column="3" border>
-					<el-descriptions-item label="插件">{{ preflightValue("id") }}</el-descriptions-item>
-					<el-descriptions-item label="版本">{{ preflightValue("version") }}</el-descriptions-item>
-					<el-descriptions-item label="依赖">{{ preflightCount("dependencies") }}</el-descriptions-item>
-					<el-descriptions-item label="权限 diff">{{ preflightCount("permissions") > 0 ? `${preflightCount("permissions")} 项新增/复核` : "无新增权限" }}</el-descriptions-item>
-					<el-descriptions-item label="菜单 diff">当前接口未返回菜单变更，安装前需在详情/菜单注册中复核。</el-descriptions-item>
-					<el-descriptions-item label="签名">当前 validate 响应未返回签名结果，按未验证处理。</el-descriptions-item>
-					<el-descriptions-item label="迁移影响">当前 validate 响应未返回 migration 信息，安装前按未知影响复核。</el-descriptions-item>
-					<el-descriptions-item label="风险">{{ preflightRiskType() === "warning" ? "权限或依赖存在变更" : "未发现权限/依赖风险" }}</el-descriptions-item>
-					<el-descriptions-item label="安装门禁">{{ installPreflightReady ? "当前路径已预检" : "路径变化后需重新预检" }}</el-descriptions-item>
+					<el-descriptions-item label="权限 diff">{{ preflightDiffCount(installPreflight.permissions) }}</el-descriptions-item>
+					<el-descriptions-item label="菜单 diff">{{ preflightDiffCount(installPreflight.menus) }}</el-descriptions-item>
+					<el-descriptions-item label="配置字段">{{ installPreflight.config.hasSchema ? installPreflight.config.fieldCount : "无 schema" }}</el-descriptions-item>
+					<el-descriptions-item label="依赖">{{ preflightDependencyText() }}</el-descriptions-item>
+					<el-descriptions-item label="迁移">{{ installPreflight.migration.error || `${preflightMigrationCount()} 项` }}</el-descriptions-item>
+					<el-descriptions-item label="资源">{{ installPreflight.resources.uiMode || "-" }} · {{ installPreflight.resources.frontendEntry || "-" }}</el-descriptions-item>
+					<el-descriptions-item label="签名">{{ installPreflight.signature.algorithm || "-" }} · {{ installPreflight.signature.vendorId || "-" }}</el-descriptions-item>
+					<el-descriptions-item label="风险摘要">{{ installPreflight.risk.summary?.join(", ") || "无额外风险" }}</el-descriptions-item>
+					<el-descriptions-item label="审计线索">plugin.install.preflight</el-descriptions-item>
 				</el-descriptions>
+				<div class="preflight-grid">
+					<section class="preflight-section">
+						<h4>权限影响</h4>
+						<el-table :data="[...(installPreflight.permissions.conflict ?? []), ...(installPreflight.permissions.add ?? []), ...(installPreflight.permissions.update ?? [])]" size="small" max-height="220" empty-text="无权限变更">
+							<el-table-column prop="key" label="Key" min-width="160" />
+							<el-table-column prop="type" label="类型" width="90" />
+							<el-table-column prop="risk" label="风险" width="90">
+								<template #default="{ row }">
+									<el-tag :type="marketplaceRiskType(row.risk || 'low')" size="small">{{ row.risk || "low" }}</el-tag>
+								</template>
+							</el-table-column>
+							<el-table-column prop="existing" label="已存在" min-width="140" />
+						</el-table>
+					</section>
+					<section class="preflight-section">
+						<h4>菜单影响</h4>
+						<el-table :data="[...(installPreflight.menus.conflict ?? []), ...(installPreflight.menus.add ?? []), ...(installPreflight.menus.update ?? [])]" size="small" max-height="220" empty-text="无菜单变更">
+							<el-table-column prop="key" label="Key" min-width="150" />
+							<el-table-column prop="path" label="路径" min-width="180" />
+							<el-table-column prop="existing" label="已存在" min-width="140" />
+						</el-table>
+					</section>
+					<section class="preflight-section">
+						<h4>配置与资源</h4>
+						<dl>
+							<dt>必填字段</dt>
+							<dd>{{ installPreflight.config.requiredFields?.join(", ") || "-" }}</dd>
+							<dt>默认字段</dt>
+							<dd>{{ installPreflight.config.defaultFields?.join(", ") || "-" }}</dd>
+							<dt>网络</dt>
+							<dd>{{ installPreflight.resources.serviceBaseUrl || installPreflight.resources.serviceHealthUrl || "-" }}</dd>
+						</dl>
+					</section>
+					<section class="preflight-section">
+						<h4>迁移</h4>
+						<el-table :data="installPreflight.migration.pending ?? []" size="small" max-height="180" empty-text="无待执行迁移">
+							<el-table-column prop="version" label="版本" width="80" />
+							<el-table-column prop="name" label="名称" min-width="180" />
+						</el-table>
+					</section>
+				</div>
 			</div>
 			<pre v-if="operationText" class="code-block">{{ operationText }}</pre>
 		</el-card>
@@ -2422,6 +2583,52 @@ function resetDefaultHome(): void {
 	word-break: break-all;
 }
 
+.preflight-tags {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: 6px;
+}
+
+.preflight-list {
+	margin: 6px 0 0;
+	padding-left: 18px;
+}
+
+.preflight-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.preflight-section {
+	min-width: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	padding: 12px;
+	background: var(--color-surface);
+}
+
+.preflight-section h4 {
+	margin: 0 0 10px;
+}
+
+.preflight-section dl {
+	display: grid;
+	grid-template-columns: 88px minmax(0, 1fr);
+	gap: 8px 10px;
+	margin: 0;
+}
+
+.preflight-section dt {
+	color: var(--color-text-muted);
+}
+
+.preflight-section dd {
+	margin: 0;
+	word-break: break-all;
+}
+
 .heavy-panel-tabs {
 	display: flex;
 	justify-content: flex-start;
@@ -2631,6 +2838,10 @@ function resetDefaultHome(): void {
 
 	.marketplace-filters {
 		grid-template-columns: 1fr 1fr;
+	}
+
+	.preflight-grid {
+		grid-template-columns: 1fr;
 	}
 
 	.content-grid {

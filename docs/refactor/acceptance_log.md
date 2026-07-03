@@ -13480,3 +13480,85 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-03-03`，实现安装预检 UI。
+
+## M6-03-03: 安装预检 UI
+
+- 状态: Passed
+- Work Item: M6-03-03
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/install_preflight.go`
+- `internal/handler/http/v1/plugin/handler.go`
+- `internal/handler/http/v1/plugin/handler_test.go`
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `web/src/views/Plugin/index.vue`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| API 契约 | Passed | 新增 `POST /v1/plugins/preflight`，复用现有 envelope，返回结构化安装预检结果。 |
+| OpenAPI 同步 | Passed | `docs/api/openapi.yaml` 与 `internal/handler/http/openapi.yaml` 同步新增路径和响应 schema。 |
+| UI 数据接入 | Passed | 插件页安装校验改为调用 `/v1/plugins/preflight`，并保留完整 JSON 证据。 |
+| 高风险动作确认 | Passed | blocked 预检会禁用安装按钮，风险和签名以状态 tag 展示。 |
+| 阻断原因可读 | Passed | blockers 和 warnings 分别以 error/warning alert 展示。 |
+| 权限/菜单/迁移可读 | Passed | 预检面板展示权限 diff、菜单 diff、配置字段、资源、迁移和签名摘要。 |
+| 审计线索 | Passed | 面板明确展示 `plugin.install.preflight` 审计线索。 |
+| 父任务收口 | Passed | `M6-03-01`、`M6-03-02`、`M6-03-03` 均 Done，`M6-03` 父任务标记 Done。 |
+
+### 自动化验证
+
+```powershell
+gofmt -w internal/handler/http/v1/plugin/handler.go internal/handler/http/v1/plugin/handler_test.go
+go test ./internal/plugin/... ./internal/handler/http/v1/plugin/...
+@'
+import yaml
+for path in ['docs/api/openapi.yaml','internal/handler/http/openapi.yaml']:
+    yaml.safe_load(open(path, encoding='utf-8'))
+'@ | python -
+cd web; npm run typecheck
+cd web; npm run build
+rg -n "M6-03-03|/v1/plugins/preflight|InstallPreflight|plugin.install.preflight|安装预检 UI" internal/handler/http/v1/plugin docs/api/openapi.yaml internal/handler/http/openapi.yaml web/src/views/Plugin/index.vue docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。`npm run build` 仅保留既有 Dart Sass legacy JS API 与 Rollup pure annotation warnings。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll/plugin`
+- State coverage: pass/blocked、blockers、warnings、权限 diff、菜单 diff、配置、资源、迁移、签名、安装按钮禁用。
+- Browser smoke: Passed。使用 Playwright Chrome channel，mock auth/session、插件列表和 `/skoll/v1/plugins/preflight` 后进入插件页，填写路径并点击校验。
+- Browser command: Node REPL Playwright smoke。
+- Browser evidence: `D:/workspace/3rdsrc/tinbox/skoll/web/dist/plugin-preflight-smoke.png`
+- Responsive evidence: 预检网格在窄屏切换为单列；本次 smoke 使用 1440x1100 桌面视口。
+- Permission evidence: 安装按钮仍受 `plugin.manage` 控制；blocked 结果会禁用安装按钮。
+- Typecheck: Passed。
+- Build: Passed。
+
+### 人工验收
+
+1. 检查预检面板展示高风险阻断、警告、权限/菜单 diff、迁移和签名信息。
+2. 检查 blocked 状态下安装入口不可用，避免高风险动作继续执行。
+3. 检查 OpenAPI、handler、前端调用路径一致，响应 envelope 不变。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 浏览器 smoke 初次因 dev server 退出而连接失败；随后因缺少本地 session 被路由守卫跳转登录页；再后一次点击匹配到不可见按钮。
+- 返工动作: 重启 dev server，注入 `skoll.auth.token` 和 `skoll.auth.userSession`，改用 `.install-actions button` 可见按钮索引定位。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M6-04-01`，实现插件迁移 hook。

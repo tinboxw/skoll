@@ -471,6 +471,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/plugins/preflight:
+    post:
+      summary: Run plugin install preflight
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PluginPathRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginInstallPreflightAPIResponse'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/plugins/{id}:
     get:
       summary: Get plugin detail
@@ -3020,6 +3042,60 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/LocalMarketplaceData'
+    PluginPathRequest:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+    PluginInstallPreflightAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              type: object
+              required:
+                - status
+                - plugin
+                - permissions
+                - menus
+                - config
+                - resources
+                - migration
+                - signature
+                - risk
+              properties:
+                status:
+                  type: string
+                  enum: [pass, blocked]
+                plugin:
+                  type: object
+                blockers:
+                  type: array
+                  items:
+                    type: string
+                warnings:
+                  type: array
+                  items:
+                    type: string
+                permissions:
+                  type: object
+                menus:
+                  type: object
+                config:
+                  type: object
+                resources:
+                  type: object
+                migration:
+                  type: object
+                signature:
+                  type: object
+                risk:
+                  type: object
     RolloutTaskListAPIResponse:
       allOf:
         - $ref: '#/components/schemas/MessageResponse'

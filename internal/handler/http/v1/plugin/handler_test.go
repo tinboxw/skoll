@@ -336,6 +336,74 @@ func TestPluginHandlerLocalMarketplace(t *testing.T) {
 	}
 }
 
+func TestPluginHandlerInstallPreflight(t *testing.T) {
+	pluginDir := filepath.Join(t.TempDir(), "reports")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("mkdir plugin: %v", err)
+	}
+	manifest := strings.Join([]string{
+		"id: reports",
+		"name: Reports",
+		"version: 1.0.0",
+		"api_version: v1",
+		`compatibility_skoll: ">=1.0.0 <2.0.0"`,
+		"ui_mode: frontend_only",
+		"i18n_locales:",
+		"  - zh-CN",
+		"permissions:",
+		"  - key: reports.export",
+		"    type: api",
+		"    module: reports",
+		"    name: Export reports",
+		"    risk: high",
+		"ui_menu:",
+		"  key: plugin.reports",
+		"  label: Reports",
+		"  path: /skoll/plugins/reports",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{
+		"legacy": {
+			ID:      "legacy",
+			Name:    "Legacy",
+			Version: "1.0.0",
+			State:   plugin.StateEnabled,
+			PermissionResources: []plugin.PermissionDeclaration{
+				{Key: "legacy.read", Type: "api", Module: "legacy", Name: "Read legacy", Risk: "low"},
+			},
+		},
+	}})
+
+	reqBody, err := json.Marshal(map[string]string{"path": pluginDir})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/plugins/preflight", bytes.NewReader(reqBody))
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("preflight status=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	var body struct {
+		Data plugin.InstallPreflightResult `json:"data"`
+	}
+	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode preflight response: %v", err)
+	}
+	if body.Data.Plugin.ID != "reports" || len(body.Data.Permissions.Add) != 1 || len(body.Data.Menus.Add) != 1 {
+		t.Fatalf("unexpected preflight response: %+v", body.Data)
+	}
+	if body.Data.Signature.Status != "unsigned" || body.Data.Status != plugin.InstallPreflightStatusPass {
+		t.Fatalf("expected unsigned pass with warning, got %+v", body.Data)
+	}
+}
+
 func TestPluginHandlerStateOperations(t *testing.T) {
 	mgr := &fakePluginManager{items: map[string]plugin.Info{
 		"demo": {ID: "demo", Name: "Demo", Version: "0.1.0", State: plugin.StateInstalled},

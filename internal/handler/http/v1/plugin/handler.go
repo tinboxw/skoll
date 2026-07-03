@@ -374,6 +374,7 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	mux.HandleFunc("GET /v1/plugins/marketplace/local", h.localMarketplace)
 	mux.HandleFunc("GET /v1/plugins", h.list)
 	mux.HandleFunc("GET /v1/plugins/{id}", h.get)
+	mux.HandleFunc("POST /v1/plugins/preflight", h.preflight)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
 	mux.HandleFunc("POST /v1/plugins/link", h.createLink)
 	mux.HandleFunc("POST /v1/plugins/embed", h.createEmbed)
@@ -941,6 +942,28 @@ func (h *PluginHandler) install(w http.ResponseWriter, r *http.Request) {
 		Version: info.Version,
 		Enabled: info.State == plugin.StateEnabled,
 	})
+}
+
+func (h *PluginHandler) preflight(w http.ResponseWriter, r *http.Request) {
+	req, err := decodePluginPathRequest(r)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	installed := []plugin.Info{}
+	if h != nil && h.manager != nil {
+		installed = h.manager.List()
+	}
+	result, err := plugin.NewInstallPreflightService(h.loader).Check(plugin.InstallPreflightInput{
+		Path:      req.Path,
+		Installed: installed,
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, result)
 }
 
 func (h *PluginHandler) createLink(w http.ResponseWriter, r *http.Request) {
