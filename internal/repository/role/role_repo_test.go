@@ -11,9 +11,9 @@ import (
 
 // MockRoleRepository implements RoleRepository for testing
 type MockRoleRepository struct {
-	roles    map[shared.ID]*role.Role
-	byKey    map[string]*role.Role
-	err      error
+	roles map[shared.ID]*role.Role
+	byKey map[string]*role.Role
+	err   error
 }
 
 func NewMockRoleRepository() *MockRoleRepository {
@@ -222,7 +222,7 @@ func TestMockRoleRepository_SaveAndDelete(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		testRole := &role.Role{
 			ID:  shared.ID("delete-role"),
-			Key:  "delete-key",
+			Key: "delete-key",
 		}
 		repo.WithRoles(testRole)
 		ctx := context.Background()

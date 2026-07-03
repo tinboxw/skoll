@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tinboxw/skoll/internal/domain/shared"
 	"github.com/tinboxw/skoll/internal/domain/role"
+	"github.com/tinboxw/skoll/internal/domain/shared"
 )
 
 func TestRoleStore_GetByID(t *testing.T) {

@@ -11,10 +11,10 @@ import (
 
 // MockUserRepository implements UserRepository for testing
 type MockUserRepository struct {
-	users      map[shared.ID]*user.User
-	byAccount  map[string]*user.User
-	byEmail    map[string]user.Email
-	err        error
+	users     map[shared.ID]*user.User
+	byAccount map[string]*user.User
+	byEmail   map[string]user.Email
+	err       error
 }
 
 func NewMockUserRepository() *MockUserRepository {

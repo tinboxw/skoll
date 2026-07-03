@@ -13978,3 +13978,75 @@ git diff --check
 
 ### 下一步
 - 进入 `M7-01-01`，执行 CI Go 门禁任务。
+
+## M7-01-01: CI Go 门禁
+
+- 状态: Passed
+- Work Item: M7-01-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `.github/workflows/ci.yml`
+- `internal/repository/audit/audit_repo_test.go`
+- `internal/repository/role/role_repo_test.go`
+- `internal/repository/user/user_repo_test.go`
+- `internal/store/sql/gormrepo/role_store_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| Go 格式门禁 | Passed | CI 已包含 `gofmt -l` 检查，未格式化文件会阻断流水线。 |
+| Go 测试门禁 | Passed | CI 已包含 `go test ./...`。 |
+| Go 覆盖率门禁 | Passed | CI 新增 `go test ./... -covermode=atomic -coverprofile=artifacts/coverage.out`，并输出 `coverage.txt`。 |
+| 覆盖率产物 | Passed | CI 新增 `go-coverage` artifact，上传 `coverage.out` 和 `coverage.txt`。 |
+| 任务状态 | Passed | `M7-01-01` 在 `work_items.md` 和 `next_work_items.md` 标记 Done；父任务 `M7-01` 保持 Todo，等待前端和契约门禁子任务完成。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+gofmt -l <tracked go files>
+go test ./...
+go test ./... -covermode=atomic -coverprofile=artifacts/coverage.out
+go tool cover -func=artifacts/coverage.out
+git diff --check
+```
+
+结果摘要: Passed。首次 `gofmt -l` 发现 4 个测试文件未格式化，已执行 `gofmt -w` 后重跑通过；覆盖率摘要 total 为 66.6%。覆盖率本地产物仅用于验收，未纳入提交。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 CI Go job 已覆盖格式、全量测试和覆盖率产物。
+2. 检查覆盖率步骤不会替代原有 `go test ./...`，避免缩小原门禁语义。
+3. 检查本次不提前关闭 `M7-01` 父任务。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首次格式门禁发现 4 个既有 Go 测试文件未 gofmt；首次本地 coverage 摘要因 PowerShell 参数/路径处理未正确命中 profile。
+- 返工动作: 对 4 个测试文件执行 `gofmt -w`；覆盖率本地验收改为带引号的 `-coverprofile=artifacts/coverage.out` 并用 `go tool cover --% -func=artifacts/coverage.out` 重试。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M7-01-02`，执行 CI 前端门禁任务。

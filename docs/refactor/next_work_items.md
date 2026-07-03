@@ -122,7 +122,7 @@
 
 | 顺序 | Work Item | 父任务 | Skill | 任务 | 交付物 | 验收要求 | 验证命令 | 状态 |
 |---:|---|---|---|---|---|---|---|---|
-| 62 | M7-01-01 | M7-01 | `skoll-quality-gate` | CI Go 门禁 | CI | gofmt/go test/coverage 进入 CI | CI review | Todo |
+| 62 | M7-01-01 | M7-01 | `skoll-quality-gate` | CI Go 门禁 | CI | gofmt/go test/coverage 进入 CI | CI review | Done |
 | 63 | M7-01-02 | M7-01 | `skoll-quality-gate` | CI 前端门禁 | CI | typecheck/build/browser smoke 最小集进入 CI 或文档化阻塞原因 | CI review | Todo |
 | 64 | M7-01-03 | M7-01 | `skoll-api-contracts` | OpenAPI/manifest 校验门禁 | CI | OpenAPI 和 plugin manifest schema 校验进入 CI | CI review | Todo |
 | 65 | M7-02-01 | M7-02 | `skoll-testing-automation` | 覆盖率目标和例外名单 | docs/CI | 核心包覆盖率目标、暂缓包、提升计划明确 | `go test ./... -coverprofile=coverage.out` | Todo |

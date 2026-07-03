@@ -208,15 +208,15 @@ func TestMockAuditRepository_DeleteByTimeRange(t *testing.T) {
 	baseTime := time.Date(2026, 5, 22, 12, 0, 0, 0, time.UTC)
 	records := []*audit.Record{
 		{ID: shared.ID("d1"), OccurredAt: baseTime.Add(-30 * 24 * time.Hour)}, // 30 days ago
-		{ID: shared.ID("d2"), OccurredAt: baseTime.Add(-7 * 24 * time.Hour)},   // 7 days ago
-		{ID: shared.ID("d3"), OccurredAt: baseTime},                            // today
+		{ID: shared.ID("d2"), OccurredAt: baseTime.Add(-7 * 24 * time.Hour)},  // 7 days ago
+		{ID: shared.ID("d3"), OccurredAt: baseTime},                           // today
 	}
 	repo.WithRecords(records...)
 
 	t.Run("delete old records", func(t *testing.T) {
 		ctx := context.Background()
 		tr := shared.TimeRange{
-			From: time.Time{}, // beginning of time
+			From: time.Time{},                        // beginning of time
 			To:   baseTime.Add(-14 * 24 * time.Hour), // older than 14 days
 		}
 		count, err := repo.DeleteByTimeRange(ctx, tr)
