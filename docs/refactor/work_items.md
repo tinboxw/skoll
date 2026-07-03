@@ -327,7 +327,7 @@
 | 229 | M6-05-01 | M6-05 | `skoll-security-hardening` | 插件签名策略升级 | security/plugin | manifest、资产清单、后端入口、前端资产 hash 覆盖 | `go test ./internal/plugin/...` | Done |
 | 230 | M6-06-01 | M6-06 | `skoll-plugin-marketplace-refactor` | 灰度策略 service | service | 路由、菜单、功能可见性受灰度策略影响 | `go test ./internal/plugin/...` | Done |
 | 231 | M6-06-02 | M6-06 | `skoll-plugin-marketplace-refactor` | 回滚 service/UI | service/frontend | 回滚后版本、菜单、权限、配置、资产一致 | `go test ./...`; `cd web && npm run build` | Done |
-| 232 | M6-07-01 | M6-07 | `skoll-testing-automation` | 插件生命周期验收 | tests | install/enable/disable/upgrade/rollback 全链路通过 | `go test ./...` | Todo |
+| 232 | M6-07-01 | M6-07 | `skoll-testing-automation` | 插件生命周期验收 | tests | install/enable/disable/upgrade/rollback 全链路通过 | `go test ./...` | Done |
 
 ## N5/M7 Work Items: 开源发布质量与体验
 

@@ -13848,3 +13848,69 @@ git diff --check
 
 ### 下一步
 - 进入 `M6-07-01`，执行插件生命周期验收。
+
+## M6-07-01: 插件生命周期验收
+
+- 状态: Passed
+- Work Item: M6-07-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/lifecycle_acceptance_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| install | Passed | temp fixture 插件通过 `RuntimeManager.Install` 安装，状态为 installed。 |
+| enable | Passed | `Enable` 后 catalog 权限和菜单导入并保持可见/启用。 |
+| disable | Passed | `Disable` 后 catalog 权限置 disabled，菜单置 hidden。 |
+| upgrade | Passed | 覆写 manifest 后 `ReloadPluginMetadata` 升级到 v1.1.0，并同步新权限和菜单路径。 |
+| rollback | Passed | 覆写回 v1 manifest 后 `ReloadPluginMetadata` 回滚到 v1.0.0，并通过 `PluginRollbackService` 生成 passed 计划。 |
+| 全链路测试 | Passed | 新增 `TestPluginLifecycleAcceptanceInstallEnableDisableUpgradeRollback`，fixture 全程使用临时目录。 |
+| 文档编号说明 | Passed | work item 当前编号为 `M6-07-01`；task_board 中同名父项为 `M6-08`，本次按 task_board 同名父项将 `M6-08` 标记 Done，未重编号以避免大范围文档 churn。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/plugin/lifecycle_acceptance_test.go
+go test ./internal/plugin/...
+go test ./...
+rg -n "TestPluginLifecycleAcceptanceInstallEnableDisableUpgradeRollback|M6-07-01|插件生命周期验收" internal/plugin docs/refactor
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查测试覆盖 install、enable、disable、upgrade、rollback 五个 lifecycle 动作。
+2. 检查插件 fixture 使用临时目录，不污染 tracked fixture。
+3. 检查回滚验收不仅校验版本，还校验 catalog 权限/菜单和 rollback plan。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+- 进入下一个 Todo：`M6-07` 插件安全报告 UI 或后续 M7 发布质量任务，需先按 task_board/work item 编号差异校准领取顺序。
