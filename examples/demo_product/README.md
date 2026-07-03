@@ -40,6 +40,10 @@ The fixture proves:
 
 See [generated_files.md](generated_files.md) for the dry-run output matrix, ownership expectations, and release checklist.
 
+## Backend Acceptance
+
+See [backend_acceptance.md](backend_acceptance.md) for the generated backend API, permission, audit, store, service, and test coverage record.
+
 Validation:
 
 ```powershell

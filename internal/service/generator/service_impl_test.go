@@ -173,7 +173,7 @@ func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
 	if firstSnapshot != secondSnapshot {
 		t.Fatalf("dry-run is not idempotent\nfirst=%s\nsecond=%s", firstSnapshot, secondSnapshot)
 	}
-	const expectedSnapshotHash = "d0170c3922d3e2cf6da24695b9f6a93cc738a414ff3a41aed60d003ca24ac39f"
+	const expectedSnapshotHash = "153627e5736edda9ce5ca88d4c8f2f9ba9a2e60aead258aecf1185d6b7f01f29"
 	if got := sha256Hex(firstSnapshot); got != expectedSnapshotHash {
 		t.Fatalf("golden snapshot hash = %s, want %s\n%s", got, expectedSnapshotHash, firstSnapshot)
 	}

@@ -14738,3 +14738,75 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-05-02`，执行示例模块后端验收任务。
+
+## M7-05-02: 示例模块后端验收
+
+- 状态: Passed
+- Work Item: M7-05-02
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/backend_templates.go`
+- `internal/service/generator/demo_product_test.go`
+- `internal/service/generator/service_impl_test.go`
+- `examples/demo_product/README.md`
+- `examples/demo_product/backend_acceptance.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 后端 API | Passed | 生成器 handler 模板新增 list/create/update/delete routes；测试断言 `/demo-products` CRUD 路由。 |
+| 权限 seed | Passed | 测试断言 read/create/update/delete/manage 五个权限键。 |
+| 菜单 seed | Passed | 测试断言 menu key、path、component。 |
+| 审计 action | Passed | 测试断言 create/update/delete audit action 常量。 |
+| store/service 流程 | Passed | 测试断言 memory store CRUD 方法与 service repository 调用。 |
+| 全量后端验收 | Passed | `go test ./...` 通过。 |
+| 父任务状态 | Passed | `M7-05` 保持 Todo，等待 M7-05-03 到 M7-05-05 完成。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/generator/... ./internal/service/generator/...
+go test ./...
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: generated `web/src/views/DemoProduct/index.vue` dry-run target
+- State coverage: N/A for backend task
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: generated backend seed includes `demo_product.read/create/update/delete/manage`
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查示例后端验收记录覆盖 API、权限、审计、store/service 流程。
+2. 检查新增模板仍保持生成器输出路径矩阵不变。
+3. 检查 full `go test ./...` 覆盖插件示例与集成测试包。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 初次补测试后，权限 seed 断言对 gofmt 对齐空格过于严格；handler 模板变更导致 golden snapshot hash 更新。
+- 返工动作: 将 seed 断言改为稳定字段断言；更新 deterministic golden snapshot hash；重跑局部和全量测试。
+- 重新验收结果: Passed。`go test ./internal/domain/generator/... ./internal/service/generator/...` 与 `go test ./...` 均通过。
+
+### 下一步
+
+- 进入 `M7-05-03`，执行示例模块前端验收任务。

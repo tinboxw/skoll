@@ -50,6 +50,7 @@ func TestDemoProductGenerationAcceptance(t *testing.T) {
 	assertGeneratedContains(t, result, "web/src/api/demo_product.ts", "export type DemoProduct", "listDemoProduct", "createDemoProduct")
 	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts", "useDemoProductStore", "lastError", "async retry")
 	assertGeneratedContains(t, result, "web/src/views/DemoProduct/index.vue", "<el-table", "<el-drawer", "demo_product.create")
+	assertDemoProductBackendContract(t, result)
 
 	history, err := svc.RecordHistory(context.Background(), RecordHistoryInput{
 		DryRun:    result,
@@ -79,6 +80,21 @@ func TestDemoProductGenerationAcceptance(t *testing.T) {
 	}
 }
 
+func TestDemoProductBackendAcceptanceContract(t *testing.T) {
+	spec := loadDemoProductSpec(t)
+	svc := NewService()
+	result, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "demo-product-backend-acceptance",
+		ActorID:            "codex",
+		MigrationTimestamp: "20260629_030000",
+	})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+	assertDemoProductBackendContract(t, result)
+}
+
 func loadDemoProductSpec(t *testing.T) *domaingenerator.GeneratorSpec {
 	t.Helper()
 	path := filepath.Join("..", "..", "..", "examples", "demo_product", "spec.json")
@@ -105,4 +121,47 @@ func assertGeneratedContains(t *testing.T, result *DryRunResult, path string, va
 			t.Fatalf("%s does not contain %q\n%s", path, value, content)
 		}
 	}
+}
+
+func assertDemoProductBackendContract(t *testing.T, result *DryRunResult) {
+	t.Helper()
+	assertGeneratedContains(t, result, "internal/handler/http/v1/demo_product/handler.go",
+		`mux.HandleFunc("GET /demo-products", h.list)`,
+		`mux.HandleFunc("POST /demo-products", h.create)`,
+		`mux.HandleFunc("PUT /demo-products/{id}", h.update)`,
+		`mux.HandleFunc("DELETE /demo-products/{id}", h.delete)`,
+		"func (h *Handler) create",
+		"func (h *Handler) update",
+		"func (h *Handler) delete",
+	)
+	assertGeneratedContains(t, result, "internal/service/demo_product/service_impl.go",
+		`AuditActionDemoProductCreate = "demo_product.create"`,
+		`AuditActionDemoProductUpdate = "demo_product.update"`,
+		`AuditActionDemoProductDelete = "demo_product.delete"`,
+		"s.repo.Create(ctx, *item)",
+		"s.repo.Update(ctx, *item)",
+		"s.repo.Delete(ctx, id)",
+	)
+	assertGeneratedContains(t, result, "internal/store/memory/demo_product_store.go",
+		"func (s *DemoProductStore) Create",
+		"func (s *DemoProductStore) Update",
+		"func (s *DemoProductStore) Get",
+		"func (s *DemoProductStore) List",
+		"func (s *DemoProductStore) Delete",
+	)
+	assertGeneratedContains(t, result, "internal/bootstrap/permission_menu_seed.go",
+		"DemoProductGeneratedPermissions",
+		`"demo_product.read"`,
+		`"demo_product.create"`,
+		`"demo_product.update"`,
+		`"demo_product.delete"`,
+		`"demo_product.manage"`,
+		"DemoProductGeneratedMenu",
+		`"key":`,
+		`"demo_product"`,
+		`"path":`,
+		`"/demo-products"`,
+		`"component":`,
+		`"DemoProduct/index"`,
+	)
 }

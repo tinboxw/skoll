@@ -349,6 +349,8 @@ func renderHandler(spec domaingenerator.GeneratorSpec) string {
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/tinboxw/skoll/internal/domain/shared"
 )
 
 type Handler struct {
@@ -360,7 +362,10 @@ func NewHandler(service Service) *Handler {
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("%s", h.list)
+	mux.HandleFunc("GET %s", h.list)
+	mux.HandleFunc("POST %s", h.create)
+	mux.HandleFunc("PUT %s/{id}", h.update)
+	mux.HandleFunc("DELETE %s/{id}", h.delete)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
@@ -372,7 +377,46 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(items)
 }
-`, pkg, route)
+
+func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
+	var in CreateInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	item, err := h.service.Create(r.Context(), in)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(item)
+}
+
+func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
+	var in UpdateInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	item, err := h.service.Update(r.Context(), shared.ID(r.PathValue("id")), in)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(item)
+}
+
+func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
+	if err := h.service.Delete(r.Context(), shared.ID(r.PathValue("id"))); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+`, pkg, route, route, route, route)
 }
 
 func renderRouter(spec domaingenerator.GeneratorSpec) string {
