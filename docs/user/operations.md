@@ -55,7 +55,7 @@ go build -o skoll.exe ./cmd/skoll
 Health check:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:18080/skoll/health
+Invoke-RestMethod http://127.0.0.1:8080/skoll/health
 ```
 
 ### Docker

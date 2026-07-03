@@ -51,22 +51,22 @@ Direction check:
 
 ## 剩余任务微调清单
 
-The remaining formal tasks have been refined in `docs/refactor/work_items.md`.
+The tail tasks have been refined in `docs/refactor/work_items.md`. Parallel development has already completed `M7-04-02` and `M7-04-03`, so only rows with `Todo` status should be claimed next.
 
-| Work Item | Priority | Dependency | Deliverable | Acceptance |
-| --- | --- | --- | --- | --- |
-| M7-04-02 | P0 | M7-04-01 | Operations manual: configuration and deployment | Env vars, Docker/Compose, start/stop paths are documented |
-| M7-04-03 | P0 | M7-04-02 | Operations manual: backup, logs, troubleshooting | Backup/restore, log location, common failure recovery steps are executable |
-| M7-04-04 | P0 | M7-04-03 | Operations manual reproduction record | A new environment can follow quick start + operations docs to start, log in, stop, and recover |
-| M7-05-01 | P0 | M7-04-04, M5 Done | Demo product spec and generated file list | Spec, generated files, permission keys, and menu declarations are complete |
-| M7-05-02 | P0 | M7-05-01 | Demo product backend acceptance | Backend API, permission, audit, store/service flows pass `go test ./...` |
-| M7-05-03 | P0 | M7-05-02 | Demo product frontend acceptance | List/form/empty/error/permission states pass typecheck and build |
-| M7-05-04 | P0 | M7-05-03, M6 Done | Demo plugin manifest and assets | Manifest, permission, menu, config schema, signature/risk fields are complete |
-| M7-05-05 | P0 | M7-05-04 | Demo plugin lifecycle acceptance | Install/enable/disable/upgrade/rollback paths pass tests and build |
-| M7-06-01 | P1 | M7-05-05 | Open-source contribution guide | Contribution, security, conduct, and maintainer notes are complete |
-| M7-06-02 | P1 | M7-06-01 | Issue and PR templates | Bug, feature, task, and PR templates include reproduction, acceptance, and no-compat confirmation |
-| M7-06-03 | P0 | M7-06-02 | Release checklist | Version, migration, image, OpenAPI, examples, and quality gates are checkable |
-| M7-06-04 | P0 | M7-06-03 | Final release readiness inspection | `work_items.md`, `task_board.md`, `acceptance_log.md`, `git log`, and quality gates are consistent |
+| Work Item | Status | Priority | Dependency | Deliverable | Acceptance |
+| --- | --- | --- | --- | --- | --- |
+| M7-04-02 | Done | P0 | M7-04-01 | Operations manual: configuration and deployment | Env vars, Docker/Compose, start/stop paths are documented |
+| M7-04-03 | Done | P0 | M7-04-02 | Operations manual: backup, logs, troubleshooting | Backup/restore, log location, common failure recovery steps are executable |
+| M7-04-04 | Done | P0 | M7-04-03 | Operations manual reproduction record | A new environment can follow quick start + operations docs to start, log in, stop, and recover |
+| M7-05-01 | Todo | P0 | M7-04-04, M5 Done | Demo product spec and generated file list | Spec, generated files, permission keys, and menu declarations are complete |
+| M7-05-02 | Todo | P0 | M7-05-01 | Demo product backend acceptance | Backend API, permission, audit, store/service flows pass `go test ./...` |
+| M7-05-03 | Todo | P0 | M7-05-02 | Demo product frontend acceptance | List/form/empty/error/permission states pass typecheck and build |
+| M7-05-04 | Todo | P0 | M7-05-03, M6 Done | Demo plugin manifest and assets | Manifest, permission, menu, config schema, signature/risk fields are complete |
+| M7-05-05 | Todo | P0 | M7-05-04 | Demo plugin lifecycle acceptance | Install/enable/disable/upgrade/rollback paths pass tests and build |
+| M7-06-01 | Todo | P1 | M7-05-05 | Open-source contribution guide | Contribution, security, conduct, and maintainer notes are complete |
+| M7-06-02 | Todo | P1 | M7-06-01 | Issue and PR templates | Bug, feature, task, and PR templates include reproduction, acceptance, and no-compat confirmation |
+| M7-06-03 | Todo | P0 | M7-06-02 | Release checklist | Version, migration, image, OpenAPI, examples, and quality gates are checkable |
+| M7-06-04 | Todo | P0 | M7-06-03 | Final release readiness inspection | `work_items.md`, `task_board.md`, `acceptance_log.md`, `git log`, and quality gates are consistent |
 
 Rejected or deferred adjustments:
 

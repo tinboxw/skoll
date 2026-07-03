@@ -5,7 +5,7 @@ param(
     [string]$BadPassword = "Skoll-Smoke-Wrong-Password",
     [int]$TimeoutSec = 8,
     [string]$ExportDir = "tmp",
-    [string]$FixturePath = "docs/refactor/fixtures/m2_audit_smoke_events.json",
+    [string]$FixturePath = "docs/archive/refactor-2026-06-19/fixtures/m2_audit_smoke_events.json",
     [switch]$StrictFixtureAssertions
 )
 

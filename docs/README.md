@@ -60,6 +60,12 @@ Skoll 当前处于开源基础建设阶段。文档按读者和用途分层，�
 | [user/deployment.md](user/deployment.md) | 部署与运维 |
 | [user/operations.md](user/operations.md) | 配置、部署、备份、日志和常见故障运维手册 |
 
+## 验收与复现记录
+
+| 文档 | 用途 |
+| --- | --- |
+| [smoke/operations_reproduction_2026-07-04.md](smoke/operations_reproduction_2026-07-04.md) | Quick Start 与运维手册本地复现记录 |
+
 ## Schema 与迁移
 
 | 文档 | 用途 |

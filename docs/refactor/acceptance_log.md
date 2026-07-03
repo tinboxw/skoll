@@ -14592,3 +14592,81 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-04-04`，执行运维手册复现验收任务。
+
+## M7-04-04: 运维手册复现验收
+
+- 状态: Passed
+- Work Item: M7-04-04
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/smoke/operations_reproduction_2026-07-04.md`
+- `docs/quick-start.md`
+- `docs/user/operations.md`
+- `docs/README.md`
+- `scripts/smoke-auth-audit.ps1`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 启动复现 | Passed | `scripts/dev-up.ps1 -ForceRestart` 成功启动 backend/frontend，并通过内置 post checks。 |
+| 健康检查 | Passed | `Invoke-RestMethod http://127.0.0.1:8080/skoll/health` 返回 `code=ok`。 |
+| 登录复现 | Passed | `scripts/smoke-auth-audit.ps1` 使用 `admin` / `Admin@123456` 登录成功。 |
+| 停止复现 | Passed | `scripts/dev-down.ps1` 成功停止 8080 与 5173 进程。 |
+| 日志路径 | Passed | `dev-up.ps1` 输出 backend/frontend 日志路径到 `log/`。 |
+| 恢复路径 | Passed | 先执行 `dev-down.ps1` 清理 stale process，再启动成功。 |
+| 备份恢复边界 | Passed | 复现记录说明 MySQL/PostgreSQL 备份恢复命令需在目标外部数据库环境执行。 |
+| 父任务收口 | Passed | `M7-04-01` 到 `M7-04-04` 均 Done，父任务 `M7-04` 标记 Done。 |
+
+### 自动化验证
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-down.ps1
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-up.ps1 -ForceRestart
+Invoke-RestMethod http://127.0.0.1:8080/skoll/health
+powershell -ExecutionPolicy Bypass -File ./scripts/smoke-auth-audit.ps1
+powershell -ExecutionPolicy Bypass -File ./scripts/dev-down.ps1
+rg -n "8080/skoll|18080:8080|Retry Record|Smoke check passed|M7-04-04" docs/quick-start.md docs/user/operations.md docs/smoke/operations_reproduction_2026-07-04.md scripts/smoke-auth-audit.ps1 docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: `/skoll`
+- State coverage: health/startup smoke only
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: login smoke validates `super_admin` permissions from `/v1/auth/me`
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 `operations_reproduction_2026-07-04.md` 记录启动、登录、停止、日志和恢复路径。
+2. 检查复现记录没有把外部数据库备份恢复伪装成本地已执行，而是明确生产环境边界。
+3. 检查本地开发端口统一为 `8080`，Docker host 映射保留 `18080:8080`。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 首次复现发现 quick-start/operations 本地健康检查使用 `18080`，而 `dev-up.ps1` 实际启动 backend 于 `8080`；随后 `smoke-auth-audit.ps1` 默认 fixture 路径仍指向归档前位置。
+- 返工动作: 修正文档本地端口为 `8080`；保留 Docker `18080:8080`；将 smoke 默认 fixture 路径改为 `docs/archive/refactor-2026-06-19/fixtures/m2_audit_smoke_events.json`。
+- 重新验收结果: Passed。`dev-up.ps1`、`8080/skoll/health`、默认 `smoke-auth-audit.ps1` 和 `dev-down.ps1` 均通过。
+
+### 下一步
+
+- 进入 `M7-05-01`，执行示例模块 spec 与生成清单任务。

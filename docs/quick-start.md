@@ -37,11 +37,11 @@ powershell -ExecutionPolicy Bypass -File ./scripts/dev-down.ps1
 ## 4. Verify Health and Docs
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:18080/skoll/health
+Invoke-RestMethod http://127.0.0.1:8080/skoll/health
 ```
 
-- Swagger UI: `http://127.0.0.1:18080/skoll/docs/swagger`
-- OpenAPI YAML: `http://127.0.0.1:18080/skoll/docs/openapi.yaml`
+- Swagger UI: `http://127.0.0.1:8080/skoll/docs/swagger`
+- OpenAPI YAML: `http://127.0.0.1:8080/skoll/docs/openapi.yaml`
 - Frontend: `http://127.0.0.1:5173/skoll`
 
 ## 5. Log In
@@ -73,7 +73,7 @@ Install a local plugin through the API:
 $body = @{ path = "plugins/demo" } | ConvertTo-Json
 Invoke-RestMethod `
   -Method Post `
-  -Uri http://127.0.0.1:18080/skoll/v1/plugins/install `
+  -Uri http://127.0.0.1:8080/skoll/v1/plugins/install `
   -ContentType "application/json" `
   -Body $body
 ```
