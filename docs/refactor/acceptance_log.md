@@ -15024,3 +15024,72 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-06-01`，执行开源贡献指南任务。
+
+## M7-06-01: 开源贡献指南
+
+- 状态: Passed
+- Work Item: M7-06-01
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `CODE_OF_CONDUCT.md`
+- `MAINTAINERS.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 贡献路径 | Passed | `CONTRIBUTING.md` 覆盖 fork、分支、最小变更、验证命令和 PR 证据。 |
+| 安全报告 | Passed | `SECURITY.md` 明确私密报告、响应期望和 safe harbor。 |
+| 行为准则 | Passed | `CODE_OF_CONDUCT.md` 覆盖期望、不可接受行为和执行方式。 |
+| 维护者说明 | Passed | `MAINTAINERS.md` 覆盖 review、release、安全和决策职责。 |
+| 任务状态 | Passed | `M7-06-01` 在 `work_items.md` 与 `next_work_items.md` 中标记 Done。 |
+| 父任务状态 | Passed | `M7-06` 保持 Todo，等待 issue/PR 模板、release checklist 和最终巡检。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Contribution Workflow|Required Validation|Security Policy|Code of Conduct|Maintainer Guide|M7-06-01" CONTRIBUTING.md SECURITY.md CODE_OF_CONDUCT.md MAINTAINERS.md docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查治理文档面向外部贡献者，避免只服务内部执行。
+2. 检查安全报告不要求公开披露漏洞细节。
+3. 检查贡献指南明确无旧兼容路径规则。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-06-02`，执行 Issue/PR 模板任务。

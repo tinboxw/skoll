@@ -1,48 +1,74 @@
 # Contributing to Skoll
 
-## Workflow
+Skoll is an open-source admin framework in foundation-building phase. Contributions should keep the framework reusable, testable, and free of legacy compatibility bridges unless a current contract explicitly requires one.
+
+## Contribution Workflow
 
 1. Fork the repository.
-2. Create a feature branch.
-3. Implement the smallest focused change.
-4. Run required validation commands.
-5. Open a pull request using the PR template.
+2. Create a focused branch.
+3. Pick one issue, work item, or small improvement.
+4. Implement the smallest useful change.
+5. Run the validation commands that match your change.
+6. Open a pull request using the PR template.
 
 ## Branch and Commit Guidance
 
 - Keep commits focused and atomic.
 - Use descriptive commit messages.
 - Avoid mixing refactors and behavior changes in one commit.
+- Do not add old API, old route, old data structure, or old plugin compatibility paths.
+- Update docs and examples when changing contributor-facing behavior.
 
 ## Required Validation
 
-Run locally before opening a PR:
+Run the narrowest meaningful checks first, then the broader gates when your change crosses package or UI boundaries:
 
 ```bash
-go fmt ./...
+gofmt -w <changed-go-files>
 go test ./...
-go test -race ./...
-go test -bench=. -benchmem ./...
 ```
 
-If your change is not concurrency-related, still include test and benchmark evidence where applicable.
+Frontend changes should also run:
+
+```bash
+cd web
+npm run typecheck
+npm run build
+```
+
+Plugin manifest or marketplace changes should include:
+
+```bash
+go test ./internal/plugin/...
+```
 
 ## Milestone and Evidence Rules
 
-- Use milestone labels in the format `M0/M1/M2/M3-brief-topic` for PR context.
-- Include performance comparison data: baseline, current, delta, and sampling command.
-- Keep `README.md` and `README.en.md` synchronized for usage-facing changes.
+- Link the issue, work item, or acceptance checklist that motivated the change.
+- Include command output summaries, not just "tests pass".
+- Include screenshots or smoke notes for visible UI behavior.
+- For performance changes, include baseline, current value, delta, and sampling command.
 
 ## Security and Secrets
 
 - Never commit production secrets.
-- Use `.env.production.example` and secret managers for deployment.
-- Follow `docs/planning/ADMIN_AUTH_SECURITY_RUNBOOK.md` for auth operations.
+- Use example values in docs and store real credentials in a secret manager.
+- Report vulnerabilities through [SECURITY.md](SECURITY.md), not public issues.
 
 ## Reporting Issues
 
-Use issue templates for bug reports and feature requests. Provide reproduction steps and expected behavior.
+Use issue templates for bug reports and feature requests. Provide:
 
-## Code of Conduct
+- Skoll version or commit.
+- Environment and config mode.
+- Reproduction steps.
+- Expected and actual behavior.
+- Logs, screenshots, or API responses when useful.
 
-Be respectful, constructive, and focused on technical outcomes.
+## Community Expectations
+
+Follow [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Be respectful, specific, and focused on making the project easier to run, extend, and review.
+
+## Maintainers
+
+Maintainer expectations and release responsibilities are documented in [MAINTAINERS.md](MAINTAINERS.md).
