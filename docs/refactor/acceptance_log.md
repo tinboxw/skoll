@@ -14253,3 +14253,71 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-03-01`，执行后端性能基线脚本任务。
+
+## M7-03-01: 后端性能基线脚本
+
+- 状态: Passed
+- Work Item: M7-03-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `tests/performance/skoll-backend-baseline.k6.mjs`
+- `docs/refactor/backend_performance_baseline.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 登录基线 | Passed | k6 脚本覆盖 `POST /v1/auth/login`，记录 `skoll_login_latency`。 |
+| 列表/查询基线 | Passed | 覆盖 user list、role list、plugin list、audit query 四条核心读路径。 |
+| QPS/P95/P99 | Passed | 文档说明从 k6 summary 记录 QPS，脚本为每条路径定义 Trend 与 P95/P99 thresholds。 |
+| 运行手册 | Passed | `backend_performance_baseline.md` 记录环境变量、命令、阈值和结果模板。 |
+| 任务状态 | Passed | `M7-03-01` Done；父任务 `M7-03` 保持 Todo，等待前端性能采样完成。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+node --check tests/performance/skoll-backend-baseline.k6.mjs
+rg -n "skoll_login_latency|skoll_user_list_latency|skoll_role_list_latency|skoll_plugin_list_latency|skoll_audit_query_latency" tests/performance/skoll-backend-baseline.k6.mjs
+rg -n "HTTP QPS|P95|P99|k6 run" docs/refactor/backend_performance_baseline.md
+git diff --check
+```
+
+结果摘要: Passed。未运行真实 k6 压测，因为本轮未启动后端服务和 k6 运行环境；脚本与文档已具备可复现命令。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查脚本覆盖 M7-03-01 指定的 login/user list/role list/plugin list/audit query。
+2. 检查文档提供 QPS/P95/P99 记录模板。
+3. 检查本次只建立基线脚本，不提前做性能优化。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-03-02`，执行前端性能采样记录任务。
