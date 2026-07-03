@@ -15093,3 +15093,73 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-06-02`，执行 Issue/PR 模板任务。
+
+## M7-06-02: Issue/PR 模板
+
+- 状态: Passed
+- Work Item: M7-06-02
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `.github/ISSUE_TEMPLATE/bug_report.md`
+- `.github/ISSUE_TEMPLATE/feature_request.md`
+- `.github/ISSUE_TEMPLATE/task.md`
+- `.github/ISSUE_TEMPLATE/config.yml`
+- `.github/pull_request_template.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| bug 模板 | Passed | 覆盖复现步骤、最小复现、期望/实际、证据、验证命令和验收项。 |
+| feature 模板 | Passed | 覆盖问题、方案、验收项、影响面和无旧兼容确认。 |
+| task 模板 | Passed | 新增 task 模板，覆盖 scope、验收、验证、证据和无旧兼容确认。 |
+| PR 模板 | Passed | 覆盖 work item、scope、验证、验收、复现路径、文档、风险和 no-legacy checklist。 |
+| 安全入口 | Passed | issue config 指向 GitHub security policy，避免公开漏洞细节。 |
+| 父任务状态 | Passed | `M7-06` 保持 Todo，等待 release checklist 和最终巡检。 |
+
+### 自动化验证
+
+```powershell
+rg -n "Reproduction Steps|Minimal Reproduction|Acceptance Criteria|No-Legacy|No old API|Linked Issue|Documentation Impact|Security report|M7-06-02" .github/ISSUE_TEMPLATE .github/pull_request_template.md docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查模板可以收集复现、验收和验证证据。
+2. 检查模板明确禁止旧 API/旧路由/旧数据/旧插件兼容路径。
+3. 检查 M7-06 父任务未提前关闭。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-06-03`，执行 Release checklist 任务。

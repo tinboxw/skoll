@@ -20,6 +20,11 @@ Describe the bug in one sentence.
 2.
 3.
 
+## Minimal Reproduction
+
+- Command, route, API request, or UI path:
+- Required config or fixture:
+
 ## Expected Behavior
 
 What should happen.
@@ -37,3 +42,10 @@ Paste relevant logs, stack traces, and command outputs.
 ```bash
 go test ./...
 ```
+
+## Acceptance Criteria
+
+- [ ] Reproduction is clear enough for a maintainer to run.
+- [ ] Expected behavior is stated.
+- [ ] Regression test or smoke check is proposed.
+- [ ] No old API, old route, old data structure, or old plugin compatibility path is requested.

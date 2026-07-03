@@ -64,7 +64,7 @@ The tail tasks have been refined in `docs/refactor/work_items.md`. Parallel deve
 | M7-05-04 | Done | P0 | M7-05-03, M6 Done | Demo plugin manifest and assets | Manifest, permission, menu, config schema, signature/risk fields are complete |
 | M7-05-05 | Done | P0 | M7-05-04 | Demo plugin lifecycle acceptance | Install/enable/disable/upgrade/rollback paths pass tests and build |
 | M7-06-01 | Done | P1 | M7-05-05 | Open-source contribution guide | Contribution, security, conduct, and maintainer notes are complete |
-| M7-06-02 | Todo | P1 | M7-06-01 | Issue and PR templates | Bug, feature, task, and PR templates include reproduction, acceptance, and no-compat confirmation |
+| M7-06-02 | Done | P1 | M7-06-01 | Issue and PR templates | Bug, feature, task, and PR templates include reproduction, acceptance, and no-compat confirmation |
 | M7-06-03 | Todo | P0 | M7-06-02 | Release checklist | Version, migration, image, OpenAPI, examples, and quality gates are checkable |
 | M7-06-04 | Todo | P0 | M7-06-03 | Final release readiness inspection | `work_items.md`, `task_board.md`, `acceptance_log.md`, `git log`, and quality gates are consistent |
 

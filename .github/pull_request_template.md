@@ -1,5 +1,7 @@
-## Milestone
-- Milestone label (required): `M0/M1/M2/M3-简短内容`
+## Linked Issue or Work Item
+
+- Closes:
+- Work item or milestone:
 
 ## Background
 - Why this change is needed:
@@ -14,15 +16,28 @@
 
 ## Validation
 - [ ] `go test ./...`
-- [ ] `go test -race ./...` (required for concurrency-related changes)
-- [ ] Benchmark snapshot captured
+- [ ] `cd web && npm run typecheck` (for frontend/shared contract changes)
+- [ ] `cd web && npm run build` (for frontend/docs release gates)
+- [ ] `go test -race ./...` (for concurrency-related changes)
+- [ ] Benchmark snapshot captured (for performance-sensitive changes)
 
 Validation command outputs (paste key lines):
 ```text
-# go fmt / go test / race / benchmark summary
+# gofmt / go test / typecheck / build / race / benchmark summary
 ```
 
-## Performance Comparison Data (required)
+## Acceptance Criteria
+
+- [ ]
+- [ ]
+- [ ]
+
+## Reproduction or Review Path
+
+- API request, UI route, smoke script, or doc path:
+- Required fixture/config:
+
+## Performance Comparison Data (if relevant)
 | Metric | Baseline | Current | Delta | Command |
 |---|---:|---:|---:|---|
 | Example: ns/op | 0 | 0 | 0% | `go test -bench=. -benchmem ./...` |
@@ -30,6 +45,7 @@ Validation command outputs (paste key lines):
 Conclusion:
 - [ ] Acceptable
 - [ ] Needs optimization before merge
+- [ ] Not applicable
 
 ## DoD Checklist
 - [ ] Code compiles and tests pass
@@ -37,11 +53,13 @@ Conclusion:
 - [ ] At least one runnable entry or example
 - [ ] Documentation reflects latest usage
 - [ ] Risks and rollback notes are documented
+- [ ] No old API, old route, old data structure, or old plugin compatibility path was added
 
-## README Parity (required)
-- [ ] `README.md` updated
-- [ ] `README.en.md` updated
-- [ ] If not synced in this PR, parity gap and follow-up issue are documented
+## Documentation Impact
+
+- [ ] README/docs/examples updated
+- [ ] OpenAPI or schema docs updated
+- [ ] Not applicable
 
 ## Risks and Rollback
 - Risks:
