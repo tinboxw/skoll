@@ -1,0 +1,33 @@
+{
+  "schema_version": "v1",
+  "files": [
+    {
+      "path": "plugin.yaml",
+      "sha256": "sha256:29de25ef8c7b6ee1ff81cf2611d13f075dfb836b069c09005a7e3f375f9eb1cd"
+    },
+    {
+      "path": "backend/main.go",
+      "sha256": "sha256:1bfd02f4cb34556133d441a46fc3d766a199ce30e2090936c2bcd65130fb3189"
+    },
+    {
+      "path": "frontend/dist/app.js",
+      "sha256": "sha256:4ae88de2292bb84e9e48296dd84ac934fbd5c4c29a25a08ea3e95e3214ec80f7"
+    },
+    {
+      "path": "frontend/dist/demo-plugin.es.js",
+      "sha256": "sha256:e11ebcd6f0b7892475f3fe78aca3135ec71f91b294281b5460e8ac8a90f19419"
+    },
+    {
+      "path": "frontend/dist/demo-plugin.umd.js",
+      "sha256": "sha256:785c8b43a5f87503ebf62dbde817d5a2da210e3839e5825317e4b0e31b51bace"
+    },
+    {
+      "path": "frontend/dist/index.html",
+      "sha256": "sha256:2170634421242315c50b5aecf1e3ad3ec4ea450613f20ecf5932a865b91af4ed"
+    },
+    {
+      "path": "frontend/dist/style.css",
+      "sha256": "sha256:1fec88f99b768ca35cad8a59e6971759e32e3a815156b21f57e4100025bfbadd"
+    }
+  ]
+}

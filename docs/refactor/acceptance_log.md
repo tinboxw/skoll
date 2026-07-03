@@ -14884,3 +14884,73 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-05-04`，执行示例插件 manifest 与资产任务。
+
+## M7-05-04: 示例插件 manifest 与资产
+
+- 状态: Passed
+- Work Item: M7-05-04
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `plugins/demo/plugin.yaml`
+- `plugins/demo/.skoll/signature-assets.json`
+- `plugins/demo/README.md`
+- `internal/plugin/demo_manifest_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| manifest 基础字段 | Passed | demo plugin 保持 separated/app/admin/sidebar/integrated/fixed 合同。 |
+| 菜单声明 | Passed | `ui_menu` 声明 key/path/component/required permission。 |
+| 配置 schema | Passed | `config_schema` 覆盖 endpoint、mode、enabled 三类字段。 |
+| 权限与风险 | Passed | 三个结构化权限声明包含 type/module/name/risk；导出类按钮为 medium。 |
+| 签名资产覆盖 | Passed | `.skoll/signature-assets.json` 覆盖 manifest、backend entry 和 frontend dist assets。 |
+| 自动化测试 | Passed | `TestDemoPluginManifestCoversPlatformContract` 验证 loader、ValidateManifest 和 signature coverage。 |
+| 父任务状态 | Passed | `M7-05` 保持 Todo，等待 M7-05-05 生命周期验收完成。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/plugin/...
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: plugin runtime route `/skoll/plugins/demo`
+- State coverage: manifest/config/menu contract only
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: `ui_menu.required_permissions=demo.menu.read`; structured permissions include low/medium risk.
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 demo 插件 manifest 可作为插件平台参考实现。
+2. 检查签名交付物不伪造无效 RSA 签名，而是提供当前平台可验证的资产覆盖清单。
+3. 检查 M7-05-05 生命周期验收仍未提前关闭。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-05-05`，执行示例插件生命周期验收任务。

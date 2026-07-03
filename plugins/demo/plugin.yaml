@@ -13,10 +13,78 @@ ui_nav_position: sidebar
 ui_open_mode: integrated
 ui_tab_mode: fixed
 app_id: demo
+vendor: "Skoll Demo Maintainers"
+vendor_url: "https://skoll.local/plugins/demo"
 i18n_locales:
   - zh-CN
   - en-US
 
+ui_menu:
+  key: plugin.demo
+  parent_key: plugins
+  label_zh_cn: "示例插件"
+  label_en_us: "Demo Plugin"
+  path: /skoll/plugins/demo
+  component: PluginRuntime
+  icon: plugins
+  order: 100
+  visible: true
+  required_permissions:
+    - demo.menu.read
+
+config_schema:
+  title_zh_cn: "示例插件配置"
+  title_en_us: "Demo Plugin Config"
+  description: "Controls the separated demo plugin runtime."
+  fields:
+    - key: demo.endpoint
+      label_zh_cn: "服务地址"
+      label_en_us: "Endpoint"
+      type: string
+      required: true
+      default: "http://127.0.0.1:18081"
+      min_length: 8
+      max_length: 120
+      pattern: "^https?://"
+      placeholder: "http://127.0.0.1:18081"
+      help: "Base URL used by the frontend to call the separated backend."
+    - key: demo.mode
+      label_zh_cn: "运行模式"
+      label_en_us: "Mode"
+      type: select
+      default: safe
+      options:
+        - value: safe
+          label_zh_cn: "安全"
+          label_en_us: "Safe"
+        - value: fast
+          label_zh_cn: "快速"
+          label_en_us: "Fast"
+    - key: demo.enabled
+      label_zh_cn: "启用"
+      label_en_us: "Enabled"
+      type: boolean
+      default: true
+
 permissions:
-  - menu.read
-  - route.read
+  - key: demo.menu.read
+    type: menu
+    module: demo
+    name: "Read demo plugin menu"
+    risk: low
+    metadata:
+      surface: "sidebar"
+  - key: demo.route.read
+    type: api
+    module: demo
+    name: "Read demo plugin runtime"
+    risk: low
+    metadata:
+      routes: "GET /demo-separated/overview,GET /demo-separated/recommendations"
+  - key: demo.report.export
+    type: button
+    module: demo
+    name: "Export demo recommendations"
+    risk: medium
+    metadata:
+      action: "export recommendations"
