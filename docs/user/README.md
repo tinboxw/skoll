@@ -41,3 +41,7 @@ go test -race ./...
 docker compose -f deploy/compose/docker-compose.yaml up --build
 ```
 
+## 运维手册
+
+- [operations.md](operations.md): 配置、部署、备份、日志和常见故障处理。
+

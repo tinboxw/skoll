@@ -58,6 +58,7 @@ Skoll 当前处于开源基础建设阶段。文档按读者和用途分层，�
 | --- | --- |
 | [user/README.md](user/README.md) | 用户使用说明 |
 | [user/deployment.md](user/deployment.md) | 部署与运维 |
+| [user/operations.md](user/operations.md) | 配置、部署、备份、日志和常见故障运维手册 |
 
 ## Schema 与迁移
 

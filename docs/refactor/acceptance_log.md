@@ -14459,3 +14459,136 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-04-02`，执行运维手册任务。
+
+## M7-04-02: 运维手册：配置与部署
+
+- 状态: Passed
+- Work Item: M7-04-02
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/user/operations.md`
+- `docs/user/README.md`
+- `docs/README.md`
+- `docs/refactor/README.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 配置入口 | Passed | 文档覆盖配置加载顺序、常用配置文件和生产环境变量。 |
+| 部署路径 | Passed | 文档覆盖本机/VM、Docker、Docker Compose、Kubernetes 和健康检查。 |
+| 文档入口 | Passed | `docs/README.md` 与 `docs/user/README.md` 已新增运维手册入口。 |
+| 微调合并 | Passed | 已读取 `progress_inspection_2026-07-04.md`，并同步 `work_items.md`、`next_work_items.md` 与 `task_board.md` 的 M7 尾盘拆分。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+rg -n "Runtime Configuration|Deployment Options|Health, Readiness, and API Docs" docs/user/operations.md
+rg -n "operations.md" docs/README.md docs/user/README.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查文档覆盖配置文件、环境变量、Docker/Compose/Kubernetes 和服务启停。
+2. 检查命令可复制，且明确生产环境需要替换 secrets、DSN 和镜像配置。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-04-03`，执行备份、日志与故障处理任务。
+
+## M7-04-03: 运维手册：备份、日志与故障处理
+
+- 状态: Passed
+- Work Item: M7-04-03
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/user/operations.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 备份恢复 | Passed | 文档覆盖 MySQL、PostgreSQL 备份恢复命令和备份检查表。 |
+| 日志审计 | Passed | 文档覆盖文件日志、插件分文件日志和审计/错误排查入口。 |
+| 常见故障路径 | Passed | 文档覆盖启动、健康检查、登录、数据库、插件、审计导出和前端构建故障。 |
+| 父任务状态 | Passed | `M7-04-04` 仍为 Todo，父任务 `M7-04` 继续保持 Todo。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+rg -n "Backup and Restore|Logs and Audit|Common Failure Paths|Release-Day Checks" docs/user/operations.md
+rg -n "M7-04-03" docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查备份恢复、日志定位和常见故障恢复路径可以由运维人员独立执行。
+2. 检查 M7-04 后续复现验收任务仍在列表中，未提前关闭父任务。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-04-04`，执行运维手册复现验收任务。

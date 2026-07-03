@@ -27,7 +27,8 @@ docs/refactor/
 ├── release_scope_freeze.md           # N0 发布前范围冻结说明
 ├── frontend-foundation.md            # FE0-FE4 前端体验、视觉、架构、页面与插件门户规范
 ├── frontend-quality-performance.md   # FE5-FE6 测试、浏览器验收、响应式、性能基线
-└── milestone-closeout.md             # M2、FE0-FE6、尾盘优化和发布前收口摘要
+├── milestone-closeout.md             # M2、FE0-FE6、尾盘优化和发布前收口摘要
+└── progress_inspection_2026-07-04.md # 进度巡检、尾盘微调和 M7 收口拆解
 ```
 
 ## 执行与验收入口
@@ -42,6 +43,7 @@ docs/refactor/
 | [quality_baseline.md](quality_baseline.md) | 质量门禁和基线记录 |
 | [source_map.md](source_map.md) | 旧文档内容吸收与归档说明 |
 | [release_scope_freeze.md](release_scope_freeze.md) | N0 发布前范围冻结、后续任务领取和质量门禁延续规则 |
+| [progress_inspection_2026-07-04.md](progress_inspection_2026-07-04.md) | 2026-07-04 进度巡检、尾盘任务微调和后续里程碑拆解 |
 
 ## 专题合并文档
 

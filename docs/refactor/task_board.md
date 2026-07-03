@@ -95,7 +95,7 @@
 | 30 | M4-02 | `skoll-cache-development` | 字典缓存策略 | cache/service | 更新字典后缓存失效 | `go test ./internal/cache/... ./internal/service/system/...` | Done |
 | 31 | M4-03 | `skoll-api-contracts` | 字典 API/UI 接入 | handler + Vue | 类型、条目、状态、排序、搜索完整 | `go test ./...`; `cd web && npm run build` | Done |
 | 32 | M4-04 | `skoll-data-dictionary-config` | 配置 schema 注册 | domain/service/UI | 系统与插件配置通过 schema 渲染和校验 | `go test ./internal/service/system/...`; `cd web && npm run build` | Done |
-| 33 | M4-05 | `skoll-dictionary-organization-refactor` | 组织/部门/岗位模型 | domain/store/API | 部门树、岗位、用户归属可用 | `go test ./...` | Todo |
+| 33 | M4-05 | `skoll-dictionary-organization-refactor` | 组织/部门/岗位模型 | domain/store/API | 部门树、岗位、用户归属可用 | `go test ./...` | Done |
 | 34 | M4-06 | `skoll-permission-rbac` | 数据范围查询过滤 | service/store | 用户列表按 all/department/department_tree/self/custom 返回不同结果 | `go test ./internal/service/rbac/... ./internal/service/user/...` | Done |
 | 35 | M4-07 | `skoll-vue-frontend` | 组织管理与数据范围 UI | Vue 页面 | 授权时可选择数据范围，用户归属可编辑 | `cd web && npm run build` | Done |
 
@@ -150,8 +150,9 @@
 | 52 | M7-01 | `skoll-quality-gate` | CI 质量门禁 | CI | gofmt、go test、前端 build、OpenAPI、manifest 校验进入 CI | CI 运行 | Done |
 | 53 | M7-02 | `skoll-testing-automation` | 覆盖率门槛 | CI/docs | 核心包覆盖率目标和例外名单明确 | `go test ./... -coverprofile=coverage.out` | Done |
 | 54 | M7-03 | `skoll-performance-scaling` | 性能基线 | tests/docs | 登录、用户列表、角色列表、插件列表、审计查询有 QPS/P95/P99 | k6 或 vegeta 脚本 | Done |
-| 55 | M7-04 | `skoll-docs-writer` | 快速开始和运行手册 | docs | 新环境 30 分钟内启动、登录、安装插件、生成模块 | 手工复现 | Todo |
-| 56 | M7-05 | `skoll-open-source-framework` | 示例项目与发布检查清单 | examples/docs | 至少一个生成模块和一个插件示例可运行 | `go test ./...`; `cd web && npm run build` | Todo |
+| 55 | M7-04 | `skoll-docs-writer` | 快速开始和运维手册 | docs | 新环境 30 分钟内启动、登录、安装插件、生成模块；运维配置、备份、日志和故障处理可复现 | 手工复现 | Todo |
+| 56 | M7-05 | `skoll-open-source-framework` | 示例模块与示例插件 | examples/docs | 至少一个生成模块和一个插件示例可运行，且覆盖前后端和生命周期验收 | `go test ./...`; `cd web && npm run build` | Todo |
+| 57 | M7-06 | `skoll-community-governance` / `skoll-devops-deployment` | 开源协作与发布检查清单 | docs/.github | 贡献模板、Issue/PR 模板、Release checklist 和最终巡检完整 | 文档审阅; `git log --oneline -30` | Todo |
 
 里程碑验收:
 
