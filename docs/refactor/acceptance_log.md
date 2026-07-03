@@ -13702,3 +13702,68 @@ git diff --check
 ### 下一步
 
 - 进入 `M6-06-01`，实现灰度策略 service。
+
+## M6-06-01: 灰度策略 service
+
+- 状态: Passed
+- Work Item: M6-06-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/rollout_visibility.go`
+- `internal/plugin/rollout_visibility_test.go`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 路由可见性 | Passed | percent 灰度策略可对指定 route 返回隐藏决策。 |
+| 菜单可见性 | Passed | percent 灰度策略可对指定 menu 返回隐藏决策。 |
+| 功能可见性 | Passed | percent、tag、canary 策略可对 feature 返回可见/隐藏决策。 |
+| 标签灰度 | Passed | subject tags/roles 与策略 tags 命中时放行，未命中时隐藏。 |
+| 金丝雀版本 | Passed | request version 与 canary version 一致时放行，不一致时隐藏。 |
+| 未纳管资源 | Passed | 不在策略 routes/menus/features 范围内的资源保持可见。 |
+| 父任务收口 | Passed | `M6-06-01` Done；`M6-06` 仍保持 Todo，等待 `M6-06-02` 回滚 service/UI 完成。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/plugin/rollout_visibility.go internal/plugin/rollout_visibility_test.go
+go test ./internal/plugin/...
+rg -n "RolloutVisibilityService|RolloutVisibilityDecision|M6-06-01|灰度策略 service" internal/plugin docs/refactor/work_items.md docs/refactor/next_work_items.md docs/refactor/task_board.md docs/refactor/acceptance_log.md
+git diff --check
+```
+
+结果摘要: Passed。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查灰度策略覆盖 route、menu、feature 三类可见性资源。
+2. 检查 percent、tag、canary 三种策略均有正/负向测试覆盖。
+3. 检查本项只提供纯 service 决策能力，不直接改变真实菜单、路由或插件运行状态。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+- 进入 `M6-06-02`，实现回滚 service/UI。
