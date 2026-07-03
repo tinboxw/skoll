@@ -14050,3 +14050,70 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-01-02`，执行 CI 前端门禁任务。
+
+## M7-01-02: CI 前端门禁
+
+- 状态: Passed
+- Work Item: M7-01-02
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `.github/workflows/ci.yml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| Typecheck CI | Passed | CI 已包含 `frontend-typecheck` job，执行 `npm run typecheck`。 |
+| Build CI | Passed | CI 已包含 `frontend-build` job，执行 `npm run build`。 |
+| Browser smoke 最小集 | Passed | 新增 `frontend-browser-smoke` job，执行 `npm run smoke:browser:minimum -- --json`。 |
+| 阻塞原因文档化 | Passed | 最小 browser smoke 在缺少 E2E 环境变量时输出 Blocked JSON 证据，并作为 artifact 上传。 |
+| 任务状态 | Passed | `M7-01-02` 在 `work_items.md` 和 `next_work_items.md` 标记 Done；父任务 `M7-01` 保持 Todo，等待契约门禁子任务完成。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+cd web; npm run typecheck
+cd web; npm run build
+cd web; node scripts/fe5-browser-smoke-minimum.mjs --json
+git diff --check
+```
+
+结果摘要: Passed。`node scripts/fe5-browser-smoke-minimum.mjs --json` 在本地因缺少 `SKOLL_E2E_*` 环境变量输出 Blocked 证据并以 0 退出，符合本任务“进入 CI 或文档化阻塞原因”的验收要求。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: Passed as documented minimum smoke evidence
+- Browser command: `node scripts/fe5-browser-smoke-minimum.mjs --json`
+- Browser evidence: JSON 结果包含 login、permission-denied、plugin-operation、audit-export、narrow-navigation 五个场景；本地缺少 E2E 环境变量时记录 Blocked 原因。
+- Responsive evidence: `narrow-navigation` 场景纳入最小 smoke 列表，viewport `390x844`。
+- Permission evidence: `permission-denied` 场景纳入最小 smoke 列表。
+- Typecheck: `npm run typecheck` Passed
+- Build: `npm run build` Passed
+
+### 人工验收
+
+1. 检查 CI 中前端 typecheck、build、browser smoke 均为独立可见 job。
+2. 检查 browser smoke 不因缺少外部 E2E 账号而静默跳过，而是生成可下载 JSON 证据。
+3. 检查本次不提前关闭 `M7-01` 父任务。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: 本地验证发现 `npm run smoke:browser:minimum -- --json` 未稳定透传 `--json` 参数，输出为 Markdown 而非 CI 期望的 JSON artifact。
+- 返工动作: CI smoke 步骤改为直接执行 `node scripts/fe5-browser-smoke-minimum.mjs --json`。
+- 重新验收结果: Passed。
+
+### 下一步
+
+- 进入 `M7-01-03`，执行 OpenAPI/manifest 校验门禁任务。
