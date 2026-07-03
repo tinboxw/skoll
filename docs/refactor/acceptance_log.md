@@ -14185,3 +14185,71 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-02-01`，执行覆盖率目标和例外名单任务。
+
+## M7-02-01: 覆盖率目标和例外名单
+
+- 状态: Passed
+- Work Item: M7-02-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/refactor/coverage_targets.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 覆盖率基线 | Passed | 重新运行 `go test ./... -covermode=atomic -coverprofile=coverage.out`，当前 total 为 66.6%。 |
+| 核心包目标 | Passed | 文档明确 repository、domain、service、handler、plugin、store 分层目标。 |
+| 暂缓包例外 | Passed | 文档列出 CLI、adapter、cache 外部适配器、外部数据库、薄包装等临时例外和退出条件。 |
+| 提升计划 | Passed | 文档给出从 66.6% 提升到 70% 的优先包和 M7 后续门禁策略。 |
+| 父任务收口 | Passed | `M7-02-01` Done，`task_board.md` 中 `M7-02` 标记 Done。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+go test ./... -covermode=atomic -coverprofile=coverage.out
+go tool cover -func=coverage.out
+rg -n "66.6%|Repository total|Temporary Exceptions|M7 Improvement Plan" docs/refactor/coverage_targets.md
+git diff --check
+```
+
+结果摘要: Passed。`coverage.out` 为本地验收产物，已清理且未纳入提交。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查 coverage 目标不是一次性数字，而是按代码层分层定义。
+2. 检查暂缓包均有原因和退出条件，避免永久豁免。
+3. 检查本次只建立目标和例外名单，不提前引入硬失败阈值。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-03-01`，执行后端性能基线脚本任务。
