@@ -2888,6 +2888,46 @@ components:
           type: string
         task:
           $ref: '#/components/schemas/RolloutTaskRecord'
+        rollback:
+          $ref: '#/components/schemas/PluginRollbackPlan'
+    PluginRollbackPlan:
+      type: object
+      required:
+        - pluginId
+        - status
+        - checkpoints
+      properties:
+        pluginId:
+          type: string
+        status:
+          type: string
+          enum: [passed, blocked]
+        fromVersion:
+          type: string
+        toVersion:
+          type: string
+        checkpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/PluginRollbackCheckpoint'
+    PluginRollbackCheckpoint:
+      type: object
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          enum: [version, menu, permission, config, asset, migration]
+        status:
+          type: string
+          enum: [passed, blocked, warning]
+        before:
+          type: string
+        after:
+          type: string
+        message:
+          type: string
     RolloutTaskListData:
       type: object
       required:

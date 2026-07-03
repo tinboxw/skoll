@@ -15,6 +15,7 @@ import (
 
 	"github.com/tinboxw/skoll/internal/adapter"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	pluginpkg "github.com/tinboxw/skoll/internal/plugin"
 )
 
 type devRolloutRequest struct {
@@ -33,13 +34,14 @@ type devRollbackRequest struct {
 }
 
 type devRolloutResponse struct {
-	Operation      string               `json:"operation"`
-	Status         string               `json:"status"`
-	PluginID       string               `json:"pluginId"`
-	RolloutPercent int                  `json:"rolloutPercent"`
-	Persisted      bool                 `json:"persisted"`
-	Message        string               `json:"message,omitempty"`
-	Task           devRolloutTaskRecord `json:"task"`
+	Operation      string                        `json:"operation"`
+	Status         string                        `json:"status"`
+	PluginID       string                        `json:"pluginId"`
+	RolloutPercent int                           `json:"rolloutPercent"`
+	Persisted      bool                          `json:"persisted"`
+	Message        string                        `json:"message,omitempty"`
+	Task           devRolloutTaskRecord          `json:"task"`
+	Rollback       *pluginpkg.PluginRollbackPlan `json:"rollback,omitempty"`
 }
 
 const (
@@ -236,6 +238,11 @@ func (h *PluginHandler) devRollback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	beforeInfo, err := h.manager.Get(pluginID)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
 	task, err := h.runDevRolloutTask(pluginID, devRolloutTaskActionRollback, 0, actorIDFromJWT(r), req.ToVersion, req.ToPercent, "", "", nil, "")
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -247,8 +254,24 @@ func (h *PluginHandler) devRollback(w http.ResponseWriter, r *http.Request) {
 		msg = "rollback applied"
 	}
 	prev := task.RolloutPercent
+	afterInfo, err := h.manager.Get(pluginID)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	rollbackPlan, err := pluginpkg.NewPluginRollbackService().BuildPlan(pluginpkg.PluginRollbackPlanInput{
+		PluginID:      pluginID,
+		From:          beforeInfo,
+		Target:        afterInfo,
+		TargetPercent: &prev,
+		TargetVersion: req.ToVersion,
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
 
-	h.appendAudit(r, "dev_rollback", "plugin", pluginID, map[string]any{"rolloutPercent": prev, "persisted": persisted, "taskId": task.TaskID})
+	h.appendAudit(r, "dev_rollback", "plugin", pluginID, map[string]any{"rolloutPercent": prev, "persisted": persisted, "taskId": task.TaskID, "rollbackStatus": rollbackPlan.Status})
 	apiv1.WriteJSON(w, http.StatusOK, devRolloutResponse{
 		Operation:      "rollback",
 		Status:         "ok",
@@ -257,6 +280,7 @@ func (h *PluginHandler) devRollback(w http.ResponseWriter, r *http.Request) {
 		Persisted:      persisted,
 		Message:        msg,
 		Task:           task,
+		Rollback:       &rollbackPlan,
 	})
 }
 
@@ -449,13 +473,13 @@ func (h *PluginHandler) applyDevRollback(pluginID string, actorID string, taskID
 			if p.Version == toVersion {
 				targetPercent = p.Percent
 				previousState = adapter.DevRolloutStrategy{
-					PluginID:     pluginID,
-					StrategyType: p.StrategyType,
-					TargetEnv:    p.TargetEnv,
-					Percent:      p.Percent,
-					Tags:         p.Tags,
+					PluginID:      pluginID,
+					StrategyType:  p.StrategyType,
+					TargetEnv:     p.TargetEnv,
+					Percent:       p.Percent,
+					Tags:          p.Tags,
 					CanaryVersion: p.CanaryVersion,
-					TaskID:       p.TaskID,
+					TaskID:        p.TaskID,
 				}
 				found = true
 				break

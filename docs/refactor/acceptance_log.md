@@ -13767,3 +13767,84 @@ git diff --check
 
 ### 下一步
 - 进入 `M6-06-02`，实现回滚 service/UI。
+
+## M6-06-02: 回滚 service/UI
+
+- 状态: Passed
+- Work Item: M6-06-02
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/plugin/rollback_plan.go`
+- `internal/plugin/rollback_plan_test.go`
+- `internal/handler/http/v1/plugin/dev_rollout.go`
+- `web/src/views/Plugin/index.vue`
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/task_board.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 回滚 service | Passed | `PluginRollbackService` 生成 version/menu/permission/config/asset/migration 六类 checkpoint。 |
+| 版本一致性 | Passed | 回滚计划记录 from/to version，并拒绝空目标版本。 |
+| 菜单一致性 | Passed | checkpoint 对比菜单 key、path、visible、roles、permissions 指纹。 |
+| 权限一致性 | Passed | checkpoint 使用 catalog permission key 指纹确认回滚目标权限集。 |
+| 配置一致性 | Passed | checkpoint 校验目标配置快照，并覆盖 rollback percent 不一致的阻断测试。 |
+| 资产一致性 | Passed | frontend/monolith/separated 插件会发现目标前端资产；backend-only 插件不要求资产。 |
+| 迁移一致性 | Passed | checkpoint 记录 migration version，供迁移 hook 回滚一致性复核。 |
+| UI 展示 | Passed | DevPortal 回滚响应页签展示结构化回滚摘要和 checkpoint 表格。 |
+| API 契约 | Passed | `RolloutData.rollback`、`PluginRollbackPlan`、`PluginRollbackCheckpoint` 已同步到两份 OpenAPI。 |
+| 父任务收口 | Passed | `M6-06-01` 与 `M6-06-02` 均 Done，`M6-06` 父任务标记 Done。 |
+
+### 自动化验证
+```powershell
+gofmt -w internal/plugin/rollback_plan.go internal/plugin/rollback_plan_test.go internal/handler/http/v1/plugin/dev_rollout.go
+go test ./internal/plugin/... ./internal/handler/http/v1/plugin/...
+go test ./...
+cd web; npm run typecheck; npm run build
+python - <<'PY'
+import yaml
+from pathlib import Path
+for p in [Path('docs/api/openapi.yaml'), Path('internal/handler/http/openapi.yaml')]:
+    yaml.safe_load(p.read_text(encoding='utf-8'))
+PY
+rg -n "PluginRollbackService|PluginRollbackPlan|PluginRollbackCheckpoint|M6-06-02|回滚 service/UI" internal/plugin internal/handler/http/v1/plugin web/src/views/Plugin/index.vue docs/api/openapi.yaml internal/handler/http/openapi.yaml docs/refactor
+git diff --check
+```
+
+结果摘要: Passed。`npm run build` 仍有既有 Sass legacy-js-api 与 Rollup PURE annotation warning，不影响构建结果。
+
+### 前端验收记录
+
+- Affected routes/pages: `web/src/views/Plugin/index.vue` DevPortal 响应页签
+- State coverage: loading/error 复用既有 DevPortal 状态；rollback plan 仅在回滚响应存在时显示
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: `runDevAction` 继续走 `plugin.manage` 权限门禁
+- Typecheck: `npm run typecheck` Passed
+- Build: `npm run build` Passed
+
+### 人工验收
+
+1. 检查回滚摘要覆盖版本、菜单、权限、配置、资产、迁移六类一致性 checkpoint。
+2. 检查 dev rollback API envelope 保持 `code/message/data` 结构，仅在 data 中新增 `rollback`。
+3. 检查前端回滚 UI 不隐藏 JSON 原文，同时提供可扫读的 checkpoint 表格。
+
+结果摘要: Passed。
+
+### 失败与返工
+- 失败原因: 首次 `go test ./...` 使用 184 秒超时，没有得到失败包。
+- 返工动作: 使用 360 秒超时重跑全量 Go 测试。
+- 重新验收结果: Passed。
+
+### 下一步
+- 进入 `M6-07-01`，执行插件生命周期验收。

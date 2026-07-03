@@ -133,7 +133,7 @@
 | 46 | M6-03 | `skoll-plugin-marketplace-refactor` | 插件安装预检 | service/UI | 展示权限、菜单、配置、资产、迁移、风险、签名 diff | `go test ./...`; `cd web && npm run build` | Done |
 | 47 | M6-04 | `skoll-plugin-platform` | 插件迁移 hook | plugin/service | install/upgrade/downgrade/uninstall 状态可追踪 | `go test ./internal/plugin/...` | Done |
 | 48 | M6-05 | `skoll-security-hardening` | 插件签名策略升级 | plugin/security | 签名覆盖 manifest、资产清单、入口和前端资产 hash | `go test ./internal/plugin/...` | Done |
-| 49 | M6-06 | `skoll-plugin-marketplace-refactor` | 灰度/回滚产品化 | service/frontend | 影响真实路由、菜单、功能可见性 | `go test ./...`; `cd web && npm run build` | Todo |
+| 49 | M6-06 | `skoll-plugin-marketplace-refactor` | 灰度/回滚产品化 | service/frontend | 影响真实路由、菜单、功能可见性 | `go test ./...`; `cd web && npm run build` | Done |
 | 50 | M6-07 | `skoll-web-ui-design` | 插件安全报告 UI | Vue 页面 | 安装前后均可查看风险和权限影响 | `cd web && npm run build` | Todo |
 | 51 | M6-08 | `skoll-testing-automation` | 插件生命周期验收 | tests | install/enable/disable/upgrade/rollback 全链路通过 | `go test ./...` | Todo |
 

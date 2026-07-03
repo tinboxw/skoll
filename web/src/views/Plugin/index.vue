@@ -139,6 +139,20 @@ type InstallPreflightMigrationStep = {
 	upPath?: string;
 	downPath?: string;
 };
+type PluginRollbackCheckpoint = {
+	name: string;
+	status: string;
+	before?: string;
+	after?: string;
+	message?: string;
+};
+type PluginRollbackPlan = {
+	pluginId: string;
+	status: string;
+	fromVersion?: string;
+	toVersion?: string;
+	checkpoints?: PluginRollbackCheckpoint[];
+};
 type LocalMarketplaceItem = {
 	id: string;
 	name: string;
@@ -193,6 +207,7 @@ const devReleaseOrders = ref<Array<Record<string, unknown>>>([]);
 const devReleaseTasks = ref<Array<Record<string, unknown>>>([]);
 const devRolloutTasks = ref<Array<Record<string, unknown>>>([]);
 const devResultText = ref("");
+const devRollbackPlan = ref<PluginRollbackPlan | null>(null);
 const devTaskDrawerOpen = ref(false);
 const devTaskDrawerTitle = ref("");
 const devTaskDetail = ref<Record<string, unknown> | null>(null);
@@ -331,6 +346,7 @@ const devTaskSummary = computed(() => {
 		rollback: devRolloutTasks.value.filter((item) => String(item.action || "").toLowerCase() === "rollback").length
 	};
 });
+const devRollbackCheckpoints = computed(() => devRollbackPlan.value?.checkpoints ?? []);
 
 function pluginMatchesKeyword(plugin: FrontendPluginManifest, keyword: string): boolean {
 	return [
@@ -1164,11 +1180,13 @@ async function runDevAction(action: "validate" | "package" | "pipeline" | "rollo
 		}
 		devResultText.value = JSON.stringify(payload, null, 2);
 		captureDevArtifactPath(payload);
+		captureDevRollbackPlan(payload, action);
 		info.value = "DevPortal 操作已提交。";
 		await Promise.all([loadDevProjects(), loadDevReleaseOrders(), loadDevReleaseTasks(), loadDevRolloutTasks()]);
 	} catch (e) {
 		error.value = toErrorMessage(e);
 		devResultText.value = "";
+		devRollbackPlan.value = null;
 	} finally {
 		devLoading.value = false;
 	}
@@ -1366,6 +1384,33 @@ function captureDevArtifactPath(payload: unknown): void {
 			devArtifactPath.value = artifact;
 		}
 	}
+}
+
+function captureDevRollbackPlan(payload: unknown, action: "validate" | "package" | "pipeline" | "rollout" | "rollback"): void {
+	if (action !== "rollback") {
+		devRollbackPlan.value = null;
+		return;
+	}
+	const root = payload as { data?: Record<string, unknown> };
+	const rollback = root?.data?.rollback as PluginRollbackPlan | undefined;
+	if (rollback && Array.isArray(rollback.checkpoints)) {
+		devRollbackPlan.value = rollback;
+		return;
+	}
+	devRollbackPlan.value = null;
+}
+
+function rollbackCheckpointType(status?: string): "success" | "warning" | "danger" | "info" {
+	if (status === "passed") {
+		return "success";
+	}
+	if (status === "blocked") {
+		return "danger";
+	}
+	if (status === "warning") {
+		return "warning";
+	}
+	return "info";
 }
 
 async function openDevTaskDrawer(kind: "release" | "rollout", task: Record<string, unknown>, view: "detail" | "logs"): Promise<void> {
@@ -2073,6 +2118,26 @@ function resetDefaultHome(): void {
 							</el-table>
 						</el-tab-pane>
 						<el-tab-pane label="响应">
+							<div v-if="devRollbackPlan" class="rollback-plan-panel">
+								<div class="rollback-plan-header">
+									<div>
+										<strong>{{ devRollbackPlan.pluginId }}</strong>
+										<span>{{ devRollbackPlan.fromVersion || "-" }} → {{ devRollbackPlan.toVersion || "-" }}</span>
+									</div>
+									<el-tag :type="rollbackCheckpointType(devRollbackPlan.status)" effect="light">{{ devRollbackPlan.status }}</el-tag>
+								</div>
+								<el-table :data="devRollbackCheckpoints" size="small" border max-height="220" empty-text="暂无回滚检查点">
+									<el-table-column prop="name" label="检查点" width="110" />
+									<el-table-column label="状态" width="100">
+										<template #default="{ row }">
+											<el-tag :type="rollbackCheckpointType(row.status)" effect="light">{{ row.status || "-" }}</el-tag>
+										</template>
+									</el-table-column>
+									<el-table-column prop="before" label="回滚前" min-width="150" show-overflow-tooltip />
+									<el-table-column prop="after" label="回滚后" min-width="150" show-overflow-tooltip />
+									<el-table-column prop="message" label="说明" min-width="220" show-overflow-tooltip />
+								</el-table>
+							</div>
 							<pre class="code-block">{{ devResultText || "暂无操作结果。" }}</pre>
 						</el-tab-pane>
 					</el-tabs>
@@ -2713,6 +2778,38 @@ function resetDefaultHome(): void {
 .dev-task-card.is-danger {
 	border-color: var(--color-danger);
 	background: var(--color-danger-soft);
+}
+
+.rollback-plan-panel {
+	display: grid;
+	gap: 10px;
+	margin-bottom: 12px;
+	padding: 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-surface);
+}
+
+.rollback-plan-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.rollback-plan-header div {
+	display: grid;
+	gap: 2px;
+}
+
+.rollback-plan-header strong {
+	color: var(--color-text);
+	font-size: 0.9rem;
+}
+
+.rollback-plan-header span {
+	color: var(--color-text-muted);
+	font-size: 0.78rem;
 }
 
 .table-stack {
