@@ -51,6 +51,7 @@ func TestDemoProductGenerationAcceptance(t *testing.T) {
 	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts", "useDemoProductStore", "lastError", "async retry")
 	assertGeneratedContains(t, result, "web/src/views/DemoProduct/index.vue", "<el-table", "<el-drawer", "demo_product.create")
 	assertDemoProductBackendContract(t, result)
+	assertDemoProductFrontendContract(t, result)
 
 	history, err := svc.RecordHistory(context.Background(), RecordHistoryInput{
 		DryRun:    result,
@@ -93,6 +94,21 @@ func TestDemoProductBackendAcceptanceContract(t *testing.T) {
 		t.Fatalf("DryRun() error = %v", err)
 	}
 	assertDemoProductBackendContract(t, result)
+}
+
+func TestDemoProductFrontendAcceptanceContract(t *testing.T) {
+	spec := loadDemoProductSpec(t)
+	svc := NewService()
+	result, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "demo-product-frontend-acceptance",
+		ActorID:            "codex",
+		MigrationTimestamp: "20260629_030000",
+	})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+	assertDemoProductFrontendContract(t, result)
 }
 
 func loadDemoProductSpec(t *testing.T) *domaingenerator.GeneratorSpec {
@@ -163,5 +179,44 @@ func assertDemoProductBackendContract(t *testing.T, result *DryRunResult) {
 		`"/demo-products"`,
 		`"component":`,
 		`"DemoProduct/index"`,
+	)
+}
+
+func assertDemoProductFrontendContract(t *testing.T, result *DryRunResult) {
+	t.Helper()
+	assertGeneratedContains(t, result, "web/src/api/demo_product.ts",
+		"export type DemoProduct",
+		"export type DemoProductInput",
+		"listDemoProduct",
+		"createDemoProduct",
+		"updateDemoProduct",
+		"deleteDemoProduct",
+		`const basePath = "/demo-products"`,
+	)
+	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts",
+		"items: DemoProduct[]",
+		"listStatus: LoadStatus",
+		"mutationStatus: LoadStatus",
+		"lastError: string | null",
+		"async retry",
+		"async create",
+		"async update",
+		"async remove",
+		"toErrorMessage(error: unknown)",
+	)
+	assertGeneratedContains(t, result, "web/src/views/DemoProduct/index.vue",
+		"<el-table",
+		`empty-text="No data"`,
+		`<el-alert v-if="store.hasError"`,
+		"<el-drawer",
+		`v-permission="createPermission"`,
+		`v-permission="updatePermission"`,
+		`v-permission="deletePermission"`,
+		`const createPermission = "demo_product.create"`,
+		`const updatePermission = "demo_product.update"`,
+		`const deletePermission = "demo_product.delete"`,
+		`<el-input v-model="form.name" />`,
+		`<el-input-number v-model="form.price"`,
+		`<el-switch v-model="form.enabled" />`,
 	)
 }

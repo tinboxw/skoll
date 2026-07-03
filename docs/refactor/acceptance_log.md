@@ -14810,3 +14810,77 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-05-03`，执行示例模块前端验收任务。
+
+## M7-05-03: 示例模块前端验收
+
+- 状态: Passed
+- Work Item: M7-05-03
+- 日期: 2026-07-04
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `internal/service/generator/backend_templates.go`
+- `internal/service/generator/demo_product_test.go`
+- `examples/demo_product/README.md`
+- `examples/demo_product/frontend_acceptance.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/progress_inspection_2026-07-04.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| API client | Passed | 测试断言 generated API list/create/update/delete 和 `/demo-products` base path。 |
+| Pinia store | Passed | 测试断言 loading/mutation 状态、lastError、retry、create/update/remove 和 `unknown` error narrowing。 |
+| 列表与空态 | Passed | 测试断言 generated table 和 `empty-text="No data"`。 |
+| 错误态 | Passed | 测试断言 `el-alert` 使用 `store.hasError`。 |
+| 表单 | Passed | 测试断言 drawer 表单和 string/decimal/bool 类型化控件。 |
+| 权限按钮 | Passed | 测试断言 create/update/delete `v-permission` 与权限常量。 |
+| 前端门禁 | Passed | `npm run typecheck` 与 `npm run build` 通过。 |
+| 父任务状态 | Passed | `M7-05` 保持 Todo，等待 M7-05-04 和 M7-05-05 完成。 |
+
+### 自动化验证
+
+```powershell
+go test ./internal/domain/generator/... ./internal/service/generator/...
+cd web
+npm run typecheck
+npm run build
+git diff --check
+```
+
+结果摘要: Passed。build 仅保留既有 Sass legacy-js-api 与 Rollup PURE annotation warning。
+
+### 前端验收记录
+
+- Affected routes/pages: generated `web/src/views/DemoProduct/index.vue` dry-run target
+- State coverage: list, drawer form, empty table, error alert, permission buttons
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: generated CSS includes mobile column layout under 720px
+- Permission evidence: create/update/delete buttons use `v-permission`
+- Typecheck: Passed (`npm run typecheck`)
+- Build: Passed (`npm run build`)
+
+### 人工验收
+
+1. 检查生成模板使用适合字段类型的表单控件，不把 number/bool 都降级为文本输入。
+2. 检查示例前端验收记录明确是 dry-run output + repo frontend gates，不伪装成已挂载页面。
+3. 检查 M7-05 后续插件示例任务仍未提前关闭父任务。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-05-04`，执行示例插件 manifest 与资产任务。

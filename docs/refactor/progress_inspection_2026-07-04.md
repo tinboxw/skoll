@@ -60,7 +60,7 @@ The tail tasks have been refined in `docs/refactor/work_items.md`. Parallel deve
 | M7-04-04 | Done | P0 | M7-04-03 | Operations manual reproduction record | A new environment can follow quick start + operations docs to start, log in, stop, and recover |
 | M7-05-01 | Done | P0 | M7-04-04, M5 Done | Demo product spec and generated file list | Spec, generated files, permission keys, and menu declarations are complete |
 | M7-05-02 | Done | P0 | M7-05-01 | Demo product backend acceptance | Backend API, permission, audit, store/service flows pass `go test ./...` |
-| M7-05-03 | Todo | P0 | M7-05-02 | Demo product frontend acceptance | List/form/empty/error/permission states pass typecheck and build |
+| M7-05-03 | Done | P0 | M7-05-02 | Demo product frontend acceptance | List/form/empty/error/permission states pass typecheck and build |
 | M7-05-04 | Todo | P0 | M7-05-03, M6 Done | Demo plugin manifest and assets | Manifest, permission, menu, config schema, signature/risk fields are complete |
 | M7-05-05 | Todo | P0 | M7-05-04 | Demo plugin lifecycle acceptance | Install/enable/disable/upgrade/rollback paths pass tests and build |
 | M7-06-01 | Todo | P1 | M7-05-05 | Open-source contribution guide | Contribution, security, conduct, and maintainer notes are complete |

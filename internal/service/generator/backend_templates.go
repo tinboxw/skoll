@@ -544,7 +544,7 @@ func renderFrontendView(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "\t\t<el-drawer v-model=\"drawerOpen\" :title=\"editingId ? 'Edit' : 'Create'\" size=\"420px\">\n\t\t\t<el-form label-position=\"top\" @submit.prevent>\n")
 	for _, fieldName := range spec.Page.Form.Fields {
 		if field, ok := spec.FieldByName(fieldName); ok {
-			fmt.Fprintf(&b, "\t\t\t\t<el-form-item label=\"%s\">\n\t\t\t\t\t<el-input v-model=\"form.%s\" />\n\t\t\t\t</el-form-item>\n", field.Label, field.Name)
+			renderGeneratedFormControl(&b, field)
 		}
 	}
 	fmt.Fprintf(&b, "\t\t\t\t<el-button type=\"primary\" :loading=\"store.mutationStatus === 'loading'\" @click=\"save\">Save</el-button>\n\t\t\t</el-form>\n\t\t</el-drawer>\n")
@@ -572,6 +572,19 @@ func renderFrontendView(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "<style scoped>\n.generated-page { display: grid; gap: 16px; }\n.generated-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }\n.generated-toolbar h1 { margin: 0; font-size: 20px; font-weight: 650; }\n.generated-filters { display: flex; gap: 8px; max-width: 520px; }\n@media (max-width: 720px) { .generated-toolbar, .generated-filters { align-items: stretch; flex-direction: column; } }\n</style>\n")
 	_ = keywordField
 	return b.String()
+}
+
+func renderGeneratedFormControl(b *bytes.Buffer, field domaingenerator.FieldSpec) {
+	fmt.Fprintf(b, "\t\t\t\t<el-form-item label=\"%s\">\n", field.Label)
+	switch field.Type {
+	case domaingenerator.FieldTypeBool:
+		fmt.Fprintf(b, "\t\t\t\t\t<el-switch v-model=\"form.%s\" />\n", field.Name)
+	case domaingenerator.FieldTypeInt, domaingenerator.FieldTypeDecimal:
+		fmt.Fprintf(b, "\t\t\t\t\t<el-input-number v-model=\"form.%s\" :min=\"0\" controls-position=\"right\" />\n", field.Name)
+	default:
+		fmt.Fprintf(b, "\t\t\t\t\t<el-input v-model=\"form.%s\" />\n", field.Name)
+	}
+	fmt.Fprintf(b, "\t\t\t\t</el-form-item>\n")
 }
 
 func renderServiceInputFields(b *bytes.Buffer, spec domaingenerator.GeneratorSpec, update bool) {

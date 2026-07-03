@@ -346,7 +346,7 @@
 | 243 | M7-04-04 | M7-04 | `skoll-testing-automation` | 运维手册复现验收 | docs/smoke | 新环境可按 quick start + 运维手册完成启动、登录、停止、恢复检查 | 手工复现记录 | Done |
 | 244 | M7-05-01 | M7-05 | `skoll-open-source-framework` | 示例模块 spec 与生成清单 | examples | demo_product spec、生成文件清单、权限和菜单声明完整 | 文档审阅; `go test ./internal/domain/generator/...` | Done |
 | 245 | M7-05-02 | M7-05 | `skoll-testing-automation` | 示例模块后端验收 | examples/tests | demo_product 后端 API、权限、审计、store/service 流程可测试 | `go test ./...` | Done |
-| 246 | M7-05-03 | M7-05 | `skoll-vue-frontend` | 示例模块前端验收 | examples/web | demo_product 列表、表单、空态、错误态、权限按钮可构建 | `cd web && npm run typecheck`; `cd web && npm run build` | Todo |
+| 246 | M7-05-03 | M7-05 | `skoll-vue-frontend` | 示例模块前端验收 | examples/web | demo_product 列表、表单、空态、错误态、权限按钮可构建 | `cd web && npm run typecheck`; `cd web && npm run build` | Done |
 | 247 | M7-05-04 | M7-05 | `skoll-plugin-platform` | 示例插件 manifest 与资产 | examples/plugins | demo plugin manifest、权限、菜单、配置 schema、签名/风险字段完整 | manifest schema review | Todo |
 | 248 | M7-05-05 | M7-05 | `skoll-testing-automation` | 示例插件生命周期验收 | examples/plugins/tests | demo plugin 可安装、启用、禁用、升级、回滚；审计事件可查 | `go test ./...`; `cd web && npm run build` | Todo |
 | 249 | M7-06-01 | M7-06 | `skoll-community-governance` | 开源贡献指南 | docs/.github | CONTRIBUTING、SECURITY、行为准则或维护者说明完整 | 文档审阅 | Todo |

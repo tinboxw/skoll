@@ -44,6 +44,10 @@ See [generated_files.md](generated_files.md) for the dry-run output matrix, owne
 
 See [backend_acceptance.md](backend_acceptance.md) for the generated backend API, permission, audit, store, service, and test coverage record.
 
+## Frontend Acceptance
+
+See [frontend_acceptance.md](frontend_acceptance.md) for the generated frontend API, Pinia store, list/form page, state, permission, and build coverage record.
+
 Validation:
 
 ```powershell
