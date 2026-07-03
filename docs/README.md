@@ -8,6 +8,7 @@ Skoll 当前处于开源基础建设阶段。文档按读者和用途分层，�
 
 | 入口 | 用途 |
 | --- | --- |
+| [quick-start.md](quick-start.md) | 新环境 30 分钟启动、登录、插件和核心流程快速开始 |
 | [refactor/README.md](refactor/README.md) | 当前重构执行入口、任务规则、收口状态 |
 | [refactor/architecture_and_execution_plan.md](refactor/architecture_and_execution_plan.md) | 架构模型、治理原则、里程碑计划 |
 | [refactor/task_board.md](refactor/task_board.md) | 父任务表和里程碑级状态 |

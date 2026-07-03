@@ -340,7 +340,7 @@
 | 237 | M7-02-01 | M7-02 | `skoll-testing-automation` | 覆盖率目标和例外名单 | docs/CI | 核心包覆盖率目标、暂缓包、提升计划明确 | `go test ./... -coverprofile=coverage.out` | Done |
 | 238 | M7-03-01 | M7-03 | `skoll-performance-scaling` | 后端性能基线脚本 | scripts/docs | login/user list/role list/plugin list/audit query 有 QPS/P95/P99 | k6 或 vegeta 脚本 | Done |
 | 239 | M7-03-02 | M7-03 | `skoll-frontend-performance-refactor` | 前端性能采样记录 | docs | 首屏、路由切换、重表格、插件面板有基线 | `cd web && npm run build` | Done |
-| 240 | M7-04-01 | M7-04 | `skoll-docs-writer` | 快速开始手册 | docs | 新环境 30 分钟内启动、登录、执行核心流程 | 手工复现 | Todo |
+| 240 | M7-04-01 | M7-04 | `skoll-docs-writer` | 快速开始手册 | docs | 新环境 30 分钟内启动、登录、执行核心流程 | 手工复现 | Done |
 | 241 | M7-04-02 | M7-04 | `skoll-docs-writer` | 运维手册 | docs | 配置、部署、备份、日志、常见故障路径明确 | 文档审阅 | Todo |
 | 242 | M7-05-01 | M7-05 | `skoll-open-source-framework` | 示例模块 | examples | 至少一个生成模块可运行 | `go test ./...`; `cd web && npm run build` | Todo |
 | 243 | M7-05-02 | M7-05 | `skoll-open-source-framework` | 示例插件 | examples | 至少一个插件可安装、启停、回滚 | `go test ./...`; `cd web && npm run build` | Todo |

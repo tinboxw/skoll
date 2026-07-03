@@ -14390,3 +14390,72 @@ git diff --check
 ### 下一步
 
 - 进入 `M7-04-01`，执行快速开始手册任务。
+
+## M7-04-01: 快速开始手册
+
+- 状态: Passed
+- Work Item: M7-04-01
+- 日期: 2026-07-03
+- 执行人: Codex
+- 提交: 待本任务提交
+
+### 改动文件
+
+- `docs/quick-start.md`
+- `docs/README.md`
+- `docs/refactor/work_items.md`
+- `docs/refactor/next_work_items.md`
+- `docs/refactor/acceptance_log.md`
+
+### 验收项
+
+| 验收项 | 结果 | 说明 |
+|---|---|---|
+| 30 分钟启动路径 | Passed | 文档覆盖依赖、安装、`dev-up.ps1` 启动和 `dev-down.ps1` 停止。 |
+| 登录路径 | Passed | 文档记录默认账号 `admin` / `Admin@123456` 和首次登录后改密提醒。 |
+| 核心流程 | Passed | 文档覆盖 Dashboard、Users、Roles、Permissions/Menu、Plugins、Audit、Settings。 |
+| 插件流程 | Passed | 文档给出安装 `plugins/demo` 的 API 命令和插件页验证点。 |
+| 生成模块烟测 | Passed | 文档给出 `go test ./...`、`npm run typecheck`、`npm run build`。 |
+| 文档入口 | Passed | `docs/README.md` 已新增 `quick-start.md` 入口。 |
+| 任务状态 | Passed | `M7-04-01` Done；父任务 `M7-04` 保持 Todo，等待运维手册完成。 |
+
+### 自动化验证
+
+```powershell
+codegraph status .
+rg -n "dev-up.ps1|Admin@123456|Core Flow Checklist|Plugin Flow|Generated Module Smoke|Common Blockers" docs/quick-start.md
+rg -n "quick-start.md" docs/README.md
+git diff --check
+```
+
+结果摘要: Passed。手工复现需要实际新环境，本轮以命令和流程完整性验收。
+
+### 前端验收记录
+
+- Affected routes/pages: N/A
+- State coverage: N/A
+- Browser smoke: N/A
+- Browser command: N/A
+- Browser evidence: N/A
+- Responsive evidence: N/A
+- Permission evidence: N/A
+- Typecheck: N/A
+- Build: N/A
+
+### 人工验收
+
+1. 检查文档面向新用户，而不是只面向框架开发者。
+2. 检查命令可复制，且包含预期访问 URL。
+3. 检查常见阻塞给出恢复路径。
+
+结果摘要: Passed。
+
+### 失败与返工
+
+- 失败原因: N/A
+- 返工动作: N/A
+- 重新验收结果: 不适用。
+
+### 下一步
+
+- 进入 `M7-04-02`，执行运维手册任务。
