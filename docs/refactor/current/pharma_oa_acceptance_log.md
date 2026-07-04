@@ -865,3 +865,64 @@ Notes:
 ### Next Step
 
 - Claim `F7-07` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F7-07 Add Workflow Audit Fixtures
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/testing/workflowaudit/fixture.go`
+- `internal/testing/workflowaudit/replay.go`
+- `internal/testing/workflowaudit/fixture_test.go`
+- `scripts/smoke-workflow-audit-replay.ps1`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Workflow audit fixture | Passed | Fixture builds a real workflow definition, instance, tasks, timeline, and terminal approved approval-chain state |
+| Audit event generation | Passed | Fixture emits start, copy, transfer, and approve audit events with actor, target, action, resource, result, and source data |
+| Queryability | Passed | Fixture helpers query audit events by actor, action, resource type/id, and result |
+| Replayability | Passed | Replay validates ordered start -> copy -> transfer -> approve records for the same workflow instance and returns terminal `approved` |
+| Failure behavior | Passed | Replay rejects missing and reordered audit chains |
+| Smoke script | Passed | `scripts/smoke-workflow-audit-replay.ps1` runs the replay smoke test through `go test` |
+| API/OpenAPI impact | Passed | No HTTP endpoint, request, response, or OpenAPI contract was changed |
+| Permission, audit, migration/seed impact | Passed | Adds audit fixture and replay test assets only; no runtime permission catalog, migration, or seed data is introduced |
+
+### Verification Commands
+
+```powershell
+go test ./internal/testing/workflowaudit -v
+go test ./...
+powershell -ExecutionPolicy Bypass -File scripts/smoke-workflow-audit-replay.ps1
+git diff --check
+```
+
+Smoke result:
+
+```text
+Workflow audit replay smoke passed.
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial smoke script passed `-count=$Count` as a single PowerShell token and Go reported `invalid count "$Count"`.
+- Fix: changed the script to build a `go test` argument array and pass `-count` plus the resolved numeric value separately.
+- Retry: workflow audit replay smoke passed.
+
+Notes:
+
+- `go test ./...` passed before the smoke script retry fix; the changed script was then independently validated by the smoke command.
+- `git diff --check` reports only existing CRLF conversion warnings for tracked Markdown files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F8-01` from `docs/refactor/current/pharma_oa_work_items.md`.
