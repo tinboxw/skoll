@@ -453,3 +453,60 @@ Notes:
 ### Next Step
 
 - Claim `F7-01` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F7-01: Implement Workflow Domain
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/workflow/types.go`
+- `internal/domain/workflow/workflow_test.go`
+- `internal/service/workflow/service.go`
+- `internal/service/workflow/service_impl.go`
+- `internal/service/workflow/memory_repository.go`
+- `internal/service/workflow/service_impl_test.go`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Workflow definition model | Passed | `Definition`, `Node`, and `Transition` validate published workflow shape, node types, assignees, and exactly one start/end node |
+| Workflow instance model | Passed | `Instance`, `Task`, `Action`, timeline, starter, current node, business target, and status fields are represented in the domain |
+| Start action | Passed | Published definitions can start instances and create pending approval tasks; draft definitions cannot start |
+| Approve/reject actions | Passed | Pending task assignees can approve or reject; terminal instances reject repeated actions |
+| Withdraw action | Passed | Starter can withdraw a running instance and pending tasks become canceled |
+| Transfer/copy actions | Passed | Transfer closes the original pending task and creates a pending task for the target; copy records a completed copied task without consuming the original |
+| Service orchestration | Passed | `internal/service/workflow` provides repository interfaces, in-memory repository, and use-case service for create/publish/start/approve/reject/withdraw/transfer/copy |
+| API/OpenAPI impact | Passed | No HTTP endpoint or response contract was added in this Work Item; F7-02 owns Workflow API/OpenAPI |
+| Permission, audit, migration/seed impact | Passed | No runtime permission seed, audit sink, migration, or seed data is introduced; domain timeline actions prepare audit inputs for later API/service integration |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/workflow/... ./internal/service/workflow/...
+go test ./internal/domain/... ./internal/service/workflow/...
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial failure: `TestWorkflowDefinitionValidationAndPublish` expected the missing-end-node invariant, but the fixture also omitted approval assignees and hit the earlier assignee invariant.
+- Fix: added the approval assignee to that invalid-definition fixture.
+- Retry result: Passed.
+
+Notes:
+
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F7-02` from `docs/refactor/current/pharma_oa_work_items.md`.
