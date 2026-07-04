@@ -1,6 +1,6 @@
 # Pharma OA Plugin
 
-`pharma_oa` is the industry plugin entry for the Pharma OA roadmap. The current plugin package declares the installable app, menu, permissions, API route contracts, config schema, and the employee/customer management entries.
+`pharma_oa` is the industry plugin entry for the Pharma OA roadmap. The current plugin package declares the installable app, menu, permissions, API route contracts, config schema, and the employee/customer/warehouse management entries.
 
 ## Contract
 
@@ -35,11 +35,17 @@
   - `POST /v1/plugins/pharma_oa/api/customers/disable`
   - `GET /v1/plugins/pharma_oa/api/customers/qualification-reminders`
   - `GET /v1/plugins/pharma_oa/api/customers/sales-eligibility`
+- Warehouse route contracts:
+  - `GET /v1/plugins/pharma_oa/api/warehouses`
+  - `POST /v1/plugins/pharma_oa/api/warehouses`
+  - `PUT /v1/plugins/pharma_oa/api/warehouses`
+  - `POST /v1/plugins/pharma_oa/api/warehouses/disable`
+  - `GET /v1/plugins/pharma_oa/api/warehouses/movement-eligibility`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
 
-The current employee module uses the core `/v1/pharma-oa/employees` API and integrated route `/skoll/pharma-oa/employees`. The product module uses the core `/v1/pharma-oa/products` API for drug master data, disable flow, and import validation. The supplier module uses `/v1/pharma-oa/suppliers` for supplier records, contacts, qualification attachment metadata, reminders, and purchase eligibility checks. The customer module uses `/v1/pharma-oa/customers` and `/skoll/pharma-oa/customers` for customer contacts, region ownership, qualification attachment metadata, organization/owner isolation, reminders, and sales eligibility checks. Warehouse and cross-module import/export modules are covered by later F8 Work Items.
+The current employee module uses the core `/v1/pharma-oa/employees` API and integrated route `/skoll/pharma-oa/employees`. The product module uses the core `/v1/pharma-oa/products` API for drug master data, disable flow, and import validation. The supplier module uses `/v1/pharma-oa/suppliers` for supplier records, contacts, qualification attachment metadata, reminders, and purchase eligibility checks. The customer module uses `/v1/pharma-oa/customers` and `/skoll/pharma-oa/customers` for customer contacts, region ownership, qualification attachment metadata, organization/owner isolation, reminders, and sales eligibility checks. The warehouse module uses `/v1/pharma-oa/warehouses` for warehouse, area, location, temperature attributes, disable flow, and inbound/outbound movement location eligibility. Cross-module import/export modules are covered by later F8 Work Items.
 
 ## Lifecycle Smoke
 

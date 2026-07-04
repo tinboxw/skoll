@@ -186,6 +186,31 @@ permissions:
     module: pharma_oa
     name: Validate sales customer
     risk: high
+  - key: pharma_oa.warehouse.read
+    type: api
+    module: pharma_oa
+    name: Read pharma warehouses
+    risk: low
+  - key: pharma_oa.warehouse.create
+    type: api
+    module: pharma_oa
+    name: Create pharma warehouses
+    risk: medium
+  - key: pharma_oa.warehouse.update
+    type: api
+    module: pharma_oa
+    name: Update pharma warehouses
+    risk: medium
+  - key: pharma_oa.warehouse.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma warehouses
+    risk: high
+  - key: pharma_oa.warehouse.movement
+    type: api
+    module: pharma_oa
+    name: Validate warehouse movement location
+    risk: high
 api:
   routes:
     - method: GET
@@ -298,6 +323,31 @@ api:
       summary: Validate Pharma OA customer for sales
       permission: pharma_oa.customer.sales
       audit_action: pharma_oa.customer.sales
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/warehouses
+      summary: List Pharma OA warehouses
+      permission: pharma_oa.warehouse.read
+      audit_action: pharma_oa.warehouse.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouses
+      summary: Create Pharma OA warehouse
+      permission: pharma_oa.warehouse.create
+      audit_action: pharma_oa.warehouse.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/warehouses
+      summary: Update Pharma OA warehouse
+      permission: pharma_oa.warehouse.update
+      audit_action: pharma_oa.warehouse.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouses/disable
+      summary: Disable Pharma OA warehouse
+      permission: pharma_oa.warehouse.disable
+      audit_action: pharma_oa.warehouse.disable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/warehouses/movement-eligibility
+      summary: Validate Pharma OA warehouse movement location
+      permission: pharma_oa.warehouse.movement
+      audit_action: pharma_oa.warehouse.movement
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status

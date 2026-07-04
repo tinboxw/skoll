@@ -472,6 +472,97 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/pharma-oa/warehouses:
+    get:
+      summary: List Pharma OA warehouses
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [enabled, disabled]
+        - name: region
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create Pharma OA warehouse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, region, areas]
+              properties:
+                code:
+                  type: string
+                name:
+                  type: string
+                region:
+                  type: string
+                temperature:
+                  type: object
+                areas:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '201':
+          description: Created
+  /v1/pharma-oa/warehouses/{id}:
+    put:
+      summary: Update Pharma OA warehouse
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/pharma-oa/warehouses/{id}/disable:
+    post:
+      summary: Disable Pharma OA warehouse
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/pharma-oa/warehouses/{id}/movement-eligibility:
+    get:
+      summary: Validate Pharma OA warehouse movement location
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: areaId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: locationId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
   /v1/users:
     get:
       summary: List users

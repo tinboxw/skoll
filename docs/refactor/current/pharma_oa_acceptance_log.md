@@ -1280,3 +1280,66 @@ Notes:
 ### Next Step
 
 - Claim `F8-06` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F8-06 Implement Warehouse And Location
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/warehouse.go`
+- `internal/service/pharmaoa/warehouse_service.go`
+- `internal/service/pharmaoa/warehouse_service_test.go`
+- `internal/handler/http/v1/pharmaoa/warehouse_handler.go`
+- `internal/handler/http/v1/pharmaoa/warehouse_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Warehouse records | Passed | `Warehouse` domain and `WarehouseService` create/list/update/disable records with code, name, region, status, audit metadata, and nested areas/locations |
+| Area and location records | Passed | Domain normalization validates area/location IDs, codes, names, status values, and duplicate IDs/codes |
+| Temperature attributes | Passed | Warehouse, area, and location temperature attributes normalize non-controlled storage and reject controlled ranges where `minCelsius` exceeds `maxCelsius` |
+| Inbound/outbound selection guard | Passed | `ValidateMovementLocation` and `/v1/pharma-oa/warehouses/{id}/movement-eligibility` allow only enabled warehouses, enabled areas, and enabled locations |
+| API/OpenAPI | Passed | Warehouse list/create/update/disable/movement-eligibility routes are registered and synced in both `internal/handler/http/openapi.yaml` and `docs/api/openapi.yaml` |
+| Permissions | Passed | Warehouse read/create/update/disable/movement permissions are registered in HTTP startup and declared in the plugin manifest |
+| Audit | Passed | Warehouse create/update/disable append audit records with resource `pharma_oa_warehouse`; plugin lifecycle audit counts include warehouse route and permission metadata |
+| Plugin lifecycle impact | Passed | Manifest test validates install preflight, enable, disable, permission catalog, route registry, audit action counts, and duplicate-install failure state after warehouse additions |
+| Migration and seed impact | Passed | No database migration is added for this work item; warehouse management is an in-memory vertical slice; demo seed remains manifest-only until F12 data work |
+| Frontend impact | Passed | No frontend route/page was changed in F8-06; frontend build was not required by the work item and no static UI was introduced |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+codegraph sync .
+```
+
+Result: Passed.
+
+### Failure And Retry
+
+- None.
+
+Notes:
+
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F8-07` from `docs/refactor/current/pharma_oa_work_items.md`.

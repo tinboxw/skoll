@@ -33,29 +33,30 @@ import (
 const defaultAPIPrefix = config.DefaultAPIBasePrefix
 
 type Dependencies struct {
-	UserService           user.Service
-	RoleService           role.Service
-	RBACService           rbac.Service
-	AuditService          audit.Service
-	AuditEventService     audit.EventService
-	FileService           filesvc.Service
-	SystemService         system.Service
-	PermissionService     permission.Service
-	PharmaEmployeeService pharmaoasvc.EmployeeService
-	PharmaProductService  pharmaoasvc.ProductService
-	PharmaSupplierService pharmaoasvc.SupplierService
-	PharmaCustomerService pharmaoasvc.CustomerService
-	MenuService           menu.Service
-	WorkflowService       workflow.Service
-	PluginManager         plugin.Manager
-	APIPrefix             string
-	LogLevel              string
-	LogDir                string
-	LogFile               string
-	LogPluginPerFile      bool
-	DevPortalEnabled      bool
-	DevPortalRoot         string
-	DevPortalRoots        []string
+	UserService            user.Service
+	RoleService            role.Service
+	RBACService            rbac.Service
+	AuditService           audit.Service
+	AuditEventService      audit.EventService
+	FileService            filesvc.Service
+	SystemService          system.Service
+	PermissionService      permission.Service
+	PharmaEmployeeService  pharmaoasvc.EmployeeService
+	PharmaProductService   pharmaoasvc.ProductService
+	PharmaSupplierService  pharmaoasvc.SupplierService
+	PharmaCustomerService  pharmaoasvc.CustomerService
+	PharmaWarehouseService pharmaoasvc.WarehouseService
+	MenuService            menu.Service
+	WorkflowService        workflow.Service
+	PluginManager          plugin.Manager
+	APIPrefix              string
+	LogLevel               string
+	LogDir                 string
+	LogFile                string
+	LogPluginPerFile       bool
+	DevPortalEnabled       bool
+	DevPortalRoot          string
+	DevPortalRoots         []string
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -88,10 +89,12 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterProductRoutes(apiMux, deps.PharmaProductService)
 	pharmaoahttp.RegisterSupplierRoutes(apiMux, deps.PharmaSupplierService)
 	pharmaoahttp.RegisterCustomerRoutes(apiMux, deps.PharmaCustomerService)
+	pharmaoahttp.RegisterWarehouseRoutes(apiMux, deps.PharmaWarehouseService)
 	_ = pharmaoahttp.RegisterEmployeePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterProductPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterSupplierPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterCustomerPermissions(deps.PermissionService)
+	_ = pharmaoahttp.RegisterWarehousePermissions(deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)
