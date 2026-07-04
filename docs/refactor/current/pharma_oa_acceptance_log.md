@@ -180,3 +180,52 @@ Notes:
 ### Next Step
 
 - Claim `F6-03` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F6-03: Implement Plugin Host SDK
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/plugin/host_context.go`
+- `internal/plugin/host_context_test.go`
+- `web/src/plugins/host-sdk.ts`
+- `web/src/plugins/index.ts`
+- `web/src/plugins/README.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Backend PluginContext | Passed | `NewPluginContext` exposes plugin identity, API prefix, locale set, issued time, default capabilities, and endpoint contracts |
+| Host capabilities | Passed | Context and frontend SDK cover `auth`, `user`, `organization`, `dictionary`, `file`, `audit`, `config`, and `permission` |
+| Current API contracts | Passed | SDK and context use existing `/v1/auth/me`, `/v1/system/settings`, `/v1/system/dictionaries`, `/v1/files`, `/v1/audit`, `/v1/plugins/{id}/config`, and `/v1/permissions` paths |
+| Frontend injection | Passed | Remote plugin pages and app-home plugin pages receive `window.__SKOLL_HOST__` with the real plugin ID, current locale, token, API prefix, and theme bridge |
+| SDK usage sample | Passed | `web/src/plugins/README.md` documents the injected Host SDK and sample calls |
+| API/OpenAPI impact | Passed | No new HTTP endpoint was added; OpenAPI remains unchanged because all SDK calls target existing current contracts |
+| Permission, audit, migration impact | Passed | No new permission seed, audit action, database table, migration, or seed data is introduced in this Work Item |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/...
+cd web; npm run typecheck
+cd web; npm run build
+git diff --check
+```
+
+Result: Passed.
+
+Notes:
+
+- `npm run build` still prints the known Sass legacy JS API and VueUse/Rollup annotation warnings, then exits successfully.
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+
+### Next Step
+
+- Claim `F6-04` from `docs/refactor/current/pharma_oa_work_items.md`.

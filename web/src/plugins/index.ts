@@ -8,6 +8,7 @@ import { useThemeStore, type ThemeBridgePayload } from "../stores/theme";
 import { getToken } from "../utils/auth";
 import { API_BASE_PREFIX } from "../utils/api-base-prefix";
 import { builtinAuthPlugin } from "./builtin/auth";
+import { buildPluginHostBridgeScript } from "./host-sdk";
 import type { BackendPluginRecord, FrontendPlugin, FrontendPluginManifest } from "./types";
 
 type PluginStore = ReturnType<typeof usePluginStore>;
@@ -49,8 +50,15 @@ function resolveActiveLocale(hostLocale: string, pluginLocales: string[]): strin
 	return pluginLocales[0] || "zh-CN";
 }
 
-function injectHostBridgeScript(content: string, activeLocale: string, pluginLocales: string[], authToken: string, theme: ThemeBridgePayload): string {
-	const bridgeScript = `<script>(function(){var active=${JSON.stringify(activeLocale)};var locales=${JSON.stringify(pluginLocales)};var token=${JSON.stringify(authToken)};var theme=${JSON.stringify(theme)};function applyTheme(nextTheme){theme=nextTheme||theme;if(window.__SKOLL_PLUGIN_CONTEXT){window.__SKOLL_PLUGIN_CONTEXT.theme=theme;}window.__SKOLL_THEME=theme;if(document&&document.documentElement){document.documentElement.setAttribute('data-theme',theme.colorScheme||'light');document.documentElement.setAttribute('data-theme-mode',theme.mode||'light');document.documentElement.setAttribute('data-density',theme.density||'comfortable');document.documentElement.style.colorScheme=theme.colorScheme||'light';var tokens=theme.tokens||{};Object.keys(tokens).forEach(function(key){document.documentElement.style.setProperty(key,tokens[key]);});}window.dispatchEvent(new CustomEvent('skoll:theme',{detail:theme}));}window.__SKOLL_LOCALE=active;window.__SKOLL_LOCALES=locales;window.__SKOLL_TOKEN=token;window.__SKOLL_PLUGIN_CONTEXT={locale:active,locales:locales,token:token,theme:theme};if(document&&document.documentElement){document.documentElement.setAttribute('lang',active);}applyTheme(theme);window.dispatchEvent(new CustomEvent('skoll:locale',{detail:{locale:active,locales:locales}}));window.addEventListener('message',function(event){var data=event&&event.data;if(!data){return;}if(data.type==='skoll:locale'){var nextLocale=String(data.locale||'').trim()||active;var nextLocales=Array.isArray(data.locales)?data.locales:locales;window.__SKOLL_LOCALE=nextLocale;window.__SKOLL_LOCALES=nextLocales;window.__SKOLL_PLUGIN_CONTEXT={locale:nextLocale,locales:nextLocales,token:token,theme:theme};if(document&&document.documentElement){document.documentElement.setAttribute('lang',nextLocale);}window.dispatchEvent(new CustomEvent('skoll:locale',{detail:{locale:nextLocale,locales:nextLocales}}));return;}if(data.type==='skoll:theme'){applyTheme(data.theme);}});})();</script>`;
+function injectHostBridgeScript(content: string, pluginId: string, activeLocale: string, pluginLocales: string[], authToken: string, theme: ThemeBridgePayload): string {
+	const bridgeScript = buildPluginHostBridgeScript({
+		pluginId,
+		apiBasePrefix: API_BASE_PREFIX,
+		locale: activeLocale,
+		locales: pluginLocales,
+		token: authToken,
+		theme
+	});
 	if (/<head>/i.test(content)) {
 		return content.replace(/<head>/i, `<head>\n${bridgeScript}`);
 	}
@@ -285,7 +293,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 				const absoluteAssetsBase = `${absoluteBasePath}assets/`;
 				const authToken = getToken().trim();
 				let patched = content;
-				patched = injectHostBridgeScript(patched, resolvedLocale.value, pluginLocales, authToken, bridgeTheme.value);
+				patched = injectHostBridgeScript(patched, record.id, resolvedLocale.value, pluginLocales, authToken, bridgeTheme.value);
 				if (!/<base\s+/i.test(patched)) {
 					patched = patched.replace(/<head>/i, `<head>\n<base href="${absoluteBasePath}">`);
 				}
@@ -417,7 +425,7 @@ function createAppHomeView(appId: string, store: PluginStore) {
 				const absoluteAssetsBase = `${absoluteBasePath}assets/`;
 				const authToken = getToken().trim();
 				let patched = content;
-				patched = injectHostBridgeScript(patched, resolvedLocale.value, pluginLocales.value, authToken, bridgeTheme.value);
+				patched = injectHostBridgeScript(patched, pluginID, resolvedLocale.value, pluginLocales.value, authToken, bridgeTheme.value);
 				if (!/<base\s+/i.test(patched)) {
 					patched = patched.replace(/<head>/i, `<head>\n<base href="${absoluteBasePath}">`);
 				}
