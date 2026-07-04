@@ -3,7 +3,7 @@ import { canAccess } from "../permissions/access";
 import type { SystemMenuRecord } from "../stores/navigation";
 
 const ADMIN_BASE = "/skoll";
-const SIDEBAR_ICONS = new Set(["dashboard", "users", "roles", "permissions", "menus", "audit", "plugins", "settings", "files"]);
+const SIDEBAR_ICONS = new Set(["dashboard", "users", "roles", "permissions", "menus", "audit", "plugins", "settings", "files", "workflow"]);
 
 export type SidebarItem = {
 	label: string;
@@ -35,6 +35,7 @@ const SYSTEM_MENU: Array<Omit<SidebarItem, "label" | "source"> & { labelKey: str
 	{ labelKey: "menu.organization", to: `${ADMIN_BASE}/organization`, icon: "users", order: 48, requiredPermissions: ["org.read"] },
 	{ labelKey: "menu.files", to: `${ADMIN_BASE}/files`, icon: "files", order: 49 },
 	{ labelKey: "menu.audit", to: `${ADMIN_BASE}/audit`, icon: "audit", order: 50, requiredPermissions: ["audit.read"] },
+	{ labelKey: "menu.workflow", to: `${ADMIN_BASE}/workflow`, icon: "workflow", order: 55 },
 	{ labelKey: "menu.plugins", to: `${ADMIN_BASE}/plugin`, icon: "plugins", order: 60, requiredPermissions: ["plugin.read"] },
 	{ labelKey: "menu.settings", to: `${ADMIN_BASE}/setting`, icon: "settings", order: 70, requiredPermissions: ["system.manage"] }
 ];

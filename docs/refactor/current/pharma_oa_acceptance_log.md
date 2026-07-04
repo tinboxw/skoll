@@ -572,3 +572,76 @@ Notes:
 ### Next Step
 
 - Claim `F7-03` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F7-03: Implement Workflow UI
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `web/src/workflow/api.ts`
+- `web/src/views/Workflow/index.vue`
+- `web/src/router/index.ts`
+- `web/src/navigation/menu.ts`
+- `web/src/components/Layout/Sidebar.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Workflow API client | Passed | Added typed frontend client for definition create/publish, instance start/get, approve, reject, withdraw, transfer, and copy |
+| Workflow list views | Passed | Workflow page provides pending, approved, initiated-by-me, and copied-to-me summary filters over locally tracked instances refreshed from API |
+| Launch page | Passed | Launch dialog initializes the demo definition, starts an instance through F7-02 API, and records it in the local workflow index |
+| Approval page | Passed | Row actions open approve/reject dialogs for assigned pending tasks and update instance state through API |
+| Timeline drawer | Passed | Detail drawer shows timeline entries and exposes transfer, copy, and withdraw actions |
+| Required UI states | Passed | Browser smoke covered empty, API error, no-permission, saving action entry, destructive reject confirmation, successful approval, and 390px responsive layout |
+| Route/menu integration | Passed | `/skoll/workflow` route and sidebar entry are available with workflow icon and label |
+
+### Verification Commands
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+```
+
+Browser smoke result:
+
+```json
+{
+  "emptyVisible": true,
+  "launchedRows": 1,
+  "drawerVisible": true,
+  "approvedVisible": true,
+  "forbiddenVisible": true,
+  "mobileOverflowCount": 0,
+  "destructivePresent": true,
+  "errorVisible": true
+}
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial failure: `vue-tsc` rejected the page-local generic `DataTableColumn<WorkflowRow>[]` because `DataTable` exposes `DataTableColumn[]`.
+- Fix: aligned the page column definition with the shared UI Kit prop type.
+- Browser smoke found that failed instance refresh silently became an empty table when all indexed instances failed to load.
+- Fix: show the page error state when stored workflow IDs exist and none can be refreshed.
+- Retry result: Passed.
+
+Notes:
+
+- `npm run build` prints the existing Sass legacy JS API and VueUse/Rollup annotation warnings, then exits successfully.
+- Browser smoke used Playwright with local Chrome and mocked `/skoll/v1/workflows/**` responses.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F7-04` from `docs/refactor/current/pharma_oa_work_items.md`.

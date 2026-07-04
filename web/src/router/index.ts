@@ -23,6 +23,7 @@ const UserAddPage = () => import("../views/User/add.vue");
 const UserBatchPage = () => import("../views/User/batch.vue");
 const UserEditPage = () => import("../views/User/edit.vue");
 const UserListPage = () => import("../views/User/list.vue");
+const WorkflowPage = () => import("../views/Workflow/index.vue");
 
 const ADMIN_PREFIX = "/skoll";
 const ADMIN_LOGIN_PATH = `${ADMIN_PREFIX}/login`;
@@ -134,6 +135,11 @@ const routes: RouteRecordRaw[] = [
 		meta: { permissions: ["audit.read"] }
 	},
 	{
+		path: `${ADMIN_PREFIX}/workflow`,
+		name: "workflow",
+		component: WorkflowPage
+	},
+	{
 		path: `${ADMIN_PREFIX}/setting`,
 		name: "setting",
 		component: SettingPage,
@@ -225,6 +231,7 @@ function normalizeRedirectPath(raw: string): string {
 		withSlash === "/files" || withSlash.startsWith("/files/") ||
 		withSlash === "/organization" || withSlash.startsWith("/organization/") ||
 		withSlash === "/audit" || withSlash.startsWith("/audit/") ||
+		withSlash === "/workflow" || withSlash.startsWith("/workflow/") ||
 		withSlash === "/setting" || withSlash.startsWith("/setting/") ||
 		withSlash === "/profile" || withSlash.startsWith("/profile/") ||
 		withSlash === "/login" || withSlash.startsWith("/login/")
