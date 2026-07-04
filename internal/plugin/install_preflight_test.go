@@ -16,6 +16,7 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 		withSignature:  true,
 		withMigrations: true,
 		withData:       true,
+		withAPI:        true,
 	})
 
 	result, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
@@ -40,7 +41,7 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 	if result.Status != InstallPreflightStatusPass {
 		t.Fatalf("expected pass, got %+v", result)
 	}
-	if len(result.Permissions.Add) != 1 || result.Permissions.Add[0].Key != "reports.export" {
+	if len(result.Permissions.Add) != 2 || result.Permissions.Add[0].Key != "reports.export" || result.Permissions.Add[1].Key != "reports.orders.read" {
 		t.Fatalf("expected permission add diff, got %+v", result.Permissions)
 	}
 	if len(result.Menus.Add) != 1 || result.Menus.Add[0].Key != "plugin.reports" {
@@ -54,6 +55,12 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 	}
 	if result.Data.Namespace != "reports" || len(result.Data.Tables) != 1 || len(result.Data.Tables[0].Indexes) != 1 {
 		t.Fatalf("expected data contract summary, got %+v", result.Data)
+	}
+	if len(result.API.Routes) != 1 || result.API.Routes[0].Permission != "reports.orders.read" {
+		t.Fatalf("expected api contract summary, got %+v", result.API)
+	}
+	if len(result.API.AuditActions) != 1 || result.API.AuditActions[0] != "reports.orders.read" || len(result.API.OpenAPIPaths) != 1 {
+		t.Fatalf("expected api audit/openapi preview, got %+v", result.API)
 	}
 	if result.Signature.Status != "signed" {
 		t.Fatalf("expected signed status, got %+v", result.Signature)
@@ -125,6 +132,7 @@ type preflightPluginFixture struct {
 	withSignature  bool
 	withMigrations bool
 	withData       bool
+	withAPI        bool
 }
 
 func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
@@ -186,6 +194,15 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 			"      primary_key: id\n" +
 			"      columns: id, code, status\n" +
 			"      indexes: idx_reports_orders_status(status)\n"
+	}
+	if fixture.withAPI {
+		manifest += "api:\n" +
+			"  routes:\n" +
+			"    - method: GET\n" +
+			"      path: /v1/plugins/reports/api/orders\n" +
+			"      summary: List orders\n" +
+			"      permission: reports.orders.read\n" +
+			"      audit_action: reports.orders.read\n"
 	}
 	if fixture.withSignature {
 		manifest += "sign_algo: RSA-SHA256\n" +

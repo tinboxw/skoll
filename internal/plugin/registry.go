@@ -1,12 +1,17 @@
 package plugin
 
 import (
+	"strings"
 	"sync"
 )
 
 type RouteExtension struct {
-	Method string
-	Path   string
+	Method      string
+	Path        string
+	Summary     string
+	Permission  string
+	AuditAction string
+	Source      string
 }
 
 type MenuExtension struct {
@@ -59,6 +64,8 @@ func NewMemoryRegistry() *MemoryRegistry {
 func (r *MemoryRegistry) RegisterRoute(route RouteExtension) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	route.Method = strings.ToUpper(strings.TrimSpace(route.Method))
+	route.Path = NormalizeEntryPath(route.Path)
 	r.routes = append(r.routes, route)
 }
 

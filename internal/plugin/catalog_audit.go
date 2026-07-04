@@ -1,11 +1,13 @@
 package plugin
 
 type CatalogAuditEvent struct {
-	PluginID    string
-	Action      string
-	Result      string
-	Permissions int
-	Menus       int
+	PluginID     string
+	Action       string
+	Result       string
+	Permissions  int
+	Menus        int
+	Routes       int
+	AuditActions int
 }
 
 type CatalogAuditSink interface {

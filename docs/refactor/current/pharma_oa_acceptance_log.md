@@ -283,3 +283,66 @@ Notes:
 ### Next Step
 
 - Claim `F6-05` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F6-05: Implement Plugin API/OpenAPI Contract
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/plugin/types.go`
+- `internal/plugin/loader.go`
+- `internal/plugin/catalog.go`
+- `internal/plugin/registry.go`
+- `internal/plugin/manager.go`
+- `internal/plugin/catalog_audit.go`
+- `internal/plugin/install_preflight.go`
+- `internal/plugin/local_marketplace.go`
+- `internal/plugin/README.md`
+- `internal/plugin/*_test.go`
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Route registry | Passed | `Info.RouteExtensions()` converts `api.routes` into `RouteExtension`; `RuntimeManager` can import plugin routes into `ExtensionRegistry` on enable |
+| Manifest API contract | Passed | `api.routes` supports method, path, summary, permission, and audit action |
+| Namespace rules | Passed | Plugin API paths must stay under `/v1/plugins/{pluginId}/api/` |
+| Permission binding | Passed | API route permissions enter `CatalogPermissions()` and install preflight permission diff |
+| Audit action declaration | Passed | Route audit actions are validated with `module.resource.action` and exposed through `AuditActions()` |
+| OpenAPI aggregation preview | Passed | Install preflight exposes `api.openapiPaths`; OpenAPI schemas document the `api` response block |
+| OpenAPI sync | Passed | `docs/api/openapi.yaml` and `internal/handler/http/openapi.yaml` are identical |
+| Permission, audit, migration/seed impact | Passed | No new seed or core migration; existing plugin catalog audit now records route/audit-action counts |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/...
+go test ./internal/handler/http/...
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check -- internal/plugin docs/api/openapi.yaml internal/handler/http/openapi.yaml docs/refactor/current/pharma_oa_work_items.md
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial failure: `TestInstallPreflightServicePassesWithCompleteImpactSummary` expected one permission add; API route permission correctly added a second permission.
+- Fix: updated the test assertion to expect both manifest permission and API route permission.
+- Retry result: Passed.
+
+Notes:
+
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+- `docs/refactor/old/` was not updated.
+
+### Next Step
+
+- Claim `F6-06` from `docs/refactor/current/pharma_oa_work_items.md`.

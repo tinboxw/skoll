@@ -3020,6 +3020,18 @@ components:
           type: array
           items:
             type: string
+        data:
+          type: array
+          items:
+            type: string
+        apis:
+          type: array
+          items:
+            type: string
+        audit:
+          type: array
+          items:
+            type: string
         network:
           type: array
           items:
@@ -3105,6 +3117,8 @@ components:
                 - menus
                 - config
                 - resources
+                - data
+                - api
                 - migration
                 - signature
                 - risk
@@ -3130,6 +3144,56 @@ components:
                   type: object
                 resources:
                   type: object
+                data:
+                  type: object
+                  properties:
+                    namespace:
+                      type: string
+                    migrationVersion:
+                      type: string
+                    migrationDirectory:
+                      type: string
+                    uninstallPolicy:
+                      type: string
+                      enum: [retain, archive, drop]
+                    rollbackPolicy:
+                      type: string
+                      enum: [manual, automatic, none]
+                    tables:
+                      type: array
+                      items:
+                        type: object
+                api:
+                  type: object
+                  properties:
+                    routes:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          method:
+                            type: string
+                            enum: [GET, POST, PUT, PATCH, DELETE]
+                          path:
+                            type: string
+                          summary:
+                            type: string
+                          permission:
+                            type: string
+                          auditAction:
+                            type: string
+                    permissions:
+                      type: array
+                      items:
+                        type: string
+                    auditActions:
+                      type: array
+                      items:
+                        type: string
+                    openapiPaths:
+                      type: array
+                      items:
+                        type: string
                 migration:
                   type: object
                 signature:

@@ -31,6 +31,7 @@ type InstallPreflightResult struct {
 	Config      InstallPreflightConfig       `json:"config"`
 	Resources   InstallPreflightResources    `json:"resources"`
 	Data        InstallPreflightData         `json:"data"`
+	API         InstallPreflightAPI          `json:"api"`
 	Migration   InstallPreflightMigration    `json:"migration"`
 	Signature   InstallPreflightSignature    `json:"signature"`
 	Risk        InstallPreflightRisk         `json:"risk"`
@@ -115,6 +116,21 @@ type InstallPreflightDataIndex struct {
 	Unique  bool     `json:"unique,omitempty"`
 }
 
+type InstallPreflightAPI struct {
+	Routes       []InstallPreflightAPIRoute `json:"routes,omitempty"`
+	Permissions  []string                   `json:"permissions,omitempty"`
+	AuditActions []string                   `json:"auditActions,omitempty"`
+	OpenAPIPaths []string                   `json:"openapiPaths,omitempty"`
+}
+
+type InstallPreflightAPIRoute struct {
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Summary     string `json:"summary,omitempty"`
+	Permission  string `json:"permission"`
+	AuditAction string `json:"auditAction,omitempty"`
+}
+
 type InstallPreflightMigration struct {
 	Version string                          `json:"version,omitempty"`
 	Pending []InstallPreflightMigrationStep `json:"pending,omitempty"`
@@ -172,6 +188,7 @@ func (s *InstallPreflightService) Check(in InstallPreflightInput) (InstallPrefli
 		Config:      buildInstallPreflightConfig(info),
 		Resources:   buildInstallPreflightResources(info),
 		Data:        buildInstallPreflightData(info),
+		API:         buildInstallPreflightAPI(info),
 		Migration:   buildInstallPreflightMigration(info, source),
 		Signature:   buildInstallPreflightSignature(info),
 	}
@@ -356,6 +373,47 @@ func buildInstallPreflightData(info Info) InstallPreflightData {
 	return out
 }
 
+func buildInstallPreflightAPI(info Info) InstallPreflightAPI {
+	if info.APIContract == nil {
+		return InstallPreflightAPI{}
+	}
+	out := InstallPreflightAPI{
+		Routes:       make([]InstallPreflightAPIRoute, 0, len(info.APIContract.Routes)),
+		Permissions:  make([]string, 0, len(info.APIContract.Routes)),
+		AuditActions: info.AuditActions(),
+		OpenAPIPaths: make([]string, 0, len(info.APIContract.Routes)),
+	}
+	permissionSet := map[string]struct{}{}
+	pathSet := map[string]struct{}{}
+	for _, route := range info.APIContract.Routes {
+		method := strings.ToUpper(strings.TrimSpace(route.Method))
+		path := NormalizeEntryPath(route.Path)
+		permission := strings.TrimSpace(strings.ToLower(route.Permission))
+		out.Routes = append(out.Routes, InstallPreflightAPIRoute{
+			Method:      method,
+			Path:        path,
+			Summary:     strings.TrimSpace(route.Summary),
+			Permission:  permission,
+			AuditAction: strings.TrimSpace(strings.ToLower(route.AuditAction)),
+		})
+		if permission != "" {
+			permissionSet[permission] = struct{}{}
+		}
+		if path != "" {
+			pathSet[path] = struct{}{}
+		}
+	}
+	for permission := range permissionSet {
+		out.Permissions = append(out.Permissions, permission)
+	}
+	for path := range pathSet {
+		out.OpenAPIPaths = append(out.OpenAPIPaths, path)
+	}
+	sort.Strings(out.Permissions)
+	sort.Strings(out.OpenAPIPaths)
+	return out
+}
+
 func buildInstallPreflightMigration(info Info, source string) InstallPreflightMigration {
 	out := InstallPreflightMigration{Version: strings.TrimSpace(info.MigrationVersion)}
 	if out.Version == "" {
@@ -426,6 +484,15 @@ func buildInstallPreflightRisk(result InstallPreflightResult) InstallPreflightRi
 	if result.Data.UninstallPolicy == string(DataUninstallDrop) {
 		rank = 3
 		summary = append(summary, "destructive uninstall policy")
+	}
+	if len(result.API.Routes) > 0 {
+		if rank < 1 {
+			rank = 1
+		}
+		summary = append(summary, "plugin api contract")
+	}
+	if len(result.API.AuditActions) > 0 {
+		summary = append(summary, "audit actions")
 	}
 	if result.Resources.ServiceBaseURL != "" || result.Resources.ServiceHealthURL != "" {
 		if rank < 2 {

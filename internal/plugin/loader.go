@@ -30,6 +30,8 @@ const (
 	sectionConfigOptions     = "config_schema_options"
 	sectionData              = "data"
 	sectionDataTables        = "data_tables"
+	sectionAPI               = "api"
+	sectionAPIRoutes         = "api_routes"
 )
 
 func NewFileLoader() *FileLoader {
@@ -89,6 +91,7 @@ func parseManifest(raw []byte) (Info, error) {
 	var currentConfigField *ConfigField
 	var currentConfigOption *ConfigOption
 	var currentDataTable *DataTable
+	var currentAPIRoute *APIRoute
 
 	flushPermission := func() {
 		if currentPermission == nil {
@@ -126,6 +129,16 @@ func parseManifest(raw []byte) (Info, error) {
 		}
 		info.DataManifest.Tables = append(info.DataManifest.Tables, *currentDataTable)
 		currentDataTable = nil
+	}
+	flushAPIRoute := func() {
+		if currentAPIRoute == nil {
+			return
+		}
+		if info.APIContract == nil {
+			info.APIContract = &APIContract{}
+		}
+		info.APIContract.Routes = append(info.APIContract.Routes, *currentAPIRoute)
+		currentAPIRoute = nil
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(string(raw)))
@@ -184,10 +197,22 @@ func parseManifest(raw []byte) (Info, error) {
 			flushPermission()
 			flushConfigField()
 			flushDataTable()
+			flushAPIRoute()
 			if info.DataManifest == nil {
 				info.DataManifest = &DataManifest{}
 			}
 			section = sectionData
+			continue
+		case "api:":
+			flushDependency()
+			flushPermission()
+			flushConfigField()
+			flushDataTable()
+			flushAPIRoute()
+			if info.APIContract == nil {
+				info.APIContract = &APIContract{}
+			}
+			section = sectionAPI
 			continue
 		}
 
@@ -271,6 +296,14 @@ func parseManifest(raw []byte) (Info, error) {
 				} else {
 					currentDataTable.Name = parseScalar(item)
 				}
+			case sectionAPIRoutes:
+				flushAPIRoute()
+				currentAPIRoute = &APIRoute{}
+				if strings.HasPrefix(item, "method:") {
+					currentAPIRoute.Method = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "method:")))
+				} else {
+					currentAPIRoute.Method = parseScalar(item)
+				}
 			}
 			continue
 		}
@@ -314,6 +347,15 @@ func parseManifest(raw []byte) (Info, error) {
 			}
 			if isTopLevel {
 				flushDataTable()
+				section = sectionRoot
+			}
+		}
+		if section == sectionAPI || section == sectionAPIRoutes {
+			if !isTopLevel && applyAPIContractField(info.APIContract, currentAPIRoute, key, value, &section) {
+				continue
+			}
+			if isTopLevel {
+				flushAPIRoute()
 				section = sectionRoot
 			}
 		}
@@ -418,6 +460,7 @@ func parseManifest(raw []byte) (Info, error) {
 	flushPermission()
 	flushConfigField()
 	flushDataTable()
+	flushAPIRoute()
 	if info.UIMode == "" {
 		info.UIMode = UIModeBackendOnly
 	}
@@ -444,6 +487,7 @@ func parseManifest(raw []byte) (Info, error) {
 	}
 	normalizePermissionDeclarations(&info)
 	normalizeDataManifest(&info)
+	normalizeAPIContract(&info)
 	info.FrontendEntry = ResolveFrontendEntry(info)
 
 	return info, nil
@@ -681,6 +725,56 @@ func applyDataManifestField(data *DataManifest, table *DataTable, key, value str
 		return false
 	}
 	return true
+}
+
+func applyAPIContractField(contract *APIContract, route *APIRoute, key, value string, section *string) bool {
+	if contract == nil {
+		return false
+	}
+	switch *section {
+	case sectionAPI:
+		switch key {
+		case "routes":
+			*section = sectionAPIRoutes
+		default:
+			return false
+		}
+	case sectionAPIRoutes:
+		if route == nil {
+			return false
+		}
+		switch key {
+		case "method":
+			route.Method = value
+		case "path":
+			route.Path = NormalizeEntryPath(value)
+		case "summary":
+			route.Summary = value
+		case "permission":
+			route.Permission = value
+		case "audit_action":
+			route.AuditAction = value
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+	return true
+}
+
+func normalizeAPIContract(info *Info) {
+	if info == nil || info.APIContract == nil {
+		return
+	}
+	for i := range info.APIContract.Routes {
+		route := &info.APIContract.Routes[i]
+		route.Method = strings.ToUpper(strings.TrimSpace(route.Method))
+		route.Path = NormalizeEntryPath(route.Path)
+		route.Summary = strings.TrimSpace(route.Summary)
+		route.Permission = strings.TrimSpace(strings.ToLower(route.Permission))
+		route.AuditAction = strings.TrimSpace(strings.ToLower(route.AuditAction))
+	}
 }
 
 func normalizeDataManifest(info *Info) {

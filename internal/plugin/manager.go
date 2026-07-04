@@ -21,6 +21,7 @@ type RuntimeManager struct {
 	loader   MetadataLoader
 	resolver DependencyResolver
 	catalog  CatalogRegistry
+	routes   ExtensionRegistry
 	audit    CatalogAuditSink
 	plugins  map[string]Info
 }
@@ -44,6 +45,12 @@ func (m *RuntimeManager) SetCatalogRegistry(registry CatalogRegistry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.catalog = registry
+}
+
+func (m *RuntimeManager) SetExtensionRegistry(registry ExtensionRegistry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.routes = registry
 }
 
 func (m *RuntimeManager) SetCatalogAuditSink(sink CatalogAuditSink) {
@@ -112,6 +119,21 @@ func (m *RuntimeManager) Enable(pluginID string) error {
 				return err
 			}
 			m.recordCatalogAudit(id, "plugin_catalog_import", "ok")
+		}
+	}
+	if m.routes != nil {
+		for _, id := range order {
+			routes, err := m.plugins[id].RouteExtensions()
+			if err != nil {
+				m.recordCatalogAudit(id, "plugin_route_import", "failed")
+				return err
+			}
+			for _, route := range routes {
+				m.routes.RegisterRoute(route)
+			}
+			if len(routes) > 0 {
+				m.recordCatalogAudit(id, "plugin_route_import", "ok")
+			}
 		}
 	}
 
@@ -185,12 +207,15 @@ func (m *RuntimeManager) recordCatalogAudit(pluginID, action, result string) {
 	}
 	permissions, _ := info.CatalogPermissions()
 	menus, _ := info.MenuNodes()
+	routes, _ := info.RouteExtensions()
 	_ = m.audit.RecordPluginCatalogEvent(CatalogAuditEvent{
-		PluginID:    pluginID,
-		Action:      action,
-		Result:      result,
-		Permissions: len(permissions),
-		Menus:       len(menus),
+		PluginID:     pluginID,
+		Action:       action,
+		Result:       result,
+		Permissions:  len(permissions),
+		Menus:        len(menus),
+		Routes:       len(routes),
+		AuditActions: len(info.AuditActions()),
 	})
 }
 

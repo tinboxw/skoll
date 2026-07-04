@@ -41,6 +41,13 @@ data:
       primary_key: id
       columns: id, code
       indexes: idx_demo_exports_code(code)
+api:
+  routes:
+    - method: GET
+      path: /v1/plugins/demo/api/exports
+      summary: List demo exports
+      permission: demo.exports.read
+      audit_action: demo.exports.read
 `)
 	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), manifest, 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
@@ -76,6 +83,9 @@ data:
 	}
 	if len(item.Risk.Data) == 0 {
 		t.Fatalf("expected data risk summary, got %+v", item.Risk)
+	}
+	if len(item.Risk.APIs) == 0 || len(item.Risk.Audit) == 0 {
+		t.Fatalf("expected api and audit risk summary, got %+v", item.Risk)
 	}
 }
 

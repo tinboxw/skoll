@@ -43,6 +43,19 @@ data:
 
 当前卸载策略为 `retain`、`archive`、`drop`；回滚策略为 `manual`、`automatic`、`none`。`drop` 会被安装预检标记为高风险/破坏性策略。
 
+## API Contract
+业务插件如果暴露后端 API，必须在 `api.routes` 中声明当前契约。路径必须位于 `/v1/plugins/{pluginId}/api/` 下，每条 route 必须绑定权限；审计动作使用 `module.resource.action` 格式。安装预检会展示 route、permission、audit action 和 OpenAPI path 预览。
+
+```yaml
+api:
+  routes:
+    - method: GET
+      path: /v1/plugins/pharma-oa/api/products
+      summary: List pharma products
+      permission: pharma-oa.products.read
+      audit_action: pharma_oa.products.read
+```
+
 ## 后续待补充实现
 - [ ] 完善插件包校验（签名/哈希）与版本约束匹配。
 - [ ] 对接 CLI 与 HTTP 管理接口。

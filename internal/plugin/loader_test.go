@@ -77,6 +77,13 @@ data:
       primary_key: "id"
       columns: "id, report_code, status"
       indexes: "unique idx_sample_plugin_reports_code(report_code); idx_sample_plugin_reports_status(status)"
+api:
+  routes:
+    - method: "GET"
+      path: "/v1/plugins/sample-plugin/api/reports"
+      summary: "List reports"
+      permission: "sample-plugin.reports.read"
+      audit_action: "sample_plugin.reports.read"
 i18n_locales:
 	- "zh-CN"
 	- "en-US"
@@ -190,6 +197,12 @@ frontend_entry: "/plugins/sample-plugin"
 	}
 	if len(info.DataManifest.Tables[0].Indexes) != 2 || !info.DataManifest.Tables[0].Indexes[0].Unique {
 		t.Fatalf("unexpected data indexes: %+v", info.DataManifest.Tables[0].Indexes)
+	}
+	if info.APIContract == nil || len(info.APIContract.Routes) != 1 {
+		t.Fatalf("expected api contract parsed, got %+v", info.APIContract)
+	}
+	if info.APIContract.Routes[0].Method != "GET" || info.APIContract.Routes[0].Permission != "sample-plugin.reports.read" {
+		t.Fatalf("unexpected api route: %+v", info.APIContract.Routes[0])
 	}
 }
 
@@ -308,6 +321,46 @@ func TestFileLoaderRejectsInvalidDataManifest(t *testing.T) {
 name: "Bad Plugin"
 version: "1.0.0"
 ` + dataBlock
+			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+				t.Fatalf("write manifest: %v", err)
+			}
+			if _, err := NewFileLoader().Load(dir); err == nil {
+				t.Fatal("expected manifest validation error")
+			}
+		})
+	}
+}
+
+func TestFileLoaderRejectsInvalidAPIContract(t *testing.T) {
+	cases := map[string]string{
+		"route outside plugin namespace": `api:
+  routes:
+    - method: "GET"
+      path: "/v1/users"
+      permission: "bad-plugin.users.read"
+`,
+		"invalid method": `api:
+  routes:
+    - method: "TRACE"
+      path: "/v1/plugins/bad-plugin/api/users"
+      permission: "bad-plugin.users.read"
+`,
+		"invalid audit action": `api:
+  routes:
+    - method: "GET"
+      path: "/v1/plugins/bad-plugin/api/users"
+      permission: "bad-plugin.users.read"
+      audit_action: "bad"
+`,
+	}
+
+	for name, apiBlock := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			manifest := `id: "bad-plugin"
+name: "Bad Plugin"
+version: "1.0.0"
+` + apiBlock
 			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
 				t.Fatalf("write manifest: %v", err)
 			}

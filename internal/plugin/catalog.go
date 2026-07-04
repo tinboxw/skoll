@@ -164,6 +164,7 @@ func (i Info) CatalogPermissions() ([]domainpermission.PermissionResource, error
 			declarations = append(declarations, PermissionDeclaration{Key: key})
 		}
 	}
+	declarations = append(declarations, i.apiPermissionDeclarations()...)
 	source := strings.TrimSpace(strings.ToLower(i.ID))
 	if source == "" {
 		return nil, ErrPluginManifestBroken
@@ -183,4 +184,72 @@ func (i Info) CatalogPermissions() ([]domainpermission.PermissionResource, error
 		out = append(out, resource)
 	}
 	return out, nil
+}
+
+func (i Info) RouteExtensions() ([]RouteExtension, error) {
+	if i.APIContract == nil {
+		return []RouteExtension{}, nil
+	}
+	source := strings.TrimSpace(strings.ToLower(i.ID))
+	if source == "" {
+		return nil, ErrPluginManifestBroken
+	}
+	out := make([]RouteExtension, 0, len(i.APIContract.Routes))
+	for _, route := range i.APIContract.Routes {
+		out = append(out, RouteExtension{
+			Method:      strings.ToUpper(strings.TrimSpace(route.Method)),
+			Path:        NormalizeEntryPath(route.Path),
+			Summary:     strings.TrimSpace(route.Summary),
+			Permission:  strings.TrimSpace(strings.ToLower(route.Permission)),
+			AuditAction: strings.TrimSpace(strings.ToLower(route.AuditAction)),
+			Source:      fmt.Sprintf("plugin.%s", source),
+		})
+	}
+	return out, nil
+}
+
+func (i Info) AuditActions() []string {
+	if i.APIContract == nil {
+		return []string{}
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(i.APIContract.Routes))
+	for _, route := range i.APIContract.Routes {
+		action := strings.TrimSpace(strings.ToLower(route.AuditAction))
+		if action == "" {
+			continue
+		}
+		if _, ok := seen[action]; ok {
+			continue
+		}
+		seen[action] = struct{}{}
+		out = append(out, action)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (i Info) apiPermissionDeclarations() []PermissionDeclaration {
+	if i.APIContract == nil {
+		return nil
+	}
+	out := make([]PermissionDeclaration, 0, len(i.APIContract.Routes))
+	for _, route := range i.APIContract.Routes {
+		key := strings.TrimSpace(strings.ToLower(route.Permission))
+		if key == "" {
+			continue
+		}
+		out = append(out, PermissionDeclaration{
+			Key:    key,
+			Type:   "api",
+			Module: inferPermissionModule(key),
+			Name:   strings.TrimSpace(route.Summary),
+			Risk:   "medium",
+			Metadata: map[string]string{
+				"method": strings.ToUpper(strings.TrimSpace(route.Method)),
+				"path":   NormalizeEntryPath(route.Path),
+			},
+		})
+	}
+	return out
 }

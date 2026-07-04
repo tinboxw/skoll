@@ -287,3 +287,43 @@ func TestInfoValidateManifestDataContract(t *testing.T) {
 		t.Fatal("expected validation error for index column outside table columns")
 	}
 }
+
+func TestInfoValidateManifestAPIContract(t *testing.T) {
+	valid := Info{
+		ID:      "reports",
+		Name:    "Reports",
+		Version: "1.0.0",
+		APIContract: &APIContract{
+			Routes: []APIRoute{
+				{
+					Method:      "GET",
+					Path:        "/v1/plugins/reports/api/orders",
+					Summary:     "List orders",
+					Permission:  "reports.orders.read",
+					AuditAction: "reports.orders.read",
+				},
+			},
+		},
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid api contract, got %v", err)
+	}
+
+	outsideNamespace := valid
+	outsideNamespace.APIContract = &APIContract{Routes: []APIRoute{{Method: "GET", Path: "/v1/orders", Permission: "reports.orders.read"}}}
+	if err := outsideNamespace.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for route outside plugin api namespace")
+	}
+
+	invalidPermission := valid
+	invalidPermission.APIContract = &APIContract{Routes: []APIRoute{{Method: "GET", Path: "/v1/plugins/reports/api/orders", Permission: ""}}}
+	if err := invalidPermission.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for missing route permission")
+	}
+
+	invalidAudit := valid
+	invalidAudit.APIContract = &APIContract{Routes: []APIRoute{{Method: "GET", Path: "/v1/plugins/reports/api/orders", Permission: "reports.orders.read", AuditAction: "reports.read"}}}
+	if err := invalidAudit.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for invalid audit action")
+	}
+}

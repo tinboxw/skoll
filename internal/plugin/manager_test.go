@@ -142,14 +142,23 @@ ui_menu:
   path: "/skoll/plugins/reports"
   required_permissions:
     - "reports.read"
+api:
+  routes:
+    - method: "GET"
+      path: "/v1/plugins/reports/api/items"
+      summary: "List report items"
+      permission: "reports.items.read"
+      audit_action: "reports.items.read"
 `
 	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
 
 	catalog := NewMemoryCatalogRegistry()
+	routes := NewMemoryRegistry()
 	m := NewRuntimeManager(NewFileLoader(), NewTopologicalResolver())
 	m.SetCatalogRegistry(catalog)
+	m.SetExtensionRegistry(routes)
 	if _, err := m.Install(pluginDir); err != nil {
 		t.Fatalf("install plugin failed: %v", err)
 	}
@@ -158,19 +167,23 @@ ui_menu:
 	}
 
 	permissions := catalog.ListPermissions()
-	if len(permissions) != 1 || permissions[0].Key() != "reports.read" || permissions[0].Source() != "plugin.reports" {
+	if len(permissions) != 2 || permissions[0].Source() != "plugin.reports" || permissions[1].Source() != "plugin.reports" {
 		t.Fatalf("unexpected imported permissions: %+v", permissions)
 	}
 	menus := catalog.ListMenuNodes()
 	if len(menus) != 1 || menus[0].Key() != "plugin.reports" || menus[0].RequiredPermissions[0] != "reports.read" {
 		t.Fatalf("unexpected imported menus: %+v", menus)
 	}
+	routeSnapshot := routes.Snapshot()
+	if len(routeSnapshot.Routes) != 1 || routeSnapshot.Routes[0].Permission != "reports.items.read" || routeSnapshot.Routes[0].AuditAction != "reports.items.read" {
+		t.Fatalf("unexpected route registry snapshot: %+v", routeSnapshot.Routes)
+	}
 
 	if err := m.Disable("reports"); err != nil {
 		t.Fatalf("disable plugin failed: %v", err)
 	}
 	permissions = catalog.ListPermissions()
-	if len(permissions) != 1 || permissions[0].Enabled {
+	if len(permissions) != 2 || permissions[0].Enabled || permissions[1].Enabled {
 		t.Fatalf("expected disabled permission after disable, got %+v", permissions)
 	}
 	menus = catalog.ListMenuNodes()

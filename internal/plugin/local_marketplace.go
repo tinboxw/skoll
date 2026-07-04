@@ -46,6 +46,8 @@ type LocalMarketplaceRiskSummary struct {
 	Permissions []string `json:"permissions,omitempty"`
 	Migrations  []string `json:"migrations,omitempty"`
 	Data        []string `json:"data,omitempty"`
+	APIs        []string `json:"apis,omitempty"`
+	Audit       []string `json:"audit,omitempty"`
 	Network     []string `json:"network,omitempty"`
 	Assets      []string `json:"assets,omitempty"`
 }
@@ -189,6 +191,19 @@ func localMarketplaceRisk(info Info) LocalMarketplaceRiskSummary {
 			highest = 2
 		}
 	}
+	if info.APIContract != nil {
+		for _, route := range info.APIContract.Routes {
+			method := strings.ToUpper(strings.TrimSpace(route.Method))
+			path := NormalizeEntryPath(route.Path)
+			if method != "" && path != "" {
+				risk.APIs = append(risk.APIs, method+" "+path)
+			}
+		}
+		if len(info.APIContract.Routes) > 0 && highest < 1 {
+			highest = 1
+		}
+	}
+	risk.Audit = append(risk.Audit, info.AuditActions()...)
 	if strings.TrimSpace(info.ServiceBaseURL) != "" || strings.TrimSpace(info.ServiceHealthURL) != "" {
 		if strings.TrimSpace(info.ServiceBaseURL) != "" {
 			risk.Network = append(risk.Network, info.ServiceBaseURL)
@@ -207,6 +222,8 @@ func localMarketplaceRisk(info Info) LocalMarketplaceRiskSummary {
 	sort.Strings(risk.Permissions)
 	sort.Strings(risk.Migrations)
 	sort.Strings(risk.Data)
+	sort.Strings(risk.APIs)
+	sort.Strings(risk.Audit)
 	sort.Strings(risk.Network)
 	sort.Strings(risk.Assets)
 	return risk

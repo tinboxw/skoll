@@ -87,6 +87,7 @@ var permissionKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_:.\-]{1,127}$`)
 var permissionModulePattern = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{0,63}$`)
 var dataNamespacePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
 var dataIdentifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,127}$`)
+var auditActionPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}$`)
 
 type SignatureAlgorithm string
 
@@ -198,6 +199,18 @@ type DataIndex struct {
 	Unique  bool
 }
 
+type APIContract struct {
+	Routes []APIRoute
+}
+
+type APIRoute struct {
+	Method      string
+	Path        string
+	Summary     string
+	Permission  string
+	AuditAction string
+}
+
 type Info struct {
 	ID                  string
 	Name                string
@@ -230,6 +243,7 @@ type Info struct {
 	UIMenu              *UIMenu
 	ConfigSchema        *ConfigSchema
 	DataManifest        *DataManifest
+	APIContract         *APIContract
 	SystemBuiltin       bool
 	Vendor              string
 	VendorURL           string
@@ -398,6 +412,9 @@ func (i Info) ValidateManifest() error {
 	if err := i.ValidateDataManifest(); err != nil {
 		return err
 	}
+	if err := i.ValidateAPIContract(); err != nil {
+		return err
+	}
 
 	if mode != UIModeBackendOnly {
 		if len(i.I18nLocales) == 0 {
@@ -429,6 +446,44 @@ func (i Info) ValidateManifest() error {
 		}
 	}
 
+	return nil
+}
+
+func (i Info) ValidateAPIContract() error {
+	if i.APIContract == nil {
+		return nil
+	}
+	pluginID := strings.TrimSpace(strings.ToLower(i.ID))
+	if pluginID == "" {
+		return ErrPluginManifestBroken
+	}
+	expectedPrefix := "/v1/plugins/" + pluginID + "/api/"
+	seen := map[string]struct{}{}
+	for _, route := range i.APIContract.Routes {
+		method := strings.TrimSpace(strings.ToUpper(route.Method))
+		switch method {
+		case "GET", "POST", "PUT", "PATCH", "DELETE":
+		default:
+			return ErrPluginManifestBroken
+		}
+		path := strings.TrimSpace(route.Path)
+		if !strings.HasPrefix(path, expectedPrefix) || strings.Contains(path, "..") {
+			return ErrPluginManifestBroken
+		}
+		key := method + " " + path
+		if _, ok := seen[key]; ok {
+			return ErrPluginManifestBroken
+		}
+		seen[key] = struct{}{}
+		permission := strings.TrimSpace(strings.ToLower(route.Permission))
+		if !permissionKeyPattern.MatchString(permission) {
+			return ErrPluginManifestBroken
+		}
+		auditAction := strings.TrimSpace(strings.ToLower(route.AuditAction))
+		if auditAction != "" && !auditActionPattern.MatchString(auditAction) {
+			return ErrPluginManifestBroken
+		}
+	}
 	return nil
 }
 
