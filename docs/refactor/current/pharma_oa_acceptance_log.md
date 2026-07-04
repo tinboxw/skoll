@@ -926,3 +926,67 @@ Notes:
 ### Next Step
 
 - Claim `F8-01` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F8-01 Create `pharma_oa` Plugin Skeleton
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `plugins/pharma_oa/static/index.html`
+- `plugins/pharma_oa/static/style.css`
+- `plugins/pharma_oa/static/app.js`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `scripts/smoke-pharma-oa-plugin.ps1`
+- `docs/refactor/current/pharma_oa_task_board.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Manifest skeleton | Passed | `plugins/pharma_oa/plugin.yaml` defines app-level `pharma_oa`, frontend entry `/skoll/plugins/pharma_oa`, config schema, i18n locales, and compatibility metadata |
+| Menu group | Passed | Lifecycle smoke imports visible `plugin.pharma_oa` menu at `/skoll/plugins/pharma_oa` guarded by `pharma_oa.menu.read` |
+| Permissions | Passed | Lifecycle smoke imports menu, plugin manage, seed apply, and API-derived seed read/apply permissions, then disables them on plugin disable |
+| Routes | Passed | Route registry imports `GET /v1/plugins/pharma_oa/api/demo-seed/status` and `POST /v1/plugins/pharma_oa/api/demo-seed/apply` |
+| Demo seed entry | Passed | Manifest declares seed config fields and demo seed API route contracts; static page exposes a reserved seed action entry |
+| Static plugin page states | Passed | Static page includes loading, empty, error, no-permission, saving, destructive, ready, and responsive states for the integrated plugin entry |
+| Lifecycle | Passed | Dedicated test installs, enables, disables, and blocks duplicate install for `pharma_oa` |
+| Audit | Passed | Catalog audit sink records catalog import, route import, and catalog disable events with permission/menu/route/audit-action counts |
+| API/OpenAPI impact | Passed | Plugin route contract is declared in manifest and exposed through route extension/preflight preview; core OpenAPI file is unchanged because no core HTTP handler was added |
+| Permission, audit, migration/seed impact | Passed | Permission catalog and audit impacts are manifest-driven and verified; no migration is added; seed is a declared skeleton entry for later F12 data implementation |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/...
+powershell -ExecutionPolicy Bypass -File scripts/smoke-pharma-oa-plugin.ps1
+git diff --check
+```
+
+Smoke result:
+
+```text
+Pharma OA plugin lifecycle smoke passed.
+```
+
+Result: Passed.
+
+### Failure And Retry
+
+- None.
+
+Notes:
+
+- `git diff --check` reports only existing CRLF conversion warnings for tracked Markdown files.
+- Parent task board was updated from F7 `Todo` to `Done` and F8 `Todo` to `Doing` to match completed F7 work items and the active F8 batch.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F8-02` from `docs/refactor/current/pharma_oa_work_items.md`.

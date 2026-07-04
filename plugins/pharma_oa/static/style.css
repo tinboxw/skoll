@@ -1,0 +1,184 @@
+:root {
+	color-scheme: light;
+	font-family: Inter, "Segoe UI", Arial, sans-serif;
+	background: #f6f8fb;
+	color: #18202f;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+}
+
+button {
+	border: 1px solid #ccd5e3;
+	border-radius: 6px;
+	background: #ffffff;
+	color: #18202f;
+	cursor: pointer;
+	font: inherit;
+	min-height: 36px;
+	padding: 0 12px;
+}
+
+button:hover {
+	border-color: #4263eb;
+	color: #2541b8;
+}
+
+.pharma-shell {
+	display: grid;
+	gap: 16px;
+	margin: 0 auto;
+	max-width: 1120px;
+	padding: 24px;
+}
+
+.hero,
+.seed-panel {
+	align-items: center;
+	background: #ffffff;
+	border: 1px solid #dde4ef;
+	border-radius: 8px;
+	display: flex;
+	justify-content: space-between;
+	padding: 20px;
+}
+
+.eyebrow {
+	color: #5b6b84;
+	font-size: 13px;
+	font-weight: 700;
+	margin: 0 0 6px;
+	text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+	margin: 0;
+}
+
+h1 {
+	font-size: 28px;
+	line-height: 1.2;
+}
+
+h2 {
+	font-size: 16px;
+	line-height: 1.3;
+}
+
+.summary,
+.seed-panel p,
+article p,
+.state p {
+	color: #5b6b84;
+	line-height: 1.55;
+	margin-top: 8px;
+}
+
+.status-pill {
+	background: #e9f8ef;
+	border: 1px solid #bce6c8;
+	border-radius: 999px;
+	color: #16763a;
+	font-weight: 700;
+	padding: 8px 14px;
+}
+
+.toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.module-grid {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+article,
+.state {
+	background: #ffffff;
+	border: 1px solid #dde4ef;
+	border-radius: 8px;
+	min-height: 136px;
+	padding: 18px;
+}
+
+article span {
+	color: #4263eb;
+	display: block;
+	font-weight: 800;
+	margin-bottom: 10px;
+}
+
+.state {
+	display: none;
+}
+
+[data-state="loading"] .state-loading,
+[data-state="empty"] .state-empty,
+[data-state="error"] .state-error,
+[data-state="no-permission"] .state-no-permission {
+	display: block;
+}
+
+[data-state="loading"] .state-ready,
+[data-state="empty"] .state-ready,
+[data-state="error"] .state-ready,
+[data-state="no-permission"] .state-ready {
+	display: none;
+}
+
+[data-state="saving"] #seed-button {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+[data-state="destructive"] .seed-panel {
+	border-color: #f1b3b3;
+	background: #fff7f7;
+}
+
+.spinner {
+	animation: spin 0.9s linear infinite;
+	border: 3px solid #dce4f2;
+	border-top-color: #4263eb;
+	border-radius: 50%;
+	height: 28px;
+	width: 28px;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (max-width: 720px) {
+	.pharma-shell {
+		padding: 14px;
+	}
+
+	.hero,
+	.seed-panel {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 14px;
+	}
+
+	.module-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.toolbar button {
+		flex: 1 1 140px;
+	}
+}

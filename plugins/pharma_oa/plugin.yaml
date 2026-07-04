@@ -1,0 +1,90 @@
+id: pharma_oa
+name: Pharma OA
+name_zh_cn: Pharma OA
+name_en_us: Pharma OA
+version: 0.1.0
+api_version: v1
+compatibility_skoll: ">=1.0.0 <2.0.0"
+description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
+ui_mode: frontend_only
+level: app
+app_id: pharma_oa
+mount_policy: mixed
+ui_nav_position: sidebar
+ui_open_mode: integrated
+ui_tab_mode: fixed
+frontend_entry: /skoll/plugins/pharma_oa
+ui_menu:
+  key: plugin.pharma_oa
+  label: Pharma OA
+  label_zh_cn: Pharma OA
+  label_en_us: Pharma OA
+  path: /skoll/plugins/pharma_oa
+  component: PluginRuntime
+  icon: plugins
+  order: 210
+  required_permissions:
+    - pharma_oa.menu.read
+config_schema:
+  title: Pharma OA Config
+  title_zh_cn: Pharma OA Config
+  title_en_us: Pharma OA Config
+  description: Skeleton configuration for pharma OA demo data and lifecycle smoke checks.
+  fields:
+    - key: pharma_oa.seed.enabled
+      label: Enable demo seed entry
+      label_zh_cn: Enable demo seed entry
+      label_en_us: Enable demo seed entry
+      type: boolean
+      default: true
+    - key: pharma_oa.seed.scope
+      label: Demo seed scope
+      label_zh_cn: Demo seed scope
+      label_en_us: Demo seed scope
+      type: string
+      required: true
+      default: minimal
+      min_length: 3
+      max_length: 32
+    - key: pharma_oa.alert_days
+      label: Qualification alert days
+      label_zh_cn: Qualification alert days
+      label_en_us: Qualification alert days
+      type: number
+      default: 30
+      min: 1
+      max: 365
+i18n_locales:
+  - zh-CN
+  - en-US
+permissions:
+  - key: pharma_oa.menu.read
+    type: menu
+    module: pharma_oa
+    name: View Pharma OA menu
+    risk: low
+    metadata.description: Allows the Pharma OA sidebar group to be displayed.
+  - key: pharma_oa.plugin.manage
+    type: plugin
+    module: pharma_oa
+    name: Manage Pharma OA plugin
+    risk: high
+    metadata.description: Allows plugin-level setup and demo seed operations.
+  - key: pharma_oa.seed.apply
+    type: button
+    module: pharma_oa
+    name: Apply Pharma OA demo seed
+    risk: medium
+    metadata.description: Allows the demo seed entry to be executed when the backing implementation is added.
+api:
+  routes:
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/demo-seed/status
+      summary: Get Pharma OA demo seed status
+      permission: pharma_oa.seed.read
+      audit_action: pharma_oa.seed.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/demo-seed/apply
+      summary: Apply Pharma OA demo seed
+      permission: pharma_oa.seed.apply
+      audit_action: pharma_oa.seed.apply
