@@ -18,6 +18,10 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 
 | Document | Purpose |
 | --- | --- |
+| [current/README.md](current/README.md) | Current task intake, progress update, acceptance, and commit rules |
+| [current/pharma_oa_task_board.md](current/pharma_oa_task_board.md) | Official parent task board for the pharma OA execution batch |
+| [current/pharma_oa_work_items.md](current/pharma_oa_work_items.md) | Official Work Item table for the pharma OA execution batch |
+| [current/pharma_oa_acceptance_log.md](current/pharma_oa_acceptance_log.md) | Acceptance evidence for pharma OA Work Items |
 | [current/business_plugin_capability_plan_2026-07-04.md](current/business_plugin_capability_plan_2026-07-04.md) | Business-plugin capability gaps, pharma OA function blueprint, and framework infrastructure matrix |
 | [current/pharma_oa_milestone_plan_2026-07-04.md](current/pharma_oa_milestone_plan_2026-07-04.md) | F6-F12 pharma OA milestones and atomic candidate work items |
 | [current/progress_inspection_pharma_oa_iteration_2026-07-04.md](current/progress_inspection_pharma_oa_iteration_2026-07-04.md) | Latest progress inspection, risks, task tuning, and milestone refinement |
@@ -58,6 +62,10 @@ Architecture position:
 | [old/completed-m0-m7-2026-07-04](old/completed-m0-m7-2026-07-04) | Completed M0-M7/FE/N0 tasks, acceptance logs, quality baselines, and release-readiness evidence |
 
 Archived files keep historical evidence. Do not update archived task status for new work. Create a new current task board/work-item file when the next batch starts.
+
+## Collaboration Rule
+
+All developers must read [current/README.md](current/README.md) before taking work. It defines where tasks are read, where progress is updated, where acceptance is recorded, and when commits are created.
 
 ## Maintenance Rules
 
