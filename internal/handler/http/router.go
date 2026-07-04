@@ -9,6 +9,7 @@ import (
 	filehttp "github.com/tinboxw/skoll/internal/handler/http/v1/file"
 	menuhttp "github.com/tinboxw/skoll/internal/handler/http/v1/menu"
 	permissionhttp "github.com/tinboxw/skoll/internal/handler/http/v1/permission"
+	pharmaoahttp "github.com/tinboxw/skoll/internal/handler/http/v1/pharmaoa"
 	pluginhttp "github.com/tinboxw/skoll/internal/handler/http/v1/plugin"
 	rbachttp "github.com/tinboxw/skoll/internal/handler/http/v1/rbac"
 	rolehttp "github.com/tinboxw/skoll/internal/handler/http/v1/role"
@@ -20,6 +21,7 @@ import (
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	"github.com/tinboxw/skoll/internal/service/menu"
 	"github.com/tinboxw/skoll/internal/service/permission"
+	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
@@ -31,25 +33,26 @@ import (
 const defaultAPIPrefix = config.DefaultAPIBasePrefix
 
 type Dependencies struct {
-	UserService       user.Service
-	RoleService       role.Service
-	RBACService       rbac.Service
-	AuditService      audit.Service
-	AuditEventService audit.EventService
-	FileService       filesvc.Service
-	SystemService     system.Service
-	PermissionService permission.Service
-	MenuService       menu.Service
-	WorkflowService   workflow.Service
-	PluginManager     plugin.Manager
-	APIPrefix         string
-	LogLevel          string
-	LogDir            string
-	LogFile           string
-	LogPluginPerFile  bool
-	DevPortalEnabled  bool
-	DevPortalRoot     string
-	DevPortalRoots    []string
+	UserService           user.Service
+	RoleService           role.Service
+	RBACService           rbac.Service
+	AuditService          audit.Service
+	AuditEventService     audit.EventService
+	FileService           filesvc.Service
+	SystemService         system.Service
+	PermissionService     permission.Service
+	PharmaEmployeeService pharmaoasvc.EmployeeService
+	MenuService           menu.Service
+	WorkflowService       workflow.Service
+	PluginManager         plugin.Manager
+	APIPrefix             string
+	LogLevel              string
+	LogDir                string
+	LogFile               string
+	LogPluginPerFile      bool
+	DevPortalEnabled      bool
+	DevPortalRoot         string
+	DevPortalRoots        []string
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -78,6 +81,8 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	filehttp.RegisterFileRoutes(apiMux, deps.FileService)
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
 	permissionhttp.RegisterPermissionRoutes(apiMux, deps.PermissionService)
+	pharmaoahttp.RegisterEmployeeRoutes(apiMux, deps.PharmaEmployeeService)
+	_ = pharmaoahttp.RegisterEmployeePermissions(deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)

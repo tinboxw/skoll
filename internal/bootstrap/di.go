@@ -29,6 +29,7 @@ import (
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
+	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
@@ -82,6 +83,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
+	pharmaEmployeeService := pharmaoasvc.NewEmployeeService(auditService)
 	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
@@ -94,25 +96,26 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
-		UserService:       userService,
-		RoleService:       roleService,
-		RBACService:       rbacService,
-		AuditService:      auditService,
-		AuditEventService: auditEventService,
-		FileService:       fileService,
-		SystemService:     systemService,
-		PermissionService: permissionService,
-		MenuService:       menuService,
-		WorkflowService:   workflowService,
-		PluginManager:     pluginManager,
-		APIPrefix:         cfg.AppConfig.Server.APIPrefix,
-		LogLevel:          cfg.AppConfig.Log.Level,
-		LogDir:            cfg.AppConfig.Log.Dir,
-		LogFile:           cfg.AppConfig.Log.File,
-		LogPluginPerFile:  cfg.AppConfig.Log.PluginPerFile,
-		DevPortalEnabled:  cfg.AppConfig.Dev.PortalEnabled,
-		DevPortalRoot:     cfg.AppConfig.Dev.PluginsRoot,
-		DevPortalRoots:    append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
+		UserService:           userService,
+		RoleService:           roleService,
+		RBACService:           rbacService,
+		AuditService:          auditService,
+		AuditEventService:     auditEventService,
+		FileService:           fileService,
+		SystemService:         systemService,
+		PermissionService:     permissionService,
+		PharmaEmployeeService: pharmaEmployeeService,
+		MenuService:           menuService,
+		WorkflowService:       workflowService,
+		PluginManager:         pluginManager,
+		APIPrefix:             cfg.AppConfig.Server.APIPrefix,
+		LogLevel:              cfg.AppConfig.Log.Level,
+		LogDir:                cfg.AppConfig.Log.Dir,
+		LogFile:               cfg.AppConfig.Log.File,
+		LogPluginPerFile:      cfg.AppConfig.Log.PluginPerFile,
+		DevPortalEnabled:      cfg.AppConfig.Dev.PortalEnabled,
+		DevPortalRoot:         cfg.AppConfig.Dev.PluginsRoot,
+		DevPortalRoots:        append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),

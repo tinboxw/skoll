@@ -15,6 +15,7 @@ const FormBuilderPage = () => import("../views/FormBuilder/index.vue");
 const MenuPage = () => import("../views/Menu/index.vue");
 const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
+const PharmaEmployeePage = () => import("../views/PharmaEmployee/index.vue");
 const PluginPage = () => import("../views/Plugin/index.vue");
 const ProfilePage = () => import("../views/Profile/index.vue");
 const RoleEditPage = () => import("../views/Role/edit.vue");
@@ -150,6 +151,12 @@ const routes: RouteRecordRaw[] = [
 		path: `${ADMIN_PREFIX}/form-builder`,
 		name: "form-builder",
 		component: FormBuilderPage
+	},
+	{
+		path: `${ADMIN_PREFIX}/pharma-oa/employees`,
+		name: "pharma-oa-employees",
+		component: PharmaEmployeePage,
+		meta: { permissions: ["pharma_oa.employee.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/setting`,

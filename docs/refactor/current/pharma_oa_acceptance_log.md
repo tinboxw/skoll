@@ -990,3 +990,79 @@ Notes:
 ### Next Step
 
 - Claim `F8-02` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F8-02 Implement Employee Management
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/employee.go`
+- `internal/service/pharmaoa/employee_service.go`
+- `internal/service/pharmaoa/employee_service_test.go`
+- `internal/handler/http/v1/pharmaoa/employee_handler.go`
+- `internal/handler/http/v1/pharmaoa/employee_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `web/src/pharma-oa/api.ts`
+- `web/src/views/PharmaEmployee/index.vue`
+- `web/src/router/index.ts`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Employee records | Passed | Domain and service create/update/list employee records with code, name, department, position, phone, email, status, and certificate data |
+| Department and position | Passed | API, service, and Vue table/drawer preserve department and position fields; browser smoke created `Quality` / `QA Specialist` |
+| Certificate reminders | Passed | `QualificationReminders` returns active employees with certificates expiring within 30 days; browser smoke showed `Expiring certs` changing to `1` after create |
+| Status flow | Passed | `MarkLeft` changes employee status and clears reminder eligibility; browser smoke completed destructive leave confirmation and showed Active `0`, Left `1`, Expiring certs `0` |
+| API/OpenAPI | Passed | Core employee endpoints are registered under `/v1/pharma-oa/employees` and synced in both `internal/handler/http/openapi.yaml` and `docs/api/openapi.yaml` |
+| Permissions | Passed | `RegisterEmployeePermissions` registers read/create/update/leave/reminder permissions; plugin manifest declares employee permission and route contracts |
+| Audit | Passed | Service appends `pharma_oa.employee.create`, `pharma_oa.employee.update`, and `pharma_oa.employee.leave` audit records with resource `pharma_oa_employee` |
+| Plugin lifecycle impact | Passed | Plugin manifest and manifest test cover employee menu entry, permission catalog impact, route catalog impact, disable handling, and failure state coverage inherited from lifecycle smoke |
+| Frontend states | Passed | Employee page covers loading, empty, error, no-permission, saving, destructive confirmation, and responsive layout states using shared UI kit components |
+| Migration and seed impact | Passed | No database migration is added for this work item; current service is in-memory for the vertical slice; demo seed remains manifest-only until later F12 data work |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+cd web; npm run typecheck
+cd web; npm run build
+git diff --check
+```
+
+Browser smoke:
+
+- Started local backend/frontend temporarily, logged in through the real login page with seeded admin credentials.
+- Opened `/skoll/pharma-oa/employees`.
+- Verified title, toolbar, empty table state, create drawer, save flow, certificate reminder count, leave dialog, destructive confirmation, and mobile viewport `390x844`.
+- Temporary backend/frontend processes were stopped after validation.
+
+Result: Passed.
+
+### Failure And Retry
+
+- Initial targeted Go test failed because `internal/plugin/pharma_oa_manifest_test.go` still expected the F8-01 seed-only manifest counts.
+- Fix: updated the manifest test to assert employee permissions, employee route contracts, and API-derived catalog counts.
+- Retry: targeted Go test, full Go test, frontend typecheck, frontend build, diff check, and browser smoke all passed.
+
+Notes:
+
+- `npm run build` reports existing Sass legacy JS API and Rollup annotation warnings, but exits successfully.
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F8-03` from `docs/refactor/current/pharma_oa_work_items.md`.
