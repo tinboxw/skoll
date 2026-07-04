@@ -563,6 +563,55 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/pharma-oa/master-data/template:
+    get:
+      summary: Get Pharma OA master data import template
+      parameters:
+        - name: resource
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [employees, products, suppliers, customers]
+      responses:
+        '200':
+          description: OK
+  /v1/pharma-oa/master-data/import:
+    post:
+      summary: Import Pharma OA master data rows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resource, rows]
+              properties:
+                resource:
+                  type: string
+                  enum: [employees, products, suppliers, customers]
+                rows:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties:
+                      type: string
+      responses:
+        '200':
+          description: OK
+  /v1/pharma-oa/master-data/export:
+    get:
+      summary: Export Pharma OA master data rows
+      parameters:
+        - name: resource
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [employees, products, suppliers, customers]
+      responses:
+        '200':
+          description: OK
   /v1/users:
     get:
       summary: List users

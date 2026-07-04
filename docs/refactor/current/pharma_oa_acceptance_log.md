@@ -1343,3 +1343,67 @@ Notes:
 ### Next Step
 
 - Claim `F8-07` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F8-07 Implement Master Data Import/Export
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/service/pharmaoa/master_data_exchange_service.go`
+- `internal/service/pharmaoa/master_data_exchange_service_test.go`
+- `internal/handler/http/v1/pharmaoa/master_data_exchange_handler.go`
+- `internal/handler/http/v1/pharmaoa/master_data_exchange_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Excel templates | Passed | `MasterDataExchangeService.Template` returns `.xlsx` filename, Excel MIME type, header rows, and base64 OpenXML workbook content for employees, products, suppliers, and customers |
+| Import validation | Passed | Import validates each row through the existing employee/product/supplier/customer services and preserves domain validation rules |
+| Error report | Passed | Invalid rows return `row`, `code`, and clear `message`; tests cover missing code and missing employee name |
+| Export job | Passed | Export returns a completed job with `.xlsx` filename, Excel MIME type, base64 workbook content, headers, and exported rows |
+| Four resource coverage | Passed | Fixture tests import and export employees, products, suppliers, and customers |
+| API/OpenAPI | Passed | Master data template/import/export routes are registered under `/v1/pharma-oa/master-data/*` and synced in both OpenAPI files |
+| Permissions | Passed | Master data template/import/export permissions are registered in HTTP startup and declared in the plugin manifest |
+| Audit and plugin lifecycle impact | Passed | Plugin lifecycle test validates install preflight, enable, disable, route registry, permission catalog, and audit counts after master-data route additions |
+| Migration and seed impact | Passed | No database migration or seed is added; exchange service uses current in-memory master data services |
+| Frontend impact | Passed | No frontend route/page was changed in F8-07; no static UI was introduced |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+codegraph sync .
+```
+
+Result: Passed.
+
+### Failure And Retry
+
+- Initial implementation returned CSV-oriented template/export metadata.
+- Fix: added a minimal OpenXML `.xlsx` generator and base64 workbook payloads for templates and export jobs.
+- Retry: targeted Go tests, full Go tests, OpenAPI sync check, diff check, and CodeGraph sync all passed.
+
+Notes:
+
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F9-01` from `docs/refactor/current/pharma_oa_work_items.md`.

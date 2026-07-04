@@ -211,6 +211,21 @@ permissions:
     module: pharma_oa
     name: Validate warehouse movement location
     risk: high
+  - key: pharma_oa.master.template
+    type: api
+    module: pharma_oa
+    name: Read pharma master data templates
+    risk: low
+  - key: pharma_oa.master.import
+    type: api
+    module: pharma_oa
+    name: Import pharma master data
+    risk: medium
+  - key: pharma_oa.master.export
+    type: api
+    module: pharma_oa
+    name: Export pharma master data
+    risk: medium
 api:
   routes:
     - method: GET
@@ -348,6 +363,21 @@ api:
       summary: Validate Pharma OA warehouse movement location
       permission: pharma_oa.warehouse.movement
       audit_action: pharma_oa.warehouse.movement
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/master-data/template
+      summary: Get Pharma OA master data import template
+      permission: pharma_oa.master.template
+      audit_action: pharma_oa.master.template
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/master-data/import
+      summary: Import Pharma OA master data rows
+      permission: pharma_oa.master.import
+      audit_action: pharma_oa.master.import
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/master-data/export
+      summary: Export Pharma OA master data rows
+      permission: pharma_oa.master.export
+      audit_action: pharma_oa.master.export
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status

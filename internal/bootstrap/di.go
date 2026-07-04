@@ -88,6 +88,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaSupplierService := pharmaoasvc.NewSupplierService(auditService)
 	pharmaCustomerService := pharmaoasvc.NewCustomerService(auditService)
 	pharmaWarehouseService := pharmaoasvc.NewWarehouseService(auditService)
+	pharmaMasterDataExchangeService := pharmaoasvc.NewMasterDataExchangeService(pharmaEmployeeService, pharmaProductService, pharmaSupplierService, pharmaCustomerService)
 	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
@@ -100,30 +101,31 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
-		UserService:            userService,
-		RoleService:            roleService,
-		RBACService:            rbacService,
-		AuditService:           auditService,
-		AuditEventService:      auditEventService,
-		FileService:            fileService,
-		SystemService:          systemService,
-		PermissionService:      permissionService,
-		PharmaEmployeeService:  pharmaEmployeeService,
-		PharmaProductService:   pharmaProductService,
-		PharmaSupplierService:  pharmaSupplierService,
-		PharmaCustomerService:  pharmaCustomerService,
-		PharmaWarehouseService: pharmaWarehouseService,
-		MenuService:            menuService,
-		WorkflowService:        workflowService,
-		PluginManager:          pluginManager,
-		APIPrefix:              cfg.AppConfig.Server.APIPrefix,
-		LogLevel:               cfg.AppConfig.Log.Level,
-		LogDir:                 cfg.AppConfig.Log.Dir,
-		LogFile:                cfg.AppConfig.Log.File,
-		LogPluginPerFile:       cfg.AppConfig.Log.PluginPerFile,
-		DevPortalEnabled:       cfg.AppConfig.Dev.PortalEnabled,
-		DevPortalRoot:          cfg.AppConfig.Dev.PluginsRoot,
-		DevPortalRoots:         append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
+		UserService:                     userService,
+		RoleService:                     roleService,
+		RBACService:                     rbacService,
+		AuditService:                    auditService,
+		AuditEventService:               auditEventService,
+		FileService:                     fileService,
+		SystemService:                   systemService,
+		PermissionService:               permissionService,
+		PharmaEmployeeService:           pharmaEmployeeService,
+		PharmaProductService:            pharmaProductService,
+		PharmaSupplierService:           pharmaSupplierService,
+		PharmaCustomerService:           pharmaCustomerService,
+		PharmaWarehouseService:          pharmaWarehouseService,
+		PharmaMasterDataExchangeService: pharmaMasterDataExchangeService,
+		MenuService:                     menuService,
+		WorkflowService:                 workflowService,
+		PluginManager:                   pluginManager,
+		APIPrefix:                       cfg.AppConfig.Server.APIPrefix,
+		LogLevel:                        cfg.AppConfig.Log.Level,
+		LogDir:                          cfg.AppConfig.Log.Dir,
+		LogFile:                         cfg.AppConfig.Log.File,
+		LogPluginPerFile:                cfg.AppConfig.Log.PluginPerFile,
+		DevPortalEnabled:                cfg.AppConfig.Dev.PortalEnabled,
+		DevPortalRoot:                   cfg.AppConfig.Dev.PluginsRoot,
+		DevPortalRoots:                  append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),
