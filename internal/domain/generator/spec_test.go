@@ -96,6 +96,33 @@ func TestNewGeneratorSpecDefinesCRUDContract(t *testing.T) {
 	}
 }
 
+func TestNewGeneratorSpecDefinesBusinessPluginTarget(t *testing.T) {
+	in := validGeneratorSpecInput()
+	in.Plugin = PluginSpec{
+		Enabled:       true,
+		ID:            "pharma-oa",
+		Name:          "Pharma OA",
+		DataNamespace: "pharma-oa",
+		EventSubscriptions: []PluginEventSubscriptionSpec{
+			{Name: "approval-completed", Handler: "onApprovalCompleted"},
+			{Name: "qualification-expiring", Handler: "onQualificationExpiring", RetryPolicy: "aggressive"},
+		},
+	}
+	spec, err := NewGeneratorSpec(in)
+	if err != nil {
+		t.Fatalf("NewGeneratorSpec error: %v", err)
+	}
+	if !spec.Plugin.Enabled || spec.Plugin.ID != "pharma-oa" || spec.Plugin.Version != "1.0.0" {
+		t.Fatalf("unexpected plugin target defaults: %+v", spec.Plugin)
+	}
+	if spec.Plugin.DataNamespace != "pharma_oa" || spec.Plugin.MigrationDirectory != "migrations" || spec.Plugin.FrontendEntry != "/skoll/plugins/pharma-oa" {
+		t.Fatalf("unexpected plugin target paths: %+v", spec.Plugin)
+	}
+	if spec.Plugin.EventSubscriptions[0].RetryPolicy != "standard" || spec.Plugin.EventSubscriptions[1].RetryPolicy != "aggressive" {
+		t.Fatalf("unexpected plugin event defaults: %+v", spec.Plugin.EventSubscriptions)
+	}
+}
+
 func TestNewGeneratorSpecRejectsIncompleteSections(t *testing.T) {
 	now := time.Now().UTC()
 	_, err := NewGeneratorSpec(GeneratorSpecInput{
@@ -181,6 +208,20 @@ func TestNewGeneratorSpecValidationRules(t *testing.T) {
 				in.Fields[1].Validation = []ValidationRule{{Type: ValidationMax}}
 			},
 			wantErr: "validation value",
+		},
+		{
+			name: "invalid plugin id",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "Bad Plugin"}
+			},
+			wantErr: "plugin id",
+		},
+		{
+			name: "invalid plugin event",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", EventSubscriptions: []PluginEventSubscriptionSpec{{Name: "bad event", Handler: "onBadEvent"}}}
+			},
+			wantErr: "event name",
 		},
 	}
 

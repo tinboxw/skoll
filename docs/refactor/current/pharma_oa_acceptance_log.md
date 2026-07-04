@@ -403,3 +403,53 @@ Notes:
 ### Next Step
 
 - Claim `F6-07` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F6-07: Implement Business Plugin Generator
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/generator/spec.go`
+- `internal/domain/generator/spec_test.go`
+- `internal/service/generator/service_impl.go`
+- `internal/service/generator/backend_templates.go`
+- `internal/service/generator/service_impl_test.go`
+- `docs/refactor/current/pharma_oa_task_board.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Business plugin spec | Passed | `GeneratorSpec` now supports optional `PluginSpec` with plugin ID, version, data namespace, migration directory, frontend entry, UI mode, and event subscriptions |
+| Current rule validation | Passed | Plugin ID, data namespace, frontend entry, UI mode, event names, handlers, duplicate subscriptions, and retry policies are validated without legacy compatibility output |
+| Plugin output templates | Passed | Dry-run adds `examples/plugins/{plugin}/plugin.yaml`, plugin migration up/down SQL, plugin frontend API/store/view, README, and plugin acceptance test when `PluginSpec.Enabled` is true |
+| API, UI, permissions, menu, migration, audit | Passed | Generated manifest declares permissions, UI menu, data manifest, plugin API routes under `/v1/plugins/{id}/api/...`, audit actions, and optional business event subscriptions |
+| Tests that build/pass | Passed | Generator tests parse generated Go plugin acceptance test and validate plugin manifest/API/UI content; domain/service generator tests pass |
+| Frontend build | Passed | Existing frontend build passes after generator changes |
+| Permission, audit, migration/seed impact | Passed | No runtime permission seed, audit table, core migration, or seed data is introduced; this Work Item only extends generator templates and dry-run outputs |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/generator/... ./internal/service/generator/...
+cd web; npm run build
+git diff --check
+```
+
+Result: Passed.
+
+Notes:
+
+- `npm run build` prints the existing Sass legacy JS API and VueUse/Rollup annotation warnings, then exits successfully.
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F7-01` from `docs/refactor/current/pharma_oa_work_items.md`.

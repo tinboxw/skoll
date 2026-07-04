@@ -10,9 +10,10 @@ import (
 )
 
 var (
-	generatorNamePattern    = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
-	generatorKeyPattern     = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{1,127}$`)
-	generatorPermKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_:.\-]{1,127}$`)
+	generatorNamePattern     = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
+	generatorKeyPattern      = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{1,127}$`)
+	generatorPermKeyPattern  = regexp.MustCompile(`^[a-z][a-z0-9_:.\-]{1,127}$`)
+	generatorPluginIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{1,62}$`)
 )
 
 type FieldType string
@@ -48,6 +49,7 @@ type GeneratorSpecInput struct {
 	Menu        MenuSpec
 	Page        PageSpec
 	Audit       AuditSpec
+	Plugin      PluginSpec
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -62,6 +64,7 @@ type GeneratorSpec struct {
 	Menu        MenuSpec
 	Page        PageSpec
 	Audit       AuditSpec
+	Plugin      PluginSpec
 	Meta        shared.AuditMeta
 }
 
@@ -159,6 +162,25 @@ type AuditSpec struct {
 	Actions  []string
 }
 
+type PluginSpec struct {
+	Enabled            bool
+	ID                 string
+	Name               string
+	Version            string
+	Description        string
+	DataNamespace      string
+	MigrationDirectory string
+	FrontendEntry      string
+	UIMode             string
+	EventSubscriptions []PluginEventSubscriptionSpec
+}
+
+type PluginEventSubscriptionSpec struct {
+	Name        string
+	Handler     string
+	RetryPolicy string
+}
+
 func NewGeneratorSpec(in GeneratorSpecInput) (*GeneratorSpec, error) {
 	in = normalizeGeneratorSpecInput(in)
 	if err := validateGeneratorSpecInput(in); err != nil {
@@ -174,6 +196,7 @@ func NewGeneratorSpec(in GeneratorSpecInput) (*GeneratorSpec, error) {
 		Menu:        in.Menu,
 		Page:        in.Page,
 		Audit:       in.Audit,
+		Plugin:      in.Plugin,
 		Meta: shared.AuditMeta{
 			CreatedAt: in.CreatedAt,
 			UpdatedAt: in.UpdatedAt,
@@ -208,6 +231,7 @@ func normalizeGeneratorSpecInput(in GeneratorSpecInput) GeneratorSpecInput {
 	in.Menu = normalizeMenuSpec(in.Menu)
 	in.Page = normalizePageSpec(in.Page)
 	in.Audit = normalizeAuditSpec(in.Audit)
+	in.Plugin = normalizePluginSpec(in.Plugin, in)
 	if in.UpdatedAt.IsZero() {
 		in.UpdatedAt = in.CreatedAt
 	}
@@ -309,6 +333,53 @@ func normalizeAuditSpec(in AuditSpec) AuditSpec {
 	return in
 }
 
+func normalizePluginSpec(in PluginSpec, spec GeneratorSpecInput) PluginSpec {
+	if !in.Enabled {
+		return in
+	}
+	in.ID = strings.ToLower(strings.TrimSpace(in.ID))
+	in.Name = strings.TrimSpace(in.Name)
+	if in.Name == "" {
+		in.Name = spec.Module.DisplayName
+	}
+	in.Version = strings.TrimSpace(in.Version)
+	if in.Version == "" {
+		in.Version = "1.0.0"
+	}
+	in.Description = strings.TrimSpace(in.Description)
+	if in.Description == "" {
+		in.Description = spec.Module.Description
+	}
+	in.DataNamespace = normalizeName(strings.ReplaceAll(in.DataNamespace, "-", "_"))
+	if in.DataNamespace == "" {
+		in.DataNamespace = normalizeName(strings.ReplaceAll(in.ID, "-", "_"))
+	}
+	in.MigrationDirectory = strings.Trim(strings.TrimSpace(in.MigrationDirectory), "/\\")
+	if in.MigrationDirectory == "" {
+		in.MigrationDirectory = "migrations"
+	}
+	in.FrontendEntry = strings.TrimSpace(in.FrontendEntry)
+	if in.FrontendEntry == "" && in.ID != "" {
+		in.FrontendEntry = "/skoll/plugins/" + in.ID
+	}
+	in.UIMode = normalizeName(in.UIMode)
+	if in.UIMode == "" {
+		in.UIMode = "separated"
+	}
+	out := make([]PluginEventSubscriptionSpec, 0, len(in.EventSubscriptions))
+	for _, item := range in.EventSubscriptions {
+		item.Name = strings.TrimSpace(strings.ToLower(item.Name))
+		item.Handler = strings.TrimSpace(item.Handler)
+		item.RetryPolicy = strings.TrimSpace(strings.ToLower(item.RetryPolicy))
+		if item.RetryPolicy == "" {
+			item.RetryPolicy = "standard"
+		}
+		out = append(out, item)
+	}
+	in.EventSubscriptions = out
+	return in
+}
+
 func normalizeNameList(items []string) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
@@ -405,6 +476,9 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 		return fmt.Errorf("generator audit spec is incomplete")
 	}
 	if err := validateAuditSpec(in.Audit); err != nil {
+		return err
+	}
+	if err := validatePluginSpec(in.Plugin); err != nil {
 		return err
 	}
 	if in.CreatedAt.IsZero() || in.UpdatedAt.IsZero() {
@@ -521,6 +595,49 @@ func validateAuditSpec(spec AuditSpec) error {
 	for _, action := range spec.Actions {
 		if err := validateGeneratorName(action, "audit action"); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func validatePluginSpec(spec PluginSpec) error {
+	if !spec.Enabled {
+		return nil
+	}
+	if !generatorPluginIDPattern.MatchString(spec.ID) {
+		return fmt.Errorf("generator plugin id must match %s", generatorPluginIDPattern.String())
+	}
+	if spec.Name == "" || spec.Version == "" || spec.DataNamespace == "" || spec.FrontendEntry == "" {
+		return fmt.Errorf("generator plugin spec is incomplete")
+	}
+	if err := validateGeneratorName(spec.DataNamespace, "plugin data namespace"); err != nil {
+		return err
+	}
+	if !strings.HasPrefix(spec.FrontendEntry, "/") {
+		return fmt.Errorf("generator plugin frontend entry must start with /")
+	}
+	switch spec.UIMode {
+	case "backend_only", "frontend_only", "monolith", "separated":
+	default:
+		return fmt.Errorf("generator plugin ui mode is invalid: %s", spec.UIMode)
+	}
+	seen := map[string]struct{}{}
+	for _, subscription := range spec.EventSubscriptions {
+		if !generatorKeyPattern.MatchString(subscription.Name) {
+			return fmt.Errorf("generator plugin event name is invalid: %s", subscription.Name)
+		}
+		if strings.TrimSpace(subscription.Handler) == "" {
+			return fmt.Errorf("generator plugin event handler is required")
+		}
+		key := subscription.Name + "::" + subscription.Handler
+		if _, ok := seen[key]; ok {
+			return fmt.Errorf("generator plugin event subscription conflict: %s", key)
+		}
+		seen[key] = struct{}{}
+		switch subscription.RetryPolicy {
+		case "none", "standard", "aggressive":
+		default:
+			return fmt.Errorf("generator plugin retry policy is invalid: %s", subscription.RetryPolicy)
 		}
 	}
 	return nil

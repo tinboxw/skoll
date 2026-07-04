@@ -147,6 +147,54 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 	}
 }
 
+func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
+	svc := NewService()
+	spec := mustPluginSpec(t)
+	result, err := svc.DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "batch-plugin",
+		ActorID:            "actor-1",
+		MigrationTimestamp: "20260704_010203",
+	})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.yaml", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_products.up.sql", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_products.down.sql", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/stores/product.ts", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue", FileStatusCreate)
+	testPlan := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin_acceptance_test.go")
+	if _, err := parser.ParseFile(token.NewFileSet(), testPlan.Path, testPlan.GeneratedContent, parser.AllErrors); err != nil {
+		t.Fatalf("generated plugin acceptance test is invalid: %v\n%s", err, testPlan.GeneratedContent)
+	}
+
+	manifest := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin.yaml").GeneratedContent
+	for _, value := range []string{
+		"id: pharma-oa",
+		"ui_menu:",
+		"data:",
+		"namespace: pharma_oa",
+		"path: /v1/plugins/pharma-oa/api/products",
+		"permission: product.read",
+		"audit_action: product.create",
+		"name: approval-completed",
+	} {
+		if !strings.Contains(manifest, value) {
+			t.Fatalf("plugin manifest missing %q\n%s", value, manifest)
+		}
+	}
+	api := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts").GeneratedContent
+	if !strings.Contains(api, `const basePath = "/v1/plugins/pharma-oa/api/products"`) || !strings.Contains(api, "createProduct") {
+		t.Fatalf("plugin frontend api content = %q", api)
+	}
+	view := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue").GeneratedContent
+	if !strings.Contains(view, "plugin-generated-page") || !strings.Contains(view, "v-permission=\"createPermission\"") {
+		t.Fatalf("plugin frontend view content = %q", view)
+	}
+}
+
 func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
 	svc := NewService()
 	spec := mustSpec(t)
@@ -435,4 +483,75 @@ func mustSpec(t *testing.T) *domaingenerator.GeneratorSpec {
 		t.Fatalf("NewGeneratorSpec() error = %v", err)
 	}
 	return spec
+}
+
+func mustPluginSpec(t *testing.T) *domaingenerator.GeneratorSpec {
+	t.Helper()
+	in := validServiceGeneratorSpecInput()
+	in.Plugin = domaingenerator.PluginSpec{
+		Enabled:       true,
+		ID:            "pharma-oa",
+		Name:          "Pharma OA",
+		Description:   "Generated pharma OA business plugin",
+		DataNamespace: "pharma-oa",
+		EventSubscriptions: []domaingenerator.PluginEventSubscriptionSpec{
+			{Name: "approval-completed", Handler: "onApprovalCompleted"},
+		},
+	}
+	spec, err := domaingenerator.NewGeneratorSpec(in)
+	if err != nil {
+		t.Fatalf("NewGeneratorSpec() error = %v", err)
+	}
+	return spec
+}
+
+func validServiceGeneratorSpecInput() domaingenerator.GeneratorSpecInput {
+	now := time.Date(2026, 6, 29, 1, 2, 3, 0, time.UTC)
+	return domaingenerator.GeneratorSpecInput{
+		ID: shared.ID("spec-product"),
+		Module: domaingenerator.ModuleSpec{
+			Name:        "product",
+			Package:     "product",
+			DisplayName: "Product",
+		},
+		Table: domaingenerator.TableSpec{
+			Name:           "products",
+			DomainName:     "Product",
+			CollectionName: "Products",
+			Comment:        "Product table",
+		},
+		Fields: []domaingenerator.FieldSpec{
+			{Name: "id", ColumnName: "id", Label: "ID", Type: domaingenerator.FieldTypeID, GoType: "string", TypeScript: "string", PrimaryKey: true, Required: true, ListVisible: true, FormVisible: false},
+			{Name: "name", ColumnName: "name", Label: "Name", Type: domaingenerator.FieldTypeString, GoType: "string", TypeScript: "string", Required: true, Filterable: true, Sortable: true, ListVisible: true, FormVisible: true},
+		},
+		Indexes: []domaingenerator.IndexSpec{
+			{Name: "idx_products_name", Fields: []string{"name"}},
+		},
+		Permissions: domaingenerator.PermissionSpec{
+			Resource:  "product",
+			ReadKey:   "product.read",
+			CreateKey: "product.create",
+			UpdateKey: "product.update",
+			DeleteKey: "product.delete",
+			ManageKey: "product.manage",
+		},
+		Menu: domaingenerator.MenuSpec{
+			Key:                 "product",
+			Path:                "/products",
+			Component:           "Product/index",
+			RequiredPermissions: []string{"product.read"},
+		},
+		Page: domaingenerator.PageSpec{
+			Title:     "Products",
+			RouteName: "product.list",
+			List:      domaingenerator.PageListSpec{Columns: []string{"id", "name"}, Filters: []string{"name"}, Actions: []string{"create", "update", "delete"}},
+			Form:      domaingenerator.PageFormSpec{Fields: []string{"name"}, Mode: "drawer"},
+		},
+		Audit: domaingenerator.AuditSpec{
+			Resource: "product",
+			Actions:  []string{"create", "update", "delete"},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
 }

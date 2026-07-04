@@ -45,6 +45,22 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderFrontendStore(spec)
 	case "frontend.view":
 		return renderFrontendView(spec)
+	case "plugin.manifest":
+		return renderPluginManifest(spec)
+	case "plugin.migration.up":
+		return renderMigration(spec, "postgres")
+	case "plugin.migration.down":
+		return renderPluginMigrationDown(spec)
+	case "plugin.frontend.api":
+		return renderPluginFrontendAPI(spec)
+	case "plugin.frontend.store":
+		return renderFrontendStore(spec)
+	case "plugin.frontend.view":
+		return renderPluginFrontendView(spec)
+	case "plugin.acceptance.test":
+		return formatGoTemplate(renderPluginAcceptanceTest(spec))
+	case "plugin.readme":
+		return renderPluginREADME(spec)
 	default:
 		return fmt.Sprintf("// template %s for %s\n", templateID, spec.Module.Package)
 	}
@@ -283,6 +299,182 @@ func renderMigration(spec domaingenerator.GeneratorSpec, dialect string) string 
 		fmt.Fprintf(&b, "CREATE %sINDEX %s ON %s (%s);\n", unique, index.Name, spec.Table.Name, strings.Join(columns, ", "))
 	}
 	return b.String()
+}
+
+func renderPluginMigrationDown(spec domaingenerator.GeneratorSpec) string {
+	return fmt.Sprintf("DROP TABLE IF EXISTS %s;\n", spec.Table.Name)
+}
+
+func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "id: %s\n", spec.Plugin.ID)
+	fmt.Fprintf(&b, "name: %s\n", spec.Plugin.Name)
+	fmt.Fprintf(&b, "version: %s\n", spec.Plugin.Version)
+	fmt.Fprintf(&b, "description: %s\n", spec.Plugin.Description)
+	fmt.Fprintf(&b, "api_version: v1\n")
+	fmt.Fprintf(&b, "compatibility_skoll: \">=1.0.0 <2.0.0\"\n")
+	fmt.Fprintf(&b, "ui_mode: %s\n", spec.Plugin.UIMode)
+	fmt.Fprintf(&b, "frontend_entry: %s\n", spec.Plugin.FrontendEntry)
+	fmt.Fprintf(&b, "i18n_locales:\n  - zh-CN\n  - en-US\n")
+	fmt.Fprintf(&b, "permissions:\n")
+	for _, key := range pluginPermissionKeys(spec) {
+		fmt.Fprintf(&b, "  - key: %s\n    type: api\n    module: %s\n    name: %s\n    risk: medium\n", key, spec.Module.Package, permissionDisplayName(key))
+	}
+	fmt.Fprintf(&b, "ui_menu:\n")
+	fmt.Fprintf(&b, "  key: %s\n", spec.Menu.Key)
+	if spec.Menu.ParentKey != "" {
+		fmt.Fprintf(&b, "  parent_key: %s\n", spec.Menu.ParentKey)
+	}
+	fmt.Fprintf(&b, "  label: %s\n  path: %s\n  component: %s\n  icon: %s\n  order: %d\n", spec.Page.Title, spec.Plugin.FrontendEntry, spec.Menu.Component, spec.Menu.Icon, spec.Menu.Order)
+	fmt.Fprintf(&b, "  required_permissions:\n")
+	for _, permission := range spec.Menu.RequiredPermissions {
+		fmt.Fprintf(&b, "    - %s\n", permission)
+	}
+	fmt.Fprintf(&b, "data:\n")
+	fmt.Fprintf(&b, "  namespace: %s\n  migration_version: %s\n  migration_directory: %s\n  uninstall_policy: retain\n  rollback_policy: manual\n", spec.Plugin.DataNamespace, spec.Plugin.Version, spec.Plugin.MigrationDirectory)
+	fmt.Fprintf(&b, "  tables:\n    - name: %s\n      description: %s\n      primary_key: %s\n      columns: %s\n", spec.Table.Name, spec.Table.Comment, primaryColumn(spec), strings.Join(fieldColumns(spec), ", "))
+	if len(spec.Indexes) > 0 {
+		fmt.Fprintf(&b, "      indexes: %s\n", pluginIndexList(spec))
+	}
+	fmt.Fprintf(&b, "api:\n  routes:\n")
+	for _, route := range pluginAPIRoutes(spec) {
+		fmt.Fprintf(&b, "    - method: %s\n      path: %s\n      summary: %s\n      permission: %s\n      audit_action: %s\n", route.method, route.path, route.summary, route.permission, route.auditAction)
+	}
+	if len(spec.Plugin.EventSubscriptions) > 0 {
+		fmt.Fprintf(&b, "events:\n  subscriptions:\n")
+		for _, subscription := range spec.Plugin.EventSubscriptions {
+			fmt.Fprintf(&b, "    - name: %s\n      handler: %s\n      retry_policy: %s\n", subscription.Name, subscription.Handler, subscription.RetryPolicy)
+		}
+	}
+	return b.String()
+}
+
+type pluginRoute struct {
+	method      string
+	path        string
+	summary     string
+	permission  string
+	auditAction string
+}
+
+func pluginAPIRoutes(spec domaingenerator.GeneratorSpec) []pluginRoute {
+	base := pluginAPIBasePath(spec)
+	return []pluginRoute{
+		{method: "GET", path: base, summary: "List " + spec.Table.CollectionName, permission: spec.Permissions.ReadKey, auditAction: spec.Audit.Resource + ".read"},
+		{method: "POST", path: base, summary: "Create " + spec.Table.DomainName, permission: spec.Permissions.CreateKey, auditAction: spec.Audit.Resource + ".create"},
+		{method: "PUT", path: base + "/{id}", summary: "Update " + spec.Table.DomainName, permission: spec.Permissions.UpdateKey, auditAction: spec.Audit.Resource + ".update"},
+		{method: "DELETE", path: base + "/{id}", summary: "Delete " + spec.Table.DomainName, permission: spec.Permissions.DeleteKey, auditAction: spec.Audit.Resource + ".delete"},
+	}
+}
+
+func pluginAPIBasePath(spec domaingenerator.GeneratorSpec) string {
+	return fmt.Sprintf("/v1/plugins/%s/api/%s", spec.Plugin.ID, strings.TrimPrefix(spec.Menu.Path, "/"))
+}
+
+func pluginPermissionKeys(spec domaingenerator.GeneratorSpec) []string {
+	return []string{spec.Permissions.ReadKey, spec.Permissions.CreateKey, spec.Permissions.UpdateKey, spec.Permissions.DeleteKey, spec.Permissions.ManageKey}
+}
+
+func permissionDisplayName(key string) string {
+	return strings.Title(strings.ReplaceAll(strings.ReplaceAll(key, ".", " "), "_", " "))
+}
+
+func fieldColumns(spec domaingenerator.GeneratorSpec) []string {
+	out := make([]string, 0, len(spec.Fields))
+	for _, field := range spec.Fields {
+		out = append(out, field.ColumnName)
+	}
+	return out
+}
+
+func primaryColumn(spec domaingenerator.GeneratorSpec) string {
+	for _, field := range spec.Fields {
+		if field.PrimaryKey {
+			return field.ColumnName
+		}
+	}
+	return "id"
+}
+
+func pluginIndexList(spec domaingenerator.GeneratorSpec) string {
+	parts := make([]string, 0, len(spec.Indexes))
+	for _, index := range spec.Indexes {
+		prefix := ""
+		if index.Unique {
+			prefix = "unique "
+		}
+		columns := make([]string, 0, len(index.Fields))
+		for _, fieldName := range index.Fields {
+			if field, ok := spec.FieldByName(fieldName); ok {
+				columns = append(columns, field.ColumnName)
+			}
+		}
+		parts = append(parts, fmt.Sprintf("%s%s(%s)", prefix, index.Name, strings.Join(columns, ", ")))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func renderPluginFrontendAPI(spec domaingenerator.GeneratorSpec) string {
+	content := renderFrontendAPI(spec)
+	return strings.Replace(content, fmt.Sprintf("const basePath = %q;", spec.Menu.Path), fmt.Sprintf("const basePath = %q;", pluginAPIBasePath(spec)), 1)
+}
+
+func renderPluginFrontendView(spec domaingenerator.GeneratorSpec) string {
+	content := renderFrontendView(spec)
+	content = strings.ReplaceAll(content, "generated-page", "plugin-generated-page")
+	content = strings.ReplaceAll(content, "generated-toolbar", "plugin-generated-toolbar")
+	content = strings.ReplaceAll(content, "generated-filters", "plugin-generated-filters")
+	return content
+}
+
+func renderPluginAcceptanceTest(spec domaingenerator.GeneratorSpec) string {
+	pkg := strings.ReplaceAll(spec.Plugin.ID, "-", "_")
+	return fmt.Sprintf(`package %s
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestGeneratedPluginManifestContract(t *testing.T) {
+	required := []string{
+		"id: %s",
+		"data:",
+		"api:",
+		"ui_menu:",
+		"permission: %s",
+		"audit_action: %s.create",
+	}
+	for _, value := range required {
+		if !strings.Contains(generatedManifest, value) {
+			t.Fatalf("manifest is missing %%q", value)
+		}
+	}
+}
+
+const generatedManifest = %q
+`, pkg, spec.Plugin.ID, spec.Permissions.ReadKey, spec.Audit.Resource, renderPluginManifest(spec))
+}
+
+func renderPluginREADME(spec domaingenerator.GeneratorSpec) string {
+	return fmt.Sprintf(`# %s
+
+Generated business plugin for %s.
+
+## Generated Surface
+
+- Manifest: permissions, menu, data manifest, API routes, audit actions, and event subscriptions.
+- Migration: creates and drops %s under the plugin migration directory.
+- UI: API client, Pinia store, responsive list/form page, loading/error/save states, and permission-gated actions.
+- Acceptance: plugin manifest contract test.
+
+## Verification
+
+`+"```powershell"+`
+go test ./internal/domain/generator/... ./internal/service/generator/...
+cd web; npm run build
+`+"```"+`
+`, spec.Plugin.Name, spec.Table.CollectionName, spec.Table.Name)
 }
 
 func renderService(spec domaingenerator.GeneratorSpec) string {

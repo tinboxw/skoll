@@ -179,7 +179,7 @@ func buildCandidates(spec domaingenerator.GeneratorSpec, migrationTimestamp stri
 	module := spec.Module.Package
 	domainName := spec.Table.DomainName
 	table := spec.Table.Name
-	return []fileCandidate{
+	candidates := []fileCandidate{
 		candidate("backend.domain.doc", fmt.Sprintf("internal/domain/%s/doc.go", module), spec),
 		candidate("backend.domain.entity", fmt.Sprintf("internal/domain/%s/entity.go", module), spec),
 		candidate("backend.repository", fmt.Sprintf("internal/repository/%s/%s_repo.go", module, module), spec),
@@ -201,6 +201,20 @@ func buildCandidates(spec domaingenerator.GeneratorSpec, migrationTimestamp stri
 		candidate("frontend.store", fmt.Sprintf("web/src/stores/%s.ts", module), spec),
 		candidate("frontend.view", fmt.Sprintf("web/src/views/%s/index.vue", domainName), spec),
 	}
+	if spec.Plugin.Enabled {
+		pluginRoot := fmt.Sprintf("examples/plugins/%s", spec.Plugin.ID)
+		candidates = append(candidates,
+			candidate("plugin.manifest", pluginRoot+"/plugin.yaml", spec),
+			candidate("plugin.migration.up", fmt.Sprintf("%s/%s/001_create_%s.up.sql", pluginRoot, spec.Plugin.MigrationDirectory, table), spec),
+			candidate("plugin.migration.down", fmt.Sprintf("%s/%s/001_create_%s.down.sql", pluginRoot, spec.Plugin.MigrationDirectory, table), spec),
+			candidate("plugin.frontend.api", fmt.Sprintf("%s/web/src/api/%s.ts", pluginRoot, module), spec),
+			candidate("plugin.frontend.store", fmt.Sprintf("%s/web/src/stores/%s.ts", pluginRoot, module), spec),
+			candidate("plugin.frontend.view", fmt.Sprintf("%s/web/src/views/%s/index.vue", pluginRoot, domainName), spec),
+			candidate("plugin.acceptance.test", pluginRoot+"/plugin_acceptance_test.go", spec),
+			candidate("plugin.readme", pluginRoot+"/README.md", spec),
+		)
+	}
+	return candidates
 }
 
 func candidate(templateID, path string, spec domaingenerator.GeneratorSpec) fileCandidate {
@@ -438,6 +452,7 @@ func allowedOutputPath(path string) bool {
 		"web/src/api/",
 		"web/src/stores/",
 		"web/src/views/",
+		"examples/plugins/",
 	}
 	for _, prefix := range allowedPrefixes {
 		if path == prefix || strings.HasPrefix(path, prefix) {
