@@ -101,6 +101,31 @@ permissions:
     module: pharma_oa
     name: Read employee qualification reminders
     risk: low
+  - key: pharma_oa.product.read
+    type: api
+    module: pharma_oa
+    name: Read pharma products
+    risk: low
+  - key: pharma_oa.product.create
+    type: api
+    module: pharma_oa
+    name: Create pharma products
+    risk: medium
+  - key: pharma_oa.product.update
+    type: api
+    module: pharma_oa
+    name: Update pharma products
+    risk: medium
+  - key: pharma_oa.product.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma products
+    risk: high
+  - key: pharma_oa.product.import
+    type: api
+    module: pharma_oa
+    name: Import pharma products
+    risk: medium
 api:
   routes:
     - method: GET
@@ -128,6 +153,31 @@ api:
       summary: List Pharma OA employee qualification reminders
       permission: pharma_oa.employee.reminder
       audit_action: pharma_oa.employee.reminder
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/products
+      summary: List Pharma OA products
+      permission: pharma_oa.product.read
+      audit_action: pharma_oa.product.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/products
+      summary: Create Pharma OA product
+      permission: pharma_oa.product.create
+      audit_action: pharma_oa.product.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/products
+      summary: Update Pharma OA product
+      permission: pharma_oa.product.update
+      audit_action: pharma_oa.product.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/products/disable
+      summary: Disable Pharma OA product
+      permission: pharma_oa.product.disable
+      audit_action: pharma_oa.product.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/products/import
+      summary: Import Pharma OA products
+      permission: pharma_oa.product.import
+      audit_action: pharma_oa.product.import
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status

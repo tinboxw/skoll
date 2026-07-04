@@ -15,11 +15,17 @@
   - `PUT /v1/plugins/pharma_oa/api/employees`
   - `POST /v1/plugins/pharma_oa/api/employees/leave`
   - `GET /v1/plugins/pharma_oa/api/employees/qualification-reminders`
+- Product route contracts:
+  - `GET /v1/plugins/pharma_oa/api/products`
+  - `POST /v1/plugins/pharma_oa/api/products`
+  - `PUT /v1/plugins/pharma_oa/api/products`
+  - `POST /v1/plugins/pharma_oa/api/products/disable`
+  - `POST /v1/plugins/pharma_oa/api/products/import`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
 
-The current employee module uses the core `/v1/pharma-oa/employees` API and integrated route `/skoll/pharma-oa/employees`. Product, supplier, customer, warehouse, and import/export modules are covered by later F8 Work Items.
+The current employee module uses the core `/v1/pharma-oa/employees` API and integrated route `/skoll/pharma-oa/employees`. The product module uses the core `/v1/pharma-oa/products` API for drug master data, disable flow, and import validation. Supplier, customer, warehouse, and cross-module import/export modules are covered by later F8 Work Items.
 
 ## Lifecycle Smoke
 

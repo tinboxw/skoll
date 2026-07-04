@@ -1066,3 +1066,67 @@ Notes:
 ### Next Step
 
 - Claim `F8-03` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F8-03 Implement Product/Drug Master Data
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/product.go`
+- `internal/service/pharmaoa/product_service.go`
+- `internal/service/pharmaoa/product_service_test.go`
+- `internal/handler/http/v1/pharmaoa/product_handler.go`
+- `internal/handler/http/v1/pharmaoa/product_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Product records | Passed | `Product` domain and `ProductService` create/list/update records with code, name, spec, dosage form, manufacturer, approval number, status, and audit metadata |
+| Drug attributes | Passed | Service tests cover spec, dosage form, manufacturer, approval number, and temperature range `2-8` Celsius |
+| Temperature validation | Passed | Domain validation rejects required temperature ranges where min exceeds max and normalizes non-required ranges |
+| CRUD | Passed | Handler test creates, lists, imports, and disables products through `/v1/pharma-oa/products` routes |
+| Disable flow | Passed | `Disable` moves products to `disabled`, records reason, and emits `pharma_oa.product.disable` audit action |
+| Import validation | Passed | Import fixture test accepts valid rows, rejects duplicate import codes, rejects incomplete rows, and reports row numbers/messages |
+| API/OpenAPI | Passed | Product list/create/update/disable/import routes are registered and synced in both `internal/handler/http/openapi.yaml` and `docs/api/openapi.yaml` |
+| Permissions | Passed | Product read/create/update/disable/import permissions are registered in HTTP startup and declared in plugin manifest |
+| Audit | Passed | Product create/update/disable/import append audit records with resource `pharma_oa_product`; plugin lifecycle audit counts include product route/permission metadata |
+| Plugin lifecycle impact | Passed | Manifest test validates install preflight, enable, disable, permission catalog, route registry, audit action counts, and duplicate-install failure state after product additions |
+| Migration and seed impact | Passed | No database migration is added for this work item; product master data is an in-memory vertical slice; demo seed remains manifest-only until F12 data work |
+| Frontend impact | Passed | No frontend route/page was changed in F8-03; frontend build was not required by the work item and no static UI was introduced |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+git diff --check
+codegraph sync .
+```
+
+Result: Passed.
+
+### Failure And Retry
+
+- None.
+
+Notes:
+
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F8-04` from `docs/refactor/current/pharma_oa_work_items.md`.
