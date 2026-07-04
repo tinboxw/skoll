@@ -7,6 +7,7 @@ type CatalogAuditEvent struct {
 	Permissions  int
 	Menus        int
 	Routes       int
+	Events       int
 	AuditActions int
 }
 

@@ -17,13 +17,13 @@ type Manager interface {
 }
 
 type RuntimeManager struct {
-	mu       sync.RWMutex
-	loader   MetadataLoader
-	resolver DependencyResolver
-	catalog  CatalogRegistry
-	routes   ExtensionRegistry
-	audit    CatalogAuditSink
-	plugins  map[string]Info
+	mu         sync.RWMutex
+	loader     MetadataLoader
+	resolver   DependencyResolver
+	catalog    CatalogRegistry
+	extensions ExtensionRegistry
+	audit      CatalogAuditSink
+	plugins    map[string]Info
 }
 
 func NewRuntimeManager(loader MetadataLoader, resolver DependencyResolver) *RuntimeManager {
@@ -50,7 +50,7 @@ func (m *RuntimeManager) SetCatalogRegistry(registry CatalogRegistry) {
 func (m *RuntimeManager) SetExtensionRegistry(registry ExtensionRegistry) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.routes = registry
+	m.extensions = registry
 }
 
 func (m *RuntimeManager) SetCatalogAuditSink(sink CatalogAuditSink) {
@@ -121,7 +121,7 @@ func (m *RuntimeManager) Enable(pluginID string) error {
 			m.recordCatalogAudit(id, "plugin_catalog_import", "ok")
 		}
 	}
-	if m.routes != nil {
+	if m.extensions != nil {
 		for _, id := range order {
 			routes, err := m.plugins[id].RouteExtensions()
 			if err != nil {
@@ -129,10 +129,17 @@ func (m *RuntimeManager) Enable(pluginID string) error {
 				return err
 			}
 			for _, route := range routes {
-				m.routes.RegisterRoute(route)
+				m.extensions.RegisterRoute(route)
 			}
 			if len(routes) > 0 {
 				m.recordCatalogAudit(id, "plugin_route_import", "ok")
+			}
+			events := m.plugins[id].EventSubscriptions()
+			for _, subscription := range events {
+				m.extensions.RegisterEventHandler(subscription.Name)
+			}
+			if len(events) > 0 {
+				m.recordCatalogAudit(id, "plugin_event_import", "ok")
 			}
 		}
 	}
@@ -208,6 +215,7 @@ func (m *RuntimeManager) recordCatalogAudit(pluginID, action, result string) {
 	permissions, _ := info.CatalogPermissions()
 	menus, _ := info.MenuNodes()
 	routes, _ := info.RouteExtensions()
+	events := info.EventSubscriptions()
 	_ = m.audit.RecordPluginCatalogEvent(CatalogAuditEvent{
 		PluginID:     pluginID,
 		Action:       action,
@@ -215,6 +223,7 @@ func (m *RuntimeManager) recordCatalogAudit(pluginID, action, result string) {
 		Permissions:  len(permissions),
 		Menus:        len(menus),
 		Routes:       len(routes),
+		Events:       len(events),
 		AuditActions: len(info.AuditActions()),
 	})
 }

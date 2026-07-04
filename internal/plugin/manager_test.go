@@ -149,6 +149,12 @@ api:
       summary: "List report items"
       permission: "reports.items.read"
       audit_action: "reports.items.read"
+events:
+  subscriptions:
+    - name: "approval-completed"
+      handler: "onApprovalCompleted"
+    - name: "inbound-completed"
+      handler: "onInboundCompleted"
 `
 	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
@@ -177,6 +183,9 @@ api:
 	routeSnapshot := routes.Snapshot()
 	if len(routeSnapshot.Routes) != 1 || routeSnapshot.Routes[0].Permission != "reports.items.read" || routeSnapshot.Routes[0].AuditAction != "reports.items.read" {
 		t.Fatalf("unexpected route registry snapshot: %+v", routeSnapshot.Routes)
+	}
+	if len(routeSnapshot.Events) != 2 || routeSnapshot.Events[0] != "approval-completed" || routeSnapshot.Events[1] != "inbound-completed" {
+		t.Fatalf("unexpected event registry snapshot: %+v", routeSnapshot.Events)
 	}
 
 	if err := m.Disable("reports"); err != nil {

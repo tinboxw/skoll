@@ -18,20 +18,22 @@ type MetadataLoader interface {
 type FileLoader struct{}
 
 const (
-	sectionRoot              = "root"
-	sectionDeps              = "deps"
-	sectionPerm              = "perm"
-	sectionI18n              = "i18n"
-	sectionUIMenu            = "ui_menu"
-	sectionUIMenuRoles       = "ui_menu_roles"
-	sectionUIMenuPermissions = "ui_menu_permissions"
-	sectionConfigSchema      = "config_schema"
-	sectionConfigFields      = "config_schema_fields"
-	sectionConfigOptions     = "config_schema_options"
-	sectionData              = "data"
-	sectionDataTables        = "data_tables"
-	sectionAPI               = "api"
-	sectionAPIRoutes         = "api_routes"
+	sectionRoot               = "root"
+	sectionDeps               = "deps"
+	sectionPerm               = "perm"
+	sectionI18n               = "i18n"
+	sectionUIMenu             = "ui_menu"
+	sectionUIMenuRoles        = "ui_menu_roles"
+	sectionUIMenuPermissions  = "ui_menu_permissions"
+	sectionConfigSchema       = "config_schema"
+	sectionConfigFields       = "config_schema_fields"
+	sectionConfigOptions      = "config_schema_options"
+	sectionData               = "data"
+	sectionDataTables         = "data_tables"
+	sectionAPI                = "api"
+	sectionAPIRoutes          = "api_routes"
+	sectionEvents             = "events"
+	sectionEventSubscriptions = "event_subscriptions"
 )
 
 func NewFileLoader() *FileLoader {
@@ -92,6 +94,7 @@ func parseManifest(raw []byte) (Info, error) {
 	var currentConfigOption *ConfigOption
 	var currentDataTable *DataTable
 	var currentAPIRoute *APIRoute
+	var currentEventSubscription *EventSubscription
 
 	flushPermission := func() {
 		if currentPermission == nil {
@@ -139,6 +142,16 @@ func parseManifest(raw []byte) (Info, error) {
 		}
 		info.APIContract.Routes = append(info.APIContract.Routes, *currentAPIRoute)
 		currentAPIRoute = nil
+	}
+	flushEventSubscription := func() {
+		if currentEventSubscription == nil {
+			return
+		}
+		if info.EventContract == nil {
+			info.EventContract = &EventContract{}
+		}
+		info.EventContract.Subscriptions = append(info.EventContract.Subscriptions, *currentEventSubscription)
+		currentEventSubscription = nil
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(string(raw)))
@@ -209,10 +222,23 @@ func parseManifest(raw []byte) (Info, error) {
 			flushConfigField()
 			flushDataTable()
 			flushAPIRoute()
+			flushEventSubscription()
 			if info.APIContract == nil {
 				info.APIContract = &APIContract{}
 			}
 			section = sectionAPI
+			continue
+		case "events:":
+			flushDependency()
+			flushPermission()
+			flushConfigField()
+			flushDataTable()
+			flushAPIRoute()
+			flushEventSubscription()
+			if info.EventContract == nil {
+				info.EventContract = &EventContract{}
+			}
+			section = sectionEvents
 			continue
 		}
 
@@ -304,6 +330,14 @@ func parseManifest(raw []byte) (Info, error) {
 				} else {
 					currentAPIRoute.Method = parseScalar(item)
 				}
+			case sectionEventSubscriptions:
+				flushEventSubscription()
+				currentEventSubscription = &EventSubscription{}
+				if strings.HasPrefix(item, "name:") {
+					currentEventSubscription.Name = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "name:")))
+				} else {
+					currentEventSubscription.Name = parseScalar(item)
+				}
 			}
 			continue
 		}
@@ -356,6 +390,15 @@ func parseManifest(raw []byte) (Info, error) {
 			}
 			if isTopLevel {
 				flushAPIRoute()
+				section = sectionRoot
+			}
+		}
+		if section == sectionEvents || section == sectionEventSubscriptions {
+			if !isTopLevel && applyEventContractField(info.EventContract, currentEventSubscription, key, value, &section) {
+				continue
+			}
+			if isTopLevel {
+				flushEventSubscription()
 				section = sectionRoot
 			}
 		}
@@ -461,6 +504,7 @@ func parseManifest(raw []byte) (Info, error) {
 	flushConfigField()
 	flushDataTable()
 	flushAPIRoute()
+	flushEventSubscription()
 	if info.UIMode == "" {
 		info.UIMode = UIModeBackendOnly
 	}
@@ -488,6 +532,7 @@ func parseManifest(raw []byte) (Info, error) {
 	normalizePermissionDeclarations(&info)
 	normalizeDataManifest(&info)
 	normalizeAPIContract(&info)
+	normalizeEventContract(&info)
 	info.FrontendEntry = ResolveFrontendEntry(info)
 
 	return info, nil
@@ -763,6 +808,38 @@ func applyAPIContractField(contract *APIContract, route *APIRoute, key, value st
 	return true
 }
 
+func applyEventContractField(contract *EventContract, subscription *EventSubscription, key, value string, section *string) bool {
+	if contract == nil {
+		return false
+	}
+	switch *section {
+	case sectionEvents:
+		switch key {
+		case "subscriptions":
+			*section = sectionEventSubscriptions
+		default:
+			return false
+		}
+	case sectionEventSubscriptions:
+		if subscription == nil {
+			return false
+		}
+		switch key {
+		case "name":
+			subscription.Name = value
+		case "handler":
+			subscription.Handler = value
+		case "retry_policy":
+			subscription.RetryPolicy = value
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+	return true
+}
+
 func normalizeAPIContract(info *Info) {
 	if info == nil || info.APIContract == nil {
 		return
@@ -774,6 +851,21 @@ func normalizeAPIContract(info *Info) {
 		route.Summary = strings.TrimSpace(route.Summary)
 		route.Permission = strings.TrimSpace(strings.ToLower(route.Permission))
 		route.AuditAction = strings.TrimSpace(strings.ToLower(route.AuditAction))
+	}
+}
+
+func normalizeEventContract(info *Info) {
+	if info == nil || info.EventContract == nil {
+		return
+	}
+	for i := range info.EventContract.Subscriptions {
+		subscription := &info.EventContract.Subscriptions[i]
+		subscription.Name = strings.TrimSpace(strings.ToLower(subscription.Name))
+		subscription.Handler = strings.TrimSpace(subscription.Handler)
+		subscription.RetryPolicy = strings.TrimSpace(strings.ToLower(subscription.RetryPolicy))
+		if subscription.RetryPolicy == "" {
+			subscription.RetryPolicy = "standard"
+		}
 	}
 }
 

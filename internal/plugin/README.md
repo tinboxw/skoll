@@ -56,6 +56,20 @@ api:
       audit_action: pharma_oa.products.read
 ```
 
+## Business Events
+业务插件如果需要订阅平台业务事件，必须在 `events.subscriptions` 中声明事件名、处理器和重试策略。当前事件名使用小写字母、数字、点、下划线或短横线；内置医药 OA 场景至少覆盖 `approval-completed`、`inbound-completed` 和 `qualification-expiring`。安装预检会展示订阅清单和 retry policy，启用插件时会把订阅导入扩展注册表。
+
+```yaml
+events:
+  subscriptions:
+    - name: approval-completed
+      handler: onApprovalCompleted
+      retry_policy: standard
+    - name: qualification-expiring
+      handler: onQualificationExpiring
+      retry_policy: standard
+```
+
 ## 后续待补充实现
 - [ ] 完善插件包校验（签名/哈希）与版本约束匹配。
 - [ ] 对接 CLI 与 HTTP 管理接口。

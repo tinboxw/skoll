@@ -84,6 +84,13 @@ api:
       summary: "List reports"
       permission: "sample-plugin.reports.read"
       audit_action: "sample_plugin.reports.read"
+events:
+  subscriptions:
+    - name: "approval-completed"
+      handler: "onApprovalCompleted"
+      retry_policy: "standard"
+    - name: "qualification-expiring"
+      handler: "onQualificationExpiring"
 i18n_locales:
 	- "zh-CN"
 	- "en-US"
@@ -203,6 +210,12 @@ frontend_entry: "/plugins/sample-plugin"
 	}
 	if info.APIContract.Routes[0].Method != "GET" || info.APIContract.Routes[0].Permission != "sample-plugin.reports.read" {
 		t.Fatalf("unexpected api route: %+v", info.APIContract.Routes[0])
+	}
+	if info.EventContract == nil || len(info.EventContract.Subscriptions) != 2 {
+		t.Fatalf("expected event subscriptions parsed, got %+v", info.EventContract)
+	}
+	if info.EventContract.Subscriptions[1].Name != "qualification-expiring" || info.EventContract.Subscriptions[1].RetryPolicy != "standard" {
+		t.Fatalf("unexpected event subscription defaults: %+v", info.EventContract.Subscriptions[1])
 	}
 }
 
@@ -361,6 +374,42 @@ func TestFileLoaderRejectsInvalidAPIContract(t *testing.T) {
 name: "Bad Plugin"
 version: "1.0.0"
 ` + apiBlock
+			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+				t.Fatalf("write manifest: %v", err)
+			}
+			if _, err := NewFileLoader().Load(dir); err == nil {
+				t.Fatal("expected manifest validation error")
+			}
+		})
+	}
+}
+
+func TestFileLoaderRejectsInvalidEventContract(t *testing.T) {
+	cases := map[string]string{
+		"invalid event": `events:
+  subscriptions:
+    - name: "bad event"
+      handler: "onBadEvent"
+`,
+		"missing handler": `events:
+  subscriptions:
+    - name: "approval-completed"
+`,
+		"invalid retry policy": `events:
+  subscriptions:
+    - name: "approval-completed"
+      handler: "onApprovalCompleted"
+      retry_policy: "forever"
+`,
+	}
+
+	for name, eventBlock := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			manifest := `id: "bad-plugin"
+name: "Bad Plugin"
+version: "1.0.0"
+` + eventBlock
 			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
 				t.Fatalf("write manifest: %v", err)
 			}

@@ -229,6 +229,29 @@ func (i Info) AuditActions() []string {
 	return out
 }
 
+func (i Info) EventSubscriptions() []EventSubscription {
+	if i.EventContract == nil {
+		return []EventSubscription{}
+	}
+	out := make([]EventSubscription, 0, len(i.EventContract.Subscriptions))
+	for _, subscription := range i.EventContract.Subscriptions {
+		subscription.Name = strings.TrimSpace(strings.ToLower(subscription.Name))
+		subscription.Handler = strings.TrimSpace(subscription.Handler)
+		subscription.RetryPolicy = strings.TrimSpace(strings.ToLower(subscription.RetryPolicy))
+		if subscription.RetryPolicy == "" {
+			subscription.RetryPolicy = "standard"
+		}
+		out = append(out, subscription)
+	}
+	sort.Slice(out, func(a, b int) bool {
+		if out[a].Name == out[b].Name {
+			return out[a].Handler < out[b].Handler
+		}
+		return out[a].Name < out[b].Name
+	})
+	return out
+}
+
 func (i Info) apiPermissionDeclarations() []PermissionDeclaration {
 	if i.APIContract == nil {
 		return nil

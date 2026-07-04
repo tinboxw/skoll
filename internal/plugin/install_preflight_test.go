@@ -17,6 +17,7 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 		withMigrations: true,
 		withData:       true,
 		withAPI:        true,
+		withEvents:     true,
 	})
 
 	result, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
@@ -61,6 +62,12 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 	}
 	if len(result.API.AuditActions) != 1 || result.API.AuditActions[0] != "reports.orders.read" || len(result.API.OpenAPIPaths) != 1 {
 		t.Fatalf("expected api audit/openapi preview, got %+v", result.API)
+	}
+	if len(result.Events.Subscriptions) != 2 || result.Events.Subscriptions[0].Name != "approval-completed" {
+		t.Fatalf("expected event subscription preview, got %+v", result.Events)
+	}
+	if len(result.Events.RetryPolicies) != 1 || result.Events.RetryPolicies[0] != "standard" {
+		t.Fatalf("expected event retry policy preview, got %+v", result.Events)
 	}
 	if result.Signature.Status != "signed" {
 		t.Fatalf("expected signed status, got %+v", result.Signature)
@@ -133,6 +140,7 @@ type preflightPluginFixture struct {
 	withMigrations bool
 	withData       bool
 	withAPI        bool
+	withEvents     bool
 }
 
 func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
@@ -203,6 +211,15 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 			"      summary: List orders\n" +
 			"      permission: reports.orders.read\n" +
 			"      audit_action: reports.orders.read\n"
+	}
+	if fixture.withEvents {
+		manifest += "events:\n" +
+			"  subscriptions:\n" +
+			"    - name: approval-completed\n" +
+			"      handler: onApprovalCompleted\n" +
+			"      retry_policy: standard\n" +
+			"    - name: inbound-completed\n" +
+			"      handler: onInboundCompleted\n"
 	}
 	if fixture.withSignature {
 		manifest += "sign_algo: RSA-SHA256\n" +

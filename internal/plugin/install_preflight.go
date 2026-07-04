@@ -32,6 +32,7 @@ type InstallPreflightResult struct {
 	Resources   InstallPreflightResources    `json:"resources"`
 	Data        InstallPreflightData         `json:"data"`
 	API         InstallPreflightAPI          `json:"api"`
+	Events      InstallPreflightEvents       `json:"events"`
 	Migration   InstallPreflightMigration    `json:"migration"`
 	Signature   InstallPreflightSignature    `json:"signature"`
 	Risk        InstallPreflightRisk         `json:"risk"`
@@ -131,6 +132,17 @@ type InstallPreflightAPIRoute struct {
 	AuditAction string `json:"auditAction,omitempty"`
 }
 
+type InstallPreflightEvents struct {
+	Subscriptions []InstallPreflightEventSubscription `json:"subscriptions,omitempty"`
+	RetryPolicies []string                            `json:"retryPolicies,omitempty"`
+}
+
+type InstallPreflightEventSubscription struct {
+	Name        string `json:"name"`
+	Handler     string `json:"handler"`
+	RetryPolicy string `json:"retryPolicy"`
+}
+
 type InstallPreflightMigration struct {
 	Version string                          `json:"version,omitempty"`
 	Pending []InstallPreflightMigrationStep `json:"pending,omitempty"`
@@ -189,6 +201,7 @@ func (s *InstallPreflightService) Check(in InstallPreflightInput) (InstallPrefli
 		Resources:   buildInstallPreflightResources(info),
 		Data:        buildInstallPreflightData(info),
 		API:         buildInstallPreflightAPI(info),
+		Events:      buildInstallPreflightEvents(info),
 		Migration:   buildInstallPreflightMigration(info, source),
 		Signature:   buildInstallPreflightSignature(info),
 	}
@@ -414,6 +427,29 @@ func buildInstallPreflightAPI(info Info) InstallPreflightAPI {
 	return out
 }
 
+func buildInstallPreflightEvents(info Info) InstallPreflightEvents {
+	subscriptions := info.EventSubscriptions()
+	out := InstallPreflightEvents{
+		Subscriptions: make([]InstallPreflightEventSubscription, 0, len(subscriptions)),
+	}
+	policies := map[string]struct{}{}
+	for _, subscription := range subscriptions {
+		out.Subscriptions = append(out.Subscriptions, InstallPreflightEventSubscription{
+			Name:        subscription.Name,
+			Handler:     subscription.Handler,
+			RetryPolicy: subscription.RetryPolicy,
+		})
+		if subscription.RetryPolicy != "" {
+			policies[subscription.RetryPolicy] = struct{}{}
+		}
+	}
+	for policy := range policies {
+		out.RetryPolicies = append(out.RetryPolicies, policy)
+	}
+	sort.Strings(out.RetryPolicies)
+	return out
+}
+
 func buildInstallPreflightMigration(info Info, source string) InstallPreflightMigration {
 	out := InstallPreflightMigration{Version: strings.TrimSpace(info.MigrationVersion)}
 	if out.Version == "" {
@@ -493,6 +529,12 @@ func buildInstallPreflightRisk(result InstallPreflightResult) InstallPreflightRi
 	}
 	if len(result.API.AuditActions) > 0 {
 		summary = append(summary, "audit actions")
+	}
+	if len(result.Events.Subscriptions) > 0 {
+		if rank < 1 {
+			rank = 1
+		}
+		summary = append(summary, "business event subscriptions")
 	}
 	if result.Resources.ServiceBaseURL != "" || result.Resources.ServiceHealthURL != "" {
 		if rank < 2 {

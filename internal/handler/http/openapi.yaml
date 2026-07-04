@@ -3119,6 +3119,7 @@ components:
                 - resources
                 - data
                 - api
+                - events
                 - migration
                 - signature
                 - risk
@@ -3194,6 +3195,27 @@ components:
                       type: array
                       items:
                         type: string
+                events:
+                  type: object
+                  properties:
+                    subscriptions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            examples: [approval-completed, inbound-completed, qualification-expiring]
+                          handler:
+                            type: string
+                          retryPolicy:
+                            type: string
+                            enum: [none, standard, aggressive]
+                    retryPolicies:
+                      type: array
+                      items:
+                        type: string
+                        enum: [none, standard, aggressive]
                 migration:
                   type: object
                 signature:

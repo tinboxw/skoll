@@ -88,6 +88,7 @@ var permissionModulePattern = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{0,63}$`)
 var dataNamespacePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
 var dataIdentifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,127}$`)
 var auditActionPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}$`)
+var eventNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]{2,127}$`)
 
 type SignatureAlgorithm string
 
@@ -211,6 +212,16 @@ type APIRoute struct {
 	AuditAction string
 }
 
+type EventContract struct {
+	Subscriptions []EventSubscription
+}
+
+type EventSubscription struct {
+	Name        string
+	Handler     string
+	RetryPolicy string
+}
+
 type Info struct {
 	ID                  string
 	Name                string
@@ -244,6 +255,7 @@ type Info struct {
 	ConfigSchema        *ConfigSchema
 	DataManifest        *DataManifest
 	APIContract         *APIContract
+	EventContract       *EventContract
 	SystemBuiltin       bool
 	Vendor              string
 	VendorURL           string
@@ -415,6 +427,9 @@ func (i Info) ValidateManifest() error {
 	if err := i.ValidateAPIContract(); err != nil {
 		return err
 	}
+	if err := i.ValidateEventContract(); err != nil {
+		return err
+	}
 
 	if mode != UIModeBackendOnly {
 		if len(i.I18nLocales) == 0 {
@@ -446,6 +461,35 @@ func (i Info) ValidateManifest() error {
 		}
 	}
 
+	return nil
+}
+
+func (i Info) ValidateEventContract() error {
+	if i.EventContract == nil {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	for _, subscription := range i.EventContract.Subscriptions {
+		name := strings.TrimSpace(strings.ToLower(subscription.Name))
+		if !eventNamePattern.MatchString(name) {
+			return ErrPluginManifestBroken
+		}
+		handler := strings.TrimSpace(subscription.Handler)
+		if handler == "" {
+			return ErrPluginManifestBroken
+		}
+		key := name + "::" + handler
+		if _, ok := seen[key]; ok {
+			return ErrPluginManifestBroken
+		}
+		seen[key] = struct{}{}
+		retryPolicy := strings.TrimSpace(strings.ToLower(subscription.RetryPolicy))
+		switch retryPolicy {
+		case "", "none", "standard", "aggressive":
+		default:
+			return ErrPluginManifestBroken
+		}
+	}
 	return nil
 }
 

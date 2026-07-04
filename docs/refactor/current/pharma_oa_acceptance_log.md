@@ -346,3 +346,60 @@ Notes:
 ### Next Step
 
 - Claim `F6-06` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F6-06: Implement Business Event Bus
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/event/business_bus.go`
+- `internal/event/business_bus_test.go`
+- `internal/plugin/types.go`
+- `internal/plugin/loader.go`
+- `internal/plugin/catalog.go`
+- `internal/plugin/manager.go`
+- `internal/plugin/catalog_audit.go`
+- `internal/plugin/install_preflight.go`
+- `internal/plugin/README.md`
+- `internal/plugin/*_test.go`
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Event model | Passed | `BusinessEvent` validates current event names and covers source, subject, payload, metadata, and occurrence time |
+| Publisher/subscriber APIs | Passed | `BusinessEventBus.Subscribe` and `Publish` support named handlers for `approval-completed`, `inbound-completed`, `qualification-expiring`, and similar events |
+| After-transaction events | Passed | `AfterCommitQueue` publishes only on `Commit` and drops queued events on `Rollback` |
+| Retry records | Passed | Failed handlers create `BusinessRetryRecord`; `RetryDue` replays due failures and marks records succeeded or failed |
+| Plugin subscriptions | Passed | `events.subscriptions` manifest block is parsed, normalized, validated, shown in install preflight, and imported into `ExtensionRegistry.Events` on enable |
+| Plugin install/enable/disable/permissions/menu/audit/failure states | Passed | Existing lifecycle tests still cover install, enable, disable, permission/menu import, audit events, and invalid manifest failures; new tests add event import and invalid event contract failures |
+| API/OpenAPI impact | Passed | Plugin install preflight response now includes `events`; `docs/api/openapi.yaml` and `internal/handler/http/openapi.yaml` are synchronized |
+| Permission, audit, migration/seed impact | Passed | No new permission seed, core migration, or seed data; plugin catalog audit now records event subscription count |
+
+### Verification Commands
+
+```powershell
+go test ./internal/event/... ./internal/plugin/...
+git diff --no-index docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+```
+
+Result: Passed.
+
+Notes:
+
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+- `docs/refactor/old/` was not updated.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F6-07` from `docs/refactor/current/pharma_oa_work_items.md`.

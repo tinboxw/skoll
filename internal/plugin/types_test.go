@@ -327,3 +327,42 @@ func TestInfoValidateManifestAPIContract(t *testing.T) {
 		t.Fatal("expected validation error for invalid audit action")
 	}
 }
+
+func TestInfoValidateManifestEventContract(t *testing.T) {
+	valid := Info{
+		ID:      "reports",
+		Name:    "Reports",
+		Version: "1.0.0",
+		EventContract: &EventContract{
+			Subscriptions: []EventSubscription{
+				{Name: "approval-completed", Handler: "onApprovalCompleted", RetryPolicy: "standard"},
+				{Name: "inbound-completed", Handler: "onInboundCompleted", RetryPolicy: "aggressive"},
+				{Name: "qualification-expiring", Handler: "onQualificationExpiring", RetryPolicy: "none"},
+			},
+		},
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid event contract, got %v", err)
+	}
+
+	invalidName := valid
+	invalidName.EventContract = &EventContract{Subscriptions: []EventSubscription{{Name: "bad event", Handler: "onBadEvent"}}}
+	if err := invalidName.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for invalid event name")
+	}
+
+	missingHandler := valid
+	missingHandler.EventContract = &EventContract{Subscriptions: []EventSubscription{{Name: "approval-completed"}}}
+	if err := missingHandler.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for missing event handler")
+	}
+
+	duplicate := valid
+	duplicate.EventContract = &EventContract{Subscriptions: []EventSubscription{
+		{Name: "approval-completed", Handler: "onApprovalCompleted"},
+		{Name: "approval-completed", Handler: "onApprovalCompleted"},
+	}}
+	if err := duplicate.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for duplicate event subscription")
+	}
+}
