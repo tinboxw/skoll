@@ -645,3 +645,54 @@ Notes:
 ### Next Step
 
 - Claim `F7-04` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F7-04: Implement Form Builder Schema
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/form/schema.go`
+- `internal/domain/form/schema_test.go`
+- `internal/service/form/service.go`
+- `internal/service/form/service_impl.go`
+- `internal/service/form/memory_repository.go`
+- `internal/service/form/service_impl_test.go`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Form schema model | Passed | Added `form.Schema` with ID, key, name, version, business type, description, fields, and audit metadata |
+| Field types | Passed | Supports string, textarea, number, boolean, date, datetime, select, multi-select, dictionary, user, department, attachment, and detail-table fields |
+| Validation metadata | Passed | Supports required, min, max, min/max length, pattern, enum, min-items, and max-items rules with pattern compilation checks |
+| Detail table field | Passed | Detail-table config validates row limits, required columns, duplicate column keys, and rejects nested detail tables |
+| Attachment field | Passed | Attachment config validates max files, max size, accepted extensions, and required flag |
+| Pharma OA fixtures | Passed | Leave, reimbursement, purchase request, purchase inbound, and customer qualification fixtures are all expressible |
+| Service layer | Passed | Added schema create/get/get-by-key service and clone-safe in-memory repository |
+| API/OpenAPI impact | Passed | No HTTP endpoint or response contract was added; later F7 form API work can expose this schema through OpenAPI |
+| Permission, audit, migration/seed impact | Passed | No permission seed, audit sink, core migration, or seed data is introduced in this Work Item |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/form/... ./internal/service/form/...
+go test ./internal/domain/... ./internal/service/...
+git diff --check
+```
+
+Result: Passed.
+
+Notes:
+
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F7-05` from `docs/refactor/current/pharma_oa_work_items.md`.
