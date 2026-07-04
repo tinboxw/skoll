@@ -34,6 +34,10 @@ func (s *serviceImpl) CreateDefinition(ctx context.Context, in CreateDefinitionI
 	return definition, nil
 }
 
+func (s *serviceImpl) GetDefinition(ctx context.Context, id shared.ID) (*domainworkflow.Definition, error) {
+	return s.definition(ctx, id)
+}
+
 func (s *serviceImpl) PublishDefinition(ctx context.Context, id shared.ID, now time.Time) (*domainworkflow.Definition, error) {
 	definition, err := s.definition(ctx, id)
 	if err != nil {
@@ -69,6 +73,16 @@ func (s *serviceImpl) Start(ctx context.Context, in StartInput) (*domainworkflow
 		return nil, err
 	}
 	return instance, nil
+}
+
+func (s *serviceImpl) GetInstance(ctx context.Context, id shared.ID) (*domainworkflow.Instance, error) {
+	if s == nil || s.repo == nil {
+		return nil, fmt.Errorf("workflow service repository is required")
+	}
+	if id.IsZero() {
+		return nil, fmt.Errorf("workflow instance id is required")
+	}
+	return s.repo.GetInstance(ctx, id)
 }
 
 func (s *serviceImpl) Approve(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error) {

@@ -14,6 +14,7 @@ import (
 	rolehttp "github.com/tinboxw/skoll/internal/handler/http/v1/role"
 	systemhttp "github.com/tinboxw/skoll/internal/handler/http/v1/system"
 	userhttp "github.com/tinboxw/skoll/internal/handler/http/v1/user"
+	workflowhttp "github.com/tinboxw/skoll/internal/handler/http/v1/workflow"
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
@@ -23,6 +24,7 @@ import (
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
 	"github.com/tinboxw/skoll/internal/service/user"
+	"github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/pkg/config"
 )
 
@@ -38,6 +40,7 @@ type Dependencies struct {
 	SystemService     system.Service
 	PermissionService permission.Service
 	MenuService       menu.Service
+	WorkflowService   workflow.Service
 	PluginManager     plugin.Manager
 	APIPrefix         string
 	LogLevel          string
@@ -76,6 +79,8 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
 	permissionhttp.RegisterPermissionRoutes(apiMux, deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
+	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
+	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)
 	pluginhttp.RegisterPluginRoutes(
 		apiMux,
 		deps.PluginManager,

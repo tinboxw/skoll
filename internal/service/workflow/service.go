@@ -25,8 +25,10 @@ type Repository interface {
 
 type Service interface {
 	CreateDefinition(ctx context.Context, in CreateDefinitionInput) (*domainworkflow.Definition, error)
+	GetDefinition(ctx context.Context, id shared.ID) (*domainworkflow.Definition, error)
 	PublishDefinition(ctx context.Context, id shared.ID, now time.Time) (*domainworkflow.Definition, error)
 	Start(ctx context.Context, in StartInput) (*domainworkflow.Instance, error)
+	GetInstance(ctx context.Context, id shared.ID) (*domainworkflow.Instance, error)
 	Approve(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error)
 	Reject(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error)
 	Withdraw(ctx context.Context, in InstanceActionInput) (*domainworkflow.Instance, error)

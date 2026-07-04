@@ -510,3 +510,65 @@ Notes:
 ### Next Step
 
 - Claim `F7-02` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F7-02: Implement Workflow API
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/handler/http/v1/workflow/handler.go`
+- `internal/handler/http/v1/workflow/handler_test.go`
+- `internal/handler/http/router.go`
+- `internal/bootstrap/di.go`
+- `internal/service/workflow/service.go`
+- `internal/service/workflow/service_impl.go`
+- `docs/api/openapi.yaml`
+- `internal/handler/http/openapi.yaml`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Workflow definition API | Passed | Added create, get, and publish endpoints under `/v1/workflows/definitions` |
+| Workflow instance API | Passed | Added start, get, approve, reject, withdraw, transfer, and copy endpoints under `/v1/workflows/instances` |
+| Service support | Passed | Workflow service now exposes get-definition and get-instance methods for API readback |
+| Permission records | Passed | Router registers workflow API permission resources for definition management, instance start/read, and task actions |
+| Audit records | Passed | Handler test runs through router with request-audit middleware and verifies successful audit events for approve, reject, and transfer requests |
+| Three workflow scenarios | Passed | API test covers approve, reject, and copy-transfer-approve scenarios end to end |
+| OpenAPI sync | Passed | `docs/api/openapi.yaml` and `internal/handler/http/openapi.yaml` are identical and include workflow request/response schemas |
+| Migration/seed impact | Passed | No core database migration or seed file is introduced; runtime permission catalog records are registered through the existing permission service |
+
+### Verification Commands
+
+```powershell
+go test ./internal/handler/http/...
+go test ./internal/service/workflow/...
+go test ./internal/bootstrap/...
+git diff --no-index docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial failure: workflow handler test imported the root HTTP router from the same package test and created an import cycle.
+- Fix: moved the test to external package `workflow_test`.
+- Second failure: audit assertion expected 11 events, but the three API scenarios perform 10 workflow API calls.
+- Fix: corrected the assertion to require one audit event per actual workflow API call.
+- Retry result: Passed.
+
+Notes:
+
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F7-03` from `docs/refactor/current/pharma_oa_work_items.md`.

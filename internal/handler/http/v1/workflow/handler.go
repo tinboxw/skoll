@@ -1,0 +1,480 @@
+package workflow
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
+	"time"
+
+	domainpermission "github.com/tinboxw/skoll/internal/domain/permission"
+	"github.com/tinboxw/skoll/internal/domain/shared"
+	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
+	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
+	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
+)
+
+const (
+	PermissionWorkflowDefinitionManage = "workflow.definition.manage"
+	PermissionWorkflowInstanceStart    = "workflow.instance.start"
+	PermissionWorkflowTaskAct          = "workflow.task.act"
+	PermissionWorkflowInstanceRead     = "workflow.instance.read"
+)
+
+type Handler struct {
+	service workflowsvc.Service
+}
+
+func RegisterWorkflowRoutes(mux *http.ServeMux, service workflowsvc.Service) {
+	if mux == nil || service == nil {
+		return
+	}
+	h := &Handler{service: service}
+	mux.HandleFunc("POST /v1/workflows/definitions", h.createDefinition)
+	mux.HandleFunc("GET /v1/workflows/definitions/{id}", h.getDefinition)
+	mux.HandleFunc("POST /v1/workflows/definitions/{id}/publish", h.publishDefinition)
+	mux.HandleFunc("POST /v1/workflows/instances", h.startInstance)
+	mux.HandleFunc("GET /v1/workflows/instances/{id}", h.getInstance)
+	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/approve", h.approveTask)
+	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/reject", h.rejectTask)
+	mux.HandleFunc("POST /v1/workflows/instances/{id}/withdraw", h.withdrawInstance)
+	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/transfer", h.transferTask)
+	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/copy", h.copyTask)
+}
+
+func RegisterWorkflowPermissions(service permissionsvc.Service) error {
+	if service == nil {
+		return nil
+	}
+	for _, item := range WorkflowPermissionResources() {
+		if _, err := service.RegisterResource(context.Background(), item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func WorkflowPermissionResources() []permissionsvc.RegisterResourceInput {
+	return []permissionsvc.RegisterResourceInput{
+		{
+			Key:    PermissionWorkflowDefinitionManage,
+			Type:   domainpermission.ResourceTypeAPI,
+			Module: "workflow",
+			Source: "system",
+			Name:   "Manage workflow definitions",
+			Risk:   domainpermission.RiskLevelMedium,
+			Metadata: map[string]string{
+				"routes": "POST /v1/workflows/definitions;GET /v1/workflows/definitions/{id};POST /v1/workflows/definitions/{id}/publish",
+			},
+		},
+		{
+			Key:    PermissionWorkflowInstanceStart,
+			Type:   domainpermission.ResourceTypeAPI,
+			Module: "workflow",
+			Source: "system",
+			Name:   "Start workflow instances",
+			Risk:   domainpermission.RiskLevelLow,
+			Metadata: map[string]string{
+				"routes": "POST /v1/workflows/instances",
+			},
+		},
+		{
+			Key:    PermissionWorkflowInstanceRead,
+			Type:   domainpermission.ResourceTypeAPI,
+			Module: "workflow",
+			Source: "system",
+			Name:   "Read workflow instances",
+			Risk:   domainpermission.RiskLevelLow,
+			Metadata: map[string]string{
+				"routes": "GET /v1/workflows/instances/{id}",
+			},
+		},
+		{
+			Key:    PermissionWorkflowTaskAct,
+			Type:   domainpermission.ResourceTypeAPI,
+			Module: "workflow",
+			Source: "system",
+			Name:   "Act on workflow tasks",
+			Risk:   domainpermission.RiskLevelMedium,
+			Metadata: map[string]string{
+				"routes": "POST /v1/workflows/instances/{id}/tasks/{taskId}/approve;POST /v1/workflows/instances/{id}/tasks/{taskId}/reject;POST /v1/workflows/instances/{id}/withdraw;POST /v1/workflows/instances/{id}/tasks/{taskId}/transfer;POST /v1/workflows/instances/{id}/tasks/{taskId}/copy",
+			},
+		},
+	}
+}
+
+type definitionInput struct {
+	ID          string            `json:"id"`
+	Key         string            `json:"key"`
+	Name        string            `json:"name"`
+	Version     int               `json:"version"`
+	Nodes       []nodeInput       `json:"nodes"`
+	Transitions []transitionInput `json:"transitions"`
+}
+
+type nodeInput struct {
+	ID        string   `json:"id"`
+	Key       string   `json:"key"`
+	Name      string   `json:"name"`
+	Type      string   `json:"type"`
+	Assignees []string `json:"assignees"`
+}
+
+type transitionInput struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type startInput struct {
+	ID           string     `json:"id"`
+	DefinitionID string     `json:"definitionId"`
+	BusinessType string     `json:"businessType"`
+	BusinessID   string     `json:"businessId"`
+	Title        string     `json:"title"`
+	Starter      actorInput `json:"starter"`
+}
+
+type actorInput struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type taskActionInput struct {
+	Actor   actorInput `json:"actor"`
+	Comment string     `json:"comment"`
+}
+
+type targetActionInput struct {
+	Actor   actorInput `json:"actor"`
+	Target  actorInput `json:"target"`
+	Comment string     `json:"comment"`
+}
+
+func (h *Handler) createDefinition(w http.ResponseWriter, r *http.Request) {
+	var req definitionInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	definition, err := h.service.CreateDefinition(r.Context(), workflowsvc.CreateDefinitionInput{
+		ID:          shared.ID(strings.TrimSpace(req.ID)),
+		Key:         req.Key,
+		Name:        req.Name,
+		Version:     req.Version,
+		Nodes:       req.nodes(),
+		Transitions: req.transitions(),
+		Now:         time.Now().UTC(),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{"item": definitionRecordFromDomain(*definition)})
+}
+
+func (h *Handler) getDefinition(w http.ResponseWriter, r *http.Request) {
+	definition, err := h.service.GetDefinition(r.Context(), shared.ID(strings.TrimSpace(r.PathValue("id"))))
+	if err != nil {
+		apiv1.WriteError(w, http.StatusNotFound, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": definitionRecordFromDomain(*definition)})
+}
+
+func (h *Handler) publishDefinition(w http.ResponseWriter, r *http.Request) {
+	definition, err := h.service.PublishDefinition(r.Context(), shared.ID(strings.TrimSpace(r.PathValue("id"))), time.Now().UTC())
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": definitionRecordFromDomain(*definition)})
+}
+
+func (h *Handler) startInstance(w http.ResponseWriter, r *http.Request) {
+	var req startInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	instance, err := h.service.Start(r.Context(), workflowsvc.StartInput{
+		ID:           shared.ID(strings.TrimSpace(req.ID)),
+		DefinitionID: shared.ID(strings.TrimSpace(req.DefinitionID)),
+		BusinessType: req.BusinessType,
+		BusinessID:   req.BusinessID,
+		Title:        req.Title,
+		Starter:      req.Starter.domain(),
+		Now:          time.Now().UTC(),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{"item": instanceRecordFromDomain(*instance)})
+}
+
+func (h *Handler) getInstance(w http.ResponseWriter, r *http.Request) {
+	instance, err := h.service.GetInstance(r.Context(), shared.ID(strings.TrimSpace(r.PathValue("id"))))
+	if err != nil {
+		apiv1.WriteError(w, http.StatusNotFound, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": instanceRecordFromDomain(*instance)})
+}
+
+func (h *Handler) approveTask(w http.ResponseWriter, r *http.Request) {
+	h.taskAction(w, r, h.service.Approve)
+}
+
+func (h *Handler) rejectTask(w http.ResponseWriter, r *http.Request) {
+	h.taskAction(w, r, h.service.Reject)
+}
+
+func (h *Handler) withdrawInstance(w http.ResponseWriter, r *http.Request) {
+	var req taskActionInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	instance, err := h.service.Withdraw(r.Context(), workflowsvc.InstanceActionInput{
+		InstanceID: shared.ID(strings.TrimSpace(r.PathValue("id"))),
+		Actor:      req.Actor.domain(),
+		Comment:    req.Comment,
+		Now:        time.Now().UTC(),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": instanceRecordFromDomain(*instance)})
+}
+
+func (h *Handler) transferTask(w http.ResponseWriter, r *http.Request) {
+	h.targetAction(w, r, h.service.Transfer)
+}
+
+func (h *Handler) copyTask(w http.ResponseWriter, r *http.Request) {
+	h.targetAction(w, r, h.service.Copy)
+}
+
+func (h *Handler) taskAction(w http.ResponseWriter, r *http.Request, action func(context.Context, workflowsvc.TaskActionInput) (*domainworkflow.Instance, error)) {
+	var req taskActionInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	instance, err := action(r.Context(), workflowsvc.TaskActionInput{
+		InstanceID: shared.ID(strings.TrimSpace(r.PathValue("id"))),
+		TaskID:     shared.ID(strings.TrimSpace(r.PathValue("taskId"))),
+		Actor:      req.Actor.domain(),
+		Comment:    req.Comment,
+		Now:        time.Now().UTC(),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": instanceRecordFromDomain(*instance)})
+}
+
+func (h *Handler) targetAction(w http.ResponseWriter, r *http.Request, action func(context.Context, workflowsvc.TaskTargetActionInput) (*domainworkflow.Instance, error)) {
+	var req targetActionInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	instance, err := action(r.Context(), workflowsvc.TaskTargetActionInput{
+		InstanceID: shared.ID(strings.TrimSpace(r.PathValue("id"))),
+		TaskID:     shared.ID(strings.TrimSpace(r.PathValue("taskId"))),
+		Actor:      req.Actor.domain(),
+		Target:     req.Target.domain(),
+		Comment:    req.Comment,
+		Now:        time.Now().UTC(),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": instanceRecordFromDomain(*instance)})
+}
+
+func (in definitionInput) nodes() []domainworkflow.Node {
+	nodes := make([]domainworkflow.Node, 0, len(in.Nodes))
+	for _, node := range in.Nodes {
+		assignees := make([]shared.ID, 0, len(node.Assignees))
+		for _, assignee := range node.Assignees {
+			assignees = append(assignees, shared.ID(strings.TrimSpace(assignee)))
+		}
+		nodes = append(nodes, domainworkflow.Node{
+			ID:        shared.ID(strings.TrimSpace(node.ID)),
+			Key:       node.Key,
+			Name:      node.Name,
+			Type:      domainworkflow.NodeType(strings.TrimSpace(node.Type)),
+			Assignees: assignees,
+		})
+	}
+	return nodes
+}
+
+func (in definitionInput) transitions() []domainworkflow.Transition {
+	transitions := make([]domainworkflow.Transition, 0, len(in.Transitions))
+	for _, transition := range in.Transitions {
+		transitions = append(transitions, domainworkflow.Transition{
+			From: shared.ID(strings.TrimSpace(transition.From)),
+			To:   shared.ID(strings.TrimSpace(transition.To)),
+		})
+	}
+	return transitions
+}
+
+func (in actorInput) domain() domainworkflow.Actor {
+	return domainworkflow.Actor{ID: shared.ID(strings.TrimSpace(in.ID)), Name: strings.TrimSpace(in.Name)}
+}
+
+type definitionRecord struct {
+	ID          string             `json:"id"`
+	Key         string             `json:"key"`
+	Name        string             `json:"name"`
+	Version     int                `json:"version"`
+	Status      string             `json:"status"`
+	Nodes       []nodeRecord       `json:"nodes"`
+	Transitions []transitionRecord `json:"transitions"`
+	CreatedAt   time.Time          `json:"createdAt"`
+	UpdatedAt   time.Time          `json:"updatedAt"`
+}
+
+type nodeRecord struct {
+	ID        string   `json:"id"`
+	Key       string   `json:"key"`
+	Name      string   `json:"name"`
+	Type      string   `json:"type"`
+	Assignees []string `json:"assignees"`
+}
+
+type transitionRecord struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type instanceRecord struct {
+	ID            string         `json:"id"`
+	DefinitionID  string         `json:"definitionId"`
+	DefinitionKey string         `json:"definitionKey"`
+	BusinessType  string         `json:"businessType"`
+	BusinessID    string         `json:"businessId"`
+	Title         string         `json:"title"`
+	Status        string         `json:"status"`
+	Starter       actorRecord    `json:"starter"`
+	CurrentNode   string         `json:"currentNode"`
+	Tasks         []taskRecord   `json:"tasks"`
+	Timeline      []actionRecord `json:"timeline"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
+}
+
+type actorRecord struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type taskRecord struct {
+	ID          string      `json:"id"`
+	InstanceID  string      `json:"instanceId"`
+	NodeID      string      `json:"nodeId"`
+	Assignee    actorRecord `json:"assignee"`
+	Status      string      `json:"status"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	CompletedAt *time.Time  `json:"completedAt,omitempty"`
+}
+
+type actionRecord struct {
+	ID         string      `json:"id"`
+	Type       string      `json:"type"`
+	InstanceID string      `json:"instanceId"`
+	TaskID     string      `json:"taskId,omitempty"`
+	NodeID     string      `json:"nodeId,omitempty"`
+	Actor      actorRecord `json:"actor"`
+	Target     actorRecord `json:"target"`
+	Comment    string      `json:"comment,omitempty"`
+	CreatedAt  time.Time   `json:"createdAt"`
+}
+
+func definitionRecordFromDomain(definition domainworkflow.Definition) definitionRecord {
+	nodes := make([]nodeRecord, 0, len(definition.Nodes))
+	for _, node := range definition.Nodes {
+		assignees := make([]string, 0, len(node.Assignees))
+		for _, assignee := range node.Assignees {
+			assignees = append(assignees, assignee.String())
+		}
+		nodes = append(nodes, nodeRecord{
+			ID:        node.ID.String(),
+			Key:       node.Key,
+			Name:      node.Name,
+			Type:      string(node.Type),
+			Assignees: assignees,
+		})
+	}
+	transitions := make([]transitionRecord, 0, len(definition.Transitions))
+	for _, transition := range definition.Transitions {
+		transitions = append(transitions, transitionRecord{From: transition.From.String(), To: transition.To.String()})
+	}
+	return definitionRecord{
+		ID:          definition.ID.String(),
+		Key:         definition.Key,
+		Name:        definition.Name,
+		Version:     definition.Version,
+		Status:      string(definition.Status),
+		Nodes:       nodes,
+		Transitions: transitions,
+		CreatedAt:   definition.Meta.CreatedAt,
+		UpdatedAt:   definition.Meta.UpdatedAt,
+	}
+}
+
+func instanceRecordFromDomain(instance domainworkflow.Instance) instanceRecord {
+	tasks := make([]taskRecord, 0, len(instance.Tasks))
+	for _, task := range instance.Tasks {
+		tasks = append(tasks, taskRecord{
+			ID:          task.ID.String(),
+			InstanceID:  task.InstanceID.String(),
+			NodeID:      task.NodeID.String(),
+			Assignee:    actorRecordFromDomain(task.Assignee),
+			Status:      string(task.Status),
+			CreatedAt:   task.CreatedAt,
+			CompletedAt: task.CompletedAt,
+		})
+	}
+	timeline := make([]actionRecord, 0, len(instance.Timeline))
+	for _, action := range instance.Timeline {
+		timeline = append(timeline, actionRecord{
+			ID:         action.ID.String(),
+			Type:       string(action.Type),
+			InstanceID: action.InstanceID.String(),
+			TaskID:     action.TaskID.String(),
+			NodeID:     action.NodeID.String(),
+			Actor:      actorRecordFromDomain(action.Actor),
+			Target:     actorRecordFromDomain(action.Target),
+			Comment:    action.Comment,
+			CreatedAt:  action.CreatedAt,
+		})
+	}
+	return instanceRecord{
+		ID:            instance.ID.String(),
+		DefinitionID:  instance.DefinitionID.String(),
+		DefinitionKey: instance.DefinitionKey,
+		BusinessType:  instance.BusinessType,
+		BusinessID:    instance.BusinessID,
+		Title:         instance.Title,
+		Status:        string(instance.Status),
+		Starter:       actorRecordFromDomain(instance.Starter),
+		CurrentNode:   instance.CurrentNode.String(),
+		Tasks:         tasks,
+		Timeline:      timeline,
+		CreatedAt:     instance.Meta.CreatedAt,
+		UpdatedAt:     instance.Meta.UpdatedAt,
+	}
+}
+
+func actorRecordFromDomain(actor domainworkflow.Actor) actorRecord {
+	return actorRecord{ID: actor.ID.String(), Name: actor.Name}
+}

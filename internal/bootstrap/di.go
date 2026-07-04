@@ -33,6 +33,7 @@ import (
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
 	"github.com/tinboxw/skoll/internal/service/user"
+	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
 	objectstore "github.com/tinboxw/skoll/internal/store/object"
 	"github.com/tinboxw/skoll/pkg/config"
@@ -81,6 +82,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
+	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err
@@ -101,6 +103,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		SystemService:     systemService,
 		PermissionService: permissionService,
 		MenuService:       menuService,
+		WorkflowService:   workflowService,
 		PluginManager:     pluginManager,
 		APIPrefix:         cfg.AppConfig.Server.APIPrefix,
 		LogLevel:          cfg.AppConfig.Log.Level,

@@ -1322,6 +1322,236 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
+  /v1/workflows/definitions:
+    post:
+      summary: Create workflow definition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDefinitionCreateRequest'
+      responses:
+        '201':
+          description: Created workflow definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinitionAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/definitions/{id}:
+    get:
+      summary: Get workflow definition
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workflow definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinitionAPIResponse'
+        '404':
+          description: Not Found
+  /v1/workflows/definitions/{id}/publish:
+    post:
+      summary: Publish workflow definition
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Published workflow definition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDefinitionAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/instances:
+    post:
+      summary: Start workflow instance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowInstanceStartRequest'
+      responses:
+        '201':
+          description: Created workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/instances/{id}:
+    get:
+      summary: Get workflow instance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '404':
+          description: Not Found
+  /v1/workflows/instances/{id}/tasks/{taskId}/approve:
+    post:
+      summary: Approve workflow task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTaskActionRequest'
+      responses:
+        '200':
+          description: Updated workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/instances/{id}/tasks/{taskId}/reject:
+    post:
+      summary: Reject workflow task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTaskActionRequest'
+      responses:
+        '200':
+          description: Updated workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/instances/{id}/withdraw:
+    post:
+      summary: Withdraw workflow instance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTaskActionRequest'
+      responses:
+        '200':
+          description: Withdrawn workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/instances/{id}/tasks/{taskId}/transfer:
+    post:
+      summary: Transfer workflow task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTaskTargetActionRequest'
+      responses:
+        '200':
+          description: Updated workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/instances/{id}/tasks/{taskId}/copy:
+    post:
+      summary: Copy workflow task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTaskTargetActionRequest'
+      responses:
+        '200':
+          description: Updated workflow instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '400':
+          description: Bad Request
   /v1/menus/tree:
     get:
       summary: Get menu registry tree
@@ -2151,6 +2381,272 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/PermissionResourceDiffResult'
+    WorkflowActor:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+    WorkflowNode:
+      type: object
+      required:
+        - id
+        - key
+        - name
+        - type
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [start, approval, cc, end]
+        assignees:
+          type: array
+          items:
+            type: string
+    WorkflowTransition:
+      type: object
+      required:
+        - from
+        - to
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+    WorkflowDefinitionCreateRequest:
+      type: object
+      required:
+        - id
+        - key
+        - name
+        - version
+        - nodes
+        - transitions
+      properties:
+        id:
+          type: string
+        key:
+          type: string
+        name:
+          type: string
+        version:
+          type: integer
+          minimum: 1
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowNode'
+        transitions:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowTransition'
+    WorkflowDefinition:
+      allOf:
+        - $ref: '#/components/schemas/WorkflowDefinitionCreateRequest'
+        - type: object
+          required:
+            - status
+            - createdAt
+            - updatedAt
+          properties:
+            status:
+              type: string
+              enum: [draft, published, disabled]
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    WorkflowInstanceStartRequest:
+      type: object
+      required:
+        - id
+        - definitionId
+        - businessType
+        - businessId
+        - title
+        - starter
+      properties:
+        id:
+          type: string
+        definitionId:
+          type: string
+        businessType:
+          type: string
+        businessId:
+          type: string
+        title:
+          type: string
+        starter:
+          $ref: '#/components/schemas/WorkflowActor'
+    WorkflowTaskActionRequest:
+      type: object
+      required:
+        - actor
+      properties:
+        actor:
+          $ref: '#/components/schemas/WorkflowActor'
+        comment:
+          type: string
+    WorkflowTaskTargetActionRequest:
+      type: object
+      required:
+        - actor
+        - target
+      properties:
+        actor:
+          $ref: '#/components/schemas/WorkflowActor'
+        target:
+          $ref: '#/components/schemas/WorkflowActor'
+        comment:
+          type: string
+    WorkflowTask:
+      type: object
+      required:
+        - id
+        - instanceId
+        - nodeId
+        - assignee
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+        instanceId:
+          type: string
+        nodeId:
+          type: string
+        assignee:
+          $ref: '#/components/schemas/WorkflowActor'
+        status:
+          type: string
+          enum: [pending, approved, rejected, transferred, copied, canceled]
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    WorkflowAction:
+      type: object
+      required:
+        - id
+        - type
+        - instanceId
+        - actor
+        - createdAt
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [start, approve, reject, withdraw, transfer, copy]
+        instanceId:
+          type: string
+        taskId:
+          type: string
+        nodeId:
+          type: string
+        actor:
+          $ref: '#/components/schemas/WorkflowActor'
+        target:
+          $ref: '#/components/schemas/WorkflowActor'
+        comment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    WorkflowInstance:
+      type: object
+      required:
+        - id
+        - definitionId
+        - definitionKey
+        - businessType
+        - businessId
+        - title
+        - status
+        - starter
+        - currentNode
+        - tasks
+        - timeline
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        definitionId:
+          type: string
+        definitionKey:
+          type: string
+        businessType:
+          type: string
+        businessId:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [running, approved, rejected, withdrawn]
+        starter:
+          $ref: '#/components/schemas/WorkflowActor'
+        currentNode:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowTask'
+        timeline:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowAction'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkflowDefinitionData:
+      type: object
+      required:
+        - item
+      properties:
+        item:
+          $ref: '#/components/schemas/WorkflowDefinition'
+    WorkflowInstanceData:
+      type: object
+      required:
+        - item
+      properties:
+        item:
+          $ref: '#/components/schemas/WorkflowInstance'
+    WorkflowDefinitionAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/WorkflowDefinitionData'
+    WorkflowInstanceAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/WorkflowInstanceData'
     MenuNode:
       type: object
       required:
