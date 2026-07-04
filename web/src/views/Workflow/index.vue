@@ -4,6 +4,7 @@ import { Check, ClipboardList, Eye, GitPullRequest, Plus, RefreshCw, Send, X } f
 import { ElMessage } from "element-plus";
 
 import { ConfirmAction, DataTable, DetailDrawer, FilterBar, PageShell, PageToolbar, type DataTableColumn } from "../../components/Common";
+import { loadFormSchemas, type FormSchema } from "../../form-builder/types";
 import { useButtonAccess } from "../../permissions/button";
 import { useUserStore } from "../../stores/user";
 import { toErrorMessage } from "../../utils/common";
@@ -54,11 +55,13 @@ const actionOpen = ref(false);
 const actionMode = ref<"approve" | "reject" | "transfer" | "copy">("approve");
 const actionInstance = ref<WorkflowInstance | null>(null);
 const actionTask = ref<WorkflowTask | null>(null);
+const formSchemas = ref<FormSchema[]>([]);
 
 const launchForm = reactive({
 	title: "Purchase approval",
 	businessType: "oa.purchase",
-	businessId: "purchase-demo-001"
+	businessId: "purchase-demo-001",
+	formSchemaId: ""
 });
 
 const actionForm = reactive({
@@ -74,6 +77,7 @@ const currentActor = computed<WorkflowActor>(() => ({
 	id: userStore.profile?.id?.trim() || "starter-1",
 	name: userStore.profile?.name?.trim() || "Current User"
 }));
+const selectedLaunchSchema = computed(() => formSchemas.value.find((item) => item.id === launchForm.formSchemaId) || null);
 
 const columns: DataTableColumn[] = [
 	{ key: "title", label: "Title", minWidth: 190 },
@@ -105,6 +109,7 @@ const summary = computed(() => ({
 }));
 
 onMounted(() => {
+	loadAvailableForms();
 	void refreshInstances();
 });
 
@@ -220,6 +225,23 @@ async function withdraw(row: WorkflowRow): Promise<void> {
 function openTimeline(row: WorkflowRow): void {
 	selected.value = row.raw;
 	drawerOpen.value = true;
+}
+
+function loadAvailableForms(): void {
+	try {
+		formSchemas.value = loadFormSchemas();
+	} catch {
+		formSchemas.value = [];
+	}
+}
+
+function applyLaunchSchema(): void {
+	const schema = selectedLaunchSchema.value;
+	if (!schema) {
+		return;
+	}
+	launchForm.title = `${schema.name} approval`;
+	launchForm.businessType = schema.businessType;
 }
 
 function openAction(mode: "approve" | "reject" | "transfer" | "copy", row: WorkflowRow): void {
@@ -402,6 +424,21 @@ function formatDate(value: string): string {
 
 		<el-dialog v-model="launchOpen" title="Launch workflow" width="520px" class="workflow-dialog">
 			<el-form label-position="top">
+				<el-form-item label="Form schema">
+					<el-select
+						v-model="launchForm.formSchemaId"
+						clearable
+						placeholder="Select saved form"
+						@change="applyLaunchSchema"
+					>
+						<el-option
+							v-for="schema in formSchemas"
+							:key="schema.id"
+							:label="`${schema.name} / v${schema.version}`"
+							:value="schema.id"
+						/>
+					</el-select>
+				</el-form-item>
 				<el-form-item label="Title">
 					<el-input v-model="launchForm.title" />
 				</el-form-item>
@@ -412,6 +449,17 @@ function formatDate(value: string): string {
 					<el-input v-model="launchForm.businessId" />
 				</el-form-item>
 			</el-form>
+			<div v-if="selectedLaunchSchema" class="launch-form-preview" data-testid="workflow-form-preview">
+				<div class="launch-form-preview__head">
+					<strong>{{ selectedLaunchSchema.name }}</strong>
+					<el-tag>v{{ selectedLaunchSchema.version }}</el-tag>
+				</div>
+				<div class="launch-form-preview__fields">
+					<el-tag v-for="field in selectedLaunchSchema.fields" :key="field.key" :type="field.required ? 'danger' : 'info'">
+						{{ field.label }}
+					</el-tag>
+				</div>
+			</div>
 			<template #footer>
 				<el-button @click="launchOpen = false">Cancel</el-button>
 				<el-button type="primary" :loading="saving" :icon="Send" @click="launchWorkflow">Launch</el-button>
@@ -541,6 +589,27 @@ function formatDate(value: string): string {
 .drawer-actions {
 	justify-content: flex-end;
 	flex-wrap: wrap;
+}
+
+.launch-form-preview {
+	display: grid;
+	gap: 10px;
+	padding: 12px;
+	border: 1px solid var(--color-border);
+	border-radius: var(--radius-md);
+	background: var(--color-bg);
+}
+
+.launch-form-preview__head,
+.launch-form-preview__fields {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.launch-form-preview__head {
+	justify-content: space-between;
 }
 
 @media (max-width: 760px) {

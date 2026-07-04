@@ -105,10 +105,12 @@ function cellText(row: Record<string, unknown>, column: DataTableColumn): string
 	display: grid;
 	gap: 10px;
 	min-width: 0;
+	max-width: 100%;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-md);
 	background: var(--color-surface);
-	overflow: hidden;
+	overflow-x: auto;
+	overflow-y: hidden;
 }
 
 .data-table__el {

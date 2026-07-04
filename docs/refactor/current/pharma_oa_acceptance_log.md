@@ -696,3 +696,87 @@ Notes:
 ### Next Step
 
 - Claim `F7-05` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F7-05: Implement Form Builder UI
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `web/src/form-builder/types.ts`
+- `web/src/views/FormBuilder/index.vue`
+- `web/src/views/Workflow/index.vue`
+- `web/src/router/index.ts`
+- `web/src/navigation/menu.ts`
+- `web/src/components/Layout/Sidebar.vue`
+- `web/src/components/Common/DataTable.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Form designer | Passed | `/skoll/form-builder` provides schema metadata editing, field table, field drawer, required flag, select/dictionary/attachment/detail-table settings, and purchase request template |
+| Preview | Passed | Preview tab renders saved/current fields, required marks, attachment hints, detail-table columns, and validation readiness |
+| Save | Passed | Save validates schema and persists the current form schema to `skoll.formBuilder.schemas` |
+| Version management | Passed | New version duplicates the current schema with an incremented version and saves alongside earlier versions |
+| Workflow launch usage | Passed | `/skoll/workflow` launch dialog loads saved form schemas, applies selected form business type, and displays selected form fields before launch |
+| Required UI states | Passed | Browser smoke covered loading path, empty state, corrupted-storage error state, no-permission state, save/saving path, destructive delete confirmation, and 390px responsive layout |
+| Route/menu integration | Passed | `/skoll/form-builder` route and sidebar entry are available with form icon and i18n label |
+| API/OpenAPI impact | Passed | No HTTP endpoint or response contract was added; OpenAPI remains unchanged because F7-05 is UI-only over local schema persistence |
+| Permission, audit, migration/seed impact | Passed | Uses current frontend permission rule `form.schema.manage`; no backend permission seed, audit sink, core migration, or seed data is introduced in this Work Item |
+
+### Verification Commands
+
+```powershell
+cd web
+npm run typecheck
+npm run build
+git diff --check
+```
+
+Browser smoke result:
+
+```json
+{
+  "emptyVisible": true,
+  "previewVisible": true,
+  "savedSchemas": 1,
+  "versionCount": 2,
+  "deleteConfirmVisible": true,
+  "workflowFormPreview": true,
+  "workflowBusinessType": "oa.purchase",
+  "noPermissionVisible": true,
+  "errorVisible": true,
+  "mobile": {
+    "viewport": 390,
+    "documentScrollWidth": 390,
+    "bodyScrollWidth": 390
+  }
+}
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial browser smoke failed to select the form in Workflow because each Playwright page used an isolated browser context and did not share localStorage.
+- Retry: injected saved form schemas explicitly into the workflow smoke page.
+- Initial mobile smoke treated table internals as page overflow.
+- Fix: made shared `DataTable` constrain itself to its parent with explicit horizontal overflow handling and rechecked page-level scroll width at 390px.
+- Retry result: Passed.
+
+Notes:
+
+- `npm run build` prints the existing Sass legacy JS API and VueUse/Rollup annotation warnings, then exits successfully.
+- Browser smoke used Playwright with local Chrome and localStorage-backed form schemas.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F7-06` from `docs/refactor/current/pharma_oa_work_items.md`.
