@@ -4,6 +4,7 @@ import type { RouteRecordRaw, Router } from "vue-router";
 import { useI18n } from "../i18n";
 import { withRouteAccessMeta } from "../permissions/route";
 import { getDefaultHomeTarget, type DefaultHomeTarget, type usePluginStore } from "../stores/plugins";
+import { useThemeStore, type ThemeBridgePayload } from "../stores/theme";
 import { getToken } from "../utils/auth";
 import { API_BASE_PREFIX } from "../utils/api-base-prefix";
 import { builtinAuthPlugin } from "./builtin/auth";
@@ -48,8 +49,8 @@ function resolveActiveLocale(hostLocale: string, pluginLocales: string[]): strin
 	return pluginLocales[0] || "zh-CN";
 }
 
-function injectLocaleBridgeScript(content: string, activeLocale: string, pluginLocales: string[], authToken: string): string {
-	const bridgeScript = `<script>(function(){var active=${JSON.stringify(activeLocale)};var locales=${JSON.stringify(pluginLocales)};var token=${JSON.stringify(authToken)};window.__SKOLL_LOCALE=active;window.__SKOLL_LOCALES=locales;window.__SKOLL_TOKEN=token;window.__SKOLL_PLUGIN_CONTEXT={locale:active,locales:locales,token:token};if(document&&document.documentElement){document.documentElement.setAttribute('lang',active);}window.dispatchEvent(new CustomEvent('skoll:locale',{detail:{locale:active,locales:locales}}));window.addEventListener('message',function(event){var data=event&&event.data;if(!data||data.type!=='skoll:locale'){return;}var nextLocale=String(data.locale||'').trim()||active;var nextLocales=Array.isArray(data.locales)?data.locales:locales;window.__SKOLL_LOCALE=nextLocale;window.__SKOLL_LOCALES=nextLocales;window.__SKOLL_PLUGIN_CONTEXT={locale:nextLocale,locales:nextLocales,token:token};if(document&&document.documentElement){document.documentElement.setAttribute('lang',nextLocale);}window.dispatchEvent(new CustomEvent('skoll:locale',{detail:{locale:nextLocale,locales:nextLocales}}));});})();</script>`;
+function injectHostBridgeScript(content: string, activeLocale: string, pluginLocales: string[], authToken: string, theme: ThemeBridgePayload): string {
+	const bridgeScript = `<script>(function(){var active=${JSON.stringify(activeLocale)};var locales=${JSON.stringify(pluginLocales)};var token=${JSON.stringify(authToken)};var theme=${JSON.stringify(theme)};function applyTheme(nextTheme){theme=nextTheme||theme;if(window.__SKOLL_PLUGIN_CONTEXT){window.__SKOLL_PLUGIN_CONTEXT.theme=theme;}window.__SKOLL_THEME=theme;if(document&&document.documentElement){document.documentElement.setAttribute('data-theme',theme.colorScheme||'light');document.documentElement.setAttribute('data-theme-mode',theme.mode||'light');document.documentElement.setAttribute('data-density',theme.density||'comfortable');document.documentElement.style.colorScheme=theme.colorScheme||'light';var tokens=theme.tokens||{};Object.keys(tokens).forEach(function(key){document.documentElement.style.setProperty(key,tokens[key]);});}window.dispatchEvent(new CustomEvent('skoll:theme',{detail:theme}));}window.__SKOLL_LOCALE=active;window.__SKOLL_LOCALES=locales;window.__SKOLL_TOKEN=token;window.__SKOLL_PLUGIN_CONTEXT={locale:active,locales:locales,token:token,theme:theme};if(document&&document.documentElement){document.documentElement.setAttribute('lang',active);}applyTheme(theme);window.dispatchEvent(new CustomEvent('skoll:locale',{detail:{locale:active,locales:locales}}));window.addEventListener('message',function(event){var data=event&&event.data;if(!data){return;}if(data.type==='skoll:locale'){var nextLocale=String(data.locale||'').trim()||active;var nextLocales=Array.isArray(data.locales)?data.locales:locales;window.__SKOLL_LOCALE=nextLocale;window.__SKOLL_LOCALES=nextLocales;window.__SKOLL_PLUGIN_CONTEXT={locale:nextLocale,locales:nextLocales,token:token,theme:theme};if(document&&document.documentElement){document.documentElement.setAttribute('lang',nextLocale);}window.dispatchEvent(new CustomEvent('skoll:locale',{detail:{locale:nextLocale,locales:nextLocales}}));return;}if(data.type==='skoll:theme'){applyTheme(data.theme);}});})();</script>`;
 	if (/<head>/i.test(content)) {
 		return content.replace(/<head>/i, `<head>\n${bridgeScript}`);
 	}
@@ -210,6 +211,16 @@ function registerPlugin(manifest: FrontendPluginManifest, router: Router, store:
 	}
 }
 
+function pushThemeToIframe(iframe: HTMLIFrameElement | null, theme: ThemeBridgePayload): void {
+	if (!iframe?.contentWindow) {
+		return;
+	}
+	iframe.contentWindow.postMessage({
+		type: "skoll:theme",
+		theme
+	}, window.location.origin);
+}
+
 function withPluginAccessMeta(route: RouteRecordRaw, manifest: FrontendPluginManifest): RouteRecordRaw {
 	const requiredRoles = manifest.uiMenu?.requiredRoles ?? [];
 	const requiredPermissions = manifest.uiMenu?.requiredPermissions ?? [];
@@ -257,6 +268,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 		name: `RemotePluginView_${record.id}`,
 		setup() {
 			const { locale } = useI18n();
+			const themeStore = useThemeStore();
 			const pageError = ref("");
 			const pageBroken = ref(false);
 			const pageLoading = ref(true);
@@ -264,6 +276,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 			const iframeRef = ref<HTMLIFrameElement | null>(null);
 			const pluginLocales = normalizePluginLocales(record.i18nLocales);
 			const resolvedLocale = computed(() => resolveActiveLocale(locale.value, pluginLocales));
+			const bridgeTheme = computed(() => themeStore.pluginBridgeTheme);
 			const pageURL = computed(() => `${API_BASE_PREFIX}/v1/plugins/${record.id}/page?locale=${encodeURIComponent(resolvedLocale.value)}`);
 
 			function patchPluginHTML(content: string): string {
@@ -272,7 +285,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 				const absoluteAssetsBase = `${absoluteBasePath}assets/`;
 				const authToken = getToken().trim();
 				let patched = content;
-				patched = injectLocaleBridgeScript(patched, resolvedLocale.value, pluginLocales, authToken);
+				patched = injectHostBridgeScript(patched, resolvedLocale.value, pluginLocales, authToken, bridgeTheme.value);
 				if (!/<base\s+/i.test(patched)) {
 					patched = patched.replace(/<head>/i, `<head>\n<base href="${absoluteBasePath}">`);
 				}
@@ -314,6 +327,13 @@ function createRemotePluginView(record: BackendPluginRecord) {
 				}
 			);
 
+			watch(
+				() => bridgeTheme.value,
+				(theme) => {
+					pushThemeToIframe(iframeRef.value, theme);
+				}
+			);
+
 			onUnmounted(() => {
 				if (frameURL.value) {
 					URL.revokeObjectURL(frameURL.value);
@@ -333,6 +353,7 @@ function createRemotePluginView(record: BackendPluginRecord) {
 							},
 							onLoad: () => {
 								pushLocaleToIframe(iframeRef.value, resolvedLocale.value, pluginLocales);
+								pushThemeToIframe(iframeRef.value, bridgeTheme.value);
 							},
 							onError: () => {
 								pageBroken.value = true;
@@ -379,6 +400,7 @@ function createAppHomeView(appId: string, store: PluginStore) {
 		name: `AppHomeView_${appId}`,
 		setup() {
 			const { locale } = useI18n();
+			const themeStore = useThemeStore();
 			const pageError = ref("");
 			const pageBroken = ref(false);
 			const pageLoading = ref(true);
@@ -387,6 +409,7 @@ function createAppHomeView(appId: string, store: PluginStore) {
 			const selectedPlugin = computed(() => pickAppHomePlugin(appId, store));
 			const pluginLocales = computed(() => normalizePluginLocales(selectedPlugin.value?.i18nLocales));
 			const resolvedLocale = computed(() => resolveActiveLocale(locale.value, pluginLocales.value));
+			const bridgeTheme = computed(() => themeStore.pluginBridgeTheme);
 
 			function patchPluginHTML(content: string, pluginID: string): string {
 				const basePath = `${API_BASE_PREFIX}/v1/plugins/${pluginID}/assets/`;
@@ -394,7 +417,7 @@ function createAppHomeView(appId: string, store: PluginStore) {
 				const absoluteAssetsBase = `${absoluteBasePath}assets/`;
 				const authToken = getToken().trim();
 				let patched = content;
-				patched = injectLocaleBridgeScript(patched, resolvedLocale.value, pluginLocales.value, authToken);
+				patched = injectHostBridgeScript(patched, resolvedLocale.value, pluginLocales.value, authToken, bridgeTheme.value);
 				if (!/<base\s+/i.test(patched)) {
 					patched = patched.replace(/<head>/i, `<head>\n<base href="${absoluteBasePath}">`);
 				}
@@ -454,6 +477,13 @@ function createAppHomeView(appId: string, store: PluginStore) {
 				}
 			);
 
+			watch(
+				() => bridgeTheme.value,
+				(theme) => {
+					pushThemeToIframe(iframeRef.value, theme);
+				}
+			);
+
 			onUnmounted(() => {
 				if (frameURL.value) {
 					URL.revokeObjectURL(frameURL.value);
@@ -473,6 +503,7 @@ function createAppHomeView(appId: string, store: PluginStore) {
 							},
 							onLoad: () => {
 								pushLocaleToIframe(iframeRef.value, resolvedLocale.value, pluginLocales.value);
+								pushThemeToIframe(iframeRef.value, bridgeTheme.value);
 							},
 							onError: () => {
 								pageBroken.value = true;

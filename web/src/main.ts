@@ -8,6 +8,7 @@ import { router } from "./router";
 import { bootstrapPlugins } from "./plugins";
 import { installPermissionDirective } from "./permissions/directive";
 import { usePluginStore } from "./stores/plugins";
+import { useThemeStore } from "./stores/theme";
 
 async function start(): Promise<void> {
 	const app = createApp(App);
@@ -16,6 +17,7 @@ async function start(): Promise<void> {
 	app.use(pinia);
 	app.use(router);
 	installPermissionDirective(app);
+	useThemeStore(pinia).initializeTheme();
 	app.mount("#app");
 
 	const pluginStore = usePluginStore(pinia);

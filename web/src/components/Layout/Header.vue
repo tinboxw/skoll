@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 
 import type { Locale } from "../../i18n";
 import { useI18n } from "../../i18n";
+import type { ThemeMode } from "../../stores/theme";
 
 const props = defineProps<{
 	title: string;
@@ -14,6 +15,8 @@ const props = defineProps<{
 	error: string | null;
 	locale: Locale;
 	setLocale: (value: Locale) => void;
+	theme: ThemeMode;
+	setTheme: (value: ThemeMode) => void;
 	onOpenProfile: () => void | Promise<void>;
 	onLogout: () => void | Promise<void>;
 }>();
@@ -103,6 +106,35 @@ async function logout(): Promise<void> {
 					{{ t("locale.en-US") }}
 				</button>
 			</div>
+			<div class="theme-switch" role="group" :aria-label="t('header.theme')">
+				<button
+					type="button"
+					class="theme-btn"
+					:title="t('header.themeLight')"
+					:class="{ active: theme === 'light' }"
+					@click="setTheme('light')"
+				>
+					{{ t("header.themeLightShort") }}
+				</button>
+				<button
+					type="button"
+					class="theme-btn"
+					:title="t('header.themeDark')"
+					:class="{ active: theme === 'dark' }"
+					@click="setTheme('dark')"
+				>
+					{{ t("header.themeDarkShort") }}
+				</button>
+				<button
+					type="button"
+					class="theme-btn"
+					:title="t('header.themeCompact')"
+					:class="{ active: theme === 'compact' }"
+					@click="setTheme('compact')"
+				>
+					{{ t("header.themeCompactShort") }}
+				</button>
+			</div>
 			<div class="user-menu">
 				<button type="button" class="avatar-btn" @click="toggleMenu">
 					<img v-if="userAvatarUrl" :src="userAvatarUrl" :alt="userName" class="avatar-img" />
@@ -128,7 +160,7 @@ async function logout(): Promise<void> {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	gap: 12px;
+	gap: var(--layout-gap);
 	margin-bottom: 14px;
 	box-shadow: 0 14px 30px -24px var(--color-shadow);
 }
@@ -148,6 +180,8 @@ p {
 	display: flex;
 	align-items: center;
 	gap: 10px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
 }
 
 .user-menu {
@@ -266,6 +300,31 @@ p {
 }
 
 .locale-btn.active {
+	background: var(--color-primary);
+	color: var(--color-on-primary);
+}
+
+.theme-switch {
+	display: inline-flex;
+	align-items: center;
+	border: 1px solid var(--color-border-strong);
+	border-radius: 999px;
+	overflow: hidden;
+	background: var(--color-surface);
+}
+
+.theme-btn {
+	min-width: 34px;
+	background: transparent;
+	color: var(--color-text-muted);
+	border: none;
+	border-radius: 0;
+	padding: 6px 9px;
+	font-size: 0.76rem;
+	font-weight: 700;
+}
+
+.theme-btn.active {
 	background: var(--color-primary);
 	color: var(--color-on-primary);
 }

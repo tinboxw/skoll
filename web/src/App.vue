@@ -11,6 +11,7 @@ import { useAppStore } from "./stores/app";
 import { useNavigationStore } from "./stores/navigation";
 import { usePluginStore } from "./stores/plugins";
 import { useTabsStore } from "./stores/tabs";
+import { useThemeStore } from "./stores/theme";
 import { useUserStore } from "./stores/user";
 import { apiPost } from "./utils/api";
 
@@ -18,6 +19,7 @@ const appStore = useAppStore();
 const navigationStore = useNavigationStore();
 const pluginStore = usePluginStore();
 const tabsStore = useTabsStore();
+const themeStore = useThemeStore();
 const userStore = useUserStore();
 const { locale, setLocale, t } = useI18n();
 const route = useRoute();
@@ -217,6 +219,8 @@ watch(
 				:error="pluginStore.lastSyncError"
 				:locale="locale"
 				:set-locale="setLocale"
+				:theme="themeStore.mode"
+				:set-theme="themeStore.setTheme"
 				:on-logout="handleLogout"
 				:on-open-profile="handleOpenProfile"
 				@toggle-sidebar="appStore.toggleSidebar"
@@ -251,7 +255,7 @@ watch(
 }
 
 .content-area {
-	padding: 18px;
+	padding: var(--content-padding);
 }
 
 .plugin-content-area {
@@ -260,7 +264,7 @@ watch(
 	overflow: hidden;
 	display: grid;
 	grid-template-rows: auto auto minmax(0, 1fr);
-	gap: 10px;
+	gap: var(--layout-gap);
 }
 
 @media (max-width: 860px) {

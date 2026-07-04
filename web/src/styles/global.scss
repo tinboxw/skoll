@@ -14,6 +14,14 @@ body,
 	line-height: 1.5;
 }
 
+html {
+	color-scheme: light;
+}
+
+html[data-theme="dark"] {
+	color-scheme: dark;
+}
+
 h1,
 h2,
 h3,
