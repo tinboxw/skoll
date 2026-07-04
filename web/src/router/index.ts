@@ -20,6 +20,7 @@ const ProfilePage = () => import("../views/Profile/index.vue");
 const RoleEditPage = () => import("../views/Role/edit.vue");
 const RoleListPage = () => import("../views/Role/list.vue");
 const SettingPage = () => import("../views/Setting/index.vue");
+const TodoCenterPage = () => import("../views/TodoCenter/index.vue");
 const UserAddPage = () => import("../views/User/add.vue");
 const UserBatchPage = () => import("../views/User/batch.vue");
 const UserEditPage = () => import("../views/User/edit.vue");
@@ -141,6 +142,11 @@ const routes: RouteRecordRaw[] = [
 		component: WorkflowPage
 	},
 	{
+		path: `${ADMIN_PREFIX}/todo`,
+		name: "todo-center",
+		component: TodoCenterPage
+	},
+	{
 		path: `${ADMIN_PREFIX}/form-builder`,
 		name: "form-builder",
 		component: FormBuilderPage
@@ -238,6 +244,7 @@ function normalizeRedirectPath(raw: string): string {
 		withSlash === "/organization" || withSlash.startsWith("/organization/") ||
 		withSlash === "/audit" || withSlash.startsWith("/audit/") ||
 		withSlash === "/workflow" || withSlash.startsWith("/workflow/") ||
+		withSlash === "/todo" || withSlash.startsWith("/todo/") ||
 		withSlash === "/form-builder" || withSlash.startsWith("/form-builder/") ||
 		withSlash === "/setting" || withSlash.startsWith("/setting/") ||
 		withSlash === "/profile" || withSlash.startsWith("/profile/") ||

@@ -3,7 +3,7 @@ import { canAccess } from "../permissions/access";
 import type { SystemMenuRecord } from "../stores/navigation";
 
 const ADMIN_BASE = "/skoll";
-const SIDEBAR_ICONS = new Set(["dashboard", "users", "roles", "permissions", "menus", "audit", "plugins", "settings", "files", "workflow", "forms"]);
+const SIDEBAR_ICONS = new Set(["dashboard", "users", "roles", "permissions", "menus", "audit", "plugins", "settings", "files", "workflow", "forms", "todo"]);
 
 export type SidebarItem = {
 	label: string;
@@ -36,7 +36,8 @@ const SYSTEM_MENU: Array<Omit<SidebarItem, "label" | "source"> & { labelKey: str
 	{ labelKey: "menu.files", to: `${ADMIN_BASE}/files`, icon: "files", order: 49 },
 	{ labelKey: "menu.audit", to: `${ADMIN_BASE}/audit`, icon: "audit", order: 50, requiredPermissions: ["audit.read"] },
 	{ labelKey: "menu.workflow", to: `${ADMIN_BASE}/workflow`, icon: "workflow", order: 55 },
-	{ labelKey: "menu.formBuilder", to: `${ADMIN_BASE}/form-builder`, icon: "forms", order: 56 },
+	{ labelKey: "menu.todo", to: `${ADMIN_BASE}/todo`, icon: "todo", order: 56 },
+	{ labelKey: "menu.formBuilder", to: `${ADMIN_BASE}/form-builder`, icon: "forms", order: 57 },
 	{ labelKey: "menu.plugins", to: `${ADMIN_BASE}/plugin`, icon: "plugins", order: 60, requiredPermissions: ["plugin.read"] },
 	{ labelKey: "menu.settings", to: `${ADMIN_BASE}/setting`, icon: "settings", order: 70, requiredPermissions: ["system.manage"] }
 ];

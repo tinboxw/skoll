@@ -780,3 +780,88 @@ Notes:
 ### Next Step
 
 - Claim `F7-06` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F7-06: Implement Todo/Notification Center
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/service/notification/service.go`
+- `internal/service/notification/service_test.go`
+- `web/src/notifications/types.ts`
+- `web/src/views/TodoCenter/index.vue`
+- `web/src/views/Workflow/index.vue`
+- `web/src/router/index.ts`
+- `web/src/navigation/menu.ts`
+- `web/src/components/Layout/Sidebar.vue`
+- `web/src/i18n/index.ts`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Todo service | Passed | `internal/service/notification` creates, lists, completes, and filters todo/message/reminder items with target paths and actor ownership checks |
+| Reminder rules | Passed | Service supports reminder rules and emits due reminder items with business target links |
+| Todo Center UI | Passed | `/skoll/todo` provides pending, done, message, and reminder views with summary filters, search, mark-done/read, target jump, demo reminder, and destructive clear confirmation |
+| Workflow integration | Passed | Workflow launch creates a workflow todo; approve/reject/transfer closes the actor's workflow todo; transfer creates a target todo and copy creates a message |
+| Target jump | Passed | Browser smoke opened a notification target and landed on `/skoll/workflow?instance=wf-1` |
+| Required UI states | Passed | Browser smoke covered empty, data, error, no-permission, mark-done, destructive clear confirmation, and 390px responsive layout |
+| Route/menu integration | Passed | `/skoll/todo` route and sidebar entry are available with notification icon and i18n label |
+| API/OpenAPI impact | Passed | No HTTP endpoint or response contract was added; OpenAPI remains unchanged because this Work Item exposes service tests and a local frontend center only |
+| Permission, audit, migration/seed impact | Passed | Uses current frontend permission rules `notification.read` and `notification.act`; no backend permission seed, audit sink, core migration, or seed data is introduced in this Work Item |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/...
+cd web
+npm run typecheck
+npm run build
+git diff --check
+```
+
+Browser smoke result:
+
+```json
+{
+  "emptyVisible": true,
+  "pendingVisible": true,
+  "jumpToWorkflow": true,
+  "doneCount": 1,
+  "messageVisible": true,
+  "reminderVisible": true,
+  "clearConfirmVisible": true,
+  "noPermissionVisible": true,
+  "errorVisible": true,
+  "mobile": {
+    "viewport": 390,
+    "documentScrollWidth": 390,
+    "bodyScrollWidth": 390
+  }
+}
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial browser smoke could not locate icon-only row action buttons by accessible name.
+- Fix: added `aria-label` values for Todo Center open-target and mark-done actions.
+- Second smoke failure was a broad test selector for `Messages` matching both description text and the summary button.
+- Retry: used role-based button selectors; result passed.
+
+Notes:
+
+- `npm run build` prints the existing Sass legacy JS API and VueUse/Rollup annotation warnings, then exits successfully.
+- Browser smoke used Playwright with local Chrome and localStorage-backed notification fixtures.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F7-07` from `docs/refactor/current/pharma_oa_work_items.md`.

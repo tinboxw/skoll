@@ -5,6 +5,7 @@ import { ElMessage } from "element-plus";
 
 import { ConfirmAction, DataTable, DetailDrawer, FilterBar, PageShell, PageToolbar, type DataTableColumn } from "../../components/Common";
 import { loadFormSchemas, type FormSchema } from "../../form-builder/types";
+import { completeWorkflowNotifications, createWorkflowTodo, upsertNotification } from "../../notifications/types";
 import { useButtonAccess } from "../../permissions/button";
 import { useUserStore } from "../../stores/user";
 import { toErrorMessage } from "../../utils/common";
@@ -160,6 +161,12 @@ async function launchWorkflow(): Promise<void> {
 			starter: currentActor.value
 		});
 		upsertInstance(instance);
+		createWorkflowTodo({
+			instanceId: instance.id,
+			title: `Approve ${instance.title}`,
+			actorId: currentActor.value.id,
+			body: `${instance.businessType} / ${instance.businessId}`
+		});
 		launchOpen.value = false;
 		activeView.value = "initiated";
 		ElMessage.success("Workflow launched");
@@ -191,8 +198,25 @@ async function submitAction(): Promise<void> {
 			updated = await rejectWorkflowTask(instance.id, task.id, { actor, comment: actionForm.comment });
 		} else if (actionMode.value === "transfer") {
 			updated = await transferWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
+			createWorkflowTodo({
+				instanceId: updated.id,
+				title: `Transferred ${updated.title}`,
+				actorId: actionForm.targetId.trim(),
+				body: actionForm.comment || "Workflow task transferred to you."
+			});
 		} else {
 			updated = await copyWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
+			upsertNotification({
+				id: `message-workflow-${updated.id}-${actionForm.targetId.trim()}`,
+				category: "message",
+				title: `Copied: ${updated.title}`,
+				body: actionForm.comment || "Workflow task copied to you.",
+				actorId: actionForm.targetId.trim(),
+				target: { type: "workflow", id: updated.id, path: `/skoll/workflow?instance=${encodeURIComponent(updated.id)}` }
+			});
+		}
+		if (actionMode.value === "approve" || actionMode.value === "reject" || actionMode.value === "transfer") {
+			completeWorkflowNotifications(updated.id, actor.id);
 		}
 		upsertInstance(updated);
 		actionOpen.value = false;
