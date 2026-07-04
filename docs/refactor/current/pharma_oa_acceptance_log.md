@@ -1407,3 +1407,58 @@ Notes:
 ### Next Step
 
 - Claim `F9-01` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F9-01 Implement Inventory Domain Model
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/inventory.go`
+- `internal/domain/pharmaoa/inventory_test.go`
+- `internal/service/pharmaoa/inventory_service.go`
+- `internal/service/pharmaoa/inventory_service_test.go`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Stock balance model | Passed | `StockBalance` tracks product, warehouse, area, location, batch, quantity, locked quantity, and available quantity |
+| Stock ledger model | Passed | `StockLedgerEntry` validates operation, position, non-zero delta, balance-after, reference, and occurrence time |
+| Batch and expiry model | Passed | `StockBatch` tracks product, batch number, production date, and expiry; domain test rejects expiry before production date |
+| Stock lock model | Passed | `StockLock` supports active/released status; service lock reduces available stock and blocks outbound when insufficient |
+| Inbound ledger | Passed | `InventoryService.Inbound` creates batch/balance as needed, increases stock, and appends an inbound ledger entry |
+| Outbound ledger | Passed | `InventoryService.Outbound` checks available stock, decreases quantity, and appends an outbound ledger entry |
+| Stocktake ledger | Passed | `InventoryService.Stocktake` calculates quantity delta from actual count and appends a stocktake ledger entry |
+| Transfer ledger | Passed | `InventoryService.Transfer` decreases source, increases destination, and appends transfer-out plus transfer-in ledger entries |
+| Immutable ledger behavior | Passed | `ListLedger` returns copies; mutating a returned entry does not alter stored ledger history |
+| API/OpenAPI impact | Passed | No HTTP endpoint is added in F9-01; OpenAPI remains unchanged |
+| Permission, audit, migration/seed impact | Passed | Service emits audit hooks when audit service is present; no new permission, migration, or seed is added for the in-memory domain slice |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa
+go test ./...
+git diff --check
+codegraph sync .
+```
+
+Result: Passed.
+
+### Failure And Retry
+
+- None.
+
+Notes:
+
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F9-02` from `docs/refactor/current/pharma_oa_work_items.md`.
