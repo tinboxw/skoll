@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 
+import PageShell from "../../components/Common/PageShell.vue";
 import StateBlock from "../../components/Common/StateBlock.vue";
 import { useI18n } from "../../i18n";
 import { canAccess, type AccessDirectiveValue } from "../../permissions/access";
@@ -129,17 +130,13 @@ const riskItems = computed(() => {
 </script>
 
 <template>
-	<section class="dashboard-page">
-		<header class="page-header">
-			<div>
-				<h2>{{ t("page.dashboard") }}</h2>
-				<p>{{ t("dashboard.desc") }}</p>
-			</div>
+	<PageShell :title="t('page.dashboard')" :description="t('dashboard.desc')">
+		<template #meta>
 			<div class="status-chips">
 				<span class="chip">{{ t("dashboard.systemPlugins") }} {{ systemPluginCount }}</span>
 				<span class="chip">{{ t("dashboard.appPlugins") }} {{ appPluginCount }}</span>
 			</div>
-		</header>
+		</template>
 
 		<div class="cards">
 			<article v-for="card in cards" :key="card.label" class="metric-card" :class="`metric-card--${card.tone}`">
@@ -181,28 +178,10 @@ const riskItems = computed(() => {
 				</div>
 			</section>
 		</div>
-	</section>
+	</PageShell>
 </template>
 
 <style scoped>
-.dashboard-page {
-	display: grid;
-	gap: 16px;
-}
-
-.page-header {
-	display: flex;
-	align-items: flex-start;
-	justify-content: space-between;
-	gap: 16px;
-}
-
-.page-header h2 {
-	margin: 0;
-	font-size: 1.35rem;
-}
-
-.page-header p,
 .section-header p {
 	color: var(--color-text-muted);
 	margin: 6px 0 0;
@@ -352,7 +331,6 @@ const riskItems = computed(() => {
 }
 
 @media (max-width: 900px) {
-	.page-header,
 	.dashboard-grid,
 	.quick-list {
 		display: grid;

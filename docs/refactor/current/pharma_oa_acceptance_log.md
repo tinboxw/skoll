@@ -105,3 +105,78 @@ Notes:
 ### Next Step
 
 - Claim `F6-02` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F6-02: Implement Plugin UI Kit
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `web/src/components/Common/PageShell.vue`
+- `web/src/components/Common/PageToolbar.vue`
+- `web/src/components/Common/FilterBar.vue`
+- `web/src/components/Common/DataTable.vue`
+- `web/src/components/Common/DetailDrawer.vue`
+- `web/src/components/Common/ConfirmAction.vue`
+- `web/src/components/Common/index.ts`
+- `web/src/components/Common/README.md`
+- `web/src/views/Dashboard/index.vue`
+- `web/src/App.vue`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Page shell | Passed | `PageShell` provides title, description, meta/actions, loading, error, and no-permission states |
+| Toolbar and filters | Passed | `PageToolbar` and `FilterBar` provide responsive action/filter layouts |
+| Data table | Passed | `DataTable` covers loading, empty, error, no-permission, row actions, custom cells, and pagination slot |
+| Detail and confirmation | Passed | `DetailDrawer` covers loading/responsive drawer layout; `ConfirmAction` guards risky actions through Element Plus confirmation |
+| Main app usage | Passed | Dashboard now uses `PageShell` and keeps existing cards, quick links, risk states, and permission-aware empty state |
+| Responsive smoke | Passed | Dashboard smoke has no overflowing elements at 390px width after retry |
+| Documentation | Passed | `web/src/components/Common/README.md` lists UI Kit components, state coverage, usage rules, and validation commands |
+
+### Verification Commands
+
+```powershell
+cd web; npm run typecheck
+cd web; npm run build
+cd web; npm run dev
+```
+
+Browser smoke result after retry:
+
+```json
+{
+  "channel": "chrome",
+  "desktop": {
+    "hasShell": true,
+    "hasHeader": true,
+    "cards": 4,
+    "statusChips": 2
+  },
+  "mobile": {
+    "bodyWidth": 390,
+    "overflowing": []
+  }
+}
+```
+
+### Failure And Retry
+
+- Initial failure: browser smoke found `.content-area` overflowed on 390px width.
+- Fix: added `box-sizing: border-box` and `min-width: 0` to `.content-area`.
+- Retry result: Passed.
+
+Notes:
+
+- `npm run build` still prints the known Sass legacy JS API and VueUse/Rollup annotation warnings, then exits successfully.
+- Browser smoke used a temporary local token to enter the frontend shell. Backend `127.0.0.1:8080` was not running, so Vite logged proxy errors for auth/plugin/menu requests; those API calls are outside this Work Item's acceptance scope.
+
+### Next Step
+
+- Claim `F6-03` from `docs/refactor/current/pharma_oa_work_items.md`.

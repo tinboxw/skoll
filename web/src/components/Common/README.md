@@ -1,21 +1,37 @@
-﻿# web/src/components/Common
+# web/src/components/Common
 
-## 功能说明
-前端通用组件。当前底层使用 Element Plus，保留轻量封装以承接业务页面迁移。
+## Purpose
 
-## 文件组织规范
-- 采用小写与下划线命名，按职责拆分文件。
-- 接口定义与实现分离，避免单文件过大。
-- 变更时同步补充测试与文档。
+Common components form the Plugin UI Kit for host pages and business-plugin pages. They wrap Element Plus with Skoll spacing, density, theme tokens, and complete operational states.
 
-## 当前规划文件
-- `Table.vue`: 兼容原生 table slot，用 Element Plus Card 提供统一外壳。
-- `Form.vue`: 基于 `el-form` 的默认纵向表单容器。
-- `Dialog.vue`: 基于 `el-dialog` 的弹窗封装。
-- `StateBlock.vue`: 统一 empty、error、forbidden 数据区状态，并提供 actions slot。
+## Components
 
-## 后续待补充实现
-- [ ] 根据页面迁移情况补充更明确的 props（分页、加载态、表单校验规则等）。
-- [ ] 补充单元测试与必要的集成测试。
-- [ ] 完善示例、边界条件与错误处理说明。
+| Component | Purpose | State Coverage |
+| --- | --- | --- |
+| `PageShell.vue` | Page heading, metadata/actions, and page-level loading/error/forbidden states | loading, error, no-permission |
+| `PageToolbar.vue` | Section toolbar for filters, summary text, and action groups | responsive action wrapping |
+| `FilterBar.vue` | Predictable filter layout with action slot | responsive filter grid |
+| `DataTable.vue` | Typed column table shell with empty/error/forbidden/loading states and action/pagination slots | loading, empty, error, no-permission |
+| `SchemaForm.vue` | Schema-driven plugin/system forms | disabled/saving, validation errors |
+| `DetailDrawer.vue` | Standard detail/edit drawer surface | loading, responsive drawer width |
+| `ConfirmAction.vue` | Guarded command button for destructive or risky actions | disabled, loading, confirmation |
+| `StateBlock.vue` | Reusable empty/error/forbidden block | empty, error, no-permission |
 
+`index.ts` exports the UI Kit for explicit imports.
+
+## Usage Rules
+
+1. Use `PageShell` at the root of new admin or plugin pages.
+2. Use `DataTable` for list pages unless a page needs highly custom `el-table` behavior.
+3. Put destructive commands behind `ConfirmAction`.
+4. Keep filters in `FilterBar` and repeated section commands in `PageToolbar`.
+5. Cover loading, empty, error, no-permission, saving/destructive, and responsive states before marking a page complete.
+
+## Validation
+
+Run from `web/` after changing shared components:
+
+```powershell
+npm run typecheck
+npm run build
+```

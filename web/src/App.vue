@@ -256,6 +256,8 @@ watch(
 
 .content-area {
 	padding: var(--content-padding);
+	box-sizing: border-box;
+	min-width: 0;
 }
 
 .plugin-content-area {
