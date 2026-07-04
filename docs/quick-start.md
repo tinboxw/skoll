@@ -1,4 +1,4 @@
-# Skoll Quick Start
+﻿# Skoll Quick Start
 
 > Goal: start Skoll, log in, and complete the core admin flows in about 30 minutes on a fresh developer machine.
 
@@ -110,4 +110,4 @@ Expected result:
 - API overview: `docs/api/README.md`
 - Plugin development: `docs/development/plugin-guide.md`
 - Operations and deployment: `docs/user/deployment.md`
-- Current task board: `docs/refactor/task_board.md`
+- Current task board: `docs/refactor/old/completed-m0-m7-2026-07-04/task_board.md`

@@ -1,4 +1,4 @@
-# Skoll Release Checklist
+﻿# Skoll Release Checklist
 
 > Scope: release candidate preparation and final verification for the current Skoll contracts.
 
@@ -80,9 +80,9 @@
 
 Before publishing, update:
 
-- `docs/refactor/work_items.md`
-- `docs/refactor/task_board.md`
-- `docs/refactor/acceptance_log.md`
+- `docs/refactor/old/completed-m0-m7-2026-07-04/work_items.md`
+- `docs/refactor/old/completed-m0-m7-2026-07-04/task_board.md`
+- `docs/refactor/old/completed-m0-m7-2026-07-04/acceptance_log.md`
 - release notes or GitHub release draft
 
 Record the final commands, results, commit SHA, release tag, and any accepted residual risk.

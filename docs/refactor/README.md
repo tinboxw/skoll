@@ -1,87 +1,70 @@
-# Skoll 重构执行入口
+# Skoll Refactor Docs
 
-> 状态: 当前重构批次已收口  
-> 最后更新: 2026-06-19  
-> 适用范围: Skoll 开源基础建设重构
+> Status: M0-M7/FE/N0 foundation refactor is complete. The active direction is feature development, UI polish, and the pharma OA business-plugin roadmap.
+> Rule: do not design legacy API, legacy data, legacy plugin, or legacy page compatibility plans.
 
-## 执行原则
+## How To Read This Directory
 
-1. `docs/refactor` 是当前重构批次的唯一执行入口。
-2. Skoll 当前处于开源基础建设阶段，不做旧接口、旧数据结构、旧插件格式、旧页面路径的兼容方案。
-3. 架构模型采用 Modular Monolith + Clean/Hexagonal boundaries + Tactical DDD，普通 CRUD 保持简单、可生成。
-4. 每个 Work Item 必须有验收要求；验收失败必须返工。
-5. 每完成一个任务并通过验收后，提交一次代码。
-6. 主目录只保留当前有效的规范、索引、任务和验收文档；过程文档归档到 `docs/archive/refactor-2026-06-19/`。
+Use this directory in order:
 
-## 当前主目录
+1. `current/`: active plans and candidate tasks for the next development batch.
+2. `governance/`: architecture rules, execution principles, and document source mapping.
+3. `reference/`: reusable technical references that still help new implementation.
+4. `old/`: completed M0-M7/FE/N0 evidence. Read only for history or audit.
 
-```text
-docs/refactor/
-├── README.md                         # 本文档，重构执行入口
-├── architecture_and_execution_plan.md # 架构模型、治理原则、里程碑计划
-├── task_board.md                     # 父任务表和里程碑级状态
-├── work_items.md                     # 最小执行、验收、提交单元
-├── acceptance_log.md                 # 验收记录
-├── quality_baseline.md               # M0 质量基线
-├── source_map.md                     # 旧文档吸收与归档说明
-├── release_scope_freeze.md           # N0 发布前范围冻结说明
-├── frontend-foundation.md            # FE0-FE4 前端体验、视觉、架构、页面与插件门户规范
-├── frontend-quality-performance.md   # FE5-FE6 测试、浏览器验收、响应式、性能基线
-├── milestone-closeout.md             # M2、FE0-FE6、尾盘优化和发布前收口摘要
-├── progress_inspection_2026-07-04.md # 进度巡检、尾盘微调和 M7 收口拆解
-└── final_release_readiness_2026-07-04.md # M7-06-04 发布候选最终巡检
-```
+Completed documents are intentionally archived under `old/`. They are not the current execution entry.
 
-## 执行与验收入口
+## Current Execution
 
-| 文档 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [architecture_and_execution_plan.md](architecture_and_execution_plan.md) | 架构选择、治理规则、里程碑设计 |
-| [task_board.md](task_board.md) | 父任务和阶段状态 |
-| [work_items.md](work_items.md) | 最小执行单元，已合并 N0 与 M3-M7 细粒度任务 |
-| [next_work_items.md](next_work_items.md) | N0 与 M3-M7 细粒度任务的来源和候选池记录 |
-| [acceptance_log.md](acceptance_log.md) | 每项任务的验收记录 |
-| [quality_baseline.md](quality_baseline.md) | 质量门禁和基线记录 |
-| [source_map.md](source_map.md) | 旧文档内容吸收与归档说明 |
-| [release_scope_freeze.md](release_scope_freeze.md) | N0 发布前范围冻结、后续任务领取和质量门禁延续规则 |
-| [progress_inspection_2026-07-04.md](progress_inspection_2026-07-04.md) | 2026-07-04 进度巡检、尾盘任务微调和后续里程碑拆解 |
-| [final_release_readiness_2026-07-04.md](final_release_readiness_2026-07-04.md) | M7-06-04 发布候选最终巡检、质量门禁和发布证据汇总 |
+| [current/business_plugin_capability_plan_2026-07-04.md](current/business_plugin_capability_plan_2026-07-04.md) | Business-plugin capability gaps, pharma OA function blueprint, and framework infrastructure matrix |
+| [current/pharma_oa_milestone_plan_2026-07-04.md](current/pharma_oa_milestone_plan_2026-07-04.md) | F6-F12 pharma OA milestones and atomic candidate work items |
+| [current/progress_inspection_pharma_oa_iteration_2026-07-04.md](current/progress_inspection_pharma_oa_iteration_2026-07-04.md) | Latest progress inspection, risks, task tuning, and milestone refinement |
+| [current/feature_ui_milestone_plan_2026-07-04.md](current/feature_ui_milestone_plan_2026-07-04.md) | Feature development and UI optimization milestone plan |
+| [current/feature_ui_work_items_2026-07-04.md](current/feature_ui_work_items_2026-07-04.md) | Candidate work items for feature and UI improvements |
 
-## 专题合并文档
+Recommended next execution order:
 
-| 文档 | 合并范围 | 后续用途 |
-| --- | --- | --- |
-| [frontend-foundation.md](frontend-foundation.md) | 前端专项计划、FE0-FE4 页面体验、设计系统、架构规范、插件门户材料 | 后续前端页面和交互实现的主规范 |
-| [frontend-quality-performance.md](frontend-quality-performance.md) | FE5 测试验收体系、FE6 性能基线、browser smoke、响应式和回归清单 | 后续前端质量门禁和性能验收入口 |
-| [milestone-closeout.md](milestone-closeout.md) | M2 验收记录、进度巡检、尾盘阈值、任务微调建议 | 发布前收口与项目 leader 巡检入口 |
+1. F6 business-plugin platform foundation.
+2. F7 workflow, dynamic forms, todo, and notification platform.
+3. F8 pharma master-data plugin.
+4. F9 pharma purchase/sales/inventory minimum closed loop.
 
-## 单任务执行流程
+## Governance
 
-1. 从 [work_items.md](work_items.md) 选择状态为 `Todo` 的最前 Work Item。
-2. 读取任务对应 skill。
-3. 实现任务范围内的代码、测试、文档。
-4. 执行 Work Item 中的验证命令。
-5. 在 [acceptance_log.md](acceptance_log.md) 追加验收记录。
-6. 验收通过后提交代码。
-7. 将 Work Item 状态更新为 `Done`，进入下一个 Work Item。
+| Document | Purpose |
+| --- | --- |
+| [governance/architecture_and_execution_plan.md](governance/architecture_and_execution_plan.md) | Architecture model, no-compatibility rule, milestone governance |
+| [governance/source_map.md](governance/source_map.md) | Document absorption, archive mapping, and maintenance rules |
 
-当前正式执行表已合并 N0 与 M3-M7 细粒度任务。N0 完成后，执行时继续从 [work_items.md](work_items.md) 选择最前 `Todo`，按 M3 到 M7 顺序推进；冻结边界见 [release_scope_freeze.md](release_scope_freeze.md)。
+Architecture position:
 
-## 提交规则
+- Modular Monolith + Clean/Hexagonal boundaries + Tactical DDD for complex domains.
+- Simple CRUD remains generator-friendly.
+- Every Work Item must have deliverables, acceptance criteria, verification commands, and one commit after passing acceptance.
 
-提交信息使用:
+## Reference
 
-```text
-<task-id>: <short summary>
-```
+| Document | Purpose |
+| --- | --- |
+| [reference/generator_template_output_spec.md](reference/generator_template_output_spec.md) | Generator template output rules |
+| [reference/m4_data_scope_acceptance_checklist.md](reference/m4_data_scope_acceptance_checklist.md) | Data-scope acceptance reference for future business modules |
 
-发布前至少确认:
+## Archive
 
-- `work_items.md`、`acceptance_log.md`、`git log` 对已完成任务一致。
-- OpenAPI、权限、审计、迁移、前端 API client 已同步。
-- `go test ./...`、`cd web && npm run typecheck`、`cd web && npm run build` 已执行并记录。
-- `git diff` 中没有无关文件。
+| Directory | Purpose |
+| --- | --- |
+| [old/completed-m0-m7-2026-07-04](old/completed-m0-m7-2026-07-04) | Completed M0-M7/FE/N0 tasks, acceptance logs, quality baselines, and release-readiness evidence |
 
-## 归档说明
+Archived files keep historical evidence. Do not update archived task status for new work. Create a new current task board/work-item file when the next batch starts.
 
-细碎过程文档已移动到 [../archive/refactor-2026-06-19](../archive/refactor-2026-06-19)。这些文件只作为证据和历史参考，不再作为执行入口。若后续发现归档文档仍有有效信息，应摘录到当前主目录专题文档，再保持归档状态。
+## Maintenance Rules
+
+1. Keep the top level of `docs/refactor` small: `README.md`, `current/`, `governance/`, `reference/`, `old/`.
+2. New active plans go to `current/`.
+3. Completed batches go to `old/<batch-name>/`.
+4. Reusable implementation references go to `reference/`.
+5. Governance and source mapping go to `governance/`.
+6. Update this README whenever a document is added, moved, or archived.
+7. Prefer short, action-oriented docs with exact paths, commands, deliverables, and acceptance criteria.

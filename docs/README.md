@@ -1,90 +1,95 @@
-# Skoll 文档索引
+# Skoll Documentation Index
 
-> 最后更新: 2026-06-19
+> Last updated: 2026-07-04
 
-Skoll 当前处于开源基础建设阶段。文档按读者和用途分层，主入口只保留当前有效文档；历史计划、阶段过程记录和细碎验收材料统一放入 `docs/archive/`。
+Skoll is in open-source foundation construction. Documentation is organized by reader and purpose. Active planning stays easy to find; completed batches and detailed evidence are archived.
 
-## 快速入口
+## Quick Links
 
-| 入口 | 用途 |
+| Entry | Purpose |
 | --- | --- |
-| [quick-start.md](quick-start.md) | 新环境 30 分钟启动、登录、插件和核心流程快速开始 |
-| [refactor/README.md](refactor/README.md) | 当前重构执行入口、任务规则、收口状态 |
-| [refactor/architecture_and_execution_plan.md](refactor/architecture_and_execution_plan.md) | 架构模型、治理原则、里程碑计划 |
-| [refactor/task_board.md](refactor/task_board.md) | 父任务表和里程碑级状态 |
-| [refactor/work_items.md](refactor/work_items.md) | 最小 Work Item 表，作为执行、验收、提交单元 |
-| [refactor/next_work_items.md](refactor/next_work_items.md) | N0 与 M3-M7 细粒度任务来源和候选池记录 |
-| [refactor/acceptance_log.md](refactor/acceptance_log.md) | 已完成任务的验收记录 |
-| [refactor/release_scope_freeze.md](refactor/release_scope_freeze.md) | N0 发布前范围冻结、后续任务领取和质量门禁延续规则 |
-| [refactor/frontend-foundation.md](refactor/frontend-foundation.md) | 前端体验、视觉系统、架构和核心页面规范 |
-| [refactor/frontend-quality-performance.md](refactor/frontend-quality-performance.md) | 前端测试、浏览器验收、响应式、性能基线 |
-| [refactor/milestone-closeout.md](refactor/milestone-closeout.md) | M2、FE0-FE6、尾盘优化和发布前收口摘要 |
+| [quick-start.md](quick-start.md) | Start a new environment, log in, and run core flows |
+| [refactor/README.md](refactor/README.md) | Current refactor and pharma OA planning entry |
+| [refactor/current/pharma_oa_milestone_plan_2026-07-04.md](refactor/current/pharma_oa_milestone_plan_2026-07-04.md) | F6-F12 pharma OA milestone and atomic task plan |
+| [refactor/current/business_plugin_capability_plan_2026-07-04.md](refactor/current/business_plugin_capability_plan_2026-07-04.md) | Business-plugin capability and framework infrastructure plan |
+| [refactor/governance/architecture_and_execution_plan.md](refactor/governance/architecture_and_execution_plan.md) | Architecture model and governance rules |
 
-## 项目级文档
+## Refactor Docs
 
-| 文档 | 用途 |
+| Directory | Purpose |
 | --- | --- |
-| [configuration.md](configuration.md) | 配置项、默认值、环境变量映射 |
-| [development_skills.md](development_skills.md) | Codex 项目专用 skills 与协作规则 |
-| [collaboration.md](collaboration.md) | 团队职能、沟通节奏、任务流转和验收协作机制 |
-| [release-checklist.md](release-checklist.md) | 发布候选版本质量门禁、部署、迁移、示例和回滚清单 |
+| [refactor/current](refactor/current) | Active plans and next-batch candidate work items |
+| [refactor/governance](refactor/governance) | Architecture, execution principles, source map |
+| [refactor/reference](refactor/reference) | Reusable implementation references |
+| [refactor/old/completed-m0-m7-2026-07-04](refactor/old/completed-m0-m7-2026-07-04) | Completed M0-M7/FE/N0 task board, work items, acceptance logs, and quality evidence |
 
-## 架构文档
+## Project Docs
 
-| 文档 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [architecture/README.md](architecture/README.md) | 整体架构概览 |
-| [architecture/database.md](architecture/database.md) | 数据库设计 |
-| [architecture/rbac.md](architecture/rbac.md) | RBAC 权限模型 |
+| [configuration.md](configuration.md) | Configuration keys, defaults, and environment variables |
+| [development_skills.md](development_skills.md) | Project-specific Codex skills and collaboration rules |
+| [collaboration.md](collaboration.md) | Team roles, communication rhythm, task flow, and acceptance collaboration |
+| [release-checklist.md](release-checklist.md) | Release quality gates, deployment, migration, examples, and rollback checklist |
 
-## API 文档
+## Architecture
 
-| 文档 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [api/README.md](api/README.md) | API 概览、认证、响应格式 |
-| [api/openapi.yaml](api/openapi.yaml) | OpenAPI 规范 |
+| [architecture/README.md](architecture/README.md) | Architecture overview |
+| [architecture/database.md](architecture/database.md) | Database design |
+| [architecture/rbac.md](architecture/rbac.md) | RBAC permission model |
 
-## 开发者文档
+## API
 
-| 文档 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [development/README.md](development/README.md) | 开发文档入口 |
-| [development/getting-started.md](development/getting-started.md) | 开发快速入门 |
-| [development/plugin-guide.md](development/plugin-guide.md) | 插件开发教程 |
-| [development/plugin_dev_tools.md](development/plugin_dev_tools.md) | 插件开发工具 |
+| [api/README.md](api/README.md) | API overview, authentication, and response format |
+| [api/openapi.yaml](api/openapi.yaml) | OpenAPI specification |
 
-## 用户文档
+## Development
 
-| 文档 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [user/README.md](user/README.md) | 用户使用说明 |
-| [user/deployment.md](user/deployment.md) | 部署与运维 |
-| [user/operations.md](user/operations.md) | 配置、部署、备份、日志和常见故障运维手册 |
+| [development/README.md](development/README.md) | Developer documentation entry |
+| [development/getting-started.md](development/getting-started.md) | Developer quick start |
+| [development/plugin-guide.md](development/plugin-guide.md) | Plugin development guide |
+| [development/plugin_dev_tools.md](development/plugin_dev_tools.md) | Plugin development tools |
 
-## 验收与复现记录
+## User Docs
 
-| 文档 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [smoke/operations_reproduction_2026-07-04.md](smoke/operations_reproduction_2026-07-04.md) | Quick Start 与运维手册本地复现记录 |
+| [user/README.md](user/README.md) | User guide entry |
+| [user/deployment.md](user/deployment.md) | Deployment and operations |
+| [user/operations.md](user/operations.md) | Configuration, deployment, backup, logs, and troubleshooting |
 
-## Schema 与迁移
+## Smoke And Evidence
 
-| 文档 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [schemas/plugin-manifest.schema.json](schemas/plugin-manifest.schema.json) | 插件 manifest JSON Schema |
-| [migrations/003_plugin_signature_support.sql](migrations/003_plugin_signature_support.sql) | 插件签名支持迁移脚本 |
+| [smoke/operations_reproduction_2026-07-04.md](smoke/operations_reproduction_2026-07-04.md) | Local reproduction record for Quick Start and operations docs |
 
-## 归档
+## Schemas And Migrations
 
-| 目录 | 用途 |
+| Document | Purpose |
 | --- | --- |
-| [archive/legacy-plans](archive/legacy-plans) | 旧计划，仅作历史参考 |
-| [archive/refactor-2026-06-19](archive/refactor-2026-06-19) | 本轮重构拆分出的阶段过程文档和细节证据 |
+| [schemas/plugin-manifest.schema.json](schemas/plugin-manifest.schema.json) | Plugin manifest JSON Schema |
+| [migrations/003_plugin_signature_support.sql](migrations/003_plugin_signature_support.sql) | Plugin signature migration script |
 
-## 文档维护规则
+## Archive
 
-1. 当前执行入口只放在 `docs/refactor/README.md`。
-2. 不做旧接口、旧数据结构、旧插件格式、旧页面路径的兼容方案。
-3. 新增顶层文档时必须同步更新本文档。
-4. 阶段过程记录优先归档，主目录只保留可持续维护的规范、索引、任务和验收文档。
-5. 任务通过验收后应同步 `work_items.md`、`acceptance_log.md` 和提交记录。
+| Directory | Purpose |
+| --- | --- |
+| [archive/legacy-plans](archive/legacy-plans) | Old plans kept only as historical reference |
+| [archive/refactor-2026-06-19](archive/refactor-2026-06-19) | Earlier refactor process documents and evidence |
+| [refactor/old/completed-m0-m7-2026-07-04](refactor/old/completed-m0-m7-2026-07-04) | Completed foundation-refactor evidence from the current refactor directory |
+
+## Maintenance Rules
+
+1. Keep active refactor execution under `docs/refactor/current/`.
+2. Keep completed batches under `docs/refactor/old/<batch-name>/`.
+3. Keep reusable technical references under `docs/refactor/reference/`.
+4. Keep architecture and governance under `docs/refactor/governance/`.
+5. Update this index whenever top-level or active refactor documents move.
+6. Do not design legacy API, data, plugin, or page-route compatibility plans.
