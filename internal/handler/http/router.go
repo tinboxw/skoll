@@ -44,6 +44,7 @@ type Dependencies struct {
 	PharmaEmployeeService pharmaoasvc.EmployeeService
 	PharmaProductService  pharmaoasvc.ProductService
 	PharmaSupplierService pharmaoasvc.SupplierService
+	PharmaCustomerService pharmaoasvc.CustomerService
 	MenuService           menu.Service
 	WorkflowService       workflow.Service
 	PluginManager         plugin.Manager
@@ -86,9 +87,11 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterEmployeeRoutes(apiMux, deps.PharmaEmployeeService)
 	pharmaoahttp.RegisterProductRoutes(apiMux, deps.PharmaProductService)
 	pharmaoahttp.RegisterSupplierRoutes(apiMux, deps.PharmaSupplierService)
+	pharmaoahttp.RegisterCustomerRoutes(apiMux, deps.PharmaCustomerService)
 	_ = pharmaoahttp.RegisterEmployeePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterProductPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterSupplierPermissions(deps.PermissionService)
+	_ = pharmaoahttp.RegisterCustomerPermissions(deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)

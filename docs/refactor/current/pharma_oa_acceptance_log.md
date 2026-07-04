@@ -1196,3 +1196,87 @@ Notes:
 ### Next Step
 
 - Claim `F8-05` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F8-05 Implement Customer Management
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/customer.go`
+- `internal/service/pharmaoa/customer_service.go`
+- `internal/service/pharmaoa/customer_service_test.go`
+- `internal/handler/http/v1/pharmaoa/customer_handler.go`
+- `internal/handler/http/v1/pharmaoa/customer_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `web/src/pharma-oa/api.ts`
+- `web/src/views/PharmaCustomer/index.vue`
+- `web/src/router/index.ts`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Customer records | Passed | `Customer` domain and `CustomerService` create/list/update/disable records with code, name, region, organization, owner, rating, contacts, qualifications, attachments, and audit metadata |
+| Contacts | Passed | Service, handler, and browser smoke preserve primary contact name/phone/email fields |
+| Qualification attachments | Passed | Domain validation accepts safe metadata and rejects missing file IDs/names, negative size, path traversal, path separators, and executable extensions |
+| Region ownership | Passed | Customer records require `region`, `organizationId`, and `ownerId`; list filters support region and service tests cover owner/org scope filtering |
+| Organization/owner isolation | Passed | Service and handler tests reject cross-owner/cross-organization update attempts and hide records outside requested scope |
+| Expired qualification sales block | Passed | `ValidateSalesCustomer` and `/v1/pharma-oa/customers/{id}/sales-eligibility` block disabled or expired customers from sales usage |
+| API/OpenAPI | Passed | Customer list/create/update/disable/reminder/sales-eligibility routes are registered and synced in both `internal/handler/http/openapi.yaml` and `docs/api/openapi.yaml` |
+| Permissions | Passed | Customer read/create/update/disable/reminder/sales permissions are registered in HTTP startup and declared in plugin manifest |
+| Audit | Passed | Customer create/update/disable append audit records with resource `pharma_oa_customer`; plugin lifecycle audit counts include customer route and permission metadata |
+| Plugin lifecycle impact | Passed | Manifest test validates install preflight, enable, disable, permission catalog, route registry, audit action counts, and duplicate-install failure state after customer additions |
+| Frontend states | Passed | `/skoll/pharma-oa/customers` covers loading, empty, error, saving, destructive disable confirmation, sales eligibility action, and 390px responsive layout; route guard blocks users without `pharma_oa.customer.read` before page entry |
+| Migration and seed impact | Passed | No database migration is added for this work item; customer management is an in-memory vertical slice; demo seed remains manifest-only until F12 data work |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+cd web; npm run typecheck
+cd web; npm run build
+git diff --check
+codegraph sync .
+```
+
+Browser smoke:
+
+```json
+{
+  "emptyVisible": true,
+  "createdVisible": true,
+  "disabledVisible": true,
+  "errorState": "Request failed / service unavailable",
+  "mobileWidth": { "body": 390, "doc": 390, "viewport": 390 }
+}
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial browser smoke used overly broad selectors for `Name` and `Disabled`; selectors were narrowed to exact labels/table status.
+- Initial no-permission browser attempt did not show the page-local no-permission block because the route guard correctly redirects before entering protected routes; this was accepted as route-level no-permission enforcement for the customer route.
+- Retry: targeted Go tests, full Go tests, frontend typecheck, frontend build, browser smoke, diff check, and CodeGraph sync passed.
+
+Notes:
+
+- `npm run build` reports existing Sass legacy JS API and Rollup annotation warnings, but exits successfully.
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F8-06` from `docs/refactor/current/pharma_oa_work_items.md`.

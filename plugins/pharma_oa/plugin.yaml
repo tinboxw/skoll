@@ -156,6 +156,36 @@ permissions:
     module: pharma_oa
     name: Validate purchase supplier
     risk: high
+  - key: pharma_oa.customer.read
+    type: api
+    module: pharma_oa
+    name: Read pharma customers
+    risk: low
+  - key: pharma_oa.customer.create
+    type: api
+    module: pharma_oa
+    name: Create pharma customers
+    risk: medium
+  - key: pharma_oa.customer.update
+    type: api
+    module: pharma_oa
+    name: Update pharma customers
+    risk: medium
+  - key: pharma_oa.customer.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma customers
+    risk: high
+  - key: pharma_oa.customer.reminder
+    type: api
+    module: pharma_oa
+    name: Read customer qualification reminders
+    risk: low
+  - key: pharma_oa.customer.sales
+    type: api
+    module: pharma_oa
+    name: Validate sales customer
+    risk: high
 api:
   routes:
     - method: GET
@@ -238,6 +268,36 @@ api:
       summary: Validate Pharma OA supplier for purchase
       permission: pharma_oa.supplier.purchase
       audit_action: pharma_oa.supplier.purchase
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/customers
+      summary: List Pharma OA customers
+      permission: pharma_oa.customer.read
+      audit_action: pharma_oa.customer.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/customers
+      summary: Create Pharma OA customer
+      permission: pharma_oa.customer.create
+      audit_action: pharma_oa.customer.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/customers
+      summary: Update Pharma OA customer
+      permission: pharma_oa.customer.update
+      audit_action: pharma_oa.customer.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/customers/disable
+      summary: Disable Pharma OA customer
+      permission: pharma_oa.customer.disable
+      audit_action: pharma_oa.customer.disable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/customers/qualification-reminders
+      summary: List Pharma OA customer qualification reminders
+      permission: pharma_oa.customer.reminder
+      audit_action: pharma_oa.customer.reminder
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/customers/sales-eligibility
+      summary: Validate Pharma OA customer for sales
+      permission: pharma_oa.customer.sales
+      audit_action: pharma_oa.customer.sales
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status
