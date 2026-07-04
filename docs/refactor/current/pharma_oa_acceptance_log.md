@@ -1130,3 +1130,69 @@ Notes:
 ### Next Step
 
 - Claim `F8-04` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F8-04 Implement Supplier Management
+
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/supplier.go`
+- `internal/service/pharmaoa/supplier_service.go`
+- `internal/service/pharmaoa/supplier_service_test.go`
+- `internal/handler/http/v1/pharmaoa/supplier_handler.go`
+- `internal/handler/http/v1/pharmaoa/supplier_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Supplier records | Passed | `Supplier` domain and `SupplierService` create/list/update/disable records with code, name, rating, status, contacts, qualifications, attachments, and audit metadata |
+| Contacts | Passed | Service and handler tests preserve supplier contact name, phone, email, and position fields |
+| Qualification attachments | Passed | Domain validation accepts safe metadata and rejects missing file IDs/names, negative file size, path traversal, path separators, and executable file extensions |
+| Rating and status | Passed | Rating defaults to `3`, validates `0-5`, and disabled suppliers are excluded from active purchase eligibility |
+| Expiry reminders | Passed | `QualificationReminders` returns active suppliers with qualifications expiring before the requested deadline |
+| Purchase blocking | Passed | `ValidatePurchaseSupplier` and `/v1/pharma-oa/suppliers/{id}/purchase-eligibility` block disabled or expired suppliers from purchase usage |
+| API/OpenAPI | Passed | Supplier list/create/update/disable/reminder/purchase-eligibility routes are registered and synced in both `internal/handler/http/openapi.yaml` and `docs/api/openapi.yaml` |
+| Permissions | Passed | Supplier read/create/update/disable/reminder/purchase permissions are registered in HTTP startup and declared in the plugin manifest |
+| Audit | Passed | Supplier create/update/disable append audit records with resource `pharma_oa_supplier`; plugin lifecycle audit counts include supplier route and permission metadata |
+| Plugin lifecycle impact | Passed | Manifest test validates install preflight, enable, disable, permission catalog, route registry, audit action counts, and duplicate-install failure state after supplier additions |
+| Migration and seed impact | Passed | No database migration is added for this work item; supplier management is an in-memory vertical slice; demo seed remains manifest-only until F12 data work |
+| Frontend impact | Passed | No frontend route/page was changed in F8-04; frontend build was not required by the work item and no static UI was introduced |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+git diff --check
+codegraph sync .
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial targeted Go test failed because plugin manifest validation rejected permission key `pharma_oa.supplier.purchase.validate` as too long.
+- Fix: shortened the permission key to `pharma_oa.supplier.purchase` across handler registration, plugin manifest, and manifest assertions.
+- Retry: targeted Go test, full Go test, diff check, and CodeGraph sync all passed.
+
+Notes:
+
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F8-05` from `docs/refactor/current/pharma_oa_work_items.md`.

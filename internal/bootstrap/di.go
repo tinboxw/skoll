@@ -85,6 +85,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	menuService := menusvc.NewService(bundle.Menus)
 	pharmaEmployeeService := pharmaoasvc.NewEmployeeService(auditService)
 	pharmaProductService := pharmaoasvc.NewProductService(auditService)
+	pharmaSupplierService := pharmaoasvc.NewSupplierService(auditService)
 	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
@@ -107,6 +108,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PermissionService:     permissionService,
 		PharmaEmployeeService: pharmaEmployeeService,
 		PharmaProductService:  pharmaProductService,
+		PharmaSupplierService: pharmaSupplierService,
 		MenuService:           menuService,
 		WorkflowService:       workflowService,
 		PluginManager:         pluginManager,

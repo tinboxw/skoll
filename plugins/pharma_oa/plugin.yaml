@@ -126,6 +126,36 @@ permissions:
     module: pharma_oa
     name: Import pharma products
     risk: medium
+  - key: pharma_oa.supplier.read
+    type: api
+    module: pharma_oa
+    name: Read pharma suppliers
+    risk: low
+  - key: pharma_oa.supplier.create
+    type: api
+    module: pharma_oa
+    name: Create pharma suppliers
+    risk: medium
+  - key: pharma_oa.supplier.update
+    type: api
+    module: pharma_oa
+    name: Update pharma suppliers
+    risk: medium
+  - key: pharma_oa.supplier.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma suppliers
+    risk: high
+  - key: pharma_oa.supplier.reminder
+    type: api
+    module: pharma_oa
+    name: Read supplier qualification reminders
+    risk: low
+  - key: pharma_oa.supplier.purchase
+    type: api
+    module: pharma_oa
+    name: Validate purchase supplier
+    risk: high
 api:
   routes:
     - method: GET
@@ -178,6 +208,36 @@ api:
       summary: Import Pharma OA products
       permission: pharma_oa.product.import
       audit_action: pharma_oa.product.import
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/suppliers
+      summary: List Pharma OA suppliers
+      permission: pharma_oa.supplier.read
+      audit_action: pharma_oa.supplier.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/suppliers
+      summary: Create Pharma OA supplier
+      permission: pharma_oa.supplier.create
+      audit_action: pharma_oa.supplier.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/suppliers
+      summary: Update Pharma OA supplier
+      permission: pharma_oa.supplier.update
+      audit_action: pharma_oa.supplier.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/suppliers/disable
+      summary: Disable Pharma OA supplier
+      permission: pharma_oa.supplier.disable
+      audit_action: pharma_oa.supplier.disable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/suppliers/qualification-reminders
+      summary: List Pharma OA supplier qualification reminders
+      permission: pharma_oa.supplier.reminder
+      audit_action: pharma_oa.supplier.reminder
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/suppliers/purchase-eligibility
+      summary: Validate Pharma OA supplier for purchase
+      permission: pharma_oa.supplier.purchase
+      audit_action: pharma_oa.supplier.purchase
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status

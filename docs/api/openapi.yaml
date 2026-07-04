@@ -240,6 +240,99 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/pharma-oa/suppliers:
+    get:
+      summary: List Pharma OA suppliers
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, disabled]
+      responses:
+        '200':
+          description: OK
+    post:
+      summary: Create Pharma OA supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name]
+              properties:
+                code:
+                  type: string
+                name:
+                  type: string
+                rating:
+                  type: integer
+                  minimum: 0
+                  maximum: 5
+                contacts:
+                  type: array
+                  items:
+                    type: object
+                qualifications:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '201':
+          description: Created
+  /v1/pharma-oa/suppliers/{id}:
+    put:
+      summary: Update Pharma OA supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/pharma-oa/suppliers/{id}/disable:
+    post:
+      summary: Disable Pharma OA supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/pharma-oa/suppliers/{id}/purchase-eligibility:
+    get:
+      summary: Validate Pharma OA supplier purchase eligibility
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+  /v1/pharma-oa/suppliers/qualification-reminders:
+    get:
+      summary: List Pharma OA supplier qualification reminders
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: OK
   /v1/users:
     get:
       summary: List users
