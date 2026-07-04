@@ -30,6 +30,7 @@ type InstallPreflightResult struct {
 	Menus       InstallPreflightMenuDiff     `json:"menus"`
 	Config      InstallPreflightConfig       `json:"config"`
 	Resources   InstallPreflightResources    `json:"resources"`
+	Data        InstallPreflightData         `json:"data"`
 	Migration   InstallPreflightMigration    `json:"migration"`
 	Signature   InstallPreflightSignature    `json:"signature"`
 	Risk        InstallPreflightRisk         `json:"risk"`
@@ -91,6 +92,29 @@ type InstallPreflightResources struct {
 	Dependencies     []string `json:"dependencies,omitempty"`
 }
 
+type InstallPreflightData struct {
+	Namespace          string                      `json:"namespace,omitempty"`
+	MigrationVersion   string                      `json:"migrationVersion,omitempty"`
+	MigrationDirectory string                      `json:"migrationDirectory,omitempty"`
+	UninstallPolicy    string                      `json:"uninstallPolicy,omitempty"`
+	RollbackPolicy     string                      `json:"rollbackPolicy,omitempty"`
+	Tables             []InstallPreflightDataTable `json:"tables,omitempty"`
+}
+
+type InstallPreflightDataTable struct {
+	Name        string                      `json:"name"`
+	Description string                      `json:"description,omitempty"`
+	PrimaryKey  string                      `json:"primaryKey,omitempty"`
+	Columns     []string                    `json:"columns,omitempty"`
+	Indexes     []InstallPreflightDataIndex `json:"indexes,omitempty"`
+}
+
+type InstallPreflightDataIndex struct {
+	Name    string   `json:"name"`
+	Columns []string `json:"columns,omitempty"`
+	Unique  bool     `json:"unique,omitempty"`
+}
+
 type InstallPreflightMigration struct {
 	Version string                          `json:"version,omitempty"`
 	Pending []InstallPreflightMigrationStep `json:"pending,omitempty"`
@@ -147,6 +171,7 @@ func (s *InstallPreflightService) Check(in InstallPreflightInput) (InstallPrefli
 		Menus:       buildInstallPreflightMenuDiff(info, in.Installed),
 		Config:      buildInstallPreflightConfig(info),
 		Resources:   buildInstallPreflightResources(info),
+		Data:        buildInstallPreflightData(info),
 		Migration:   buildInstallPreflightMigration(info, source),
 		Signature:   buildInstallPreflightSignature(info),
 	}
@@ -298,6 +323,39 @@ func buildInstallPreflightResources(info Info) InstallPreflightResources {
 	return out
 }
 
+func buildInstallPreflightData(info Info) InstallPreflightData {
+	if info.DataManifest == nil {
+		return InstallPreflightData{}
+	}
+	data := info.DataManifest
+	out := InstallPreflightData{
+		Namespace:          strings.TrimSpace(data.Namespace),
+		MigrationVersion:   strings.TrimSpace(data.MigrationVersion),
+		MigrationDirectory: strings.TrimSpace(data.MigrationDirectory),
+		UninstallPolicy:    string(data.UninstallPolicy),
+		RollbackPolicy:     string(data.RollbackPolicy),
+		Tables:             make([]InstallPreflightDataTable, 0, len(data.Tables)),
+	}
+	for _, table := range data.Tables {
+		record := InstallPreflightDataTable{
+			Name:        strings.TrimSpace(table.Name),
+			Description: strings.TrimSpace(table.Description),
+			PrimaryKey:  strings.TrimSpace(table.PrimaryKey),
+			Columns:     append([]string(nil), table.Columns...),
+			Indexes:     make([]InstallPreflightDataIndex, 0, len(table.Indexes)),
+		}
+		for _, index := range table.Indexes {
+			record.Indexes = append(record.Indexes, InstallPreflightDataIndex{
+				Name:    strings.TrimSpace(index.Name),
+				Columns: append([]string(nil), index.Columns...),
+				Unique:  index.Unique,
+			})
+		}
+		out.Tables = append(out.Tables, record)
+	}
+	return out
+}
+
 func buildInstallPreflightMigration(info Info, source string) InstallPreflightMigration {
 	out := InstallPreflightMigration{Version: strings.TrimSpace(info.MigrationVersion)}
 	if out.Version == "" {
@@ -358,6 +416,16 @@ func buildInstallPreflightRisk(result InstallPreflightResult) InstallPreflightRi
 			rank = 1
 		}
 		summary = append(summary, "migration impact")
+	}
+	if len(result.Data.Tables) > 0 {
+		if rank < 2 {
+			rank = 2
+		}
+		summary = append(summary, "data contract:"+result.Data.Namespace)
+	}
+	if result.Data.UninstallPolicy == string(DataUninstallDrop) {
+		rank = 3
+		summary = append(summary, "destructive uninstall policy")
 	}
 	if result.Resources.ServiceBaseURL != "" || result.Resources.ServiceHealthURL != "" {
 		if rank < 2 {

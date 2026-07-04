@@ -31,6 +31,16 @@ permissions:
     module: demo
     name: Export demo
     risk: high
+data:
+  namespace: demo
+  migration_version: v0.2.0
+  uninstall_policy: drop
+  rollback_policy: manual
+  tables:
+    - name: demo_exports
+      primary_key: id
+      columns: id, code
+      indexes: idx_demo_exports_code(code)
 `)
 	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), manifest, 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
@@ -61,8 +71,11 @@ permissions:
 	if item.Signature.Status != "signed" || item.Signature.Algorithm != "RSA-SHA256" {
 		t.Fatalf("expected signature summary, got %+v", item.Signature)
 	}
-	if item.Risk.Level != "high" {
-		t.Fatalf("expected high risk from permission/network/migration, got %+v", item.Risk)
+	if item.Risk.Level != "critical" {
+		t.Fatalf("expected critical risk from destructive data uninstall policy, got %+v", item.Risk)
+	}
+	if len(item.Risk.Data) == 0 {
+		t.Fatalf("expected data risk summary, got %+v", item.Risk)
 	}
 }
 

@@ -28,6 +28,8 @@ const (
 	sectionConfigSchema      = "config_schema"
 	sectionConfigFields      = "config_schema_fields"
 	sectionConfigOptions     = "config_schema_options"
+	sectionData              = "data"
+	sectionDataTables        = "data_tables"
 )
 
 func NewFileLoader() *FileLoader {
@@ -86,6 +88,7 @@ func parseManifest(raw []byte) (Info, error) {
 	var currentPermission *PermissionDeclaration
 	var currentConfigField *ConfigField
 	var currentConfigOption *ConfigOption
+	var currentDataTable *DataTable
 
 	flushPermission := func() {
 		if currentPermission == nil {
@@ -100,6 +103,29 @@ func parseManifest(raw []byte) (Info, error) {
 		}
 		info.Dependencies = append(info.Dependencies, *currentDep)
 		currentDep = nil
+	}
+	flushConfigField := func() {
+		if currentConfigOption != nil && currentConfigField != nil {
+			currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
+			currentConfigOption = nil
+		}
+		if currentConfigField != nil {
+			if info.ConfigSchema == nil {
+				info.ConfigSchema = &ConfigSchema{}
+			}
+			info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
+			currentConfigField = nil
+		}
+	}
+	flushDataTable := func() {
+		if currentDataTable == nil {
+			return
+		}
+		if info.DataManifest == nil {
+			info.DataManifest = &DataManifest{}
+		}
+		info.DataManifest.Tables = append(info.DataManifest.Tables, *currentDataTable)
+		currentDataTable = nil
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(string(raw)))
@@ -146,18 +172,22 @@ func parseManifest(raw []byte) (Info, error) {
 		case "config_schema:":
 			flushDependency()
 			flushPermission()
-			if currentConfigOption != nil {
-				currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
-				currentConfigOption = nil
-			}
-			if currentConfigField != nil {
-				info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
-				currentConfigField = nil
-			}
+			flushDataTable()
+			flushConfigField()
 			if info.ConfigSchema == nil {
 				info.ConfigSchema = &ConfigSchema{}
 			}
 			section = sectionConfigSchema
+			continue
+		case "data:":
+			flushDependency()
+			flushPermission()
+			flushConfigField()
+			flushDataTable()
+			if info.DataManifest == nil {
+				info.DataManifest = &DataManifest{}
+			}
+			section = sectionData
 			continue
 		}
 
@@ -233,6 +263,14 @@ func parseManifest(raw []byte) (Info, error) {
 				} else {
 					currentConfigOption.Value = parseScalar(item)
 				}
+			case sectionDataTables:
+				flushDataTable()
+				currentDataTable = &DataTable{}
+				if strings.HasPrefix(item, "name:") {
+					currentDataTable.Name = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "name:")))
+				} else {
+					currentDataTable.Name = parseScalar(item)
+				}
 			}
 			continue
 		}
@@ -266,14 +304,16 @@ func parseManifest(raw []byte) (Info, error) {
 				continue
 			}
 			if isTopLevel {
-				if currentConfigOption != nil {
-					currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
-					currentConfigOption = nil
-				}
-				if currentConfigField != nil {
-					info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
-					currentConfigField = nil
-				}
+				flushConfigField()
+				section = sectionRoot
+			}
+		}
+		if section == sectionData || section == sectionDataTables {
+			if !isTopLevel && applyDataManifestField(info.DataManifest, currentDataTable, key, value, &section) {
+				continue
+			}
+			if isTopLevel {
+				flushDataTable()
 				section = sectionRoot
 			}
 		}
@@ -376,15 +416,8 @@ func parseManifest(raw []byte) (Info, error) {
 
 	flushDependency()
 	flushPermission()
-	if currentConfigOption != nil && currentConfigField != nil {
-		currentConfigField.Options = append(currentConfigField.Options, *currentConfigOption)
-	}
-	if currentConfigField != nil {
-		if info.ConfigSchema == nil {
-			info.ConfigSchema = &ConfigSchema{}
-		}
-		info.ConfigSchema.Fields = append(info.ConfigSchema.Fields, *currentConfigField)
-	}
+	flushConfigField()
+	flushDataTable()
 	if info.UIMode == "" {
 		info.UIMode = UIModeBackendOnly
 	}
@@ -410,6 +443,7 @@ func parseManifest(raw []byte) (Info, error) {
 		info.I18nLocales = []string{"zh-CN", "en-US"}
 	}
 	normalizePermissionDeclarations(&info)
+	normalizeDataManifest(&info)
 	info.FrontendEntry = ResolveFrontendEntry(info)
 
 	return info, nil
@@ -601,6 +635,140 @@ func applyConfigSchemaField(schema *ConfigSchema, field *ConfigField, option *Co
 		return false
 	}
 	return true
+}
+
+func applyDataManifestField(data *DataManifest, table *DataTable, key, value string, section *string) bool {
+	if data == nil {
+		return false
+	}
+	switch *section {
+	case sectionData:
+		switch key {
+		case "namespace":
+			data.Namespace = value
+		case "migration_version", "migrations.version":
+			data.MigrationVersion = value
+		case "migration_directory", "migrations.directory":
+			data.MigrationDirectory = value
+		case "uninstall_policy", "uninstall.policy":
+			data.UninstallPolicy = DataUninstallPolicy(strings.ToLower(strings.TrimSpace(value)))
+		case "rollback_policy", "rollback.policy":
+			data.RollbackPolicy = DataRollbackPolicy(strings.ToLower(strings.TrimSpace(value)))
+		case "tables":
+			*section = sectionDataTables
+		default:
+			return false
+		}
+	case sectionDataTables:
+		if table == nil {
+			return false
+		}
+		switch key {
+		case "name":
+			table.Name = value
+		case "description":
+			table.Description = value
+		case "primary_key":
+			table.PrimaryKey = value
+		case "columns":
+			table.Columns = splitScalarList(value)
+		case "indexes":
+			table.Indexes = parseDataIndexes(value)
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+	return true
+}
+
+func normalizeDataManifest(info *Info) {
+	if info == nil || info.DataManifest == nil {
+		return
+	}
+	data := info.DataManifest
+	if strings.TrimSpace(data.Namespace) == "" {
+		data.Namespace = normalizeDataNamespace(info.ID)
+	} else {
+		data.Namespace = normalizeDataNamespace(data.Namespace)
+	}
+	if strings.TrimSpace(data.MigrationVersion) == "" {
+		data.MigrationVersion = strings.TrimSpace(info.MigrationVersion)
+	}
+	data.MigrationDirectory = strings.Trim(strings.TrimSpace(data.MigrationDirectory), "/\\")
+	if data.MigrationDirectory == "" {
+		data.MigrationDirectory = "migrations"
+	}
+	if data.UninstallPolicy == "" {
+		data.UninstallPolicy = DataUninstallRetain
+	}
+	if data.RollbackPolicy == "" {
+		data.RollbackPolicy = DataRollbackManual
+	}
+	for i := range data.Tables {
+		table := &data.Tables[i]
+		table.Name = normalizeDataIdentifier(table.Name)
+		table.PrimaryKey = normalizeDataIdentifier(table.PrimaryKey)
+		table.Columns = normalizeDataIdentifierList(table.Columns)
+		for j := range table.Indexes {
+			index := &table.Indexes[j]
+			index.Name = normalizeDataIdentifier(index.Name)
+			index.Columns = normalizeDataIdentifierList(index.Columns)
+		}
+	}
+}
+
+func normalizeDataNamespace(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalized = strings.ReplaceAll(normalized, ".", "_")
+	return normalized
+}
+
+func normalizeDataIdentifier(value string) string {
+	return normalizeDataNamespace(value)
+}
+
+func normalizeDataIdentifierList(items []string) []string {
+	out := make([]string, 0, len(items))
+	seen := map[string]struct{}{}
+	for _, item := range items {
+		normalized := normalizeDataIdentifier(item)
+		if normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out
+}
+
+func parseDataIndexes(value string) []DataIndex {
+	parts := strings.Split(value, ";")
+	out := make([]DataIndex, 0, len(parts))
+	for _, part := range parts {
+		spec := strings.TrimSpace(part)
+		if spec == "" {
+			continue
+		}
+		index := DataIndex{}
+		if strings.HasPrefix(strings.ToLower(spec), "unique ") {
+			index.Unique = true
+			spec = strings.TrimSpace(spec[len("unique "):])
+		}
+		name, columnsRaw, hasColumns := strings.Cut(spec, "(")
+		index.Name = parseScalar(strings.TrimSpace(name))
+		if hasColumns {
+			columnsRaw = strings.TrimSuffix(columnsRaw, ")")
+			index.Columns = splitScalarList(columnsRaw)
+		}
+		out = append(out, index)
+	}
+	return out
 }
 
 func parseBoolScalar(value string) bool {

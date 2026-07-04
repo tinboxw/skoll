@@ -65,6 +65,18 @@ config_schema:
       label: "Enabled"
       type: "boolean"
       default: "true"
+data:
+  namespace: "sample_plugin"
+  migration_version: "v1.2.0"
+  migration_directory: "migrations"
+  uninstall_policy: "archive"
+  rollback_policy: "manual"
+  tables:
+    - name: "sample_plugin_reports"
+      description: "Report cache"
+      primary_key: "id"
+      columns: "id, report_code, status"
+      indexes: "unique idx_sample_plugin_reports_code(report_code); idx_sample_plugin_reports_status(status)"
 i18n_locales:
 	- "zh-CN"
 	- "en-US"
@@ -170,6 +182,15 @@ frontend_entry: "/plugins/sample-plugin"
 	if info.ConfigSchema.Fields[1].Key != "report.enabled" || info.ConfigSchema.Fields[1].Type != "boolean" {
 		t.Fatalf("unexpected config schema second field: %+v", info.ConfigSchema.Fields[1])
 	}
+	if info.DataManifest == nil || info.DataManifest.Namespace != "sample_plugin" || info.DataManifest.UninstallPolicy != DataUninstallArchive {
+		t.Fatalf("expected data manifest parsed, got %+v", info.DataManifest)
+	}
+	if len(info.DataManifest.Tables) != 1 || info.DataManifest.Tables[0].Name != "sample_plugin_reports" {
+		t.Fatalf("unexpected data tables: %+v", info.DataManifest.Tables)
+	}
+	if len(info.DataManifest.Tables[0].Indexes) != 2 || !info.DataManifest.Tables[0].Indexes[0].Unique {
+		t.Fatalf("unexpected data indexes: %+v", info.DataManifest.Tables[0].Indexes)
+	}
 }
 
 func TestFileLoaderLoadStructuredPermissions(t *testing.T) {
@@ -240,6 +261,53 @@ func TestFileLoaderRejectsInvalidPermissions(t *testing.T) {
 name: "Bad Plugin"
 version: "1.0.0"
 ` + permissionsBlock
+			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+				t.Fatalf("write manifest: %v", err)
+			}
+			if _, err := NewFileLoader().Load(dir); err == nil {
+				t.Fatal("expected manifest validation error")
+			}
+		})
+	}
+}
+
+func TestFileLoaderRejectsInvalidDataManifest(t *testing.T) {
+	cases := map[string]string{
+		"reserved namespace": `data:
+  namespace: "sk_core"
+  tables:
+    - name: "sk_core_items"
+      columns: "id"
+`,
+		"table outside namespace": `data:
+  namespace: "reports"
+  tables:
+    - name: "orders"
+      columns: "id"
+`,
+		"index unknown column": `data:
+  namespace: "reports"
+  tables:
+    - name: "reports_orders"
+      columns: "id, code"
+      indexes: "idx_reports_orders_status(status)"
+`,
+		"invalid uninstall policy": `data:
+  namespace: "reports"
+  uninstall_policy: "delete"
+  tables:
+    - name: "reports_orders"
+      columns: "id"
+`,
+	}
+
+	for name, dataBlock := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			manifest := `id: "bad-plugin"
+name: "Bad Plugin"
+version: "1.0.0"
+` + dataBlock
 			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
 				t.Fatalf("write manifest: %v", err)
 			}

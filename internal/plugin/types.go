@@ -85,6 +85,8 @@ var migrationVersionPattern = regexp.MustCompile(`^v?[0-9]+\.[0-9]+\.[0-9]+$`)
 var localePattern = regexp.MustCompile(`^[a-z]{2}(?:-[A-Z]{2})?$`)
 var permissionKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_:.\-]{1,127}$`)
 var permissionModulePattern = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{0,63}$`)
+var dataNamespacePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
+var dataIdentifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,127}$`)
 
 type SignatureAlgorithm string
 
@@ -157,6 +159,45 @@ type PermissionDeclaration struct {
 	Metadata map[string]string
 }
 
+type DataUninstallPolicy string
+
+const (
+	DataUninstallRetain  DataUninstallPolicy = "retain"
+	DataUninstallDrop    DataUninstallPolicy = "drop"
+	DataUninstallArchive DataUninstallPolicy = "archive"
+)
+
+type DataRollbackPolicy string
+
+const (
+	DataRollbackManual    DataRollbackPolicy = "manual"
+	DataRollbackAutomatic DataRollbackPolicy = "automatic"
+	DataRollbackNone      DataRollbackPolicy = "none"
+)
+
+type DataManifest struct {
+	Namespace          string
+	MigrationVersion   string
+	MigrationDirectory string
+	UninstallPolicy    DataUninstallPolicy
+	RollbackPolicy     DataRollbackPolicy
+	Tables             []DataTable
+}
+
+type DataTable struct {
+	Name        string
+	Description string
+	PrimaryKey  string
+	Columns     []string
+	Indexes     []DataIndex
+}
+
+type DataIndex struct {
+	Name    string
+	Columns []string
+	Unique  bool
+}
+
 type Info struct {
 	ID                  string
 	Name                string
@@ -188,6 +229,7 @@ type Info struct {
 	I18nLocales         []string
 	UIMenu              *UIMenu
 	ConfigSchema        *ConfigSchema
+	DataManifest        *DataManifest
 	SystemBuiltin       bool
 	Vendor              string
 	VendorURL           string
@@ -353,6 +395,10 @@ func (i Info) ValidateManifest() error {
 		}
 	}
 
+	if err := i.ValidateDataManifest(); err != nil {
+		return err
+	}
+
 	if mode != UIModeBackendOnly {
 		if len(i.I18nLocales) == 0 {
 			return ErrPluginManifestBroken
@@ -383,6 +429,86 @@ func (i Info) ValidateManifest() error {
 		}
 	}
 
+	return nil
+}
+
+func (i Info) ValidateDataManifest() error {
+	if i.DataManifest == nil {
+		return nil
+	}
+	data := i.DataManifest
+	namespace := strings.TrimSpace(data.Namespace)
+	if namespace == "" {
+		return ErrPluginManifestBroken
+	}
+	if !dataNamespacePattern.MatchString(namespace) || strings.HasPrefix(namespace, "sk_") {
+		return ErrPluginManifestBroken
+	}
+	switch data.UninstallPolicy {
+	case "", DataUninstallRetain, DataUninstallDrop, DataUninstallArchive:
+	default:
+		return ErrPluginManifestBroken
+	}
+	switch data.RollbackPolicy {
+	case "", DataRollbackManual, DataRollbackAutomatic, DataRollbackNone:
+	default:
+		return ErrPluginManifestBroken
+	}
+	if mv := strings.TrimSpace(data.MigrationVersion); mv != "" && !migrationVersionPattern.MatchString(mv) {
+		return ErrPluginManifestBroken
+	}
+	if dir := strings.TrimSpace(data.MigrationDirectory); dir != "" && (strings.Contains(dir, "..") || strings.HasPrefix(dir, "/") || strings.HasPrefix(dir, `\`)) {
+		return ErrPluginManifestBroken
+	}
+	seenTables := map[string]struct{}{}
+	for _, table := range data.Tables {
+		name := strings.TrimSpace(table.Name)
+		if !dataIdentifierPattern.MatchString(name) || strings.HasPrefix(name, "sk_") || !strings.HasPrefix(name, namespace+"_") {
+			return ErrPluginManifestBroken
+		}
+		if _, ok := seenTables[name]; ok {
+			return ErrPluginManifestBroken
+		}
+		seenTables[name] = struct{}{}
+		if len(table.Columns) == 0 {
+			return ErrPluginManifestBroken
+		}
+		seenColumns := map[string]struct{}{}
+		for _, column := range table.Columns {
+			col := strings.TrimSpace(column)
+			if !dataIdentifierPattern.MatchString(col) {
+				return ErrPluginManifestBroken
+			}
+			if _, ok := seenColumns[col]; ok {
+				return ErrPluginManifestBroken
+			}
+			seenColumns[col] = struct{}{}
+		}
+		if pk := strings.TrimSpace(table.PrimaryKey); pk != "" {
+			if _, ok := seenColumns[pk]; !ok {
+				return ErrPluginManifestBroken
+			}
+		}
+		seenIndexes := map[string]struct{}{}
+		for _, index := range table.Indexes {
+			indexName := strings.TrimSpace(index.Name)
+			if !dataIdentifierPattern.MatchString(indexName) {
+				return ErrPluginManifestBroken
+			}
+			if _, ok := seenIndexes[indexName]; ok {
+				return ErrPluginManifestBroken
+			}
+			seenIndexes[indexName] = struct{}{}
+			if len(index.Columns) == 0 {
+				return ErrPluginManifestBroken
+			}
+			for _, column := range index.Columns {
+				if _, ok := seenColumns[strings.TrimSpace(column)]; !ok {
+					return ErrPluginManifestBroken
+				}
+			}
+		}
+	}
 	return nil
 }
 

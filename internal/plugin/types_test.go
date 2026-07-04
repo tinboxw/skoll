@@ -235,3 +235,55 @@ func TestInfoValidateManifestPermissions(t *testing.T) {
 		t.Fatal("expected validation error for invalid permission risk")
 	}
 }
+
+func TestInfoValidateManifestDataContract(t *testing.T) {
+	valid := Info{
+		ID:      "reports",
+		Name:    "Reports",
+		Version: "1.0.0",
+		DataManifest: &DataManifest{
+			Namespace:          "reports",
+			MigrationVersion:   "v1.0.0",
+			MigrationDirectory: "migrations",
+			UninstallPolicy:    DataUninstallRetain,
+			RollbackPolicy:     DataRollbackManual,
+			Tables: []DataTable{
+				{
+					Name:       "reports_orders",
+					PrimaryKey: "id",
+					Columns:    []string{"id", "code", "status"},
+					Indexes: []DataIndex{
+						{Name: "idx_reports_orders_code", Columns: []string{"code"}, Unique: true},
+						{Name: "idx_reports_orders_status", Columns: []string{"status"}},
+					},
+				},
+			},
+		},
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid data contract, got %v", err)
+	}
+
+	reservedNamespace := valid
+	reservedNamespace.DataManifest = &DataManifest{Namespace: "sk_plugin", Tables: []DataTable{{Name: "sk_plugin_items", Columns: []string{"id"}}}}
+	if err := reservedNamespace.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for reserved data namespace")
+	}
+
+	outsideNamespace := valid
+	outsideNamespace.DataManifest = &DataManifest{Namespace: "reports", Tables: []DataTable{{Name: "orders", Columns: []string{"id"}}}}
+	if err := outsideNamespace.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for table outside namespace")
+	}
+
+	unknownIndexColumn := valid
+	unknownIndexColumn.DataManifest = &DataManifest{
+		Namespace: "reports",
+		Tables: []DataTable{
+			{Name: "reports_orders", Columns: []string{"id"}, Indexes: []DataIndex{{Name: "idx_reports_orders_status", Columns: []string{"status"}}}},
+		},
+	}
+	if err := unknownIndexColumn.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for index column outside table columns")
+	}
+}

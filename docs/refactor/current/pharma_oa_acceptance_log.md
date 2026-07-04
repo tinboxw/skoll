@@ -229,3 +229,57 @@ Notes:
 ### Next Step
 
 - Claim `F6-04` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F6-04: Implement Plugin Data Contract
+
+- Status: Passed
+- Date: 2026-07-04
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/plugin/types.go`
+- `internal/plugin/loader.go`
+- `internal/plugin/install_preflight.go`
+- `internal/plugin/local_marketplace.go`
+- `internal/plugin/README.md`
+- `internal/plugin/types_test.go`
+- `internal/plugin/loader_test.go`
+- `internal/plugin/install_preflight_test.go`
+- `internal/plugin/local_marketplace_test.go`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Data manifest | Passed | `Info.DataManifest` supports namespace, migration version/directory, uninstall policy, rollback policy, tables, columns, and indexes |
+| Namespace rules | Passed | Validation rejects `sk_` namespaces, tables outside the namespace, duplicate/invalid identifiers, unknown index columns, and invalid policies |
+| Migration declaration | Passed | Data contract carries migration version and directory; existing plugin migrator remains the execution path |
+| Uninstall and rollback strategy | Passed | `retain`, `archive`, and `drop` uninstall policies plus `manual`, `automatic`, and `none` rollback policies are validated |
+| Install preflight risk | Passed | Preflight JSON now includes `data` summary and raises risk for data tables and destructive `drop` uninstall policy |
+| Marketplace risk | Passed | Local marketplace risk summary exposes data namespace/table/uninstall impact |
+| Docs/example | Passed | `internal/plugin/README.md` includes a current `data:` manifest example |
+| API/OpenAPI impact | Passed | No new HTTP endpoint or response route was added; OpenAPI remains unchanged for this Work Item |
+| Permission, audit, migration/seed impact | Passed | No new permission seed, audit action, Skoll core table, Skoll migration, or seed data is introduced; plugin-owned migrations are declared in manifest only |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/...
+go test ./internal/store/...
+git diff --check -- internal/plugin docs/refactor/current/pharma_oa_work_items.md
+```
+
+Result: Passed.
+
+Notes:
+
+- `git diff --check` exits successfully and prints only existing CRLF conversion warnings from the working tree.
+- `docs/refactor/old/` was not updated.
+
+### Next Step
+
+- Claim `F6-05` from `docs/refactor/current/pharma_oa_work_items.md`.

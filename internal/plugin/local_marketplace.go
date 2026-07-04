@@ -45,6 +45,7 @@ type LocalMarketplaceRiskSummary struct {
 	Level       string   `json:"level"`
 	Permissions []string `json:"permissions,omitempty"`
 	Migrations  []string `json:"migrations,omitempty"`
+	Data        []string `json:"data,omitempty"`
 	Network     []string `json:"network,omitempty"`
 	Assets      []string `json:"assets,omitempty"`
 }
@@ -170,6 +171,24 @@ func localMarketplaceRisk(info Info) LocalMarketplaceRiskSummary {
 			highest = 1
 		}
 	}
+	if info.DataManifest != nil {
+		namespace := strings.TrimSpace(info.DataManifest.Namespace)
+		if namespace != "" {
+			risk.Data = append(risk.Data, "namespace:"+namespace)
+		}
+		for _, table := range info.DataManifest.Tables {
+			name := strings.TrimSpace(table.Name)
+			if name != "" {
+				risk.Data = append(risk.Data, "table:"+name)
+			}
+		}
+		if info.DataManifest.UninstallPolicy == DataUninstallDrop {
+			risk.Data = append(risk.Data, "uninstall:drop")
+			highest = 3
+		} else if len(info.DataManifest.Tables) > 0 && highest < 2 {
+			highest = 2
+		}
+	}
 	if strings.TrimSpace(info.ServiceBaseURL) != "" || strings.TrimSpace(info.ServiceHealthURL) != "" {
 		if strings.TrimSpace(info.ServiceBaseURL) != "" {
 			risk.Network = append(risk.Network, info.ServiceBaseURL)
@@ -187,6 +206,7 @@ func localMarketplaceRisk(info Info) LocalMarketplaceRiskSummary {
 	risk.Level = riskLevelFromRank(highest)
 	sort.Strings(risk.Permissions)
 	sort.Strings(risk.Migrations)
+	sort.Strings(risk.Data)
 	sort.Strings(risk.Network)
 	sort.Strings(risk.Assets)
 	return risk

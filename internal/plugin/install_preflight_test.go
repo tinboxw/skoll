@@ -15,6 +15,7 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 		withNetwork:    true,
 		withSignature:  true,
 		withMigrations: true,
+		withData:       true,
 	})
 
 	result, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
@@ -50,6 +51,9 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 	}
 	if len(result.Migration.Pending) != 1 || result.Migration.Pending[0].Version != 1 {
 		t.Fatalf("expected pending migration, got %+v", result.Migration)
+	}
+	if result.Data.Namespace != "reports" || len(result.Data.Tables) != 1 || len(result.Data.Tables[0].Indexes) != 1 {
+		t.Fatalf("expected data contract summary, got %+v", result.Data)
 	}
 	if result.Signature.Status != "signed" {
 		t.Fatalf("expected signed status, got %+v", result.Signature)
@@ -120,6 +124,7 @@ type preflightPluginFixture struct {
 	withNetwork    bool
 	withSignature  bool
 	withMigrations bool
+	withData       bool
 }
 
 func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
@@ -168,6 +173,19 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 			"      type: string\n" +
 			"      required: true\n" +
 			"      default: https://reports.example.com\n"
+	}
+	if fixture.withData {
+		manifest += "data:\n" +
+			"  namespace: reports\n" +
+			"  migration_version: v1.0.0\n" +
+			"  migration_directory: migrations\n" +
+			"  uninstall_policy: retain\n" +
+			"  rollback_policy: manual\n" +
+			"  tables:\n" +
+			"    - name: reports_orders\n" +
+			"      primary_key: id\n" +
+			"      columns: id, code, status\n" +
+			"      indexes: idx_reports_orders_status(status)\n"
 	}
 	if fixture.withSignature {
 		manifest += "sign_algo: RSA-SHA256\n" +
