@@ -16,6 +16,7 @@ const MenuPage = () => import("../views/Menu/index.vue");
 const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
 const PharmaCustomerPage = () => import("../views/PharmaCustomer/index.vue");
+const PharmaAnnouncementPage = () => import("../views/PharmaAnnouncement/index.vue");
 const PharmaPurchaseInboundPage = () => import("../views/PharmaPurchaseInbound/index.vue");
 const PharmaSalesPage = () => import("../views/PharmaSales/index.vue");
 const PharmaEmployeePage = () => import("../views/PharmaEmployee/index.vue");
@@ -154,6 +155,12 @@ const routes: RouteRecordRaw[] = [
 		path: `${ADMIN_PREFIX}/form-builder`,
 		name: "form-builder",
 		component: FormBuilderPage
+	},
+	{
+		path: `${ADMIN_PREFIX}/pharma-oa/announcements`,
+		name: "pharma-oa-announcements",
+		component: PharmaAnnouncementPage,
+		meta: { requiresAuth: true, permissions: ["pharma_oa.announcement.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/pharma-oa/employees`,

@@ -1813,3 +1813,62 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F10-01` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F10-01 Implement Announcements
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Dependencies: F7 is Done.
+
+### Delivery
+
+- Added announcement and policy-document domain models, organization and role audiences, draft and published lifecycle, attachment validation for policies, and idempotent read confirmations.
+- Added create, publish, audience-filtered list/detail, read-confirmation, and receipt-query services with create, publish, and read audit records.
+- Added authenticated HTTP routes, least-privilege permissions, synchronized OpenAPI contracts, plugin routes, menu visibility, audit declarations, and lifecycle catalog assertions.
+- Added the `/skoll/pharma-oa/announcements` console with loading, empty, error, no-permission, saving, publish-confirmation, receipt, and responsive states.
+- Migration and seed impact: none; this milestone uses the current in-memory announcement service and existing plugin registration path.
+
+### Retry Evidence
+
+1. The first frontend validation was run from the repository root and failed because `package.json` lives under `web`. The command was rerun from `web`, and typecheck plus production build passed.
+2. The first handler fixture passed a JWT claims value where middleware expects a pointer. The fixture was corrected to use `*JWTClaims`, and targeted plus full Go tests passed on retry.
+3. Mobile browser acceptance found that the teleported Element Plus detail drawer bypassed its scoped responsive selector and that long mode labels clipped. The selector was made global, labels were shortened, and the 390px recheck passed without overflow or clipping.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Organization targeting | Passed | Published announcements are visible only when the caller organization intersects the configured organization audience |
+| Role targeting | Passed | JWT role claims participate in audience filtering; matching roles can read while non-matching roles cannot |
+| Policy attachments | Passed | Policy documents require at least one document reference before creation succeeds |
+| Audience denial | Passed | Users outside all configured organization and role audiences cannot view or confirm the announcement |
+| Read confirmation | Passed | Confirmation is idempotent, records the reader and timestamp, and is queryable through the receipt endpoint |
+| Audit traceability | Passed | Create, publish, and read actions are present in the audit service fixture |
+| API and OpenAPI | Passed | Five operations are wired with explicit request/response schemas and both OpenAPI files are byte-equivalent |
+| Permissions and plugin lifecycle | Passed | Five permissions and five routes pass install, enable, disable, menu, audit-catalog, and duplicate-install assertions |
+| Frontend states | Passed | The console covers loading, empty, error, no-permission, saving, destructive publish confirmation, detail, and receipt states |
+| Responsive browser | Passed | Desktop and 390px browser checks show no document overflow, drawer overflow, overlap, or clipped mode labels |
+| Runtime health | Passed | Memory-mode backend returned HTTP 200 from `http://127.0.0.1:8080/skoll/health` during browser acceptance |
+| Migration and seed impact | Passed | No migration or seed update is required for the current in-memory milestone implementation |
+
+### Verification Commands
+
+```text
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/bootstrap ./internal/plugin -count=1
+go test ./internal/plugin -run 'TestPharmaOA' -count=1
+go test ./...
+go vet ./...
+cd web; npm run typecheck
+cd web; npm run build
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F10-02` from `docs/refactor/current/pharma_oa_work_items.md`.

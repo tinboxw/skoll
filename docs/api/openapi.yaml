@@ -2947,8 +2947,236 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/pharma-oa/announcements:
+    get:
+      summary: List announcements visible to an organization or role
+      parameters:
+        - name: organizationId
+          in: query
+          schema: {type: array, items: {type: string}}
+        - name: roleId
+          in: query
+          schema: {type: array, items: {type: string}}
+        - name: includeDraft
+          in: query
+          schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Announcement list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnnouncementListAPIResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Create an announcement or policy document draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AnnouncementCreateRequest'}
+      responses:
+        '201':
+          description: Announcement draft created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnnouncementItemAPIResponse'}
+        '400':
+          description: Invalid announcement
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/announcements/{id}/publish:
+    post:
+      summary: Publish an announcement to its configured audience
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                actorId: {type: string}
+      responses:
+        '200':
+          description: Announcement published
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnnouncementItemAPIResponse'}
+        '400':
+          description: Announcement cannot be published
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/announcements/{id}/read:
+    post:
+      summary: Confirm that the current audience member read an announcement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: organizationId
+          in: query
+          schema: {type: array, items: {type: string}}
+        - name: roleId
+          in: query
+          schema: {type: array, items: {type: string}}
+      responses:
+        '200':
+          description: Idempotent read confirmation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnnouncementReceiptItemAPIResponse'}
+        '403':
+          description: Announcement is outside the current audience
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/announcements/{id}/read-confirmations:
+    get:
+      summary: List read confirmations for an announcement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Read confirmation list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AnnouncementReceiptListAPIResponse'}
+        '404':
+          description: Announcement not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 components:
   schemas:
+    AnnouncementAudience:
+      type: object
+      required: [organizationIds, roleIds]
+      properties:
+        organizationIds: {type: array, items: {type: string}}
+        roleIds: {type: array, items: {type: string}}
+    AnnouncementDocument:
+      type: object
+      required: [fileId, fileName]
+      properties:
+        fileId: {type: string}
+        fileName: {type: string}
+    AnnouncementCreateRequest:
+      type: object
+      required: [kind, title, content, audience, documents]
+      properties:
+        kind: {type: string, enum: [announcement, policy]}
+        title: {type: string, minLength: 1, maxLength: 160}
+        content: {type: string, minLength: 1, maxLength: 5000}
+        audience: {$ref: '#/components/schemas/AnnouncementAudience'}
+        documents:
+          type: array
+          items: {$ref: '#/components/schemas/AnnouncementDocument'}
+        actorId: {type: string}
+    Announcement:
+      type: object
+      required: [id, kind, title, content, audience, documents, status, createdBy, createdAt]
+      properties:
+        id: {type: string}
+        kind: {type: string, enum: [announcement, policy]}
+        title: {type: string}
+        content: {type: string}
+        audience: {$ref: '#/components/schemas/AnnouncementAudience'}
+        documents:
+          type: array
+          items: {$ref: '#/components/schemas/AnnouncementDocument'}
+        status: {type: string, enum: [draft, published]}
+        createdBy: {type: string}
+        createdAt: {type: string, format: date-time}
+        publishedBy: {type: string}
+        publishedAt: {type: string, format: date-time}
+    AnnouncementReadConfirmation:
+      type: object
+      required: [announcementId, userId, readAt]
+      properties:
+        announcementId: {type: string}
+        userId: {type: string}
+        readAt: {type: string, format: date-time}
+    AnnouncementItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/Announcement'}
+    AnnouncementListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Announcement'}
+    AnnouncementReceiptItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/AnnouncementReadConfirmation'}
+    AnnouncementReceiptListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/AnnouncementReadConfirmation'}
+    AnnouncementItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AnnouncementItemData'}
+    AnnouncementListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AnnouncementListData'}
+    AnnouncementReceiptItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AnnouncementReceiptItemData'}
+    AnnouncementReceiptListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AnnouncementReceiptListData'}
     InventoryAlertPolicyRequest:
       type: object
       required: [nearExpiryDays, lowStockThreshold, overStockThreshold, recipientId]

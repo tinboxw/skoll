@@ -87,3 +87,9 @@ The current employee module uses the core `/v1/pharma-oa/employees` API and inte
 ## Lifecycle Smoke
 
 The plugin is validated by `go test ./internal/plugin/...`. The dedicated test installs, enables, disables, checks permission/menu catalog effects, route extension registration, catalog audit events, and duplicate-install failure handling.
+## Announcements and policy documents
+
+- Announcement drafts target one or more organization IDs or role IDs before publication.
+- Policy records require an attached document reference and share the same controlled publication lifecycle.
+- Published records are visible only to matching audiences; read confirmation is idempotent and queryable.
+- The host console route is `/skoll/pharma-oa/announcements`, backed by explicit read, create, publish, confirm, and receipt permissions.

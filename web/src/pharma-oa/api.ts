@@ -290,3 +290,59 @@ export async function createSalesOutbound(body: { number: string; salesOrderId: 
 	const payload = await apiPost<ApiResponse<SalesOutboundItemPayload>>("/v1/pharma-oa/sales-outbounds", body);
 	return payload.data.item;
 }
+
+export type AnnouncementKind = "announcement" | "policy";
+export type AnnouncementStatus = "draft" | "published";
+export type AnnouncementDocument = { fileId: string; fileName: string };
+export type AnnouncementAudience = { organizationIds: string[]; roleIds: string[] };
+export type PharmaAnnouncement = {
+	id: string;
+	kind: AnnouncementKind;
+	title: string;
+	content: string;
+	audience: AnnouncementAudience;
+	documents: AnnouncementDocument[];
+	status: AnnouncementStatus;
+	createdBy: string;
+	createdAt: string;
+	publishedBy?: string;
+	publishedAt?: string;
+};
+export type AnnouncementReadConfirmation = { announcementId: string; userId: string; readAt: string };
+type AnnouncementListPayload = { items: PharmaAnnouncement[] };
+type AnnouncementItemPayload = { item: PharmaAnnouncement };
+type AnnouncementReceiptPayload = { item: AnnouncementReadConfirmation };
+type AnnouncementReceiptsPayload = { items: AnnouncementReadConfirmation[] };
+
+function announcementAudienceQuery(query: { organizationIds?: string[]; roleIds?: string[]; includeDraft?: boolean }): string {
+	const params = new URLSearchParams();
+	query.organizationIds?.filter(Boolean).forEach((id) => params.append("organizationId", id));
+	query.roleIds?.filter(Boolean).forEach((id) => params.append("roleId", id));
+	if (query.includeDraft) params.set("includeDraft", "true");
+	return params.toString() ? `?${params.toString()}` : "";
+}
+
+export async function listAnnouncements(query: { organizationIds?: string[]; roleIds?: string[]; includeDraft?: boolean } = {}): Promise<PharmaAnnouncement[]> {
+	const payload = await apiGet<ApiResponse<AnnouncementListPayload>>(`/v1/pharma-oa/announcements${announcementAudienceQuery(query)}`);
+	return payload.data.items;
+}
+
+export async function createAnnouncement(body: { kind: AnnouncementKind; title: string; content: string; audience: AnnouncementAudience; documents: AnnouncementDocument[]; actorId: string }): Promise<PharmaAnnouncement> {
+	const payload = await apiPost<ApiResponse<AnnouncementItemPayload>>("/v1/pharma-oa/announcements", body);
+	return payload.data.item;
+}
+
+export async function publishAnnouncement(id: string, actorId: string): Promise<PharmaAnnouncement> {
+	const payload = await apiPost<ApiResponse<AnnouncementItemPayload>>(`/v1/pharma-oa/announcements/${encodeURIComponent(id)}/publish`, { actorId });
+	return payload.data.item;
+}
+
+export async function confirmAnnouncementRead(id: string, query: { organizationIds?: string[]; roleIds?: string[] } = {}): Promise<AnnouncementReadConfirmation> {
+	const payload = await apiPost<ApiResponse<AnnouncementReceiptPayload>>(`/v1/pharma-oa/announcements/${encodeURIComponent(id)}/read${announcementAudienceQuery(query)}`);
+	return payload.data.item;
+}
+
+export async function listAnnouncementReadConfirmations(id: string): Promise<AnnouncementReadConfirmation[]> {
+	const payload = await apiGet<ApiResponse<AnnouncementReceiptsPayload>>(`/v1/pharma-oa/announcements/${encodeURIComponent(id)}/read-confirmations`);
+	return payload.data.items;
+}

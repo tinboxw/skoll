@@ -58,7 +58,7 @@ function closeDrawer(): void {
 }
 
 @media (max-width: 760px) {
-	:deep(.el-drawer) {
+	:global(.detail-drawer.el-drawer) {
 		width: 92% !important;
 	}
 }
