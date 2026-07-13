@@ -1604,3 +1604,49 @@ Notes:
 ### Next Step
 
 - Claim `F9-04` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F9-04 Implement Sales Order And Sales Outbound
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Dependencies: F9-01 and F8-05 are Done.
+
+### Delivery
+
+- Added sales orders with customer qualification validation, line totals, immutable order snapshots, list/detail APIs, audit actions, and least-privilege permissions.
+- Added sales outbound with a second customer qualification check, warehouse location validation, order quantity validation, batch stock availability preflight, inventory deduction, and outbound ledger references.
+- Added denial tests proving expired customer qualification and insufficient stock cannot change inventory or append outbound ledger entries.
+- Added `/v1/pharma-oa/sales-orders` and `/v1/pharma-oa/sales-outbounds` API contracts, synchronized embedded OpenAPI, plugin route declarations, lifecycle permissions, and catalog audit counts.
+- Added `/skoll/pharma-oa/sales` with order/outbound tabs and loading, empty, error, no-permission, saving, disabled-action, and responsive states.
+- Migration and seed impact: none; the current milestone uses the existing in-memory customer, warehouse, and inventory services.
+
+### Retry Evidence
+
+1. Plugin validation initially failed because four-segment sales audit actions violated the manifest's three-segment audit action rule. Audit actions were renamed to three-segment forms and plugin installation/lifecycle tests passed on retry.
+2. Browser acceptance initially found `New order` enabled when no eligible customers were available. The action now disables for an empty customer list and passed desktop/mobile browser revalidation.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Customer qualification | Passed | Expired qualification blocks outbound without changing the seeded balance |
+| Inventory and ledger | Passed | Successful outbound reduces stock from 10 to 6 and appends a `-4` ledger entry with balance-after 6 |
+| Failure atomicity | Passed | Insufficient stock is rejected before mutation and leaves only the original inbound ledger |
+| API and OpenAPI | Passed | Sales order/outbound list, create, detail routes are wired and both OpenAPI files are byte-equivalent |
+| Permissions and plugin lifecycle | Passed | Four sales permissions and six routes pass install, enable, disable, audit-count, and duplicate-install tests |
+| Frontend states | Passed | Both tabs render empty state; customer/order absence disables create; saving/error/no-permission states are implemented |
+| Responsive browser | Passed | Desktop and 390px checks show no horizontal overflow, button overlap, or clipped button text |
+
+### Verification Commands
+
+```text
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http
+go test ./internal/plugin ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa
+go test ./...
+cd web; npm run typecheck
+cd web; npm run build
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+codegraph sync .
+git diff --check
+```

@@ -754,6 +754,52 @@ paths:
       responses:
         '200': {description: OK}
         '404': {description: Purchase inbound not found}
+  /v1/pharma-oa/sales-orders:
+    get:
+      summary: List Pharma OA sales orders
+      responses:
+        '200': {description: OK}
+    post:
+      summary: Create a sales order after customer qualification validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SalesOrderCreateRequest'}
+      responses:
+        '201': {description: Created}
+        '400': {description: Invalid order or ineligible customer}
+  /v1/pharma-oa/sales-orders/{id}:
+    get:
+      summary: Get Pharma OA sales order
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OK}
+        '404': {description: Sales order not found}
+  /v1/pharma-oa/sales-outbounds:
+    get:
+      summary: List Pharma OA sales outbounds
+      responses:
+        '200': {description: OK}
+    post:
+      summary: Complete sales outbound and decrease batch inventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SalesOutboundCreateRequest'}
+      responses:
+        '201': {description: Created}
+        '400': {description: Expired customer qualification, invalid location, order mismatch, or insufficient stock}
+  /v1/pharma-oa/sales-outbounds/{id}:
+    get:
+      summary: Get Pharma OA sales outbound
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OK}
+        '404': {description: Sales outbound not found}
   /v1/users:
     get:
       summary: List users
@@ -2752,6 +2798,41 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
+    SalesLine:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        productId: {type: string}
+        quantity: {type: integer, minimum: 1}
+        unitPrice: {type: number, format: double, minimum: 0}
+        amount: {type: number, format: double, readOnly: true}
+    SalesOrderCreateRequest:
+      type: object
+      required: [number, customerId, lines, actorId]
+      properties:
+        number: {type: string}
+        customerId: {type: string}
+        actorId: {type: string}
+        lines: {type: array, minItems: 1, items: {$ref: '#/components/schemas/SalesLine'}}
+    SalesOutboundLine:
+      type: object
+      required: [productId, quantity, batchId]
+      properties:
+        productId: {type: string}
+        quantity: {type: integer, minimum: 1}
+        batchId: {type: string}
+        ledgerId: {type: string, readOnly: true}
+    SalesOutboundCreateRequest:
+      type: object
+      required: [number, salesOrderId, warehouseId, areaId, locationId, lines, actorId]
+      properties:
+        number: {type: string}
+        salesOrderId: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        actorId: {type: string}
+        lines: {type: array, minItems: 1, items: {$ref: '#/components/schemas/SalesOutboundLine'}}
     PurchaseInboundAttachment:
       type: object
       required: [fileId, fileName, size]

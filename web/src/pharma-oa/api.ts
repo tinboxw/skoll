@@ -261,3 +261,32 @@ export async function createPurchaseInbound(body: { number: string; purchaseOrde
 	const payload = await apiPost<ApiResponse<PurchaseInboundItemPayload>>("/v1/pharma-oa/purchase-inbounds", body);
 	return payload.data.item;
 }
+
+export type SalesLine = { productId: string; quantity: number; unitPrice: number; amount?: number };
+export type SalesOrder = { id: string; number: string; customerId: string; lines: SalesLine[]; totalAmount: number; status: "open"; createdBy: string; createdAt: string };
+export type SalesOutboundLine = { productId: string; quantity: number; batchId: string; ledgerId?: string };
+export type SalesOutbound = { id: string; number: string; salesOrderId: string; customerId: string; warehouseId: string; areaId: string; locationId: string; lines: SalesOutboundLine[]; status: "completed"; shippedBy: string; shippedAt: string };
+type SalesOrderListPayload = { items: SalesOrder[] };
+type SalesOrderItemPayload = { item: SalesOrder };
+type SalesOutboundListPayload = { items: SalesOutbound[] };
+type SalesOutboundItemPayload = { item: SalesOutbound };
+
+export async function listSalesOrders(): Promise<SalesOrder[]> {
+	const payload = await apiGet<ApiResponse<SalesOrderListPayload>>("/v1/pharma-oa/sales-orders");
+	return payload.data.items;
+}
+
+export async function createSalesOrder(body: { number: string; customerId: string; lines: SalesLine[]; actorId: string }): Promise<SalesOrder> {
+	const payload = await apiPost<ApiResponse<SalesOrderItemPayload>>("/v1/pharma-oa/sales-orders", body);
+	return payload.data.item;
+}
+
+export async function listSalesOutbounds(): Promise<SalesOutbound[]> {
+	const payload = await apiGet<ApiResponse<SalesOutboundListPayload>>("/v1/pharma-oa/sales-outbounds");
+	return payload.data.items;
+}
+
+export async function createSalesOutbound(body: { number: string; salesOrderId: string; warehouseId: string; areaId: string; locationId: string; lines: SalesOutboundLine[]; actorId: string }): Promise<SalesOutbound> {
+	const payload = await apiPost<ApiResponse<SalesOutboundItemPayload>>("/v1/pharma-oa/sales-outbounds", body);
+	return payload.data.item;
+}
