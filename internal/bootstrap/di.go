@@ -91,6 +91,8 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaMasterDataExchangeService := pharmaoasvc.NewMasterDataExchangeService(pharmaEmployeeService, pharmaProductService, pharmaSupplierService, pharmaCustomerService)
 	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
 	pharmaPurchaseService := pharmaoasvc.NewPurchaseService(pharmaSupplierService, workflowService, auditService)
+	pharmaInventoryService := pharmaoasvc.NewInventoryService(auditService)
+	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService)
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err
@@ -117,6 +119,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaWarehouseService:          pharmaWarehouseService,
 		PharmaMasterDataExchangeService: pharmaMasterDataExchangeService,
 		PharmaPurchaseService:           pharmaPurchaseService,
+		PharmaPurchaseInboundService:    pharmaPurchaseInboundService,
 		MenuService:                     menuService,
 		WorkflowService:                 workflowService,
 		PluginManager:                   pluginManager,

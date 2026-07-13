@@ -1533,3 +1533,74 @@ Notes:
 ### Next Step
 
 - Claim `F9-03` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F9-03 Implement Purchase Inbound
+
+- Date: 2026-07-13
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/purchase_inbound.go`
+- `internal/service/pharmaoa/purchase_inbound_service.go`
+- `internal/service/pharmaoa/purchase_inbound_service_test.go`
+- `internal/handler/http/v1/pharmaoa/purchase_inbound_handler.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `web/src/pharma-oa/api.ts`
+- `web/src/views/PharmaPurchaseInbound/index.vue`
+- `web/src/router/index.ts`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Inbound order | Passed | Completed inbound records link approved purchase orders to warehouse/area/location, receiver, time, lines, and attachments |
+| Purchase validation | Passed | Service rejects missing orders, products outside the order, non-whole order quantities, and quantities exceeding the purchase order |
+| Warehouse validation | Passed | Inbound requires an enabled warehouse, area, and location through `ValidateMovementLocation` |
+| Batch and expiry | Passed | Each line requires batch number, production date, and expiry after production; inventory creates the stock batch and returns its batch ID |
+| Inventory and ledger | Passed | Service fixture receives five units, increases one stock balance to five, and writes one immutable inbound ledger linked to the inbound ID |
+| Attachments | Passed | Attachment metadata requires safe file ID/name and non-negative size; path traversal and separators are rejected |
+| Audit | Passed | Inventory writes `pharma_oa.inventory.inbound`; inbound completion writes `pharma_oa.inbound.create` with order, line, and attachment counts |
+| API/OpenAPI/permissions | Passed | Three routes, explicit schemas, read/create permissions, startup registration, and synchronized OpenAPI files are present |
+| Plugin lifecycle | Passed | Manifest lifecycle covers 40 declarations, 42 routes, 39 unique audit actions, enable/disable, catalogs, and duplicate install failure |
+| Frontend states | Passed | Page covers loading, empty, API error, route/page no-permission, saving, disabled create without orders, and responsive layout |
+| Browser | Passed | Dedicated 5174 frontend against the F9-03 backend rendered the empty state; 390px viewport had no horizontal overflow or button overlap |
+| Migration and seed impact | Passed | No migration or seed is added; inbound uses current in-memory purchase, warehouse, and inventory services |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+cd web; npm run typecheck
+cd web; npm run build
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+codegraph sync .
+```
+
+Result: Passed after retry.
+
+### Failure And Retry
+
+- Initial targeted test failed because warehouse eligibility was called with three IDs instead of `WarehouseMovementLocationInput`; corrected the service call and reran successfully.
+- Initial browser run used the existing 5173 proxy bound to another developer's 8080 backend and returned 404; started an isolated 5174 frontend pointing at the validated 18080 backend and reran successfully.
+
+Notes:
+
+- Frontend build reports existing Sass legacy API and Rollup annotation warnings but exits successfully.
+- `git diff --check` reports only Windows CRLF conversion warnings.
+- Existing unrelated changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included.
+
+### Next Step
+
+- Claim `F9-04` from `docs/refactor/current/pharma_oa_work_items.md`.

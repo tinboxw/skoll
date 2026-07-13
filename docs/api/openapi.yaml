@@ -731,6 +731,29 @@ paths:
                 $ref: '#/components/schemas/PurchaseOrderResponse'
         '404':
           description: Purchase order not found
+  /v1/pharma-oa/purchase-inbounds:
+    get:
+      summary: List Pharma OA purchase inbounds
+      responses:
+        '200': {description: OK}
+    post:
+      summary: Complete purchase inbound and increase batch inventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PurchaseInboundCreateRequest'}
+      responses:
+        '201': {description: Created}
+        '400': {description: Invalid order, location, batch, expiry, attachment, or quantity}
+  /v1/pharma-oa/purchase-inbounds/{id}:
+    get:
+      summary: Get Pharma OA purchase inbound
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: OK}
+        '404': {description: Purchase inbound not found}
   /v1/users:
     get:
       summary: List users
@@ -2729,6 +2752,36 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
+    PurchaseInboundAttachment:
+      type: object
+      required: [fileId, fileName, size]
+      properties:
+        fileId: {type: string}
+        fileName: {type: string}
+        size: {type: integer, format: int64, minimum: 0}
+    PurchaseInboundLine:
+      type: object
+      required: [productId, quantity, batchNo, productionDate, expiresAt]
+      properties:
+        productId: {type: string}
+        quantity: {type: integer, minimum: 1}
+        batchNo: {type: string}
+        productionDate: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+        batchId: {type: string, readOnly: true}
+        ledgerId: {type: string, readOnly: true}
+    PurchaseInboundCreateRequest:
+      type: object
+      required: [number, purchaseOrderId, warehouseId, areaId, locationId, lines, actorId]
+      properties:
+        number: {type: string}
+        purchaseOrderId: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        actorId: {type: string}
+        lines: {type: array, minItems: 1, items: {$ref: '#/components/schemas/PurchaseInboundLine'}}
+        attachments: {type: array, items: {$ref: '#/components/schemas/PurchaseInboundAttachment'}}
     PurchaseLine:
       type: object
       required: [productId, quantity, unitPrice]

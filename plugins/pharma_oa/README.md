@@ -53,6 +53,10 @@
   - `POST /v1/plugins/pharma_oa/api/purchase-requests/reject`
   - `GET /v1/plugins/pharma_oa/api/purchase-orders`
   - `GET /v1/plugins/pharma_oa/api/purchase-orders/detail`
+- Purchase inbound route contracts:
+  - `GET /v1/plugins/pharma_oa/api/purchase-inbounds`
+  - `POST /v1/plugins/pharma_oa/api/purchase-inbounds`
+  - `GET /v1/plugins/pharma_oa/api/purchase-inbounds/detail`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`

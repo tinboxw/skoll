@@ -237,3 +237,27 @@ export async function validateCustomerSalesEligibility(id: string, scope: Custom
 	const payload = await apiGet<ApiResponse<CustomerEligibilityPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/sales-eligibility${suffix}`);
 	return payload.data.item;
 }
+
+export type PurchaseLine = { productId: string; quantity: number; unitPrice: number; amount: number };
+export type PurchaseOrder = { id: string; number: string; purchaseRequestId: string; supplierId: string; lines: PurchaseLine[]; totalAmount: number; status: "open"; approvedBy: string; approvedAt: string };
+export type InboundAttachment = { fileId: string; fileName: string; size: number };
+export type PurchaseInboundLine = { productId: string; quantity: number; batchNo: string; productionDate: string; expiresAt: string; batchId?: string; ledgerId?: string };
+export type PurchaseInbound = { id: string; number: string; purchaseOrderId: string; warehouseId: string; areaId: string; locationId: string; lines: PurchaseInboundLine[]; attachments: InboundAttachment[]; status: "completed"; receivedBy: string; receivedAt: string };
+type PurchaseOrderListPayload = { items: PurchaseOrder[] };
+type PurchaseInboundListPayload = { items: PurchaseInbound[] };
+type PurchaseInboundItemPayload = { item: PurchaseInbound };
+
+export async function listPurchaseOrders(): Promise<PurchaseOrder[]> {
+	const payload = await apiGet<ApiResponse<PurchaseOrderListPayload>>("/v1/pharma-oa/purchase-orders");
+	return payload.data.items;
+}
+
+export async function listPurchaseInbounds(): Promise<PurchaseInbound[]> {
+	const payload = await apiGet<ApiResponse<PurchaseInboundListPayload>>("/v1/pharma-oa/purchase-inbounds");
+	return payload.data.items;
+}
+
+export async function createPurchaseInbound(body: { number: string; purchaseOrderId: string; warehouseId: string; areaId: string; locationId: string; lines: PurchaseInboundLine[]; attachments: InboundAttachment[]; actorId: string }): Promise<PurchaseInbound> {
+	const payload = await apiPost<ApiResponse<PurchaseInboundItemPayload>>("/v1/pharma-oa/purchase-inbounds", body);
+	return payload.data.item;
+}

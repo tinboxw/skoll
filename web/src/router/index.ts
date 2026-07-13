@@ -16,6 +16,7 @@ const MenuPage = () => import("../views/Menu/index.vue");
 const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
 const PharmaCustomerPage = () => import("../views/PharmaCustomer/index.vue");
+const PharmaPurchaseInboundPage = () => import("../views/PharmaPurchaseInbound/index.vue");
 const PharmaEmployeePage = () => import("../views/PharmaEmployee/index.vue");
 const PluginPage = () => import("../views/Plugin/index.vue");
 const ProfilePage = () => import("../views/Profile/index.vue");
@@ -164,6 +165,12 @@ const routes: RouteRecordRaw[] = [
 		name: "pharma-oa-customers",
 		component: PharmaCustomerPage,
 		meta: { permissions: ["pharma_oa.customer.read"] }
+	},
+	{
+		path: `${ADMIN_PREFIX}/pharma-oa/purchase-inbounds`,
+		name: "pharma-oa-purchase-inbounds",
+		component: PharmaPurchaseInboundPage,
+		meta: { requiresAuth: true, permissions: ["pharma_oa.inbound.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/setting`,
