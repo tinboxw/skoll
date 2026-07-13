@@ -1650,3 +1650,57 @@ git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
 codegraph sync .
 git diff --check
 ```
+
+## F9-05 Implement Stocktake And Transfer
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Dependencies: F9-01 is Done.
+
+### Delivery
+
+- Added stocktake orders that snapshot system stock, require a non-zero physical-count difference, create an assigned approval workflow, and defer inventory mutation until approval.
+- Added idempotent approval and rejection handling, stale-balance protection, immutable stocktake ledger references, and create/approve/reject audit actions.
+- Added atomic cross-warehouse transfers with source and destination validation, preserved total stock, paired outbound/inbound ledger references, and transfer audit actions.
+- Added list/detail/create/action APIs, least-privilege permissions, synchronized OpenAPI contracts, plugin extension routes, and lifecycle catalog assertions.
+- Added fixture coverage for unauthorized approval, duplicate approval, stale stock, paired ledgers, and invalid-input side-effect prevention.
+- Migration and seed impact: none; the current milestone uses the existing in-memory workflow, warehouse, and inventory services.
+
+### Retry Evidence
+
+1. The first handler/bootstrap validation run failed because the prior F9-04 backend still occupied port `18081`. That owned process was identified and stopped; the same command passed on retry.
+2. Pre-commit review found invalid stocktake or transfer input could reach side-effecting work before final domain validation. Validation was moved ahead of workflow/inventory calls, creation critical sections were serialized, a no-side-effects fixture was added, and targeted plus full tests passed on retry.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Difference approval | Passed | A stocktake with system quantity 10 and actual quantity 8 remains pending with stock at 10 until the assigned approver acts |
+| Approval idempotency | Passed | Approval posts one `-2` stocktake ledger entry; repeated approval returns the same ledger ID without another mutation |
+| Rejection and stale stock | Passed | Rejection does not mutate inventory; a changed balance blocks approval while the order and workflow remain pending |
+| Cross-warehouse transfer | Passed | Moving four units creates distinct `transfer_out` and `transfer_in` ledger entries and preserves total stock at 10 |
+| Failure atomicity | Passed | Invalid stocktake input creates no workflow definition, and invalid transfer input creates no inventory or ledger changes |
+| API and OpenAPI | Passed | Eight stocktake/transfer routes and explicit request/response schemas are wired; both OpenAPI files are byte-equivalent |
+| Permissions and audit | Passed | Six least-privilege permissions and six operation audit actions are registered with startup and plugin catalogs |
+| Plugin lifecycle | Passed | Manifest tests cover 50 declarations, 56 routes, 49 unique audit actions, enable/disable, catalog effects, and duplicate-install failure |
+| Runtime health | Passed | Isolated memory-mode backend returned HTTP 200 from `http://127.0.0.1:18085/skoll/health` and was stopped after verification |
+| Migration and seed impact | Passed | No migration or seed changes are required for the current in-memory milestone implementation |
+
+### Verification Commands
+
+```text
+go test ./internal/service/pharmaoa -run 'TestStocktake|TestCrossWarehouseTransfer|TestInvalidInventoryOperationInput' -count=1 -v
+go test ./internal/handler/http/... ./internal/plugin/... ./internal/service/pharmaoa
+go test ./...
+go build -o tmp/skoll-f9-05.exe ./cmd/skoll
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+codegraph sync .
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F9-06` from `docs/refactor/current/pharma_oa_work_items.md`.

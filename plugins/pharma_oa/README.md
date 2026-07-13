@@ -64,11 +64,20 @@
   - `GET /v1/plugins/pharma_oa/api/sales-outbounds`
   - `POST /v1/plugins/pharma_oa/api/sales-outbounds`
   - `GET /v1/plugins/pharma_oa/api/sales-outbounds/detail`
+- Inventory operation route contracts:
+  - `GET /v1/plugins/pharma_oa/api/stocktakes`
+  - `POST /v1/plugins/pharma_oa/api/stocktakes`
+  - `GET /v1/plugins/pharma_oa/api/stocktakes/detail`
+  - `POST /v1/plugins/pharma_oa/api/stocktakes/approve`
+  - `POST /v1/plugins/pharma_oa/api/stocktakes/reject`
+  - `GET /v1/plugins/pharma_oa/api/transfers`
+  - `POST /v1/plugins/pharma_oa/api/transfers`
+  - `GET /v1/plugins/pharma_oa/api/transfers/detail`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
 
-The current employee module uses the core `/v1/pharma-oa/employees` API and integrated route `/skoll/pharma-oa/employees`. The product module uses the core `/v1/pharma-oa/products` API for drug master data, disable flow, and import validation. The supplier module uses `/v1/pharma-oa/suppliers` for supplier records, contacts, qualification attachment metadata, reminders, and purchase eligibility checks. The customer module uses `/v1/pharma-oa/customers` and `/skoll/pharma-oa/customers` for customer contacts, region ownership, qualification attachment metadata, organization/owner isolation, reminders, and sales eligibility checks. The warehouse module uses `/v1/pharma-oa/warehouses` for warehouse, area, location, temperature attributes, disable flow, and inbound/outbound movement location eligibility. The master data exchange module uses `/v1/pharma-oa/master-data/template`, `/v1/pharma-oa/master-data/import`, and `/v1/pharma-oa/master-data/export` for employee, product, supplier, and customer templates, row-level import reports, and export jobs. The purchase module uses `/v1/pharma-oa/purchase-requests` and `/v1/pharma-oa/purchase-orders` for supplier-qualified requests, workflow approval, rejection, and idempotent purchase-order generation. The sales module uses `/v1/pharma-oa/sales-orders`, `/v1/pharma-oa/sales-outbounds`, and `/skoll/pharma-oa/sales` for customer-qualified orders, batch outbound, stock deduction, and immutable ledger references.
+The current employee module uses the core `/v1/pharma-oa/employees` API and integrated route `/skoll/pharma-oa/employees`. The product module uses the core `/v1/pharma-oa/products` API for drug master data, disable flow, and import validation. The supplier module uses `/v1/pharma-oa/suppliers` for supplier records, contacts, qualification attachment metadata, reminders, and purchase eligibility checks. The customer module uses `/v1/pharma-oa/customers` and `/skoll/pharma-oa/customers` for customer contacts, region ownership, qualification attachment metadata, organization/owner isolation, reminders, and sales eligibility checks. The warehouse module uses `/v1/pharma-oa/warehouses` for warehouse, area, location, temperature attributes, disable flow, and inbound/outbound movement location eligibility. The master data exchange module uses `/v1/pharma-oa/master-data/template`, `/v1/pharma-oa/master-data/import`, and `/v1/pharma-oa/master-data/export` for employee, product, supplier, and customer templates, row-level import reports, and export jobs. The purchase module uses `/v1/pharma-oa/purchase-requests` and `/v1/pharma-oa/purchase-orders` for supplier-qualified requests, workflow approval, rejection, and idempotent purchase-order generation. The sales module uses `/v1/pharma-oa/sales-orders`, `/v1/pharma-oa/sales-outbounds`, and `/skoll/pharma-oa/sales` for customer-qualified orders, batch outbound, stock deduction, and immutable ledger references. The inventory operation module uses `/v1/pharma-oa/stocktakes` for workflow-gated stocktake differences with idempotent ledger posting, and `/v1/pharma-oa/transfers` for atomic cross-warehouse movement with paired outbound and inbound ledger references.
 
 ## Lifecycle Smoke
 

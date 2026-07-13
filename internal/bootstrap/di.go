@@ -94,6 +94,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaInventoryService := pharmaoasvc.NewInventoryService(auditService)
 	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService)
 	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService)
+	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService)
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err
@@ -122,6 +123,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaPurchaseService:           pharmaPurchaseService,
 		PharmaPurchaseInboundService:    pharmaPurchaseInboundService,
 		PharmaSalesService:              pharmaSalesService,
+		PharmaInventoryOperationService: pharmaInventoryOperationService,
 		MenuService:                     menuService,
 		WorkflowService:                 workflowService,
 		PluginManager:                   pluginManager,

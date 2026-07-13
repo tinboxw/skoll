@@ -800,6 +800,110 @@ paths:
       responses:
         '200': {description: OK}
         '404': {description: Sales outbound not found}
+  /v1/pharma-oa/stocktakes:
+    get:
+      summary: List Pharma OA stocktake orders
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StocktakeOrderListResponse'}
+    post:
+      summary: Create a stocktake difference pending workflow approval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/StocktakeCreateRequest'}
+      responses:
+        '201':
+          description: Stocktake difference created and pending approval
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
+        '400': {description: Invalid stock position, quantity, or approver}
+  /v1/pharma-oa/stocktakes/{id}:
+    get:
+      summary: Get a Pharma OA stocktake order
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
+        '404': {description: Stocktake order not found}
+  /v1/pharma-oa/stocktakes/{id}/approve:
+    post:
+      summary: Approve a stocktake difference and post its inventory ledger entry
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InventoryApprovalRequest'}
+      responses:
+        '200':
+          description: Approved; repeated approval returns the same ledger reference
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
+        '400': {description: Approval failed or inventory changed after the count}
+  /v1/pharma-oa/stocktakes/{id}/reject:
+    post:
+      summary: Reject a stocktake difference without changing inventory
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InventoryApprovalRequest'}
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
+        '400': {description: Rejection failed}
+  /v1/pharma-oa/transfers:
+    get:
+      summary: List Pharma OA stock transfer orders
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TransferOrderListResponse'}
+    post:
+      summary: Transfer batch inventory and create paired outbound and inbound ledger entries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TransferCreateRequest'}
+      responses:
+        '201':
+          description: Transfer completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TransferOrderResponse'}
+        '400': {description: Invalid locations, quantity, batch, or insufficient stock}
+  /v1/pharma-oa/transfers/{id}:
+    get:
+      summary: Get a Pharma OA stock transfer order
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TransferOrderResponse'}
+        '404': {description: Transfer order not found}
   /v1/users:
     get:
       summary: List users
@@ -2798,6 +2902,128 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
+    StocktakeCreateRequest:
+      type: object
+      required: [number, productId, warehouseId, areaId, locationId, batchId, actualQuantity, creatorId, approverId]
+      properties:
+        number: {type: string}
+        productId: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        batchId: {type: string}
+        actualQuantity: {type: integer, minimum: 0}
+        reason: {type: string}
+        creatorId: {type: string}
+        approverId: {type: string}
+    InventoryApprovalRequest:
+      type: object
+      required: [actorId]
+      properties:
+        actorId: {type: string}
+        comment: {type: string}
+    TransferCreateRequest:
+      type: object
+      required: [number, productId, batchId, quantity, fromWarehouseId, fromAreaId, fromLocationId, toWarehouseId, toAreaId, toLocationId, actorId]
+      properties:
+        number: {type: string}
+        productId: {type: string}
+        batchId: {type: string}
+        quantity: {type: integer, minimum: 1}
+        fromWarehouseId: {type: string}
+        fromAreaId: {type: string}
+        fromLocationId: {type: string}
+        toWarehouseId: {type: string}
+        toAreaId: {type: string}
+        toLocationId: {type: string}
+        actorId: {type: string}
+    StocktakeOrder:
+      type: object
+      required: [id, number, productId, warehouseId, areaId, locationId, batchId, systemQuantity, actualQuantity, difference, approverId, workflowInstanceId, status, createdBy, createdAt]
+      properties:
+        id: {type: string}
+        number: {type: string}
+        productId: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        batchId: {type: string}
+        systemQuantity: {type: integer}
+        actualQuantity: {type: integer, minimum: 0}
+        difference: {type: integer}
+        reason: {type: string}
+        approverId: {type: string}
+        workflowInstanceId: {type: string}
+        ledgerId: {type: string}
+        status: {type: string, enum: [pending_approval, approved, rejected]}
+        createdBy: {type: string}
+        approvedBy: {type: string}
+        createdAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time}
+    TransferOrder:
+      type: object
+      required: [id, number, productId, batchId, quantity, fromWarehouseId, fromAreaId, fromLocationId, toWarehouseId, toAreaId, toLocationId, outLedgerId, inLedgerId, status, transferredBy, transferredAt]
+      properties:
+        id: {type: string}
+        number: {type: string}
+        productId: {type: string}
+        batchId: {type: string}
+        quantity: {type: integer, minimum: 1}
+        fromWarehouseId: {type: string}
+        fromAreaId: {type: string}
+        fromLocationId: {type: string}
+        toWarehouseId: {type: string}
+        toAreaId: {type: string}
+        toLocationId: {type: string}
+        outLedgerId: {type: string}
+        inLedgerId: {type: string}
+        status: {type: string, enum: [completed]}
+        transferredBy: {type: string}
+        transferredAt: {type: string, format: date-time}
+    StocktakeOrderResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [item]
+          properties:
+            item: {$ref: '#/components/schemas/StocktakeOrder'}
+    StocktakeOrderListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/StocktakeOrder'}}
+    TransferOrderResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [item]
+          properties:
+            item: {$ref: '#/components/schemas/TransferOrder'}
+    TransferOrderListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/TransferOrder'}}
     SalesLine:
       type: object
       required: [productId, quantity, unitPrice]
