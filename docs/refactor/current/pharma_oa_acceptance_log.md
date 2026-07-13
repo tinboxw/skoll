@@ -1462,3 +1462,74 @@ Notes:
 ### Next Step
 
 - Claim `F9-02` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F9-02 Implement Purchase Request And Purchase Order
+
+- Date: 2026-07-13
+- Executor: Codex
+- Commit: pending
+
+### Changed Files
+
+- `internal/domain/pharmaoa/purchase.go`
+- `internal/domain/pharmaoa/purchase_test.go`
+- `internal/service/pharmaoa/purchase_service.go`
+- `internal/service/pharmaoa/purchase_service_test.go`
+- `internal/handler/http/v1/pharmaoa/purchase_handler.go`
+- `internal/handler/http/v1/pharmaoa/purchase_handler_test.go`
+- `internal/bootstrap/di.go`
+- `internal/handler/http/router.go`
+- `internal/handler/http/openapi.yaml`
+- `docs/api/openapi.yaml`
+- `internal/plugin/pharma_oa_manifest_test.go`
+- `plugins/pharma_oa/plugin.yaml`
+- `plugins/pharma_oa/README.md`
+- `docs/refactor/current/pharma_oa_work_items.md`
+- `docs/refactor/current/pharma_oa_acceptance_log.md`
+
+### Acceptance
+
+| Item | Result | Evidence |
+| --- | --- | --- |
+| Purchase request model | Passed | Domain model validates request identity, supplier, requester, approver, non-empty positive-quantity lines, totals, and pending/approved/rejected lifecycle |
+| Workflow approval | Passed | Creating a request publishes and starts a dedicated approval workflow bound to business type `pharma_oa.purchase_request`; only the configured assignee can approve or reject |
+| Purchase order generation | Passed | Approved workflow generates one open purchase order linked to the request with copied supplier, lines, amount, approver, and approval time |
+| Duplicate execution safety | Passed | Sequential and concurrent repeated approval return the same order; service test confirms only one order is stored |
+| Supplier qualification | Passed | Supplier purchase eligibility is checked before workflow creation and rechecked before approval; expired or disabled suppliers are blocked |
+| API/OpenAPI | Passed | Seven request/order routes are registered; explicit request/response schemas are identical in `internal/handler/http/openapi.yaml` and `docs/api/openapi.yaml` |
+| Permissions | Passed | Purchase read/create/approve/reject and order-read resources are registered at startup and declared in the plugin manifest |
+| Audit | Passed | Request create, approval, rejection, and order creation append `pharma_oa_purchase` audit records; plugin lifecycle audit counts cover 39 routes and 37 unique audit actions |
+| Plugin lifecycle | Passed | Manifest test covers preflight, install, enable, disable, permission catalog, route registry, audit counts, and duplicate-install failure with purchase additions |
+| Migration and seed impact | Passed | No migration or seed is added; this Work Item follows the current in-memory pharma OA vertical-slice pattern |
+| Frontend impact | Passed | No frontend route/page was added in F9-02; no static UI or incomplete frontend state was introduced |
+| Local runtime | Passed | Rebuilt backend returns 200 from `/skoll/health`; served OpenAPI contains purchase request and purchase order paths |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin
+go test ./...
+go build -o .\tmp\skoll-f9-02.exe .\cmd\skoll
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+codegraph sync .
+```
+
+Result: Passed after retries.
+
+### Failure And Retry
+
+- First plugin lifecycle run failed because 39 routes contain 37 unique audit actions; corrected the preflight audit-action assertion.
+- Second run failed because existing demo-seed route assertions retained their old indexes after seven purchase routes were inserted; shifted them to the new manifest positions.
+- Third run exposed that catalog audit `Permissions` counts declaration-to-route bindings (38 + 39 = 77), while `AuditActions` remains deduplicated at 37; corrected the audit count assertion.
+- Initial local runtime check inspected the response as bytes and falsely reported absent purchase paths; decoded the served UTF-8 OpenAPI and confirmed both paths are present after rebuilding the binary.
+- Retry: targeted tests, full Go tests, build, health/OpenAPI runtime smoke, OpenAPI sync, diff check, and CodeGraph sync passed.
+
+Notes:
+
+- `git diff --check` reports only Windows CRLF conversion warnings for tracked files.
+- Existing unrelated working-tree changes in `docs/README.md`, `docs/collaboration.md`, `.codegraph/`, `.vscode/`, and `AGENTS.md` were not included in this Work Item.
+
+### Next Step
+
+- Claim `F9-03` from `docs/refactor/current/pharma_oa_work_items.md`.

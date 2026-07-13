@@ -612,6 +612,125 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/pharma-oa/purchase-requests:
+    get:
+      summary: List Pharma OA purchase requests
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseRequestListResponse'
+    post:
+      summary: Create a Pharma OA purchase request and start approval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseRequestCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseRequestResponse'
+        '400':
+          description: Invalid request or supplier is not purchase eligible
+  /v1/pharma-oa/purchase-requests/{id}:
+    get:
+      summary: Get a Pharma OA purchase request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseRequestResponse'
+        '404':
+          description: Purchase request not found
+  /v1/pharma-oa/purchase-requests/{id}/approve:
+    post:
+      summary: Approve a purchase request and generate its purchase order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseApprovalRequest'
+      responses:
+        '200':
+          description: Approved purchase order; repeated approval returns the same order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderResponse'
+        '400':
+          description: Approval failed or supplier is not purchase eligible
+  /v1/pharma-oa/purchase-requests/{id}/reject:
+    post:
+      summary: Reject a purchase request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseApprovalRequest'
+      responses:
+        '200':
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseRequestResponse'
+  /v1/pharma-oa/purchase-orders:
+    get:
+      summary: List Pharma OA purchase orders
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderListResponse'
+  /v1/pharma-oa/purchase-orders/{id}:
+    get:
+      summary: Get a Pharma OA purchase order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PurchaseOrderResponse'
+        '404':
+          description: Purchase order not found
   /v1/users:
     get:
       summary: List users
@@ -2610,6 +2729,126 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
+    PurchaseLine:
+      type: object
+      required: [productId, quantity, unitPrice]
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+        unitPrice:
+          type: number
+          format: double
+          minimum: 0
+        amount:
+          type: number
+          format: double
+          readOnly: true
+    PurchaseRequestCreateRequest:
+      type: object
+      required: [number, supplierId, requesterId, approverId, lines]
+      properties:
+        number: {type: string}
+        supplierId: {type: string}
+        requesterId: {type: string}
+        approverId: {type: string}
+        reason: {type: string}
+        lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PurchaseLine'
+    PurchaseApprovalRequest:
+      type: object
+      required: [actorId]
+      properties:
+        actorId: {type: string}
+        comment: {type: string}
+    PurchaseRequest:
+      type: object
+      required: [id, number, supplierId, requesterId, approverId, lines, totalAmount, status, workflowInstanceId]
+      properties:
+        id: {type: string}
+        number: {type: string}
+        supplierId: {type: string}
+        requesterId: {type: string}
+        approverId: {type: string}
+        reason: {type: string}
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseLine'
+        totalAmount: {type: number, format: double}
+        status: {type: string, enum: [pending_approval, approved, rejected]}
+        workflowInstanceId: {type: string}
+        purchaseOrderId: {type: string}
+    PurchaseOrder:
+      type: object
+      required: [id, number, purchaseRequestId, supplierId, lines, totalAmount, status, approvedBy, approvedAt]
+      properties:
+        id: {type: string}
+        number: {type: string}
+        purchaseRequestId: {type: string}
+        supplierId: {type: string}
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseLine'
+        totalAmount: {type: number, format: double}
+        status: {type: string, enum: [open]}
+        approvedBy: {type: string}
+        approvedAt: {type: string, format: date-time}
+    PurchaseRequestResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [item]
+          properties:
+            item: {$ref: '#/components/schemas/PurchaseRequest'}
+    PurchaseRequestListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: {$ref: '#/components/schemas/PurchaseRequest'}
+    PurchaseOrderResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [item]
+          properties:
+            item: {$ref: '#/components/schemas/PurchaseOrder'}
+    PurchaseOrderListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: {$ref: '#/components/schemas/PurchaseOrder'}
     MessageResponse:
       type: object
       required:
