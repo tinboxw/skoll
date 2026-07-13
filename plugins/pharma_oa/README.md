@@ -95,6 +95,13 @@
   - `POST /v1/plugins/pharma_oa/api/quality-complaints/resolve`
   - `POST /v1/plugins/pharma_oa/api/quality-complaints/reject`
   - `GET /v1/plugins/pharma_oa/api/quality-complaints/batches`
+- Drug recall route contracts:
+  - `GET /v1/plugins/pharma_oa/api/drug-recalls`
+  - `POST /v1/plugins/pharma_oa/api/drug-recalls`
+  - `GET /v1/plugins/pharma_oa/api/drug-recalls/detail`
+  - `GET /v1/plugins/pharma_oa/api/drug-recalls/batches`
+  - `GET /v1/plugins/pharma_oa/api/drug-recalls/scope`
+  - `POST /v1/plugins/pharma_oa/api/drug-recalls/task-complete`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
@@ -130,3 +137,10 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - Private evidence files are checked through the file access service and retained as immutable attachment metadata.
 - A single assigned handler resolves or rejects the workflow with a required conclusion; terminal actions are idempotent and audited.
 - The host console route is `/skoll/pharma-oa/quality-complaints`, with product-filtered batch selection and complete empty, error, no-permission, saving, destructive, detail, and responsive states.
+
+## Drug recall
+
+- Recall creation traces immutable sales outbound lines by inventory batch and groups affected quantity plus outbound evidence by customer.
+- An optional source quality complaint must refer to the same product and batch before the recall can be created.
+- Each affected customer becomes a tracked task with a required completion note; the recall closes automatically and idempotently after the final task.
+- The host console route is `/skoll/pharma-oa/drug-recalls`, with batch scope preview, processing trace, permission-aware completion, and responsive states.

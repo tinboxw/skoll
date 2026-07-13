@@ -2064,3 +2064,68 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F10-05` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F10-05 Implement Drug Recall
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Dependencies: F9-01 and F10-04 are Done.
+
+### Delivery
+
+- Added recall orders with immutable affected-customer tasks, product and batch evidence, optional source complaints, processing trace, terminal idempotence, and concurrency-safe recall-number uniqueness.
+- Added exact product-and-batch tracing over completed sales outbounds, grouped customer scope, outbound document IDs, and recalled quantities.
+- Added recall list, batch selector, scope preview, detail, create, and customer-task completion HTTP operations with three least-privilege permissions and synchronized OpenAPI contracts.
+- Added create, customer-task completion, and recall completion audit events plus plugin install, enable, disable, menu, permission, route, audit catalog, and duplicate-install assertions.
+- Added `/skoll/pharma-oa/drug-recalls` with loading, empty, error, no-permission, saving, destructive confirmation, batch scope preview, complaint relation, processing trace, and responsive states.
+- Migration and seed impact: none; this milestone composes the existing in-memory sales outbound, inventory batch, product, customer, complaint, permission, audit, and plugin services.
+
+### Retry Evidence
+
+1. The first plugin lifecycle gate retained the pre-recall expected route and audit-action totals even though the manifest loaded the new declarations. The Work Item moved through `Failed -> Doing`; the expected catalog totals were updated to 85 routes and 76 unique audit actions, and the lifecycle suite passed on retry.
+2. The first browser acceptance connected to a stale Vite process and did not resolve the new recall route. The Work Item moved through `Failed -> Doing`; after an initial background start failed to listen, the workspace Vite server was restarted successfully and desktop plus 375x844 browser checks passed.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Batch trace | Passed | Scope discovery matches both product and batch against immutable completed sales-outbound lines and retains outbound IDs as evidence |
+| Affected customers | Passed | Matching outbound lines are grouped by customer with customer identity, outbound documents, and summed recalled quantity |
+| Complaint relation | Passed | An optional source complaint must reference the same product and inventory batch as the recall |
+| Recall task flow | Passed | Each affected customer receives one pending task; completion requires actor and note, is idempotent, and the final task automatically completes the recall |
+| Recall-number concurrency | Passed | Case-insensitive uniqueness is protected across concurrent creates and an eight-worker regression test leaves exactly one recall |
+| Actor security | Passed | Authenticated JWT subject overrides spoofed request actor data for create and task completion |
+| Audit traceability | Passed | Create, task-complete, and automatic recall-complete actions retain recall, customer, task, actor, and result context |
+| API and OpenAPI | Passed | Six operations use explicit schemas; both OpenAPI files have SHA-256 `C45F7BFEDF57D535F6BF80B0694DE782206D0AD8EA2B0208136C71ED3C9BD25E` |
+| Permissions and plugin lifecycle | Passed | Three recall permissions and six routes pass install, enable, disable, menu/catalog, audit-action, and duplicate-install assertions; the plugin totals 71 permissions, 85 routes, 76 unique audit actions, and 156 resource events |
+| Frontend states | Passed | The console covers loading, empty, error, no-permission, saving, destructive confirmation, filters, scope preview, detail, and task progress states |
+| Responsive browser | Passed | Desktop and 375x844 runtime checks show no document overflow, clipped text, drawer overlap, or inaccessible footer actions |
+| Plugin regression | Passed | The Pharma OA plugin lifecycle smoke passes after recall capabilities are declared |
+| Inventory regression | Passed | The Pharma OA inventory end-to-end smoke passes after outbound trace composition is introduced |
+| Runtime health | Passed | The final rebuilt memory-mode backend returned HTTP 200 with `code=ok` from `http://127.0.0.1:8080/skoll/health` |
+| Migration and seed impact | Passed | No migration or seed update is required for the current in-memory milestone implementation |
+
+### Verification Commands
+
+```text
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run 'TestDrugRecall' -count=1 -v
+go test ./internal/plugin -run 'TestPharmaOA' -count=1 -v
+.\scripts\smoke-pharma-oa-plugin.ps1 -Count 1
+.\scripts\smoke-pharma-inventory.ps1 -Count 1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f10-05-final.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+Get-FileHash docs/api/openapi.yaml; Get-FileHash internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F10-06` from `docs/refactor/current/pharma_oa_work_items.md`.

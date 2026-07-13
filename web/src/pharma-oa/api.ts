@@ -546,3 +546,61 @@ export async function rejectQualityComplaint(id: string, conclusion: string, act
 	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>(`/v1/pharma-oa/quality-complaints/${encodeURIComponent(id)}/reject`, { conclusion, actorId });
 	return payload.data.item;
 }
+
+export type DrugRecallStatus = "active" | "completed";
+export type DrugRecallTaskStatus = "pending" | "completed";
+export type DrugRecallBatch = QualityComplaintBatch;
+export type DrugRecallScope = { customerId: string; customerName: string; outboundIds: string[]; quantity: number };
+export type DrugRecallTask = DrugRecallScope & { id: string; status: DrugRecallTaskStatus; completionNote?: string; completedBy?: string; completedAt?: string };
+export type DrugRecall = {
+	id: string;
+	number: string;
+	title: string;
+	reason: string;
+	productId: string;
+	productName: string;
+	batchId: string;
+	batchNo: string;
+	sourceComplaintId?: string;
+	tasks: DrugRecallTask[];
+	status: DrugRecallStatus;
+	initiatedBy: string;
+	initiatedAt: string;
+	completedBy?: string;
+	completedAt?: string;
+	meta?: { createdAt: string; updatedAt: string };
+};
+type DrugRecallListPayload = { items: DrugRecall[] };
+type DrugRecallItemPayload = { item: DrugRecall };
+type DrugRecallBatchListPayload = { items: DrugRecallBatch[] };
+type DrugRecallScopeListPayload = { items: DrugRecallScope[] };
+
+export async function listDrugRecalls(query: { keyword?: string; status?: DrugRecallStatus | "" } = {}): Promise<DrugRecall[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.status) params.set("status", query.status);
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<DrugRecallListPayload>>(`/v1/pharma-oa/drug-recalls${suffix}`);
+	return payload.data.items;
+}
+
+export async function listDrugRecallBatches(): Promise<DrugRecallBatch[]> {
+	const payload = await apiGet<ApiResponse<DrugRecallBatchListPayload>>("/v1/pharma-oa/drug-recalls/batches");
+	return payload.data.items;
+}
+
+export async function previewDrugRecallScope(batchId: string): Promise<DrugRecallScope[]> {
+	const params = new URLSearchParams({ batchId: batchId.trim() });
+	const payload = await apiGet<ApiResponse<DrugRecallScopeListPayload>>(`/v1/pharma-oa/drug-recalls/scope?${params.toString()}`);
+	return payload.data.items;
+}
+
+export async function createDrugRecall(body: { number: string; title: string; reason: string; batchId: string; sourceComplaintId?: string; actorId: string }): Promise<DrugRecall> {
+	const payload = await apiPost<ApiResponse<DrugRecallItemPayload>>("/v1/pharma-oa/drug-recalls", body);
+	return payload.data.item;
+}
+
+export async function completeDrugRecallTask(recallId: string, taskId: string, note: string, actorId: string): Promise<DrugRecall> {
+	const payload = await apiPost<ApiResponse<DrugRecallItemPayload>>(`/v1/pharma-oa/drug-recalls/${encodeURIComponent(recallId)}/tasks/${encodeURIComponent(taskId)}/complete`, { note, actorId });
+	return payload.data.item;
+}

@@ -401,6 +401,21 @@ permissions:
     module: pharma_oa
     name: Reject quality complaints
     risk: high
+  - key: pharma_oa.drug_recall.read
+    type: api
+    module: pharma_oa
+    name: Read drug recalls
+    risk: low
+  - key: pharma_oa.drug_recall.create
+    type: api
+    module: pharma_oa
+    name: Create drug recalls
+    risk: high
+  - key: pharma_oa.drug_recall.complete
+    type: button
+    module: pharma_oa
+    name: Complete drug recall tasks
+    risk: high
 api:
   routes:
     - method: GET
@@ -788,6 +803,36 @@ api:
       summary: List stock batches for quality complaint registration
       permission: pharma_oa.quality_complaint.read
       audit_action: pharma_oa.quality_complaint.batch_read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/drug-recalls
+      summary: List drug recall orders
+      permission: pharma_oa.drug_recall.read
+      audit_action: pharma_oa.drug_recall.read_list
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/drug-recalls
+      summary: Create a drug recall order
+      permission: pharma_oa.drug_recall.create
+      audit_action: pharma_oa.drug_recall.create
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/drug-recalls/detail
+      summary: Read a drug recall processing trace
+      permission: pharma_oa.drug_recall.read
+      audit_action: pharma_oa.drug_recall.read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/drug-recalls/batches
+      summary: List inventory batches for recall tracing
+      permission: pharma_oa.drug_recall.read
+      audit_action: pharma_oa.drug_recall.batch_read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/drug-recalls/scope
+      summary: Preview affected outbound customers
+      permission: pharma_oa.drug_recall.read
+      audit_action: pharma_oa.drug_recall.scope_read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/drug-recalls/task-complete
+      summary: Complete an affected-customer recall task
+      permission: pharma_oa.drug_recall.complete
+      audit_action: pharma_oa.drug_recall.task_complete
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status
