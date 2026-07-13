@@ -78,6 +78,13 @@
   - `GET /v1/plugins/pharma_oa/api/inventory-alert-jobs`
   - `POST /v1/plugins/pharma_oa/api/inventory-alert-jobs`
   - `POST /v1/plugins/pharma_oa/api/inventory-alert-jobs/retry`
+- Contract archive route contracts:
+  - `GET /v1/plugins/pharma_oa/api/contracts`
+  - `POST /v1/plugins/pharma_oa/api/contracts`
+  - `GET /v1/plugins/pharma_oa/api/contracts/detail`
+  - `POST /v1/plugins/pharma_oa/api/contracts/approve`
+  - `POST /v1/plugins/pharma_oa/api/contracts/reject`
+  - `POST /v1/plugins/pharma_oa/api/contracts/expiry-scan`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
@@ -93,3 +100,9 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - Policy records require an attached document reference and share the same controlled publication lifecycle.
 - Published records are visible only to matching audiences; read confirmation is idempotent and queryable.
 - The host console route is `/skoll/pharma-oa/announcements`, backed by explicit read, create, publish, confirm, and receipt permissions.
+
+## Contract archive
+
+- Contract entries relate to supplier or customer master data and retain immutable file metadata references.
+- Creation validates file access before launching an assigned approval workflow; approval and rejection remain auditable.
+- Expiry scans create idempotent notification-center reminders that link back to the contract detail.

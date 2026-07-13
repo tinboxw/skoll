@@ -53,6 +53,7 @@ type Dependencies struct {
 	PharmaInventoryOperationService pharmaoasvc.InventoryOperationService
 	PharmaInventoryAlertService     pharmaoasvc.InventoryAlertService
 	PharmaAnnouncementService       pharmaoasvc.AnnouncementService
+	PharmaContractService           pharmaoasvc.ContractService
 	MenuService                     menu.Service
 	WorkflowService                 workflow.Service
 	PluginManager                   plugin.Manager
@@ -104,6 +105,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterInventoryOperationRoutes(apiMux, deps.PharmaInventoryOperationService)
 	pharmaoahttp.RegisterInventoryAlertRoutes(apiMux, deps.PharmaInventoryAlertService)
 	pharmaoahttp.RegisterAnnouncementRoutes(apiMux, deps.PharmaAnnouncementService)
+	pharmaoahttp.RegisterContractRoutes(apiMux, deps.PharmaContractService)
 	_ = pharmaoahttp.RegisterEmployeePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterProductPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterSupplierPermissions(deps.PermissionService)
@@ -116,6 +118,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	_ = pharmaoahttp.RegisterInventoryOperationPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterInventoryAlertPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterAnnouncementPermissions(deps.PermissionService)
+	_ = pharmaoahttp.RegisterContractPermissions(deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)

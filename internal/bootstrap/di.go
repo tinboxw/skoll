@@ -91,14 +91,6 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaWarehouseService := pharmaoasvc.NewWarehouseService(auditService)
 	pharmaMasterDataExchangeService := pharmaoasvc.NewMasterDataExchangeService(pharmaEmployeeService, pharmaProductService, pharmaSupplierService, pharmaCustomerService)
 	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
-	pharmaPurchaseService := pharmaoasvc.NewPurchaseService(pharmaSupplierService, workflowService, auditService)
-	pharmaInventoryService := pharmaoasvc.NewInventoryService(auditService)
-	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService)
-	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService)
-	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService)
-	notificationService := notificationsvc.NewService(nil, nil)
-	pharmaInventoryAlertService := pharmaoasvc.NewInventoryAlertService(pharmaInventoryService, notificationService, auditService)
-	pharmaAnnouncementService := pharmaoasvc.NewAnnouncementService(auditService)
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err
@@ -107,6 +99,15 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Permission: rbacService,
 		Audit:      auditEventService,
 	})
+	pharmaPurchaseService := pharmaoasvc.NewPurchaseService(pharmaSupplierService, workflowService, auditService)
+	pharmaInventoryService := pharmaoasvc.NewInventoryService(auditService)
+	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService)
+	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService)
+	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService)
+	notificationService := notificationsvc.NewService(nil, nil)
+	pharmaInventoryAlertService := pharmaoasvc.NewInventoryAlertService(pharmaInventoryService, notificationService, auditService)
+	pharmaAnnouncementService := pharmaoasvc.NewAnnouncementService(auditService)
+	pharmaContractService := pharmaoasvc.NewContractService(pharmaSupplierService, pharmaCustomerService, workflowService, fileService, notificationService, auditService)
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
@@ -130,6 +131,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaInventoryOperationService: pharmaInventoryOperationService,
 		PharmaInventoryAlertService:     pharmaInventoryAlertService,
 		PharmaAnnouncementService:       pharmaAnnouncementService,
+		PharmaContractService:           pharmaContractService,
 		MenuService:                     menuService,
 		WorkflowService:                 workflowService,
 		PluginManager:                   pluginManager,

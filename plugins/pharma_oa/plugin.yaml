@@ -346,6 +346,31 @@ permissions:
     module: pharma_oa
     name: Read announcement confirmations
     risk: medium
+  - key: pharma_oa.contract.read
+    type: api
+    module: pharma_oa
+    name: Read contract archive
+    risk: low
+  - key: pharma_oa.contract.create
+    type: api
+    module: pharma_oa
+    name: Create contract archive entries
+    risk: medium
+  - key: pharma_oa.contract.approve
+    type: button
+    module: pharma_oa
+    name: Approve contracts
+    risk: high
+  - key: pharma_oa.contract.reject
+    type: button
+    module: pharma_oa
+    name: Reject contracts
+    risk: high
+  - key: pharma_oa.contract.expiry.run
+    type: api
+    module: pharma_oa
+    name: Run contract expiry scans
+    risk: high
 api:
   routes:
     - method: GET
@@ -663,6 +688,36 @@ api:
       summary: List announcement read confirmations
       permission: pharma_oa.announcement.receipt.read
       audit_action: pharma_oa.announcement.receipt_read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/contracts
+      summary: List contract archive entries
+      permission: pharma_oa.contract.read
+      audit_action: pharma_oa.contract.read_list
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/contracts
+      summary: Create a contract archive entry
+      permission: pharma_oa.contract.create
+      audit_action: pharma_oa.contract.create
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/contracts/detail
+      summary: Read a contract archive entry
+      permission: pharma_oa.contract.read
+      audit_action: pharma_oa.contract.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/contracts/approve
+      summary: Approve a contract
+      permission: pharma_oa.contract.approve
+      audit_action: pharma_oa.contract.approve
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/contracts/reject
+      summary: Reject a contract
+      permission: pharma_oa.contract.reject
+      audit_action: pharma_oa.contract.reject
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/contracts/expiry-scan
+      summary: Run contract expiry reminders
+      permission: pharma_oa.contract.expiry.run
+      audit_action: pharma_oa.contract.expiry_scan
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status

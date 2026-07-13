@@ -1872,3 +1872,66 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F10-02` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F10-02 Implement Contract Archive
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Dependencies: F7, F8-04, and F8-05 are Done.
+
+### Delivery
+
+- Added supplier/customer contract records with immutable attachment metadata, effective and expiry dates, amount/currency, owner, approver, and lifecycle state.
+- Added file-access validation before workflow creation, single-approver workflow instances, assignment-enforced approval/rejection, and idempotent terminal actions.
+- Added expiry scans that create owner notifications with actionable contract links, persist reminder evidence, mark elapsed active contracts expired, and avoid duplicate notifications.
+- Added six authenticated HTTP operations, five least-privilege permissions, synchronized OpenAPI schemas, plugin routes/audit declarations, and lifecycle catalog assertions.
+- Added `/skoll/pharma-oa/contracts` with loading, empty, error, no-permission, saving, destructive confirmation, real file upload, detail, and responsive states.
+- Migration and seed impact: none; this milestone uses the current in-memory contract service and existing file, workflow, notification, and plugin infrastructure.
+
+### Retry Evidence
+
+1. The initial service build referenced a non-existent `SubjectTypeUser` RBAC constant. It was corrected to `SubjectUser`, and service tests passed on retry.
+2. The initial HTTP fixture had an unused import and fixed calendar dates that could expire. The import was removed, dates were made relative to the test clock, and handler tests passed on retry.
+3. The first combined frontend validation exceeded the 120-second command limit during Vite output and ended with `EPIPE`. Typecheck and build were rerun independently with sufficient timeouts; both passed.
+4. Final review found that request `actorId` values could override an authenticated JWT subject. Contract actions now prefer the JWT subject, a spoofed approver test is rejected, and targeted plus full Go validation passed on retry.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Party relation | Passed | Supplier and customer contracts resolve an existing master-data record and retain its ID, type, and display name |
+| File attachment control | Passed | Creation requires at least one available file accessible to the authenticated owner; inaccessible files fail before workflow or contract persistence |
+| Workflow relation | Passed | Each contract starts a linked single-approver workflow and stores its workflow instance ID |
+| Approval security | Passed | Only the assigned workflow actor can approve or reject; authenticated JWT subject wins over spoofed request actor data |
+| Terminal idempotence | Passed | Repeated approval or rejection returns the existing terminal contract without duplicating workflow actions or audit records |
+| Expiry reminders | Passed | Active or elapsed contracts inside the scan window create one owner notification with a contract detail target; repeated scans create none |
+| Audit traceability | Passed | Create, approve, reject, expiry-reminder, and expiry-scan actions are appended with contract/workflow/notification context |
+| API and OpenAPI | Passed | Six operations use explicit request/response schemas and both OpenAPI files have identical SHA-256 hashes |
+| Permissions and plugin lifecycle | Passed | Five permissions and six routes pass install, enable, disable, menu, audit-catalog, and duplicate-install assertions |
+| Frontend states | Passed | The console covers loading, empty, error, no-permission, saving, approval/rejection/scan confirmation, upload, and detail states |
+| Responsive browser | Passed | Desktop and 390x844 browser checks show no document, drawer, or button overflow; the contract drawer remains usable |
+| Runtime health | Passed | The memory-mode backend returned HTTP 200 from `http://127.0.0.1:8080/skoll/health` during browser acceptance |
+| Migration and seed impact | Passed | No migration or seed update is required for the current in-memory milestone implementation |
+
+### Verification Commands
+
+```text
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/bootstrap ./internal/plugin -count=1
+go test ./internal/handler/http/v1/pharmaoa -run TestContractHTTPCreateApproveAndExpiryScan -count=1 -v
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f10-02-check.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+Get-FileHash docs/api/openapi.yaml; Get-FileHash internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F10-03` from `docs/refactor/current/pharma_oa_work_items.md`.

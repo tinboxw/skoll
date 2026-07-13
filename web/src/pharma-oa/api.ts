@@ -346,3 +346,75 @@ export async function listAnnouncementReadConfirmations(id: string): Promise<Ann
 	const payload = await apiGet<ApiResponse<AnnouncementReceiptsPayload>>(`/v1/pharma-oa/announcements/${encodeURIComponent(id)}/read-confirmations`);
 	return payload.data.items;
 }
+
+export type PharmaSupplier = { id: string; code: string; name: string; status: "active" | "disabled" };
+export type ContractPartyType = "supplier" | "customer";
+export type ContractStatus = "pending_approval" | "active" | "rejected" | "expired";
+export type ContractAttachment = { fileId: string; fileName: string; mime: string; size: number };
+export type PharmaContract = {
+	id: string;
+	number: string;
+	title: string;
+	partyType: ContractPartyType;
+	partyId: string;
+	partyName: string;
+	ownerId: string;
+	approverId: string;
+	amount: number;
+	currency: string;
+	effectiveAt: string;
+	expiresAt: string;
+	attachments: ContractAttachment[];
+	workflowInstanceId: string;
+	status: ContractStatus;
+	approvedBy?: string;
+	approvedAt?: string;
+	rejectedBy?: string;
+	rejectedAt?: string;
+	reminderNotificationId?: string;
+};
+export type ContractExpiryReminder = { contractId: string; contractNumber: string; partyType: ContractPartyType; partyId: string; partyName: string; expiresAt: string; recipientId: string; notificationId: string; targetPath: string };
+export type ContractExpiryScanResult = { matchedCount: number; createdCount: number; reminders: ContractExpiryReminder[] };
+type SupplierListPayload = { items: PharmaSupplier[] };
+type ContractListPayload = { items: PharmaContract[] };
+type ContractItemPayload = { item: PharmaContract };
+type ContractExpiryPayload = { item: ContractExpiryScanResult };
+
+export async function listSuppliers(query: { keyword?: string; status?: string } = {}): Promise<PharmaSupplier[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.status?.trim()) params.set("status", query.status.trim());
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<SupplierListPayload>>(`/v1/pharma-oa/suppliers${suffix}`);
+	return payload.data.items;
+}
+
+export async function listContracts(query: { keyword?: string; partyType?: ContractPartyType | ""; status?: ContractStatus | "" } = {}): Promise<PharmaContract[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.partyType) params.set("partyType", query.partyType);
+	if (query.status) params.set("status", query.status);
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<ContractListPayload>>(`/v1/pharma-oa/contracts${suffix}`);
+	return payload.data.items;
+}
+
+export async function createContract(body: { number: string; title: string; partyType: ContractPartyType; partyId: string; ownerId: string; approverId: string; amount: number; currency: string; effectiveAt: string; expiresAt: string; attachmentIds: string[] }): Promise<PharmaContract> {
+	const payload = await apiPost<ApiResponse<ContractItemPayload>>("/v1/pharma-oa/contracts", body);
+	return payload.data.item;
+}
+
+export async function approveContract(id: string, actorId: string, comment: string): Promise<PharmaContract> {
+	const payload = await apiPost<ApiResponse<ContractItemPayload>>(`/v1/pharma-oa/contracts/${encodeURIComponent(id)}/approve`, { actorId, comment });
+	return payload.data.item;
+}
+
+export async function rejectContract(id: string, actorId: string, comment: string): Promise<PharmaContract> {
+	const payload = await apiPost<ApiResponse<ContractItemPayload>>(`/v1/pharma-oa/contracts/${encodeURIComponent(id)}/reject`, { actorId, comment });
+	return payload.data.item;
+}
+
+export async function scanContractExpiry(days: number, actorId: string): Promise<ContractExpiryScanResult> {
+	const payload = await apiPost<ApiResponse<ContractExpiryPayload>>("/v1/pharma-oa/contracts/expiry-scan", { days, actorId });
+	return payload.data.item;
+}

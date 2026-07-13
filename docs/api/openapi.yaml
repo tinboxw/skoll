@@ -3079,8 +3079,258 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/contracts:
+    get:
+      summary: List contract archive entries
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: partyType
+          in: query
+          schema: {type: string, enum: [supplier, customer]}
+        - name: status
+          in: query
+          schema: {type: string, enum: [pending_approval, active, rejected, expired]}
+      responses:
+        '200':
+          description: Contract list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContractListAPIResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Create a contract archive entry and approval workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ContractCreateRequest'}
+      responses:
+        '201':
+          description: Contract created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContractItemAPIResponse'}
+        '400':
+          description: Invalid contract, party, attachment, or workflow
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/contracts/{id}:
+    get:
+      summary: Get a contract archive entry
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Contract detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContractItemAPIResponse'}
+        '404':
+          description: Contract not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/contracts/{id}/approve:
+    post:
+      summary: Approve a contract workflow task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ContractActionRequest'}
+      responses:
+        '200':
+          description: Contract approved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContractItemAPIResponse'}
+        '400':
+          description: Contract cannot be approved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/contracts/{id}/reject:
+    post:
+      summary: Reject a contract workflow task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ContractActionRequest'}
+      responses:
+        '200':
+          description: Contract rejected
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContractItemAPIResponse'}
+        '400':
+          description: Contract cannot be rejected
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/contracts/expiry-scan:
+    post:
+      summary: Scan active contracts and create idempotent expiry reminders
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ContractExpiryScanRequest'}
+      responses:
+        '200':
+          description: Contract expiry scan result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContractExpiryScanAPIResponse'}
+        '400':
+          description: Expiry scan failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 components:
   schemas:
+    ContractCreateRequest:
+      type: object
+      required: [number, title, partyType, partyId, approverId, amount, currency, effectiveAt, expiresAt, attachmentIds]
+      properties:
+        number: {type: string, minLength: 1}
+        title: {type: string, minLength: 1}
+        partyType: {type: string, enum: [supplier, customer]}
+        partyId: {type: string, minLength: 1}
+        ownerId: {type: string}
+        approverId: {type: string, minLength: 1}
+        amount: {type: number, minimum: 0}
+        currency: {type: string, minLength: 1}
+        effectiveAt: {type: string, format: date}
+        expiresAt: {type: string, format: date}
+        attachmentIds:
+          type: array
+          minItems: 1
+          items: {type: string}
+    ContractActionRequest:
+      type: object
+      properties:
+        actorId: {type: string}
+        comment: {type: string}
+    ContractExpiryScanRequest:
+      type: object
+      properties:
+        days: {type: integer, minimum: 1, default: 30}
+        actorId: {type: string}
+    ContractAttachment:
+      type: object
+      required: [fileId, fileName, mime, size]
+      properties:
+        fileId: {type: string}
+        fileName: {type: string}
+        mime: {type: string}
+        size: {type: integer, format: int64, minimum: 0}
+    Contract:
+      type: object
+      required: [id, number, title, partyType, partyId, partyName, ownerId, approverId, amount, currency, effectiveAt, expiresAt, attachments, workflowInstanceId, status, meta]
+      properties:
+        id: {type: string}
+        number: {type: string}
+        title: {type: string}
+        partyType: {type: string, enum: [supplier, customer]}
+        partyId: {type: string}
+        partyName: {type: string}
+        ownerId: {type: string}
+        approverId: {type: string}
+        amount: {type: number}
+        currency: {type: string}
+        effectiveAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/ContractAttachment'}
+        workflowInstanceId: {type: string}
+        status: {type: string, enum: [pending_approval, active, rejected, expired]}
+        approvedBy: {type: string}
+        approvedAt: {type: string, format: date-time}
+        rejectedBy: {type: string}
+        rejectedAt: {type: string, format: date-time}
+        reminderNotificationId: {type: string}
+        meta: {$ref: '#/components/schemas/AuditMeta'}
+    ContractExpiryReminder:
+      type: object
+      required: [contractId, contractNumber, partyType, partyId, partyName, expiresAt, recipientId, notificationId, targetPath]
+      properties:
+        contractId: {type: string}
+        contractNumber: {type: string}
+        partyType: {type: string, enum: [supplier, customer]}
+        partyId: {type: string}
+        partyName: {type: string}
+        expiresAt: {type: string, format: date-time}
+        recipientId: {type: string}
+        notificationId: {type: string}
+        targetPath: {type: string}
+    ContractExpiryScanResult:
+      type: object
+      required: [matchedCount, createdCount, reminders]
+      properties:
+        matchedCount: {type: integer}
+        createdCount: {type: integer}
+        reminders:
+          type: array
+          items: {$ref: '#/components/schemas/ContractExpiryReminder'}
+    ContractItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/Contract'}
+    ContractListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Contract'}
+    ContractExpiryScanData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/ContractExpiryScanResult'}
+    ContractItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ContractItemData'}
+    ContractListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ContractListData'}
+    ContractExpiryScanAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ContractExpiryScanData'}
     AnnouncementAudience:
       type: object
       required: [organizationIds, roleIds]
