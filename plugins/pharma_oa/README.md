@@ -88,6 +88,13 @@
 - Qualification route contracts:
   - `GET /v1/plugins/pharma_oa/api/qualifications`
   - `POST /v1/plugins/pharma_oa/api/qualifications/expiry-scan`
+- Quality complaint route contracts:
+  - `GET /v1/plugins/pharma_oa/api/quality-complaints`
+  - `POST /v1/plugins/pharma_oa/api/quality-complaints`
+  - `GET /v1/plugins/pharma_oa/api/quality-complaints/detail`
+  - `POST /v1/plugins/pharma_oa/api/quality-complaints/resolve`
+  - `POST /v1/plugins/pharma_oa/api/quality-complaints/reject`
+  - `GET /v1/plugins/pharma_oa/api/quality-complaints/batches`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
@@ -116,3 +123,10 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - Dynamic status classifies permanent, valid, expiring, and expired records using the selected reminder window.
 - Expiry scans create idempotent owner/system notifications with direct links to the related master-data record.
 - Expired supplier and customer qualifications block purchase and sales actions and append `pharma_oa.qualification.block` audit evidence.
+
+## Quality complaints
+
+- Complaint registration relates an active customer, active product, and matching inventory batch before workflow creation.
+- Private evidence files are checked through the file access service and retained as immutable attachment metadata.
+- A single assigned handler resolves or rejects the workflow with a required conclusion; terminal actions are idempotent and audited.
+- The host console route is `/skoll/pharma-oa/quality-complaints`, with product-filtered batch selection and complete empty, error, no-permission, saving, destructive, detail, and responsive states.

@@ -3264,6 +3264,140 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/quality-complaints:
+    get:
+      summary: List quality complaints
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: status
+          in: query
+          schema: {type: string, enum: [pending, resolved, rejected]}
+      responses:
+        '200':
+          description: Quality complaint list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualityComplaintListAPIResponse'}
+        '400':
+          description: Invalid quality complaint filter
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Register a quality complaint and launch its handling workflow
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/QualityComplaintCreateRequest'}
+      responses:
+        '201':
+          description: Quality complaint registered
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualityComplaintItemAPIResponse'}
+        '400':
+          description: Invalid complaint, relation, attachment, or workflow
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/quality-complaints/batches:
+    get:
+      summary: List stock batches available for quality complaint registration
+      parameters:
+        - name: productId
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Product-filtered stock batches
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualityComplaintBatchListAPIResponse'}
+        '400':
+          description: Inventory batch lookup failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/quality-complaints/{id}:
+    get:
+      summary: Get a quality complaint
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Quality complaint detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualityComplaintItemAPIResponse'}
+        '404':
+          description: Quality complaint not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/quality-complaints/{id}/resolve:
+    post:
+      summary: Resolve a quality complaint workflow task with a conclusion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/QualityComplaintActionRequest'}
+      responses:
+        '200':
+          description: Quality complaint resolved
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualityComplaintItemAPIResponse'}
+        '400':
+          description: Invalid conclusion, actor, or workflow state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/quality-complaints/{id}/reject:
+    post:
+      summary: Reject a quality complaint workflow task with a conclusion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/QualityComplaintActionRequest'}
+      responses:
+        '200':
+          description: Quality complaint rejected
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualityComplaintItemAPIResponse'}
+        '400':
+          description: Invalid conclusion, actor, or workflow state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 components:
   schemas:
     ContractCreateRequest:
@@ -3443,6 +3577,101 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/QualificationScanData'}
+    QualityComplaintBatch:
+      type: object
+      required: [id, productId, batchNo, productionDate, expiresAt]
+      properties:
+        id: {type: string}
+        productId: {type: string}
+        batchNo: {type: string}
+        productionDate: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+    QualityComplaintBatchListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/QualityComplaintBatch'}
+    QualityComplaintBatchListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/QualityComplaintBatchListData'}
+    QualityComplaintCreateRequest:
+      type: object
+      required: [number, title, description, customerId, productId, batchId, handlerId, attachmentIds]
+      properties:
+        number: {type: string, minLength: 1}
+        title: {type: string, minLength: 1}
+        description: {type: string, minLength: 1}
+        customerId: {type: string, minLength: 1}
+        productId: {type: string, minLength: 1}
+        batchId: {type: string, minLength: 1}
+        reporterId: {type: string}
+        handlerId: {type: string, minLength: 1}
+        attachmentIds:
+          type: array
+          minItems: 1
+          items: {type: string, minLength: 1}
+    QualityComplaintActionRequest:
+      type: object
+      required: [conclusion]
+      properties:
+        actorId: {type: string}
+        conclusion: {type: string, minLength: 1}
+    QualityComplaint:
+      type: object
+      required: [id, number, title, description, customerId, customerName, productId, productName, batchId, batchNo, reporterId, handlerId, attachments, workflowInstanceId, status, meta]
+      properties:
+        id: {type: string}
+        number: {type: string}
+        title: {type: string}
+        description: {type: string}
+        customerId: {type: string}
+        customerName: {type: string}
+        productId: {type: string}
+        productName: {type: string}
+        batchId: {type: string}
+        batchNo: {type: string}
+        reporterId: {type: string}
+        handlerId: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/ContractAttachment'}
+        workflowInstanceId: {type: string}
+        status: {type: string, enum: [pending, resolved, rejected]}
+        conclusion: {type: string}
+        resolvedBy: {type: string}
+        resolvedAt: {type: string, format: date-time}
+        rejectedBy: {type: string}
+        rejectedAt: {type: string, format: date-time}
+        meta: {$ref: '#/components/schemas/AuditMeta'}
+    QualityComplaintItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/QualityComplaint'}
+    QualityComplaintListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/QualityComplaint'}
+    QualityComplaintItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/QualityComplaintItemData'}
+    QualityComplaintListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/QualityComplaintListData'}
     AnnouncementAudience:
       type: object
       required: [organizationIds, roleIds]

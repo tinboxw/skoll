@@ -381,6 +381,26 @@ permissions:
     module: pharma_oa
     name: Run qualification expiry scans
     risk: high
+  - key: pharma_oa.quality_complaint.read
+    type: api
+    module: pharma_oa
+    name: Read quality complaints
+    risk: low
+  - key: pharma_oa.quality_complaint.create
+    type: api
+    module: pharma_oa
+    name: Register quality complaints
+    risk: medium
+  - key: pharma_oa.quality_complaint.resolve
+    type: button
+    module: pharma_oa
+    name: Resolve quality complaints
+    risk: high
+  - key: pharma_oa.quality_complaint.reject
+    type: button
+    module: pharma_oa
+    name: Reject quality complaints
+    risk: high
 api:
   routes:
     - method: GET
@@ -738,6 +758,36 @@ api:
       summary: Run qualification expiry reminders
       permission: pharma_oa.qualification.expiry.run
       audit_action: pharma_oa.qualification.expiry_scan
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/quality-complaints
+      summary: List quality complaints
+      permission: pharma_oa.quality_complaint.read
+      audit_action: pharma_oa.quality_complaint.read_list
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/quality-complaints
+      summary: Register a quality complaint
+      permission: pharma_oa.quality_complaint.create
+      audit_action: pharma_oa.quality_complaint.create
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/quality-complaints/detail
+      summary: Read a quality complaint
+      permission: pharma_oa.quality_complaint.read
+      audit_action: pharma_oa.quality_complaint.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/quality-complaints/resolve
+      summary: Resolve a quality complaint
+      permission: pharma_oa.quality_complaint.resolve
+      audit_action: pharma_oa.quality_complaint.resolve
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/quality-complaints/reject
+      summary: Reject a quality complaint
+      permission: pharma_oa.quality_complaint.reject
+      audit_action: pharma_oa.quality_complaint.reject
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/quality-complaints/batches
+      summary: List stock batches for quality complaint registration
+      permission: pharma_oa.quality_complaint.read
+      audit_action: pharma_oa.quality_complaint.batch_read
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status

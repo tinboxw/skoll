@@ -1764,7 +1764,7 @@ Result: Passed after retry.
 
 - Date: 2026-07-13
 - Executor: Codex
-- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
 - Dependencies: F9-02, F9-03, F9-04, F9-05, and F9-06 are Done.
 
 ### Delivery
@@ -1999,3 +1999,68 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F10-04` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F10-04 Implement Quality Complaints
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Dependencies: F7, F8-03, and F8-05 are Done.
+
+### Delivery
+
+- Added quality complaint registration related to customer, active product, inventory batch, authenticated reporter, assigned handler, and accessible file evidence.
+- Added a linked single-handler workflow with required resolution or rejection conclusions, terminal idempotence, and create/resolve/reject audit events.
+- Added complaint list, detail, product-batch selector, create, resolve, and reject HTTP operations with four least-privilege permissions and synchronized OpenAPI contracts.
+- Added plugin menu, permission, route, and audit declarations with install, enable, disable, duplicate-install, and catalog assertions.
+- Added `/skoll/pharma-oa/quality-complaints` with loading, empty, error, no-permission, saving, destructive confirmation, upload, detail, filtering, and responsive states.
+- Migration and seed impact: none; this milestone uses the current in-memory complaint service and existing workflow, file, product, customer, inventory, permission, and audit services.
+
+### Retry Evidence
+
+1. The first frontend type gate used the non-existent command `npm run type-check`. The Work Item moved through `Failed -> Doing`; the repository-defined `npm run typecheck` command was then used and passed together with the production build.
+2. A final duplicate-number regression assertion exposed hidden coupling in a pre-existing audit assertion. The first retry stopped counting all actor records but still assumed event return order, so it failed again. The Work Item moved through `Failed -> Doing` for each attempt; the final assertion verifies exactly one resolve and one reject event without depending on unrelated audit volume or storage order.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Complaint registration | Passed | Registration retains the customer, active product, matching inventory batch, authenticated reporter, assigned handler, complaint content, and unique case number |
+| Product batch relation | Passed | The batch selector filters inventory batches by product, and service validation rejects a batch belonging to another product |
+| File attachment control | Passed | At least one available file accessible to the authenticated reporter is required; blank, denied, or unavailable files fail before persistence |
+| Workflow relation | Passed | Every complaint publishes and starts a linked single-handler workflow and stores its workflow instance ID |
+| Actor security | Passed | Only the assigned handler can complete the workflow, and authenticated JWT subject wins over spoofed request actor data |
+| Conclusion and idempotence | Passed | Resolve and reject require a conclusion; repeated terminal actions return the existing result without duplicate workflow or audit changes |
+| Audit traceability | Passed | Create, resolve, and reject actions retain complaint, workflow, actor, and conclusion context |
+| API and OpenAPI | Passed | Six operations use explicit schemas; both OpenAPI files have SHA-256 `665B9060549070F53E646858ACD2EAA4AD34C10F7DCE05A23B8FD48A2BA00A7C` |
+| Permissions and plugin lifecycle | Passed | Four complaint permissions and six routes pass install, enable, disable, menu/catalog, audit-action, and duplicate-install assertions; the plugin totals 68 permissions, 79 routes, and 70 unique audit actions |
+| Frontend states | Passed | The console covers loading, empty, error, no-permission, saving, upload, detail, filtering, and resolve/reject confirmation states |
+| Responsive browser | Passed | Desktop and 375x844 runtime checks show no document overflow, clipped text, drawer overlap, or inaccessible footer actions |
+| Plugin regression | Passed | The Pharma OA plugin lifecycle smoke passes after complaint capabilities are declared |
+| Inventory regression | Passed | The Pharma OA inventory end-to-end smoke passes after complaint batch lookup is introduced |
+| Runtime health | Passed | The rebuilt memory-mode backend returned HTTP 200 with `code=ok` from `http://127.0.0.1:8080/skoll/health` |
+| Migration and seed impact | Passed | No migration or seed update is required for the current in-memory milestone implementation |
+
+### Verification Commands
+
+```text
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run 'TestQualityComplaint' -count=1 -v
+go test ./internal/plugin -run 'TestPharmaOA' -count=1 -v
+.\scripts\smoke-pharma-oa-plugin.ps1 -Count 1
+.\scripts\smoke-pharma-inventory.ps1 -Count 1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f10-04-final.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+Get-FileHash docs/api/openapi.yaml; Get-FileHash internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F10-05` from `docs/refactor/current/pharma_oa_work_items.md`.

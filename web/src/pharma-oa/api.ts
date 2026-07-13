@@ -457,3 +457,92 @@ export async function scanQualificationExpiry(days: number, actorId: string): Pr
 	const payload = await apiPost<ApiResponse<QualificationScanPayload>>("/v1/pharma-oa/qualifications/expiry-scan", { days, actorId });
 	return payload.data.item;
 }
+
+export type PharmaProduct = {
+	id: string;
+	code: string;
+	name: string;
+	spec: string;
+	dosageForm: string;
+	manufacturer: string;
+	approvalNumber: string;
+	status: "active" | "disabled";
+};
+
+export type QualityComplaintStatus = "pending" | "resolved" | "rejected";
+export type QualityComplaintBatch = {
+	id: string;
+	productId: string;
+	batchNo: string;
+	productionDate: string;
+	expiresAt: string;
+};
+export type QualityComplaint = {
+	id: string;
+	number: string;
+	title: string;
+	description: string;
+	customerId: string;
+	customerName: string;
+	productId: string;
+	productName: string;
+	batchId: string;
+	batchNo: string;
+	reporterId: string;
+	handlerId: string;
+	attachments: ContractAttachment[];
+	workflowInstanceId: string;
+	status: QualityComplaintStatus;
+	conclusion?: string;
+	resolvedBy?: string;
+	resolvedAt?: string;
+	rejectedBy?: string;
+	rejectedAt?: string;
+	meta?: { createdAt: string; updatedAt: string };
+};
+
+type ProductListPayload = { items: PharmaProduct[] };
+type QualityComplaintListPayload = { items: QualityComplaint[] };
+type QualityComplaintItemPayload = { item: QualityComplaint };
+type QualityComplaintBatchListPayload = { items: QualityComplaintBatch[] };
+
+export async function listProducts(query: { keyword?: string; status?: string } = {}): Promise<PharmaProduct[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.status?.trim()) params.set("status", query.status.trim());
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<ProductListPayload>>(`/v1/pharma-oa/products${suffix}`);
+	return payload.data.items;
+}
+
+export async function listQualityComplaints(query: { keyword?: string; status?: QualityComplaintStatus | "" } = {}): Promise<QualityComplaint[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.status) params.set("status", query.status);
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<QualityComplaintListPayload>>(`/v1/pharma-oa/quality-complaints${suffix}`);
+	return payload.data.items;
+}
+
+export async function listQualityComplaintBatches(productId = ""): Promise<QualityComplaintBatch[]> {
+	const params = new URLSearchParams();
+	if (productId.trim()) params.set("productId", productId.trim());
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<QualityComplaintBatchListPayload>>(`/v1/pharma-oa/quality-complaints/batches${suffix}`);
+	return payload.data.items;
+}
+
+export async function createQualityComplaint(body: { number: string; title: string; description: string; customerId: string; productId: string; batchId: string; reporterId: string; handlerId: string; attachmentIds: string[] }): Promise<QualityComplaint> {
+	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>("/v1/pharma-oa/quality-complaints", body);
+	return payload.data.item;
+}
+
+export async function resolveQualityComplaint(id: string, conclusion: string, actorId: string): Promise<QualityComplaint> {
+	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>(`/v1/pharma-oa/quality-complaints/${encodeURIComponent(id)}/resolve`, { conclusion, actorId });
+	return payload.data.item;
+}
+
+export async function rejectQualityComplaint(id: string, conclusion: string, actorId: string): Promise<QualityComplaint> {
+	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>(`/v1/pharma-oa/quality-complaints/${encodeURIComponent(id)}/reject`, { conclusion, actorId });
+	return payload.data.item;
+}
