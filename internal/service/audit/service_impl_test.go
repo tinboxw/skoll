@@ -104,6 +104,29 @@ func TestAuditServiceAppendAndList(t *testing.T) {
 	}
 }
 
+func TestAuditServiceBurstAppendUsesUniqueIDs(t *testing.T) {
+	ctx := context.Background()
+	svc := NewService(clickhouse.NewAuditStore())
+	seen := map[shared.ID]struct{}{}
+	for i := 0; i < 100; i++ {
+		record, err := svc.Append(ctx, "system", "inventory.alert", "inventory", "balance-1", nil)
+		if err != nil {
+			t.Fatalf("Append %d error: %v", i, err)
+		}
+		if _, exists := seen[record.ID]; exists {
+			t.Fatalf("duplicate audit id: %s", record.ID)
+		}
+		seen[record.ID] = struct{}{}
+	}
+	items, err := svc.ListByActor(ctx, "system", 0)
+	if err != nil {
+		t.Fatalf("ListByActor error: %v", err)
+	}
+	if len(items) != 100 {
+		t.Fatalf("expected 100 audit records, got %d", len(items))
+	}
+}
+
 func TestAuditServiceAppendValidationError(t *testing.T) {
 	repo := &fakeAuditRepo{}
 	svc := NewService(repo)

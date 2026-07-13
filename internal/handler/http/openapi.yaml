@@ -904,6 +904,53 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/TransferOrderResponse'}
         '404': {description: Transfer order not found}
+  /v1/pharma-oa/inventory-alerts:
+    get:
+      summary: List Pharma OA inventory alerts
+      parameters:
+        - {name: activeOnly, in: query, schema: {type: boolean, default: false}}
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InventoryAlertListResponse'}
+        '400': {description: Invalid activeOnly filter}
+  /v1/pharma-oa/inventory-alert-jobs:
+    get:
+      summary: List Pharma OA inventory alert scan jobs
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InventoryAlertJobListResponse'}
+    post:
+      summary: Run a near-expiry, low-stock, and over-stock alert scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InventoryAlertPolicyRequest'}
+      responses:
+        '201':
+          description: Scan completed and actionable reminders emitted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InventoryAlertJobResponse'}
+        '400': {description: Invalid thresholds, recipient, or scan failure}
+  /v1/pharma-oa/inventory-alert-jobs/{id}/retry:
+    post:
+      summary: Retry a failed Pharma OA inventory alert scan job
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Retry completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InventoryAlertJobResponse'}
+        '400': {description: Job not found, not failed, or retry failed}
   /v1/users:
     get:
       summary: List users
@@ -2902,6 +2949,92 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 components:
   schemas:
+    InventoryAlertPolicyRequest:
+      type: object
+      required: [nearExpiryDays, lowStockThreshold, overStockThreshold, recipientId]
+      properties:
+        nearExpiryDays: {type: integer, minimum: 1}
+        lowStockThreshold: {type: integer, minimum: 0}
+        overStockThreshold: {type: integer, minimum: 1}
+        recipientId: {type: string}
+    InventoryAlert:
+      type: object
+      required: [id, type, status, balanceId, productId, warehouseId, areaId, locationId, batchId, quantity, threshold, recipientId, notificationId, targetPath, firstSeenAt, lastSeenAt]
+      properties:
+        id: {type: string}
+        type: {type: string, enum: [near_expiry, low_stock, over_stock]}
+        status: {type: string, enum: [active, resolved]}
+        balanceId: {type: string}
+        productId: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        batchId: {type: string}
+        quantity: {type: integer}
+        threshold: {type: integer}
+        expiresAt: {type: string, format: date-time}
+        recipientId: {type: string}
+        notificationId: {type: string}
+        targetPath: {type: string}
+        firstSeenAt: {type: string, format: date-time}
+        lastSeenAt: {type: string, format: date-time}
+        resolvedAt: {type: string, format: date-time}
+    InventoryAlertJobLog:
+      type: object
+      required: [level, message, createdAt]
+      properties:
+        level: {type: string, enum: [info, error]}
+        message: {type: string}
+        createdAt: {type: string, format: date-time}
+    InventoryAlertJob:
+      type: object
+      required: [id, status, policy, retryCount, matchedCount, createdCount, resolvedCount, logs, createdAt]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [pending, running, succeeded, failed]}
+        policy: {$ref: '#/components/schemas/InventoryAlertPolicyRequest'}
+        retryCount: {type: integer, minimum: 0}
+        matchedCount: {type: integer, minimum: 0}
+        createdCount: {type: integer, minimum: 0}
+        resolvedCount: {type: integer, minimum: 0}
+        error: {type: string}
+        logs: {type: array, items: {$ref: '#/components/schemas/InventoryAlertJobLog'}}
+        createdAt: {type: string, format: date-time}
+        startedAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time}
+    InventoryAlertListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/InventoryAlert'}}
+    InventoryAlertJobResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [item]
+          properties:
+            item: {$ref: '#/components/schemas/InventoryAlertJob'}
+    InventoryAlertJobListResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        data:
+          type: object
+          required: [items]
+          properties:
+            items: {type: array, items: {$ref: '#/components/schemas/InventoryAlertJob'}}
     StocktakeCreateRequest:
       type: object
       required: [number, productId, warehouseId, areaId, locationId, batchId, actualQuantity, creatorId, approverId]

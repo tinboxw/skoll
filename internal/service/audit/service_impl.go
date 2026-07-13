@@ -3,12 +3,15 @@ package audit
 import (
 	"context"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 )
+
+var auditIDSequence atomic.Uint64
 
 type serviceImpl struct {
 	repo  auditrepo.AuditRepository
@@ -21,7 +24,7 @@ func NewService(repo auditrepo.AuditRepository) Service {
 		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
-			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10) + "-" + strconv.FormatUint(auditIDSequence.Add(1), 10))
 		},
 	}
 }

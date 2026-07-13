@@ -28,6 +28,7 @@ import (
 	"github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
+	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 	"github.com/tinboxw/skoll/internal/service/rbac"
@@ -95,6 +96,8 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService)
 	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService)
 	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService)
+	notificationService := notificationsvc.NewService(nil, nil)
+	pharmaInventoryAlertService := pharmaoasvc.NewInventoryAlertService(pharmaInventoryService, notificationService, auditService)
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err
@@ -124,6 +127,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaPurchaseInboundService:    pharmaPurchaseInboundService,
 		PharmaSalesService:              pharmaSalesService,
 		PharmaInventoryOperationService: pharmaInventoryOperationService,
+		PharmaInventoryAlertService:     pharmaInventoryAlertService,
 		MenuService:                     menuService,
 		WorkflowService:                 workflowService,
 		PluginManager:                   pluginManager,

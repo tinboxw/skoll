@@ -1704,3 +1704,58 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F9-06` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F9-06 Implement Inventory Alerts
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Dependencies: F9-01 is Done.
+
+### Delivery
+
+- Added retryable inventory alert scan jobs with pending, running, succeeded, and failed lifecycle states, timestamps, counters, error details, and execution logs.
+- Added near-expiry, low-stock, and over-stock rules over inventory balances and batch expiry data, including active/resolved alert lifecycle and deterministic duplicate suppression.
+- Added notification-center reminders owned by the configured recipient and actionable links carrying warehouse, balance, and batch context.
+- Added success, alert creation, resolution, and failure audit records; hardened the shared audit ID generator with a process-wide atomic sequence for burst-write uniqueness.
+- Added alert/job list, scan, and failed-job retry APIs, synchronized OpenAPI schemas, two least-privilege permissions, plugin routes, and lifecycle catalog assertions.
+- Migration and seed impact: none; job, alert, and notification state use the current in-memory milestone services.
+
+### Retry Evidence
+
+1. The first plugin lifecycle run failed because existing demo-seed route assertions retained their old runtime snapshot indexes after four alert routes were inserted. The assertions were moved to indexes 58 and 59; plugin lifecycle validation passed on retry.
+2. The first audit fixture found only one of three burst `pharma_oa.alert.create` records because Windows returned equal nanosecond timestamps and the audit ID generator used that timestamp alone. A process-wide atomic suffix and a 100-record burst test were added; all audit and alert fixtures passed on retry.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Alert rules | Passed | Fixtures independently produce near-expiry, low-stock, and over-stock alerts from batch expiry and quantity thresholds |
+| Notification center | Passed | Three active conditions create three pending reminder items for the configured recipient with actionable target paths |
+| Stock detail links | Passed | Each reminder targets `/skoll/pharma-oa/warehouses` with encoded `warehouseId`, `balanceId`, and `batchId` context |
+| Duplicate safety | Passed | A second identical scan matches all three conditions but creates zero new alerts or notifications |
+| Resolution | Passed | Replenishing low stock resolves the alert and marks its notification done on the next scan |
+| Failure and retry | Passed | Reader failure leaves a queryable failed job with error log; retry reuses the job, increments retry count, and succeeds |
+| Audit traceability | Passed | `system` audit queries return all alert creation and successful run actions; 100 burst appends retain 100 unique records |
+| API and OpenAPI | Passed | Alert list, job list, run, and retry routes are wired with explicit schemas; both OpenAPI files are byte-equivalent |
+| Permissions and plugin lifecycle | Passed | Read/run permissions and four routes pass install, enable, disable, catalog audit, and duplicate-install checks |
+| Runtime health | Passed | Isolated memory-mode backend returned HTTP 200 from `http://127.0.0.1:18086/skoll/health` and was stopped after verification |
+| Migration and seed impact | Passed | No migration or seed changes are required for the current in-memory implementation |
+
+### Verification Commands
+
+```text
+go test ./internal/service/audit ./internal/service/pharmaoa -run 'TestAuditService|TestInventoryAlert' -count=1 -v
+go test ./internal/service/audit ./internal/service/notification ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/bootstrap ./internal/plugin
+go test ./...
+go build -o tmp/skoll-f9-06.exe ./cmd/skoll
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+git diff --check
+codegraph sync .
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F9-07` from `docs/refactor/current/pharma_oa_work_items.md`.

@@ -21,6 +21,7 @@ type InventoryService interface {
 	Transfer(ctx context.Context, in StockTransferInput) (StockTransferResult, error)
 	LockStock(ctx context.Context, in StockLockInput) (*domainpharma.StockLock, error)
 	ListBalances(ctx context.Context) ([]domainpharma.StockBalance, error)
+	ListBatches(ctx context.Context) ([]domainpharma.StockBatch, error)
 	ListLedger(ctx context.Context) ([]domainpharma.StockLedgerEntry, error)
 }
 
@@ -266,6 +267,17 @@ func (s *inventoryService) ListBalances(context.Context) ([]domainpharma.StockBa
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].ID.String() < items[j].ID.String()
 	})
+	return items, nil
+}
+
+func (s *inventoryService) ListBatches(context.Context) ([]domainpharma.StockBatch, error) {
+	s.mu.RLock()
+	items := make([]domainpharma.StockBatch, 0, len(s.batches))
+	for _, item := range s.batches {
+		items = append(items, item)
+	}
+	s.mu.RUnlock()
+	sort.Slice(items, func(i, j int) bool { return items[i].ID.String() < items[j].ID.String() })
 	return items, nil
 }
 
