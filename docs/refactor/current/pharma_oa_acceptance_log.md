@@ -1759,3 +1759,57 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F9-07` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F9-07 Add Inventory End-To-End Smoke
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Dependencies: F9-02, F9-03, F9-04, F9-05, and F9-06 are Done.
+
+### Delivery
+
+- Added a repeatable integration fixture that creates product, qualified supplier/customer, and two-warehouse master data before exercising the real pharma OA services.
+- Added one closed-loop scenario covering purchase request approval, generated purchase order, batch inbound, sales order/outbound, stocktake approval, and paired cross-warehouse transfer.
+- Added final balance and ordered immutable-ledger assertions: 20 units inbound, 6 outbound, 1 stocktake reduction, and 3 transferred leave 10 units in the source warehouse and 3 in the target warehouse.
+- Added inventory alert assertions for two near-expiry balances and one low-stock balance, including notification-center ownership and actionable balance/batch target links.
+- Added `scripts/smoke-pharma-inventory.ps1` as the dedicated acceptance command and documented it in the integration test guide.
+- API/OpenAPI, permission, audit contract, migration, and seed impact: none; this work item validates existing F9 behavior without changing runtime contracts or persistent data.
+
+### Retry Evidence
+
+1. The first smoke build failed because the notification service's second constructor argument was incorrectly treated as an audit service; it is an ID generator. The fixture now uses the default notification ID generator while inventory alert audit remains wired through the alert service, and the same script passed on retry.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Purchase approval | Passed | A qualified supplier request for 20 units is approved into one purchase order with the expected request relation and total amount |
+| Purchase inbound | Passed | The approved order creates a completed inbound record, batch ID, attachment metadata, balance, and inbound ledger reference |
+| Sales outbound | Passed | A qualified customer order for six units completes outbound and decreases source inventory with an outbound ledger reference |
+| Stocktake and transfer | Passed | Assigned approval posts one `-1` stocktake entry; moving three units creates distinct paired transfer entries |
+| Balance accuracy | Passed | Final balances are source warehouse 10 and target warehouse 3, preserving the post-stocktake total of 13 |
+| Ledger integrity | Passed | Five immutable entries appear in order: inbound, outbound, stocktake, transfer out, and transfer in |
+| Inventory alerts | Passed | The scan creates two near-expiry alerts and one low-stock alert, each with a pending notification and actionable balance/batch link |
+| Repeatability | Passed | The dedicated smoke command passed three consecutive runs with isolated in-memory fixture state |
+| Repository tests | Passed | `go test ./...` completed successfully across backend, plugin, HTTP, and integration packages |
+| Static and runtime quality | Passed | `go vet ./...`, binary build, and isolated memory-mode health check on port 18087 passed |
+| Contract and data impact | Passed | No runtime API/OpenAPI, permission, audit schema, migration, or seed change is required for this test-only work item |
+
+### Verification Commands
+
+```text
+.\scripts\smoke-pharma-inventory.ps1 -Count 3
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f9-07.exe ./cmd/skoll
+Invoke-WebRequest http://127.0.0.1:18087/skoll/health
+git diff --check
+codegraph sync .
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F10-01` from `docs/refactor/current/pharma_oa_work_items.md`.
