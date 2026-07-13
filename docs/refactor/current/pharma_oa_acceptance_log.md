@@ -1935,3 +1935,67 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F10-03` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F10-03 Implement Qualification Management
+
+- Date: 2026-07-13
+- Executor: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Dependencies: F8-02, F8-04, and F8-05 are Done.
+
+### Delivery
+
+- Added one read model over employee certificates plus supplier and customer qualifications, with valid, expiring, expired, and permanent status calculation.
+- Added configurable expiry scans that create deterministic, idempotent notifications with actionable links to the owning employee, supplier, or customer ledger.
+- Added qualification-block audit events to critical purchase-request creation/approval and sales-order creation when a supplier or customer qualification is expired.
+- Added authenticated list and expiry-scan HTTP operations, two least-privilege permissions, synchronized OpenAPI schemas, plugin routes/audit declarations, and lifecycle catalog assertions.
+- Added `/skoll/pharma-oa/qualifications` with loading, empty, error, no-permission, scanning confirmation/progress, filtering, summary, subject navigation, and responsive states.
+- Migration and seed impact: none; this milestone composes the existing employee, supplier, customer, notification, audit, and plugin services without introducing persistence schema or seed changes.
+
+### Retry Evidence
+
+1. The first binary acceptance build reached the Windows linker but returned only `link.exe: exit status 1`. The Work Item moved through `Failed -> Doing`; a clean output path with verbose linking succeeded on retry.
+2. The first browser acceptance connected to a stale Vite process that had not loaded the new static route, leaving only the console shell and a route warning. The Work Item moved through `Failed -> Doing`; the workspace Vite process was restarted and desktop plus 375x844 checks passed on retry.
+3. Final review found that the POST scan handler did not enforce the OpenAPI `1..365` day range and that two OpenAPI keys retained a literal patch prefix. The Work Item moved through `Failed -> Doing`; request validation, a POST boundary test, and both OpenAPI files were corrected before the full gate was rerun.
+
+### Acceptance
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Unified ledger | Passed | Employee certificates and supplier/customer qualifications are normalized into one filterable record shape with subject identity and source-ledger target |
+| Qualification status | Passed | Tests cover valid, expiring, expired, and permanent calculation against a fixed clock and configurable day window |
+| Expiry reminders | Passed | Eligible expired/expiring records create recipient notifications with actionable subject-ledger links |
+| Reminder idempotence | Passed | Deterministic reminder IDs make a repeated scan report zero new reminders while retaining prior evidence |
+| Purchase blocking | Passed | Expired supplier qualification blocks purchase request creation and approval before critical state changes |
+| Sales blocking | Passed | Expired customer qualification blocks sales order creation before stock or order state changes |
+| Audit traceability | Passed | Qualification block, reminder creation, and scan summary actions retain actor, subject, operation, notification, and result context |
+| API and OpenAPI | Passed | List and expiry-scan operations use explicit schemas and enforce the documented day range; both OpenAPI files have SHA-256 `97582748A8115A58B7283E716C651A2C598B532CB485233F78824F76C01B0A02` |
+| Permissions and plugin lifecycle | Passed | Read and high-risk scan permissions plus two routes pass manifest, install, enable, disable, menu/catalog, audit-action, and duplicate-install assertions |
+| Frontend states | Passed | The console covers loading, empty, error, no-permission, scanning confirmation/progress, filters, summary, reminder state, and subject navigation |
+| Responsive browser | Passed | Desktop and 375x844 runtime checks show the empty ledger and controls without document overflow, overlap, or clipped text |
+| Inventory regression | Passed | The Pharma OA inventory end-to-end smoke still passes after purchase and sales qualification audit changes |
+| Runtime health | Passed | The rebuilt memory-mode backend returned HTTP 200 with `code=ok` from `http://127.0.0.1:8080/skoll/health` |
+| Migration and seed impact | Passed | No migration or seed update is required because existing master-data qualification records are composed at service level |
+
+### Verification Commands
+
+```text
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run 'TestQualification' -count=1 -v
+go test ./internal/plugin -run 'TestPharmaOA' -count=1 -v
+.\scripts\smoke-pharma-inventory.ps1 -Count 1
+go test ./...
+go vet ./...
+go build -x -o tmp/skoll-f10-03.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+Get-FileHash docs/api/openapi.yaml; Get-FileHash internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F10-04` from `docs/refactor/current/pharma_oa_work_items.md`.

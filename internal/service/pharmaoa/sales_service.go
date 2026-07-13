@@ -180,10 +180,12 @@ func (s *salesService) ensureCustomerEligible(ctx context.Context, customerID, a
 	eligibility, err := s.customers.ValidateSalesCustomer(ctx, customerID, CustomerAccessScope{IncludeAll: true})
 	if err != nil {
 		s.appendSalesAudit(ctx, actorID, deniedAction, "pharma_oa_customer", customerID, map[string]any{"reason": err.Error()})
+		s.appendSalesAudit(ctx, actorID, "pharma_oa.qualification.block", "pharma_oa_customer", customerID, map[string]any{"subjectType": "customer", "operation": deniedAction, "reason": err.Error()})
 		return err
 	}
 	if !eligibility.Allowed {
 		s.appendSalesAudit(ctx, actorID, deniedAction, "pharma_oa_customer", customerID, map[string]any{"reason": eligibility.Reason})
+		s.appendSalesAudit(ctx, actorID, "pharma_oa.qualification.block", "pharma_oa_customer", customerID, map[string]any{"subjectType": "customer", "operation": deniedAction, "reason": eligibility.Reason})
 		return fmt.Errorf("customer is not eligible for sales: %s", eligibility.Reason)
 	}
 	return nil

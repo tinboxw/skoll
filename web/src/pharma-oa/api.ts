@@ -418,3 +418,42 @@ export async function scanContractExpiry(days: number, actorId: string): Promise
 	const payload = await apiPost<ApiResponse<ContractExpiryPayload>>("/v1/pharma-oa/contracts/expiry-scan", { days, actorId });
 	return payload.data.item;
 }
+
+export type QualificationSubjectType = "employee" | "supplier" | "customer";
+export type QualificationStatus = "valid" | "expiring" | "expired" | "permanent";
+export type QualificationRecord = {
+	id: string;
+	subjectType: QualificationSubjectType;
+	subjectId: string;
+	subjectCode: string;
+	subjectName: string;
+	subjectStatus: string;
+	qualificationId: string;
+	qualificationName: string;
+	number: string;
+	expiresAt: string;
+	status: QualificationStatus;
+	attachmentCount: number;
+	recipientId: string;
+	targetPath: string;
+	reminderNotificationId?: string;
+};
+export type QualificationScanResult = { matchedCount: number; createdCount: number; reminders: QualificationRecord[] };
+type QualificationListPayload = { items: QualificationRecord[] };
+type QualificationScanPayload = { item: QualificationScanResult };
+
+export async function listQualifications(query: { keyword?: string; subjectType?: QualificationSubjectType | ""; status?: QualificationStatus | ""; days?: number } = {}): Promise<QualificationRecord[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.subjectType) params.set("subjectType", query.subjectType);
+	if (query.status) params.set("status", query.status);
+	if (query.days) params.set("days", String(query.days));
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<QualificationListPayload>>(`/v1/pharma-oa/qualifications${suffix}`);
+	return payload.data.items;
+}
+
+export async function scanQualificationExpiry(days: number, actorId: string): Promise<QualificationScanResult> {
+	const payload = await apiPost<ApiResponse<QualificationScanPayload>>("/v1/pharma-oa/qualifications/expiry-scan", { days, actorId });
+	return payload.data.item;
+}

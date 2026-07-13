@@ -63,7 +63,7 @@ func (s *purchaseService) CreateRequest(ctx context.Context, in PurchaseRequestC
 	if s == nil || s.suppliers == nil || s.workflow == nil {
 		return nil, fmt.Errorf("purchase service dependencies are required")
 	}
-	if err := s.ensureSupplierEligible(ctx, in.SupplierID); err != nil {
+	if err := s.ensureSupplierEligible(ctx, in.SupplierID, in.RequesterID, "create_request"); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
@@ -153,7 +153,7 @@ func (s *purchaseService) ApproveRequest(ctx context.Context, id string, in Purc
 	if existing != nil {
 		return existing, nil
 	}
-	if err := s.ensureSupplierEligible(ctx, request.SupplierID); err != nil {
+	if err := s.ensureSupplierEligible(ctx, request.SupplierID, in.ActorID, "approve_request"); err != nil {
 		return nil, err
 	}
 	instance, err := s.workflow.GetInstance(ctx, shared.ID(request.WorkflowInstanceID))
@@ -242,12 +242,14 @@ func (s *purchaseService) GetOrder(_ context.Context, id string) (*domainpharma.
 	return item, nil
 }
 
-func (s *purchaseService) ensureSupplierEligible(ctx context.Context, supplierID string) error {
+func (s *purchaseService) ensureSupplierEligible(ctx context.Context, supplierID, actorID, operation string) error {
 	eligibility, err := s.suppliers.ValidatePurchaseSupplier(ctx, supplierID)
 	if err != nil {
+		s.appendPurchaseAudit(ctx, actorID, "pharma_oa.qualification.block", supplierID, map[string]any{"subjectType": "supplier", "operation": operation, "reason": err.Error()})
 		return err
 	}
 	if !eligibility.Allowed {
+		s.appendPurchaseAudit(ctx, actorID, "pharma_oa.qualification.block", supplierID, map[string]any{"subjectType": "supplier", "operation": operation, "reason": eligibility.Reason})
 		return fmt.Errorf("supplier is not eligible for purchase: %s", eligibility.Reason)
 	}
 	return nil

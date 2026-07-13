@@ -85,6 +85,9 @@
   - `POST /v1/plugins/pharma_oa/api/contracts/approve`
   - `POST /v1/plugins/pharma_oa/api/contracts/reject`
   - `POST /v1/plugins/pharma_oa/api/contracts/expiry-scan`
+- Qualification route contracts:
+  - `GET /v1/plugins/pharma_oa/api/qualifications`
+  - `POST /v1/plugins/pharma_oa/api/qualifications/expiry-scan`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
@@ -106,3 +109,10 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - Contract entries relate to supplier or customer master data and retain immutable file metadata references.
 - Creation validates file access before launching an assigned approval workflow; approval and rejection remain auditable.
 - Expiry scans create idempotent notification-center reminders that link back to the contract detail.
+
+## Qualification management
+
+- The unified ledger reads employee certificates plus supplier and customer qualifications without duplicating master data.
+- Dynamic status classifies permanent, valid, expiring, and expired records using the selected reminder window.
+- Expiry scans create idempotent owner/system notifications with direct links to the related master-data record.
+- Expired supplier and customer qualifications block purchase and sales actions and append `pharma_oa.qualification.block` audit evidence.

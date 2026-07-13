@@ -3209,6 +3209,61 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/qualifications:
+    get:
+      summary: List employee, supplier, and customer qualification ledger entries
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: subjectType
+          in: query
+          schema: {type: string, enum: [employee, supplier, customer]}
+        - name: status
+          in: query
+          schema: {type: string, enum: [valid, expiring, expired, permanent]}
+        - name: days
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 365, default: 30}
+      responses:
+        '200':
+          description: Qualification ledger
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualificationListAPIResponse'}
+        '400':
+          description: Invalid qualification filter
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/qualifications/expiry-scan:
+    post:
+      summary: Scan qualifications and create idempotent expiry reminders
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/QualificationScanRequest'}
+      responses:
+        '200':
+          description: Qualification expiry scan result
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/QualificationScanAPIResponse'}
+        '400':
+          description: Qualification expiry scan failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 components:
   schemas:
     ContractCreateRequest:
@@ -3331,6 +3386,63 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/ContractExpiryScanData'}
+    QualificationScanRequest:
+      type: object
+      properties:
+        days: {type: integer, minimum: 1, maximum: 365, default: 30}
+        actorId: {type: string}
+    QualificationRecord:
+      type: object
+      required: [id, subjectType, subjectId, subjectCode, subjectName, subjectStatus, qualificationId, qualificationName, number, expiresAt, status, attachmentCount, recipientId, targetPath]
+      properties:
+        id: {type: string}
+        subjectType: {type: string, enum: [employee, supplier, customer]}
+        subjectId: {type: string}
+        subjectCode: {type: string}
+        subjectName: {type: string}
+        subjectStatus: {type: string}
+        qualificationId: {type: string}
+        qualificationName: {type: string}
+        number: {type: string}
+        expiresAt: {type: string, format: date-time}
+        status: {type: string, enum: [valid, expiring, expired, permanent]}
+        attachmentCount: {type: integer, minimum: 0}
+        recipientId: {type: string}
+        targetPath: {type: string}
+        reminderNotificationId: {type: string}
+    QualificationScanResult:
+      type: object
+      required: [matchedCount, createdCount, reminders]
+      properties:
+        matchedCount: {type: integer, minimum: 0}
+        createdCount: {type: integer, minimum: 0}
+        reminders:
+          type: array
+          items: {$ref: '#/components/schemas/QualificationRecord'}
+    QualificationListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/QualificationRecord'}
+    QualificationScanData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/QualificationScanResult'}
+    QualificationListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/QualificationListData'}
+    QualificationScanAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/QualificationScanData'}
     AnnouncementAudience:
       type: object
       required: [organizationIds, roleIds]

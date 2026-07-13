@@ -18,6 +18,7 @@ const PermissionPage = () => import("../views/Permission/index.vue");
 const PharmaCustomerPage = () => import("../views/PharmaCustomer/index.vue");
 const PharmaAnnouncementPage = () => import("../views/PharmaAnnouncement/index.vue");
 const PharmaContractPage = () => import("../views/PharmaContract/index.vue");
+const PharmaQualificationPage = () => import("../views/PharmaQualification/index.vue");
 const PharmaPurchaseInboundPage = () => import("../views/PharmaPurchaseInbound/index.vue");
 const PharmaSalesPage = () => import("../views/PharmaSales/index.vue");
 const PharmaEmployeePage = () => import("../views/PharmaEmployee/index.vue");
@@ -168,6 +169,12 @@ const routes: RouteRecordRaw[] = [
 		name: "pharma-oa-contracts",
 		component: PharmaContractPage,
 		meta: { requiresAuth: true, permissions: ["pharma_oa.contract.read"] }
+	},
+	{
+		path: `${ADMIN_PREFIX}/pharma-oa/qualifications`,
+		name: "pharma-oa-qualifications",
+		component: PharmaQualificationPage,
+		meta: { requiresAuth: true, permissions: ["pharma_oa.qualification.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/pharma-oa/employees`,
