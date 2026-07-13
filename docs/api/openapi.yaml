@@ -3527,6 +3527,151 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
++  /v1/pharma-oa/cold-chain-contexts:
+    get:
+      summary: List stock balances eligible for cold-chain recording
+      responses:
+        '200':
+          description: Eligible cold-chain inventory contexts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ColdChainContextListAPIResponse'}
+        '400':
+          description: Inventory or warehouse context lookup failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/cold-chain-records:
+    get:
+      summary: List immutable cold-chain readings
+      parameters:
+        - name: batchId
+          in: query
+          schema: {type: string}
+        - name: warehouseId
+          in: query
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 500, default: 100}
+      responses:
+        '200':
+          description: Cold-chain record list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ColdChainRecordListAPIResponse'}
+        '400':
+          description: Invalid record filter
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Create an immutable cold-chain reading for an inventory balance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ColdChainRecordCreateRequest'}
+      responses:
+        '201':
+          description: Cold-chain record created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ColdChainRecordItemAPIResponse'}
+        '400':
+          description: Invalid reading or ineligible stock balance
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/cold-chain-anomalies:
+    get:
+      summary: List cold-chain risk-dashboard anomalies
+      parameters:
+        - name: activeOnly
+          in: query
+          schema: {type: boolean, default: false}
+      responses:
+        '200':
+          description: Cold-chain anomaly list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ColdChainAnomalyListAPIResponse'}
+        '400':
+          description: Invalid anomaly filter
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/cold-chain-jobs:
+    get:
+      summary: List cold-chain anomaly scan jobs
+      responses:
+        '200':
+          description: Cold-chain job list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ColdChainJobListAPIResponse'}
+    post:
+      summary: Run a cold-chain anomaly scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ColdChainRunRequest'}
+      responses:
+        '201':
+          description: Cold-chain scan completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ColdChainJobItemAPIResponse'}
+        '400':
+          description: Invalid humidity policy or scan failure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/cold-chain-jobs/{id}/retry:
+    post:
+      summary: Retry a failed cold-chain anomaly scan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ColdChainRetryRequest'}
+      responses:
+        '200':
+          description: Cold-chain scan retried
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ColdChainJobItemAPIResponse'}
+        '400':
+          description: Job is missing, not failed, or retry failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 components:
   schemas:
     ContractCreateRequest:
@@ -3912,6 +4057,201 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/DrugRecallBatchListData'}
++    ColdChainRecordCreateRequest:
+      type: object
+      required: [balanceId, temperatureCelsius, humidityPercent, source, recordedAt]
+      properties:
+        balanceId: {type: string, minLength: 1}
+        temperatureCelsius: {type: number, minimum: -100, maximum: 100}
+        humidityPercent: {type: number, minimum: 0, maximum: 100}
+        source: {type: string, minLength: 1}
+        recordedAt: {type: string, format: date-time}
+        actorId: {type: string}
+    ColdChainRunRequest:
+      type: object
+      required: [minHumidityPercent, maxHumidityPercent, recipientId]
+      properties:
+        minHumidityPercent: {type: number, minimum: 0, maximum: 100}
+        maxHumidityPercent: {type: number, minimum: 0, maximum: 100}
+        recipientId: {type: string, minLength: 1}
+        actorId: {type: string}
+    ColdChainRetryRequest:
+      type: object
+      properties:
+        actorId: {type: string}
+    ColdChainContext:
+      type: object
+      required: [balanceId, productId, batchId, batchNo, warehouseId, areaId, locationId, quantity, minCelsius, maxCelsius]
+      properties:
+        balanceId: {type: string}
+        productId: {type: string}
+        batchId: {type: string}
+        batchNo: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        quantity: {type: integer, minimum: 1}
+        minCelsius: {type: number}
+        maxCelsius: {type: number}
+    ColdChainRecord:
+      type: object
+      required: [id, balanceId, productId, batchId, batchNo, warehouseId, areaId, locationId, temperatureCelsius, humidityPercent, minCelsius, maxCelsius, source, recordedBy, recordedAt, createdAt]
+      properties:
+        id: {type: string}
+        balanceId: {type: string}
+        productId: {type: string}
+        batchId: {type: string}
+        batchNo: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        temperatureCelsius: {type: number}
+        humidityPercent: {type: number, minimum: 0, maximum: 100}
+        minCelsius: {type: number}
+        maxCelsius: {type: number}
+        source: {type: string}
+        recordedBy: {type: string}
+        recordedAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+    ColdChainAnomaly:
+      type: object
+      required: [id, status, risk, recordId, balanceId, productId, batchId, batchNo, warehouseId, areaId, locationId, temperatureCelsius, humidityPercent, minCelsius, maxCelsius, minHumidityPercent, maxHumidityPercent, reasons, recipientId, notificationId, targetPath, firstSeenAt, lastSeenAt]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [active, resolved]}
+        risk: {type: string, enum: [medium, high]}
+        recordId: {type: string}
+        balanceId: {type: string}
+        productId: {type: string}
+        batchId: {type: string}
+        batchNo: {type: string}
+        warehouseId: {type: string}
+        areaId: {type: string}
+        locationId: {type: string}
+        temperatureCelsius: {type: number}
+        humidityPercent: {type: number}
+        minCelsius: {type: number}
+        maxCelsius: {type: number}
+        minHumidityPercent: {type: number}
+        maxHumidityPercent: {type: number}
+        reasons:
+          type: array
+          minItems: 1
+          items: {type: string, enum: [temperature_below_min, temperature_above_max, humidity_below_min, humidity_above_max]}
+        recipientId: {type: string}
+        notificationId: {type: string}
+        targetPath: {type: string}
+        firstSeenAt: {type: string, format: date-time}
+        lastSeenAt: {type: string, format: date-time}
+        resolvedAt: {type: string, format: date-time}
+    ColdChainScanPolicy:
+      type: object
+      required: [minHumidityPercent, maxHumidityPercent, recipientId]
+      properties:
+        minHumidityPercent: {type: number}
+        maxHumidityPercent: {type: number}
+        recipientId: {type: string}
+    ColdChainJobLog:
+      type: object
+      required: [level, message, createdAt]
+      properties:
+        level: {type: string, enum: [info, error]}
+        message: {type: string}
+        createdAt: {type: string, format: date-time}
+    ColdChainJob:
+      type: object
+      required: [id, status, policy, initiatedBy, lastRunBy, retryCount, matchedCount, createdCount, resolvedCount, logs, createdAt]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [pending, running, succeeded, failed]}
+        policy: {$ref: '#/components/schemas/ColdChainScanPolicy'}
+        initiatedBy: {type: string}
+        lastRunBy: {type: string}
+        retryCount: {type: integer, minimum: 0}
+        matchedCount: {type: integer, minimum: 0}
+        createdCount: {type: integer, minimum: 0}
+        resolvedCount: {type: integer, minimum: 0}
+        error: {type: string}
+        logs:
+          type: array
+          items: {$ref: '#/components/schemas/ColdChainJobLog'}
+        createdAt: {type: string, format: date-time}
+        startedAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time}
+    ColdChainRecordItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/ColdChainRecord'}
+    ColdChainJobItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/ColdChainJob'}
+    ColdChainContextListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ColdChainContext'}
+    ColdChainRecordListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ColdChainRecord'}
+    ColdChainAnomalyListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ColdChainAnomaly'}
+    ColdChainJobListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ColdChainJob'}
+    ColdChainRecordItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ColdChainRecordItemData'}
+    ColdChainJobItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ColdChainJobItemData'}
+    ColdChainContextListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ColdChainContextListData'}
+    ColdChainRecordListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ColdChainRecordListData'}
+    ColdChainAnomalyListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ColdChainAnomalyListData'}
+    ColdChainJobListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ColdChainJobListData'}
     AnnouncementAudience:
       type: object
       required: [organizationIds, roleIds]

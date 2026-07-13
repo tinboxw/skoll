@@ -102,6 +102,14 @@
   - `GET /v1/plugins/pharma_oa/api/drug-recalls/batches`
   - `GET /v1/plugins/pharma_oa/api/drug-recalls/scope`
   - `POST /v1/plugins/pharma_oa/api/drug-recalls/task-complete`
+- Cold-chain route contracts:
+  - `GET /v1/plugins/pharma_oa/api/cold-chain-contexts`
+  - `GET /v1/plugins/pharma_oa/api/cold-chain-records`
+  - `POST /v1/plugins/pharma_oa/api/cold-chain-records`
+  - `GET /v1/plugins/pharma_oa/api/cold-chain-anomalies`
+  - `GET /v1/plugins/pharma_oa/api/cold-chain-jobs`
+  - `POST /v1/plugins/pharma_oa/api/cold-chain-jobs`
+  - `POST /v1/plugins/pharma_oa/api/cold-chain-jobs/retry`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
@@ -144,3 +152,10 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - An optional source quality complaint must refer to the same product and batch before the recall can be created.
 - Each affected customer becomes a tracked task with a required completion note; the recall closes automatically and idempotently after the final task.
 - The host console route is `/skoll/pharma-oa/drug-recalls`, with batch scope preview, processing trace, permission-aware completion, and responsive states.
+
+## Cold-chain records
+
+- Readings are accepted only for positive inventory balances in enabled, temperature-controlled warehouse locations and retain the related product, batch, warehouse, area, and location evidence.
+- Location temperature limits override area limits, which override warehouse limits; the effective limits are frozen into each immutable reading.
+- Retryable scans evaluate the latest reading per stock balance against temperature and humidity limits, create idempotent reminders, and resolve reminders after a normal reading.
+- Active and resolved anomalies expose risk, reasons, batch context, notification identity, and a direct `/skoll/pharma-oa/cold-chain` target for the compliance dashboard.

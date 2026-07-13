@@ -604,3 +604,106 @@ export async function completeDrugRecallTask(recallId: string, taskId: string, n
 	const payload = await apiPost<ApiResponse<DrugRecallItemPayload>>(`/v1/pharma-oa/drug-recalls/${encodeURIComponent(recallId)}/tasks/${encodeURIComponent(taskId)}/complete`, { note, actorId });
 	return payload.data.item;
 }
+
+export type ColdChainContext = {
+	balanceId: string;
+	productId: string;
+	batchId: string;
+	batchNo: string;
+	warehouseId: string;
+	areaId: string;
+	locationId: string;
+	quantity: number;
+	minCelsius: number;
+	maxCelsius: number;
+};
+
+export type ColdChainRecord = ColdChainContext & {
+	id: string;
+	temperatureCelsius: number;
+	humidityPercent: number;
+	source: string;
+	recordedBy: string;
+	recordedAt: string;
+	createdAt: string;
+};
+
+export type ColdChainAnomalyStatus = "active" | "resolved";
+export type ColdChainAnomaly = Omit<ColdChainRecord, "quantity" | "source" | "recordedBy" | "recordedAt" | "createdAt"> & {
+	status: ColdChainAnomalyStatus;
+	risk: "medium" | "high";
+	recordId: string;
+	minHumidityPercent: number;
+	maxHumidityPercent: number;
+	reasons: string[];
+	recipientId: string;
+	notificationId: string;
+	targetPath: string;
+	firstSeenAt: string;
+	lastSeenAt: string;
+	resolvedAt?: string;
+};
+
+export type ColdChainJob = {
+	id: string;
+	status: "pending" | "running" | "succeeded" | "failed";
+	policy: { minHumidityPercent: number; maxHumidityPercent: number; recipientId: string };
+	initiatedBy: string;
+	lastRunBy: string;
+	retryCount: number;
+	matchedCount: number;
+	createdCount: number;
+	resolvedCount: number;
+	error?: string;
+	logs: Array<{ level: "info" | "error"; message: string; createdAt: string }>;
+	createdAt: string;
+	startedAt?: string;
+	completedAt?: string;
+};
+
+type ColdChainContextListPayload = { items: ColdChainContext[] };
+type ColdChainRecordListPayload = { items: ColdChainRecord[] };
+type ColdChainAnomalyListPayload = { items: ColdChainAnomaly[] };
+type ColdChainJobListPayload = { items: ColdChainJob[] };
+type ColdChainRecordItemPayload = { item: ColdChainRecord };
+type ColdChainJobItemPayload = { item: ColdChainJob };
+
+export async function listColdChainContexts(): Promise<ColdChainContext[]> {
+	const payload = await apiGet<ApiResponse<ColdChainContextListPayload>>("/v1/pharma-oa/cold-chain-contexts");
+	return payload.data.items;
+}
+
+export async function listColdChainRecords(query: { batchId?: string; warehouseId?: string; limit?: number } = {}): Promise<ColdChainRecord[]> {
+	const params = new URLSearchParams();
+	if (query.batchId?.trim()) params.set("batchId", query.batchId.trim());
+	if (query.warehouseId?.trim()) params.set("warehouseId", query.warehouseId.trim());
+	if (query.limit) params.set("limit", String(query.limit));
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<ColdChainRecordListPayload>>(`/v1/pharma-oa/cold-chain-records${suffix}`);
+	return payload.data.items;
+}
+
+export async function createColdChainRecord(body: { balanceId: string; temperatureCelsius: number; humidityPercent: number; source: string; recordedAt: string; actorId: string }): Promise<ColdChainRecord> {
+	const payload = await apiPost<ApiResponse<ColdChainRecordItemPayload>>("/v1/pharma-oa/cold-chain-records", body);
+	return payload.data.item;
+}
+
+export async function listColdChainAnomalies(activeOnly = false): Promise<ColdChainAnomaly[]> {
+	const payload = await apiGet<ApiResponse<ColdChainAnomalyListPayload>>(`/v1/pharma-oa/cold-chain-anomalies?activeOnly=${String(activeOnly)}`);
+	return payload.data.items;
+}
+
+export async function listColdChainJobs(): Promise<ColdChainJob[]> {
+	const payload = await apiGet<ApiResponse<ColdChainJobListPayload>>("/v1/pharma-oa/cold-chain-jobs");
+	return payload.data.items;
+}
+
+export async function runColdChainScan(body: { minHumidityPercent: number; maxHumidityPercent: number; recipientId: string; actorId: string }): Promise<ColdChainJob> {
+	const payload = await apiPost<ApiResponse<ColdChainJobItemPayload>>("/v1/pharma-oa/cold-chain-jobs", body);
+	return payload.data.item;
+}
+
+export async function retryColdChainScan(id: string, actorId: string): Promise<ColdChainJob> {
+	const payload = await apiPost<ApiResponse<ColdChainJobItemPayload>>(`/v1/pharma-oa/cold-chain-jobs/${encodeURIComponent(id)}/retry`, { actorId });
+	return payload.data.item;
+}

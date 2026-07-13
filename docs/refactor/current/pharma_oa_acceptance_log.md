@@ -2129,3 +2129,62 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F10-06` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F10-06 Cold-Chain Records
+
+- Date: 2026-07-13
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: immutable temperature and humidity readings, stock-batch context, threshold evaluation, anomaly reminders, retryable scan jobs, permissions, audit declarations, OpenAPI contracts, and a responsive operator console.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Reading integrity | Passed | Records require an enabled warehouse, area, location, controlled temperature threshold, positive inventory balance, and an exact product/batch/location context; frozen thresholds and authenticated actor identity are retained with every immutable reading |
+| Anomaly evaluation | Passed | Latest readings create, update, and resolve deterministic stock-balance anomalies for temperature and humidity deviations; duplicate scans reuse anomaly and notification identities |
+| Job and retry behavior | Passed | Scan jobs expose pending/running/succeeded/failed states, retry count, logs, policy, actor, result counts, completion time, and an explicit failed-job retry path |
+| Scale regression | Passed | The scan evaluates the full internal reading snapshot and the 501-position regression test proves that the public list limit cannot hide an anomaly |
+| Notification trace | Passed | Active anomalies create notification-center reminders carrying recipient, risk, batch, location, reasons, and a deep link back to the cold-chain console; later normal readings resolve the same reminder |
+| API and identity | Passed | Seven JWT-protected routes cover contexts, readings, anomalies, jobs, scan, and retry; authenticated JWT subjects override spoofed request actors |
+| OpenAPI | Passed | Public and embedded OpenAPI files are byte-identical with SHA-256 `0622CC64CDB6381F369FEDB099E37E585ECE6771FF72A6063FB68F317372C8F0` and define all cold-chain request, response, filter, and job schemas |
+| Permissions and audit | Passed | `pharma_oa.cold_chain.read`, `.create`, and `.run` are declared with API/button risk levels; record, anomaly create/update/resolve, run, and failure actions are emitted or declared for audit coverage |
+| Plugin lifecycle | Passed | The Pharma OA manifest exposes 74 permissions, 92 routes, 83 unique audit actions, and 166 resource events; install, enable, disable, catalog, route, audit, and duplicate-install assertions pass |
+| Frontend states | Passed | The console covers loading, empty, error, no-permission, saving, destructive confirmation, scan progress, failed retry, filtering, details, and disabled actions when no eligible stock or recipient exists |
+| Responsive browser | Passed after retry | Real authenticated Chrome checks at 1366x900 and 375x844 show no application console errors, page errors, failed requests, document overflow, drawer clipping, or inaccessible actions; screenshots were reviewed manually |
+| Plugin regression | Passed | `smoke-pharma-oa-plugin.ps1` passes after cold-chain capabilities are declared |
+| Inventory regression | Passed | `smoke-pharma-inventory.ps1` passes after cold-chain stock-balance integration is introduced |
+| Runtime health | Passed | The final memory-mode binary returned HTTP 200 with `code=ok` from `http://127.0.0.1:8080/skoll/health` |
+| Migration and seed impact | Passed | No migration or seed update is required for the current in-memory milestone implementation |
+
+### Retry Record
+
+1. The first product assertion measured the drawer while its slide transition was still active. F10-06 moved to `Failed`, the check was changed to wait for the settled drawer geometry, and the task returned to `Doing`.
+2. The next run exposed an unqualified browser 404. F10-06 moved to `Failed`, response URL collection was added, and the task returned to `Doing`.
+3. The 404 was identified as Chrome's implicit `/favicon.ico` request, not an application resource. F10-06 moved to `Failed`, the exclusion was limited to that exact browser-default URL while all API/script/style errors remained fatal, and the full desktop/mobile suite passed after returning to `Doing`.
+
+### Verification Commands
+
+```text
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run 'TestColdChain' -count=1 -v
+go test ./internal/service/pharmaoa -run 'TestColdChainScanDoesNotInheritPublicRecordLimit' -count=1 -v
+go test ./internal/plugin -run 'TestPharmaOA' -count=1 -v
+.\scripts\smoke-pharma-oa-plugin.ps1 -Count 1
+.\scripts\smoke-pharma-inventory.ps1 -Count 1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f10-06.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+node tmp/f10-06-browser.cjs
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+Invoke-RestMethod http://127.0.0.1:8080/skoll/health
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retries.
+
+### Next Step
+
+- Claim `F10-07` from `docs/refactor/current/pharma_oa_work_items.md`.

@@ -21,6 +21,7 @@ const PharmaContractPage = () => import("../views/PharmaContract/index.vue");
 const PharmaQualificationPage = () => import("../views/PharmaQualification/index.vue");
 const PharmaQualityComplaintPage = () => import("../views/PharmaQualityComplaint/index.vue");
 const PharmaDrugRecallPage = () => import("../views/PharmaDrugRecall/index.vue");
+const PharmaColdChainPage = () => import("../views/PharmaColdChain/index.vue");
 const PharmaPurchaseInboundPage = () => import("../views/PharmaPurchaseInbound/index.vue");
 const PharmaSalesPage = () => import("../views/PharmaSales/index.vue");
 const PharmaEmployeePage = () => import("../views/PharmaEmployee/index.vue");
@@ -189,6 +190,12 @@ const routes: RouteRecordRaw[] = [
 		name: "pharma-oa-drug-recalls",
 		component: PharmaDrugRecallPage,
 		meta: { requiresAuth: true, permissions: ["pharma_oa.drug_recall.read"] }
+	},
+	{
+		path: `${ADMIN_PREFIX}/pharma-oa/cold-chain`,
+		name: "pharma-oa-cold-chain",
+		component: PharmaColdChainPage,
+		meta: { requiresAuth: true, permissions: ["pharma_oa.cold_chain.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/pharma-oa/employees`,

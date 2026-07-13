@@ -57,6 +57,7 @@ type Dependencies struct {
 	PharmaQualificationService      pharmaoasvc.QualificationService
 	PharmaQualityComplaintService   pharmaoasvc.QualityComplaintService
 	PharmaDrugRecallService         pharmaoasvc.DrugRecallService
+	PharmaColdChainService          pharmaoasvc.ColdChainService
 	MenuService                     menu.Service
 	WorkflowService                 workflow.Service
 	PluginManager                   plugin.Manager
@@ -112,6 +113,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterQualificationRoutes(apiMux, deps.PharmaQualificationService)
 	pharmaoahttp.RegisterQualityComplaintRoutes(apiMux, deps.PharmaQualityComplaintService)
 	pharmaoahttp.RegisterDrugRecallRoutes(apiMux, deps.PharmaDrugRecallService)
+	pharmaoahttp.RegisterColdChainRoutes(apiMux, deps.PharmaColdChainService)
 	_ = pharmaoahttp.RegisterEmployeePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterProductPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterSupplierPermissions(deps.PermissionService)
@@ -128,6 +130,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	_ = pharmaoahttp.RegisterQualificationPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterQualityComplaintPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterDrugRecallPermissions(deps.PermissionService)
+	_ = pharmaoahttp.RegisterColdChainPermissions(deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)
