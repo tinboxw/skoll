@@ -2303,3 +2303,64 @@ Result: Passed after retries.
 ### Next Step
 
 - Claim `F11-02` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F11-02 Sales Opportunities
+
+- Date: 2026-07-16
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: owned sales opportunities, customer and product snapshots, exact expected amounts, controlled stage transitions, funnel statistics, permissions, audit events, OpenAPI contracts, plugin declarations, and a responsive sales console.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Opportunity lifecycle | Passed | Opportunities advance only through `lead -> qualified -> proposal -> negotiation -> won`; stage skipping and terminal-state mutation are rejected, while loss is an explicit terminal transition with a required reason |
+| Exact amount and statistics | Passed | Expected amounts use integer cents; statistics expose all six stages plus total, open, won, lost, and aggregate expected amount without floating-point loss |
+| Customer and product relation | Passed | Creation validates an authorized sales customer and enabled products, then retains customer and product snapshots so later master-data changes do not corrupt opportunity history |
+| Data scope and identity | Passed | Trusted service calls support own, organization, and all scopes; HTTP derives the owner exclusively from the JWT subject and ignores spoofed actor or scope inputs |
+| Audit coverage | Passed | Create, list, statistics, update, and advance operations emit declared `pharma_oa.sales_opportunity.*` audit actions with authenticated actor identity |
+| API and OpenAPI | Passed | Five JWT-protected operations and all request, response, filter, transition, timeline, and statistics schemas resolve; public and embedded contracts are byte-identical with SHA-256 `77022BD39ED3F7C7EC44056356A61091CC9E30A4D52033878D8F80E6C0DB87FE` |
+| Permissions and plugin lifecycle | Passed after retry | Read, create, update, and advance permissions pass install, enable, disable, catalog, route, audit, and duplicate-install assertions; the plugin exposes 85 permissions, 104 routes, 95 unique audit actions, and 189 resource events |
+| Frontend states | Passed after retry | The console covers loading, empty, normalized error, no-permission, saving, destructive loss confirmation, filters, create/edit, stage advance, statistics, detail, and timeline states |
+| Real closed loop | Passed | Authenticated browser acceptance creates an opportunity from real customer/product prerequisites, advances it from Lead to Qualified, verifies the statistics delta and timeline, and confirms destructive cancellation leaves state unchanged |
+| Responsive browser | Passed after retry | Selenium Chrome checks at 1366x900 and 500x844 show no application console errors, unexpected HTTP failures, horizontal overflow, clipped controls, or inaccessible drawer content; both screenshots were manually reviewed |
+| Full quality gate | Passed | Full Go tests, vet, backend build, focused service/HTTP/plugin/OpenAPI tests, frontend type check, frontend production build, CodeGraph sync, and diff checks pass |
+| Runtime health | Passed | The backend health endpoint and Vite opportunity route both returned HTTP 200 after the final build |
+| Migration and seed impact | Passed | No migration or persistent seed update is required for the current in-memory milestone implementation; browser prerequisites are isolated acceptance setup data |
+
+### Retry Record
+
+1. The initial browser runner could not resolve a root Playwright installation. F11-02 moved to `Failed`, switched to the repository's available Selenium runtime, and returned to `Doing`.
+2. The first Selenium diagnostic exposed an async table-render crash when stage data was temporarily undefined. F11-02 moved to `Failed`, made stage labels null-safe, added the UI fix, and returned to `Doing`.
+3. Plugin assertions inherited older route indices and manifest totals. Route checks were updated to the declared paths and the resource-event expectation was corrected to permission plus route count.
+4. Browser setup initially had no eligible customer or product, correctly disabling opportunity creation. The acceptance runner now creates protected API prerequisites when absent and remains idempotent through unique titles and baseline statistics.
+5. Element Plus teleported and hidden transition DOM required visible-instance selectors for stage options, rows, and drawers; the checks were tightened without suppressing application errors.
+6. Destructive-cancel acceptance found an uncaught confirmation rejection. Advance and loss prompts now handle cancellation explicitly, and the browser passes with a clean console.
+7. No-permission acceptance initially used a super-admin session. It now uses a restricted user role and intercepts profile hydration so read denial is proven without issuing opportunity API requests.
+
+### Verification Commands
+
+```text
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa -run TestSalesOpportunity -count=1
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run TestSalesOpportunity -count=1
+go test ./internal/handler/http -run 'Test(EmbeddedOpenAPI|OpenAPIContractFilesStayInSync)' -count=1
+go test ./internal/plugin -run TestPharmaOA -count=1
+go test ./internal/service/pharmaoa ./internal/handler/http ./internal/handler/http/v1/pharmaoa ./internal/plugin -run 'Test(SalesOpportunity|EmbeddedOpenAPI|OpenAPIContractFilesStayInSync|PharmaOA)' -count=1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f11-02.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+python tmp/f11-02-browser.py
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retries.
+
+### Next Step
+
+- Claim `F11-03` from `docs/refactor/current/pharma_oa_work_items.md`.

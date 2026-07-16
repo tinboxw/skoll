@@ -17,6 +17,7 @@ const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
 const PharmaCustomerPage = () => import("../views/PharmaCustomer/index.vue");
 const PharmaCustomerFollowUpPage = () => import("../views/PharmaCustomerFollowUp/index.vue");
+const PharmaSalesOpportunityPage = () => import("../views/PharmaSalesOpportunity/index.vue");
 const PharmaAnnouncementPage = () => import("../views/PharmaAnnouncement/index.vue");
 const PharmaContractPage = () => import("../views/PharmaContract/index.vue");
 const PharmaQualificationPage = () => import("../views/PharmaQualification/index.vue");
@@ -222,6 +223,12 @@ const routes: RouteRecordRaw[] = [
 		name: "pharma-oa-customer-follow-ups",
 		component: PharmaCustomerFollowUpPage,
 		meta: { requiresAuth: true, permissions: ["pharma_oa.customer_follow_up.read"] }
+	},
+	{
+		path: `${ADMIN_PREFIX}/pharma-oa/sales-opportunities`,
+		name: "pharma-oa-sales-opportunities",
+		component: PharmaSalesOpportunityPage,
+		meta: { requiresAuth: true, permissions: ["pharma_oa.sales_opportunity.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/pharma-oa/purchase-inbounds`,

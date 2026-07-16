@@ -3210,6 +3210,121 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/sales-opportunities:
+    get:
+      summary: List sales opportunities visible to the authenticated sales user
+      description: Request-supplied owner or include-all values are ignored; HTTP scope is derived from the JWT subject.
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: customerId
+          in: query
+          schema: {type: string}
+        - name: stage
+          in: query
+          schema: {type: string, enum: [lead, qualified, proposal, negotiation, won, lost]}
+      responses:
+        '200':
+          description: Authorized sales opportunity list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalesOpportunityListAPIResponse'}
+        '400':
+          description: Invalid filter or missing authenticated actor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Create a sales opportunity for an authorized and sales-eligible customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SalesOpportunityCreateRequest'}
+      responses:
+        '201':
+          description: Sales opportunity created at the lead stage
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalesOpportunityItemAPIResponse'}
+        '400':
+          description: Invalid input, inaccessible customer, expired qualification, or disabled product
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/sales-opportunities/statistics:
+    get:
+      summary: Read exact cent-based funnel statistics visible to the authenticated sales user
+      responses:
+        '200':
+          description: Authorized sales opportunity funnel statistics
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalesOpportunityStatisticsAPIResponse'}
+        '400':
+          description: Missing authenticated actor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/sales-opportunities/{id}:
+    put:
+      summary: Update a non-terminal sales opportunity owned by the authenticated user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SalesOpportunityUpdateRequest'}
+      responses:
+        '200':
+          description: Sales opportunity updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalesOpportunityItemAPIResponse'}
+        '400':
+          description: Invalid input, terminal state, disabled product, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/sales-opportunities/{id}/advance:
+    post:
+      summary: Advance a sales opportunity by one stage or close it as lost
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/SalesOpportunityAdvanceRequest'}
+      responses:
+        '200':
+          description: Sales opportunity stage advanced
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SalesOpportunityItemAPIResponse'}
+        '400':
+          description: Stage skipping, terminal state, missing lost reason, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/pharma-oa/contracts:
     get:
       summary: List contract archive entries
@@ -4543,6 +4658,131 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/CustomerFollowUpItemData'}
+    SalesOpportunityProduct:
+      type: object
+      required: [productId, productCode, productName]
+      properties:
+        productId: {type: string}
+        productCode: {type: string}
+        productName: {type: string}
+    SalesOpportunityStageChange:
+      type: object
+      required: [to, changedBy, changedAt]
+      properties:
+        from: {type: string, enum: [lead, qualified, proposal, negotiation, won, lost]}
+        to: {type: string, enum: [lead, qualified, proposal, negotiation, won, lost]}
+        changedBy: {type: string}
+        changedAt: {type: string, format: date-time}
+        note: {type: string}
+    SalesOpportunity:
+      type: object
+      required: [id, title, customerId, customerCode, customerName, organizationId, ownerId, products, expectedAmountCents, estimatedCloseDate, stage, stageHistory, meta]
+      properties:
+        id: {type: string}
+        title: {type: string}
+        customerId: {type: string}
+        customerCode: {type: string}
+        customerName: {type: string}
+        organizationId: {type: string}
+        ownerId: {type: string}
+        products:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/SalesOpportunityProduct'}
+        expectedAmountCents: {type: integer, format: int64, minimum: 1}
+        estimatedCloseDate: {type: string, format: date-time}
+        stage: {type: string, enum: [lead, qualified, proposal, negotiation, won, lost]}
+        lostReason: {type: string}
+        stageHistory:
+          type: array
+          minItems: 1
+          items: {$ref: '#/components/schemas/SalesOpportunityStageChange'}
+        meta: {$ref: '#/components/schemas/AuditMeta'}
+    SalesOpportunityCreateRequest:
+      type: object
+      required: [title, customerId, productIds, expectedAmountCents, estimatedCloseDate]
+      properties:
+        title: {type: string}
+        customerId: {type: string}
+        productIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string}
+        expectedAmountCents: {type: integer, format: int64, minimum: 1}
+        estimatedCloseDate: {type: string, format: date-time}
+    SalesOpportunityUpdateRequest:
+      type: object
+      required: [title, productIds, expectedAmountCents, estimatedCloseDate]
+      properties:
+        title: {type: string}
+        productIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {type: string}
+        expectedAmountCents: {type: integer, format: int64, minimum: 1}
+        estimatedCloseDate: {type: string, format: date-time}
+    SalesOpportunityAdvanceRequest:
+      type: object
+      required: [stage]
+      properties:
+        stage: {type: string, enum: [qualified, proposal, negotiation, won, lost]}
+        note: {type: string}
+    SalesOpportunityStageStatistic:
+      type: object
+      required: [stage, count, expectedAmountCents]
+      properties:
+        stage: {type: string, enum: [lead, qualified, proposal, negotiation, won, lost]}
+        count: {type: integer, minimum: 0}
+        expectedAmountCents: {type: integer, format: int64, minimum: 0}
+    SalesOpportunityStatistics:
+      type: object
+      required: [totalCount, openCount, wonCount, lostCount, expectedAmountCents, stages]
+      properties:
+        totalCount: {type: integer, minimum: 0}
+        openCount: {type: integer, minimum: 0}
+        wonCount: {type: integer, minimum: 0}
+        lostCount: {type: integer, minimum: 0}
+        expectedAmountCents: {type: integer, format: int64, minimum: 0}
+        stages:
+          type: array
+          items: {$ref: '#/components/schemas/SalesOpportunityStageStatistic'}
+    SalesOpportunityListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/SalesOpportunity'}
+    SalesOpportunityItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/SalesOpportunity'}
+    SalesOpportunityStatisticsData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/SalesOpportunityStatistics'}
+    SalesOpportunityListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/SalesOpportunityListData'}
+    SalesOpportunityItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/SalesOpportunityItemData'}
+    SalesOpportunityStatisticsAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/SalesOpportunityStatisticsData'}
     ComplianceTraceEntry:
       type: object
       required: [label, value]

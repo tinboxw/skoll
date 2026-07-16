@@ -307,6 +307,62 @@ export async function cancelCustomerFollowUp(id: string, reason: string): Promis
 	return payload.data.item;
 }
 
+export type SalesOpportunityStage = "lead" | "qualified" | "proposal" | "negotiation" | "won" | "lost";
+export type SalesOpportunityProduct = { productId: string; productCode: string; productName: string };
+export type SalesOpportunityStageChange = { from?: SalesOpportunityStage; to: SalesOpportunityStage; changedBy: string; changedAt: string; note?: string };
+export type SalesOpportunity = {
+	id: string;
+	title: string;
+	customerId: string;
+	customerCode: string;
+	customerName: string;
+	organizationId: string;
+	ownerId: string;
+	products: SalesOpportunityProduct[];
+	expectedAmountCents: number;
+	estimatedCloseDate: string;
+	stage: SalesOpportunityStage;
+	lostReason?: string;
+	stageHistory: SalesOpportunityStageChange[];
+	meta: { createdAt: string; updatedAt: string };
+};
+export type SalesOpportunityWriteRequest = { title: string; customerId?: string; productIds: string[]; expectedAmountCents: number; estimatedCloseDate: string };
+export type SalesOpportunityStageStatistic = { stage: SalesOpportunityStage; count: number; expectedAmountCents: number };
+export type SalesOpportunityStatistics = { totalCount: number; openCount: number; wonCount: number; lostCount: number; expectedAmountCents: number; stages: SalesOpportunityStageStatistic[] };
+type SalesOpportunityListPayload = { items: SalesOpportunity[] };
+type SalesOpportunityItemPayload = { item: SalesOpportunity };
+type SalesOpportunityStatisticsPayload = { item: SalesOpportunityStatistics };
+
+export async function listSalesOpportunities(query: { keyword?: string; customerId?: string; stage?: SalesOpportunityStage | "" } = {}): Promise<SalesOpportunity[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.customerId?.trim()) params.set("customerId", query.customerId.trim());
+	if (query.stage) params.set("stage", query.stage);
+	const suffix = params.size > 0 ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<SalesOpportunityListPayload>>(`/v1/pharma-oa/sales-opportunities${suffix}`);
+	return payload.data.items;
+}
+
+export async function getSalesOpportunityStatistics(): Promise<SalesOpportunityStatistics> {
+	const payload = await apiGet<ApiResponse<SalesOpportunityStatisticsPayload>>("/v1/pharma-oa/sales-opportunities/statistics");
+	return payload.data.item;
+}
+
+export async function createSalesOpportunity(body: SalesOpportunityWriteRequest): Promise<SalesOpportunity> {
+	const payload = await apiPost<ApiResponse<SalesOpportunityItemPayload>>("/v1/pharma-oa/sales-opportunities", body);
+	return payload.data.item;
+}
+
+export async function updateSalesOpportunity(id: string, body: SalesOpportunityWriteRequest): Promise<SalesOpportunity> {
+	const payload = await apiPut<ApiResponse<SalesOpportunityItemPayload>>(`/v1/pharma-oa/sales-opportunities/${encodeURIComponent(id)}`, body);
+	return payload.data.item;
+}
+
+export async function advanceSalesOpportunity(id: string, stage: SalesOpportunityStage, note = ""): Promise<SalesOpportunity> {
+	const payload = await apiPost<ApiResponse<SalesOpportunityItemPayload>>(`/v1/pharma-oa/sales-opportunities/${encodeURIComponent(id)}/advance`, { stage, note });
+	return payload.data.item;
+}
+
 export type PurchaseLine = { productId: string; quantity: number; unitPrice: number; amount: number };
 export type PurchaseOrder = { id: string; number: string; purchaseRequestId: string; supplierId: string; lines: PurchaseLine[]; totalAmount: number; status: "open"; approvedBy: string; approvedAt: string };
 export type InboundAttachment = { fileId: string; fileName: string; size: number };

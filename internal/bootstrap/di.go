@@ -89,6 +89,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaSupplierService := pharmaoasvc.NewSupplierService(auditService)
 	pharmaCustomerService := pharmaoasvc.NewCustomerService(auditService)
 	pharmaCustomerFollowUpService := pharmaoasvc.NewCustomerFollowUpService(pharmaCustomerService, auditService)
+	pharmaSalesOpportunityService := pharmaoasvc.NewSalesOpportunityService(pharmaCustomerService, pharmaProductService, auditService)
 	pharmaWarehouseService := pharmaoasvc.NewWarehouseService(auditService)
 	pharmaMasterDataExchangeService := pharmaoasvc.NewMasterDataExchangeService(pharmaEmployeeService, pharmaProductService, pharmaSupplierService, pharmaCustomerService)
 	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
@@ -130,6 +131,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaSupplierService:            pharmaSupplierService,
 		PharmaCustomerService:            pharmaCustomerService,
 		PharmaCustomerFollowUpService:    pharmaCustomerFollowUpService,
+		PharmaSalesOpportunityService:    pharmaSalesOpportunityService,
 		PharmaWarehouseService:           pharmaWarehouseService,
 		PharmaMasterDataExchangeService:  pharmaMasterDataExchangeService,
 		PharmaPurchaseService:            pharmaPurchaseService,
