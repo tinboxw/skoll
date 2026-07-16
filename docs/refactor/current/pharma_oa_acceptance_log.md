@@ -2249,3 +2249,57 @@ Result: Passed after retries. The temporary `.git/index.lock` permission blocker
 ### Next Step
 
 - Claim `F11-01` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F11-01 Customer Follow-Up
+
+- Date: 2026-07-16
+- Status flow: `Todo -> Doing -> Review -> (Failed -> Doing) x2 -> Review -> Done`
+- Scope: customer visit planning, owned and authorized data scope, attachments, completion and cancellation, permissions, audit events, OpenAPI contracts, plugin declarations, and a responsive sales console.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Data scope | Passed | The service supports trusted own, organization, and all-customer scopes; HTTP derives owner identity exclusively from JWT subject and ignores spoofed actor or scope inputs |
+| Follow-up lifecycle | Passed | Planned visits can be created and edited, then completed or cancelled through explicit state transitions with invalid transitions rejected |
+| Attachment safety | Passed after retry | Real file upload, safe filename normalization, executable-extension rejection, attachment metadata, and empty-array serialization are covered by regression tests and browser acceptance |
+| Audit and identity | Passed after retry | Create, list, update, complete, and cancel events retain authenticated actor identity; assertions validate the emitted action set independently of audit storage order |
+| API and OpenAPI | Passed | Five JWT-protected operations and all request, response, filter, attachment, and transition schemas resolve; public and embedded contracts are byte-identical with SHA-256 `4BEF2844B59374710B7DBCC98B0DA3D29BCCE961769E0E2CDDB491CA06267A19` |
+| Permissions and plugin lifecycle | Passed after retry | Read, create, update, complete, and cancel permissions pass install, enable, disable, catalog, route, audit, and duplicate-install assertions; the plugin exposes 81 permissions, 99 routes, 90 unique audit actions, and 180 resource events |
+| Frontend states | Passed | The console covers loading, empty, normalized error, no-permission, saving, destructive confirmation, filters, visit planning, detail, attachments, completion, and cancellation |
+| Responsive browser | Passed after retry | Authenticated Chrome checks cover desktop, drawer, and narrow viewport geometry with no application errors or horizontal overflow; the real UI create-to-complete flow passes |
+| Full quality gate | Passed | Full Go tests, vet, backend build, focused service/HTTP/plugin/OpenAPI tests, frontend type check, frontend production build, CodeGraph sync, and diff checks pass |
+| Runtime health | Passed | The rebuilt backend returned HTTP 200 with `code=ok` from `http://127.0.0.1:8080/skoll/health` |
+| Migration and seed impact | Passed | No migration or seed update is required for the current in-memory milestone implementation |
+
+### Retry Record
+
+1. Plugin lifecycle assertions still expected the previous manifest totals. Counts were updated to 81 permissions, 99 routes, 90 audit actions, and 180 resource events, then the suite passed.
+2. A transient login 500 occurred during the first browser run; the immediate retry returned 200 and continued through the acceptance flow.
+3. The first audit assertion depended on storage order. It was replaced with a set-based action assertion and passed.
+4. The first create-to-complete browser script waited on hidden Element Plus drawer DOM after the transition. It was changed to wait for visible drawer and row state, then passed.
+5. Browser diagnostics exposed `attachments: null` for records without files. F11-01 moved to `Failed`, cloning was corrected to return `[]`, and a serialization regression test was added.
+6. The first regression-test compile used the wrong local variable. F11-01 moved to `Failed` again, the assertion was corrected, and targeted plus full suites passed.
+
+### Verification Commands
+
+```text
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f11-01.exe ./cmd/skoll
+go test ./internal/service/pharmaoa ./internal/handler/http ./internal/handler/http/v1/pharmaoa ./internal/plugin -run 'Test(CustomerFollowUp|EmbeddedOpenAPI|OpenAPIContractFilesStayInSync|PharmaOA)' -count=1
+cd web; npm run typecheck
+cd web; npm run build
+python <F11-01 Selenium desktop/drawer/mobile and create-to-complete acceptance>
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retries.
+
+### Next Step
+
+- Claim `F11-02` from `docs/refactor/current/pharma_oa_work_items.md`.

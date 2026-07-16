@@ -3079,6 +3079,137 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/customer-follow-ups:
+    get:
+      summary: List customer follow-ups visible to the authenticated sales user
+      description: Request-supplied owner or include-all values are ignored; the HTTP scope is derived from the authenticated actor.
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: customerId
+          in: query
+          schema: {type: string}
+        - name: status
+          in: query
+          schema: {type: string, enum: [planned, completed, cancelled]}
+        - name: from
+          in: query
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Authorized customer follow-up list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CustomerFollowUpListAPIResponse'}
+        '400':
+          description: Invalid filter or missing authenticated actor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Plan a customer follow-up for an authorized customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CustomerFollowUpPlanRequest'}
+      responses:
+        '201':
+          description: Customer follow-up planned
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CustomerFollowUpItemAPIResponse'}
+        '400':
+          description: Invalid plan, attachment, or customer access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/customer-follow-ups/{id}:
+    put:
+      summary: Update a planned customer follow-up owned by the authenticated user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CustomerFollowUpPlanRequest'}
+      responses:
+        '200':
+          description: Customer follow-up plan updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CustomerFollowUpItemAPIResponse'}
+        '400':
+          description: Invalid transition or customer follow-up access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/customer-follow-ups/{id}/complete:
+    post:
+      summary: Complete a planned customer follow-up
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CustomerFollowUpCompleteRequest'}
+      responses:
+        '200':
+          description: Customer follow-up completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CustomerFollowUpItemAPIResponse'}
+        '400':
+          description: Invalid transition, missing summary, unsafe attachment, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/customer-follow-ups/{id}/cancel:
+    post:
+      summary: Cancel a planned customer follow-up
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CustomerFollowUpCancelRequest'}
+      responses:
+        '200':
+          description: Customer follow-up cancelled
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CustomerFollowUpItemAPIResponse'}
+        '400':
+          description: Invalid transition, missing reason, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/pharma-oa/contracts:
     get:
       summary: List contract archive entries
@@ -4332,6 +4463,86 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/ColdChainJobListData'}
+    CustomerFollowUpAttachment:
+      type: object
+      required: [fileId, fileName, size]
+      properties:
+        fileId: {type: string}
+        fileName: {type: string}
+        size: {type: integer, format: int64, minimum: 0}
+    CustomerFollowUp:
+      type: object
+      required: [id, customerId, customerCode, customerName, organizationId, ownerId, channel, status, scheduledAt, attachments, createdAt, updatedAt]
+      properties:
+        id: {type: string}
+        customerId: {type: string}
+        customerCode: {type: string}
+        customerName: {type: string}
+        organizationId: {type: string}
+        ownerId: {type: string}
+        contactName: {type: string}
+        channel: {type: string, enum: [onsite, phone, online, email]}
+        status: {type: string, enum: [planned, completed, cancelled]}
+        scheduledAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time}
+        summary: {type: string}
+        nextAction: {type: string}
+        cancelReason: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/CustomerFollowUpAttachment'}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    CustomerFollowUpPlanRequest:
+      type: object
+      required: [customerId, channel, scheduledAt, attachments]
+      properties:
+        customerId: {type: string}
+        contactName: {type: string}
+        channel: {type: string, enum: [onsite, phone, online, email]}
+        scheduledAt: {type: string, format: date-time}
+        nextAction: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/CustomerFollowUpAttachment'}
+    CustomerFollowUpCompleteRequest:
+      type: object
+      required: [summary, attachments]
+      properties:
+        summary: {type: string}
+        nextAction: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/CustomerFollowUpAttachment'}
+    CustomerFollowUpCancelRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string}
+    CustomerFollowUpListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/CustomerFollowUp'}
+    CustomerFollowUpItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/CustomerFollowUp'}
+    CustomerFollowUpListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/CustomerFollowUpListData'}
+    CustomerFollowUpItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/CustomerFollowUpItemData'}
     ComplianceTraceEntry:
       type: object
       required: [label, value]

@@ -166,3 +166,4 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - High and medium risks are filterable by source and keyword, retain source IDs plus batch/subject trace fields, and link directly to the owning console.
 - Dashboard reads and CSV exports use the authenticated actor and append `pharma_oa.compliance_dashboard.view` or `.export` audit evidence with the applied filters and result counts.
 - The host console route is `/skoll/pharma-oa/compliance-dashboard`, with loading, empty, error, no-permission, exporting, detail, and responsive states.
+- The host console route is `/skoll/pharma-oa/customer-follow-ups`; authenticated sales users can only list and mutate their own follow-ups, while trusted service callers may apply organization or all-customer scopes. Planning, completion, cancellation, attachments, permissions, and audit actions are declared explicitly.

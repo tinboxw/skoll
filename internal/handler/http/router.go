@@ -45,6 +45,7 @@ type Dependencies struct {
 	PharmaProductService             pharmaoasvc.ProductService
 	PharmaSupplierService            pharmaoasvc.SupplierService
 	PharmaCustomerService            pharmaoasvc.CustomerService
+	PharmaCustomerFollowUpService    pharmaoasvc.CustomerFollowUpService
 	PharmaWarehouseService           pharmaoasvc.WarehouseService
 	PharmaMasterDataExchangeService  pharmaoasvc.MasterDataExchangeService
 	PharmaPurchaseService            pharmaoasvc.PurchaseService
@@ -102,6 +103,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterProductRoutes(apiMux, deps.PharmaProductService)
 	pharmaoahttp.RegisterSupplierRoutes(apiMux, deps.PharmaSupplierService)
 	pharmaoahttp.RegisterCustomerRoutes(apiMux, deps.PharmaCustomerService)
+	pharmaoahttp.RegisterCustomerFollowUpRoutes(apiMux, deps.PharmaCustomerFollowUpService)
 	pharmaoahttp.RegisterWarehouseRoutes(apiMux, deps.PharmaWarehouseService)
 	pharmaoahttp.RegisterMasterDataExchangeRoutes(apiMux, deps.PharmaMasterDataExchangeService)
 	pharmaoahttp.RegisterPurchaseRoutes(apiMux, deps.PharmaPurchaseService)
@@ -120,6 +122,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	_ = pharmaoahttp.RegisterProductPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterSupplierPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterCustomerPermissions(deps.PermissionService)
+	_ = pharmaoahttp.RegisterCustomerFollowUpPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterWarehousePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterMasterDataExchangePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterPurchasePermissions(deps.PermissionService)

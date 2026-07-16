@@ -240,6 +240,73 @@ export async function validateCustomerSalesEligibility(id: string, scope: Custom
 	return payload.data.item;
 }
 
+export type CustomerFollowUpStatus = "planned" | "completed" | "cancelled";
+export type CustomerFollowUpChannel = "onsite" | "phone" | "online" | "email";
+export type CustomerFollowUpAttachment = { fileId: string; fileName: string; size: number };
+export type CustomerFollowUp = {
+	id: string;
+	customerId: string;
+	customerCode: string;
+	customerName: string;
+	organizationId: string;
+	ownerId: string;
+	contactName?: string;
+	channel: CustomerFollowUpChannel;
+	status: CustomerFollowUpStatus;
+	scheduledAt: string;
+	completedAt?: string;
+	summary?: string;
+	nextAction?: string;
+	cancelReason?: string;
+	attachments: CustomerFollowUpAttachment[];
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type CustomerFollowUpPlanRequest = {
+	customerId: string;
+	contactName?: string;
+	channel: CustomerFollowUpChannel;
+	scheduledAt: string;
+	nextAction?: string;
+	attachments: CustomerFollowUpAttachment[];
+};
+
+type CustomerFollowUpListPayload = { items: CustomerFollowUp[] };
+type CustomerFollowUpItemPayload = { item: CustomerFollowUp };
+
+export async function listCustomerFollowUps(query: { keyword?: string; customerId?: string; status?: CustomerFollowUpStatus | ""; from?: string; to?: string } = {}): Promise<CustomerFollowUp[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.customerId?.trim()) params.set("customerId", query.customerId.trim());
+	if (query.status) params.set("status", query.status);
+	if (query.from) params.set("from", query.from);
+	if (query.to) params.set("to", query.to);
+	const suffix = params.size > 0 ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<CustomerFollowUpListPayload>>(`/v1/pharma-oa/customer-follow-ups${suffix}`);
+	return payload.data.items;
+}
+
+export async function createCustomerFollowUp(body: CustomerFollowUpPlanRequest): Promise<CustomerFollowUp> {
+	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>("/v1/pharma-oa/customer-follow-ups", body);
+	return payload.data.item;
+}
+
+export async function updateCustomerFollowUp(id: string, body: CustomerFollowUpPlanRequest): Promise<CustomerFollowUp> {
+	const payload = await apiPut<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/pharma-oa/customer-follow-ups/${encodeURIComponent(id)}`, body);
+	return payload.data.item;
+}
+
+export async function completeCustomerFollowUp(id: string, body: { summary: string; nextAction?: string; attachments: CustomerFollowUpAttachment[] }): Promise<CustomerFollowUp> {
+	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/pharma-oa/customer-follow-ups/${encodeURIComponent(id)}/complete`, body);
+	return payload.data.item;
+}
+
+export async function cancelCustomerFollowUp(id: string, reason: string): Promise<CustomerFollowUp> {
+	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/pharma-oa/customer-follow-ups/${encodeURIComponent(id)}/cancel`, { reason });
+	return payload.data.item;
+}
+
 export type PurchaseLine = { productId: string; quantity: number; unitPrice: number; amount: number };
 export type PurchaseOrder = { id: string; number: string; purchaseRequestId: string; supplierId: string; lines: PurchaseLine[]; totalAmount: number; status: "open"; approvedBy: string; approvedAt: string };
 export type InboundAttachment = { fileId: string; fileName: string; size: number };

@@ -441,6 +441,31 @@ permissions:
     module: pharma_oa
     name: Export compliance audit evidence
     risk: medium
+  - key: pharma_oa.customer_follow_up.read
+    type: api
+    module: pharma_oa
+    name: Read customer follow-ups
+    risk: low
+  - key: pharma_oa.customer_follow_up.create
+    type: api
+    module: pharma_oa
+    name: Plan customer follow-ups
+    risk: medium
+  - key: pharma_oa.customer_follow_up.update
+    type: api
+    module: pharma_oa
+    name: Update customer follow-up plans
+    risk: medium
+  - key: pharma_oa.customer_follow_up.complete
+    type: button
+    module: pharma_oa
+    name: Complete customer follow-ups
+    risk: medium
+  - key: pharma_oa.customer_follow_up.cancel
+    type: button
+    module: pharma_oa
+    name: Cancel customer follow-ups
+    risk: high
 api:
   routes:
     - method: GET
@@ -903,6 +928,31 @@ api:
       summary: Export filtered compliance audit evidence
       permission: pharma_oa.compliance_dashboard.export
       audit_action: pharma_oa.compliance_dashboard.export
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups
+      summary: List authorized customer follow-ups
+      permission: pharma_oa.customer_follow_up.read
+      audit_action: pharma_oa.customer_follow_up.read_list
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups
+      summary: Plan a customer follow-up
+      permission: pharma_oa.customer_follow_up.create
+      audit_action: pharma_oa.customer_follow_up.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups/detail
+      summary: Update a customer follow-up plan
+      permission: pharma_oa.customer_follow_up.update
+      audit_action: pharma_oa.customer_follow_up.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups/complete
+      summary: Complete a customer follow-up
+      permission: pharma_oa.customer_follow_up.complete
+      audit_action: pharma_oa.customer_follow_up.complete
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups/cancel
+      summary: Cancel a customer follow-up
+      permission: pharma_oa.customer_follow_up.cancel
+      audit_action: pharma_oa.customer_follow_up.cancel
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status
