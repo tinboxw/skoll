@@ -2473,3 +2473,43 @@ Result: Passed.
 ### Next Step
 
 - Claim `F11-05` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F11-05 Pharma OA Dashboard
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> (Failed -> Doing) x2 -> Review -> Done`
+- Scope: lazy-loaded Pharma OA dashboard route, bounded business-metrics filters, operational metric widgets, exact cent-based sales trend visualization, source deep links, permission gating, request single-flight, shared state handling, and responsive layout.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Dashboard metrics | Passed | Stock alerts, qualification risk, approval completion, customer follow-up completion, and sales trend render from one typed F11-04 snapshot |
+| Filters and refresh | Passed | Inclusive date range, day/week/month bucket, and 1-365 day qualification horizon are sent only on explicit apply or refresh; a double trigger issues one request while loading |
+| Performance | Passed | The route is lazy-loaded into a 10.98 KiB JavaScript chunk (3.87 KiB gzip); authenticated first render against the real backend completed in 1737 ms |
+| Loading and data states | Passed | Delayed metrics response exposes the shared animated skeleton before all widgets and the accessible sales chart render |
+| Empty and error states | Passed after retries | Zero activity renders the shared empty state without stale widgets; a 503 renders the shared normalized error title and a non-empty locale-aware description |
+| Permission state | Passed | A session without `pharma_oa.business_metrics.read` is redirected by the route guard and issues no business-metrics request |
+| Responsive browser | Passed | Selenium Chrome at 1366x900 and 500x844 has no console errors, horizontal overflow, clipped controls, or overlapping dashboard content; both screenshots were manually reviewed |
+| Frontend quality gate | Passed | Vue TypeScript check, 3598-module production build, and diff whitespace validation pass |
+| API, permission, audit, migration, and seed impact | Passed | F11-05 consumes the existing F11-04 API and read permission without changing backend contracts, audit behavior, migrations, or seed data |
+
+### Retry Record
+
+1. The first run expected the raw 503 message, but shared error normalization intentionally replaces server details; the assertion was aligned with the frontend contract.
+2. The second run bound the normalized error description to English while the active locale differed; the final assertion verifies the locale-independent error title, non-empty description, and absence of stale widgets.
+
+### Verification Commands
+
+```text
+cd web; npm run typecheck
+cd web; npm run build
+python tmp/f11-05-browser.py
+git diff --check
+```
+
+Result: Passed after retries.
+
+### Next Step
+
+- Claim `F11-06` from `docs/refactor/current/pharma_oa_work_items.md`.

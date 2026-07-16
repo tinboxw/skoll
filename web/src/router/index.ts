@@ -26,6 +26,7 @@ const PharmaQualityComplaintPage = () => import("../views/PharmaQualityComplaint
 const PharmaDrugRecallPage = () => import("../views/PharmaDrugRecall/index.vue");
 const PharmaColdChainPage = () => import("../views/PharmaColdChain/index.vue");
 const PharmaComplianceDashboardPage = () => import("../views/PharmaComplianceDashboard/index.vue");
+const PharmaDashboardPage = () => import("../views/PharmaDashboard/index.vue");
 const PharmaPurchaseInboundPage = () => import("../views/PharmaPurchaseInbound/index.vue");
 const PharmaSalesPage = () => import("../views/PharmaSales/index.vue");
 const PharmaEmployeePage = () => import("../views/PharmaEmployee/index.vue");
@@ -206,6 +207,12 @@ const routes: RouteRecordRaw[] = [
 		name: "pharma-oa-compliance-dashboard",
 		component: PharmaComplianceDashboardPage,
 		meta: { requiresAuth: true, permissions: ["pharma_oa.compliance_dashboard.read"] }
+	},
+	{
+		path: `${ADMIN_PREFIX}/pharma-oa/dashboard`,
+		name: "pharma-oa-dashboard",
+		component: PharmaDashboardPage,
+		meta: { requiresAuth: true, permissions: ["pharma_oa.business_metrics.read"] }
 	},
 	{
 		path: `${ADMIN_PREFIX}/pharma-oa/employees`,

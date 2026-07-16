@@ -185,3 +185,9 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - `GET /v1/pharma-oa/business-metrics` aggregates active stock alerts, qualification expiry, purchase approval efficiency, customer follow-up outcomes, and exact cent-based sales-order trends.
 - Queries accept paired inclusive `from` and `to` values, a day/week/month bucket, and a qualification horizon; the time window is capped at 366 days and the returned series is continuous.
 - Independent metric sources are loaded concurrently, HTTP actor identity comes from JWT claims, and every successful read appends `pharma_oa.business_metrics.read` audit evidence.
+
+## Pharma OA dashboard
+
+- The host console route is `/skoll/pharma-oa/dashboard` and requires `pharma_oa.business_metrics.read`.
+- The lazy-loaded dashboard combines stock alerts, qualification risk, approval and follow-up completion, and exact cent-based sales trends in one bounded request.
+- Date range, day/week/month bucket, and qualification horizon filters are explicit; loading, empty, normalized error, permission denial, request single-flight, and responsive states are covered.
