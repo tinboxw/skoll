@@ -159,3 +159,10 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - Location temperature limits override area limits, which override warehouse limits; the effective limits are frozen into each immutable reading.
 - Retryable scans evaluate the latest reading per stock balance against temperature and humidity limits, create idempotent reminders, and resolve reminders after a normal reading.
 - Active and resolved anomalies expose risk, reasons, batch context, notification identity, and a direct `/skoll/pharma-oa/cold-chain` target for the compliance dashboard.
+
+## Compliance audit dashboard
+
+- The read-only dashboard aggregates active qualification, quality complaint, drug recall, and cold-chain risks without duplicating source-domain state.
+- High and medium risks are filterable by source and keyword, retain source IDs plus batch/subject trace fields, and link directly to the owning console.
+- Dashboard reads and CSV exports use the authenticated actor and append `pharma_oa.compliance_dashboard.view` or `.export` audit evidence with the applied filters and result counts.
+- The host console route is `/skoll/pharma-oa/compliance-dashboard`, with loading, empty, error, no-permission, exporting, detail, and responsive states.

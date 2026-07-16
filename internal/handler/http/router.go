@@ -33,42 +33,43 @@ import (
 const defaultAPIPrefix = config.DefaultAPIBasePrefix
 
 type Dependencies struct {
-	UserService                     user.Service
-	RoleService                     role.Service
-	RBACService                     rbac.Service
-	AuditService                    audit.Service
-	AuditEventService               audit.EventService
-	FileService                     filesvc.Service
-	SystemService                   system.Service
-	PermissionService               permission.Service
-	PharmaEmployeeService           pharmaoasvc.EmployeeService
-	PharmaProductService            pharmaoasvc.ProductService
-	PharmaSupplierService           pharmaoasvc.SupplierService
-	PharmaCustomerService           pharmaoasvc.CustomerService
-	PharmaWarehouseService          pharmaoasvc.WarehouseService
-	PharmaMasterDataExchangeService pharmaoasvc.MasterDataExchangeService
-	PharmaPurchaseService           pharmaoasvc.PurchaseService
-	PharmaPurchaseInboundService    pharmaoasvc.PurchaseInboundService
-	PharmaSalesService              pharmaoasvc.SalesService
-	PharmaInventoryOperationService pharmaoasvc.InventoryOperationService
-	PharmaInventoryAlertService     pharmaoasvc.InventoryAlertService
-	PharmaAnnouncementService       pharmaoasvc.AnnouncementService
-	PharmaContractService           pharmaoasvc.ContractService
-	PharmaQualificationService      pharmaoasvc.QualificationService
-	PharmaQualityComplaintService   pharmaoasvc.QualityComplaintService
-	PharmaDrugRecallService         pharmaoasvc.DrugRecallService
-	PharmaColdChainService          pharmaoasvc.ColdChainService
-	MenuService                     menu.Service
-	WorkflowService                 workflow.Service
-	PluginManager                   plugin.Manager
-	APIPrefix                       string
-	LogLevel                        string
-	LogDir                          string
-	LogFile                         string
-	LogPluginPerFile                bool
-	DevPortalEnabled                bool
-	DevPortalRoot                   string
-	DevPortalRoots                  []string
+	UserService                      user.Service
+	RoleService                      role.Service
+	RBACService                      rbac.Service
+	AuditService                     audit.Service
+	AuditEventService                audit.EventService
+	FileService                      filesvc.Service
+	SystemService                    system.Service
+	PermissionService                permission.Service
+	PharmaEmployeeService            pharmaoasvc.EmployeeService
+	PharmaProductService             pharmaoasvc.ProductService
+	PharmaSupplierService            pharmaoasvc.SupplierService
+	PharmaCustomerService            pharmaoasvc.CustomerService
+	PharmaWarehouseService           pharmaoasvc.WarehouseService
+	PharmaMasterDataExchangeService  pharmaoasvc.MasterDataExchangeService
+	PharmaPurchaseService            pharmaoasvc.PurchaseService
+	PharmaPurchaseInboundService     pharmaoasvc.PurchaseInboundService
+	PharmaSalesService               pharmaoasvc.SalesService
+	PharmaInventoryOperationService  pharmaoasvc.InventoryOperationService
+	PharmaInventoryAlertService      pharmaoasvc.InventoryAlertService
+	PharmaAnnouncementService        pharmaoasvc.AnnouncementService
+	PharmaContractService            pharmaoasvc.ContractService
+	PharmaQualificationService       pharmaoasvc.QualificationService
+	PharmaQualityComplaintService    pharmaoasvc.QualityComplaintService
+	PharmaDrugRecallService          pharmaoasvc.DrugRecallService
+	PharmaColdChainService           pharmaoasvc.ColdChainService
+	PharmaComplianceDashboardService pharmaoasvc.ComplianceDashboardService
+	MenuService                      menu.Service
+	WorkflowService                  workflow.Service
+	PluginManager                    plugin.Manager
+	APIPrefix                        string
+	LogLevel                         string
+	LogDir                           string
+	LogFile                          string
+	LogPluginPerFile                 bool
+	DevPortalEnabled                 bool
+	DevPortalRoot                    string
+	DevPortalRoots                   []string
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -114,6 +115,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterQualityComplaintRoutes(apiMux, deps.PharmaQualityComplaintService)
 	pharmaoahttp.RegisterDrugRecallRoutes(apiMux, deps.PharmaDrugRecallService)
 	pharmaoahttp.RegisterColdChainRoutes(apiMux, deps.PharmaColdChainService)
+	pharmaoahttp.RegisterComplianceDashboardRoutes(apiMux, deps.PharmaComplianceDashboardService)
 	_ = pharmaoahttp.RegisterEmployeePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterProductPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterSupplierPermissions(deps.PermissionService)
@@ -131,6 +133,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	_ = pharmaoahttp.RegisterQualityComplaintPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterDrugRecallPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterColdChainPermissions(deps.PermissionService)
+	_ = pharmaoahttp.RegisterComplianceDashboardPermissions(deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)

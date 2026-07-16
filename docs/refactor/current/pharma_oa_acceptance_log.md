@@ -2188,3 +2188,64 @@ Result: Passed after retries.
 ### Next Step
 
 - Claim `F10-07` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F10-07 Compliance Audit Dashboard
+
+- Date: 2026-07-16
+- Status flow: `Todo -> Doing -> (Failed -> Doing) x14 -> Review -> Blocked -> Review -> Done`
+- Scope: active qualification, quality-complaint, drug-recall, and cold-chain risk aggregation; filters, trace links, CSV evidence export, permissions, audit events, OpenAPI, plugin declarations, and a responsive console.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Risk aggregation | Passed | Expired and expiring qualifications, pending complaints, active recalls, and active cold-chain anomalies are normalized without duplicating source state; terminal and valid records are excluded |
+| Priority and filters | Passed | High risk sorts before medium risk, oldest observed or due items sort first, and keyword, source, risk, and bounded limit filters are independently tested |
+| Actionability and trace | Passed | Every risk retains its source ID, deep link, subject, batch context, open-action counts, observed or due time, and source-specific evidence; the browser trace drawer and source navigation pass |
+| CSV evidence | Passed | Authenticated export uses the same filters, UTF-8 BOM, deterministic fields, formula-injection protection, download state, and an auditable export event |
+| Audit and actor identity | Passed | View and export events record normalized filters and counts; JWT subject is the only HTTP actor and spoofed actor query data is ignored |
+| API and OpenAPI | Passed | Dashboard and export operations use explicit schemas; all local OpenAPI references resolve and public plus embedded contracts are byte-identical with SHA-256 `78314C6A156B56784E64F43F87DF112561796769F8FD762324ADF06C9A25E5A2` |
+| Shared API metadata | Passed | `AuditMeta` now serializes as `createdAt` and `updatedAt`, is declared in OpenAPI, and has a regression test |
+| Permissions and plugin lifecycle | Passed | Read and export permissions, two routes, and view/export audit actions pass install, enable, disable, catalog, route, audit, and duplicate-install assertions; the plugin totals 76 permissions, 94 routes, 85 unique audit actions, and 170 resource events |
+| Frontend states | Passed after retries | Loading, empty, normalized error, read denial, export denial, exporting, filters, trace detail, and source navigation are covered; icon actions expose accessible names |
+| Responsive browser | Passed after retries | Authenticated Chrome at 1366x900 and 375x844 has no document overflow, clipped controls, console errors, page errors, or unexpected HTTP failures; both screenshots were reviewed manually |
+| Full quality gate | Passed | `go test ./...`, `go vet ./...`, backend build, frontend type check, frontend production build, focused review tests, plugin smoke, and inventory smoke all pass |
+| Runtime health | Passed | The rebuilt backend and Vite app returned HTTP 200 before browser acceptance |
+| Migration and seed impact | Passed | No migration or seed update is required because the dashboard is a read-only composition over current milestone services |
+
+### Retry Record
+
+1. Service-level retries corrected a CSV expectation and made audit assertions independent of storage order.
+2. OpenAPI retries corrected the embedded variable name, detected inherited malformed cold-chain keys, added complete local-reference validation, and supplied the previously missing `AuditMeta` schema.
+3. The first browser run coincided with Vite dependency pre-bundling and correctly kept aborted module requests fatal; the warmed server passed that gate on retry.
+4. Browser review found unnamed icon actions. F10-07 returned to `Doing`, added `aria-label` values for refresh, clear, trace, and source actions, and passed type check plus build again.
+5. Test-harness retries corrected duplicate trace-text selection, a transient MySQL connection abort, and parent-shell service expiry without hiding those failed runs.
+6. Error-state acceptance was isolated to prevent Playwright route state interference and verified the normalized service-unavailable message from one intercepted dashboard request.
+7. Permission acceptance intercepted `/auth/me` with a read-only profile so runtime hydration could not replace the intended restricted session; read/export separation and complete read denial then passed.
+
+### Verification Commands
+
+```text
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f10-07.exe ./cmd/skoll
+go test ./internal/domain/shared ./internal/service/pharmaoa ./internal/handler/http ./internal/handler/http/v1/pharmaoa ./internal/plugin -run 'Test(ComplianceDashboard|AuditMeta|EmbeddedOpenAPI|OpenAPIContractFilesStayInSync|PharmaOA)' -count=1
+go test ./internal/plugin -run TestPharmaOA -count=1 -v
+.\scripts\smoke-pharma-oa-plugin.ps1 -Count 1
+.\scripts\smoke-pharma-inventory.ps1 -Count 1
+node node_modules/vue-tsc/bin/vue-tsc.js --noEmit
+node node_modules/vite/bin/vite.js build
+node tmp/f10-07-browser.cjs
+node tmp/f10-07-error-diagnostic.cjs
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retries. The temporary `.git/index.lock` permission blocker was cleared before the required Work Item commit.
+
+### Next Step
+
+- Claim `F11-01` from `docs/refactor/current/pharma_oa_work_items.md`.

@@ -35,7 +35,7 @@ func TestPharmaOAPluginManifestCoversIndustrySkeleton(t *testing.T) {
 	assertConfigField(t, info.ConfigSchema.Fields[1], "pharma_oa.seed.scope", "string", true)
 	assertConfigField(t, info.ConfigSchema.Fields[2], "pharma_oa.alert_days", "number", false)
 
-	if len(info.PermissionResources) != 74 {
+	if len(info.PermissionResources) != 76 {
 		t.Fatalf("unexpected permission resources: %+v", info.PermissionResources)
 	}
 	assertPermissionDeclaration(t, info.PermissionResources[0], "pharma_oa.menu.read", "menu", "low")
@@ -112,12 +112,14 @@ func TestPharmaOAPluginManifestCoversIndustrySkeleton(t *testing.T) {
 	assertPermissionDeclaration(t, info.PermissionResources[71], "pharma_oa.cold_chain.read", "api", "low")
 	assertPermissionDeclaration(t, info.PermissionResources[72], "pharma_oa.cold_chain.create", "api", "medium")
 	assertPermissionDeclaration(t, info.PermissionResources[73], "pharma_oa.cold_chain.run", "button", "high")
+	assertPermissionDeclaration(t, info.PermissionResources[74], "pharma_oa.compliance_dashboard.read", "api", "low")
+	assertPermissionDeclaration(t, info.PermissionResources[75], "pharma_oa.compliance_dashboard.export", "button", "medium")
 
 	routes, err := info.RouteExtensions()
 	if err != nil {
 		t.Fatalf("route extensions: %v", err)
 	}
-	if len(routes) != 92 {
+	if len(routes) != 94 {
 		t.Fatalf("unexpected route count: %+v", routes)
 	}
 	assertRoute(t, routes[0], "GET", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.read", "pharma_oa.employee.read")
@@ -210,8 +212,10 @@ func TestPharmaOAPluginManifestCoversIndustrySkeleton(t *testing.T) {
 	assertRoute(t, routes[87], "GET", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.job_read")
 	assertRoute(t, routes[88], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.run")
 	assertRoute(t, routes[89], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs/retry", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.retry")
-	assertRoute(t, routes[90], "GET", "/v1/plugins/pharma_oa/api/demo-seed/status", "pharma_oa.seed.read", "pharma_oa.seed.read")
-	assertRoute(t, routes[91], "POST", "/v1/plugins/pharma_oa/api/demo-seed/apply", "pharma_oa.seed.apply", "pharma_oa.seed.apply")
+	assertRoute(t, routes[90], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard", "pharma_oa.compliance_dashboard.read", "pharma_oa.compliance_dashboard.view")
+	assertRoute(t, routes[91], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard/export", "pharma_oa.compliance_dashboard.export", "pharma_oa.compliance_dashboard.export")
+	assertRoute(t, routes[92], "GET", "/v1/plugins/pharma_oa/api/demo-seed/status", "pharma_oa.seed.read", "pharma_oa.seed.read")
+	assertRoute(t, routes[93], "POST", "/v1/plugins/pharma_oa/api/demo-seed/apply", "pharma_oa.seed.apply", "pharma_oa.seed.apply")
 }
 
 func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
@@ -229,7 +233,7 @@ func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
 	if len(preflight.Menus.Add) != 1 || preflight.Menus.Add[0].Key != "plugin.pharma_oa" {
 		t.Fatalf("expected pharma oa menu preflight, got %+v", preflight.Menus)
 	}
-	if len(preflight.API.Routes) != 92 || len(preflight.API.AuditActions) != 83 {
+	if len(preflight.API.Routes) != 94 || len(preflight.API.AuditActions) != 85 {
 		t.Fatalf("expected api and audit preflight, got %+v", preflight.API)
 	}
 
@@ -327,10 +331,12 @@ func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
 	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.read", true)
 	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.create", true)
 	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.run", true)
+	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.read", true)
+	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.export", true)
 	assertCatalogMenu(t, catalog, "plugin.pharma_oa", "/skoll/pharma-oa/employees", true)
 
 	snapshot := routes.Snapshot()
-	if len(snapshot.Routes) != 92 {
+	if len(snapshot.Routes) != 94 {
 		t.Fatalf("expected registered pharma oa routes, got %+v", snapshot.Routes)
 	}
 	assertRoute(t, snapshot.Routes[0], "GET", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.read", "pharma_oa.employee.read")
@@ -402,8 +408,10 @@ func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
 	assertRoute(t, snapshot.Routes[87], "GET", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.job_read")
 	assertRoute(t, snapshot.Routes[88], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.run")
 	assertRoute(t, snapshot.Routes[89], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs/retry", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.retry")
-	assertRoute(t, snapshot.Routes[90], "GET", "/v1/plugins/pharma_oa/api/demo-seed/status", "pharma_oa.seed.read", "pharma_oa.seed.read")
-	assertRoute(t, snapshot.Routes[91], "POST", "/v1/plugins/pharma_oa/api/demo-seed/apply", "pharma_oa.seed.apply", "pharma_oa.seed.apply")
+	assertRoute(t, snapshot.Routes[90], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard", "pharma_oa.compliance_dashboard.read", "pharma_oa.compliance_dashboard.view")
+	assertRoute(t, snapshot.Routes[91], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard/export", "pharma_oa.compliance_dashboard.export", "pharma_oa.compliance_dashboard.export")
+	assertRoute(t, snapshot.Routes[92], "GET", "/v1/plugins/pharma_oa/api/demo-seed/status", "pharma_oa.seed.read", "pharma_oa.seed.read")
+	assertRoute(t, snapshot.Routes[93], "POST", "/v1/plugins/pharma_oa/api/demo-seed/apply", "pharma_oa.seed.apply", "pharma_oa.seed.apply")
 
 	if err := manager.Disable("pharma_oa"); err != nil {
 		t.Fatalf("disable pharma oa plugin: %v", err)
@@ -446,14 +454,16 @@ func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
 	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.read", false)
 	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.create", false)
 	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.run", false)
+	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.read", false)
+	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.export", false)
 	assertCatalogMenu(t, catalog, "plugin.pharma_oa", "/skoll/pharma-oa/employees", false)
 
 	if len(audit.events) != 3 {
 		t.Fatalf("expected catalog, route, and disable audit events, got %+v", audit.events)
 	}
-	assertAuditEvent(t, audit.events[0], "pharma_oa", "plugin_catalog_import", "ok", 166, 1, 92, 83)
-	assertAuditEvent(t, audit.events[1], "pharma_oa", "plugin_route_import", "ok", 166, 1, 92, 83)
-	assertAuditEvent(t, audit.events[2], "pharma_oa", "plugin_catalog_disable", "ok", 166, 1, 92, 83)
+	assertAuditEvent(t, audit.events[0], "pharma_oa", "plugin_catalog_import", "ok", 170, 1, 94, 85)
+	assertAuditEvent(t, audit.events[1], "pharma_oa", "plugin_route_import", "ok", 170, 1, 94, 85)
+	assertAuditEvent(t, audit.events[2], "pharma_oa", "plugin_catalog_disable", "ok", 170, 1, 94, 85)
 
 	duplicate, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
 		Path:      dir,

@@ -3527,7 +3527,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-+  /v1/pharma-oa/cold-chain-contexts:
+  /v1/pharma-oa/cold-chain-contexts:
     get:
       summary: List stock balances eligible for cold-chain recording
       responses:
@@ -3672,6 +3672,80 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/compliance-dashboard:
+    get:
+      summary: Read active compliance risks across qualification, complaint, recall, and cold-chain sources
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: risk
+          in: query
+          schema: {type: string, enum: [high, medium]}
+        - name: source
+          in: query
+          schema: {type: string, enum: [qualification, quality_complaint, drug_recall, cold_chain]}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 500, default: 200}
+      responses:
+        '200':
+          description: Compliance audit dashboard snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ComplianceDashboardAPIResponse'}
+        '400':
+          description: Invalid filter or source aggregation failure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Missing compliance dashboard read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/compliance-dashboard/export:
+    get:
+      summary: Export filtered compliance risk evidence as UTF-8 CSV
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: risk
+          in: query
+          schema: {type: string, enum: [high, medium]}
+        - name: source
+          in: query
+          schema: {type: string, enum: [qualification, quality_complaint, drug_recall, cold_chain]}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 500, default: 200}
+      responses:
+        '200':
+          description: Filtered compliance risk CSV
+          content:
+            text/csv:
+              schema: {type: string, format: binary}
+        '400':
+          description: Invalid filter, source aggregation failure, or audit failure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Missing compliance dashboard export permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 components:
   schemas:
     ContractCreateRequest:
@@ -3710,6 +3784,12 @@ components:
         fileName: {type: string}
         mime: {type: string}
         size: {type: integer, format: int64, minimum: 0}
+    AuditMeta:
+      type: object
+      required: [createdAt, updatedAt]
+      properties:
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
     Contract:
       type: object
       required: [id, number, title, partyType, partyId, partyName, ownerId, approverId, amount, currency, effectiveAt, expiresAt, attachments, workflowInstanceId, status, meta]
@@ -4057,7 +4137,7 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/DrugRecallBatchListData'}
-+    ColdChainRecordCreateRequest:
+    ColdChainRecordCreateRequest:
       type: object
       required: [balanceId, temperatureCelsius, humidityPercent, source, recordedAt]
       properties:
@@ -4252,6 +4332,65 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/ColdChainJobListData'}
+    ComplianceTraceEntry:
+      type: object
+      required: [label, value]
+      properties:
+        label: {type: string}
+        value: {type: string}
+    ComplianceRiskItem:
+      type: object
+      required: [id, source, sourceId, risk, status, reference, title, subject, targetPath, observedAt, pendingActions, totalActions, trace]
+      properties:
+        id: {type: string}
+        source: {type: string, enum: [qualification, quality_complaint, drug_recall, cold_chain]}
+        sourceId: {type: string}
+        risk: {type: string, enum: [high, medium]}
+        status: {type: string}
+        reference: {type: string}
+        title: {type: string}
+        subject: {type: string}
+        batchId: {type: string}
+        batchNo: {type: string}
+        targetPath: {type: string}
+        observedAt: {type: string, format: date-time}
+        pendingActions: {type: integer, minimum: 0}
+        totalActions: {type: integer, minimum: 0}
+        trace:
+          type: array
+          items: {$ref: '#/components/schemas/ComplianceTraceEntry'}
+    ComplianceDashboardSummary:
+      type: object
+      required: [total, high, medium, qualifications, complaints, recalls, coldChain]
+      properties:
+        total: {type: integer, minimum: 0}
+        high: {type: integer, minimum: 0}
+        medium: {type: integer, minimum: 0}
+        qualifications: {type: integer, minimum: 0}
+        complaints: {type: integer, minimum: 0}
+        recalls: {type: integer, minimum: 0}
+        coldChain: {type: integer, minimum: 0}
+    ComplianceDashboardSnapshot:
+      type: object
+      required: [summary, items, matchedCount, generatedAt]
+      properties:
+        summary: {$ref: '#/components/schemas/ComplianceDashboardSummary'}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ComplianceRiskItem'}
+        matchedCount: {type: integer, minimum: 0}
+        generatedAt: {type: string, format: date-time}
+    ComplianceDashboardData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/ComplianceDashboardSnapshot'}
+    ComplianceDashboardAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ComplianceDashboardData'}
     AnnouncementAudience:
       type: object
       required: [organizationIds, roleIds]

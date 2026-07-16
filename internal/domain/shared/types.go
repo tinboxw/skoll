@@ -28,8 +28,8 @@ func (r TimeRange) IsValid() bool {
 
 // AuditMeta stores common creation/update timestamps for domain entities.
 type AuditMeta struct {
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 func (m *AuditMeta) Touch(now time.Time) {

@@ -1,4 +1,6 @@
-import { apiGet, apiPost, apiPut, type ApiResponse } from "../utils/api";
+import { ApiError, apiGet, apiPost, apiPut, type ApiResponse } from "../utils/api";
+import { API_BASE_PREFIX } from "../utils/api-base-prefix";
+import { getToken } from "../utils/auth";
 
 export type EmployeeStatus = "active" | "on_leave" | "left";
 
@@ -706,4 +708,83 @@ export async function runColdChainScan(body: { minHumidityPercent: number; maxHu
 export async function retryColdChainScan(id: string, actorId: string): Promise<ColdChainJob> {
 	const payload = await apiPost<ApiResponse<ColdChainJobItemPayload>>(`/v1/pharma-oa/cold-chain-jobs/${encodeURIComponent(id)}/retry`, { actorId });
 	return payload.data.item;
+}
+
+export type ComplianceRisk = "high" | "medium";
+export type ComplianceSource = "qualification" | "quality_complaint" | "drug_recall" | "cold_chain";
+export type ComplianceTraceEntry = { label: string; value: string };
+export type ComplianceRiskItem = {
+	id: string;
+	source: ComplianceSource;
+	sourceId: string;
+	risk: ComplianceRisk;
+	status: string;
+	reference: string;
+	title: string;
+	subject: string;
+	batchId?: string;
+	batchNo?: string;
+	targetPath: string;
+	observedAt: string;
+	pendingActions: number;
+	totalActions: number;
+	trace: ComplianceTraceEntry[];
+};
+export type ComplianceDashboardSummary = {
+	total: number;
+	high: number;
+	medium: number;
+	qualifications: number;
+	complaints: number;
+	recalls: number;
+	coldChain: number;
+};
+export type ComplianceDashboardSnapshot = {
+	summary: ComplianceDashboardSummary;
+	items: ComplianceRiskItem[];
+	matchedCount: number;
+	generatedAt: string;
+};
+export type ComplianceDashboardQuery = {
+	keyword?: string;
+	risk?: ComplianceRisk | "";
+	source?: ComplianceSource | "";
+	limit?: number;
+};
+
+type ComplianceDashboardPayload = { item: ComplianceDashboardSnapshot };
+
+export async function getComplianceDashboard(query: ComplianceDashboardQuery = {}): Promise<ComplianceDashboardSnapshot> {
+	const payload = await apiGet<ApiResponse<ComplianceDashboardPayload>>(`/v1/pharma-oa/compliance-dashboard${complianceDashboardQuery(query)}`);
+	return payload.data.item;
+}
+
+export async function exportComplianceDashboard(query: ComplianceDashboardQuery = {}): Promise<Blob> {
+	const headers = new Headers();
+	const token = getToken().trim();
+	if (token) headers.set("Authorization", token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`);
+	const response = await fetch(`${API_BASE_PREFIX}/v1/pharma-oa/compliance-dashboard/export${complianceDashboardQuery(query)}`, { method: "GET", headers });
+	if (!response.ok) {
+		let message = `request failed: ${response.status}`;
+		let code = "";
+		try {
+			const payload = await response.json() as Partial<ApiResponse<unknown>>;
+			if (typeof payload.message === "string" && payload.message.trim()) message = payload.message;
+			if (typeof payload.code === "string") code = payload.code;
+		} catch {
+			// Keep the HTTP fallback when the error body is not JSON.
+		}
+		throw new ApiError(message, response.status, code);
+	}
+	return response.blob();
+}
+
+function complianceDashboardQuery(query: ComplianceDashboardQuery): string {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.risk) params.set("risk", query.risk);
+	if (query.source) params.set("source", query.source);
+	if (query.limit) params.set("limit", String(query.limit));
+	const raw = params.toString();
+	return raw ? `?${raw}` : "";
 }

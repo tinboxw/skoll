@@ -1,6 +1,8 @@
 package shared
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -48,5 +50,17 @@ func TestAuditMetaTouch(t *testing.T) {
 	}
 	if !m.UpdatedAt.Equal(t2) {
 		t.Fatalf("UpdatedAt should move to latest touch time: %v", m.UpdatedAt)
+	}
+}
+
+func TestAuditMetaJSONUsesAPIFieldNames(t *testing.T) {
+	now := time.Date(2026, time.July, 13, 12, 0, 0, 0, time.UTC)
+	payload, err := json.Marshal(AuditMeta{CreatedAt: now, UpdatedAt: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(payload)
+	if !strings.Contains(text, `"createdAt"`) || !strings.Contains(text, `"updatedAt"`) || strings.Contains(text, `"CreatedAt"`) {
+		t.Fatalf("unexpected audit metadata JSON: %s", text)
 	}
 }
