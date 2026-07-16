@@ -179,3 +179,9 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - The host console route is `/skoll/pharma-oa/customer-follow-ups`; authenticated sales users can only list and mutate their own follow-ups, while trusted service callers may apply organization or all-customer scopes. Planning, completion, cancellation, attachments, permissions, and audit actions are declared explicitly.
 - The host console route is `/skoll/pharma-oa/sales-opportunities`; opportunities retain customer and product snapshots, enforce sequential funnel stages, aggregate exact cent-based statistics, and derive HTTP ownership from the authenticated sales user.
 - The host console route is `/skoll/pharma-oa/payment-invoices`; payment plans and invoices retain sales-order snapshots and private attachment metadata, exact cent-based balances, auditable receipt/void actions, and retryable idempotent overdue reminders.
+
+## Business metrics API
+
+- `GET /v1/pharma-oa/business-metrics` aggregates active stock alerts, qualification expiry, purchase approval efficiency, customer follow-up outcomes, and exact cent-based sales-order trends.
+- Queries accept paired inclusive `from` and `to` values, a day/week/month bucket, and a qualification horizon; the time window is capped at 366 days and the returned series is continuous.
+- Independent metric sources are loaded concurrently, HTTP actor identity comes from JWT claims, and every successful read appends `pharma_oa.business_metrics.read` audit evidence.

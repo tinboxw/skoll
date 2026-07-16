@@ -992,3 +992,26 @@ export async function retryPaymentReminderScan(id: string): Promise<PaymentRemin
 	const payload = await apiPost<ApiResponse<PaymentReminderJobItemPayload>>(`/v1/pharma-oa/payment-reminder-jobs/${encodeURIComponent(id)}/retry`, {});
 	return payload.data.item;
 }
+
+export type BusinessMetricsBucket = "day" | "week" | "month";
+export type BusinessMetricsSnapshot = {
+	window: { from: string; to: string; bucket: BusinessMetricsBucket };
+	stockAlerts: { active: number; lowStock: number; overStock: number; nearExpiry: number };
+	qualifications: { expired: number; expiring: number; employee: number; supplier: number; customer: number };
+	approvalEfficiency: { total: number; pending: number; approved: number; rejected: number; completionRate: number; averageCompletionHours: number };
+	customerFollowUps: { total: number; planned: number; completed: number; cancelled: number; overdue: number; completionRate: number };
+	salesTrend: { orderCount: number; amountCents: number; series: Array<{ startedAt: string; orderCount: number; amountCents: number }> };
+	generatedAt: string;
+};
+export type BusinessMetricsQuery = { from?: string; to?: string; bucket?: BusinessMetricsBucket; qualificationDays?: number };
+
+export async function getBusinessMetrics(query: BusinessMetricsQuery = {}): Promise<BusinessMetricsSnapshot> {
+	const params = new URLSearchParams();
+	if (query.from?.trim()) params.set("from", query.from.trim());
+	if (query.to?.trim()) params.set("to", query.to.trim());
+	if (query.bucket) params.set("bucket", query.bucket);
+	if (query.qualificationDays) params.set("qualificationDays", String(query.qualificationDays));
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<{ item: BusinessMetricsSnapshot }>>(`/v1/pharma-oa/business-metrics${suffix}`);
+	return payload.data.item;
+}

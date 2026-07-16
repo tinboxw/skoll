@@ -2425,3 +2425,51 @@ Result: Passed after retries.
 ### Next Step
 
 - Claim `F11-04` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F11-04 Business Metrics API
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: bounded operational metrics query, stock alerts, qualification expiry, purchase approval efficiency, customer follow-up outcomes, exact cent-based sales trends, audit, permission, OpenAPI, plugin declarations, and typed frontend client.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Metric sources | Passed | The service composes the existing F9/F10/F11 sources without duplicating source state: active inventory alerts, active-subject qualifications, purchase requests, customer follow-ups, and sales orders |
+| Query bounds | Passed | Paired inclusive `from`/`to` values accept RFC3339 or date input, windows over 366 days are rejected, qualification horizon is limited to 1-365 days, and buckets are restricted to day/week/month |
+| Stock and qualification metrics | Passed | Active low-stock, over-stock, and near-expiry alerts are counted by type; expired and expiring qualifications exclude inactive employees, suppliers, and customers and retain subject breakdowns |
+| Approval and follow-up metrics | Passed | Purchase approval totals, terminal rate, and average completion hours derive from immutable audit timestamps; follow-up totals, state counts, overdue plans, and completion rate respect the requested window |
+| Sales trend | Passed | Sales orders aggregate with rounded integer cents into continuous day/week/month series, including empty buckets, total order count, and total amount |
+| Performance and concurrency | Passed | Five independent sources load concurrently; a 10,000-order, 30-day sample completed in about 0.11 seconds under the Go race detector, with no race findings |
+| Identity and audit | Passed | HTTP ignores an `actorId` query value and uses JWT subject; successful reads append `pharma_oa.business_metrics.read` evidence for the authenticated actor |
+| API and OpenAPI | Passed | One JWT-protected GET operation and all query, window, metric, series, and envelope schemas resolve; public and embedded contracts are byte-identical with SHA-256 `5599BC92BD730FA7FAA08D86E9824E20E094E76E6BFC0E7D46E74E475C501C45` |
+| Permissions and plugin lifecycle | Passed | The read permission, route, and audit action pass install, enable, disable, catalog, route, audit, and duplicate-install assertions; the plugin exposes 92 permissions, 114 routes, 105 unique audit actions, and 206 resource events |
+| Frontend contract | Passed | TypeScript query and response types plus `getBusinessMetrics` align with the Go/OpenAPI contract; type check and production build pass without adding a premature Dashboard page |
+| Full quality gate | Passed | Full Go tests, vet, backend build, focused race/service/HTTP/plugin/OpenAPI tests, frontend type check and build, CodeGraph sync, and diff checks pass |
+| Runtime HTTP | Passed | Rebuilt backend returned health 200, authenticated metrics 200, over-limit query 400, and unauthenticated query 401 |
+| Migration and seed impact | Passed | No migration or seed update is required because F11-04 is a read-only composition over current milestone services |
+
+### Verification Commands
+
+```text
+go test -race ./internal/service/pharmaoa -run TestBusinessMetrics -count=1 -v
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/plugin -run 'Test(BusinessMetrics|EmbeddedOpenAPI|OpenAPIContractFilesStayInSync|PharmaOA)' -count=1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f11-04.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+Invoke-WebRequest -Headers <auth> http://127.0.0.1:8080/skoll/v1/pharma-oa/business-metrics
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed.
+
+### Next Step
+
+- Claim `F11-05` from `docs/refactor/current/pharma_oa_work_items.md`.
