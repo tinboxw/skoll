@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 func TestEmployeeHandlerCreateListLeaveAndReminders(t *testing.T) {
@@ -58,6 +59,33 @@ func TestEmployeeHandlerCreateListLeaveAndReminders(t *testing.T) {
 	leaveResp := performRequest(mux, http.MethodPost, "/v1/pharma-oa/employees/"+createPayload.Data.Item.ID+"/leave", []byte(`{"reason":"resigned","actorId":"admin"}`))
 	if leaveResp.Code != http.StatusOK || !bytes.Contains(leaveResp.Body.Bytes(), []byte("left")) {
 		t.Fatalf("leave response invalid: status=%d body=%s", leaveResp.Code, leaveResp.Body.String())
+	}
+}
+
+func TestActorIDFromRequestPrefersJWTSubject(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/v1/pharma-oa/employees", nil)
+	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{Subject: "jwt-user", Role: "employee"}))
+	if actorID := actorIDFromRequest(req, "spoofed-user"); actorID != "jwt-user" {
+		t.Fatalf("actor id=%s, want jwt-user", actorID)
+	}
+}
+
+func TestNormalizePagination(t *testing.T) {
+	tests := []struct {
+		offset     int
+		limit      int
+		wantOffset int
+		wantLimit  int
+	}{
+		{-1, 0, 0, 50},
+		{20, 100, 20, 100},
+		{30, 500, 30, 200},
+	}
+	for _, test := range tests {
+		offset, limit := normalizePagination(test.offset, test.limit)
+		if offset != test.wantOffset || limit != test.wantLimit {
+			t.Errorf("normalizePagination(%d, %d)=(%d, %d), want (%d, %d)", test.offset, test.limit, offset, limit, test.wantOffset, test.wantLimit)
+		}
 	}
 }
 

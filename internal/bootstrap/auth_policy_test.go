@@ -29,6 +29,22 @@ func TestLoadAuthPolicyFromEnvDefaults(t *testing.T) {
 	if !policy.ShouldAuthenticate("/skoll/v1/plugins/dev/scaffold") {
 		t.Fatalf("expected /v1/plugins/dev/scaffold to require auth")
 	}
+	for _, path := range []string{
+		"/skoll/v1/plugins/install",
+		"/skoll/v1/plugins/pharma_oa/api/stocktakes/approve",
+	} {
+		if !policy.ShouldAuthenticate(path) {
+			t.Fatalf("expected %s to require auth", path)
+		}
+	}
+	for _, path := range []string{
+		"/skoll/v1/plugins/pharma_oa/page",
+		"/skoll/v1/plugins/pharma_oa/assets/app.js",
+	} {
+		if policy.ShouldAuthenticate(path) {
+			t.Fatalf("expected public plugin path %s to bypass auth", path)
+		}
+	}
 }
 
 func TestLoadAuthPolicyFromEnvCustomPaths(t *testing.T) {
@@ -57,5 +73,11 @@ func TestAuthPolicyWithCustomAPIPrefix(t *testing.T) {
 	}
 	if !policy.ShouldAuthenticate("/gateway/v1/plugins/dev/validate-all") {
 		t.Fatalf("expected /gateway/v1/plugins/dev/validate-all to require auth")
+	}
+	if !policy.ShouldAuthenticate("/gateway/v1/plugins/pharma_oa/api/purchase-requests/approve") {
+		t.Fatalf("expected plugin business API to require auth")
+	}
+	if policy.ShouldAuthenticate("/gateway/v1/plugins/pharma_oa/assets/app.js") {
+		t.Fatalf("expected plugin asset to bypass auth")
 	}
 }

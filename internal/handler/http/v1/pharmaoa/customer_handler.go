@@ -13,6 +13,7 @@ import (
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type CustomerHandler struct {
@@ -81,6 +82,7 @@ func RegisterCustomerPermissions(service permissionsvc.Service) error {
 func (h *CustomerHandler) list(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, limit = normalizePagination(offset, limit)
 	items, err := h.service.List(r.Context(), pharmaoasvc.CustomerListInput{
 		Keyword: r.URL.Query().Get("keyword"),
 		Status:  r.URL.Query().Get("status"),
@@ -215,6 +217,15 @@ func parseCustomerQualifications(items []customerQualificationRequest) ([]domain
 }
 
 func customerScopeFromRequest(r *http.Request, body customerScopeRequest) pharmaoasvc.CustomerAccessScope {
+	if r != nil {
+		if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+			if strings.EqualFold(strings.TrimSpace(claims.Role), "super_admin") {
+				return pharmaoasvc.CustomerAccessScope{IncludeAll: true}
+			}
+			return pharmaoasvc.CustomerAccessScope{OwnerID: strings.TrimSpace(claims.Subject)}
+		}
+	}
+
 	scope := pharmaoasvc.CustomerAccessScope{
 		OwnerID:        body.OwnerID,
 		OrganizationID: body.OrganizationID,

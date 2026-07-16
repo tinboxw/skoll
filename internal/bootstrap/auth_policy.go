@@ -59,11 +59,32 @@ func (p AuthPolicy) ShouldAuthenticate(path string) bool {
 		return true
 	}
 	for skipPath := range p.SkipPaths {
-		if path == skipPath || strings.HasPrefix(path, skipPath+"/") {
+		if path == skipPath {
+			return false
+		}
+		if strings.HasSuffix(skipPath, "/v1/plugins") {
+			if isPublicPluginPath(path, skipPath) {
+				return false
+			}
+			continue
+		}
+		if strings.HasPrefix(path, skipPath+"/") {
 			return false
 		}
 	}
 	return true
+}
+
+func isPublicPluginPath(path, pluginBasePath string) bool {
+	relative := strings.TrimPrefix(path, pluginBasePath+"/")
+	if relative == path || relative == "" {
+		return false
+	}
+	segments := strings.Split(relative, "/")
+	if len(segments) == 2 && segments[0] != "" && segments[1] == "page" {
+		return true
+	}
+	return len(segments) >= 3 && segments[0] != "" && segments[1] == "assets"
 }
 
 func parseBoolEnv(key string, fallback bool) bool {

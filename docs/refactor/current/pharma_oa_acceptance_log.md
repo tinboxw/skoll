@@ -2712,3 +2712,53 @@ Result: Passed.
 ### Next Step
 
 - Claim `F12-04` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F12-04 Performance And Permission Validation
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: large-list pagination and common-query samples, customer data scope, authenticated actor identity, approval and inventory RBAC, plugin public-path boundary, OpenAPI synchronization, multilingual acceptance command, and residual risk inventory.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Large-list pagination | Passed | 600 employees and 600 customers verify default 50, maximum 200, stable offset, keyword/status filters, region filter, and owner scope |
+| Performance sample | Passed | Representative query set completed in 3.5-6.1 ms; 1000-record fixed-iteration benchmarks are recorded in `pharma_oa_performance_permission_report.md` and `tests/benchmark/README.md` |
+| Authentication boundary | Passed | `/v1/plugins` no longer exposes management or business API descendants; only the exact catalog route plus plugin `page` and `assets` remain public |
+| Approval permission | Passed | Purchase, contract, and quality complaint approval/rejection routes enforce matching backend RBAC resources/actions on host and plugin-alias paths |
+| Inventory permission | Passed | Purchase inbound, sales outbound, stocktake, and transfer routes enforce read/create/approve/reject RBAC as applicable |
+| Permission denial and bypass | Passed | Missing tokens return `401`, ungranted non-super users return `403`, granted users pass, `super_admin` retains the documented bypass, and denial audit behavior remains covered |
+| Customer data scope | Passed | Authenticated non-super users are forced to their JWT subject; query/body `ownerId`, `organizationId`, and `includeAll` cannot broaden scope; `super_admin` receives full scope |
+| Actor identity | Passed | JWT subject takes precedence over request `actorId`, protecting audit and workflow actors from request spoofing |
+| API contract | Passed | Both OpenAPI files have identical hashes, parse successfully, document offset/limit and `403`, and no longer advertise client-controlled customer read scope |
+| Multilingual command | Passed | `scripts/smoke-pharma-oa-performance-permission.ps1` defaults to Chinese, supports `en-US`, is Windows PowerShell 5-safe, and passes in both locales |
+| Quality gate | Passed | Focused race tests, `go test ./...`, `go vet ./...`, PowerShell parsing, OpenAPI tests, formatting, CodeGraph sync, and diff checks pass |
+| Migration/seed/frontend impact | Passed | No migration, seed, permission key, frontend route, or frontend UI state changed; existing frontend keys continue to match RBAC resource/action pairs |
+
+### Verification Commands
+
+```text
+.\scripts\smoke-pharma-oa-performance-permission.ps1
+.\scripts\smoke-pharma-oa-performance-permission.ps1 -Locale en-US
+go test -race ./internal/bootstrap ./internal/handler/http/v1/pharmaoa ./internal/service/pharmaoa -run 'Test(LoadAuthPolicy|AuthPolicy|PharmaOACritical|AuthGuardMiddlewareEnforces|ActorIDFromRequest|CustomerScopeFromRequest|NormalizePagination|PharmaOALargeList)' -count 1
+go test ./...
+go vet ./...
+go test ./internal/handler/http -run 'Test(OpenAPI|RouterServes)' -count 1
+[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/smoke-pharma-oa-performance-permission.ps1'), [ref]$null, [ref]$null)
+Get-FileHash docs/api/openapi.yaml
+Get-FileHash internal/handler/http/openapi.yaml
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Record
+
+1. The first staged diff check found two trailing spaces in the report header. The Work Item moved `Review -> Failed -> Doing`; the whitespace was removed before repeating the staged diff and final status checks.
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim the next `Todo` Work Item from `docs/refactor/current/pharma_oa_work_items.md` after rereading the mandatory current documents.

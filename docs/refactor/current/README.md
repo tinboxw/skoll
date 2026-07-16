@@ -15,6 +15,7 @@
 | Business-plugin and pharma OA context | `business_plugin_capability_plan_2026-07-04.md` |
 | Feature/UI candidate pool | `feature_ui_work_items_2026-07-04.md` |
 | Latest progress inspection | `progress_inspection_pharma_oa_iteration_2026-07-04.md` |
+| Pharma OA performance and permission report | `pharma_oa_performance_permission_report.md` |
 | Completed historical evidence | `../old/completed-m0-m7-2026-07-04/` |
 
 ## How Developers Read Tasks

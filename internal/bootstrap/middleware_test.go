@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -249,6 +250,68 @@ func TestRequiredPermissionMapping(t *testing.T) {
 	_ = domainrbac.SubjectUser
 }
 
+func TestPharmaOACriticalPermissionMapping(t *testing.T) {
+	tests := []struct {
+		method   string
+		path     string
+		resource string
+		action   string
+	}{
+		{http.MethodPost, "/skoll/v1/pharma-oa/purchase-requests/request-1/approve", "pharma_oa.purchase", "approve"},
+		{http.MethodPost, "/skoll/v1/pharma-oa/contracts/contract-1/reject", "pharma_oa.contract", "reject"},
+		{http.MethodPost, "/skoll/v1/pharma-oa/quality-complaints/complaint-1/resolve", "pharma_oa.quality_complaint", "resolve"},
+		{http.MethodPost, "/skoll/v1/pharma-oa/purchase-inbounds", "pharma_oa.inbound", "create"},
+		{http.MethodGet, "/skoll/v1/pharma-oa/sales-outbounds/outbound-1", "pharma_oa.sales.outbound", "read"},
+		{http.MethodPost, "/skoll/v1/pharma-oa/stocktakes/stocktake-1/approve", "pharma_oa.stocktake", "approve"},
+		{http.MethodPost, "/skoll/v1/pharma-oa/transfers", "pharma_oa.transfer", "create"},
+		{http.MethodGet, "/skoll/v1/pharma-oa/customers?includeAll=true", "pharma_oa.customer", "read"},
+		{http.MethodGet, "/skoll/v1/pharma-oa/customers/qualification-reminders", "pharma_oa.customer", "reminder"},
+		{http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/stocktakes/reject", "pharma_oa.stocktake", "reject"},
+		{http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-requests/approve", "pharma_oa.purchase", "approve"},
+	}
+	for _, test := range tests {
+		path := strings.SplitN(test.path, "?", 2)[0]
+		resource, action, guarded := requiredPermission(test.method, path, "/skoll")
+		if !guarded || resource != test.resource || action != test.action {
+			t.Errorf("%s %s: guarded=%v resource=%s action=%s", test.method, test.path, guarded, resource, action)
+		}
+	}
+}
+
+func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
+	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{}}
+	checker := &fakePermissionChecker{allowed: map[string]bool{
+		"user:approver:pharma_oa.purchase:approve": true,
+	}}
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	allowedToken, err := security.SignJWT("test-secret", "approver", "manager", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign allowed jwt: %v", err)
+	}
+	allowedReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/pharma-oa/purchase-requests/request-1/approve", nil)
+	allowedReq.Header.Set("Authorization", "Bearer "+allowedToken)
+	allowedResp := httptest.NewRecorder()
+	h.ServeHTTP(allowedResp, allowedReq)
+	if allowedResp.Code != http.StatusOK {
+		t.Fatalf("allowed status=%d body=%s", allowedResp.Code, allowedResp.Body.String())
+	}
+
+	deniedToken, err := security.SignJWT("test-secret", "viewer", "employee", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign denied jwt: %v", err)
+	}
+	deniedReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-requests/approve", nil)
+	deniedReq.Header.Set("Authorization", "Bearer "+deniedToken)
+	deniedResp := httptest.NewRecorder()
+	h.ServeHTTP(deniedResp, deniedReq)
+	if deniedResp.Code != http.StatusForbidden {
+		t.Fatalf("denied status=%d body=%s", deniedResp.Code, deniedResp.Body.String())
+	}
+}
+
 func TestBuildMiddlewareChainPluginPageBypassesAuth(t *testing.T) {
 	tmp := t.TempDir()
 	pluginDir := filepath.Join(tmp, "demo-frontend")
@@ -294,6 +357,13 @@ func TestBuildMiddlewareChainPluginPageBypassesAuth(t *testing.T) {
 	guarded.ServeHTTP(assetResp, assetReq)
 	if assetResp.Code != http.StatusOK {
 		t.Fatalf("asset status=%d body=%s", assetResp.Code, assetResp.Body.String())
+	}
+
+	pluginAPIReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/demo-frontend/api/action", nil)
+	pluginAPIResp := httptest.NewRecorder()
+	guarded.ServeHTTP(pluginAPIResp, pluginAPIReq)
+	if pluginAPIResp.Code != http.StatusUnauthorized {
+		t.Fatalf("plugin API status=%d body=%s", pluginAPIResp.Code, pluginAPIResp.Body.String())
 	}
 
 	protectedReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/system/settings", nil)

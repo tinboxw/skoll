@@ -81,9 +81,17 @@ paths:
           schema:
             type: string
             enum: [active, on_leave, left]
+        - name: offset
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
     post:
       summary: Create Pharma OA employee
       requestBody:
@@ -113,6 +121,8 @@ paths:
       responses:
         '201':
           description: Created
+        '403':
+          description: Forbidden
   /v1/pharma-oa/employees/{id}:
     put:
       summary: Update Pharma OA employee
@@ -125,6 +135,8 @@ paths:
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
   /v1/pharma-oa/employees/{id}/leave:
     post:
       summary: Mark Pharma OA employee left
@@ -137,6 +149,8 @@ paths:
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
   /v1/pharma-oa/employees/qualification-reminders:
     get:
       summary: List Pharma OA employee qualification reminders
@@ -149,6 +163,8 @@ paths:
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
   /v1/pharma-oa/products:
     get:
       summary: List Pharma OA products
@@ -350,21 +366,17 @@ paths:
           in: query
           schema:
             type: string
-        - name: ownerId
+        - name: offset
           in: query
-          schema:
-            type: string
-        - name: organizationId
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: limit
           in: query
-          schema:
-            type: string
-        - name: includeAll
-          in: query
-          schema:
-            type: boolean
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
     post:
       summary: Create Pharma OA customer
       requestBody:
@@ -400,6 +412,8 @@ paths:
       responses:
         '201':
           description: Created
+        '403':
+          description: Forbidden
   /v1/pharma-oa/customers/{id}:
     put:
       summary: Update Pharma OA customer
@@ -412,6 +426,8 @@ paths:
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
   /v1/pharma-oa/customers/{id}/disable:
     post:
       summary: Disable Pharma OA customer
@@ -424,6 +440,8 @@ paths:
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
   /v1/pharma-oa/customers/{id}/sales-eligibility:
     get:
       summary: Validate Pharma OA customer sales eligibility
@@ -433,21 +451,11 @@ paths:
           required: true
           schema:
             type: string
-        - name: ownerId
-          in: query
-          schema:
-            type: string
-        - name: organizationId
-          in: query
-          schema:
-            type: string
-        - name: includeAll
-          in: query
-          schema:
-            type: boolean
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
   /v1/pharma-oa/customers/qualification-reminders:
     get:
       summary: List Pharma OA customer qualification reminders
@@ -457,21 +465,11 @@ paths:
           schema:
             type: integer
             default: 30
-        - name: ownerId
-          in: query
-          schema:
-            type: string
-        - name: organizationId
-          in: query
-          schema:
-            type: string
-        - name: includeAll
-          in: query
-          schema:
-            type: boolean
       responses:
         '200':
           description: OK
+        '403':
+          description: Forbidden
   /v1/pharma-oa/warehouses:
     get:
       summary: List Pharma OA warehouses
@@ -681,6 +679,8 @@ paths:
                 $ref: '#/components/schemas/PurchaseOrderResponse'
         '400':
           description: Approval failed or supplier is not purchase eligible
+        '403':
+          description: Forbidden
   /v1/pharma-oa/purchase-requests/{id}/reject:
     post:
       summary: Reject a purchase request
@@ -703,6 +703,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PurchaseRequestResponse'
+        '403':
+          description: Forbidden
   /v1/pharma-oa/purchase-orders:
     get:
       summary: List Pharma OA purchase orders
@@ -736,6 +738,7 @@ paths:
       summary: List Pharma OA purchase inbounds
       responses:
         '200': {description: OK}
+        '403': {description: Forbidden}
     post:
       summary: Complete purchase inbound and increase batch inventory
       requestBody:
@@ -746,6 +749,7 @@ paths:
       responses:
         '201': {description: Created}
         '400': {description: Invalid order, location, batch, expiry, attachment, or quantity}
+        '403': {description: Forbidden}
   /v1/pharma-oa/purchase-inbounds/{id}:
     get:
       summary: Get Pharma OA purchase inbound
@@ -753,6 +757,7 @@ paths:
         - {name: id, in: path, required: true, schema: {type: string}}
       responses:
         '200': {description: OK}
+        '403': {description: Forbidden}
         '404': {description: Purchase inbound not found}
   /v1/pharma-oa/sales-orders:
     get:
@@ -782,6 +787,7 @@ paths:
       summary: List Pharma OA sales outbounds
       responses:
         '200': {description: OK}
+        '403': {description: Forbidden}
     post:
       summary: Complete sales outbound and decrease batch inventory
       requestBody:
@@ -792,6 +798,7 @@ paths:
       responses:
         '201': {description: Created}
         '400': {description: Expired customer qualification, invalid location, order mismatch, or insufficient stock}
+        '403': {description: Forbidden}
   /v1/pharma-oa/sales-outbounds/{id}:
     get:
       summary: Get Pharma OA sales outbound
@@ -799,6 +806,7 @@ paths:
         - {name: id, in: path, required: true, schema: {type: string}}
       responses:
         '200': {description: OK}
+        '403': {description: Forbidden}
         '404': {description: Sales outbound not found}
   /v1/pharma-oa/stocktakes:
     get:
@@ -809,6 +817,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StocktakeOrderListResponse'}
+        '403': {description: Forbidden}
     post:
       summary: Create a stocktake difference pending workflow approval
       requestBody:
@@ -823,6 +832,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
         '400': {description: Invalid stock position, quantity, or approver}
+        '403': {description: Forbidden}
   /v1/pharma-oa/stocktakes/{id}:
     get:
       summary: Get a Pharma OA stocktake order
@@ -834,6 +844,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
+        '403': {description: Forbidden}
         '404': {description: Stocktake order not found}
   /v1/pharma-oa/stocktakes/{id}/approve:
     post:
@@ -852,6 +863,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
         '400': {description: Approval failed or inventory changed after the count}
+        '403': {description: Forbidden}
   /v1/pharma-oa/stocktakes/{id}/reject:
     post:
       summary: Reject a stocktake difference without changing inventory
@@ -869,6 +881,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
         '400': {description: Rejection failed}
+        '403': {description: Forbidden}
   /v1/pharma-oa/transfers:
     get:
       summary: List Pharma OA stock transfer orders
@@ -878,6 +891,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/TransferOrderListResponse'}
+        '403': {description: Forbidden}
     post:
       summary: Transfer batch inventory and create paired outbound and inbound ledger entries
       requestBody:
@@ -892,6 +906,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/TransferOrderResponse'}
         '400': {description: Invalid locations, quantity, batch, or insufficient stock}
+        '403': {description: Forbidden}
   /v1/pharma-oa/transfers/{id}:
     get:
       summary: Get a Pharma OA stock transfer order
@@ -903,6 +918,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/TransferOrderResponse'}
+        '403': {description: Forbidden}
         '404': {description: Transfer order not found}
   /v1/pharma-oa/inventory-alerts:
     get:
@@ -3598,6 +3614,8 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Forbidden
   /v1/pharma-oa/contracts/{id}/reject:
     post:
       summary: Reject a contract workflow task
@@ -3621,6 +3639,8 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Forbidden
   /v1/pharma-oa/contracts/expiry-scan:
     post:
       summary: Scan active contracts and create idempotent expiry reminders
@@ -3804,6 +3824,8 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Forbidden
   /v1/pharma-oa/quality-complaints/{id}/reject:
     post:
       summary: Reject a quality complaint workflow task with a conclusion
@@ -3828,6 +3850,8 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Forbidden
   /v1/pharma-oa/drug-recalls:
     get:
       summary: List drug recall orders

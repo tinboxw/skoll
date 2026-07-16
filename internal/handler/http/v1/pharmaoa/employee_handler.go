@@ -71,6 +71,7 @@ func RegisterEmployeePermissions(service permissionsvc.Service) error {
 func (h *EmployeeHandler) list(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, limit = normalizePagination(offset, limit)
 	items, err := h.service.List(r.Context(), pharmaoasvc.EmployeeListInput{
 		Keyword: r.URL.Query().Get("keyword"),
 		Status:  r.URL.Query().Get("status"),
@@ -82,6 +83,19 @@ func (h *EmployeeHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "offset": offset, "limit": limit})
+}
+
+func normalizePagination(offset, limit int) (int, int) {
+	if offset < 0 {
+		offset = 0
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	return offset, limit
 }
 
 func (h *EmployeeHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -185,13 +199,15 @@ func parseCertificates(items []certificateRequest) ([]domainpharma.EmployeeCerti
 }
 
 func actorIDFromRequest(r *http.Request, raw string) string {
-	if actorID := strings.TrimSpace(raw); actorID != "" {
-		return actorID
-	}
 	if r != nil {
 		if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
-			return strings.TrimSpace(claims.Subject)
+			if actorID := strings.TrimSpace(claims.Subject); actorID != "" {
+				return actorID
+			}
 		}
+	}
+	if actorID := strings.TrimSpace(raw); actorID != "" {
+		return actorID
 	}
 	return "system"
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
@@ -90,6 +91,22 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	blocked := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers/"+id+"/sales-eligibility?ownerId=sales-a", nil)
 	if blocked.Code != http.StatusOK || !strings.Contains(blocked.Body.String(), `"allowed":false`) || !strings.Contains(blocked.Body.String(), "disabled") {
 		t.Fatalf("expected disabled customer blocked, status=%d body=%s", blocked.Code, blocked.Body.String())
+	}
+}
+
+func TestCustomerScopeFromRequestUsesJWTIdentity(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/customers?ownerId=other&organizationId=other-org&includeAll=true", nil)
+	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{Subject: "sales-a", Role: "employee"}))
+	scope := customerScopeFromRequest(req, customerScopeRequest{OwnerID: "body-owner", OrganizationID: "body-org", IncludeAll: true})
+	if scope.OwnerID != "sales-a" || scope.OrganizationID != "" || scope.IncludeAll {
+		t.Fatalf("unexpected scoped identity: %+v", scope)
+	}
+
+	superReq := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/customers", nil)
+	superReq = superReq.WithContext(security.WithJWTClaimsContext(superReq.Context(), &security.JWTClaims{Subject: "root", Role: "super_admin"}))
+	superScope := customerScopeFromRequest(superReq, customerScopeRequest{})
+	if !superScope.IncludeAll || superScope.OwnerID != "" || superScope.OrganizationID != "" {
+		t.Fatalf("unexpected super admin scope: %+v", superScope)
 	}
 }
 
