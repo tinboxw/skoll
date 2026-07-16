@@ -1,6 +1,6 @@
 id: pharma_oa
 name: Pharma OA
-name_zh_cn: Pharma OA
+name_zh_cn: 医药 OA
 name_en_us: Pharma OA
 version: 0.1.0
 api_version: v1
@@ -17,7 +17,7 @@ frontend_entry: /skoll/pharma-oa/employees
 ui_menu:
   key: plugin.pharma_oa
   label: Pharma OA
-  label_zh_cn: Pharma OA
+  label_zh_cn: 医药 OA
   label_en_us: Pharma OA
   path: /skoll/pharma-oa/employees
   component: PluginRuntime
@@ -27,19 +27,19 @@ ui_menu:
     - pharma_oa.menu.read
 config_schema:
   title: Pharma OA Config
-  title_zh_cn: Pharma OA Config
+  title_zh_cn: 医药 OA 配置
   title_en_us: Pharma OA Config
   description: Skeleton configuration for pharma OA demo data and lifecycle smoke checks.
   fields:
     - key: pharma_oa.seed.enabled
       label: Enable demo seed entry
-      label_zh_cn: Enable demo seed entry
+      label_zh_cn: 启用演示数据入口
       label_en_us: Enable demo seed entry
       type: boolean
       default: true
     - key: pharma_oa.seed.scope
       label: Demo seed scope
-      label_zh_cn: Demo seed scope
+      label_zh_cn: 演示数据范围
       label_en_us: Demo seed scope
       type: string
       required: true
@@ -48,7 +48,7 @@ config_schema:
       max_length: 32
     - key: pharma_oa.alert_days
       label: Qualification alert days
-      label_zh_cn: Qualification alert days
+      label_zh_cn: 资质预警天数
       label_en_us: Qualification alert days
       type: number
       default: 30

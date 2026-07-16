@@ -19,17 +19,31 @@ func TestPharmaOAPluginManifestCoversIndustrySkeleton(t *testing.T) {
 	if info.ID != "pharma_oa" || info.Level != LevelApp || info.AppID != "pharma_oa" || info.UIMode != UIModeFrontendOnly {
 		t.Fatalf("unexpected pharma oa placement: %+v", info)
 	}
+	if info.NameZhCN != "医药 OA" || info.NameEnUS != "Pharma OA" {
+		t.Fatalf("unexpected localized pharma oa names: zh=%q en=%q", info.NameZhCN, info.NameEnUS)
+	}
 	if info.FrontendEntry != "/skoll/pharma-oa/employees" {
 		t.Fatalf("unexpected frontend entry: %s", info.FrontendEntry)
 	}
 	if info.UIMenu == nil || info.UIMenu.Key != "plugin.pharma_oa" || info.UIMenu.Path != "/skoll/pharma-oa/employees" {
 		t.Fatalf("unexpected pharma oa menu: %+v", info.UIMenu)
 	}
+	if info.UIMenu.LabelZhCN != "医药 OA" || info.UIMenu.LabelEnUS != "Pharma OA" {
+		t.Fatalf("unexpected localized pharma oa menu: %+v", info.UIMenu)
+	}
 	if len(info.UIMenu.RequiredPermissions) != 1 || info.UIMenu.RequiredPermissions[0] != "pharma_oa.menu.read" {
 		t.Fatalf("unexpected menu permissions: %+v", info.UIMenu.RequiredPermissions)
 	}
 	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 3 {
 		t.Fatalf("unexpected config schema: %+v", info.ConfigSchema)
+	}
+	if info.ConfigSchema.TitleZhCN != "医药 OA 配置" || info.ConfigSchema.TitleEnUS != "Pharma OA Config" {
+		t.Fatalf("unexpected localized pharma oa config title: %+v", info.ConfigSchema)
+	}
+	if info.ConfigSchema.Fields[0].LabelZhCN != "启用演示数据入口" || info.ConfigSchema.Fields[0].LabelEnUS != "Enable demo seed entry" ||
+		info.ConfigSchema.Fields[1].LabelZhCN != "演示数据范围" || info.ConfigSchema.Fields[1].LabelEnUS != "Demo seed scope" ||
+		info.ConfigSchema.Fields[2].LabelZhCN != "资质预警天数" || info.ConfigSchema.Fields[2].LabelEnUS != "Qualification alert days" {
+		t.Fatalf("unexpected localized pharma oa config fields: %+v", info.ConfigSchema.Fields)
 	}
 	assertConfigField(t, info.ConfigSchema.Fields[0], "pharma_oa.seed.enabled", "boolean", false)
 	assertConfigField(t, info.ConfigSchema.Fields[1], "pharma_oa.seed.scope", "string", true)

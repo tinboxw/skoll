@@ -2669,3 +2669,46 @@ Result: Passed after retries.
 ### Next Step
 
 - Claim `F12-03` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F12-03 Industry Plugin README
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: default-Chinese and English industry-plugin guides, executable startup and demo-seed instructions, feature and runtime boundaries, extension workflow, troubleshooting, localized manifest metadata, and multilingual lifecycle smoke output.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Install and run guide | Passed | The default README starts from prerequisites, repository-root startup, automatic plugin discovery, login, concrete browser routes, authenticated demo seeding, and independent acceptance commands |
+| Feature boundary | Passed | F8-F12 domains are grouped by capability and entry point; the guide distinguishes host APIs from manifest extension routes, integrated pages from the static lifecycle fixture, and sample capability from regulatory validation |
+| Runtime honesty | Passed | Process-local repositories, restart behavior, private report storage, catalog disable semantics, and the absence of process hot-unload or legacy compatibility are explicit |
+| Extension guide | Passed | Domain, service, HTTP, permission, audit, OpenAPI, manifest, typed frontend, i18n, UI-state, test, and migration impacts are sequenced for new developers |
+| Multilingual docs | Passed | `README.md` is the default Chinese guide and `README.en.md` provides the same install, boundary, extension, verification, and troubleshooting structure in English |
+| Multilingual manifest | Passed | Chinese plugin name, menu label, config title, and all config field labels now have real Chinese values while English fields remain unchanged; manifest tests prevent regression |
+| Multilingual smoke | Passed | The lifecycle smoke defaults to `zh-CN`, supports `en-US`, remains ASCII-safe for Windows PowerShell 5, and passes in both modes |
+| Documentation links | Passed | Every local Markdown link in both guides resolves from the owning file |
+| Existing behavior | Passed | Plugin manifest/lifecycle tests, the Pharma OA end-to-end smoke, and all Go tests pass after the documentation and localization changes |
+| API, permission, audit, migration, seed, and frontend impact | Passed | No contract, permission key, audit action, migration, seed behavior, frontend route, or frontend client changed; only existing manifest display metadata and verification output were localized |
+
+### Verification Commands
+
+```text
+go test ./internal/plugin -run TestPharmaOA -count=1
+.\scripts\smoke-pharma-oa-plugin.ps1
+.\scripts\smoke-pharma-oa-plugin.ps1 -Locale en-US
+.\scripts\smoke-pharma-oa-e2e.ps1
+go test ./...
+PowerShell local Markdown link check for plugins/pharma_oa/README.md and README.en.md
+PowerShell parser check for scripts/smoke-pharma-oa-plugin.ps1
+gofmt -d internal/plugin/pharma_oa_manifest_test.go
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed.
+
+### Next Step
+
+- Claim `F12-04` from `docs/refactor/current/pharma_oa_work_items.md`.
