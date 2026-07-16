@@ -2622,3 +2622,50 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim `F12-02` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F12-02 End-To-End Acceptance Script
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: independent Pharma OA acceptance command, employee onboarding, purchase approval, purchase inbound, sales outbound, qualification alert, customer follow-up, workflow and inventory evidence, demo-seed idempotency, and Chinese/English command output.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Independent command | Passed | `scripts/smoke-pharma-oa-e2e.ps1` runs the dedicated integration acceptance test without requiring an externally hosted service |
+| Employee onboarding | Passed | The seeded active employee and qualification certificate are present and referenced by the acceptance result |
+| Purchase workflow | Passed | A purchase request is linked to a completed approval workflow and a generated purchase order |
+| Purchase inbound | Passed | Approved purchase data produces the expected inbound batch, balance, and inventory ledger evidence |
+| Sales outbound | Passed | The sales order consumes 12 units from the seeded batch and leaves the expected balance of 88 |
+| Qualification alert | Passed | The 20-day employee qualification produces exactly one 30-day reminder |
+| Customer follow-up | Passed | The planned customer follow-up is present and owned by the seeded actor |
+| Inventory evidence and idempotency | Passed | Exactly two immutable ledger entries remain after the full chain, and a second seed apply reuses the scenario without duplication |
+| Multilingual command output | Passed after retry | The script defaults to Chinese and accepts `-Locale en-US`; both modes pass under Windows PowerShell 5 |
+| Full quality gate | Passed | Repeated smoke, English smoke, race detector, full Go tests, vet, PowerShell parser validation, formatting, CodeGraph status, and diff checks pass |
+| Production impact | Passed | The Work Item adds acceptance automation only and reuses the F12-01 contracts; no API/OpenAPI, permission, audit, migration, seed, or frontend production changes are required |
+
+### Retry Record
+
+1. The first combined quality command exceeded 300 seconds after the acceptance test had passed. Verification was split into bounded commands, and every required gate passed independently.
+2. The first multilingual script embedded raw Chinese in a UTF-8 file without a BOM, which Windows PowerShell 5 misparsed. The Work Item moved `Doing -> Failed -> Doing`; the script was made ASCII-safe and decodes UTF-8 messages at runtime, after which both Chinese and English modes passed.
+
+### Verification Commands
+
+```text
+.\scripts\smoke-pharma-oa-e2e.ps1 -Count 2
+.\scripts\smoke-pharma-oa-e2e.ps1 -Locale en-US
+go test -race ./tests/integration -run '^TestPharmaOAEndToEndAcceptanceSmoke$' -count=1
+go test ./...
+go vet ./...
+[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/smoke-pharma-oa-e2e.ps1'), [ref]$null, [ref]$null)
+gofmt -d tests/integration/pharma_oa_acceptance_smoke_test.go
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retries.
+
+### Next Step
+
+- Claim `F12-03` from `docs/refactor/current/pharma_oa_work_items.md`.
