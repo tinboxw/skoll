@@ -3325,6 +3325,190 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/payment-plans:
+    get:
+      summary: List payment plans owned by the authenticated sales user
+      description: Request-supplied owner or include-all values are ignored; HTTP scope is derived from the JWT subject.
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: salesOrderId
+          in: query
+          schema: {type: string}
+        - name: status
+          in: query
+          schema: {type: string, enum: [pending, partial, paid, overdue]}
+      responses:
+        '200':
+          description: Authorized payment plan list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentPlanListAPIResponse'}
+        '400':
+          description: Invalid filter or missing authenticated actor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Create a payment plan against an owned sales order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PaymentPlanCreateRequest'}
+      responses:
+        '201':
+          description: Payment plan created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentPlanItemAPIResponse'}
+        '400':
+          description: Invalid amount, order total exceeded, unsafe attachment, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/payment-plans/{id}/receive:
+    post:
+      summary: Record a received payment against a plan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PaymentReceiveRequest'}
+      responses:
+        '200':
+          description: Received payment recorded and any fully paid reminder completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentPlanItemAPIResponse'}
+        '400':
+          description: Amount exceeds remaining balance, unsafe attachment, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/invoice-records:
+    get:
+      summary: List invoice records owned by the authenticated sales user
+      parameters:
+        - name: keyword
+          in: query
+          schema: {type: string}
+        - name: salesOrderId
+          in: query
+          schema: {type: string}
+        - name: status
+          in: query
+          schema: {type: string, enum: [issued, voided]}
+      responses:
+        '200':
+          description: Authorized invoice record list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InvoiceRecordListAPIResponse'}
+        '400':
+          description: Invalid filter or missing authenticated actor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Create an invoice record against an owned sales order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InvoiceCreateRequest'}
+      responses:
+        '201':
+          description: Invoice record created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InvoiceRecordItemAPIResponse'}
+        '400':
+          description: Duplicate number, order total exceeded, unsafe attachment, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/invoice-records/{id}/void:
+    post:
+      summary: Void an issued invoice record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/InvoiceVoidRequest'}
+      responses:
+        '200':
+          description: Invoice record voided
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/InvoiceRecordItemAPIResponse'}
+        '400':
+          description: Missing reason, terminal invoice, or access denied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/payment-reminder-jobs:
+    get:
+      summary: List overdue-payment reminder jobs owned by the authenticated user
+      responses:
+        '200':
+          description: Reminder job list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentReminderJobListAPIResponse'}
+        '400':
+          description: Missing authenticated actor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Run an idempotent overdue-payment reminder scan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PaymentReminderRunRequest'}
+      responses:
+        '201':
+          description: Reminder scan completed or returned as an observable failed job
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentReminderJobItemAPIResponse'}
+        '400':
+          description: Invalid recipient or scan failure
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/payment-reminder-jobs/{id}/retry:
+    post:
+      summary: Retry a failed overdue-payment reminder scan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Failed reminder scan retried
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentReminderJobItemAPIResponse'}
+        '400':
+          description: Job is missing, inaccessible, not failed, or retry failed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/pharma-oa/contracts:
     get:
       summary: List contract archive entries
@@ -4783,6 +4967,218 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/SalesOpportunityStatisticsData'}
+    FinancialAttachment:
+      type: object
+      required: [fileId, fileName, size]
+      properties:
+        fileId: {type: string}
+        fileName: {type: string}
+        size: {type: integer, format: int64, minimum: 0}
+    PaymentReceipt:
+      type: object
+      required: [id, amountCents, paidAt, reference, attachments, recordedBy, recordedAt]
+      properties:
+        id: {type: string}
+        amountCents: {type: integer, format: int64, minimum: 1}
+        paidAt: {type: string, format: date-time}
+        reference: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/FinancialAttachment'}
+        recordedBy: {type: string}
+        recordedAt: {type: string, format: date-time}
+    PaymentPlan:
+      type: object
+      required: [id, salesOrderId, salesOrderNumber, customerId, ownerId, orderTotalCents, amountCents, paidAmountCents, dueAt, status, attachments, receipts, createdAt, updatedAt]
+      properties:
+        id: {type: string}
+        salesOrderId: {type: string}
+        salesOrderNumber: {type: string}
+        customerId: {type: string}
+        ownerId: {type: string}
+        orderTotalCents: {type: integer, format: int64, minimum: 1}
+        amountCents: {type: integer, format: int64, minimum: 1}
+        paidAmountCents: {type: integer, format: int64, minimum: 0}
+        dueAt: {type: string, format: date-time}
+        status: {type: string, enum: [pending, partial, paid, overdue]}
+        note: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/FinancialAttachment'}
+        receipts:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentReceipt'}
+        notificationId: {type: string}
+        reminderRecipientId: {type: string}
+        remindedAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    InvoiceRecord:
+      type: object
+      required: [id, number, salesOrderId, salesOrderNumber, customerId, ownerId, orderTotalCents, amountCents, issuedAt, status, attachments, createdBy, createdAt]
+      properties:
+        id: {type: string}
+        number: {type: string}
+        salesOrderId: {type: string}
+        salesOrderNumber: {type: string}
+        customerId: {type: string}
+        ownerId: {type: string}
+        orderTotalCents: {type: integer, format: int64, minimum: 1}
+        amountCents: {type: integer, format: int64, minimum: 1}
+        issuedAt: {type: string, format: date-time}
+        status: {type: string, enum: [issued, voided]}
+        note: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/FinancialAttachment'}
+        createdBy: {type: string}
+        createdAt: {type: string, format: date-time}
+        voidedBy: {type: string}
+        voidReason: {type: string}
+        voidedAt: {type: string, format: date-time}
+    PaymentReminderJobLog:
+      type: object
+      required: [level, message, createdAt]
+      properties:
+        level: {type: string, enum: [info, error]}
+        message: {type: string}
+        createdAt: {type: string, format: date-time}
+    PaymentReminderJob:
+      type: object
+      required: [id, status, recipientId, includeAll, initiatedBy, lastRunBy, retryCount, matchedCount, createdCount, logs, createdAt]
+      properties:
+        id: {type: string}
+        status: {type: string, enum: [pending, running, succeeded, failed]}
+        recipientId: {type: string}
+        ownerId: {type: string}
+        includeAll: {type: boolean}
+        initiatedBy: {type: string}
+        lastRunBy: {type: string}
+        retryCount: {type: integer, minimum: 0}
+        matchedCount: {type: integer, minimum: 0}
+        createdCount: {type: integer, minimum: 0}
+        error: {type: string}
+        logs:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentReminderJobLog'}
+        createdAt: {type: string, format: date-time}
+        startedAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time}
+    PaymentPlanCreateRequest:
+      type: object
+      required: [salesOrderId, amountCents, dueAt]
+      properties:
+        salesOrderId: {type: string}
+        amountCents: {type: integer, format: int64, minimum: 1}
+        dueAt: {type: string, format: date-time}
+        note: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/FinancialAttachment'}
+    PaymentReceiveRequest:
+      type: object
+      required: [amountCents, paidAt]
+      properties:
+        amountCents: {type: integer, format: int64, minimum: 1}
+        paidAt: {type: string, format: date-time}
+        reference: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/FinancialAttachment'}
+    InvoiceCreateRequest:
+      type: object
+      required: [number, salesOrderId, amountCents, issuedAt]
+      properties:
+        number: {type: string}
+        salesOrderId: {type: string}
+        amountCents: {type: integer, format: int64, minimum: 1}
+        issuedAt: {type: string, format: date-time}
+        note: {type: string}
+        attachments:
+          type: array
+          items: {$ref: '#/components/schemas/FinancialAttachment'}
+    InvoiceVoidRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string}
+    PaymentReminderRunRequest:
+      type: object
+      required: [recipientId]
+      properties:
+        recipientId: {type: string}
+    PaymentPlanListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentPlan'}
+    PaymentPlanItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/PaymentPlan'}
+    InvoiceRecordListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/InvoiceRecord'}
+    InvoiceRecordItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/InvoiceRecord'}
+    PaymentReminderJobListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentReminderJob'}
+    PaymentReminderJobItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/PaymentReminderJob'}
+    PaymentPlanListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/PaymentPlanListData'}
+    PaymentPlanItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/PaymentPlanItemData'}
+    InvoiceRecordListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/InvoiceRecordListData'}
+    InvoiceRecordItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/InvoiceRecordItemData'}
+    PaymentReminderJobListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/PaymentReminderJobListData'}
+    PaymentReminderJobItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/PaymentReminderJobItemData'}
     ComplianceTraceEntry:
       type: object
       required: [label, value]

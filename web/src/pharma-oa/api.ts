@@ -911,3 +911,84 @@ function complianceDashboardQuery(query: ComplianceDashboardQuery): string {
 	const raw = params.toString();
 	return raw ? `?${raw}` : "";
 }
+
+export type FinancialAttachment = { fileId: string; fileName: string; size: number };
+export type PaymentPlanStatus = "pending" | "partial" | "paid" | "overdue";
+export type PaymentReceipt = { id: string; amountCents: number; paidAt: string; reference: string; attachments: FinancialAttachment[]; recordedBy: string; recordedAt: string };
+export type PaymentPlan = {
+	id: string; salesOrderId: string; salesOrderNumber: string; customerId: string; ownerId: string; orderTotalCents: number; amountCents: number; paidAmountCents: number;
+	dueAt: string; status: PaymentPlanStatus; note?: string; attachments: FinancialAttachment[]; receipts: PaymentReceipt[]; notificationId?: string; reminderRecipientId?: string;
+	remindedAt?: string; createdAt: string; updatedAt: string;
+};
+export type InvoiceRecordStatus = "issued" | "voided";
+export type InvoiceRecord = {
+	id: string; number: string; salesOrderId: string; salesOrderNumber: string; customerId: string; ownerId: string; orderTotalCents: number; amountCents: number;
+	issuedAt: string; status: InvoiceRecordStatus; note?: string; attachments: FinancialAttachment[]; createdBy: string; createdAt: string; voidedBy?: string; voidReason?: string; voidedAt?: string;
+};
+export type PaymentReminderJob = {
+	id: string; status: "pending" | "running" | "succeeded" | "failed"; recipientId: string; ownerId?: string; includeAll: boolean; initiatedBy: string; lastRunBy: string;
+	retryCount: number; matchedCount: number; createdCount: number; error?: string; logs: Array<{ level: "info" | "error"; message: string; createdAt: string }>;
+	createdAt: string; startedAt?: string; completedAt?: string;
+};
+
+type PaymentPlanListPayload = { items: PaymentPlan[] };
+type PaymentPlanItemPayload = { item: PaymentPlan };
+type InvoiceRecordListPayload = { items: InvoiceRecord[] };
+type InvoiceRecordItemPayload = { item: InvoiceRecord };
+type PaymentReminderJobListPayload = { items: PaymentReminderJob[] };
+type PaymentReminderJobItemPayload = { item: PaymentReminderJob };
+
+export async function listPaymentPlans(query: { keyword?: string; salesOrderId?: string; status?: PaymentPlanStatus | "" } = {}): Promise<PaymentPlan[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.salesOrderId?.trim()) params.set("salesOrderId", query.salesOrderId.trim());
+	if (query.status) params.set("status", query.status);
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<PaymentPlanListPayload>>(`/v1/pharma-oa/payment-plans${suffix}`);
+	return payload.data.items;
+}
+
+export async function createPaymentPlan(body: { salesOrderId: string; amountCents: number; dueAt: string; note: string; attachments: FinancialAttachment[] }): Promise<PaymentPlan> {
+	const payload = await apiPost<ApiResponse<PaymentPlanItemPayload>>("/v1/pharma-oa/payment-plans", body);
+	return payload.data.item;
+}
+
+export async function recordPayment(id: string, body: { amountCents: number; paidAt: string; reference: string; attachments: FinancialAttachment[] }): Promise<PaymentPlan> {
+	const payload = await apiPost<ApiResponse<PaymentPlanItemPayload>>(`/v1/pharma-oa/payment-plans/${encodeURIComponent(id)}/receive`, body);
+	return payload.data.item;
+}
+
+export async function listInvoiceRecords(query: { keyword?: string; salesOrderId?: string; status?: InvoiceRecordStatus | "" } = {}): Promise<InvoiceRecord[]> {
+	const params = new URLSearchParams();
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.salesOrderId?.trim()) params.set("salesOrderId", query.salesOrderId.trim());
+	if (query.status) params.set("status", query.status);
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const payload = await apiGet<ApiResponse<InvoiceRecordListPayload>>(`/v1/pharma-oa/invoice-records${suffix}`);
+	return payload.data.items;
+}
+
+export async function createInvoiceRecord(body: { number: string; salesOrderId: string; amountCents: number; issuedAt: string; note: string; attachments: FinancialAttachment[] }): Promise<InvoiceRecord> {
+	const payload = await apiPost<ApiResponse<InvoiceRecordItemPayload>>("/v1/pharma-oa/invoice-records", body);
+	return payload.data.item;
+}
+
+export async function voidInvoiceRecord(id: string, reason: string): Promise<InvoiceRecord> {
+	const payload = await apiPost<ApiResponse<InvoiceRecordItemPayload>>(`/v1/pharma-oa/invoice-records/${encodeURIComponent(id)}/void`, { reason });
+	return payload.data.item;
+}
+
+export async function listPaymentReminderJobs(): Promise<PaymentReminderJob[]> {
+	const payload = await apiGet<ApiResponse<PaymentReminderJobListPayload>>("/v1/pharma-oa/payment-reminder-jobs");
+	return payload.data.items;
+}
+
+export async function runPaymentReminderScan(recipientId: string): Promise<PaymentReminderJob> {
+	const payload = await apiPost<ApiResponse<PaymentReminderJobItemPayload>>("/v1/pharma-oa/payment-reminder-jobs", { recipientId });
+	return payload.data.item;
+}
+
+export async function retryPaymentReminderScan(id: string): Promise<PaymentReminderJob> {
+	const payload = await apiPost<ApiResponse<PaymentReminderJobItemPayload>>(`/v1/pharma-oa/payment-reminder-jobs/${encodeURIComponent(id)}/retry`, {});
+	return payload.data.item;
+}

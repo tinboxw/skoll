@@ -107,6 +107,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService)
 	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService)
 	notificationService := notificationsvc.NewService(nil, nil)
+	pharmaPaymentInvoiceService := pharmaoasvc.NewPaymentInvoiceService(pharmaSalesService, notificationService, auditService)
 	pharmaInventoryAlertService := pharmaoasvc.NewInventoryAlertService(pharmaInventoryService, notificationService, auditService)
 	pharmaAnnouncementService := pharmaoasvc.NewAnnouncementService(auditService)
 	pharmaContractService := pharmaoasvc.NewContractService(pharmaSupplierService, pharmaCustomerService, workflowService, fileService, notificationService, auditService)
@@ -137,6 +138,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaPurchaseService:            pharmaPurchaseService,
 		PharmaPurchaseInboundService:     pharmaPurchaseInboundService,
 		PharmaSalesService:               pharmaSalesService,
+		PharmaPaymentInvoiceService:      pharmaPaymentInvoiceService,
 		PharmaInventoryOperationService:  pharmaInventoryOperationService,
 		PharmaInventoryAlertService:      pharmaInventoryAlertService,
 		PharmaAnnouncementService:        pharmaAnnouncementService,

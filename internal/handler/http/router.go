@@ -52,6 +52,7 @@ type Dependencies struct {
 	PharmaPurchaseService            pharmaoasvc.PurchaseService
 	PharmaPurchaseInboundService     pharmaoasvc.PurchaseInboundService
 	PharmaSalesService               pharmaoasvc.SalesService
+	PharmaPaymentInvoiceService      pharmaoasvc.PaymentInvoiceService
 	PharmaInventoryOperationService  pharmaoasvc.InventoryOperationService
 	PharmaInventoryAlertService      pharmaoasvc.InventoryAlertService
 	PharmaAnnouncementService        pharmaoasvc.AnnouncementService
@@ -111,6 +112,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterPurchaseRoutes(apiMux, deps.PharmaPurchaseService)
 	pharmaoahttp.RegisterPurchaseInboundRoutes(apiMux, deps.PharmaPurchaseInboundService)
 	pharmaoahttp.RegisterSalesRoutes(apiMux, deps.PharmaSalesService)
+	pharmaoahttp.RegisterPaymentInvoiceRoutes(apiMux, deps.PharmaPaymentInvoiceService)
 	pharmaoahttp.RegisterInventoryOperationRoutes(apiMux, deps.PharmaInventoryOperationService)
 	pharmaoahttp.RegisterInventoryAlertRoutes(apiMux, deps.PharmaInventoryAlertService)
 	pharmaoahttp.RegisterAnnouncementRoutes(apiMux, deps.PharmaAnnouncementService)
@@ -131,6 +133,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	_ = pharmaoahttp.RegisterPurchasePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterPurchaseInboundPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterSalesPermissions(deps.PermissionService)
+	_ = pharmaoahttp.RegisterPaymentInvoicePermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterInventoryOperationPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterInventoryAlertPermissions(deps.PermissionService)
 	_ = pharmaoahttp.RegisterAnnouncementPermissions(deps.PermissionService)

@@ -110,6 +110,16 @@
   - `GET /v1/plugins/pharma_oa/api/cold-chain-jobs`
   - `POST /v1/plugins/pharma_oa/api/cold-chain-jobs`
   - `POST /v1/plugins/pharma_oa/api/cold-chain-jobs/retry`
+- Payment and invoice route contracts:
+  - `GET /v1/plugins/pharma_oa/api/payment-plans`
+  - `POST /v1/plugins/pharma_oa/api/payment-plans`
+  - `POST /v1/plugins/pharma_oa/api/payment-plans/receive`
+  - `GET /v1/plugins/pharma_oa/api/invoice-records`
+  - `POST /v1/plugins/pharma_oa/api/invoice-records`
+  - `POST /v1/plugins/pharma_oa/api/invoice-records/void`
+  - `GET /v1/plugins/pharma_oa/api/payment-reminder-jobs`
+  - `POST /v1/plugins/pharma_oa/api/payment-reminder-jobs`
+  - `POST /v1/plugins/pharma_oa/api/payment-reminder-jobs/retry`
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
@@ -168,3 +178,4 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - The host console route is `/skoll/pharma-oa/compliance-dashboard`, with loading, empty, error, no-permission, exporting, detail, and responsive states.
 - The host console route is `/skoll/pharma-oa/customer-follow-ups`; authenticated sales users can only list and mutate their own follow-ups, while trusted service callers may apply organization or all-customer scopes. Planning, completion, cancellation, attachments, permissions, and audit actions are declared explicitly.
 - The host console route is `/skoll/pharma-oa/sales-opportunities`; opportunities retain customer and product snapshots, enforce sequential funnel stages, aggregate exact cent-based statistics, and derive HTTP ownership from the authenticated sales user.
+- The host console route is `/skoll/pharma-oa/payment-invoices`; payment plans and invoices retain sales-order snapshots and private attachment metadata, exact cent-based balances, auditable receipt/void actions, and retryable idempotent overdue reminders.

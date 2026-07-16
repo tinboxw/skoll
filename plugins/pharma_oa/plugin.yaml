@@ -486,6 +486,36 @@ permissions:
     module: pharma_oa
     name: Advance or close sales opportunities
     risk: high
+  - key: pharma_oa.payment_invoice.read
+    type: api
+    module: pharma_oa
+    name: Read payment plans, invoices, and reminder jobs
+    risk: low
+  - key: pharma_oa.payment_plan.create
+    type: api
+    module: pharma_oa
+    name: Create payment plans
+    risk: medium
+  - key: pharma_oa.payment_plan.receive
+    type: button
+    module: pharma_oa
+    name: Record received payments
+    risk: high
+  - key: pharma_oa.invoice_record.create
+    type: api
+    module: pharma_oa
+    name: Create invoice records
+    risk: medium
+  - key: pharma_oa.invoice_record.void
+    type: button
+    module: pharma_oa
+    name: Void invoice records
+    risk: high
+  - key: pharma_oa.payment_reminder.run
+    type: button
+    module: pharma_oa
+    name: Run or retry overdue payment reminders
+    risk: high
 api:
   routes:
     - method: GET
@@ -998,6 +1028,51 @@ api:
       summary: Advance or close a sales opportunity
       permission: pharma_oa.sales_opportunity.advance
       audit_action: pharma_oa.sales_opportunity.advance
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/payment-plans
+      summary: List authorized payment plans
+      permission: pharma_oa.payment_invoice.read
+      audit_action: pharma_oa.payment_plan.read_list
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/payment-plans
+      summary: Create a sales-order payment plan
+      permission: pharma_oa.payment_plan.create
+      audit_action: pharma_oa.payment_plan.create
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/payment-plans/receive
+      summary: Record a received payment
+      permission: pharma_oa.payment_plan.receive
+      audit_action: pharma_oa.payment_plan.receive
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/invoice-records
+      summary: List authorized invoice records
+      permission: pharma_oa.payment_invoice.read
+      audit_action: pharma_oa.invoice_record.read_list
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/invoice-records
+      summary: Create a sales-order invoice record
+      permission: pharma_oa.invoice_record.create
+      audit_action: pharma_oa.invoice_record.create
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/invoice-records/void
+      summary: Void an issued invoice record
+      permission: pharma_oa.invoice_record.void
+      audit_action: pharma_oa.invoice_record.void
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/payment-reminder-jobs
+      summary: List overdue payment reminder jobs
+      permission: pharma_oa.payment_invoice.read
+      audit_action: pharma_oa.payment_reminder.job_read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/payment-reminder-jobs
+      summary: Run overdue payment reminders
+      permission: pharma_oa.payment_reminder.run
+      audit_action: pharma_oa.payment_reminder.run
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/payment-reminder-jobs/retry
+      summary: Retry a failed overdue payment reminder job
+      permission: pharma_oa.payment_reminder.run
+      audit_action: pharma_oa.payment_reminder.retry
     - method: GET
       path: /v1/plugins/pharma_oa/api/demo-seed/status
       summary: Get Pharma OA demo seed status

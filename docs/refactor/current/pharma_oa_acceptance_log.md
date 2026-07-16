@@ -2364,3 +2364,64 @@ Result: Passed after retries.
 ### Next Step
 
 - Claim `F11-03` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F11-03 Payment And Invoice Records
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> Review -> (Failed -> Doing) x7 -> Review -> Done`
+- Scope: sales-order payment plans, partial and complete receipts, invoice issue and void lifecycle, private financial attachments, overdue reminders, observable retryable scan jobs, permissions, audit events, OpenAPI contracts, plugin declarations, and a responsive finance console.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Sales-order relation and exact amounts | Passed | Payment plans and invoices retain order snapshots and integer-cent amounts; cumulative plans and active invoices cannot exceed the order total |
+| Payment lifecycle | Passed | Positive receipts cannot exceed the remaining plan amount; partial and paid transitions are deterministic, and paid plans complete outstanding reminder notifications |
+| Invoice lifecycle | Passed | Invoice numbers are unique, issue totals are bounded by the order, void requires a reason, and voiding releases the amount for later invoices |
+| Attachment safety | Passed | Plans, receipts, and invoices use authenticated private uploads; metadata validation rejects traversal, invalid sizes, missing identity, and executable extensions |
+| Data scope and identity | Passed | Trusted service calls support own and all scopes; HTTP derives actor identity exclusively from JWT subject and ignores spoofed actor or scope input |
+| Overdue reminders | Passed | Due unpaid plans become overdue, notification IDs are deterministic per plan, deep links target the selected plan, repeated scans are idempotent, and payment completion closes the reminder |
+| Job lifecycle and audit | Passed | Scan jobs expose pending, running, succeeded, and failed states with logs and retry count; only failed jobs retry, and payment, invoice, scan, retry, and failure actions are audited |
+| API and OpenAPI | Passed | Nine JWT-protected operations and all payment, invoice, attachment, filter, receipt, void, job, and retry schemas resolve; public and embedded contracts are byte-identical with SHA-256 `2428AC8807E4A258270B60DD19D4FA35680CF6CB1FD0DDA62A7F8021F9D457A2` |
+| Permissions and plugin lifecycle | Passed | Six finance permissions and nine routes pass install, enable, disable, catalog, route, audit, and duplicate-install assertions; the plugin exposes 91 permissions, 113 routes, 104 unique audit actions, and 204 resource events |
+| Frontend states | Passed after retries | Loading, empty, normalized error, no-permission, saving, destructive invoice void, payment plan, receipt, invoice, reminder scan, job detail, and deep-link selection are covered |
+| Responsive browser | Passed after retries | Authenticated Selenium Chrome acceptance at desktop and 500x844 mobile dimensions has no application errors, unexpected requests, horizontal overflow, clipped controls, or inaccessible drawer content; both screenshots were manually reviewed |
+| Full quality gate | Passed | Full Go tests, vet, backend build, focused domain/service/HTTP/plugin/OpenAPI tests, frontend type check, frontend production build, CodeGraph sync, and diff checks pass |
+| Runtime health | Passed | The rebuilt backend health endpoint and Vite finance route both returned HTTP 200 before final acceptance |
+| Migration and seed impact | Passed | No migration or persistent seed update is required for the current in-memory milestone implementation; browser prerequisites are isolated acceptance setup data |
+
+### Retry Record
+
+1. A transient login 500 stopped the first browser attempt before product assertions; a clean runtime returned 200.
+2. Browser setup used a spoofed sales-order actor, which correctly failed F11-03 ownership checks; setup now uses the authenticated actor.
+3. Teleported hidden drawer inputs caused the receipt amount to target a stale field; selectors now operate on the visible drawer instance.
+4. The scan drawer initially matched the toolbar action behind it; the submission assertion is scoped to the visible drawer.
+5. Mobile detail initially selected an overdue plan sharing the same order; the row selector now requires the partial status.
+6. The mobile reference assertion required a node whose entire text equaled the reference even though the UI intentionally renders `reference · actor`; it now validates contained visible text.
+7. Accumulated in-memory acceptance data caused a later login 500; the final complete run used a clean backend process and passed all 13 states without suppressing diagnostics.
+
+### Verification Commands
+
+```text
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa -run TestPayment -count=1
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run TestPayment -count=1
+go test ./internal/domain/pharmaoa ./internal/service/pharmaoa ./internal/handler/http ./internal/handler/http/v1/pharmaoa ./internal/plugin -run 'Test(Payment|EmbeddedOpenAPI|OpenAPIContractFilesStayInSync|PharmaOA)' -count=1
+go test ./internal/plugin -run TestPharmaOA -count=1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f11-03.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+python tmp/f11-03-browser.py
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retries.
+
+### Next Step
+
+- Claim `F11-04` from `docs/refactor/current/pharma_oa_work_items.md`.
