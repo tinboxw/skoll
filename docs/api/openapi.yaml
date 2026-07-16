@@ -4215,6 +4215,139 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/report-export-jobs:
+    get:
+      summary: List report export jobs owned by the authenticated actor
+      responses:
+        '200':
+          description: Authorized report export jobs
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportExportJobListAPIResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Missing report export read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+    post:
+      summary: Queue an asynchronous Pharma OA report export
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ReportExportCreateRequest'}
+      responses:
+        '202':
+          description: Report export accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportExportJobItemAPIResponse'}
+        '400':
+          description: Invalid report type or unbounded metrics window
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Missing report export create permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/report-export-jobs/{id}:
+    get:
+      summary: Read an owned report export job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Report export job detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportExportJobItemAPIResponse'}
+        '403':
+          description: Report export job belongs to another actor
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: Report export job not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/report-export-jobs/{id}/retry:
+    post:
+      summary: Retry an owned failed report export job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '202':
+          description: Report export retry accepted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReportExportJobItemAPIResponse'}
+        '403':
+          description: Missing retry permission or cross-owner access
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: Report export job not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: Only failed report exports can be retried
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/report-export-jobs/{id}/download:
+    get:
+      summary: Download an owned completed report export
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Generated CSV report
+          headers:
+            Content-Disposition:
+              schema: {type: string}
+          content:
+            text/csv:
+              schema: {type: string, format: binary}
+        '403':
+          description: Missing download permission or cross-owner access
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: Report export job not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: Report export has not completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+
 components:
   schemas:
     ContractCreateRequest:
@@ -5360,6 +5493,84 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/BusinessMetricsData'}
+    ReportExportCreateRequest:
+      type: object
+      required: [reportType]
+      properties:
+        reportType: {type: string, enum: [business_metrics, sales_trend, operational_risks]}
+        from:
+          type: string
+          description: Inclusive window start paired with to; RFC3339 or YYYY-MM-DD
+        to:
+          type: string
+          description: Inclusive window end paired with from; RFC3339 or YYYY-MM-DD
+        bucket: {type: string, enum: [day, week, month], default: day}
+        qualificationDays: {type: integer, minimum: 1, maximum: 365, default: 30}
+        actorId:
+          type: string
+          description: Ignored; actor identity is derived from JWT claims
+    ReportExportQuery:
+      type: object
+      required: [from, to, bucket, qualificationDays]
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        bucket: {type: string, enum: [day, week, month]}
+        qualificationDays: {type: integer, minimum: 1, maximum: 365}
+    ReportExportJobLog:
+      type: object
+      required: [level, message, createdAt]
+      properties:
+        level: {type: string, enum: [info, error]}
+        message: {type: string}
+        createdAt: {type: string, format: date-time}
+    ReportExportJob:
+      type: object
+      required: [id, reportType, status, query, ownerId, fileId, filename, contentType, size, rowCount, error, retryCount, logs, createdAt]
+      properties:
+        id: {type: string}
+        reportType: {type: string, enum: [business_metrics, sales_trend, operational_risks]}
+        status: {type: string, enum: [pending, running, succeeded, failed]}
+        query: {$ref: '#/components/schemas/ReportExportQuery'}
+        ownerId: {type: string}
+        fileId: {type: string}
+        filename: {type: string}
+        contentType: {type: string, enum: [text/csv]}
+        size: {type: integer, format: int64, minimum: 0}
+        rowCount: {type: integer, minimum: 0}
+        error: {type: string}
+        retryCount: {type: integer, minimum: 0}
+        logs:
+          type: array
+          items: {$ref: '#/components/schemas/ReportExportJobLog'}
+        createdAt: {type: string, format: date-time}
+        startedAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time}
+    ReportExportJobItemData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/ReportExportJob'}
+    ReportExportJobListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/ReportExportJob'}
+    ReportExportJobItemAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ReportExportJobItemData'}
+    ReportExportJobListAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/ReportExportJobListData'}
+
     AnnouncementAudience:
       type: object
       required: [organizationIds, roleIds]

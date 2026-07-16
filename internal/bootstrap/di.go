@@ -117,6 +117,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaColdChainService := pharmaoasvc.NewColdChainService(pharmaInventoryService, pharmaWarehouseService, notificationService, auditService)
 	pharmaComplianceDashboardService := pharmaoasvc.NewComplianceDashboardService(pharmaQualificationService, pharmaQualityComplaintService, pharmaDrugRecallService, pharmaColdChainService, auditService)
 	pharmaBusinessMetricsService := pharmaoasvc.NewBusinessMetricsService(pharmaInventoryAlertService, pharmaQualificationService, pharmaPurchaseService, pharmaCustomerFollowUpService, pharmaSalesService, auditService)
+	pharmaReportExportService := pharmaoasvc.NewReportExportService(pharmaBusinessMetricsService, fileService, auditService)
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
@@ -150,6 +151,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaColdChainService:           pharmaColdChainService,
 		PharmaComplianceDashboardService: pharmaComplianceDashboardService,
 		PharmaBusinessMetricsService:     pharmaBusinessMetricsService,
+		PharmaReportExportService:        pharmaReportExportService,
 		MenuService:                      menuService,
 		WorkflowService:                  workflowService,
 		PluginManager:                    pluginManager,

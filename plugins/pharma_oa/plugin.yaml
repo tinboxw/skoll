@@ -521,6 +521,26 @@ permissions:
     module: pharma_oa
     name: Read aggregated business metrics
     risk: low
+  - key: pharma_oa.report_export.read
+    type: api
+    module: pharma_oa
+    name: Read report export jobs
+    risk: low
+  - key: pharma_oa.report_export.create
+    type: api
+    module: pharma_oa
+    name: Queue report exports
+    risk: medium
+  - key: pharma_oa.report_export.retry
+    type: button
+    module: pharma_oa
+    name: Retry failed report exports
+    risk: high
+  - key: pharma_oa.report_export.download
+    type: api
+    module: pharma_oa
+    name: Download report exports
+    risk: medium
 api:
   routes:
     - method: GET
@@ -1093,3 +1113,28 @@ api:
       summary: Read bounded operational and sales metrics
       permission: pharma_oa.business_metrics.read
       audit_action: pharma_oa.business_metrics.read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/report-export-jobs
+      summary: List report export jobs
+      permission: pharma_oa.report_export.read
+      audit_action: pharma_oa.report_export.read_list
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/report-export-jobs
+      summary: Queue an asynchronous report export
+      permission: pharma_oa.report_export.create
+      audit_action: pharma_oa.report_export.queue
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/report-export-jobs/detail
+      summary: Read report export job detail
+      permission: pharma_oa.report_export.read
+      audit_action: pharma_oa.report_export.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/report-export-jobs/retry
+      summary: Retry a failed report export
+      permission: pharma_oa.report_export.retry
+      audit_action: pharma_oa.report_export.retry
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/report-export-jobs/download
+      summary: Download a completed report export
+      permission: pharma_oa.report_export.download
+      audit_action: pharma_oa.report_export.download

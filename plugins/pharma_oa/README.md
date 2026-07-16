@@ -123,6 +123,12 @@
 - Demo seed route contracts:
   - `GET /v1/plugins/pharma_oa/api/demo-seed/status`
   - `POST /v1/plugins/pharma_oa/api/demo-seed/apply`
+- Report export route contracts:
+  - `GET /v1/plugins/pharma_oa/api/report-export-jobs`
+  - `POST /v1/plugins/pharma_oa/api/report-export-jobs`
+  - `GET /v1/plugins/pharma_oa/api/report-export-jobs/detail`
+  - `POST /v1/plugins/pharma_oa/api/report-export-jobs/retry`
+  - `GET /v1/plugins/pharma_oa/api/report-export-jobs/download`
 
 The current employee module uses the core `/v1/pharma-oa/employees` API and integrated route `/skoll/pharma-oa/employees`. The product module uses the core `/v1/pharma-oa/products` API for drug master data, disable flow, and import validation. The supplier module uses `/v1/pharma-oa/suppliers` for supplier records, contacts, qualification attachment metadata, reminders, and purchase eligibility checks. The customer module uses `/v1/pharma-oa/customers` and `/skoll/pharma-oa/customers` for customer contacts, region ownership, qualification attachment metadata, organization/owner isolation, reminders, and sales eligibility checks. The warehouse module uses `/v1/pharma-oa/warehouses` for warehouse, area, location, temperature attributes, disable flow, and inbound/outbound movement location eligibility. The master data exchange module uses `/v1/pharma-oa/master-data/template`, `/v1/pharma-oa/master-data/import`, and `/v1/pharma-oa/master-data/export` for employee, product, supplier, and customer templates, row-level import reports, and export jobs. The purchase module uses `/v1/pharma-oa/purchase-requests` and `/v1/pharma-oa/purchase-orders` for supplier-qualified requests, workflow approval, rejection, and idempotent purchase-order generation. The sales module uses `/v1/pharma-oa/sales-orders`, `/v1/pharma-oa/sales-outbounds`, and `/skoll/pharma-oa/sales` for customer-qualified orders, batch outbound, stock deduction, and immutable ledger references. The inventory operation module uses `/v1/pharma-oa/stocktakes` for workflow-gated stocktake differences with idempotent ledger posting, and `/v1/pharma-oa/transfers` for atomic cross-warehouse movement with paired outbound and inbound ledger references. The inventory alert module runs retryable near-expiry, low-stock, and over-stock scans, writes deterministic reminders to the notification service, and links each alert to its warehouse, balance, and batch context.
 
@@ -191,3 +197,10 @@ The plugin is validated by `go test ./internal/plugin/...`. The dedicated test i
 - The host console route is `/skoll/pharma-oa/dashboard` and requires `pharma_oa.business_metrics.read`.
 - The lazy-loaded dashboard combines stock alerts, qualification risk, approval and follow-up completion, and exact cent-based sales trends in one bounded request.
 - Date range, day/week/month bucket, and qualification horizon filters are explicit; loading, empty, normalized error, permission denial, request single-flight, and responsive states are covered.
+
+## Report exports
+
+- Business metrics, sales trend, and operational risk reports run as asynchronous jobs with pending, running, succeeded, and failed states.
+- Successful jobs write exact cent-based CSV output to private file storage and expose authenticated owner-only list, detail, and download operations.
+- Failed jobs retain their error and execution log for owner-only retry; completed jobs cannot be retried.
+- Queue, execution, completion, failure, list, detail, retry, and download operations append dedicated Pharma OA audit evidence.

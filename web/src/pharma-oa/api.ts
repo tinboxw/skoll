@@ -1015,3 +1015,65 @@ export async function getBusinessMetrics(query: BusinessMetricsQuery = {}): Prom
 	const payload = await apiGet<ApiResponse<{ item: BusinessMetricsSnapshot }>>(`/v1/pharma-oa/business-metrics${suffix}`);
 	return payload.data.item;
 }
+
+export type ReportExportType = "business_metrics" | "sales_trend" | "operational_risks";
+export type ReportExportJobStatus = "pending" | "running" | "succeeded" | "failed";
+export type ReportExportJob = {
+	id: string;
+	reportType: ReportExportType;
+	status: ReportExportJobStatus;
+	query: { from: string; to: string; bucket: BusinessMetricsBucket; qualificationDays: number };
+	ownerId: string;
+	fileId: string;
+	filename: string;
+	contentType: string;
+	size: number;
+	rowCount: number;
+	error: string;
+	retryCount: number;
+	logs: Array<{ level: string; message: string; createdAt: string }>;
+	createdAt: string;
+	startedAt?: string;
+	completedAt?: string;
+};
+export type ReportExportCreateBody = BusinessMetricsQuery & { reportType: ReportExportType };
+
+export async function queueReportExport(body: ReportExportCreateBody): Promise<ReportExportJob> {
+	const payload = await apiPost<ApiResponse<{ item: ReportExportJob }>>("/v1/pharma-oa/report-export-jobs", body);
+	return payload.data.item;
+}
+
+export async function listReportExportJobs(): Promise<ReportExportJob[]> {
+	const payload = await apiGet<ApiResponse<{ items: ReportExportJob[] }>>("/v1/pharma-oa/report-export-jobs");
+	return payload.data.items;
+}
+
+export async function getReportExportJob(id: string): Promise<ReportExportJob> {
+	const payload = await apiGet<ApiResponse<{ item: ReportExportJob }>>(`/v1/pharma-oa/report-export-jobs/${encodeURIComponent(id)}`);
+	return payload.data.item;
+}
+
+export async function retryReportExport(id: string): Promise<ReportExportJob> {
+	const payload = await apiPost<ApiResponse<{ item: ReportExportJob }>>(`/v1/pharma-oa/report-export-jobs/${encodeURIComponent(id)}/retry`, {});
+	return payload.data.item;
+}
+
+export async function downloadReportExport(id: string): Promise<Blob> {
+	const headers = new Headers();
+	const token = getToken().trim();
+	if (token) headers.set("Authorization", token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`);
+	const response = await fetch(`${API_BASE_PREFIX}/v1/pharma-oa/report-export-jobs/${encodeURIComponent(id)}/download`, { method: "GET", headers });
+	if (!response.ok) {
+		let message = `request failed: ${response.status}`;
+		let code = "";
+		try {
+			const payload = await response.json() as Partial<ApiResponse<unknown>>;
+			if (typeof payload.message === "string" && payload.message.trim()) message = payload.message;
+			if (typeof payload.code === "string") code = payload.code;
+		} catch {
+			// Keep the HTTP fallback when the error body is not JSON.
+		}
+		throw new ApiError(message, response.status, code);
+	}
+	return response.blob();
+}

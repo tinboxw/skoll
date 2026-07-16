@@ -2513,3 +2513,58 @@ Result: Passed after retries.
 ### Next Step
 
 - Claim `F11-06` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F11-06 Report Export
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> (Failed -> Doing) x2 -> Review -> Done`
+- Scope: asynchronous report export jobs, exact cent-based CSV generation, private file storage, owner isolation, retry and failure evidence, permissions, audit, OpenAPI, plugin declarations, and typed frontend client.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Report coverage | Passed | Business metrics, sales trend, and operational risk report types produce deterministic CSV output from the bounded F11-04 metrics query |
+| Amount precision | Passed | Monetary values remain integer cents through aggregation and are formatted exactly once for CSV output |
+| Async lifecycle | Passed | Queue returns a pending job, background execution records running and terminal states, and each job retains ordered execution logs |
+| File storage and ownership | Passed | Successful output is written through the file service as a private `pharma_oa` object with SHA-256 metadata; list, detail, retry, and download enforce authenticated ownership |
+| Failure and retry | Passed | Failed jobs retain their error and may be retried; retrying a succeeded job returns conflict without starting duplicate work |
+| Identity and HTTP states | Passed | Request actor fields are ignored in favor of JWT subject; unauthenticated access returns 401, invalid ranges return 400, missing/foreign jobs are isolated, and invalid retries return 409 |
+| Audit chain | Passed | Queue, run, complete, fail, list, detail, retry, and download have dedicated `pharma_oa.report_export.*` actions with actor and job evidence |
+| API and OpenAPI | Passed after retries | Five JWT-protected operations and all request, job, log, file, and envelope schemas resolve; public and embedded contracts are byte-identical with SHA-256 `4BF692D4A83916FF9EED7269487DDBA8DE208D1425CA82A6BBC7623AA761098C` |
+| Permissions and plugin lifecycle | Passed | Read, create, retry, and download permissions plus five routes pass install, enable, disable, catalog, audit, and duplicate-install assertions; the plugin exposes 96 permissions, 119 routes, 110 unique audit actions, and 215 resource events |
+| Frontend contract | Passed | Typed list, queue, detail, retry, and download clients align with the Go and OpenAPI contracts; frontend type check and production build pass |
+| Full quality gate | Passed | Focused service/HTTP/race/plugin/OpenAPI tests, full Go tests, vet, backend build, frontend type check and build, runtime HTTP checks, CodeGraph sync, and diff checks pass |
+| Runtime HTTP | Passed | A real queued job completed with 14 rows and 442 CSV bytes; authenticated list/detail/download and private object bytes matched, retry returned 409, invalid range returned 400, unauthenticated access returned 401, and the audit chain was present |
+| Migration and seed impact | Passed | No migration or seed change is required because job state is process-local and result files use the existing file metadata and object storage contracts |
+
+### Retry Record
+
+1. The first OpenAPI validation found accidental leading `+` characters in the new path block; the contract was repaired and regenerated in both copies.
+2. The second validation found the same patch artifact in the schema block; it was removed before focused and full contract validation passed.
+
+### Verification Commands
+
+```text
+go test ./internal/service/pharmaoa -run TestReportExport -count=1
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run TestReportExport -count=1
+go test -race ./internal/service/pharmaoa -run TestReportExport -count=1
+go test ./internal/plugin -run TestPharmaOA -count=1
+go test ./internal/handler/http -run 'Test(EmbeddedOpenAPI|OpenAPIContractFilesStayInSync)' -count=1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f11-06.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+python tmp/f11-06-runtime.py
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retries.
+
+### Next Step
+
+- Claim `F12-01` from `docs/refactor/current/pharma_oa_work_items.md`.
