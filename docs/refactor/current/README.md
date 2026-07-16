@@ -2,6 +2,7 @@
 
 > Scope: next-batch feature development, UI optimization, business-plugin platform work, and pharma OA planning.
 > Status: M0-M7/FE/N0 are complete and archived. Do not update archived task status for new work.
+> Pharma OA batch: F6-F12 closed on 2026-07-17. Create new current batch files before taking follow-up implementation.
 
 ## Single Source Of Truth
 
@@ -16,6 +17,7 @@
 | Feature/UI candidate pool | `feature_ui_work_items_2026-07-04.md` |
 | Latest progress inspection | `progress_inspection_pharma_oa_iteration_2026-07-04.md` |
 | Pharma OA performance and permission report | `pharma_oa_performance_permission_report.md` |
+| Pharma OA milestone closeout | `pharma_oa_milestone_closeout_2026-07-17.md` |
 | Completed historical evidence | `../old/completed-m0-m7-2026-07-04/` |
 
 ## How Developers Read Tasks

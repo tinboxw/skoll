@@ -2762,3 +2762,48 @@ Result: Passed after retry.
 ### Next Step
 
 - Claim the next `Todo` Work Item from `docs/refactor/current/pharma_oa_work_items.md` after rereading the mandatory current documents.
+
+## F12-05 Pharma OA Milestone Closeout
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: formal F6-F12 status audit, P0 acceptance replay, parent-board reconciliation, closeout report, open issue inventory, next-batch recommendations, backend/frontend quality gates, and runtime health evidence.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Formal task completeness | Passed | All 47 official Work Items are `Done`; the acceptance log contains headings for all 46 predecessor items and this entry closes F12-05 |
+| Parent task reconciliation | Passed | F8 and F11 stale parent states were corrected after all child items were confirmed Done; F12 now closes with F6-F11 already Done |
+| P0 plugin lifecycle | Passed | Chinese-default plugin smoke verifies manifest, install, enable, disable, permissions, menu, audit, and lifecycle behavior |
+| P0 end-to-end chain | Passed | Employee onboarding, purchase approval, inbound, sales outbound, qualification reminder, customer follow-up, workflow evidence, and inventory evidence pass |
+| Performance and permission replay | Passed | 600-record sample completed representative queries in 2.50 ms; approval, inventory, JWT data scope, actor identity, `401/403`, and fixed-iteration benchmarks pass |
+| Backend quality | Passed | `go test ./...` and `go vet ./...` pass across the repository |
+| Frontend quality | Passed | `npm run typecheck` and `npm run build` pass; only existing non-blocking Sass legacy API and third-party Rollup annotation warnings remain |
+| Runtime health | Passed | Running backend health and frontend workflow URLs both return HTTP 200 |
+| Closeout report | Passed | `pharma_oa_milestone_closeout_2026-07-17.md` records 47-item completion, P0 evidence, no blocking issues, open risks, and six next-batch candidates |
+| Governance boundary | Passed | No new task was taken from `old/` or the candidate pool; no follow-up was silently added as a current Todo; new implementation requires new current batch files |
+| API/permission/audit/migration/seed/frontend impact | Passed | F12-05 changes governance documents only; no runtime contract, permission key, audit action, migration, seed, or frontend implementation changed |
+
+### Verification Commands
+
+```text
+.\scripts\smoke-pharma-oa-plugin.ps1
+.\scripts\smoke-pharma-oa-e2e.ps1
+.\scripts\smoke-pharma-oa-performance-permission.ps1
+go test ./...
+go vet ./...
+cd web; npm run typecheck
+cd web; npm run build
+Invoke-WebRequest http://127.0.0.1:8080/skoll/health
+Invoke-WebRequest http://127.0.0.1:5173/skoll/workflow
+PowerShell Work Item status and acceptance-heading consistency checks
+codegraph status .
+git diff --check
+```
+
+Result: Passed.
+
+### Next Step
+
+- The `pharma-oa-2026-07-04` batch is closed. Create a new task board, Work Item table, and acceptance log under `docs/refactor/current/` before implementing any candidate from the closeout report.

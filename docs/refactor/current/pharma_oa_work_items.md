@@ -54,7 +54,7 @@
 | F12-02 | `skoll-testing-automation` / `skoll-quality-gate` | Add End-To-End Acceptance Script | F8-F11 | E2E smoke script | Employee onboarding, purchase request, inbound, sales outbound, qualification alert, and customer follow-up pass | `go test ./...`; E2E smoke command | Done |
 | F12-03 | `skoll-docs-writer` / `skoll-open-source-framework` | Write Industry Plugin README | F12-01 | Install, feature boundary, and extension guide | New developers can install, run, and understand the pharma OA plugin domain | docs review; link check | Done |
 | F12-04 | `skoll-performance-scaling` / `skoll-security-hardening` | Validate Performance And Permissions | F12-02 | Performance samples, permission matrix, risk list | Large list pagination, common queries, data scope, approval permission, and inventory permission pass | `go test ./...`; performance/permission scripts | Done |
-| F12-05 | `skoll-refactor-governance` / `skoll-quality-gate` | Close Pharma OA Milestone | F12-01, F12-02, F12-03, F12-04 | Acceptance report, issue list, follow-up tasks | All P0 acceptance passes; failed items are returned to work items and not hidden | `go test ./...`; `cd web; npm run typecheck`; `cd web; npm run build`; closeout review | Todo |
+| F12-05 | `skoll-refactor-governance` / `skoll-quality-gate` | Close Pharma OA Milestone | F12-01, F12-02, F12-03, F12-04 | Acceptance report, issue list, follow-up tasks | All P0 acceptance passes; failed items are returned to work items and not hidden | `go test ./...`; `cd web; npm run typecheck`; `cd web; npm run build`; closeout review | Done |
 
 ## Next Claim
 
