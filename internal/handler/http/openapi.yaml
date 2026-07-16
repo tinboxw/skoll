@@ -4347,6 +4347,49 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/demo-seed/status:
+    get:
+      summary: Read Pharma OA demo seed status
+      responses:
+        '200':
+          description: Current demo seed state and entity references
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DemoSeedAPIResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Missing demo seed read permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/pharma-oa/demo-seed/apply:
+    post:
+      summary: Initialize the complete Pharma OA demo scenario
+      responses:
+        '200':
+          description: Demo scenario initialized or existing result reused
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DemoSeedAPIResponse'}
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Missing demo seed apply permission
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '500':
+          description: Demo seed failed and exposes its terminal stage through the status operation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
 
 components:
   schemas:
@@ -5570,6 +5613,49 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/ReportExportJobListData'}
+    DemoSeedEntities:
+      type: object
+      required: [employeeId, productId, supplierId, customerId, warehouseId, purchaseRequestId, workflowInstanceId, purchaseOrderId, purchaseInboundId, batchId, salesOrderId, salesOutboundId, customerFollowUpId]
+      properties:
+        employeeId: {type: string}
+        productId: {type: string}
+        supplierId: {type: string}
+        customerId: {type: string}
+        warehouseId: {type: string}
+        purchaseRequestId: {type: string}
+        workflowInstanceId: {type: string}
+        purchaseOrderId: {type: string}
+        purchaseInboundId: {type: string}
+        batchId: {type: string}
+        salesOrderId: {type: string}
+        salesOutboundId: {type: string}
+        customerFollowUpId: {type: string}
+    DemoSeedSnapshot:
+      type: object
+      required: [state, stage, applied, reused, entities, counts]
+      properties:
+        state: {type: string, enum: [ready, applying, applied, failed]}
+        stage: {type: string}
+        applied: {type: boolean}
+        reused: {type: boolean}
+        actorId: {type: string}
+        appliedAt: {type: string, format: date-time}
+        error: {type: string}
+        entities: {$ref: '#/components/schemas/DemoSeedEntities'}
+        counts:
+          type: object
+          additionalProperties: {type: integer, minimum: 0}
+    DemoSeedData:
+      type: object
+      required: [item]
+      properties:
+        item: {$ref: '#/components/schemas/DemoSeedSnapshot'}
+    DemoSeedAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/DemoSeedData'}
 
     AnnouncementAudience:
       type: object

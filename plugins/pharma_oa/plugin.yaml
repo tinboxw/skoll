@@ -75,7 +75,7 @@ permissions:
     module: pharma_oa
     name: Apply Pharma OA demo seed
     risk: medium
-    metadata.description: Allows the demo seed entry to be executed when the backing implementation is added.
+    metadata.description: Initializes the complete Pharma OA demonstration scenario through the host seed service.
   - key: pharma_oa.employee.read
     type: api
     module: pharma_oa

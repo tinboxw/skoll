@@ -135,6 +135,12 @@ The current employee module uses the core `/v1/pharma-oa/employees` API and inte
 ## Lifecycle Smoke
 
 The plugin is validated by `go test ./internal/plugin/...`. The dedicated test installs, enables, disables, checks permission/menu catalog effects, route extension registration, catalog audit events, and duplicate-install failure handling.
+
+## Demo data
+
+- `POST /v1/pharma-oa/demo-seed/apply` initializes one employee, product, qualified supplier, qualified customer, cold-chain warehouse, approved purchase workflow, inbound batch, sales outbound, and planned customer follow-up.
+- `GET /v1/pharma-oa/demo-seed/status` returns the current stage, entity references, and scenario counts.
+- Successful execution is idempotent for the running application instance, derives its actor from JWT claims, and records seed read, apply, and failure audit evidence.
 ## Announcements and policy documents
 
 - Announcement drafts target one or more organization IDs or role IDs before publication.

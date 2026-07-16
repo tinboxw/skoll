@@ -118,6 +118,11 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pharmaComplianceDashboardService := pharmaoasvc.NewComplianceDashboardService(pharmaQualificationService, pharmaQualityComplaintService, pharmaDrugRecallService, pharmaColdChainService, auditService)
 	pharmaBusinessMetricsService := pharmaoasvc.NewBusinessMetricsService(pharmaInventoryAlertService, pharmaQualificationService, pharmaPurchaseService, pharmaCustomerFollowUpService, pharmaSalesService, auditService)
 	pharmaReportExportService := pharmaoasvc.NewReportExportService(pharmaBusinessMetricsService, fileService, auditService)
+	pharmaDemoSeedService := pharmaoasvc.NewDemoSeedService(pharmaoasvc.DemoSeedDependencies{
+		Employees: pharmaEmployeeService, Products: pharmaProductService, Suppliers: pharmaSupplierService, Customers: pharmaCustomerService,
+		Warehouses: pharmaWarehouseService, Purchases: pharmaPurchaseService, Inbounds: pharmaPurchaseInboundService, Sales: pharmaSalesService,
+		Inventory: pharmaInventoryService, FollowUps: pharmaCustomerFollowUpService, Audit: auditService,
+	})
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
@@ -152,6 +157,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		PharmaComplianceDashboardService: pharmaComplianceDashboardService,
 		PharmaBusinessMetricsService:     pharmaBusinessMetricsService,
 		PharmaReportExportService:        pharmaReportExportService,
+		PharmaDemoSeedService:            pharmaDemoSeedService,
 		MenuService:                      menuService,
 		WorkflowService:                  workflowService,
 		PluginManager:                    pluginManager,

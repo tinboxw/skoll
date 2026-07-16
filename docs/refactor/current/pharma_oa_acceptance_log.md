@@ -2568,3 +2568,57 @@ Result: Passed after retries.
 ### Next Step
 
 - Claim `F12-01` from `docs/refactor/current/pharma_oa_work_items.md`.
+
+## F12-01 Demo Data Set
+
+- Date: 2026-07-17
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: one-command Pharma OA demo initialization, employee qualification, drug master data, qualified supplier and customer, cold-chain warehouse, purchase approval workflow, inbound batch inventory, sales outbound, customer follow-up, status reporting, idempotency, permissions, audit, OpenAPI, and typed frontend client.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| One-command initialization | Passed | `POST /v1/pharma-oa/demo-seed/apply` creates the complete scenario through existing domain services and returns all entity references in one response |
+| Master data | Passed | One active employee with a 20-day qualification, one temperature-controlled product, one qualified supplier, one qualified customer, and one cold-chain warehouse/area/location are queryable through their normal APIs |
+| Workflow and purchase | Passed | A purchase request launches and completes a real approval workflow, generates a purchase order, and retains the workflow instance ID |
+| Inventory chain | Passed | Purchase inbound creates one batch and inbound ledger entry; sales outbound consumes 12 of 100 units and creates the second immutable ledger entry, leaving 88 units in one stock balance |
+| CRM and alert readiness | Passed | A planned customer follow-up is owned by the authenticated seed actor, and the employee certificate produces one 30-day qualification reminder |
+| Idempotency and concurrency | Passed | A process-wide apply lock serializes execution; a second apply returns the same references with `reused=true` and does not duplicate stock ledger entries |
+| Failure visibility | Passed | Status exposes ready, applying, applied, and failed states plus the terminal stage and error; failed initialization appends `pharma_oa.seed.fail` evidence |
+| Identity, permission, and audit | Passed | HTTP derives the actor from JWT claims; read/apply permissions are registered, unauthenticated status returns 401, and read/apply audit actions are queryable for the actor |
+| API and OpenAPI | Passed | Two JWT-protected operations and status/entity/count schemas resolve; public and embedded contracts are byte-identical with SHA-256 `ACF22A6C7867204895F098D4C73524B41ED5CA9161C00AAC18218451446516F0` |
+| Plugin and frontend contract | Passed | Existing plugin seed routes and permissions pass lifecycle smoke; plugin docs describe the live host endpoints, and typed status/apply clients pass TypeScript and production build checks |
+| Full quality gate | Passed | Focused service/HTTP/plugin/OpenAPI tests, race detector, all Go tests, vet, backend build, frontend type check and 3598-module production build, CodeGraph sync, and diff checks pass |
+| Runtime HTTP | Passed after retry | New binary on port 8081 initialized the scenario, returned `reused=true` on repeat, exposed all references across 10 normal business list APIs, and returned both seed audit actions |
+| Migration and persistent seed impact | Passed | No migration or SQL seed changes are required because current Pharma OA repositories are process-local; the implementation intentionally composes existing domain contracts without introducing a second persistence path |
+
+### Retry Record
+
+1. The first runtime verification called a nonexistent `/v1/pharma-oa/inventory/balances` endpoint after seed execution had succeeded. The Work Item moved `Doing -> Failed -> Doing`; the script was corrected to validate the returned inventory counts plus the 10 supported business list APIs, and the rerun passed.
+2. Local policy rejected attempts to replace the existing port-8080 process or launch a detached process. The accepted rerun hosted the rebuilt binary in a managed foreground session on port 8081, leaving the user's current browser service untouched.
+
+### Verification Commands
+
+```text
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa -run TestDemoSeed -count=1
+go test -race ./internal/service/pharmaoa -run TestDemoSeed -count=1
+go test ./internal/plugin -run TestPharmaOA -count=1
+go test ./internal/handler/http -run 'Test(EmbeddedOpenAPI|OpenAPIContractFilesStayInSync)' -count=1
+go test ./...
+go vet ./...
+go build -o tmp/skoll-f12-01.exe ./cmd/skoll
+cd web; npm run typecheck
+cd web; npm run build
+Invoke-RestMethod -Method Post http://127.0.0.1:8081/skoll/v1/pharma-oa/demo-seed/apply -Headers <auth>
+Get-FileHash docs/api/openapi.yaml, internal/handler/http/openapi.yaml
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: Passed after retry.
+
+### Next Step
+
+- Claim `F12-02` from `docs/refactor/current/pharma_oa_work_items.md`.

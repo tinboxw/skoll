@@ -1077,3 +1077,40 @@ export async function downloadReportExport(id: string): Promise<Blob> {
 	}
 	return response.blob();
 }
+
+export type DemoSeedState = "ready" | "applying" | "applied" | "failed";
+export type DemoSeedSnapshot = {
+	state: DemoSeedState;
+	stage: string;
+	applied: boolean;
+	reused: boolean;
+	actorId?: string;
+	appliedAt?: string;
+	error?: string;
+	entities: {
+		employeeId: string;
+		productId: string;
+		supplierId: string;
+		customerId: string;
+		warehouseId: string;
+		purchaseRequestId: string;
+		workflowInstanceId: string;
+		purchaseOrderId: string;
+		purchaseInboundId: string;
+		batchId: string;
+		salesOrderId: string;
+		salesOutboundId: string;
+		customerFollowUpId: string;
+	};
+	counts: Record<string, number>;
+};
+
+export async function getDemoSeedStatus(): Promise<DemoSeedSnapshot> {
+	const payload = await apiGet<ApiResponse<{ item: DemoSeedSnapshot }>>("/v1/pharma-oa/demo-seed/status");
+	return payload.data.item;
+}
+
+export async function applyDemoSeed(): Promise<DemoSeedSnapshot> {
+	const payload = await apiPost<ApiResponse<{ item: DemoSeedSnapshot }>>("/v1/pharma-oa/demo-seed/apply", {});
+	return payload.data.item;
+}
