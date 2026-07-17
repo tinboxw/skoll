@@ -19,9 +19,10 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | Document | Purpose |
 | --- | --- |
 | [current/README.md](current/README.md) | Current task intake, progress update, acceptance, and commit rules |
-| [current/pharma_oa_task_board.md](current/pharma_oa_task_board.md) | Official parent task board for the pharma OA execution batch |
-| [current/pharma_oa_work_items.md](current/pharma_oa_work_items.md) | Official Work Item table for the pharma OA execution batch |
-| [current/pharma_oa_acceptance_log.md](current/pharma_oa_acceptance_log.md) | Acceptance evidence for pharma OA Work Items |
+| [current/hardening_task_board_2026-07-18.md](current/hardening_task_board_2026-07-18.md) | Active hardening parent task board |
+| [current/hardening_work_items_2026-07-18.md](current/hardening_work_items_2026-07-18.md) | Active hardening Work Item table |
+| [current/hardening_acceptance_log_2026-07-18.md](current/hardening_acceptance_log_2026-07-18.md) | Active hardening acceptance evidence |
+| [current/pharma_oa_milestone_closeout_2026-07-17.md](current/pharma_oa_milestone_closeout_2026-07-17.md) | Closed Pharma OA batch evidence and hardening source |
 | [current/business_plugin_capability_plan_2026-07-04.md](current/business_plugin_capability_plan_2026-07-04.md) | Business-plugin capability gaps, pharma OA function blueprint, and framework infrastructure matrix |
 | [current/pharma_oa_milestone_plan_2026-07-04.md](current/pharma_oa_milestone_plan_2026-07-04.md) | F6-F12 pharma OA milestones and atomic candidate work items |
 | [current/progress_inspection_pharma_oa_iteration_2026-07-04.md](current/progress_inspection_pharma_oa_iteration_2026-07-04.md) | Latest progress inspection, risks, task tuning, and milestone refinement |
