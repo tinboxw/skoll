@@ -12,6 +12,7 @@ import (
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	auditmw "github.com/tinboxw/skoll/internal/handler/middleware"
+	"github.com/tinboxw/skoll/internal/plugin"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/pkg/config"
 	apperrors "github.com/tinboxw/skoll/pkg/errors"
@@ -35,16 +36,17 @@ type permissionChecker interface {
 	CheckPermission(ctx context.Context, in rbacsvc.CheckPermissionInput) (bool, error)
 }
 
-func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, auditSink auditmw.AuditEventSink) http.Handler {
+func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, routeResolver plugin.RoutePermissionResolver, auditSink auditmw.AuditEventSink) http.Handler {
 	h := recoverMiddleware(logger, auditSink, next)
 	h = accessLogMiddleware(logger, h)
-	h = authGuardMiddleware(policy, apiPrefix, jwtSecret, checker, auditSink, h)
+	h = authGuardMiddleware(policy, apiPrefix, jwtSecret, checker, routeResolver, auditSink, h)
 	return h
 }
 
-func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, auditSink auditmw.AuditEventSink, next http.Handler) http.Handler {
+func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, routeResolver plugin.RoutePermissionResolver, auditSink auditmw.AuditEventSink, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !policy.ShouldAuthenticate(r.URL.Path) {
+		pluginPath, pluginBusinessRoute := pluginBusinessRoutePath(r.URL.Path, apiPrefix)
+		if !pluginBusinessRoute && !policy.ShouldAuthenticate(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -56,41 +58,123 @@ func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker
 		}
 
 		claims, err := security.ParseJWT(jwtSecret, token)
-		if err != nil {
+		if err != nil || claims == nil {
 			apperrors.WriteHTTP(w, apperrors.New("unauthorized", "invalid access token", nil))
 			return
 		}
 		r = r.WithContext(security.WithJWTClaimsContext(r.Context(), claims))
 
-		if claims != nil && !isRoleBypass(claims.Role) {
-			resource, action, guarded := requiredPermission(r.Method, r.URL.Path, apiPrefix)
-			if guarded {
-				if checker == nil {
-					appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_checker_not_configured")
-					apperrors.WriteHTTP(w, apperrors.New("forbidden", "permission denied", nil))
-					return
-				}
-				allowed, err := checker.CheckPermission(r.Context(), rbacsvc.CheckPermissionInput{
-					SubjectType: domainrbac.SubjectUser,
-					SubjectID:   claims.Subject,
-					Resource:    resource,
-					Action:      action,
-				})
-				if err != nil {
-					appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_check_failed")
-					apperrors.WriteHTTP(w, apperrors.New("forbidden", "permission check failed", nil))
-					return
-				}
-				if !allowed {
-					appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_denied")
-					apperrors.WriteHTTP(w, apperrors.New("forbidden", "permission denied", nil))
-					return
-				}
+		resource, action, guarded := requiredPermission(r.Method, r.URL.Path, apiPrefix)
+		if pluginBusinessRoute {
+			var reason string
+			resource, action, reason = resolvedPluginRoutePermission(r.Method, pluginPath, routeResolver)
+			if reason != "" {
+				appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, reason)
+				writePluginPermissionDenied(w, r, reason)
+				return
+			}
+			guarded = true
+		}
+
+		if !isRoleBypass(claims.Role) && guarded {
+			if checker == nil {
+				appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_checker_not_configured")
+				writePermissionDenied(w, r, pluginBusinessRoute, "permission denied")
+				return
+			}
+			allowed, err := checker.CheckPermission(r.Context(), rbacsvc.CheckPermissionInput{
+				SubjectType: domainrbac.SubjectUser,
+				SubjectID:   claims.Subject,
+				Resource:    resource,
+				Action:      action,
+			})
+			if err != nil {
+				appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_check_failed")
+				writePermissionDenied(w, r, pluginBusinessRoute, "permission check failed")
+				return
+			}
+			if !allowed {
+				appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_denied")
+				writePermissionDenied(w, r, pluginBusinessRoute, "permission denied")
+				return
 			}
 		}
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func pluginBusinessRoutePath(path, apiPrefix string) (string, bool) {
+	cleanPath := strings.TrimSpace(path)
+	prefix := config.NormalizeAPIPrefix(apiPrefix)
+	if !strings.HasPrefix(cleanPath, prefix+"/") {
+		return "", false
+	}
+	manifestPath := strings.TrimPrefix(cleanPath, prefix)
+	segments := strings.Split(strings.Trim(manifestPath, "/"), "/")
+	if len(segments) < 5 || segments[0] != "v1" || segments[1] != "plugins" || segments[2] == "" || segments[3] != "api" {
+		return "", false
+	}
+	return manifestPath, true
+}
+
+func resolvedPluginRoutePermission(method, path string, resolver plugin.RoutePermissionResolver) (resource, action, reason string) {
+	if resolver == nil {
+		return "plugin.route", "resolve", "plugin_route_resolver_not_configured"
+	}
+	descriptor, ok := resolver.ResolveRoutePermission(method, path)
+	if !ok {
+		return "plugin.route", "resolve", "plugin_route_permission_not_declared"
+	}
+	resource, action, ok = splitPermissionKey(descriptor.Permission)
+	if !ok {
+		return "plugin.route", "resolve", "plugin_route_permission_invalid"
+	}
+	return resource, action, ""
+}
+
+func splitPermissionKey(permission string) (resource, action string, ok bool) {
+	permission = strings.TrimSpace(strings.ToLower(permission))
+	separator := strings.LastIndexAny(permission, ".:")
+	if separator <= 0 || separator == len(permission)-1 {
+		return "", "", false
+	}
+	resource = strings.TrimSpace(permission[:separator])
+	action = strings.TrimSpace(permission[separator+1:])
+	return resource, action, resource != "" && action != ""
+}
+
+func writePluginPermissionDenied(w http.ResponseWriter, r *http.Request, reason string) {
+	message := "插件路由权限不可用"
+	if reason == "plugin_route_permission_not_declared" {
+		message = "插件路由权限未声明"
+	}
+	if requestPrefersEnglish(r) {
+		message = "plugin route permission is unavailable"
+		if reason == "plugin_route_permission_not_declared" {
+			message = "plugin route permission is not declared"
+		}
+	}
+	apperrors.WriteHTTP(w, apperrors.New("forbidden", message, nil))
+}
+
+func writePermissionDenied(w http.ResponseWriter, r *http.Request, pluginRoute bool, fallback string) {
+	if !pluginRoute {
+		apperrors.WriteHTTP(w, apperrors.New("forbidden", fallback, nil))
+		return
+	}
+	message := "插件路由权限不足"
+	if requestPrefersEnglish(r) {
+		message = "plugin route permission denied"
+	}
+	apperrors.WriteHTTP(w, apperrors.New("forbidden", message, nil))
+}
+
+func requestPrefersEnglish(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(r.Header.Get("Accept-Language"))), "en")
 }
 
 func appendPermissionDeniedAudit(r *http.Request, sink auditmw.AuditEventSink, actorID, actorName, resource, action, reason string) {
@@ -171,26 +255,6 @@ func pharmaOACriticalPermissionPolicies(apiPrefix string) []RoutePermissionPolic
 		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/contracts/{id}/reject"), Resource: "pharma_oa.contract", Action: "reject"},
 		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/quality-complaints/{id}/resolve"), Resource: "pharma_oa.quality_complaint", Action: "resolve"},
 		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/quality-complaints/{id}/reject"), Resource: "pharma_oa.quality_complaint", Action: "reject"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/purchase-requests/approve"), Resource: "pharma_oa.purchase", Action: "approve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/purchase-requests/reject"), Resource: "pharma_oa.purchase", Action: "reject"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/purchase-inbounds"), Resource: "pharma_oa.inbound", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/purchase-inbounds"), Resource: "pharma_oa.inbound", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/purchase-inbounds/detail"), Resource: "pharma_oa.inbound", Action: "read"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/sales-outbounds"), Resource: "pharma_oa.sales.outbound", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/sales-outbounds"), Resource: "pharma_oa.sales.outbound", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/sales-outbounds/detail"), Resource: "pharma_oa.sales.outbound", Action: "read"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/stocktakes"), Resource: "pharma_oa.stocktake", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/stocktakes"), Resource: "pharma_oa.stocktake", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/stocktakes/detail"), Resource: "pharma_oa.stocktake", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/stocktakes/approve"), Resource: "pharma_oa.stocktake", Action: "approve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/stocktakes/reject"), Resource: "pharma_oa.stocktake", Action: "reject"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/transfers"), Resource: "pharma_oa.transfer", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/transfers"), Resource: "pharma_oa.transfer", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/plugins/pharma_oa/api/transfers/detail"), Resource: "pharma_oa.transfer", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/contracts/approve"), Resource: "pharma_oa.contract", Action: "approve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/contracts/reject"), Resource: "pharma_oa.contract", Action: "reject"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/quality-complaints/resolve"), Resource: "pharma_oa.quality_complaint", Action: "resolve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/plugins/pharma_oa/api/quality-complaints/reject"), Resource: "pharma_oa.quality_complaint", Action: "reject"},
 	}
 }
 

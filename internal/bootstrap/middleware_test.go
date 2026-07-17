@@ -99,7 +99,7 @@ func TestParseBearerToken(t *testing.T) {
 
 func TestAuthGuardMiddlewareValidatesJWT(t *testing.T) {
 	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/skoll/health": {}}}
-	h := authGuardMiddleware(policy, "/skoll", "test-secret", nil, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", nil, nil, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -136,7 +136,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	checker := &fakePermissionChecker{allowed: map[string]bool{
 		"user:alice:user:read": true,
 	}}
-	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, nil, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if claims, ok := security.JWTClaimsFromContext(r.Context()); !ok || claims.Subject == "" {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -185,7 +185,7 @@ func TestAuthGuardMiddlewareAuditsPermissionDenied(t *testing.T) {
 	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/skoll/health": {}}}
 	checker := &fakePermissionChecker{allowed: map[string]bool{}}
 	events := memory.NewAuditEventStore()
-	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, events, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, nil, events, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -266,8 +266,6 @@ func TestPharmaOACriticalPermissionMapping(t *testing.T) {
 		{http.MethodPost, "/skoll/v1/pharma-oa/transfers", "pharma_oa.transfer", "create"},
 		{http.MethodGet, "/skoll/v1/pharma-oa/customers?includeAll=true", "pharma_oa.customer", "read"},
 		{http.MethodGet, "/skoll/v1/pharma-oa/customers/qualification-reminders", "pharma_oa.customer", "reminder"},
-		{http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/stocktakes/reject", "pharma_oa.stocktake", "reject"},
-		{http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-requests/approve", "pharma_oa.purchase", "approve"},
 	}
 	for _, test := range tests {
 		path := strings.SplitN(test.path, "?", 2)[0]
@@ -283,7 +281,13 @@ func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
 	checker := &fakePermissionChecker{allowed: map[string]bool{
 		"user:approver:pharma_oa.purchase:approve": true,
 	}}
-	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	resolver, err := plugin.NewRoutePermissionRegistry([]plugin.RouteExtension{{
+		Method: http.MethodPost, Path: "/v1/plugins/pharma_oa/api/purchase-requests/approve", Permission: "pharma_oa.purchase.approve", Source: "plugin.pharma_oa",
+	}})
+	if err != nil {
+		t.Fatalf("create route permission resolver: %v", err)
+	}
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, resolver, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -309,6 +313,176 @@ func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
 	h.ServeHTTP(deniedResp, deniedReq)
 	if deniedResp.Code != http.StatusForbidden {
 		t.Fatalf("denied status=%d body=%s", deniedResp.Code, deniedResp.Body.String())
+	}
+}
+
+func TestAuthGuardMiddlewarePluginRouteFailsClosed(t *testing.T) {
+	policy := AuthPolicy{Enabled: false, SkipPaths: map[string]struct{}{}}
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	path := "/skoll/v1/plugins/demo/api/items"
+
+	anonymous := authGuardMiddleware(policy, "/skoll", "test-secret", nil, nil, nil, next)
+	anonymousResp := httptest.NewRecorder()
+	anonymous.ServeHTTP(anonymousResp, httptest.NewRequest(http.MethodGet, path, nil))
+	if anonymousResp.Code != http.StatusUnauthorized {
+		t.Fatalf("plugin API must require JWT when global auth is disabled: status=%d body=%s", anonymousResp.Code, anonymousResp.Body.String())
+	}
+
+	token, err := security.SignJWT("test-secret", "alice", "editor", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign editor jwt: %v", err)
+	}
+	events := memory.NewAuditEventStore()
+	missingResolver := authGuardMiddleware(policy, "/skoll", "test-secret", nil, nil, events, next)
+	missingReq := httptest.NewRequest(http.MethodGet, path, nil)
+	missingReq.Header.Set("Authorization", "Bearer "+token)
+	missingResp := httptest.NewRecorder()
+	missingResolver.ServeHTTP(missingResp, missingReq)
+	if missingResp.Code != http.StatusForbidden || !strings.Contains(missingResp.Body.String(), "插件路由权限不可用") {
+		t.Fatalf("missing resolver status=%d body=%s", missingResp.Code, missingResp.Body.String())
+	}
+	assertPermissionDeniedReason(t, events, "plugin.route", "resolve", "plugin_route_resolver_not_configured")
+
+	emptyResolver, err := plugin.NewRoutePermissionRegistry(nil)
+	if err != nil {
+		t.Fatalf("create empty route permission resolver: %v", err)
+	}
+	superToken, err := security.SignJWT("test-secret", "root", "super_admin", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign super admin jwt: %v", err)
+	}
+	undeclared := authGuardMiddleware(policy, "/skoll", "test-secret", nil, emptyResolver, nil, next)
+	undeclaredReq := httptest.NewRequest(http.MethodGet, path, nil)
+	undeclaredReq.Header.Set("Authorization", "Bearer "+superToken)
+	undeclaredReq.Header.Set("Accept-Language", "en-US")
+	undeclaredResp := httptest.NewRecorder()
+	undeclared.ServeHTTP(undeclaredResp, undeclaredReq)
+	if undeclaredResp.Code != http.StatusForbidden || !strings.Contains(undeclaredResp.Body.String(), "plugin route permission is not declared") {
+		t.Fatalf("undeclared super admin status=%d body=%s", undeclaredResp.Code, undeclaredResp.Body.String())
+	}
+}
+
+func TestAuthGuardMiddlewarePluginRoutePermissionMatrixAndCustomPrefix(t *testing.T) {
+	resolver, err := plugin.NewRoutePermissionRegistry([]plugin.RouteExtension{{
+		Method: http.MethodGet, Path: "/v1/plugins/demo/api/items", Permission: "demo.items.read", AuditAction: "demo.items.read", Source: "plugin.demo",
+	}})
+	if err != nil {
+		t.Fatalf("create route permission resolver: %v", err)
+	}
+	checker := &fakePermissionChecker{allowed: map[string]bool{
+		"user:alice:demo.items:read": true,
+	}}
+	events := memory.NewAuditEventStore()
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	h := authGuardMiddleware(AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{}}, "/gateway", "test-secret", checker, resolver, events, next)
+
+	aliceToken, err := security.SignJWT("test-secret", "alice", "editor", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign alice jwt: %v", err)
+	}
+	allowedReq := httptest.NewRequest(http.MethodGet, "/gateway/v1/plugins/demo/api/items", nil)
+	allowedReq.Header.Set("Authorization", "Bearer "+aliceToken)
+	allowedResp := httptest.NewRecorder()
+	h.ServeHTTP(allowedResp, allowedReq)
+	if allowedResp.Code != http.StatusOK {
+		t.Fatalf("allowed status=%d body=%s", allowedResp.Code, allowedResp.Body.String())
+	}
+
+	bobToken, err := security.SignJWT("test-secret", "bob", "viewer", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign bob jwt: %v", err)
+	}
+	deniedReq := httptest.NewRequest(http.MethodGet, "/gateway/v1/plugins/demo/api/items", nil)
+	deniedReq.Header.Set("Authorization", "Bearer "+bobToken)
+	deniedResp := httptest.NewRecorder()
+	h.ServeHTTP(deniedResp, deniedReq)
+	if deniedResp.Code != http.StatusForbidden || !strings.Contains(deniedResp.Body.String(), "插件路由权限不足") {
+		t.Fatalf("denied status=%d body=%s", deniedResp.Code, deniedResp.Body.String())
+	}
+	assertPermissionDeniedReason(t, events, "demo.items", "read", "permission_denied")
+
+	superToken, err := security.SignJWT("test-secret", "root", "super_admin", time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign super admin jwt: %v", err)
+	}
+	superReq := httptest.NewRequest(http.MethodGet, "/gateway/v1/plugins/demo/api/items", nil)
+	superReq.Header.Set("Authorization", "Bearer "+superToken)
+	superResp := httptest.NewRecorder()
+	h.ServeHTTP(superResp, superReq)
+	if superResp.Code != http.StatusOK {
+		t.Fatalf("declared super admin route status=%d body=%s", superResp.Code, superResp.Body.String())
+	}
+}
+
+func TestPluginRoutePermissionHelpers(t *testing.T) {
+	for _, tt := range []struct {
+		permission string
+		resource   string
+		action     string
+		ok         bool
+	}{
+		{permission: "pharma_oa.sales.outbound.read", resource: "pharma_oa.sales.outbound", action: "read", ok: true},
+		{permission: "reports:invoice:export", resource: "reports:invoice", action: "export", ok: true},
+		{permission: "invalid", ok: false},
+	} {
+		resource, action, ok := splitPermissionKey(tt.permission)
+		if resource != tt.resource || action != tt.action || ok != tt.ok {
+			t.Errorf("splitPermissionKey(%q) = (%q, %q, %v)", tt.permission, resource, action, ok)
+		}
+	}
+	if path, ok := pluginBusinessRoutePath("/gateway/v1/plugins/demo/api/items", "/gateway"); !ok || path != "/v1/plugins/demo/api/items" {
+		t.Fatalf("unexpected custom-prefix plugin path: %q, ok=%v", path, ok)
+	}
+	for _, path := range []string{
+		"/gateway/v1/plugins/demo/page",
+		"/gateway/v1/plugins/demo/assets/app.js",
+		"/gateway/v1/plugins",
+		"/gateway/v1/plugins/demo/api",
+	} {
+		if _, ok := pluginBusinessRoutePath(path, "/gateway"); ok {
+			t.Errorf("path must not be treated as plugin business API: %s", path)
+		}
+	}
+}
+
+func TestPluginManagerBuildsRoutePermissionsFromEnabledRuntimeManifests(t *testing.T) {
+	manager := &pluginManagerWithExtensions{
+		Manager: &fakePluginManager{items: map[string]plugin.Info{
+			"enabled": {
+				ID: "enabled", State: plugin.StateEnabled,
+				APIContract: &plugin.APIContract{Routes: []plugin.APIRoute{{Method: http.MethodGet, Path: "/v1/plugins/enabled/api/items", Permission: "enabled.items.read", AuditAction: "enabled.items.read"}}},
+			},
+			"disabled": {
+				ID: "disabled", State: plugin.StateDisabled,
+				APIContract: &plugin.APIContract{Routes: []plugin.APIRoute{{Method: http.MethodGet, Path: "/v1/plugins/disabled/api/items", Permission: "disabled.items.read", AuditAction: "disabled.items.read"}}},
+			},
+		}},
+		routePermissions: mustEmptyRoutePermissionRegistry(),
+	}
+	if err := manager.refreshRoutePermissions(); err != nil {
+		t.Fatalf("refresh route permissions: %v", err)
+	}
+	descriptor, ok := manager.ResolveRoutePermission(http.MethodGet, "/v1/plugins/enabled/api/items")
+	if !ok || descriptor.Permission != "enabled.items.read" {
+		t.Fatalf("unexpected enabled descriptor: %#v, ok=%v", descriptor, ok)
+	}
+	if _, ok := manager.ResolveRoutePermission(http.MethodGet, "/v1/plugins/disabled/api/items"); ok {
+		t.Fatal("disabled plugin route must not enter permission resolver")
+	}
+}
+
+func assertPermissionDeniedReason(t *testing.T, events *memory.AuditEventStore, resource, action, reason string) {
+	t.Helper()
+	items, err := events.ListEvents(context.Background(), auditrepo.EventFilter{Type: domainaudit.EventTypeSecurity})
+	if err != nil {
+		t.Fatalf("list permission denied events: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("permission denied events = %d, want 1", len(items))
+	}
+	event := items[0]
+	if event.Resource.Type != resource || event.Resource.ID != action || event.Metadata["reason"] != reason {
+		t.Fatalf("unexpected permission denied event: %+v", event)
 	}
 }
 
@@ -343,7 +517,7 @@ func TestBuildMiddlewareChainPluginPageBypassesAuth(t *testing.T) {
 		"/skoll/v1/plugins":    {},
 		"/skoll/v1/auth/login": {},
 	}}
-	guarded := buildMiddlewareChain(router, logging.Discard(), policy, "/skoll", "test-secret", nil, nil)
+	guarded := buildMiddlewareChain(router, logging.Discard(), policy, "/skoll", "test-secret", nil, nil, nil)
 
 	pageReq := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo-frontend/page", nil)
 	pageResp := httptest.NewRecorder()

@@ -174,7 +174,8 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		middleware.RateLimit(100, 100),
 	)
 
-	h := buildMiddlewareChain(router, logger, cfg.AuthPolicy, cfg.AppConfig.Server.APIPrefix, cfg.AppConfig.Security.JWTSecret, rbacService, auditEventService)
+	routePermissionResolver, _ := pluginManager.(plugin.RoutePermissionResolver)
+	h := buildMiddlewareChain(router, logger, cfg.AuthPolicy, cfg.AppConfig.Server.APIPrefix, cfg.AppConfig.Security.JWTSecret, rbacService, routePermissionResolver, auditEventService)
 	server := &http.Server{
 		Addr:              cfg.AppConfig.Server.Address,
 		Handler:           h,
@@ -210,11 +211,12 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, auditSvc, auditEventSvc, logger)
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
 	m := &pluginManagerWithExtensions{
-		Manager:       runtimeManager,
-		builtinInfos:  builtinInfos,
-		extensions:    extensions,
-		routeHandlers: handlers,
-		pluginsRepo:   pluginsRepo,
+		Manager:          runtimeManager,
+		builtinInfos:     builtinInfos,
+		extensions:       extensions,
+		routeHandlers:    handlers,
+		pluginsRepo:      pluginsRepo,
+		routePermissions: mustEmptyRoutePermissionRegistry(),
 	}
 
 	entries, err := os.ReadDir("plugins")
@@ -244,6 +246,9 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		if enableErr := m.Enable(info.ID); enableErr != nil {
 			logger.Warn("plugin enable failed", "plugin", info.ID, "error", enableErr)
 		}
+	}
+	if err := m.refreshRoutePermissions(); err != nil {
+		logger.Error("build plugin route permission registry failed", "error", err)
 	}
 
 	m.persistAll(context.Background())
@@ -280,12 +285,15 @@ func hasPluginManifest(path string) (bool, error) {
 
 type pluginManagerWithExtensions struct {
 	plugin.Manager
-	mu            sync.RWMutex
-	builtinInfos  map[string]plugin.Info
-	extensions    map[string]plugin.RegistrySnapshot
-	routeHandlers map[string]http.HandlerFunc
-	pluginsRepo   pluginrepo.PluginRepository
+	mu               sync.RWMutex
+	builtinInfos     map[string]plugin.Info
+	extensions       map[string]plugin.RegistrySnapshot
+	routeHandlers    map[string]http.HandlerFunc
+	pluginsRepo      pluginrepo.PluginRepository
+	routePermissions *plugin.RoutePermissionRegistry
 }
+
+var _ plugin.RoutePermissionResolver = (*pluginManagerWithExtensions)(nil)
 
 func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) error {
 	if m == nil {
@@ -302,6 +310,9 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 		return nil
 	}
 	if err := reloader.ReloadPluginMetadata(pluginID); err != nil {
+		return err
+	}
+	if err := m.refreshRoutePermissions(); err != nil {
 		return err
 	}
 	m.persistOne(context.Background(), pluginID)
@@ -338,6 +349,16 @@ func (m *pluginManagerWithExtensions) GetExtensionSnapshot(pluginID string) (plu
 	}
 	snapshot, ok := m.extensions[pluginID]
 	return snapshot, ok
+}
+
+func (m *pluginManagerWithExtensions) ResolveRoutePermission(method, path string) (plugin.RoutePermissionDescriptor, bool) {
+	if m == nil {
+		return plugin.RoutePermissionDescriptor{}, false
+	}
+	m.mu.RLock()
+	registry := m.routePermissions
+	m.mu.RUnlock()
+	return registry.ResolveRoutePermission(method, path)
 }
 
 func (m *pluginManagerWithExtensions) List() []plugin.Info {
@@ -403,6 +424,9 @@ func (m *pluginManagerWithExtensions) Get(pluginID string) (plugin.Info, error) 
 
 func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	if err := m.Manager.Enable(pluginID); err == nil {
+		if err := m.refreshRoutePermissions(); err != nil {
+			return err
+		}
 		m.persistOne(context.Background(), pluginID)
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
@@ -436,6 +460,9 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 
 func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 	if err := m.Manager.Disable(pluginID); err == nil {
+		if err := m.refreshRoutePermissions(); err != nil {
+			return err
+		}
 		m.persistOne(context.Background(), pluginID)
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
@@ -466,6 +493,9 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 
 func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	if err := m.Manager.Uninstall(pluginID); err == nil {
+		if err := m.refreshRoutePermissions(); err != nil {
+			return err
+		}
 		if m.pluginsRepo != nil {
 			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
 		}
@@ -492,6 +522,39 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 		return plugin.ErrPluginNotFound
 	}
 	return plugin.ErrPluginSystemProtected
+}
+
+func (m *pluginManagerWithExtensions) refreshRoutePermissions() error {
+	if m == nil || m.Manager == nil {
+		return nil
+	}
+	routes := make([]plugin.RouteExtension, 0)
+	for _, info := range m.Manager.List() {
+		if info.State != plugin.StateEnabled {
+			continue
+		}
+		extensions, err := info.RouteExtensions()
+		if err != nil {
+			return err
+		}
+		routes = append(routes, extensions...)
+	}
+	registry, err := plugin.NewRoutePermissionRegistry(routes)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	m.routePermissions = registry
+	m.mu.Unlock()
+	return nil
+}
+
+func mustEmptyRoutePermissionRegistry() *plugin.RoutePermissionRegistry {
+	registry, err := plugin.NewRoutePermissionRegistry(nil)
+	if err != nil {
+		panic(err)
+	}
+	return registry
 }
 
 func (m *pluginManagerWithExtensions) persistAll(ctx context.Context) {

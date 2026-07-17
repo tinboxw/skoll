@@ -87,6 +87,15 @@ configs/skoll.yml
 |------|------|--------|---------|------|
 | `security.jwt_secret` | string | `dev-secret-change-me` | `SKOLL_JWT_SECRET` | JWT HMAC 签名密钥。**生产环境必须修改为强随机字符串** |
 
+认证中间件还读取以下安全环境变量：
+
+| 环境变量 | 类型 | 默认值 | 说明 |
+|---------|------|--------|------|
+| `SKOLL_AUTH_ENABLED` | bool | `true` | 是否为普通受保护 API 启用 JWT 认证 |
+| `SKOLL_AUTH_SKIP_PATHS` | string | - | 额外免认证路径，多个路径使用逗号分隔 |
+
+插件公共面仅限 `GET /<api-prefix>/v1/plugins/{id}/page` 与 `GET /<api-prefix>/v1/plugins/{id}/assets/*`。插件业务 API `/<api-prefix>/v1/plugins/{id}/api/*` 始终要求 JWT，并按照已启用插件 manifest 的 `api_contract.routes[].permission` 执行 RBAC；`SKOLL_AUTH_ENABLED=false` 和 `SKOLL_AUTH_SKIP_PATHS` 都不能跳过该边界。路由缺少权限声明或权限解析器不可用时，系统默认拒绝并写入安全审计。
+
 ### 2.6 log（日志）
 
 | 键名 | 类型 | 默认值 | 环境变量 | 说明 |
