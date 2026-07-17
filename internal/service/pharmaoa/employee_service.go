@@ -6,11 +6,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -55,16 +56,19 @@ type EmployeeQualificationReminder struct {
 }
 
 type employeeService struct {
-	mu        sync.RWMutex
-	items     map[string]*domainpharma.Employee
+	repo      pharmaoarepo.EmployeeRepository
 	audit     auditsvc.Service
 	nowFn     func() time.Time
-	idCounter int64
+	idCounter atomic.Int64
 }
 
-func NewEmployeeService(audit auditsvc.Service) EmployeeService {
+func NewEmployeeService(audit auditsvc.Service, repositories ...pharmaoarepo.EmployeeRepository) EmployeeService {
+	repo := pharmaoarepo.EmployeeRepository(pharmaoarepo.NewMemoryEmployeeRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
 	return &employeeService{
-		items: map[string]*domainpharma.Employee{},
+		repo:  repo,
 		audit: audit,
 		nowFn: func() time.Time { return time.Now().UTC() },
 	}
@@ -72,52 +76,38 @@ func NewEmployeeService(audit auditsvc.Service) EmployeeService {
 
 func (s *employeeService) Create(ctx context.Context, in EmployeeWriteInput) (*domainpharma.Employee, error) {
 	now := s.nowFn()
-	entity, err := domainpharma.NewEmployee(s.nextID(), toDomainInput(in), now)
+	id, err := s.nextAvailableID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if existing := s.findByCodeLocked(entity.Code, ""); existing != nil {
-		s.mu.Unlock()
+	entity, err := domainpharma.NewEmployee(id, toDomainInput(in), now)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.repo.GetByCode(ctx, entity.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
 		return nil, fmt.Errorf("employee code already exists")
 	}
-	s.items[entity.ID.String()] = cloneEmployee(entity)
-	s.mu.Unlock()
+	if err := s.repo.Create(ctx, entity); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.employee.create", entity.ID.String(), map[string]any{"code": entity.Code})
 	return cloneEmployee(entity), nil
 }
 
-func (s *employeeService) List(_ context.Context, in EmployeeListInput) ([]*domainpharma.Employee, error) {
-	limit := normalizeLimit(in.Limit)
-	offset := in.Offset
-	if offset < 0 {
-		offset = 0
+func (s *employeeService) List(ctx context.Context, in EmployeeListInput) ([]*domainpharma.Employee, error) {
+	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	if err != nil {
+		return nil, err
 	}
-	keyword := strings.ToLower(strings.TrimSpace(in.Keyword))
-	status := strings.ToLower(strings.TrimSpace(in.Status))
-	s.mu.RLock()
-	items := make([]*domainpharma.Employee, 0, len(s.items))
-	for _, item := range s.items {
-		if status != "" && string(item.Status) != status {
-			continue
-		}
-		if keyword != "" && !employeeMatches(item, keyword) {
-			continue
-		}
-		items = append(items, cloneEmployee(item))
+	items := make([]*domainpharma.Employee, 0, len(rows))
+	for index := range rows {
+		items = append(items, cloneEmployee(&rows[index]))
 	}
-	s.mu.RUnlock()
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].Code < items[j].Code
-	})
-	if offset >= len(items) {
-		return []*domainpharma.Employee{}, nil
-	}
-	end := offset + limit
-	if end > len(items) {
-		end = len(items)
-	}
-	return items[offset:end], nil
+	return items, nil
 }
 
 func (s *employeeService) Update(ctx context.Context, id string, in EmployeeWriteInput) (*domainpharma.Employee, error) {
@@ -125,24 +115,27 @@ func (s *employeeService) Update(ctx context.Context, id string, in EmployeeWrit
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	now := s.nowFn()
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("employee not found")
 	}
-	if existing := s.findByCodeLocked(in.Code, id); existing != nil {
-		s.mu.Unlock()
+	existing, err := s.repo.GetByCode(ctx, in.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID.String() != id {
 		return nil, fmt.Errorf("employee code already exists")
 	}
 	next := cloneEmployee(current)
-	if err := next.Update(toDomainInput(in), now); err != nil {
-		s.mu.Unlock()
+	if err := next.Update(toDomainInput(in), s.nowFn()); err != nil {
 		return nil, err
 	}
-	s.items[id] = cloneEmployee(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.employee.update", id, map[string]any{"code": next.Code})
 	return cloneEmployee(next), nil
 }
@@ -152,32 +145,36 @@ func (s *employeeService) MarkLeft(ctx context.Context, id string, in EmployeeLe
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	now := s.nowFn()
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("employee not found")
 	}
 	next := cloneEmployee(current)
-	if err := next.MarkLeft(in.Reason, now); err != nil {
-		s.mu.Unlock()
+	if err := next.MarkLeft(in.Reason, s.nowFn()); err != nil {
 		return nil, err
 	}
-	s.items[id] = cloneEmployee(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.employee.leave", id, map[string]any{"reason": strings.TrimSpace(in.Reason)})
 	return cloneEmployee(next), nil
 }
 
-func (s *employeeService) QualificationReminders(_ context.Context, days int) ([]EmployeeQualificationReminder, error) {
+func (s *employeeService) QualificationReminders(ctx context.Context, days int) ([]EmployeeQualificationReminder, error) {
 	if days <= 0 {
 		days = 30
 	}
 	deadline := s.nowFn().AddDate(0, 0, days)
-	s.mu.RLock()
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
+	}
 	out := make([]EmployeeQualificationReminder, 0)
-	for _, item := range s.items {
+	for index := range items {
+		item := &items[index]
 		for _, cert := range item.CertificateExpiringBefore(deadline) {
 			out = append(out, EmployeeQualificationReminder{
 				EmployeeID:   item.ID.String(),
@@ -189,29 +186,27 @@ func (s *employeeService) QualificationReminders(_ context.Context, days int) ([
 			})
 		}
 	}
-	s.mu.RUnlock()
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].ExpiresAt.Before(out[j].ExpiresAt)
 	})
 	return out, nil
 }
 
-func (s *employeeService) findByCodeLocked(code string, exceptID string) *domainpharma.Employee {
-	code = strings.TrimSpace(code)
-	for id, item := range s.items {
-		if id == exceptID {
-			continue
-		}
-		if strings.EqualFold(item.Code, code) {
-			return item
-		}
-	}
-	return nil
+func (s *employeeService) nextID() shared.ID {
+	return shared.ID("pharma-employee-" + strconv.FormatInt(s.idCounter.Add(1), 10))
 }
 
-func (s *employeeService) nextID() shared.ID {
-	s.idCounter++
-	return shared.ID("pharma-employee-" + strconv.FormatInt(s.idCounter, 10))
+func (s *employeeService) nextAvailableID(ctx context.Context) (shared.ID, error) {
+	for {
+		id := s.nextID()
+		item, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if item == nil {
+			return id, nil
+		}
+	}
 }
 
 func (s *employeeService) appendAudit(ctx context.Context, actorID, action, resourceID string, detail map[string]any) {

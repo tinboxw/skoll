@@ -8,6 +8,7 @@ import (
 	menurepo "github.com/tinboxw/skoll/internal/repository/menu"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
@@ -20,17 +21,22 @@ import (
 )
 
 type Adapter struct {
-	dsn  string
-	db   *gorm.DB
-	user userrepo.UserRepository
-	role rolerepo.RoleRepository
-	rbac rbacrepo.RBACRepository
-	sys  systemrepo.SystemRepository
-	plg  pluginrepo.PluginRepository
-	perm permissionrepo.PermissionRepository
-	menu menurepo.MenuRepository
-	file filerepo.FileRepository
-	org  organizationrepo.OrganizationRepository
+	dsn       string
+	db        *gorm.DB
+	user      userrepo.UserRepository
+	role      rolerepo.RoleRepository
+	rbac      rbacrepo.RBACRepository
+	sys       systemrepo.SystemRepository
+	plg       pluginrepo.PluginRepository
+	perm      permissionrepo.PermissionRepository
+	menu      menurepo.MenuRepository
+	file      filerepo.FileRepository
+	org       organizationrepo.OrganizationRepository
+	employee  pharmaoarepo.EmployeeRepository
+	product   pharmaoarepo.ProductRepository
+	supplier  pharmaoarepo.SupplierRepository
+	customer  pharmaoarepo.CustomerRepository
+	warehouse pharmaoarepo.WarehouseRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -46,17 +52,22 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		return nil, fmt.Errorf("auto migrate postgres schema: %w", err)
 	}
 	return &Adapter{
-		dsn:  resolvedDSN,
-		db:   db,
-		user: gormrepo.NewUserStore(db),
-		role: gormrepo.NewRoleStore(db, normalizeRoleKey),
-		rbac: gormrepo.NewRBACStore(db),
-		sys:  gormrepo.NewSystemStore(db, normalizeSettingKey),
-		plg:  gormrepo.NewPluginStore(db),
-		perm: gormrepo.NewPermissionStore(db),
-		menu: gormrepo.NewMenuStore(db),
-		file: gormrepo.NewFileStore(db),
-		org:  gormrepo.NewOrganizationStore(db),
+		dsn:       resolvedDSN,
+		db:        db,
+		user:      gormrepo.NewUserStore(db),
+		role:      gormrepo.NewRoleStore(db, normalizeRoleKey),
+		rbac:      gormrepo.NewRBACStore(db),
+		sys:       gormrepo.NewSystemStore(db, normalizeSettingKey),
+		plg:       gormrepo.NewPluginStore(db),
+		perm:      gormrepo.NewPermissionStore(db),
+		menu:      gormrepo.NewMenuStore(db),
+		file:      gormrepo.NewFileStore(db),
+		org:       gormrepo.NewOrganizationStore(db),
+		employee:  gormrepo.NewPharmaEmployeeStore(db),
+		product:   gormrepo.NewPharmaProductStore(db),
+		supplier:  gormrepo.NewPharmaSupplierStore(db),
+		customer:  gormrepo.NewPharmaCustomerStore(db),
+		warehouse: gormrepo.NewPharmaWarehouseStore(db),
 	}, nil
 }
 
@@ -95,6 +106,12 @@ func (a *Adapter) FileRepository() filerepo.FileRepository {
 func (a *Adapter) OrganizationRepository() organizationrepo.OrganizationRepository {
 	return a.org
 }
+
+func (a *Adapter) PharmaEmployeeRepository() pharmaoarepo.EmployeeRepository   { return a.employee }
+func (a *Adapter) PharmaProductRepository() pharmaoarepo.ProductRepository     { return a.product }
+func (a *Adapter) PharmaSupplierRepository() pharmaoarepo.SupplierRepository   { return a.supplier }
+func (a *Adapter) PharmaCustomerRepository() pharmaoarepo.CustomerRepository   { return a.customer }
+func (a *Adapter) PharmaWarehouseRepository() pharmaoarepo.WarehouseRepository { return a.warehouse }
 
 func (a *Adapter) DB() *gorm.DB {
 	return a.db

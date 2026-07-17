@@ -6,11 +6,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -60,68 +61,57 @@ type SupplierPurchaseEligibility struct {
 }
 
 type supplierService struct {
-	mu        sync.RWMutex
-	items     map[string]*domainpharma.Supplier
+	repo      pharmaoarepo.SupplierRepository
 	audit     auditsvc.Service
 	nowFn     func() time.Time
-	idCounter int64
+	idCounter atomic.Int64
 }
 
-func NewSupplierService(audit auditsvc.Service) SupplierService {
+func NewSupplierService(audit auditsvc.Service, repositories ...pharmaoarepo.SupplierRepository) SupplierService {
+	repo := pharmaoarepo.SupplierRepository(pharmaoarepo.NewMemorySupplierRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
 	return &supplierService{
-		items: map[string]*domainpharma.Supplier{},
+		repo:  repo,
 		audit: audit,
 		nowFn: func() time.Time { return time.Now().UTC() },
 	}
 }
 
 func (s *supplierService) Create(ctx context.Context, in SupplierWriteInput) (*domainpharma.Supplier, error) {
-	entity, err := domainpharma.NewSupplier(s.nextSupplierID(), toSupplierDomainInput(in), s.nowFn())
+	id, err := s.nextAvailableSupplierID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if existing := s.findSupplierByCodeLocked(entity.Code, ""); existing != nil {
-		s.mu.Unlock()
+	entity, err := domainpharma.NewSupplier(id, toSupplierDomainInput(in), s.nowFn())
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.repo.GetByCode(ctx, entity.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
 		return nil, fmt.Errorf("supplier code already exists")
 	}
-	s.items[entity.ID.String()] = cloneSupplier(entity)
-	s.mu.Unlock()
+	if err := s.repo.Create(ctx, entity); err != nil {
+		return nil, err
+	}
 	s.appendSupplierAudit(ctx, in.ActorID, "pharma_oa.supplier.create", entity.ID.String(), map[string]any{"code": entity.Code})
 	return cloneSupplier(entity), nil
 }
 
-func (s *supplierService) List(_ context.Context, in SupplierListInput) ([]*domainpharma.Supplier, error) {
-	limit := normalizeLimit(in.Limit)
-	offset := in.Offset
-	if offset < 0 {
-		offset = 0
+func (s *supplierService) List(ctx context.Context, in SupplierListInput) ([]*domainpharma.Supplier, error) {
+	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	if err != nil {
+		return nil, err
 	}
-	keyword := strings.ToLower(strings.TrimSpace(in.Keyword))
-	status := strings.ToLower(strings.TrimSpace(in.Status))
-	s.mu.RLock()
-	items := make([]*domainpharma.Supplier, 0, len(s.items))
-	for _, item := range s.items {
-		if status != "" && string(item.Status) != status {
-			continue
-		}
-		if keyword != "" && !supplierMatches(item, keyword) {
-			continue
-		}
-		items = append(items, cloneSupplier(item))
+	items := make([]*domainpharma.Supplier, 0, len(rows))
+	for index := range rows {
+		items = append(items, cloneSupplier(&rows[index]))
 	}
-	s.mu.RUnlock()
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].Code < items[j].Code
-	})
-	if offset >= len(items) {
-		return []*domainpharma.Supplier{}, nil
-	}
-	end := offset + limit
-	if end > len(items) {
-		end = len(items)
-	}
-	return items[offset:end], nil
+	return items, nil
 }
 
 func (s *supplierService) Update(ctx context.Context, id string, in SupplierWriteInput) (*domainpharma.Supplier, error) {
@@ -129,23 +119,27 @@ func (s *supplierService) Update(ctx context.Context, id string, in SupplierWrit
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("supplier not found")
 	}
-	if existing := s.findSupplierByCodeLocked(in.Code, id); existing != nil {
-		s.mu.Unlock()
+	existing, err := s.repo.GetByCode(ctx, in.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID.String() != id {
 		return nil, fmt.Errorf("supplier code already exists")
 	}
 	next := cloneSupplier(current)
 	if err := next.Update(toSupplierDomainInput(in), s.nowFn()); err != nil {
-		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneSupplier(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendSupplierAudit(ctx, in.ActorID, "pharma_oa.supplier.update", id, map[string]any{"code": next.Code})
 	return cloneSupplier(next), nil
 }
@@ -155,31 +149,36 @@ func (s *supplierService) Disable(ctx context.Context, id string, in SupplierDis
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("supplier not found")
 	}
 	next := cloneSupplier(current)
 	if err := next.Disable(in.Reason, s.nowFn()); err != nil {
-		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneSupplier(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendSupplierAudit(ctx, in.ActorID, "pharma_oa.supplier.disable", id, map[string]any{"reason": strings.TrimSpace(in.Reason)})
 	return cloneSupplier(next), nil
 }
 
-func (s *supplierService) QualificationReminders(_ context.Context, days int) ([]SupplierQualificationReminder, error) {
+func (s *supplierService) QualificationReminders(ctx context.Context, days int) ([]SupplierQualificationReminder, error) {
 	if days <= 0 {
 		days = 30
 	}
 	deadline := s.nowFn().AddDate(0, 0, days)
-	s.mu.RLock()
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
+	}
 	out := make([]SupplierQualificationReminder, 0)
-	for _, item := range s.items {
+	for index := range items {
+		item := &items[index]
 		for _, qualification := range item.QualificationExpiringBefore(deadline) {
 			out = append(out, SupplierQualificationReminder{
 				SupplierID:    item.ID.String(),
@@ -191,47 +190,46 @@ func (s *supplierService) QualificationReminders(_ context.Context, days int) ([
 			})
 		}
 	}
-	s.mu.RUnlock()
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].ExpiresAt.Before(out[j].ExpiresAt)
 	})
 	return out, nil
 }
 
-func (s *supplierService) ValidatePurchaseSupplier(_ context.Context, id string) (SupplierPurchaseEligibility, error) {
+func (s *supplierService) ValidatePurchaseSupplier(ctx context.Context, id string) (SupplierPurchaseEligibility, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return SupplierPurchaseEligibility{}, fmt.Errorf("id is required")
 	}
-	s.mu.RLock()
-	item := cloneSupplier(s.items[id])
-	s.mu.RUnlock()
+	item, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return SupplierPurchaseEligibility{}, err
+	}
 	if item == nil {
 		return SupplierPurchaseEligibility{}, fmt.Errorf("supplier not found")
 	}
-	err := item.CanUseForPurchase(s.nowFn())
+	err = item.CanUseForPurchase(s.nowFn())
 	if err != nil {
 		return SupplierPurchaseEligibility{SupplierID: id, Allowed: false, Reason: err.Error()}, nil
 	}
 	return SupplierPurchaseEligibility{SupplierID: id, Allowed: true}, nil
 }
 
-func (s *supplierService) findSupplierByCodeLocked(code string, exceptID string) *domainpharma.Supplier {
-	code = strings.TrimSpace(code)
-	for id, item := range s.items {
-		if id == exceptID {
-			continue
-		}
-		if strings.EqualFold(item.Code, code) {
-			return item
-		}
-	}
-	return nil
+func (s *supplierService) nextSupplierID() shared.ID {
+	return shared.ID("pharma-supplier-" + strconv.FormatInt(s.idCounter.Add(1), 10))
 }
 
-func (s *supplierService) nextSupplierID() shared.ID {
-	s.idCounter++
-	return shared.ID("pharma-supplier-" + strconv.FormatInt(s.idCounter, 10))
+func (s *supplierService) nextAvailableSupplierID(ctx context.Context) (shared.ID, error) {
+	for {
+		id := s.nextSupplierID()
+		item, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if item == nil {
+			return id, nil
+		}
+	}
 }
 
 func (s *supplierService) appendSupplierAudit(ctx context.Context, actorID, action, resourceID string, detail map[string]any) {

@@ -3,14 +3,14 @@ package pharmaoa
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -57,68 +57,64 @@ type ProductImportFail struct {
 }
 
 type productService struct {
-	mu        sync.RWMutex
-	items     map[string]*domainpharma.Product
+	repo      pharmaoarepo.ProductRepository
 	audit     auditsvc.Service
 	nowFn     func() time.Time
-	idCounter int64
+	idCounter atomic.Int64
 }
 
-func NewProductService(audit auditsvc.Service) ProductService {
+func NewProductService(audit auditsvc.Service, repositories ...pharmaoarepo.ProductRepository) ProductService {
+	repo := pharmaoarepo.ProductRepository(pharmaoarepo.NewMemoryProductRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
 	return &productService{
-		items: map[string]*domainpharma.Product{},
+		repo:  repo,
 		audit: audit,
 		nowFn: func() time.Time { return time.Now().UTC() },
 	}
 }
 
 func (s *productService) Create(ctx context.Context, in ProductWriteInput) (*domainpharma.Product, error) {
-	entity, err := domainpharma.NewProduct(s.nextProductID(), toProductDomainInput(in), s.nowFn())
+	id, err := s.nextAvailableProductID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if existing := s.findProductByCodeLocked(entity.Code, ""); existing != nil {
-		s.mu.Unlock()
+	entity, err := domainpharma.NewProduct(id, toProductDomainInput(in), s.nowFn())
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.repo.GetByCode(ctx, entity.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
 		return nil, fmt.Errorf("product code already exists")
 	}
-	s.items[entity.ID.String()] = cloneProduct(entity)
-	s.mu.Unlock()
+	existing, err = s.repo.GetByApprovalNumber(ctx, entity.ApprovalNumber)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return nil, fmt.Errorf("product approval number already exists")
+	}
+	if err := s.repo.Create(ctx, entity); err != nil {
+		return nil, err
+	}
 	s.appendProductAudit(ctx, in.ActorID, "pharma_oa.product.create", entity.ID.String(), map[string]any{"code": entity.Code})
 	return cloneProduct(entity), nil
 }
 
-func (s *productService) List(_ context.Context, in ProductListInput) ([]*domainpharma.Product, error) {
-	limit := normalizeLimit(in.Limit)
-	offset := in.Offset
-	if offset < 0 {
-		offset = 0
+func (s *productService) List(ctx context.Context, in ProductListInput) ([]*domainpharma.Product, error) {
+	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	if err != nil {
+		return nil, err
 	}
-	keyword := strings.ToLower(strings.TrimSpace(in.Keyword))
-	status := strings.ToLower(strings.TrimSpace(in.Status))
-	s.mu.RLock()
-	items := make([]*domainpharma.Product, 0, len(s.items))
-	for _, item := range s.items {
-		if status != "" && string(item.Status) != status {
-			continue
-		}
-		if keyword != "" && !productMatches(item, keyword) {
-			continue
-		}
-		items = append(items, cloneProduct(item))
+	items := make([]*domainpharma.Product, 0, len(rows))
+	for index := range rows {
+		items = append(items, cloneProduct(&rows[index]))
 	}
-	s.mu.RUnlock()
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].Code < items[j].Code
-	})
-	if offset >= len(items) {
-		return []*domainpharma.Product{}, nil
-	}
-	end := offset + limit
-	if end > len(items) {
-		end = len(items)
-	}
-	return items[offset:end], nil
+	return items, nil
 }
 
 func (s *productService) Update(ctx context.Context, id string, in ProductWriteInput) (*domainpharma.Product, error) {
@@ -126,23 +122,34 @@ func (s *productService) Update(ctx context.Context, id string, in ProductWriteI
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("product not found")
 	}
-	if existing := s.findProductByCodeLocked(in.Code, id); existing != nil {
-		s.mu.Unlock()
+	existing, err := s.repo.GetByCode(ctx, in.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID.String() != id {
 		return nil, fmt.Errorf("product code already exists")
+	}
+	existing, err = s.repo.GetByApprovalNumber(ctx, in.ApprovalNumber)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID.String() != id {
+		return nil, fmt.Errorf("product approval number already exists")
 	}
 	next := cloneProduct(current)
 	if err := next.Update(toProductDomainInput(in), s.nowFn()); err != nil {
-		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneProduct(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendProductAudit(ctx, in.ActorID, "pharma_oa.product.update", id, map[string]any{"code": next.Code})
 	return cloneProduct(next), nil
 }
@@ -152,19 +159,20 @@ func (s *productService) Disable(ctx context.Context, id string, in ProductDisab
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("product not found")
 	}
 	next := cloneProduct(current)
 	if err := next.Disable(in.Reason, s.nowFn()); err != nil {
-		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneProduct(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendProductAudit(ctx, in.ActorID, "pharma_oa.product.disable", id, map[string]any{"reason": strings.TrimSpace(in.Reason)})
 	return cloneProduct(next), nil
 }
@@ -195,22 +203,21 @@ func (s *productService) Import(ctx context.Context, rows []ProductWriteInput) (
 	return result, nil
 }
 
-func (s *productService) findProductByCodeLocked(code string, exceptID string) *domainpharma.Product {
-	code = strings.TrimSpace(code)
-	for id, item := range s.items {
-		if id == exceptID {
-			continue
-		}
-		if strings.EqualFold(item.Code, code) {
-			return item
-		}
-	}
-	return nil
+func (s *productService) nextProductID() shared.ID {
+	return shared.ID("pharma-product-" + strconv.FormatInt(s.idCounter.Add(1), 10))
 }
 
-func (s *productService) nextProductID() shared.ID {
-	s.idCounter++
-	return shared.ID("pharma-product-" + strconv.FormatInt(s.idCounter, 10))
+func (s *productService) nextAvailableProductID(ctx context.Context) (shared.ID, error) {
+	for {
+		id := s.nextProductID()
+		item, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if item == nil {
+			return id, nil
+		}
+	}
 }
 
 func (s *productService) appendProductAudit(ctx context.Context, actorID, action, resourceID string, detail map[string]any) {

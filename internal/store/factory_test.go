@@ -27,7 +27,8 @@ func TestNewBundleModes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewBundle error: %v", err)
 			}
-			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.Permissions == nil || b.Menus == nil || b.UnitOfWork == nil {
+			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.Permissions == nil || b.Menus == nil || b.UnitOfWork == nil ||
+				b.PharmaEmployees == nil || b.PharmaProducts == nil || b.PharmaSuppliers == nil || b.PharmaCustomers == nil || b.PharmaWarehouses == nil {
 				t.Fatalf("bundle has nil repositories")
 			}
 
@@ -48,7 +49,8 @@ func TestNewBundleMySQLIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBundle mysql error: %v", err)
 	}
-	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil || b.Permissions == nil || b.Menus == nil {
+	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil || b.Permissions == nil || b.Menus == nil ||
+		b.PharmaEmployees == nil || b.PharmaProducts == nil || b.PharmaSuppliers == nil || b.PharmaCustomers == nil || b.PharmaWarehouses == nil {
 		t.Fatalf("mysql bundle has nil repositories")
 	}
 

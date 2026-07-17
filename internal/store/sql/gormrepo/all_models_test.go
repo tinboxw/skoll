@@ -23,6 +23,17 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 	if !containsModel[DictionaryItemModel](models) {
 		t.Fatal("AllModels() should include DictionaryItemModel")
 	}
+	for name, present := range map[string]bool{
+		"PharmaEmployeeModel":  containsModel[PharmaEmployeeModel](models),
+		"PharmaProductModel":   containsModel[PharmaProductModel](models),
+		"PharmaSupplierModel":  containsModel[PharmaSupplierModel](models),
+		"PharmaCustomerModel":  containsModel[PharmaCustomerModel](models),
+		"PharmaWarehouseModel": containsModel[PharmaWarehouseModel](models),
+	} {
+		if !present {
+			t.Fatalf("AllModels() should include %s", name)
+		}
+	}
 }
 
 func containsModel[T any](models []any) bool {

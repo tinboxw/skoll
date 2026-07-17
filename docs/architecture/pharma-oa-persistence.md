@@ -1,6 +1,6 @@
 # 医药 OA 持久化契约
 
-> 状态：H2-01 schema 基线。默认语言：简体中文。
+> 状态：H2-01 schema 基线；H2-02 主数据 repository 已实现。默认语言：简体中文。
 > 实现入口：`internal/repository/pharmaoa/`。
 
 ## 目标与边界
@@ -24,6 +24,8 @@
 | Contract/Complaint/Recall/CRM ports | 合同、投诉、召回、跟进与销售机会 | H2-04 |
 
 Repository 接收 domain entity，不向 service 暴露 GORM model。列表统一使用 `ListFilter` 的分页、关键字、状态和可信组织范围；具体 SQL 实现不能从请求参数扩大组织范围。
+
+H2-02 已将员工、药品、供应商、客户和仓库 service 接入 `store.Bundle`：memory 模式使用相同 port 的内存实现，MySQL/PostgreSQL 使用 `internal/store/sql/gormrepo/pharmaoa_master_*`。创建、读取、编辑、业务停用、提醒和资格校验均通过 repository；主数据没有硬删除业务动作。
 
 ## Schema 归属
 
@@ -78,10 +80,18 @@ Repository 接收 domain entity，不向 service 暴露 GORM model。列表统�
 
 本批次不做旧表、旧字段或旧插件 migration 兼容。H2-02 至 H2-04 必须从此基线生成各方言 migration，并在接线前通过空库、部分状态和 restart 测试。
 
+H2-02 migration：
+
+- `migrations/mysql/20260718_000019_create_pharma_oa_master_data.sql`
+- `migrations/postgres/20260718_000019_create_pharma_oa_master_data.sql`
+
+两份脚本只创建主数据表和索引，不包含 destructive down。SQLite 文件库用于自动化重启契约；设置 `SKOLL_TEST_MYSQL_DSN` 或 `SKOLL_TEST_POSTGRES_DSN` 可运行相同实体 round-trip 实库契约。
+
 ## 验证
 
 ```powershell
 go test ./internal/repository/pharmaoa -count=1
 go test ./internal/repository/pharmaoa -run TestMigrationPlanSupportsAllDialectsAndReversesOrder -count=1
 go test ./internal/plugin -run TestPharmaOAPluginManifestCoversIndustrySkeleton -count=1
+go test ./internal/store/sql/gormrepo -run TestPharmaMaster -count=1
 ```

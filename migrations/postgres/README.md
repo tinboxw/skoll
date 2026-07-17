@@ -18,6 +18,8 @@ PostgreSQL 迁移脚本目录。
 - 20260619_000015_create_audit_events.sql
 - 20260622_000016_create_file_objects.sql
 - 20260622_000017_create_dictionary.sql
+- 20260629_000018_create_organization.sql
+- 20260718_000019_create_pharma_oa_master_data.sql
 
 ## 执行顺序
 
@@ -66,4 +68,14 @@ PostgreSQL 迁移脚本目录。
 ## 回滚说明
 
 当前项目未集成自动迁移工具，也未维护 down migration 文件。需要回滚时由维护者按依赖倒序手动处理：先处理 `sk_dictionary_items`、`sk_dictionary_types` 和 `sk_file_objects`，再处理 `sk_menu_nodes`、`sk_permission_resources`，并在执行前备份业务数据。
+
+## 医药 OA 主数据表
+
+### 20260718_000019_create_pharma_oa_master_data.sql
+
+- 表名：`pharma_oa_employees`、`pharma_oa_products`、`pharma_oa_suppliers`、`pharma_oa_customers`、`pharma_oa_warehouses`。
+- 用途：持久化员工、药品、供应商、客户和仓库/库区/库位聚合。
+- JSON 字段：只承载当前无需独立查询的证照、联系人、资质附件、温控与库区快照。
+- 卸载策略：固定 `retain`；正常插件卸载不删除业务数据，不提供自动 down。
+- 对应 GORM model：`internal/store/sql/gormrepo/pharmaoa_master_model.go`。
 

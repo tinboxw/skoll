@@ -3,14 +3,14 @@ package pharmaoa
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -59,72 +59,57 @@ type WarehouseMovementLocationEligibility struct {
 }
 
 type warehouseService struct {
-	mu        sync.RWMutex
-	items     map[string]*domainpharma.Warehouse
+	repo      pharmaoarepo.WarehouseRepository
 	audit     auditsvc.Service
 	nowFn     func() time.Time
-	idCounter int64
+	idCounter atomic.Int64
 }
 
-func NewWarehouseService(audit auditsvc.Service) WarehouseService {
+func NewWarehouseService(audit auditsvc.Service, repositories ...pharmaoarepo.WarehouseRepository) WarehouseService {
+	repo := pharmaoarepo.WarehouseRepository(pharmaoarepo.NewMemoryWarehouseRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
 	return &warehouseService{
-		items: map[string]*domainpharma.Warehouse{},
+		repo:  repo,
 		audit: audit,
 		nowFn: func() time.Time { return time.Now().UTC() },
 	}
 }
 
 func (s *warehouseService) Create(ctx context.Context, in WarehouseWriteInput) (*domainpharma.Warehouse, error) {
-	entity, err := domainpharma.NewWarehouse(s.nextWarehouseID(), toWarehouseDomainInput(in), s.nowFn())
+	id, err := s.nextAvailableWarehouseID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if existing := s.findWarehouseByCodeLocked(entity.Code, ""); existing != nil {
-		s.mu.Unlock()
+	entity, err := domainpharma.NewWarehouse(id, toWarehouseDomainInput(in), s.nowFn())
+	if err != nil {
+		return nil, err
+	}
+	existing, err := s.repo.GetByCode(ctx, entity.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
 		return nil, fmt.Errorf("warehouse code already exists")
 	}
-	s.items[entity.ID.String()] = cloneWarehouse(entity)
-	s.mu.Unlock()
+	if err := s.repo.Create(ctx, entity); err != nil {
+		return nil, err
+	}
 	s.appendWarehouseAudit(ctx, in.ActorID, "pharma_oa.warehouse.create", entity.ID.String(), map[string]any{"code": entity.Code, "region": entity.Region})
 	return cloneWarehouse(entity), nil
 }
 
-func (s *warehouseService) List(_ context.Context, in WarehouseListInput) ([]*domainpharma.Warehouse, error) {
-	limit := normalizeLimit(in.Limit)
-	offset := in.Offset
-	if offset < 0 {
-		offset = 0
+func (s *warehouseService) List(ctx context.Context, in WarehouseListInput) ([]*domainpharma.Warehouse, error) {
+	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Region: in.Region, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	if err != nil {
+		return nil, err
 	}
-	keyword := strings.ToLower(strings.TrimSpace(in.Keyword))
-	status := strings.ToLower(strings.TrimSpace(in.Status))
-	region := strings.ToLower(strings.TrimSpace(in.Region))
-	s.mu.RLock()
-	items := make([]*domainpharma.Warehouse, 0, len(s.items))
-	for _, item := range s.items {
-		if status != "" && string(item.Status) != status {
-			continue
-		}
-		if region != "" && strings.ToLower(item.Region) != region {
-			continue
-		}
-		if keyword != "" && !warehouseMatches(item, keyword) {
-			continue
-		}
-		items = append(items, cloneWarehouse(item))
+	items := make([]*domainpharma.Warehouse, 0, len(rows))
+	for index := range rows {
+		items = append(items, cloneWarehouse(&rows[index]))
 	}
-	s.mu.RUnlock()
-	sort.Slice(items, func(i, j int) bool {
-		return items[i].Code < items[j].Code
-	})
-	if offset >= len(items) {
-		return []*domainpharma.Warehouse{}, nil
-	}
-	end := offset + limit
-	if end > len(items) {
-		end = len(items)
-	}
-	return items[offset:end], nil
+	return items, nil
 }
 
 func (s *warehouseService) Update(ctx context.Context, id string, in WarehouseWriteInput) (*domainpharma.Warehouse, error) {
@@ -132,23 +117,27 @@ func (s *warehouseService) Update(ctx context.Context, id string, in WarehouseWr
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("warehouse not found")
 	}
-	if existing := s.findWarehouseByCodeLocked(in.Code, id); existing != nil {
-		s.mu.Unlock()
+	existing, err := s.repo.GetByCode(ctx, in.Code)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && existing.ID.String() != id {
 		return nil, fmt.Errorf("warehouse code already exists")
 	}
 	next := cloneWarehouse(current)
 	if err := next.Update(toWarehouseDomainInput(in), s.nowFn()); err != nil {
-		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneWarehouse(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendWarehouseAudit(ctx, in.ActorID, "pharma_oa.warehouse.update", id, map[string]any{"code": next.Code, "region": next.Region})
 	return cloneWarehouse(next), nil
 }
@@ -158,31 +147,33 @@ func (s *warehouseService) Disable(ctx context.Context, id string, in WarehouseD
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
 	}
-	s.mu.Lock()
-	current := s.items[id]
+	current, err := s.repo.Get(ctx, shared.ID(id))
+	if err != nil {
+		return nil, err
+	}
 	if current == nil {
-		s.mu.Unlock()
 		return nil, fmt.Errorf("warehouse not found")
 	}
 	next := cloneWarehouse(current)
 	if err := next.Disable(in.Reason, s.nowFn()); err != nil {
-		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneWarehouse(next)
-	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
 	s.appendWarehouseAudit(ctx, in.ActorID, "pharma_oa.warehouse.disable", id, map[string]any{"reason": strings.TrimSpace(in.Reason)})
 	return cloneWarehouse(next), nil
 }
 
-func (s *warehouseService) ValidateMovementLocation(_ context.Context, in WarehouseMovementLocationInput) (WarehouseMovementLocationEligibility, error) {
+func (s *warehouseService) ValidateMovementLocation(ctx context.Context, in WarehouseMovementLocationInput) (WarehouseMovementLocationEligibility, error) {
 	warehouseID := strings.TrimSpace(in.WarehouseID)
 	if warehouseID == "" {
 		return WarehouseMovementLocationEligibility{}, fmt.Errorf("warehouseId is required")
 	}
-	s.mu.RLock()
-	item := cloneWarehouse(s.items[warehouseID])
-	s.mu.RUnlock()
+	item, err := s.repo.Get(ctx, shared.ID(warehouseID))
+	if err != nil {
+		return WarehouseMovementLocationEligibility{}, err
+	}
 	if item == nil {
 		return WarehouseMovementLocationEligibility{}, fmt.Errorf("warehouse not found")
 	}
@@ -199,22 +190,21 @@ func (s *warehouseService) ValidateMovementLocation(_ context.Context, in Wareho
 	return result, nil
 }
 
-func (s *warehouseService) findWarehouseByCodeLocked(code string, exceptID string) *domainpharma.Warehouse {
-	code = strings.TrimSpace(code)
-	for id, item := range s.items {
-		if id == exceptID {
-			continue
-		}
-		if strings.EqualFold(item.Code, code) {
-			return item
-		}
-	}
-	return nil
+func (s *warehouseService) nextWarehouseID() shared.ID {
+	return shared.ID("pharma-warehouse-" + strconv.FormatInt(s.idCounter.Add(1), 10))
 }
 
-func (s *warehouseService) nextWarehouseID() shared.ID {
-	s.idCounter++
-	return shared.ID("pharma-warehouse-" + strconv.FormatInt(s.idCounter, 10))
+func (s *warehouseService) nextAvailableWarehouseID(ctx context.Context) (shared.ID, error) {
+	for {
+		id := s.nextWarehouseID()
+		item, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if item == nil {
+			return id, nil
+		}
+	}
 }
 
 func (s *warehouseService) appendWarehouseAudit(ctx context.Context, actorID, action, resourceID string, detail map[string]any) {

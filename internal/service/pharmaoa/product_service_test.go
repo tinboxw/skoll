@@ -73,6 +73,19 @@ func TestProductImportValidatesRows(t *testing.T) {
 	}
 }
 
+func TestProductServiceRejectsDuplicateApprovalNumber(t *testing.T) {
+	service := NewProductService(nil)
+	first := productFixture("DRUG001")
+	if _, err := service.Create(context.Background(), first); err != nil {
+		t.Fatalf("create first product: %v", err)
+	}
+	second := productFixture("DRUG002")
+	second.ApprovalNumber = first.ApprovalNumber
+	if _, err := service.Create(context.Background(), second); err == nil {
+		t.Fatal("duplicate product approval number must fail")
+	}
+}
+
 func productFixture(code string) ProductWriteInput {
 	return ProductWriteInput{
 		Code:           code,
@@ -80,7 +93,7 @@ func productFixture(code string) ProductWriteInput {
 		Spec:           "0.25g*12",
 		DosageForm:     "capsule",
 		Manufacturer:   "Skoll Pharma",
-		ApprovalNumber: "NMPA-H20260001",
+		ApprovalNumber: "NMPA-" + code,
 		Temperature: domainpharma.ProductTemperature{
 			Required:   true,
 			MinCelsius: 2,

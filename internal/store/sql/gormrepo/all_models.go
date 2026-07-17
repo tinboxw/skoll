@@ -20,5 +20,10 @@ func AllModels() []any {
 		&UserAssignmentModel{},
 		&AuditRecordModel{},
 		&AuditEventModel{},
+		&PharmaEmployeeModel{},
+		&PharmaProductModel{},
+		&PharmaSupplierModel{},
+		&PharmaCustomerModel{},
+		&PharmaWarehouseModel{},
 	}
 }

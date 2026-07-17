@@ -10,12 +10,16 @@ import (
 type ListFilter struct {
 	Keyword        string
 	Status         string
+	Region         string
 	OrganizationID shared.ID
+	OwnerID        shared.ID
+	ScopeAny       bool
 	Offset         int
 	Limit          int
 }
 
 type AggregateRepository[T any] interface {
+	Create(ctx context.Context, item *T) error
 	Upsert(ctx context.Context, item *T) error
 	Get(ctx context.Context, id shared.ID) (*T, error)
 	List(ctx context.Context, filter ListFilter) ([]T, error)
@@ -29,6 +33,7 @@ type EmployeeRepository interface {
 type ProductRepository interface {
 	AggregateRepository[domainpharma.Product]
 	GetByCode(ctx context.Context, code string) (*domainpharma.Product, error)
+	GetByApprovalNumber(ctx context.Context, approvalNumber string) (*domainpharma.Product, error)
 }
 
 type SupplierRepository interface {

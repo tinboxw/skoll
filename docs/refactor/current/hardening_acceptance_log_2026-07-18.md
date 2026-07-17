@@ -245,3 +245,48 @@ git diff --check
 ### Next Step
 
 父任务 H2 保持 `Doing`。领取 `H2-02`，实现员工、药品、供应商、客户和仓库/库位的 SQL repository 与多数据库契约测试。
+
+## H2-02 医药 OA 主数据持久化仓储
+
+- Date: 2026-07-18
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 将员工、药品、供应商、客户、仓库/库位从 service 进程内 map 迁移到统一 repository port，并接入 memory、MySQL 和 PostgreSQL store bundle。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 主数据持久化 | Pass | 五类 aggregate 的创建、读取、编辑和业务停用全部经过 repository；SQLite 文件库关闭并重开后完整 round-trip 通过，资质、联系人、附件 metadata、温控与库位 JSON 均保留。 |
+| 分页与作用域 | Pass | 代码排序、offset/limit、关键词、状态、区域、组织和负责人 OR scope 在 memory 与 GORM 实现中保持同一契约；客户无授权范围仍返回空集。 |
+| 唯一性与并发创建 | Pass | 主键和业务代码使用 insert-only 创建；药品额外约束批准文号。服务重建及两个实例共享仓储时不会因 ID 计数器重置覆盖旧记录。 |
+| Schema 与迁移 | Pass | 五个 GORM model 与 `SchemaBaseline()` 列和索引一致；MySQL/PostgreSQL migration 均为非破坏性建表及索引脚本，正常卸载保持 `retain`。 |
+| 数据库契约 | Pass with environment gate | SQLite 契约已实际运行；MySQL/PostgreSQL 同一套 round-trip 用例已编译，并分别由 `SKOLL_TEST_MYSQL_DSN`、`SKOLL_TEST_POSTGRES_DSN` 启用。本机未配置 DSN，Docker engine 恢复失败，因此两项实库运行明确为 SKIP，不记作运行通过；H2-05 必须在可用实库环境复验。 |
+| 质量门禁 | Pass | focused、定向 race、`go test ./... -count=1`、`go vet ./...`、构建、Markdown 链接、`git diff --check` 全部通过。 |
+| API/权限/审计/i18n | Pass | 未新增 HTTP endpoint、permission key、audit action、seed 或前端页面，无 OpenAPI/权限资源变更；现有审计动作保持，架构说明以中文为默认入口，无旧数据结构兼容层。 |
+| CodeGraph 与边界 | Pass | 索引已同步为 677 files / 14,223 nodes / 42,973 edges，状态 up to date；未修改 `docs/refactor/old/`。 |
+
+### Verification Commands
+
+```powershell
+go test ./internal/store/sql/gormrepo -run 'TestPharmaMaster|TestSchemaBaseline' -count=1 -v
+go test ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/store ./internal/service/pharmaoa ./internal/bootstrap -count=1
+go test -race ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/service/pharmaoa ./internal/bootstrap -count=1
+go test ./... -count=1
+go vet ./...
+go build -o "$env:TEMP\skoll-h2-02.exe" ./cmd/skoll
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Next Step
+
+父任务 H2 保持 `Doing`。按正式 Work Item 顺序领取 `H2-03`，实现采购、销售、批次、余额、不可变流水、盘点和调拨的原子事务持久化。
+
+## H2-02 Retry Log
+
+| 尝试 | 状态 | 失败证据 | 重试动作 |
+| --- | --- | --- | --- |
+| 1 | Failed | 首轮主数据 repository 契约测试编译失败：fixture 将供应商的 `Primary`、`MimeType` 字段误用于客户联系人/附件 | 按当前 customer domain 字段修正 fixture，将 Work Item 恢复为 `Doing`，重跑同一验收命令 |
+| 2 | Failed | 尝试启动一次性 MySQL 容器时 Docker Desktop Linux engine `_ping` 返回 HTTP 500，容器未创建 | 检查并恢复 Docker engine；成功后继续 MySQL/PostgreSQL 实库契约，仍不可用则保留明确环境证据并由 H2-05 数据库环境门复验 |
+| 3 | Failed | 加入批准文号唯一性后，既有产品导入 fixture 的第二行复用了相同批准文号，原断言仍期望创建两条 | 为不同药品使用不同批准文号，保留批准文号重复拒绝的新约束，恢复 `Doing` 后重跑相关服务与仓储测试 |
