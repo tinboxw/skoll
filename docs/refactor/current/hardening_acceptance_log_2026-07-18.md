@@ -206,3 +206,42 @@ git diff --check
 ### Next Step
 
 H1 父任务全部完成。按正式 Work Item 顺序领取 `H2-01`，定义 Pharma OA 持久化契约与 schema 基线。
+
+## H2-01 定义医药 OA 持久化契约与 Schema 基线
+
+- Date: 2026-07-18
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: 冻结医药 OA repository ports、29 张表的机器可读 schema、索引与唯一约束、审计字段、事务边界，以及三种受支持数据库的迁移和破坏性回滚策略。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Repository 边界 | Pass | 主数据、采购、销售、库存、合规与 CRM ports 接收 domain entity；库存写入通过显式事务回调聚合 batch、balance、ledger 与 lock |
+| Schema 所有权 | Pass | 29 张表全部使用 `pharma_oa_` namespace，并声明领域 owner、主键、事务组和审计列 |
+| 唯一约束与索引 | Pass | 药品批准文号、业务单号、库存位置、批次与关键 idempotency key 均有机器可读唯一索引；常用状态、范围、到期和时间查询有组合索引 |
+| 不可变记录 | Pass | 库存流水和冷链记录标记为 immutable，仅包含 `created_at`/`created_by` 创建审计列，不提供 update/delete repository 方法 |
+| 多数据库迁移 | Pass | MySQL、PostgreSQL、SQLite 共享同一 schema 基线；Up 保留依赖顺序，Down 严格逆序且每步标记 destructive，不支持方言失败关闭 |
+| 卸载与恢复 | Pass | 正常卸载固定 `retain`；destructive down 仅允许空环境或首次安装失败，生产数据使用前向修复或备份恢复 |
+| 文档与多语言 | Pass | 中文为默认架构契约，数据库和架构索引已接入；三份相关文档的本地 Markdown 链接全部可解析 |
+| 质量门禁 | Pass | schema/迁移定向测试、repository/plugin 测试、`go test ./...`、`go vet ./...` 与 `git diff --check` 全部通过 |
+| 影响面 | Pass | 本项未新增 HTTP API、权限键、审计 action、seed 或前端页面；无需 OpenAPI/i18n 资源变更，不实现旧结构兼容 |
+| CodeGraph | Pass | 索引同步后为 672 files / 14,034 nodes / 42,074 edges，`SchemaBaseline` 可查询；未修改 `docs/refactor/old/` |
+
+### Verification Commands
+
+```powershell
+go test ./internal/repository/pharmaoa -count=1
+go test ./internal/repository/pharmaoa -run TestMigrationPlanSupportsAllDialectsAndReversesOrder -count=1
+go test ./internal/plugin -run TestPharmaOAPluginManifestCoversIndustrySkeleton -count=1
+go test ./internal/repository/... ./internal/plugin/... -count=1
+go test ./...
+go vet ./...
+codegraph sync .
+codegraph query "SchemaBaseline"
+git diff --check
+```
+
+### Next Step
+
+父任务 H2 保持 `Doing`。领取 `H2-02`，实现员工、药品、供应商、客户和仓库/库位的 SQL repository 与多数据库契约测试。

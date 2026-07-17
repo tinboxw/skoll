@@ -273,3 +273,11 @@ web/
 | Docker | `deploy/docker/Dockerfile` |
 | Kubernetes | `deploy/k8s/` |
 | Docker Compose | `deploy/compose/docker-compose.yaml` |
+
+## 8. 相关文档
+
+| 文档 | 用途 |
+| --- | --- |
+| [database.md](database.md) | 核心数据库与存储模式 |
+| [pharma-oa-persistence.md](pharma-oa-persistence.md) | 医药 OA repository、schema、事务和 migration 基线 |
+| [rbac.md](rbac.md) | 权限与数据范围模型 |

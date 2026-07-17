@@ -1,5 +1,7 @@
 # 数据库设计文档
 
+> 医药 OA SQL 持久化的当前 schema 与 repository 边界见 [医药 OA 持久化契约](pharma-oa-persistence.md)。
+
 ## 1. 概述
 
 Skoll 支持三种存储模式，通过 `SKOLL_STORE_MODE` 或 `store.mode` 配置项切换：
