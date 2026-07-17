@@ -51,7 +51,7 @@ Developers update progress only in the official next-batch files:
 
 | Action | Required Update |
 | --- | --- |
-| Take a task | Set the Work Item status to `Doing` in `pharma_oa_work_items.md` |
+| Take a task | Set the Work Item status to `Doing` in `hardening_work_items_2026-07-18.md` |
 | Need review | Set status to `Review` and add verification results |
 | Acceptance passes | Set status to `Done`, append acceptance evidence, then commit once |
 | Acceptance fails | Set status to `Failed`, record reason and rerun the same Work Item |

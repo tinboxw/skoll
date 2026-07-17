@@ -156,6 +156,13 @@ func TestPharmaOAPluginManifestCoversIndustrySkeleton(t *testing.T) {
 	if len(routes) != 119 {
 		t.Fatalf("unexpected route count: %+v", routes)
 	}
+	permissionRegistry, err := NewRoutePermissionRegistry(routes)
+	if err != nil {
+		t.Fatalf("build pharma OA route permission registry: %v", err)
+	}
+	if descriptors := permissionRegistry.Descriptors(); len(descriptors) != len(routes) {
+		t.Fatalf("route permission descriptor count = %d, want %d", len(descriptors), len(routes))
+	}
 	assertRoute(t, routes[0], "GET", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.read", "pharma_oa.employee.read")
 	assertRoute(t, routes[1], "POST", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.create", "pharma_oa.employee.create")
 	assertRoute(t, routes[2], "PUT", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.update", "pharma_oa.employee.update")
