@@ -3,15 +3,16 @@ package pharmaoa
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 )
@@ -38,24 +39,37 @@ type TransferOrderCreateInput struct {
 	Quantity                                                                                    int
 	FromWarehouseID, FromAreaID, FromLocationID, ToWarehouseID, ToAreaID, ToLocationID, ActorID string
 }
+type InventoryOperationRepositories struct {
+	Stocktakes pharmaoarepo.StocktakeRepository
+	Transfers  pharmaoarepo.TransferRepository
+}
 
 type inventoryOperationService struct {
-	mu                                sync.RWMutex
 	stocktakeCreateMu                 sync.Mutex
 	transferCreateMu                  sync.Mutex
 	approvalMu                        sync.Mutex
-	stocktakes                        map[string]*domainpharma.StocktakeOrder
-	transfers                         map[string]*domainpharma.TransferOrder
+	stocktakes                        pharmaoarepo.StocktakeRepository
+	transfers                         pharmaoarepo.TransferRepository
 	inventory                         InventoryService
 	warehouses                        WarehouseService
 	workflow                          workflowsvc.Service
 	audit                             auditsvc.Service
 	nowFn                             func() time.Time
-	stocktakeCounter, transferCounter int64
+	stocktakeCounter, transferCounter atomic.Int64
 }
 
-func NewInventoryOperationService(inventory InventoryService, warehouses WarehouseService, workflow workflowsvc.Service, audit auditsvc.Service) InventoryOperationService {
-	return &inventoryOperationService{stocktakes: map[string]*domainpharma.StocktakeOrder{}, transfers: map[string]*domainpharma.TransferOrder{}, inventory: inventory, warehouses: warehouses, workflow: workflow, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewInventoryOperationService(inventory InventoryService, warehouses WarehouseService, workflow workflowsvc.Service, audit auditsvc.Service, repositories ...InventoryOperationRepositories) InventoryOperationService {
+	stocktakes := pharmaoarepo.StocktakeRepository(pharmaoarepo.NewMemoryStocktakeRepository())
+	transfers := pharmaoarepo.TransferRepository(pharmaoarepo.NewMemoryTransferRepository())
+	if len(repositories) > 0 {
+		if repositories[0].Stocktakes != nil {
+			stocktakes = repositories[0].Stocktakes
+		}
+		if repositories[0].Transfers != nil {
+			transfers = repositories[0].Transfers
+		}
+	}
+	return &inventoryOperationService{stocktakes: stocktakes, transfers: transfers, inventory: inventory, warehouses: warehouses, workflow: workflow, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *inventoryOperationService) CreateStocktake(ctx context.Context, in StocktakeOrderCreateInput) (*domainpharma.StocktakeOrder, error) {
@@ -77,14 +91,17 @@ func (s *inventoryOperationService) CreateStocktake(ctx context.Context, in Stoc
 	if in.ActualQuantity == balance.Quantity {
 		return nil, fmt.Errorf("stocktake order requires a non-zero difference")
 	}
-	s.mu.Lock()
-	if stocktakeNumberExists(s.stocktakes, in.Number) {
-		s.mu.Unlock()
+	exists, err := s.stocktakeNumberExists(ctx, in.Number)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
 		return nil, fmt.Errorf("stocktake number already exists")
 	}
-	s.stocktakeCounter++
-	sequence := s.stocktakeCounter
-	s.mu.Unlock()
+	sequence, err := s.nextStocktakeSequence(ctx)
+	if err != nil {
+		return nil, err
+	}
 	now := s.nowFn()
 	orderID := shared.ID("stocktake-order-" + strconv.FormatInt(sequence, 10))
 	definitionID := shared.ID("stocktake-definition-" + strconv.FormatInt(sequence, 10))
@@ -105,13 +122,9 @@ func (s *inventoryOperationService) CreateStocktake(ctx context.Context, in Stoc
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if stocktakeNumberExists(s.stocktakes, item.Number) {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("stocktake number already exists")
+	if err := s.stocktakes.Create(ctx, item); err != nil {
+		return nil, err
 	}
-	s.stocktakes[item.ID.String()] = cloneStocktakeOrder(item)
-	s.mu.Unlock()
 	s.appendAudit(ctx, in.CreatorID, "pharma_oa.stocktake.create", "pharma_oa_stocktake", item.ID.String(), map[string]any{"difference": item.Difference, "workflowInstanceId": item.WorkflowInstanceID})
 	return cloneStocktakeOrder(item), nil
 }
@@ -158,9 +171,9 @@ func (s *inventoryOperationService) ApproveStocktake(ctx context.Context, id str
 	if err = item.Approve(in.ActorID, result.Ledger.ID.String(), now); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.stocktakes[item.ID.String()] = cloneStocktakeOrder(item)
-	s.mu.Unlock()
+	if err = s.stocktakes.Upsert(ctx, item); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.stocktake.approve", "pharma_oa_stocktake", item.ID.String(), map[string]any{"difference": item.Difference, "ledgerId": item.LedgerID})
 	return cloneStocktakeOrder(item), nil
 }
@@ -196,26 +209,28 @@ func (s *inventoryOperationService) RejectStocktake(ctx context.Context, id stri
 	if err = item.Reject(in.ActorID, now); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.stocktakes[item.ID.String()] = cloneStocktakeOrder(item)
-	s.mu.Unlock()
+	if err = s.stocktakes.Upsert(ctx, item); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.stocktake.reject", "pharma_oa_stocktake", item.ID.String(), map[string]any{"difference": item.Difference, "comment": strings.TrimSpace(in.Comment)})
 	return cloneStocktakeOrder(item), nil
 }
-func (s *inventoryOperationService) ListStocktakes(context.Context) ([]*domainpharma.StocktakeOrder, error) {
-	s.mu.RLock()
-	out := make([]*domainpharma.StocktakeOrder, 0, len(s.stocktakes))
-	for _, item := range s.stocktakes {
-		out = append(out, cloneStocktakeOrder(item))
+func (s *inventoryOperationService) ListStocktakes(ctx context.Context) ([]*domainpharma.StocktakeOrder, error) {
+	rows, err := s.stocktakes.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	out := make([]*domainpharma.StocktakeOrder, 0, len(rows))
+	for index := range rows {
+		out = append(out, cloneStocktakeOrder(&rows[index]))
+	}
 	return out, nil
 }
-func (s *inventoryOperationService) GetStocktake(_ context.Context, id string) (*domainpharma.StocktakeOrder, error) {
-	s.mu.RLock()
-	item := cloneStocktakeOrder(s.stocktakes[strings.TrimSpace(id)])
-	s.mu.RUnlock()
+func (s *inventoryOperationService) GetStocktake(ctx context.Context, id string) (*domainpharma.StocktakeOrder, error) {
+	item, err := s.stocktakes.Get(ctx, shared.ID(strings.TrimSpace(id)))
+	if err != nil {
+		return nil, err
+	}
 	if item == nil {
 		return nil, fmt.Errorf("stocktake not found")
 	}
@@ -240,16 +255,19 @@ func (s *inventoryOperationService) CreateTransfer(ctx context.Context, in Trans
 	if salesStockKey(in.ProductID, in.FromWarehouseID, in.FromAreaID, in.FromLocationID, in.BatchID) == salesStockKey(in.ProductID, in.ToWarehouseID, in.ToAreaID, in.ToLocationID, in.BatchID) {
 		return nil, fmt.Errorf("transfer source and destination must differ")
 	}
-	s.mu.Lock()
-	if transferNumberExists(s.transfers, in.Number) {
-		s.mu.Unlock()
+	exists, err := s.transferNumberExists(ctx, in.Number)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
 		return nil, fmt.Errorf("transfer number already exists")
 	}
-	s.transferCounter++
-	sequence := s.transferCounter
-	s.mu.Unlock()
+	sequence, err := s.nextTransferSequence(ctx)
+	if err != nil {
+		return nil, err
+	}
 	id := shared.ID("transfer-order-" + strconv.FormatInt(sequence, 10))
-	result, err := s.inventory.Transfer(ctx, StockTransferInput{ReferenceID: id.String(), ProductID: in.ProductID, FromWarehouseID: in.FromWarehouseID, FromAreaID: in.FromAreaID, FromLocationID: in.FromLocationID, ToWarehouseID: in.ToWarehouseID, ToAreaID: in.ToAreaID, ToLocationID: in.ToLocationID, BatchID: in.BatchID, Quantity: in.Quantity, ActorID: in.ActorID})
+	result, err := s.inventory.Transfer(ctx, StockTransferInput{ReferenceID: id.String(), IdempotencyKey: "transfer:" + strings.ToLower(strings.TrimSpace(in.Number)), ProductID: in.ProductID, FromWarehouseID: in.FromWarehouseID, FromAreaID: in.FromAreaID, FromLocationID: in.FromLocationID, ToWarehouseID: in.ToWarehouseID, ToAreaID: in.ToAreaID, ToLocationID: in.ToLocationID, BatchID: in.BatchID, Quantity: in.Quantity, ActorID: in.ActorID})
 	if err != nil {
 		return nil, err
 	}
@@ -261,26 +279,28 @@ func (s *inventoryOperationService) CreateTransfer(ctx context.Context, in Trans
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.transfers[item.ID.String()] = cloneTransferOrder(item)
-	s.mu.Unlock()
+	if err := s.transfers.Create(ctx, item); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.transfer.create", "pharma_oa_transfer", item.ID.String(), map[string]any{"quantity": item.Quantity, "outLedgerId": item.OutLedgerID, "inLedgerId": item.InLedgerID})
 	return cloneTransferOrder(item), nil
 }
-func (s *inventoryOperationService) ListTransfers(context.Context) ([]*domainpharma.TransferOrder, error) {
-	s.mu.RLock()
-	out := make([]*domainpharma.TransferOrder, 0, len(s.transfers))
-	for _, item := range s.transfers {
-		out = append(out, cloneTransferOrder(item))
+func (s *inventoryOperationService) ListTransfers(ctx context.Context) ([]*domainpharma.TransferOrder, error) {
+	rows, err := s.transfers.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	out := make([]*domainpharma.TransferOrder, 0, len(rows))
+	for index := range rows {
+		out = append(out, cloneTransferOrder(&rows[index]))
+	}
 	return out, nil
 }
-func (s *inventoryOperationService) GetTransfer(_ context.Context, id string) (*domainpharma.TransferOrder, error) {
-	s.mu.RLock()
-	item := cloneTransferOrder(s.transfers[strings.TrimSpace(id)])
-	s.mu.RUnlock()
+func (s *inventoryOperationService) GetTransfer(ctx context.Context, id string) (*domainpharma.TransferOrder, error) {
+	item, err := s.transfers.Get(ctx, shared.ID(strings.TrimSpace(id)))
+	if err != nil {
+		return nil, err
+	}
 	if item == nil {
 		return nil, fmt.Errorf("transfer not found")
 	}
@@ -309,21 +329,53 @@ func (s *inventoryOperationService) findBalance(ctx context.Context, productID, 
 	}
 	return domainpharma.StockBalance{}, fmt.Errorf("stock balance not found")
 }
-func stocktakeNumberExists(items map[string]*domainpharma.StocktakeOrder, number string) bool {
+func (s *inventoryOperationService) stocktakeNumberExists(ctx context.Context, number string) (bool, error) {
+	items, err := s.stocktakes.List(ctx, pharmaoarepo.ListFilter{Keyword: strings.TrimSpace(number)})
+	if err != nil {
+		return false, err
+	}
 	for _, item := range items {
 		if strings.EqualFold(item.Number, strings.TrimSpace(number)) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
-func transferNumberExists(items map[string]*domainpharma.TransferOrder, number string) bool {
+func (s *inventoryOperationService) transferNumberExists(ctx context.Context, number string) (bool, error) {
+	items, err := s.transfers.List(ctx, pharmaoarepo.ListFilter{Keyword: strings.TrimSpace(number)})
+	if err != nil {
+		return false, err
+	}
 	for _, item := range items {
 		if strings.EqualFold(item.Number, strings.TrimSpace(number)) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
+}
+func (s *inventoryOperationService) nextStocktakeSequence(ctx context.Context) (int64, error) {
+	for {
+		sequence := s.stocktakeCounter.Add(1)
+		item, err := s.stocktakes.Get(ctx, shared.ID("stocktake-order-"+strconv.FormatInt(sequence, 10)))
+		if err != nil {
+			return 0, err
+		}
+		if item == nil {
+			return sequence, nil
+		}
+	}
+}
+func (s *inventoryOperationService) nextTransferSequence(ctx context.Context) (int64, error) {
+	for {
+		sequence := s.transferCounter.Add(1)
+		item, err := s.transfers.Get(ctx, shared.ID("transfer-order-"+strconv.FormatInt(sequence, 10)))
+		if err != nil {
+			return 0, err
+		}
+		if item == nil {
+			return sequence, nil
+		}
+	}
 }
 func cloneStocktakeOrder(item *domainpharma.StocktakeOrder) *domainpharma.StocktakeOrder {
 	if item == nil {

@@ -80,3 +80,13 @@ MySQL 迁移脚本目录。
 - 卸载策略：固定 `retain`；正常插件卸载不删除业务数据，不提供自动 down。
 - 对应 GORM model：`internal/store/sql/gormrepo/pharmaoa_master_model.go`。
 
+## 医药 OA 库存与业务单据表
+
+### 20260718_000020_create_pharma_oa_inventory_orders.sql
+
+- 表名：批次、余额、不可变流水、库存锁、采购申请/订单/入库、销售订单/出库、盘点和调拨共 11 张表。
+- 事务：余额使用行锁与 version 条件更新；batch、balance、ledger 在同一事务提交，多行入出库失败时整体回滚。
+- 幂等：流水、采购入库、销售出库和调拨均有唯一 idempotency key；流水只允许追加。
+- 金额：最终金额列使用 `DECIMAL(18,2)`，聚合行 JSON 保留当前领域数量与单价语义。
+- 卸载策略：固定 `retain`；不提供 destructive down 或旧结构兼容路径。
+

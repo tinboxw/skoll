@@ -50,6 +50,8 @@ func TestDB(t *testing.T) *gorm.DB {
 		PharmaSupplierModel{},
 		PharmaCustomerModel{},
 		PharmaWarehouseModel{},
+		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
+		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
@@ -108,6 +110,8 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 		PharmaSupplierModel{},
 		PharmaCustomerModel{},
 		PharmaWarehouseModel{},
+		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
+		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)

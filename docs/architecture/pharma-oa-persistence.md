@@ -1,6 +1,6 @@
 # 医药 OA 持久化契约
 
-> 状态：H2-01 schema 基线；H2-02 主数据 repository 已实现。默认语言：简体中文。
+> 状态：H2-01 schema 基线；H2-02 主数据与 H2-03 库存/单据 repository 已实现。默认语言：简体中文。
 > 实现入口：`internal/repository/pharmaoa/`。
 
 ## 目标与边界
@@ -29,7 +29,7 @@ H2-02 已将员工、药品、供应商、客户和仓库 service 接入 `store.
 
 ## Schema 归属
 
-所有表使用 `pharma_oa_` namespace。完整机器可读清单由 `SchemaBaseline()` 提供，当前覆盖 29 张聚合根、明细或作业表。
+所有表使用 `pharma_oa_` namespace。完整机器可读清单由 `SchemaBaseline()` 提供，当前覆盖 28 张聚合根或作业表；采购申请行随申请聚合以 `lines_json` 持久化，不保留未接线的独立明细表。
 
 | 领域 | 核心表 | 关键约束与索引 |
 | --- | --- | --- |
@@ -87,6 +87,15 @@ H2-02 migration：
 
 两份脚本只创建主数据表和索引，不包含 destructive down。SQLite 文件库用于自动化重启契约；设置 `SKOLL_TEST_MYSQL_DSN` 或 `SKOLL_TEST_POSTGRES_DSN` 可运行相同实体 round-trip 实库契约。
 
+H2-03 migration：
+
+- `migrations/mysql/20260718_000020_create_pharma_oa_inventory_orders.sql`
+- `migrations/postgres/20260718_000020_create_pharma_oa_inventory_orders.sql`
+
+H2-03 将库存、采购、销售、盘点和调拨 service 接入 `store.Bundle`。库存事务在同一 repository transaction 内锁定余额，按 version 条件更新，并原子追加不可变流水；多行采购入库或销售出库任一行失败时全部回滚。`operation + reference/idempotency key + stock position` 构成流水幂等键，重复请求返回既有结果，不重复扣减或入账。
+
+SQLite 文件库自动执行库存与全部业务单据的 restart 契约、并发超卖、批量回滚和幂等测试。MySQL/PostgreSQL 使用相同 GORM model 和 repository contract，并由 `SKOLL_TEST_MYSQL_DSN`、`SKOLL_TEST_POSTGRES_DSN` 启用实库测试；完整支持数据库矩阵仍由 H2-05 统一复验。
+
 ## 验证
 
 ```powershell
@@ -94,4 +103,6 @@ go test ./internal/repository/pharmaoa -count=1
 go test ./internal/repository/pharmaoa -run TestMigrationPlanSupportsAllDialectsAndReversesOrder -count=1
 go test ./internal/plugin -run TestPharmaOAPluginManifestCoversIndustrySkeleton -count=1
 go test ./internal/store/sql/gormrepo -run TestPharmaMaster -count=1
+go test ./internal/store/sql/gormrepo -run 'TestPharmaOrder|TestPharmaTransaction' -count=1
+go test ./internal/service/pharmaoa -run 'TestInventory' -count=1
 ```

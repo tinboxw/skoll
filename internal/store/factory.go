@@ -56,6 +56,12 @@ type Bundle struct {
 	PharmaSuppliers  pharmaoarepo.SupplierRepository
 	PharmaCustomers  pharmaoarepo.CustomerRepository
 	PharmaWarehouses pharmaoarepo.WarehouseRepository
+	PharmaInventory  pharmaoarepo.InventoryRepository
+	PharmaPurchases  pharmaoarepo.PurchaseRepository
+	PharmaInbounds   pharmaoarepo.PurchaseInboundRepository
+	PharmaSales      pharmaoarepo.SalesRepository
+	PharmaStocktakes pharmaoarepo.StocktakeRepository
+	PharmaTransfers  pharmaoarepo.TransferRepository
 }
 
 func NewBundle(opts Options) (*Bundle, error) {
@@ -78,6 +84,12 @@ func NewBundle(opts Options) (*Bundle, error) {
 			PharmaEmployees: pharmaoarepo.NewMemoryEmployeeRepository(), PharmaProducts: pharmaoarepo.NewMemoryProductRepository(),
 			PharmaSuppliers: pharmaoarepo.NewMemorySupplierRepository(), PharmaCustomers: pharmaoarepo.NewMemoryCustomerRepository(),
 			PharmaWarehouses: pharmaoarepo.NewMemoryWarehouseRepository(),
+			PharmaInventory:  pharmaoarepo.NewMemoryInventoryRepository(),
+			PharmaPurchases:  pharmaoarepo.NewMemoryPurchaseRepository(),
+			PharmaInbounds:   pharmaoarepo.NewMemoryPurchaseInboundRepository(),
+			PharmaSales:      pharmaoarepo.NewMemorySalesRepository(),
+			PharmaStocktakes: pharmaoarepo.NewMemoryStocktakeRepository(),
+			PharmaTransfers:  pharmaoarepo.NewMemoryTransferRepository(),
 		}, nil
 	case ModeMySQL:
 		primary, err := mysql.NewAdapter(opts.PrimaryDSN)
@@ -104,6 +116,12 @@ func NewBundle(opts Options) (*Bundle, error) {
 			PharmaSuppliers:  primary.PharmaSupplierRepository(),
 			PharmaCustomers:  primary.PharmaCustomerRepository(),
 			PharmaWarehouses: primary.PharmaWarehouseRepository(),
+			PharmaInventory:  primary.PharmaInventoryRepository(),
+			PharmaPurchases:  primary.PharmaPurchaseRepository(),
+			PharmaInbounds:   primary.PharmaPurchaseInboundRepository(),
+			PharmaSales:      primary.PharmaSalesRepository(),
+			PharmaStocktakes: primary.PharmaStocktakeRepository(),
+			PharmaTransfers:  primary.PharmaTransferRepository(),
 		}, nil
 	case ModePostgres:
 		primary, err := postgres.NewAdapter(opts.PrimaryDSN)
@@ -132,6 +150,12 @@ func NewBundle(opts Options) (*Bundle, error) {
 			PharmaSuppliers:  primary.PharmaSupplierRepository(),
 			PharmaCustomers:  primary.PharmaCustomerRepository(),
 			PharmaWarehouses: primary.PharmaWarehouseRepository(),
+			PharmaInventory:  primary.PharmaInventoryRepository(),
+			PharmaPurchases:  primary.PharmaPurchaseRepository(),
+			PharmaInbounds:   primary.PharmaPurchaseInboundRepository(),
+			PharmaSales:      primary.PharmaSalesRepository(),
+			PharmaStocktakes: primary.PharmaStocktakeRepository(),
+			PharmaTransfers:  primary.PharmaTransferRepository(),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported store mode: %q", opts.Mode)

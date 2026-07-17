@@ -101,11 +101,11 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Permission: rbacService,
 		Audit:      auditEventService,
 	})
-	pharmaPurchaseService := pharmaoasvc.NewPurchaseService(pharmaSupplierService, workflowService, auditService)
-	pharmaInventoryService := pharmaoasvc.NewInventoryService(auditService)
-	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService)
-	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService)
-	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService)
+	pharmaPurchaseService := pharmaoasvc.NewPurchaseService(pharmaSupplierService, workflowService, auditService, bundle.PharmaPurchases)
+	pharmaInventoryService := pharmaoasvc.NewInventoryService(auditService, bundle.PharmaInventory)
+	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService, bundle.PharmaInbounds)
+	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService, bundle.PharmaSales)
+	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService, pharmaoasvc.InventoryOperationRepositories{Stocktakes: bundle.PharmaStocktakes, Transfers: bundle.PharmaTransfers})
 	notificationService := notificationsvc.NewService(nil, nil)
 	pharmaPaymentInvoiceService := pharmaoasvc.NewPaymentInvoiceService(pharmaSalesService, notificationService, auditService)
 	pharmaInventoryAlertService := pharmaoasvc.NewInventoryAlertService(pharmaInventoryService, notificationService, auditService)

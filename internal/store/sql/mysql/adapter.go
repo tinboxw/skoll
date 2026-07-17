@@ -43,6 +43,12 @@ type Adapter struct {
 	supplier  pharmaoarepo.SupplierRepository
 	customer  pharmaoarepo.CustomerRepository
 	warehouse pharmaoarepo.WarehouseRepository
+	inventory pharmaoarepo.InventoryRepository
+	purchase  pharmaoarepo.PurchaseRepository
+	inbound   pharmaoarepo.PurchaseInboundRepository
+	sales     pharmaoarepo.SalesRepository
+	stocktake pharmaoarepo.StocktakeRepository
+	transfer  pharmaoarepo.TransferRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -93,6 +99,12 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		supplier:  gormrepo.NewPharmaSupplierStore(db),
 		customer:  gormrepo.NewPharmaCustomerStore(db),
 		warehouse: gormrepo.NewPharmaWarehouseStore(db),
+		inventory: gormrepo.NewPharmaInventoryStore(db),
+		purchase:  gormrepo.NewPharmaPurchaseStore(db),
+		inbound:   gormrepo.NewPharmaPurchaseInboundStore(db),
+		sales:     gormrepo.NewPharmaSalesStore(db),
+		stocktake: gormrepo.NewPharmaStocktakeStore(db),
+		transfer:  gormrepo.NewPharmaTransferStore(db),
 	}, nil
 }
 
@@ -140,6 +152,14 @@ func (a *Adapter) PharmaProductRepository() pharmaoarepo.ProductRepository     {
 func (a *Adapter) PharmaSupplierRepository() pharmaoarepo.SupplierRepository   { return a.supplier }
 func (a *Adapter) PharmaCustomerRepository() pharmaoarepo.CustomerRepository   { return a.customer }
 func (a *Adapter) PharmaWarehouseRepository() pharmaoarepo.WarehouseRepository { return a.warehouse }
+func (a *Adapter) PharmaInventoryRepository() pharmaoarepo.InventoryRepository { return a.inventory }
+func (a *Adapter) PharmaPurchaseRepository() pharmaoarepo.PurchaseRepository   { return a.purchase }
+func (a *Adapter) PharmaPurchaseInboundRepository() pharmaoarepo.PurchaseInboundRepository {
+	return a.inbound
+}
+func (a *Adapter) PharmaSalesRepository() pharmaoarepo.SalesRepository         { return a.sales }
+func (a *Adapter) PharmaStocktakeRepository() pharmaoarepo.StocktakeRepository { return a.stocktake }
+func (a *Adapter) PharmaTransferRepository() pharmaoarepo.TransferRepository   { return a.transfer }
 
 func (a *Adapter) DB() *gorm.DB {
 	return a.db

@@ -25,5 +25,16 @@ func AllModels() []any {
 		&PharmaSupplierModel{},
 		&PharmaCustomerModel{},
 		&PharmaWarehouseModel{},
+		&PharmaStockBatchModel{},
+		&PharmaStockBalanceModel{},
+		&PharmaStockLedgerModel{},
+		&PharmaStockLockModel{},
+		&PharmaPurchaseRequestModel{},
+		&PharmaPurchaseOrderModel{},
+		&PharmaPurchaseInboundModel{},
+		&PharmaSalesOrderModel{},
+		&PharmaSalesOutboundModel{},
+		&PharmaStocktakeModel{},
+		&PharmaTransferModel{},
 	}
 }

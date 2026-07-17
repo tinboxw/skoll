@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -33,18 +33,21 @@ type PurchaseInboundCreateInput struct {
 }
 
 type purchaseInboundService struct {
-	mu         sync.RWMutex
-	items      map[string]*domainpharma.PurchaseInbound
+	repo       pharmaoarepo.PurchaseInboundRepository
 	purchases  PurchaseService
 	warehouses WarehouseService
 	inventory  InventoryService
 	audit      auditsvc.Service
 	nowFn      func() time.Time
-	counter    int64
+	counter    atomic.Int64
 }
 
-func NewPurchaseInboundService(purchases PurchaseService, warehouses WarehouseService, inventory InventoryService, audit auditsvc.Service) PurchaseInboundService {
-	return &purchaseInboundService{items: map[string]*domainpharma.PurchaseInbound{}, purchases: purchases, warehouses: warehouses, inventory: inventory, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewPurchaseInboundService(purchases PurchaseService, warehouses WarehouseService, inventory InventoryService, audit auditsvc.Service, repositories ...pharmaoarepo.PurchaseInboundRepository) PurchaseInboundService {
+	repo := pharmaoarepo.PurchaseInboundRepository(pharmaoarepo.NewMemoryPurchaseInboundRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &purchaseInboundService{repo: repo, purchases: purchases, warehouses: warehouses, inventory: inventory, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *purchaseInboundService) Create(ctx context.Context, in PurchaseInboundCreateInput) (*domainpharma.PurchaseInbound, error) {
@@ -65,62 +68,87 @@ func (s *purchaseInboundService) Create(ctx context.Context, in PurchaseInboundC
 	if err := validateInboundAgainstOrder(in.Lines, order.Lines); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if s.numberExistsLocked(in.Number) {
-		s.mu.Unlock()
+	exists, err := s.numberExists(ctx, in.Number)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
 		return nil, fmt.Errorf("purchase inbound number already exists")
 	}
-	s.counter++
-	id := shared.ID("purchase-inbound-" + strconv.FormatInt(s.counter, 10))
-	s.mu.Unlock()
+	id, err := s.nextAvailableInboundID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	item, err := domainpharma.NewPurchaseInbound(id, in.Number, order.ID.String(), in.WarehouseID, in.AreaID, in.LocationID, in.ActorID, in.Lines, in.Attachments, s.nowFn())
 	if err != nil {
 		return nil, err
 	}
+	movements := make([]StockMovementInput, 0, len(item.Lines))
 	for idx := range item.Lines {
-		line := &item.Lines[idx]
-		result, movementErr := s.inventory.Inbound(ctx, StockMovementInput{ReferenceID: item.ID.String(), ProductID: line.ProductID, WarehouseID: item.WarehouseID, AreaID: item.AreaID, LocationID: item.LocationID, BatchNo: line.BatchNo, ProductionDate: line.ProductionDate, ExpiresAt: line.ExpiresAt, Quantity: line.Quantity, ActorID: in.ActorID})
-		if movementErr != nil {
-			return nil, movementErr
-		}
-		line.BatchID = result.Balance.BatchID
-		line.LedgerID = result.Ledger.ID.String()
+		line := item.Lines[idx]
+		movements = append(movements, StockMovementInput{ReferenceID: item.ID.String(), IdempotencyKey: fmt.Sprintf("inbound:%s:line:%d", strings.ToLower(strings.TrimSpace(item.Number)), idx+1), ProductID: line.ProductID, WarehouseID: item.WarehouseID, AreaID: item.AreaID, LocationID: item.LocationID, BatchNo: line.BatchNo, ProductionDate: line.ProductionDate, ExpiresAt: line.ExpiresAt, Quantity: line.Quantity, ActorID: in.ActorID})
 	}
-	s.mu.Lock()
-	s.items[item.ID.String()] = clonePurchaseInbound(item)
-	s.mu.Unlock()
+	results, movementErr := s.inventory.InboundMany(ctx, movements)
+	if movementErr != nil {
+		return nil, movementErr
+	}
+	for idx := range item.Lines {
+		item.Lines[idx].BatchID = results[idx].Balance.BatchID
+		item.Lines[idx].LedgerID = results[idx].Ledger.ID.String()
+	}
+	if err := s.repo.Create(ctx, item); err != nil {
+		return nil, err
+	}
 	if s.audit != nil {
 		_, _ = s.audit.Append(ctx, normalizeInboundActor(in.ActorID), "pharma_oa.inbound.create", "pharma_oa_purchase_inbound", item.ID.String(), map[string]any{"purchaseOrderId": order.ID.String(), "lines": len(item.Lines), "attachments": len(item.Attachments)})
 	}
 	return clonePurchaseInbound(item), nil
 }
 
-func (s *purchaseInboundService) List(context.Context) ([]*domainpharma.PurchaseInbound, error) {
-	s.mu.RLock()
-	out := make([]*domainpharma.PurchaseInbound, 0, len(s.items))
-	for _, item := range s.items {
-		out = append(out, clonePurchaseInbound(item))
+func (s *purchaseInboundService) List(ctx context.Context) ([]*domainpharma.PurchaseInbound, error) {
+	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	out := make([]*domainpharma.PurchaseInbound, 0, len(rows))
+	for index := range rows {
+		out = append(out, clonePurchaseInbound(&rows[index]))
+	}
 	return out, nil
 }
-func (s *purchaseInboundService) Get(_ context.Context, id string) (*domainpharma.PurchaseInbound, error) {
-	s.mu.RLock()
-	item := clonePurchaseInbound(s.items[strings.TrimSpace(id)])
-	s.mu.RUnlock()
+func (s *purchaseInboundService) Get(ctx context.Context, id string) (*domainpharma.PurchaseInbound, error) {
+	item, err := s.repo.Get(ctx, shared.ID(strings.TrimSpace(id)))
+	if err != nil {
+		return nil, err
+	}
 	if item == nil {
 		return nil, fmt.Errorf("purchase inbound not found")
 	}
 	return item, nil
 }
-func (s *purchaseInboundService) numberExistsLocked(number string) bool {
-	for _, item := range s.items {
+func (s *purchaseInboundService) numberExists(ctx context.Context, number string) (bool, error) {
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: strings.TrimSpace(number)})
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
 		if strings.EqualFold(item.Number, strings.TrimSpace(number)) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
+}
+func (s *purchaseInboundService) nextAvailableInboundID(ctx context.Context) (shared.ID, error) {
+	for {
+		id := shared.ID("purchase-inbound-" + strconv.FormatInt(s.counter.Add(1), 10))
+		item, err := s.repo.Get(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if item == nil {
+			return id, nil
+		}
+	}
 }
 func clonePurchaseInbound(item *domainpharma.PurchaseInbound) *domainpharma.PurchaseInbound {
 	if item == nil {

@@ -246,6 +246,54 @@ git diff --check
 
 父任务 H2 保持 `Doing`。领取 `H2-02`，实现员工、药品、供应商、客户和仓库/库位的 SQL repository 与多数据库契约测试。
 
+## H2-03 医药 OA 库存与业务单据原子持久化
+
+- Date: 2026-07-18
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 将采购、采购入库、销售、销售出库、批次、余额、不可变流水、盘点和调拨接入统一 repository；库存余额与流水在同一事务内提交，多行库存变更任一失败时整体回滚。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Repository 与重启持久化 | Pass | memory 与 GORM 实现覆盖采购、销售、批次、余额、流水、盘点和调拨；SQLite 文件库关闭并重开后，库存与全部业务单据 round-trip 通过。 |
+| 原子性与并发 | Pass | 20 个并发出库请求竞争 100 件库存时仅 10 个成功，余额为 0 且流水数正确；多行出库第二行库存不足时，第一行余额和流水同步回滚。 |
+| 幂等与不可变流水 | Pass | 流水使用业务幂等键和确定性 ID；并发重复出库只扣减一次，重复调拨复用同一对流水，源/目标余额保持 60/40；repository 不提供流水更新或删除接口。 |
+| 事务边界 | Pass | 库存事务锁定余额并使用 version 条件更新，余额与流水同事务提交；采购审批的申请状态与订单同事务提交；采购入库和销售出库使用多行原子库存事务。 |
+| Schema 与 migration | Pass | 11 个新增 GORM model 与 `SchemaBaseline()`、MySQL/PostgreSQL `20260718_000020` migration 一致；金额统一为 `(18,2)`，脚本不含 destructive `DROP`，正常卸载保留业务数据。 |
+| 多数据库契约 | Pass with environment gate | SQLite 契约已实际运行。MySQL/PostgreSQL 使用同一 repository contract，但本机未设置 `SKOLL_TEST_MYSQL_DSN`、`SKOLL_TEST_POSTGRES_DSN`，两项测试明确为 SKIP，不记作实库通过；H2-05 必须在可用实库环境复验。 |
+| API/权限/审计/i18n | Pass | 本项未新增 HTTP endpoint、permission key、前端页面或 seed，无需改 OpenAPI/权限资源/i18n locale；现有库存、采购和销售 audit action 保持提交后记录，架构说明默认使用中文。 |
+| 质量门禁 | Pass | 聚焦测试、库存专项验收、SQLite 重启、schema/migration 契约、定向 race、`go test ./... -count=1`、`go vet ./...`、构建和 `git diff --check` 全部通过。 |
+| CodeGraph 与边界 | Pass | 已同步索引并复核 `InventoryService` 的 55 个受影响符号；调用方已纳入全仓回归，未修改 `docs/refactor/old/`。 |
+
+### Verification Commands
+
+```powershell
+go test ./internal/store/sql/gormrepo -run 'TestPharma(OrderRepositoriesPersistAcrossSQLiteRestart|OrderRepositoriesMySQLContract|OrderRepositoriesPostgreSQLContract|TransactionModelsMatchSchemaAndMigrations)$' -count=1 -v
+go test ./internal/service/pharmaoa -run 'TestInventory(ConcurrentOutboundCannotOversell|RetryIsIdempotent|TransferRetryUsesBusinessIdempotencyKey|BatchFailureRollsBackAllLines|SQLiteRestartPersistence)$' -count=1 -v
+go test -race ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/store ./internal/service/pharmaoa ./internal/bootstrap -count=1
+go test ./... -count=1
+go vet ./...
+go build -o "$env:TEMP\skoll-h2-03.exe" ./cmd/skoll
+codegraph impact "InventoryService"
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Next Step
+
+父任务 H2 保持 `Doing`。按正式 Work Item 顺序领取 `H2-04`，持久化工作流关联的 CRM、合规、提醒和报表作业记录，并验证重启与重试不会产生重复副作用。
+
+## H2-03 Retry Log
+
+| 尝试 | 状态 | 失败证据 | 重试动作 |
+| --- | --- | --- | --- |
+| 1 | Failed | 首轮库存事务接线定向测试失败：bootstrap 使用未定义的 `stores` 变量；召回与投诉契约依赖当前 `pharma-stock-batch-N` 实体 ID，新内容派生 ID 生效后无法定位关联批次 | 修正 DI 为当前 `bundle` 变量；保留现有批次 ID 规则，并在事务内按产品/批号复用批次、探测重启后的可用序号；恢复 `Doing` 后重跑同一测试集 |
+| 2 | Failed | 采购入库 service 切换 repository 后残留一个多余的 `}`，`internal/service/pharmaoa` 编译失败 | 删除残留括号，恢复 `Doing`，重新执行 repository/GORM/service 定向测试 |
+| 3 | Failed | 新增 SQLite 重启测试直接比较 `shared.ID` 与 `string`，测试包编译失败 | 使用 `shared.ID.String()` 比较实际批次 ID，恢复 `Doing` 并重跑同一验收集合 |
+| 4 | Failed | 新增调拨业务幂等验收时误用不存在的 `StockBalance.Position` 字段，`internal/service/pharmaoa` 测试包编译失败 | 按当前领域模型改用平铺的库位字段，恢复 `Doing` 后重跑调拨幂等及库存事务验收集合 |
+
 ## H2-02 医药 OA 主数据持久化仓储
 
 - Date: 2026-07-18

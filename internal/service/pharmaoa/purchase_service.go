@@ -3,15 +3,16 @@ package pharmaoa
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 )
@@ -41,21 +42,22 @@ type PurchaseApprovalInput struct {
 }
 
 type purchaseService struct {
-	mu         sync.RWMutex
 	approvalMu sync.Mutex
-	requests   map[string]*domainpharma.PurchaseRequest
-	orders     map[string]*domainpharma.PurchaseOrder
+	repo       pharmaoarepo.PurchaseRepository
 	suppliers  SupplierService
 	workflow   workflowsvc.Service
 	audit      auditsvc.Service
 	nowFn      func() time.Time
-	counter    int64
+	counter    atomic.Int64
 }
 
-func NewPurchaseService(suppliers SupplierService, workflow workflowsvc.Service, audit auditsvc.Service) PurchaseService {
+func NewPurchaseService(suppliers SupplierService, workflow workflowsvc.Service, audit auditsvc.Service, repositories ...pharmaoarepo.PurchaseRepository) PurchaseService {
+	repo := pharmaoarepo.PurchaseRepository(pharmaoarepo.NewMemoryPurchaseRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
 	return &purchaseService{
-		requests: map[string]*domainpharma.PurchaseRequest{}, orders: map[string]*domainpharma.PurchaseOrder{},
-		suppliers: suppliers, workflow: workflow, audit: audit, nowFn: func() time.Time { return time.Now().UTC() },
+		repo: repo, suppliers: suppliers, workflow: workflow, audit: audit, nowFn: func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -66,17 +68,18 @@ func (s *purchaseService) CreateRequest(ctx context.Context, in PurchaseRequestC
 	if err := s.ensureSupplierEligible(ctx, in.SupplierID, in.RequesterID, "create_request"); err != nil {
 		return nil, err
 	}
-	s.mu.RLock()
-	duplicateNumber := s.requestNumberExistsLocked(in.Number)
-	s.mu.RUnlock()
+	duplicateNumber, err := s.requestNumberExists(ctx, in.Number)
+	if err != nil {
+		return nil, err
+	}
 	if duplicateNumber {
 		return nil, fmt.Errorf("purchase request number already exists")
 	}
 	now := s.nowFn()
-	s.mu.Lock()
-	s.counter++
-	sequence := s.counter
-	s.mu.Unlock()
+	sequence, err := s.nextAvailablePurchaseSequence(ctx)
+	if err != nil {
+		return nil, err
+	}
 	requestID := shared.ID("purchase-request-" + strconv.FormatInt(sequence, 10))
 	workflowID := shared.ID("purchase-workflow-" + strconv.FormatInt(sequence, 10))
 	definitionID := shared.ID("purchase-definition-" + strconv.FormatInt(sequence, 10))
@@ -108,32 +111,30 @@ func (s *purchaseService) CreateRequest(ctx context.Context, in PurchaseRequestC
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if s.requestNumberExistsLocked(item.Number) {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("purchase request number already exists")
+	if err := s.repo.CreateRequest(ctx, item); err != nil {
+		return nil, err
 	}
-	s.requests[item.ID.String()] = clonePurchaseRequest(item)
-	s.mu.Unlock()
 	s.appendPurchaseAudit(ctx, in.RequesterID, "pharma_oa.purchase.create", item.ID.String(), map[string]any{"number": item.Number, "workflowInstanceId": item.WorkflowInstanceID})
 	return clonePurchaseRequest(item), nil
 }
 
-func (s *purchaseService) ListRequests(context.Context) ([]*domainpharma.PurchaseRequest, error) {
-	s.mu.RLock()
-	items := make([]*domainpharma.PurchaseRequest, 0, len(s.requests))
-	for _, item := range s.requests {
-		items = append(items, clonePurchaseRequest(item))
+func (s *purchaseService) ListRequests(ctx context.Context) ([]*domainpharma.PurchaseRequest, error) {
+	rows, err := s.repo.ListRequests(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RUnlock()
-	sort.Slice(items, func(i, j int) bool { return items[i].Number < items[j].Number })
+	items := make([]*domainpharma.PurchaseRequest, 0, len(rows))
+	for index := range rows {
+		items = append(items, clonePurchaseRequest(&rows[index]))
+	}
 	return items, nil
 }
 
-func (s *purchaseService) GetRequest(_ context.Context, id string) (*domainpharma.PurchaseRequest, error) {
-	s.mu.RLock()
-	item := clonePurchaseRequest(s.requests[strings.TrimSpace(id)])
-	s.mu.RUnlock()
+func (s *purchaseService) GetRequest(ctx context.Context, id string) (*domainpharma.PurchaseRequest, error) {
+	item, err := s.repo.GetRequest(ctx, shared.ID(strings.TrimSpace(id)))
+	if err != nil {
+		return nil, err
+	}
 	if item == nil {
 		return nil, fmt.Errorf("purchase request not found")
 	}
@@ -147,9 +148,10 @@ func (s *purchaseService) ApproveRequest(ctx context.Context, id string, in Purc
 	if err != nil {
 		return nil, err
 	}
-	s.mu.RLock()
-	existing := clonePurchaseOrder(s.orders[request.PurchaseOrderID])
-	s.mu.RUnlock()
+	existing, err := s.repo.GetOrder(ctx, shared.ID(request.PurchaseOrderID))
+	if err != nil {
+		return nil, err
+	}
 	if existing != nil {
 		return existing, nil
 	}
@@ -182,14 +184,13 @@ func (s *purchaseService) ApproveRequest(ctx context.Context, id string, in Purc
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if current := s.orders[order.ID.String()]; current != nil {
-		order = clonePurchaseOrder(current)
-	} else {
-		s.requests[request.ID.String()] = clonePurchaseRequest(request)
-		s.orders[order.ID.String()] = clonePurchaseOrder(order)
+	if err := s.repo.ApproveRequest(ctx, request, order); err != nil {
+		if current, getErr := s.repo.GetOrder(ctx, order.ID); getErr == nil && current != nil {
+			order = current
+		} else {
+			return nil, err
+		}
 	}
-	s.mu.Unlock()
 	s.appendPurchaseAudit(ctx, in.ActorID, "pharma_oa.purchase.approve", request.ID.String(), map[string]any{"orderId": order.ID.String()})
 	s.appendPurchaseAudit(ctx, in.ActorID, "pharma_oa.purchase.order.create", order.ID.String(), map[string]any{"requestId": request.ID.String()})
 	return clonePurchaseOrder(order), nil
@@ -214,28 +215,30 @@ func (s *purchaseService) RejectRequest(ctx context.Context, id string, in Purch
 	if err := request.Reject(now); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.requests[request.ID.String()] = clonePurchaseRequest(request)
-	s.mu.Unlock()
+	if err := s.repo.UpsertRequest(ctx, request); err != nil {
+		return nil, err
+	}
 	s.appendPurchaseAudit(ctx, in.ActorID, "pharma_oa.purchase.reject", request.ID.String(), map[string]any{"comment": strings.TrimSpace(in.Comment)})
 	return clonePurchaseRequest(request), nil
 }
 
-func (s *purchaseService) ListOrders(context.Context) ([]*domainpharma.PurchaseOrder, error) {
-	s.mu.RLock()
-	items := make([]*domainpharma.PurchaseOrder, 0, len(s.orders))
-	for _, item := range s.orders {
-		items = append(items, clonePurchaseOrder(item))
+func (s *purchaseService) ListOrders(ctx context.Context) ([]*domainpharma.PurchaseOrder, error) {
+	rows, err := s.repo.ListOrders(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RUnlock()
-	sort.Slice(items, func(i, j int) bool { return items[i].Number < items[j].Number })
+	items := make([]*domainpharma.PurchaseOrder, 0, len(rows))
+	for index := range rows {
+		items = append(items, clonePurchaseOrder(&rows[index]))
+	}
 	return items, nil
 }
 
-func (s *purchaseService) GetOrder(_ context.Context, id string) (*domainpharma.PurchaseOrder, error) {
-	s.mu.RLock()
-	item := clonePurchaseOrder(s.orders[strings.TrimSpace(id)])
-	s.mu.RUnlock()
+func (s *purchaseService) GetOrder(ctx context.Context, id string) (*domainpharma.PurchaseOrder, error) {
+	item, err := s.repo.GetOrder(ctx, shared.ID(strings.TrimSpace(id)))
+	if err != nil {
+		return nil, err
+	}
 	if item == nil {
 		return nil, fmt.Errorf("purchase order not found")
 	}
@@ -255,13 +258,30 @@ func (s *purchaseService) ensureSupplierEligible(ctx context.Context, supplierID
 	return nil
 }
 
-func (s *purchaseService) requestNumberExistsLocked(number string) bool {
-	for _, item := range s.requests {
+func (s *purchaseService) requestNumberExists(ctx context.Context, number string) (bool, error) {
+	items, err := s.repo.ListRequests(ctx, pharmaoarepo.ListFilter{Keyword: strings.TrimSpace(number)})
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
 		if strings.EqualFold(item.Number, strings.TrimSpace(number)) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
+}
+
+func (s *purchaseService) nextAvailablePurchaseSequence(ctx context.Context) (int64, error) {
+	for {
+		sequence := s.counter.Add(1)
+		item, err := s.repo.GetRequest(ctx, shared.ID("purchase-request-"+strconv.FormatInt(sequence, 10)))
+		if err != nil {
+			return 0, err
+		}
+		if item == nil {
+			return sequence, nil
+		}
+	}
 }
 
 func (s *purchaseService) appendPurchaseAudit(ctx context.Context, actor, action, resourceID string, detail map[string]any) {

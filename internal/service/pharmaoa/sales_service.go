@@ -3,14 +3,14 @@ package pharmaoa
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -41,60 +41,67 @@ type SalesOutboundCreateInput struct {
 }
 
 type salesService struct {
-	mu              sync.RWMutex
-	orders          map[string]*domainpharma.SalesOrder
-	outbounds       map[string]*domainpharma.SalesOutbound
+	repo            pharmaoarepo.SalesRepository
 	customers       CustomerService
 	warehouses      WarehouseService
 	inventory       InventoryService
 	audit           auditsvc.Service
 	nowFn           func() time.Time
-	orderCounter    int64
-	outboundCounter int64
+	orderCounter    atomic.Int64
+	outboundCounter atomic.Int64
 }
 
-func NewSalesService(customers CustomerService, warehouses WarehouseService, inventory InventoryService, audit auditsvc.Service) SalesService {
-	return &salesService{orders: map[string]*domainpharma.SalesOrder{}, outbounds: map[string]*domainpharma.SalesOutbound{}, customers: customers, warehouses: warehouses, inventory: inventory, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewSalesService(customers CustomerService, warehouses WarehouseService, inventory InventoryService, audit auditsvc.Service, repositories ...pharmaoarepo.SalesRepository) SalesService {
+	repo := pharmaoarepo.SalesRepository(pharmaoarepo.NewMemorySalesRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &salesService{repo: repo, customers: customers, warehouses: warehouses, inventory: inventory, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *salesService) CreateOrder(ctx context.Context, in SalesOrderCreateInput) (*domainpharma.SalesOrder, error) {
 	if err := s.ensureCustomerEligible(ctx, in.CustomerID, in.ActorID, "pharma_oa.sales.order_denied"); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if salesNumberExists(s.orders, in.Number) {
-		s.mu.Unlock()
+	exists, err := s.orderNumberExists(ctx, in.Number)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
 		return nil, fmt.Errorf("sales order number already exists")
 	}
-	s.orderCounter++
-	id := shared.ID("sales-order-" + strconv.FormatInt(s.orderCounter, 10))
-	s.mu.Unlock()
+	id, err := s.nextAvailableSalesOrderID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	item, err := domainpharma.NewSalesOrder(id, in.Number, in.CustomerID, in.ActorID, in.Lines, s.nowFn())
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.orders[item.ID.String()] = cloneSalesOrder(item)
-	s.mu.Unlock()
+	if err := s.repo.CreateOrder(ctx, item); err != nil {
+		return nil, err
+	}
 	s.appendSalesAudit(ctx, in.ActorID, "pharma_oa.sales.order_create", "pharma_oa_sales_order", item.ID.String(), map[string]any{"customerId": item.CustomerID, "lines": len(item.Lines), "totalAmount": item.TotalAmount})
 	return cloneSalesOrder(item), nil
 }
 
-func (s *salesService) ListOrders(context.Context) ([]*domainpharma.SalesOrder, error) {
-	s.mu.RLock()
-	out := make([]*domainpharma.SalesOrder, 0, len(s.orders))
-	for _, item := range s.orders {
-		out = append(out, cloneSalesOrder(item))
+func (s *salesService) ListOrders(ctx context.Context) ([]*domainpharma.SalesOrder, error) {
+	rows, err := s.repo.ListOrders(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	out := make([]*domainpharma.SalesOrder, 0, len(rows))
+	for index := range rows {
+		out = append(out, cloneSalesOrder(&rows[index]))
+	}
 	return out, nil
 }
 
-func (s *salesService) GetOrder(_ context.Context, id string) (*domainpharma.SalesOrder, error) {
-	s.mu.RLock()
-	item := cloneSalesOrder(s.orders[strings.TrimSpace(id)])
-	s.mu.RUnlock()
+func (s *salesService) GetOrder(ctx context.Context, id string) (*domainpharma.SalesOrder, error) {
+	item, err := s.repo.GetOrder(ctx, shared.ID(strings.TrimSpace(id)))
+	if err != nil {
+		return nil, err
+	}
 	if item == nil {
 		return nil, fmt.Errorf("sales order not found")
 	}
@@ -125,48 +132,57 @@ func (s *salesService) CreateOutbound(ctx context.Context, in SalesOutboundCreat
 	if err = s.validateAvailableStock(ctx, in); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	if outboundNumberExists(s.outbounds, in.Number) {
-		s.mu.Unlock()
+	exists, err := s.outboundNumberExists(ctx, in.Number)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
 		return nil, fmt.Errorf("sales outbound number already exists")
 	}
-	s.outboundCounter++
-	id := shared.ID("sales-outbound-" + strconv.FormatInt(s.outboundCounter, 10))
-	s.mu.Unlock()
+	id, err := s.nextAvailableSalesOutboundID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	item, err := domainpharma.NewSalesOutbound(id, in.Number, order.ID.String(), order.CustomerID, in.WarehouseID, in.AreaID, in.LocationID, in.ActorID, in.Lines, s.nowFn())
 	if err != nil {
 		return nil, err
 	}
+	movements := make([]StockMovementInput, 0, len(item.Lines))
 	for idx := range item.Lines {
-		line := &item.Lines[idx]
-		result, movementErr := s.inventory.Outbound(ctx, StockMovementInput{ReferenceID: item.ID.String(), ProductID: line.ProductID, WarehouseID: item.WarehouseID, AreaID: item.AreaID, LocationID: item.LocationID, BatchID: line.BatchID, Quantity: line.Quantity, ActorID: in.ActorID})
-		if movementErr != nil {
-			return nil, movementErr
-		}
-		line.LedgerID = result.Ledger.ID.String()
+		line := item.Lines[idx]
+		movements = append(movements, StockMovementInput{ReferenceID: item.ID.String(), IdempotencyKey: fmt.Sprintf("outbound:%s:line:%d", strings.ToLower(strings.TrimSpace(item.Number)), idx+1), ProductID: line.ProductID, WarehouseID: item.WarehouseID, AreaID: item.AreaID, LocationID: item.LocationID, BatchID: line.BatchID, Quantity: line.Quantity, ActorID: in.ActorID})
 	}
-	s.mu.Lock()
-	s.outbounds[item.ID.String()] = cloneSalesOutbound(item)
-	s.mu.Unlock()
+	results, movementErr := s.inventory.OutboundMany(ctx, movements)
+	if movementErr != nil {
+		return nil, movementErr
+	}
+	for idx := range item.Lines {
+		item.Lines[idx].LedgerID = results[idx].Ledger.ID.String()
+	}
+	if err := s.repo.CreateOutbound(ctx, item); err != nil {
+		return nil, err
+	}
 	s.appendSalesAudit(ctx, in.ActorID, "pharma_oa.sales.outbound_create", "pharma_oa_sales_outbound", item.ID.String(), map[string]any{"salesOrderId": order.ID.String(), "customerId": order.CustomerID, "lines": len(item.Lines)})
 	return cloneSalesOutbound(item), nil
 }
 
-func (s *salesService) ListOutbounds(context.Context) ([]*domainpharma.SalesOutbound, error) {
-	s.mu.RLock()
-	out := make([]*domainpharma.SalesOutbound, 0, len(s.outbounds))
-	for _, item := range s.outbounds {
-		out = append(out, cloneSalesOutbound(item))
+func (s *salesService) ListOutbounds(ctx context.Context) ([]*domainpharma.SalesOutbound, error) {
+	rows, err := s.repo.ListOutbounds(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return nil, err
 	}
-	s.mu.RUnlock()
-	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	out := make([]*domainpharma.SalesOutbound, 0, len(rows))
+	for index := range rows {
+		out = append(out, cloneSalesOutbound(&rows[index]))
+	}
 	return out, nil
 }
 
-func (s *salesService) GetOutbound(_ context.Context, id string) (*domainpharma.SalesOutbound, error) {
-	s.mu.RLock()
-	item := cloneSalesOutbound(s.outbounds[strings.TrimSpace(id)])
-	s.mu.RUnlock()
+func (s *salesService) GetOutbound(ctx context.Context, id string) (*domainpharma.SalesOutbound, error) {
+	item, err := s.repo.GetOutbound(ctx, shared.ID(strings.TrimSpace(id)))
+	if err != nil {
+		return nil, err
+	}
 	if item == nil {
 		return nil, fmt.Errorf("sales outbound not found")
 	}
@@ -230,6 +246,55 @@ func validateOutboundAgainstOrder(lines []domainpharma.SalesOutboundLine, ordere
 		}
 	}
 	return nil
+}
+
+func (s *salesService) orderNumberExists(ctx context.Context, number string) (bool, error) {
+	items, err := s.repo.ListOrders(ctx, pharmaoarepo.ListFilter{Keyword: strings.TrimSpace(number)})
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
+		if strings.EqualFold(item.Number, strings.TrimSpace(number)) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (s *salesService) outboundNumberExists(ctx context.Context, number string) (bool, error) {
+	items, err := s.repo.ListOutbounds(ctx, pharmaoarepo.ListFilter{Keyword: strings.TrimSpace(number)})
+	if err != nil {
+		return false, err
+	}
+	for _, item := range items {
+		if strings.EqualFold(item.Number, strings.TrimSpace(number)) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (s *salesService) nextAvailableSalesOrderID(ctx context.Context) (shared.ID, error) {
+	for {
+		id := shared.ID("sales-order-" + strconv.FormatInt(s.orderCounter.Add(1), 10))
+		item, err := s.repo.GetOrder(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if item == nil {
+			return id, nil
+		}
+	}
+}
+func (s *salesService) nextAvailableSalesOutboundID(ctx context.Context) (shared.ID, error) {
+	for {
+		id := shared.ID("sales-outbound-" + strconv.FormatInt(s.outboundCounter.Add(1), 10))
+		item, err := s.repo.GetOutbound(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if item == nil {
+			return id, nil
+		}
+	}
 }
 
 func salesStockKey(productID, warehouseID, areaID, locationID, batchID string) string {

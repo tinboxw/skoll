@@ -24,11 +24,21 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 		t.Fatal("AllModels() should include DictionaryItemModel")
 	}
 	for name, present := range map[string]bool{
-		"PharmaEmployeeModel":  containsModel[PharmaEmployeeModel](models),
-		"PharmaProductModel":   containsModel[PharmaProductModel](models),
-		"PharmaSupplierModel":  containsModel[PharmaSupplierModel](models),
-		"PharmaCustomerModel":  containsModel[PharmaCustomerModel](models),
-		"PharmaWarehouseModel": containsModel[PharmaWarehouseModel](models),
+		"PharmaEmployeeModel":        containsModel[PharmaEmployeeModel](models),
+		"PharmaProductModel":         containsModel[PharmaProductModel](models),
+		"PharmaSupplierModel":        containsModel[PharmaSupplierModel](models),
+		"PharmaCustomerModel":        containsModel[PharmaCustomerModel](models),
+		"PharmaWarehouseModel":       containsModel[PharmaWarehouseModel](models),
+		"PharmaStockBatchModel":      containsModel[PharmaStockBatchModel](models),
+		"PharmaStockBalanceModel":    containsModel[PharmaStockBalanceModel](models),
+		"PharmaStockLedgerModel":     containsModel[PharmaStockLedgerModel](models),
+		"PharmaPurchaseRequestModel": containsModel[PharmaPurchaseRequestModel](models),
+		"PharmaPurchaseOrderModel":   containsModel[PharmaPurchaseOrderModel](models),
+		"PharmaPurchaseInboundModel": containsModel[PharmaPurchaseInboundModel](models),
+		"PharmaSalesOrderModel":      containsModel[PharmaSalesOrderModel](models),
+		"PharmaSalesOutboundModel":   containsModel[PharmaSalesOutboundModel](models),
+		"PharmaStocktakeModel":       containsModel[PharmaStocktakeModel](models),
+		"PharmaTransferModel":        containsModel[PharmaTransferModel](models),
 	} {
 		if !present {
 			t.Fatalf("AllModels() should include %s", name)

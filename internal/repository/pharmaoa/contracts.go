@@ -53,9 +53,12 @@ type WarehouseRepository interface {
 
 type InventoryTransaction interface {
 	GetBalanceForUpdate(ctx context.Context, position domainpharma.StockPosition) (*domainpharma.StockBalance, error)
+	GetBatch(ctx context.Context, id shared.ID) (*domainpharma.StockBatch, error)
+	GetBatchByProductAndNumber(ctx context.Context, productID, batchNo string) (*domainpharma.StockBatch, error)
+	GetLedgerByIdempotencyKey(ctx context.Context, key string) (*domainpharma.StockLedgerEntry, error)
 	UpsertBatch(ctx context.Context, batch domainpharma.StockBatch) error
 	UpsertBalance(ctx context.Context, balance domainpharma.StockBalance) error
-	AppendLedger(ctx context.Context, entry domainpharma.StockLedgerEntry) error
+	AppendLedger(ctx context.Context, entry domainpharma.StockLedgerEntry, idempotencyKey string) error
 	UpsertLock(ctx context.Context, lock domainpharma.StockLock) error
 }
 
@@ -67,9 +70,12 @@ type InventoryRepository interface {
 }
 
 type PurchaseRepository interface {
+	CreateRequest(ctx context.Context, request *domainpharma.PurchaseRequest) error
 	UpsertRequest(ctx context.Context, request *domainpharma.PurchaseRequest) error
 	GetRequest(ctx context.Context, id shared.ID) (*domainpharma.PurchaseRequest, error)
 	ListRequests(ctx context.Context, filter ListFilter) ([]domainpharma.PurchaseRequest, error)
+	CreateOrder(ctx context.Context, order *domainpharma.PurchaseOrder) error
+	ApproveRequest(ctx context.Context, request *domainpharma.PurchaseRequest, order *domainpharma.PurchaseOrder) error
 	UpsertOrder(ctx context.Context, order *domainpharma.PurchaseOrder) error
 	GetOrder(ctx context.Context, id shared.ID) (*domainpharma.PurchaseOrder, error)
 	ListOrders(ctx context.Context, filter ListFilter) ([]domainpharma.PurchaseOrder, error)
@@ -80,12 +86,21 @@ type PurchaseInboundRepository interface {
 }
 
 type SalesRepository interface {
+	CreateOrder(ctx context.Context, order *domainpharma.SalesOrder) error
 	UpsertOrder(ctx context.Context, order *domainpharma.SalesOrder) error
 	GetOrder(ctx context.Context, id shared.ID) (*domainpharma.SalesOrder, error)
 	ListOrders(ctx context.Context, filter ListFilter) ([]domainpharma.SalesOrder, error)
+	CreateOutbound(ctx context.Context, outbound *domainpharma.SalesOutbound) error
 	UpsertOutbound(ctx context.Context, outbound *domainpharma.SalesOutbound) error
 	GetOutbound(ctx context.Context, id shared.ID) (*domainpharma.SalesOutbound, error)
 	ListOutbounds(ctx context.Context, filter ListFilter) ([]domainpharma.SalesOutbound, error)
+}
+
+type StocktakeRepository interface {
+	AggregateRepository[domainpharma.StocktakeOrder]
+}
+type TransferRepository interface {
+	AggregateRepository[domainpharma.TransferOrder]
 }
 
 type ContractRepository interface {
