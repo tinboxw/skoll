@@ -302,7 +302,6 @@ func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
 	if allowedResp.Code != http.StatusOK {
 		t.Fatalf("allowed status=%d body=%s", allowedResp.Code, allowedResp.Body.String())
 	}
-
 	deniedToken, err := security.SignJWT("test-secret", "viewer", "employee", time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign denied jwt: %v", err)
@@ -387,6 +386,7 @@ func TestAuthGuardMiddlewarePluginRoutePermissionMatrixAndCustomPrefix(t *testin
 	if allowedResp.Code != http.StatusOK {
 		t.Fatalf("allowed status=%d body=%s", allowedResp.Code, allowedResp.Body.String())
 	}
+	assertPluginRouteAudit(t, events, "demo.items.read", "demo.items.read", http.StatusOK)
 
 	bobToken, err := security.SignJWT("test-secret", "bob", "viewer", time.Hour, time.Now().UTC())
 	if err != nil {
@@ -483,6 +483,21 @@ func assertPermissionDeniedReason(t *testing.T, events *memory.AuditEventStore, 
 	event := items[0]
 	if event.Resource.Type != resource || event.Resource.ID != action || event.Metadata["reason"] != reason {
 		t.Fatalf("unexpected permission denied event: %+v", event)
+	}
+}
+
+func assertPluginRouteAudit(t *testing.T, events *memory.AuditEventStore, auditAction, permission string, status int) {
+	t.Helper()
+	items, err := events.ListEvents(context.Background(), auditrepo.EventFilter{Type: domainaudit.EventTypePlugin})
+	if err != nil {
+		t.Fatalf("list plugin route audit events: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("plugin route audit events = %d, want 1", len(items))
+	}
+	event := items[0]
+	if event.Action != domainaudit.AuditAction(auditAction) || event.Result != domainaudit.EventResultSuccess || event.Metadata["permission"] != permission || event.Metadata["status"] != status {
+		t.Fatalf("unexpected plugin route audit event: %+v", event)
 	}
 }
 

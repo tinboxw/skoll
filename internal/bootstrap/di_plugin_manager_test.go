@@ -54,6 +54,77 @@ func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 	}
 }
 
+func TestPluginManagerRoutePermissionLifecycle(t *testing.T) {
+	pluginDir := filepath.Join(t.TempDir(), "reports")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("create plugin dir: %v", err)
+	}
+	manifest := `id: reports
+name: Reports
+version: 1.0.0
+api:
+  routes:
+    - method: GET
+      path: /v1/plugins/reports/api/items
+      summary: List report items
+      permission: reports.items.read
+      audit_action: reports.items.read
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write plugin manifest: %v", err)
+	}
+
+	manager := &pluginManagerWithExtensions{
+		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
+		builtinInfos:     map[string]plugin.Info{},
+		extensions:       map[string]plugin.RegistrySnapshot{},
+		routeHandlers:    map[string]http.HandlerFunc{},
+		routePermissions: mustEmptyRoutePermissionRegistry(),
+	}
+	if _, err := manager.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin: %v", err)
+	}
+	assertRoutePermissionState(t, manager, false)
+
+	if err := manager.Enable("reports"); err != nil {
+		t.Fatalf("enable plugin: %v", err)
+	}
+	assertRoutePermissionState(t, manager, true)
+
+	if err := manager.Disable("reports"); err != nil {
+		t.Fatalf("disable plugin: %v", err)
+	}
+	assertRoutePermissionState(t, manager, false)
+
+	if err := manager.Enable("reports"); err != nil {
+		t.Fatalf("re-enable plugin: %v", err)
+	}
+	assertRoutePermissionState(t, manager, true)
+
+	if err := manager.Uninstall("reports"); err != nil {
+		t.Fatalf("uninstall plugin: %v", err)
+	}
+	assertRoutePermissionState(t, manager, false)
+}
+
+func assertRoutePermissionState(t *testing.T, manager *pluginManagerWithExtensions, expected bool) {
+	t.Helper()
+	descriptor, ok := manager.ResolveRoutePermission(http.MethodGet, "/v1/plugins/reports/api/items")
+	if ok != expected {
+		t.Fatalf("route permission resolved=%v, want %v: %+v", ok, expected, descriptor)
+	}
+	if expected && (descriptor.Permission != "reports.items.read" || descriptor.AuditAction != "reports.items.read") {
+		t.Fatalf("unexpected route permission descriptor: %+v", descriptor)
+	}
+	snapshot, snapshotOK := manager.GetExtensionSnapshot("reports")
+	if snapshotOK != expected {
+		t.Fatalf("extension snapshot resolved=%v, want %v: %+v", snapshotOK, expected, snapshot)
+	}
+	if expected && (len(snapshot.Routes) != 1 || snapshot.Routes[0].Path != "/v1/plugins/reports/api/items") {
+		t.Fatalf("unexpected enabled extension snapshot: %+v", snapshot)
+	}
+}
+
 type fakeManager struct {
 	items map[string]plugin.Info
 }

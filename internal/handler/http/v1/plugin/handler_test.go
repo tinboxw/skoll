@@ -13,7 +13,10 @@ import (
 	"testing"
 	"time"
 
+	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	"github.com/tinboxw/skoll/internal/plugin"
+	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
+	"github.com/tinboxw/skoll/internal/store/memory"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
@@ -408,50 +411,81 @@ func TestPluginHandlerStateOperations(t *testing.T) {
 	mgr := &fakePluginManager{items: map[string]plugin.Info{
 		"demo": {ID: "demo", Name: "Demo", Version: "0.1.0", State: plugin.StateInstalled},
 	}}
+	auditEvents := memory.NewAuditEventStore()
 	mux := http.NewServeMux()
-	RegisterPluginRoutes(mux, mgr)
+	RegisterPluginRoutes(mux, mgr, WithPluginAuditEventSink(auditEvents))
 
-	enableReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/demo/enable", nil)
+	enableReq := withRole(httptest.NewRequest(http.MethodPost, "/v1/plugins/demo/enable", nil), "super_admin")
 	enableResp := httptest.NewRecorder()
 	mux.ServeHTTP(enableResp, enableReq)
 	if enableResp.Code != http.StatusOK {
 		t.Fatalf("enable status=%d body=%s", enableResp.Code, enableResp.Body.String())
 	}
 
-	disableReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/demo/disable", nil)
+	disableReq := withRole(httptest.NewRequest(http.MethodPost, "/v1/plugins/demo/disable", nil), "super_admin")
 	disableResp := httptest.NewRecorder()
 	mux.ServeHTTP(disableResp, disableReq)
 	if disableResp.Code != http.StatusOK {
 		t.Fatalf("disable status=%d body=%s", disableResp.Code, disableResp.Body.String())
 	}
 
-	uninstallReq := httptest.NewRequest(http.MethodDelete, "/v1/plugins/demo", nil)
+	uninstallReq := withRole(httptest.NewRequest(http.MethodDelete, "/v1/plugins/demo", nil), "super_admin")
 	uninstallResp := httptest.NewRecorder()
 	mux.ServeHTTP(uninstallResp, uninstallReq)
 	if uninstallResp.Code != http.StatusOK {
 		t.Fatalf("uninstall status=%d body=%s", uninstallResp.Code, uninstallResp.Body.String())
 	}
+	assertLifecycleAuditEvents(t, auditEvents, map[string]domainaudit.EventResult{
+		"plugin.lifecycle.enable":    domainaudit.EventResultSuccess,
+		"plugin.lifecycle.disable":   domainaudit.EventResultSuccess,
+		"plugin.lifecycle.uninstall": domainaudit.EventResultSuccess,
+	})
 }
 
 func TestPluginHandlerProtectedBuiltinActions(t *testing.T) {
 	mgr := &fakePluginManager{items: map[string]plugin.Info{
 		"builtin-auth": {ID: "builtin-auth", Name: "Builtin Auth", Version: "1.0.0", State: plugin.StateEnabled, Source: "builtin", SystemBuiltin: true},
 	}}
+	auditEvents := memory.NewAuditEventStore()
 	mux := http.NewServeMux()
-	RegisterPluginRoutes(mux, mgr)
+	RegisterPluginRoutes(mux, mgr, WithPluginAuditEventSink(auditEvents))
 
-	disableReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/builtin-auth/disable", nil)
+	disableReq := withRole(httptest.NewRequest(http.MethodPost, "/v1/plugins/builtin-auth/disable", nil), "super_admin")
 	disableResp := httptest.NewRecorder()
 	mux.ServeHTTP(disableResp, disableReq)
 	if disableResp.Code != http.StatusForbidden {
 		t.Fatalf("disable builtin status=%d body=%s", disableResp.Code, disableResp.Body.String())
 	}
 
-	uninstallReq := httptest.NewRequest(http.MethodDelete, "/v1/plugins/builtin-auth", nil)
+	uninstallReq := withRole(httptest.NewRequest(http.MethodDelete, "/v1/plugins/builtin-auth", nil), "super_admin")
 	uninstallResp := httptest.NewRecorder()
 	mux.ServeHTTP(uninstallResp, uninstallReq)
 	if uninstallResp.Code != http.StatusForbidden {
 		t.Fatalf("uninstall builtin status=%d body=%s", uninstallResp.Code, uninstallResp.Body.String())
+	}
+	assertLifecycleAuditEvents(t, auditEvents, map[string]domainaudit.EventResult{
+		"plugin.lifecycle.disable":   domainaudit.EventResultFailure,
+		"plugin.lifecycle.uninstall": domainaudit.EventResultFailure,
+	})
+}
+
+func assertLifecycleAuditEvents(t *testing.T, events *memory.AuditEventStore, expected map[string]domainaudit.EventResult) {
+	t.Helper()
+	records, err := events.ListEvents(context.Background(), auditrepo.EventFilter{Type: domainaudit.EventTypePlugin, ActorID: "u-1"})
+	if err != nil {
+		t.Fatalf("list lifecycle audit events: %v", err)
+	}
+	if len(records) != len(expected) {
+		t.Fatalf("lifecycle audit events = %d, want %d: %+v", len(records), len(expected), records)
+	}
+	for _, record := range records {
+		result, ok := expected[record.Action.String()]
+		if !ok {
+			t.Fatalf("unexpected lifecycle audit action: %+v", record)
+		}
+		if record.Type != domainaudit.EventTypePlugin || record.Result != result || record.Risk != domainaudit.EventRiskHigh || record.Resource.Type != "plugin" || record.Metadata["operation"] == "" {
+			t.Fatalf("unexpected lifecycle audit evidence: %+v", record)
+		}
 	}
 }
 
@@ -474,8 +508,9 @@ func TestPluginHandlerInstallAndValidate(t *testing.T) {
 	}
 
 	mgr := &fakePluginManager{items: map[string]plugin.Info{}}
+	auditEvents := memory.NewAuditEventStore()
 	mux := http.NewServeMux()
-	RegisterPluginRoutes(mux, mgr)
+	RegisterPluginRoutes(mux, mgr, WithPluginAuditEventSink(auditEvents))
 
 	validatePayload := []byte(`{"path":"` + filepath.ToSlash(manifestDir) + `"}`)
 	validateReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/validate", bytes.NewReader(validatePayload))
@@ -485,12 +520,13 @@ func TestPluginHandlerInstallAndValidate(t *testing.T) {
 		t.Fatalf("validate status=%d body=%s", validateResp.Code, validateResp.Body.String())
 	}
 
-	installReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/install", bytes.NewReader(validatePayload))
+	installReq := withRole(httptest.NewRequest(http.MethodPost, "/v1/plugins/install", bytes.NewReader(validatePayload)), "super_admin")
 	installResp := httptest.NewRecorder()
 	mux.ServeHTTP(installResp, installReq)
 	if installResp.Code != http.StatusCreated {
 		t.Fatalf("install status=%d body=%s", installResp.Code, installResp.Body.String())
 	}
+	assertLifecycleAuditEvents(t, auditEvents, map[string]domainaudit.EventResult{"plugin.lifecycle.install": domainaudit.EventResultSuccess})
 }
 
 func TestPluginHandlerInstallValidateBadRequest(t *testing.T) {

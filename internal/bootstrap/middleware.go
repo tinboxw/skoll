@@ -65,9 +65,10 @@ func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker
 		r = r.WithContext(security.WithJWTClaimsContext(r.Context(), claims))
 
 		resource, action, guarded := requiredPermission(r.Method, r.URL.Path, apiPrefix)
+		var routeDescriptor plugin.RoutePermissionDescriptor
 		if pluginBusinessRoute {
 			var reason string
-			resource, action, reason = resolvedPluginRoutePermission(r.Method, pluginPath, routeResolver)
+			routeDescriptor, resource, action, reason = resolvedPluginRoutePermission(r.Method, pluginPath, routeResolver)
 			if reason != "" {
 				appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, reason)
 				writePluginPermissionDenied(w, r, reason)
@@ -100,6 +101,13 @@ func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker
 			}
 		}
 
+		if pluginBusinessRoute && routeDescriptor.AuditAction != "" {
+			recorder := &pluginRouteAuditResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+			next.ServeHTTP(recorder, r)
+			appendPluginRouteAudit(r, auditSink, claims.Subject, claims.Role, routeDescriptor, recorder.statusCode)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -118,19 +126,19 @@ func pluginBusinessRoutePath(path, apiPrefix string) (string, bool) {
 	return manifestPath, true
 }
 
-func resolvedPluginRoutePermission(method, path string, resolver plugin.RoutePermissionResolver) (resource, action, reason string) {
+func resolvedPluginRoutePermission(method, path string, resolver plugin.RoutePermissionResolver) (descriptor plugin.RoutePermissionDescriptor, resource, action, reason string) {
 	if resolver == nil {
-		return "plugin.route", "resolve", "plugin_route_resolver_not_configured"
+		return descriptor, "plugin.route", "resolve", "plugin_route_resolver_not_configured"
 	}
 	descriptor, ok := resolver.ResolveRoutePermission(method, path)
 	if !ok {
-		return "plugin.route", "resolve", "plugin_route_permission_not_declared"
+		return descriptor, "plugin.route", "resolve", "plugin_route_permission_not_declared"
 	}
 	resource, action, ok = splitPermissionKey(descriptor.Permission)
 	if !ok {
-		return "plugin.route", "resolve", "plugin_route_permission_invalid"
+		return descriptor, "plugin.route", "resolve", "plugin_route_permission_invalid"
 	}
-	return resource, action, ""
+	return descriptor, resource, action, ""
 }
 
 func splitPermissionKey(permission string) (resource, action string, ok bool) {
@@ -190,6 +198,54 @@ func appendPermissionDeniedAudit(r *http.Request, sink auditmw.AuditEventSink, a
 		Reason:     reason,
 		Request:    r,
 		OccurredAt: time.Now().UTC(),
+	})
+	if err != nil {
+		return
+	}
+	_ = sink.AppendEvent(r.Context(), event)
+}
+
+type pluginRouteAuditResponseWriter struct {
+	http.ResponseWriter
+	statusCode  int
+	wroteHeader bool
+}
+
+func (w *pluginRouteAuditResponseWriter) WriteHeader(statusCode int) {
+	if w.wroteHeader {
+		return
+	}
+	w.statusCode = statusCode
+	w.wroteHeader = true
+	w.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (w *pluginRouteAuditResponseWriter) Write(data []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(data)
+}
+
+func (w *pluginRouteAuditResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+func appendPluginRouteAudit(r *http.Request, sink auditmw.AuditEventSink, actorID, actorName string, descriptor plugin.RoutePermissionDescriptor, statusCode int) {
+	if r == nil || sink == nil || descriptor.AuditAction == "" {
+		return
+	}
+	now := time.Now().UTC()
+	event, err := auditmw.NewPluginRouteAuditEvent(auditmw.PluginRouteAuditInput{
+		ID:          shared.ID("audit-event-" + strconv.FormatInt(now.UnixNano(), 10)),
+		ActorID:     actorID,
+		ActorName:   actorName,
+		Source:      descriptor.Source,
+		Permission:  descriptor.Permission,
+		AuditAction: descriptor.AuditAction,
+		StatusCode:  statusCode,
+		Request:     r,
+		OccurredAt:  now,
 	})
 	if err != nil {
 		return

@@ -17,11 +17,14 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tinboxw/skoll/internal/adapter"
 	domainrole "github.com/tinboxw/skoll/internal/domain/role"
+	"github.com/tinboxw/skoll/internal/domain/shared"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	auditmw "github.com/tinboxw/skoll/internal/handler/middleware"
 	"github.com/tinboxw/skoll/internal/plugin"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	rolesvc "github.com/tinboxw/skoll/internal/service/role"
@@ -64,6 +67,7 @@ type PluginHandler struct {
 	loader             plugin.MetadataLoader
 	logger             logging.Logger
 	auditSvc           auditsvc.Service
+	auditEventSink     auditmw.AuditEventSink
 	roleCatalog        PluginRoleCatalogProvider
 	devRolloutExecutor adapter.DevRolloutExecutor
 	logLevel           string
@@ -75,6 +79,8 @@ type PluginHandler struct {
 	devPortalRoots     []string
 	devMu              sync.Mutex
 }
+
+var pluginLifecycleAuditSequence atomic.Uint64
 
 type PluginRouteOption func(*PluginHandler)
 
@@ -90,6 +96,12 @@ func WithPluginLogTarget(logLevel, logDir, logFile string, pluginPerFile bool) P
 func WithPluginAuditService(auditSvc auditsvc.Service) PluginRouteOption {
 	return func(h *PluginHandler) {
 		h.auditSvc = auditSvc
+	}
+}
+
+func WithPluginAuditEventSink(sink auditmw.AuditEventSink) PluginRouteOption {
+	return func(h *PluginHandler) {
+		h.auditEventSink = sink
 	}
 }
 
@@ -522,6 +534,7 @@ func (h *PluginHandler) enable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.manager.Enable(id); err != nil {
+		h.appendLifecycleAudit(r, "enable", id, false, err)
 		if errors.Is(err, plugin.ErrPluginNotFound) {
 			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
@@ -530,6 +543,7 @@ func (h *PluginHandler) enable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.appendPluginLog(id, "enable", "ok", "enabled")
+	h.appendLifecycleAudit(r, "enable", id, true, nil)
 
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "enabled")
 }
@@ -547,6 +561,7 @@ func (h *PluginHandler) disable(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.manager.Disable(id); err != nil {
+		h.appendLifecycleAudit(r, "disable", id, false, err)
 		if errors.Is(err, plugin.ErrPluginNotFound) {
 			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
@@ -559,6 +574,7 @@ func (h *PluginHandler) disable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.appendPluginLog(id, "disable", "ok", "disabled")
+	h.appendLifecycleAudit(r, "disable", id, true, nil)
 
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "disabled")
 }
@@ -576,6 +592,7 @@ func (h *PluginHandler) uninstall(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.manager.Uninstall(id); err != nil {
+		h.appendLifecycleAudit(r, "uninstall", id, false, err)
 		if errors.Is(err, plugin.ErrPluginNotFound) {
 			apiv1.WriteMessage(w, http.StatusNotFound, "not_found", "plugin not found")
 			return
@@ -588,6 +605,7 @@ func (h *PluginHandler) uninstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.appendPluginLog(id, "uninstall", "ok", "uninstalled")
+	h.appendLifecycleAudit(r, "uninstall", id, true, nil)
 
 	apiv1.WriteMessage(w, http.StatusOK, "ok", "uninstalled")
 }
@@ -754,6 +772,40 @@ func (h *PluginHandler) appendAudit(r *http.Request, action, resource, resourceI
 		actorID = "system"
 	}
 	_, _ = h.auditSvc.Append(r.Context(), actorID, action, resource, strings.TrimSpace(resourceID), detail)
+}
+
+func (h *PluginHandler) appendLifecycleAudit(r *http.Request, operation, pluginID string, succeeded bool, operationErr error) {
+	if h == nil || h.auditEventSink == nil || r == nil {
+		return
+	}
+	actorID := "system"
+	actorName := ""
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+		if value := strings.TrimSpace(claims.Subject); value != "" {
+			actorID = value
+		}
+		actorName = strings.TrimSpace(claims.Role)
+	}
+	errorMessage := ""
+	if operationErr != nil {
+		errorMessage = operationErr.Error()
+	}
+	now := time.Now().UTC()
+	event, err := auditmw.NewPluginLifecycleAuditEvent(auditmw.PluginLifecycleAuditInput{
+		ID:         shared.ID("audit-event-" + strconv.FormatInt(now.UnixNano(), 10) + "-" + strconv.FormatUint(pluginLifecycleAuditSequence.Add(1), 10)),
+		ActorID:    actorID,
+		ActorName:  actorName,
+		Operation:  operation,
+		PluginID:   pluginID,
+		Succeeded:  succeeded,
+		Error:      errorMessage,
+		Request:    r,
+		OccurredAt: now,
+	})
+	if err != nil {
+		return
+	}
+	_ = h.auditEventSink.AppendEvent(r.Context(), event)
 }
 
 func (h *PluginHandler) page(w http.ResponseWriter, r *http.Request) {
@@ -931,10 +983,12 @@ func (h *PluginHandler) install(w http.ResponseWriter, r *http.Request) {
 
 	info, err := h.manager.Install(req.Path)
 	if err != nil {
+		h.appendLifecycleAudit(r, "install", "", false, err)
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	h.appendPluginLog(info.ID, "install", "ok", "installed from path")
+	h.appendLifecycleAudit(r, "install", info.ID, true, nil)
 
 	apiv1.WriteJSON(w, http.StatusCreated, pluginRecord{
 		ID:      info.ID,

@@ -347,8 +347,28 @@ func (m *pluginManagerWithExtensions) GetExtensionSnapshot(pluginID string) (plu
 	if m == nil {
 		return plugin.RegistrySnapshot{}, false
 	}
+	m.mu.RLock()
 	snapshot, ok := m.extensions[pluginID]
-	return snapshot, ok
+	m.mu.RUnlock()
+	if ok {
+		return snapshot, true
+	}
+	if m.Manager == nil {
+		return plugin.RegistrySnapshot{}, false
+	}
+	info, err := m.Manager.Get(pluginID)
+	if err != nil || info.State != plugin.StateEnabled {
+		return plugin.RegistrySnapshot{}, false
+	}
+	routes, err := info.RouteExtensions()
+	if err != nil {
+		return plugin.RegistrySnapshot{}, false
+	}
+	snapshot.Routes = routes
+	for _, subscription := range info.EventSubscriptions() {
+		snapshot.Events = append(snapshot.Events, subscription.Name)
+	}
+	return snapshot, true
 }
 
 func (m *pluginManagerWithExtensions) ResolveRoutePermission(method, path string) (plugin.RoutePermissionDescriptor, bool) {

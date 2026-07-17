@@ -102,3 +102,52 @@ Result: `go test -race ./internal/bootstrap ./internal/handler/http/...`、`go v
 ### Next Step
 
 领取 `H1-03`，验证插件安装、启用、禁用过程中的权限快照与审计行为。
+
+## H1-03 Retry Record
+
+- Date: 2026-07-18
+- Status flow: `Doing -> Failed`
+- Failed gate: 首轮定向 Go 验收编译失败，插件路由成功审计断言误插入相邻旧测试，引用了未定义的 `events`。
+- Retry rule: 将断言移动到自带审计事件仓储的插件权限矩阵用例，状态返回 Doing 后重跑同一组测试。
+- Retry status: 已返回 Doing，进入同项重试。
+
+- Second failed gate: 隔离运行时发现外部插件启用后的契约路由返回 HTTP 404；包装层只向路由器暴露内置插件 snapshot，未暴露已启用外部插件的 route snapshot。
+- Second retry rule: 为已启用外部插件按当前 manifest 构造只读 extension snapshot；补状态测试后重建服务，复跑 enable 200、disable 403、re-enable 200 与审计查询。
+- Second retry status: 已返回 Doing，进入同项重试。
+
+- Third failed gate: Review 语义检查发现 lifecycle action 写入旧 `Record` 通道，未满足 action catalog 规定的 `EventTypePlugin`、`success/failure` 与 `high` risk。
+- Third retry rule: lifecycle action 改接统一 AuditEvent sink，新增 uninstall catalog 条目与事件构造测试，保持其他既有审计写入点不变。
+- Third retry status: 已返回 Doing，进入同项重试。
+
+- Fourth failed gate: 统一事件通道测试发现连续生命周期操作在 Windows 上生成相同纳秒 ID，内存事件仓储覆盖记录，3 条事件只保留 1 条。
+- Fourth retry rule: 生命周期审计 ID 使用时间戳加原子序列，补唯一性断言并运行 race 测试。
+- Fourth retry status: 已返回 Doing，进入同项重试。
+
+## H1-03 验证插件生命周期权限与审计行为
+
+- Date: 2026-07-18
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 验证插件安装、启用、禁用、重新启用与卸载时的权限和 extension snapshot，并统一生命周期、路由成功与权限拒绝审计。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 生命周期 snapshot | Pass | 安装态不暴露 route permission/extension snapshot；启用后出现；禁用和卸载后移除；重新启用后恢复 |
+| 外部路由执行 | Pass | 已启用外部插件按当前 manifest 暴露只读 extension snapshot，路由器可注册并执行声明路由 |
+| 权限关闭 | Pass | 禁用插件立即从 route permission registry 移除，即使 super admin 访问原业务 API 也返回 403 |
+| 路由审计 | Pass | 声明 `audit_action` 的授权请求写入 `EventTypePlugin`，携带 action、permission、source、HTTP status 与 trace；拒绝仍写安全审计 reason |
+| 生命周期审计 | Pass | install/enable/disable/uninstall 的成功与失败均写统一 plugin event；结果为 `success/failure`、风险为 `high`，action catalog 已补 uninstall |
+| 事件唯一性 | Pass | 生命周期事件 ID 使用时间戳加原子序列；定向 race 与连续操作测试未发生覆盖 |
+| 失败状态 | Pass | 内置插件禁用/卸载失败返回 403，并生成 failure 审计；首轮编译、运行时 404、旧审计通道和 ID 冲突均按记录重试后通过 |
+| 多语言 smoke | Pass | `smoke-pharma-oa-plugin.ps1` 在 `zh-CN` 与 `en-US` 下均通过，默认中文输出 |
+| 运行时矩阵 | Pass | memory 模式 18089：启用 API 200、disable 200、禁用 API 403、enable 200、重启用 API 200；生命周期、路由成功和拒绝事件均可查询 |
+| 影响面 | Pass | 未新增 manifest 路径、权限键、migration/seed 或前端契约；本项执行既有 manifest 路由，聚合 OpenAPI 安全元数据由依赖项 `H1-04` 紧接同步 |
+
+### Verification Commands
+
+Result: `go test ./internal/plugin/...`、插件 lifecycle smoke、相关包定向测试与 race、`go test ./...`、`go vet ./...`、双语 smoke、隔离 HTTP/审计矩阵、`git diff --check`、历史目录边界和 CodeGraph 同步全部通过。
+
+### Next Step
+
+领取 `H1-04`，同步插件路由权限的聚合 OpenAPI、安全元数据与中英文开发文档。

@@ -160,6 +160,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 		deps.PluginManager,
 		pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile),
 		pluginhttp.WithPluginAuditService(deps.AuditService),
+		pluginhttp.WithPluginAuditEventSink(deps.AuditEventService),
 		pluginhttp.WithPluginRoleCatalogProvider(deps.RoleService),
 		pluginhttp.WithPluginDevPortal(deps.DevPortalEnabled, deps.DevPortalRoot, deps.DevPortalRoots),
 	)

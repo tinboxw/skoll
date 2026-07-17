@@ -56,6 +56,7 @@
 | plugin | `plugin.lifecycle.install` | `plugin` | `success`/`failure` | `high` | 安装插件 |
 | plugin | `plugin.lifecycle.enable` | `plugin` | `success`/`failure` | `high` | 启用插件 |
 | plugin | `plugin.lifecycle.disable` | `plugin` | `success`/`failure` | `high` | 禁用插件 |
+| plugin | `plugin.lifecycle.uninstall` | `plugin` | `success`/`failure` | `high` | 卸载插件 |
 | plugin | `plugin.release.rollout` | `plugin` | `success`/`failure` | `critical` | 插件灰度发布 |
 | plugin | `plugin.release.rollback` | `plugin` | `success`/`failure` | `critical` | 插件回滚 |
 | menu | `menu.node.create` | `operation` | `success`/`failure` | `medium` | 新增菜单节点 |
