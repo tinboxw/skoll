@@ -11,6 +11,7 @@ import (
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -75,18 +76,29 @@ type CustomerFollowUpCancelInput struct {
 
 type customerFollowUpService struct {
 	mu        sync.RWMutex
+	opMu      sync.Mutex
 	items     map[string]*domainpharma.CustomerFollowUp
 	customers CustomerService
 	audit     auditsvc.Service
 	nowFn     func() time.Time
 	idCounter int64
+	repo      pharmaoarepo.CustomerFollowUpRepository
 }
 
-func NewCustomerFollowUpService(customers CustomerService, audit auditsvc.Service) CustomerFollowUpService {
-	return &customerFollowUpService{items: map[string]*domainpharma.CustomerFollowUp{}, customers: customers, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewCustomerFollowUpService(customers CustomerService, audit auditsvc.Service, repositories ...pharmaoarepo.CustomerFollowUpRepository) CustomerFollowUpService {
+	repo := pharmaoarepo.CustomerFollowUpRepository(pharmaoarepo.NewMemoryCustomerFollowUpRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &customerFollowUpService{items: map[string]*domainpharma.CustomerFollowUp{}, customers: customers, audit: audit, repo: repo, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *customerFollowUpService) Create(ctx context.Context, in CustomerFollowUpCreateInput) (*domainpharma.CustomerFollowUp, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizeFollowUpActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -102,14 +114,18 @@ func (s *customerFollowUpService) Create(ctx context.Context, in CustomerFollowU
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.items[entity.ID.String()] = cloneCustomerFollowUp(entity)
-	s.mu.Unlock()
+	if err = s.repo.Create(ctx, entity); err != nil {
+		return nil, err
+	}
+	s.storeCached(entity)
 	s.appendAudit(ctx, actorID, "pharma_oa.customer_follow_up.create", entity.ID.String(), map[string]any{"customerId": entity.CustomerID, "scheduledAt": entity.ScheduledAt})
 	return cloneCustomerFollowUp(entity), nil
 }
 
 func (s *customerFollowUpService) List(ctx context.Context, in CustomerFollowUpListInput) ([]*domainpharma.CustomerFollowUp, error) {
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizeFollowUpActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -166,6 +182,11 @@ func (s *customerFollowUpService) Cancel(ctx context.Context, id string, in Cust
 }
 
 func (s *customerFollowUpService) mutate(ctx context.Context, id, actorID string, scope CustomerFollowUpAccessScope, action string, apply func(*domainpharma.CustomerFollowUp) error) (*domainpharma.CustomerFollowUp, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
@@ -185,8 +206,11 @@ func (s *customerFollowUpService) mutate(ctx context.Context, id, actorID string
 		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneCustomerFollowUp(next)
 	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
+	s.storeCached(next)
 	s.appendAudit(ctx, actorID, action, id, map[string]any{"customerId": next.CustomerID, "status": next.Status})
 	return cloneCustomerFollowUp(next), nil
 }
@@ -213,6 +237,32 @@ func (s *customerFollowUpService) nextID() shared.ID {
 	defer s.mu.Unlock()
 	s.idCounter++
 	return shared.ID("customer-follow-up-" + strconv.FormatInt(s.idCounter, 10))
+}
+
+func (s *customerFollowUpService) storeCached(item *domainpharma.CustomerFollowUp) {
+	s.mu.Lock()
+	s.items[item.ID.String()] = cloneCustomerFollowUp(item)
+	s.mu.Unlock()
+}
+
+func (s *customerFollowUpService) syncFromRepository(ctx context.Context) error {
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	cached := make(map[string]*domainpharma.CustomerFollowUp, len(items))
+	var counter int64
+	for index := range items {
+		item := cloneCustomerFollowUp(&items[index])
+		cached[item.ID.String()] = item
+		if sequence := sequenceFromID(item.ID.String(), "customer-follow-up-"); sequence > counter {
+			counter = sequence
+		}
+	}
+	s.mu.Lock()
+	s.items, s.idCounter = cached, counter
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *customerFollowUpService) appendAudit(ctx context.Context, actorID, action, id string, detail map[string]any) {

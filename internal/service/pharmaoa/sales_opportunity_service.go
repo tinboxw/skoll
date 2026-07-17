@@ -11,6 +11,7 @@ import (
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -84,19 +85,30 @@ type SalesOpportunityStatistics struct {
 
 type salesOpportunityService struct {
 	mu        sync.RWMutex
+	opMu      sync.Mutex
 	items     map[string]*domainpharma.SalesOpportunity
 	customers CustomerService
 	products  ProductService
 	audit     auditsvc.Service
 	nowFn     func() time.Time
 	idCounter int64
+	repo      pharmaoarepo.SalesOpportunityRepository
 }
 
-func NewSalesOpportunityService(customers CustomerService, products ProductService, audit auditsvc.Service) SalesOpportunityService {
-	return &salesOpportunityService{items: map[string]*domainpharma.SalesOpportunity{}, customers: customers, products: products, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewSalesOpportunityService(customers CustomerService, products ProductService, audit auditsvc.Service, repositories ...pharmaoarepo.SalesOpportunityRepository) SalesOpportunityService {
+	repo := pharmaoarepo.SalesOpportunityRepository(pharmaoarepo.NewMemorySalesOpportunityRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &salesOpportunityService{items: map[string]*domainpharma.SalesOpportunity{}, customers: customers, products: products, audit: audit, repo: repo, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *salesOpportunityService) Create(ctx context.Context, in SalesOpportunityCreateInput) (*domainpharma.SalesOpportunity, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizeSalesOpportunityActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -117,14 +129,18 @@ func (s *salesOpportunityService) Create(ctx context.Context, in SalesOpportunit
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.items[item.ID.String()] = cloneSalesOpportunity(item)
-	s.mu.Unlock()
+	if err = s.repo.Create(ctx, item); err != nil {
+		return nil, err
+	}
+	s.storeCached(item)
 	s.appendAudit(ctx, actorID, "pharma_oa.sales_opportunity.create", item.ID.String(), map[string]any{"customerId": item.CustomerID, "expectedAmountCents": item.ExpectedAmountCents})
 	return cloneSalesOpportunity(item), nil
 }
 
 func (s *salesOpportunityService) List(ctx context.Context, in SalesOpportunityListInput) ([]*domainpharma.SalesOpportunity, error) {
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizeSalesOpportunityActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -173,6 +189,9 @@ func (s *salesOpportunityService) Advance(ctx context.Context, id string, in Sal
 }
 
 func (s *salesOpportunityService) Statistics(ctx context.Context, in SalesOpportunityStatisticsInput) (SalesOpportunityStatistics, error) {
+	if err := s.syncFromRepository(ctx); err != nil {
+		return SalesOpportunityStatistics{}, err
+	}
 	actorID, scope, err := normalizeSalesOpportunityActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return SalesOpportunityStatistics{}, err
@@ -209,6 +228,11 @@ func (s *salesOpportunityService) Statistics(ctx context.Context, in SalesOpport
 }
 
 func (s *salesOpportunityService) mutate(ctx context.Context, id, actorID string, scope SalesOpportunityAccessScope, action string, apply func(*domainpharma.SalesOpportunity) error) (*domainpharma.SalesOpportunity, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil, fmt.Errorf("id is required")
@@ -228,8 +252,11 @@ func (s *salesOpportunityService) mutate(ctx context.Context, id, actorID string
 		s.mu.Unlock()
 		return nil, err
 	}
-	s.items[id] = cloneSalesOpportunity(next)
 	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
+	s.storeCached(next)
 	s.appendAudit(ctx, actorID, action, id, map[string]any{"customerId": next.CustomerID, "stage": next.Stage, "expectedAmountCents": next.ExpectedAmountCents})
 	return cloneSalesOpportunity(next), nil
 }
@@ -297,6 +324,32 @@ func (s *salesOpportunityService) nextID() shared.ID {
 	defer s.mu.Unlock()
 	s.idCounter++
 	return shared.ID("sales-opportunity-" + strconv.FormatInt(s.idCounter, 10))
+}
+
+func (s *salesOpportunityService) storeCached(item *domainpharma.SalesOpportunity) {
+	s.mu.Lock()
+	s.items[item.ID.String()] = cloneSalesOpportunity(item)
+	s.mu.Unlock()
+}
+
+func (s *salesOpportunityService) syncFromRepository(ctx context.Context) error {
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	cached := make(map[string]*domainpharma.SalesOpportunity, len(items))
+	var counter int64
+	for index := range items {
+		item := cloneSalesOpportunity(&items[index])
+		cached[item.ID.String()] = item
+		if sequence := sequenceFromID(item.ID.String(), "sales-opportunity-"); sequence > counter {
+			counter = sequence
+		}
+	}
+	s.mu.Lock()
+	s.items, s.idCounter = cached, counter
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *salesOpportunityService) appendAudit(ctx context.Context, actorID, action, id string, detail map[string]any) {

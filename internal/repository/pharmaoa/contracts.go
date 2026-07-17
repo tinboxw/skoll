@@ -122,3 +122,33 @@ type CustomerFollowUpRepository interface {
 type SalesOpportunityRepository interface {
 	AggregateRepository[domainpharma.SalesOpportunity]
 }
+
+type PaymentPlanRepository interface {
+	AggregateRepository[domainpharma.PaymentPlan]
+}
+
+type InvoiceRecordRepository interface {
+	AggregateRepository[domainpharma.InvoiceRecord]
+}
+
+type PaymentReminderJobRepository interface {
+	AggregateRepository[domainpharma.PaymentReminderJob]
+}
+
+type InventoryAlertRepository interface {
+	CreateJob(ctx context.Context, job *domainpharma.InventoryAlertJob) error
+	UpsertJob(ctx context.Context, job *domainpharma.InventoryAlertJob) error
+	GetJob(ctx context.Context, id shared.ID) (*domainpharma.InventoryAlertJob, error)
+	ListJobs(ctx context.Context, filter ListFilter) ([]domainpharma.InventoryAlertJob, error)
+	UpsertAlert(ctx context.Context, alert *domainpharma.InventoryAlert) error
+	GetAlert(ctx context.Context, id shared.ID) (*domainpharma.InventoryAlert, error)
+	ListAlerts(ctx context.Context, filter ListFilter) ([]domainpharma.InventoryAlert, error)
+}
+
+type ReportExportJobRepository interface {
+	Create(ctx context.Context, job *domainpharma.ReportExportJob) error
+	Upsert(ctx context.Context, job *domainpharma.ReportExportJob) error
+	Get(ctx context.Context, id string) (*domainpharma.ReportExportJob, error)
+	List(ctx context.Context, filter ListFilter) ([]domainpharma.ReportExportJob, error)
+	GetByIdempotencyKey(ctx context.Context, key string) (*domainpharma.ReportExportJob, error)
+}

@@ -36,5 +36,16 @@ func AllModels() []any {
 		&PharmaSalesOutboundModel{},
 		&PharmaStocktakeModel{},
 		&PharmaTransferModel{},
+		&PharmaContractModel{},
+		&PharmaQualityComplaintModel{},
+		&PharmaDrugRecallModel{},
+		&PharmaCustomerFollowUpModel{},
+		&PharmaSalesOpportunityModel{},
+		&PharmaPaymentPlanModel{},
+		&PharmaInvoiceRecordModel{},
+		&PharmaPaymentReminderJobModel{},
+		&PharmaInventoryAlertModel{},
+		&PharmaInventoryAlertJobModel{},
+		&PharmaReportExportJobModel{},
 	}
 }

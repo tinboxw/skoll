@@ -14,23 +14,25 @@ import (
 
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	domainfile "github.com/tinboxw/skoll/internal/domain/file"
+	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 )
 
-type ReportExportType string
-type ReportExportJobStatus string
+type ReportExportType = domainpharma.ReportExportType
+type ReportExportJobStatus = domainpharma.ReportExportJobStatus
 
 const (
-	ReportExportBusinessMetrics  ReportExportType = "business_metrics"
-	ReportExportSalesTrend       ReportExportType = "sales_trend"
-	ReportExportOperationalRisks ReportExportType = "operational_risks"
+	ReportExportBusinessMetrics  = domainpharma.ReportExportBusinessMetrics
+	ReportExportSalesTrend       = domainpharma.ReportExportSalesTrend
+	ReportExportOperationalRisks = domainpharma.ReportExportOperationalRisks
 
-	ReportExportPending   ReportExportJobStatus = "pending"
-	ReportExportRunning   ReportExportJobStatus = "running"
-	ReportExportSucceeded ReportExportJobStatus = "succeeded"
-	ReportExportFailed    ReportExportJobStatus = "failed"
+	ReportExportPending   = domainpharma.ReportExportPending
+	ReportExportRunning   = domainpharma.ReportExportRunning
+	ReportExportSucceeded = domainpharma.ReportExportSucceeded
+	ReportExportFailed    = domainpharma.ReportExportFailed
 )
 
 var (
@@ -40,37 +42,9 @@ var (
 	ErrReportExportRetryState   = errors.New("only failed report exports can be retried")
 )
 
-type ReportExportQuery struct {
-	From              time.Time             `json:"from"`
-	To                time.Time             `json:"to"`
-	Bucket            BusinessMetricsBucket `json:"bucket"`
-	QualificationDays int                   `json:"qualificationDays"`
-}
-
-type ReportExportJobLog struct {
-	Level     string    `json:"level"`
-	Message   string    `json:"message"`
-	CreatedAt time.Time `json:"createdAt"`
-}
-
-type ReportExportJob struct {
-	ID          string                `json:"id"`
-	ReportType  ReportExportType      `json:"reportType"`
-	Status      ReportExportJobStatus `json:"status"`
-	Query       ReportExportQuery     `json:"query"`
-	OwnerID     string                `json:"ownerId"`
-	FileID      string                `json:"fileId"`
-	Filename    string                `json:"filename"`
-	ContentType string                `json:"contentType"`
-	Size        int64                 `json:"size"`
-	RowCount    int                   `json:"rowCount"`
-	Error       string                `json:"error"`
-	RetryCount  int                   `json:"retryCount"`
-	Logs        []ReportExportJobLog  `json:"logs"`
-	CreatedAt   time.Time             `json:"createdAt"`
-	StartedAt   *time.Time            `json:"startedAt,omitempty"`
-	CompletedAt *time.Time            `json:"completedAt,omitempty"`
-}
+type ReportExportQuery = domainpharma.ReportExportQuery
+type ReportExportJobLog = domainpharma.ReportExportJobLog
+type ReportExportJob = domainpharma.ReportExportJob
 
 type ReportExportCreateInput struct {
 	ReportType        ReportExportType
@@ -109,11 +83,17 @@ type reportExportService struct {
 	nowFn    func() time.Time
 	dispatch func(func())
 	counter  int64
+	repo     pharmaoarepo.ReportExportJobRepository
 }
 
-func NewReportExportService(metrics BusinessMetricsService, files ReportExportFileStore, audit auditsvc.Service) ReportExportService {
+func NewReportExportService(metrics BusinessMetricsService, files ReportExportFileStore, audit auditsvc.Service, repositories ...pharmaoarepo.ReportExportJobRepository) ReportExportService {
+	repo := pharmaoarepo.ReportExportJobRepository(pharmaoarepo.NewMemoryReportExportJobRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
 	return &reportExportService{
 		jobs: map[string]*ReportExportJob{}, content: map[string][]byte{}, metrics: metrics, files: files, audit: audit,
+		repo:  repo,
 		nowFn: func() time.Time { return time.Now().UTC() }, dispatch: func(run func()) { go run() },
 	}
 }
@@ -126,18 +106,27 @@ func (s *reportExportService) Queue(ctx context.Context, in ReportExportCreateIn
 	if err != nil {
 		return nil, err
 	}
+	idempotencyKey := reportExportIdempotencyKey(in.ReportType, metricsInput)
+	if existing, findErr := s.repo.GetByIdempotencyKey(ctx, idempotencyKey); findErr != nil {
+		return nil, findErr
+	} else if existing != nil {
+		return cloneReportExportJob(existing), nil
+	}
 	now := s.nowFn().UTC()
 	s.mu.Lock()
 	s.counter++
 	id := fmt.Sprintf("report-export-%d-%d", now.UnixNano(), s.counter)
 	job := &ReportExportJob{
 		ID: id, ReportType: in.ReportType, Status: ReportExportPending,
-		Query:   ReportExportQuery{From: metricsInput.From, To: metricsInput.To, Bucket: metricsInput.Bucket, QualificationDays: metricsInput.QualificationDays},
-		OwnerID: metricsInput.ActorID, ContentType: "text/csv", CreatedAt: now,
+		Query:   ReportExportQuery{From: metricsInput.From, To: metricsInput.To, Bucket: string(metricsInput.Bucket), QualificationDays: metricsInput.QualificationDays},
+		OwnerID: metricsInput.ActorID, IdempotencyKey: idempotencyKey, ContentType: "text/csv", CreatedAt: now,
 		Logs: []ReportExportJobLog{{Level: "info", Message: "report export queued", CreatedAt: now}},
 	}
-	s.jobs[id] = cloneReportExportJob(job)
 	s.mu.Unlock()
+	if err = s.repo.Create(ctx, job); err != nil {
+		return nil, err
+	}
+	s.storeReportJob(job)
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.report_export.queue", id, map[string]any{"reportType": in.ReportType, "bucket": metricsInput.Bucket})
 	asyncContext := context.WithoutCancel(ctx)
 	s.dispatch(func() { s.execute(asyncContext, id, false) })
@@ -148,6 +137,9 @@ func (s *reportExportService) List(ctx context.Context, actorID string) ([]*Repo
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
 		return nil, fmt.Errorf("actorId is required")
+	}
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
 	}
 	s.mu.RLock()
 	out := make([]*ReportExportJob, 0, len(s.jobs))
@@ -163,7 +155,7 @@ func (s *reportExportService) List(ctx context.Context, actorID string) ([]*Repo
 }
 
 func (s *reportExportService) Get(ctx context.Context, id, actorID string) (*ReportExportJob, error) {
-	job, err := s.getOwned(id, actorID)
+	job, err := s.getOwned(ctx, id, actorID)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +164,7 @@ func (s *reportExportService) Get(ctx context.Context, id, actorID string) (*Rep
 }
 
 func (s *reportExportService) Retry(ctx context.Context, id, actorID string) (*ReportExportJob, error) {
-	job, err := s.getOwned(id, actorID)
+	job, err := s.getOwned(ctx, id, actorID)
 	if err != nil {
 		return nil, err
 	}
@@ -191,6 +183,9 @@ func (s *reportExportService) Retry(ctx context.Context, id, actorID string) (*R
 	delete(s.content, job.ID)
 	retried := cloneReportExportJob(stored)
 	s.mu.Unlock()
+	if err = s.repo.Upsert(ctx, retried); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, actorID, "pharma_oa.report_export.retry", job.ID, map[string]any{"retryCount": retried.RetryCount})
 	asyncContext := context.WithoutCancel(ctx)
 	s.dispatch(func() { s.execute(asyncContext, job.ID, true) })
@@ -198,7 +193,7 @@ func (s *reportExportService) Retry(ctx context.Context, id, actorID string) (*R
 }
 
 func (s *reportExportService) Download(ctx context.Context, id, actorID string) (*ReportExportFile, error) {
-	job, err := s.getOwned(id, actorID)
+	job, err := s.getOwned(ctx, id, actorID)
 	if err != nil {
 		return nil, err
 	}
@@ -216,12 +211,12 @@ func (s *reportExportService) Download(ctx context.Context, id, actorID string) 
 }
 
 func (s *reportExportService) execute(ctx context.Context, id string, retry bool) {
-	job, err := s.start(id)
+	job, err := s.start(ctx, id)
 	if err != nil {
 		return
 	}
 	s.appendAudit(ctx, job.OwnerID, "pharma_oa.report_export.run", job.ID, map[string]any{"reportType": job.ReportType, "retry": retry})
-	snapshot, err := s.metrics.Get(ctx, BusinessMetricsInput{From: job.Query.From, To: job.Query.To, Bucket: job.Query.Bucket, QualificationDays: job.Query.QualificationDays, ActorID: job.OwnerID})
+	snapshot, err := s.metrics.Get(ctx, BusinessMetricsInput{From: job.Query.From, To: job.Query.To, Bucket: BusinessMetricsBucket(job.Query.Bucket), QualificationDays: job.Query.QualificationDays, ActorID: job.OwnerID})
 	if err != nil {
 		s.fail(ctx, job.ID, job.OwnerID, err, retry)
 		return
@@ -251,24 +246,38 @@ func (s *reportExportService) execute(ctx context.Context, id string, retry bool
 	stored.CompletedAt = timePointer(now)
 	stored.Logs = append(stored.Logs, ReportExportJobLog{Level: "info", Message: "report export completed", CreatedAt: now})
 	s.content[job.ID] = append([]byte(nil), body...)
+	completed := cloneReportExportJob(stored)
 	s.mu.Unlock()
+	if err = s.repo.Upsert(ctx, completed); err != nil {
+		s.fail(ctx, job.ID, job.OwnerID, err, retry)
+		return
+	}
 	s.appendAudit(ctx, job.OwnerID, "pharma_oa.report_export.complete", job.ID, map[string]any{"fileId": object.ID.String(), "rows": rows, "size": len(body), "retry": retry})
 }
 
-func (s *reportExportService) start(id string) (*ReportExportJob, error) {
+func (s *reportExportService) start(ctx context.Context, id string) (*ReportExportJob, error) {
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	now := s.nowFn().UTC()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	job := s.jobs[id]
 	if job == nil {
+		s.mu.Unlock()
 		return nil, ErrReportExportNotFound
 	}
 	if job.Status != ReportExportPending {
+		s.mu.Unlock()
 		return nil, fmt.Errorf("report export is not pending")
 	}
 	job.Status, job.StartedAt = ReportExportRunning, timePointer(now)
 	job.Logs = append(job.Logs, ReportExportJobLog{Level: "info", Message: "report export started", CreatedAt: now})
-	return cloneReportExportJob(job), nil
+	started := cloneReportExportJob(job)
+	s.mu.Unlock()
+	if err := s.repo.Upsert(ctx, started); err != nil {
+		return nil, err
+	}
+	return started, nil
 }
 
 func (s *reportExportService) fail(ctx context.Context, id, actorID string, cause error, retry bool) {
@@ -279,14 +288,21 @@ func (s *reportExportService) fail(ctx context.Context, id, actorID string, caus
 		job.Status, job.Error, job.CompletedAt = ReportExportFailed, cause.Error(), timePointer(now)
 		job.Logs = append(job.Logs, ReportExportJobLog{Level: "error", Message: "report export failed", CreatedAt: now})
 	}
+	failed := cloneReportExportJob(job)
 	s.mu.Unlock()
+	if failed != nil {
+		_ = s.repo.Upsert(ctx, failed)
+	}
 	s.appendAudit(ctx, actorID, "pharma_oa.report_export.fail", id, map[string]any{"error": cause.Error(), "retry": retry})
 }
 
-func (s *reportExportService) getOwned(id, actorID string) (*ReportExportJob, error) {
+func (s *reportExportService) getOwned(ctx context.Context, id, actorID string) (*ReportExportJob, error) {
 	id, actorID = strings.TrimSpace(id), strings.TrimSpace(actorID)
 	if actorID == "" {
 		return nil, fmt.Errorf("actorId is required")
+	}
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
 	}
 	s.mu.RLock()
 	job := cloneReportExportJob(s.jobs[id])
@@ -314,6 +330,34 @@ func (s *reportExportService) normalizeInput(in ReportExportCreateInput) (Busine
 		return BusinessMetricsInput{}, fmt.Errorf("actorId is required")
 	}
 	return metricsInput, nil
+}
+
+func (s *reportExportService) storeReportJob(job *ReportExportJob) {
+	s.mu.Lock()
+	s.jobs[job.ID] = cloneReportExportJob(job)
+	s.mu.Unlock()
+}
+
+func (s *reportExportService) syncFromRepository(ctx context.Context) error {
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	jobs := make(map[string]*ReportExportJob, len(items))
+	for index := range items {
+		item := cloneReportExportJob(&items[index])
+		jobs[item.ID] = item
+	}
+	s.mu.Lock()
+	s.jobs = jobs
+	s.mu.Unlock()
+	return nil
+}
+
+func reportExportIdempotencyKey(reportType ReportExportType, in BusinessMetricsInput) string {
+	seed := fmt.Sprintf("%s|%s|%s|%s|%d|%s", reportType, in.From.UTC().Format(time.RFC3339Nano), in.To.UTC().Format(time.RFC3339Nano), in.Bucket, in.QualificationDays, strings.TrimSpace(in.ActorID))
+	hash := sha256.Sum256([]byte(seed))
+	return fmt.Sprintf("report-export:%x", hash[:])
 }
 
 func (s *reportExportService) appendAudit(ctx context.Context, actorID, action, id string, detail map[string]any) {

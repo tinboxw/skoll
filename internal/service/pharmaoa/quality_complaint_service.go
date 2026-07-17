@@ -14,6 +14,7 @@ import (
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
@@ -56,10 +57,15 @@ type qualityComplaintService struct {
 	audit     auditsvc.Service
 	nowFn     func() time.Time
 	counter   int64
+	repo      pharmaoarepo.QualityComplaintRepository
 }
 
-func NewQualityComplaintService(customers CustomerService, products ProductService, inventory InventoryService, workflow workflowsvc.Service, files ContractFileReader, audit auditsvc.Service) QualityComplaintService {
-	return &qualityComplaintService{items: map[string]*domainpharma.QualityComplaint{}, customers: customers, products: products, inventory: inventory, workflow: workflow, files: files, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewQualityComplaintService(customers CustomerService, products ProductService, inventory InventoryService, workflow workflowsvc.Service, files ContractFileReader, audit auditsvc.Service, repositories ...pharmaoarepo.QualityComplaintRepository) QualityComplaintService {
+	repo := pharmaoarepo.QualityComplaintRepository(pharmaoarepo.NewMemoryQualityComplaintRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &qualityComplaintService{items: map[string]*domainpharma.QualityComplaint{}, customers: customers, products: products, inventory: inventory, workflow: workflow, files: files, audit: audit, repo: repo, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *qualityComplaintService) Create(ctx context.Context, in QualityComplaintCreateInput) (*domainpharma.QualityComplaint, error) {
@@ -68,6 +74,9 @@ func (s *qualityComplaintService) Create(ctx context.Context, in QualityComplain
 	}
 	s.createMu.Lock()
 	defer s.createMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	if s.numberExists(in.Number) {
 		return nil, fmt.Errorf("quality complaint number already exists")
 	}
@@ -109,13 +118,19 @@ func (s *qualityComplaintService) Create(ctx context.Context, in QualityComplain
 	if _, err = s.workflow.Start(ctx, workflowsvc.StartInput{ID: workflowID, DefinitionID: definition.ID, BusinessType: "pharma_oa.quality_complaint", BusinessID: id.String(), Title: "Quality complaint " + item.Number, Starter: domainworkflow.Actor{ID: shared.ID(strings.TrimSpace(in.ReporterID))}, Now: now}); err != nil {
 		return nil, err
 	}
-	s.save(item)
+	if err = s.repo.Create(ctx, item); err != nil {
+		return nil, err
+	}
+	s.storeCached(item)
 	s.appendAudit(ctx, in.ReporterID, "pharma_oa.quality_complaint.create", id.String(), map[string]any{"customerId": in.CustomerID, "productId": in.ProductID, "batchId": in.BatchID, "attachments": len(attachments), "workflowInstanceId": workflowID.String()})
 	return cloneQualityComplaint(item), nil
 }
 
 func (s *qualityComplaintService) List(ctx context.Context, in QualityComplaintListInput) ([]*domainpharma.QualityComplaint, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.syncFromRepository(ctx); err != nil {
 		return nil, err
 	}
 	keyword := strings.ToLower(strings.TrimSpace(in.Keyword))
@@ -161,6 +176,9 @@ func (s *qualityComplaintService) ListBatches(ctx context.Context, productID str
 
 func (s *qualityComplaintService) Get(ctx context.Context, id string) (*domainpharma.QualityComplaint, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.syncFromRepository(ctx); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
@@ -218,7 +236,9 @@ func (s *qualityComplaintService) finish(ctx context.Context, id string, in Qual
 	if err != nil {
 		return nil, err
 	}
-	s.save(item)
+	if err = s.save(ctx, item); err != nil {
+		return nil, err
+	}
 	action := "pharma_oa.quality_complaint.reject"
 	if resolve {
 		action = "pharma_oa.quality_complaint.resolve"
@@ -313,10 +333,36 @@ func (s *qualityComplaintService) numberExists(number string) bool {
 	}
 	return false
 }
-func (s *qualityComplaintService) save(item *domainpharma.QualityComplaint) {
+func (s *qualityComplaintService) save(ctx context.Context, item *domainpharma.QualityComplaint) error {
+	if err := s.repo.Upsert(ctx, item); err != nil {
+		return err
+	}
+	s.storeCached(item)
+	return nil
+}
+func (s *qualityComplaintService) storeCached(item *domainpharma.QualityComplaint) {
 	s.mu.Lock()
 	s.items[item.ID.String()] = cloneQualityComplaint(item)
 	s.mu.Unlock()
+}
+func (s *qualityComplaintService) syncFromRepository(ctx context.Context) error {
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	cached := make(map[string]*domainpharma.QualityComplaint, len(items))
+	var counter int64
+	for index := range items {
+		item := cloneQualityComplaint(&items[index])
+		cached[item.ID.String()] = item
+		if sequence := sequenceFromID(item.ID.String(), "quality-complaint-"); sequence > counter {
+			counter = sequence
+		}
+	}
+	s.mu.Lock()
+	s.items, s.counter = cached, counter
+	s.mu.Unlock()
+	return nil
 }
 func (s *qualityComplaintService) appendAudit(ctx context.Context, actor, action, id string, detail map[string]any) {
 	if s.audit != nil {

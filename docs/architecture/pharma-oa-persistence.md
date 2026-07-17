@@ -1,6 +1,6 @@
 # 医药 OA 持久化契约
 
-> 状态：H2-01 schema 基线；H2-02 主数据与 H2-03 库存/单据 repository 已实现。默认语言：简体中文。
+> 状态：H2-01 schema 基线；H2-02 主数据、H2-03 库存/单据与 H2-04 工作流关联业务记录 repository 已实现。默认语言：简体中文。
 > 实现入口：`internal/repository/pharmaoa/`。
 
 ## 目标与边界
@@ -22,6 +22,7 @@
 | `PurchaseRepository` / `PurchaseInboundRepository` | 采购申请、订单和入库 | H2-03 |
 | `SalesRepository` | 销售订单和出库 | H2-03 |
 | Contract/Complaint/Recall/CRM ports | 合同、投诉、召回、跟进与销售机会 | H2-04 |
+| Payment/Invoice/Job ports | 付款计划、发票、付款提醒、库存告警和报表导出作业 | H2-04 |
 
 Repository 接收 domain entity，不向 service 暴露 GORM model。列表统一使用 `ListFilter` 的分页、关键字、状态和可信组织范围；具体 SQL 实现不能从请求参数扩大组织范围。
 
@@ -29,24 +30,24 @@ H2-02 已将员工、药品、供应商、客户和仓库 service 接入 `store.
 
 ## Schema 归属
 
-所有表使用 `pharma_oa_` namespace。完整机器可读清单由 `SchemaBaseline()` 提供，当前覆盖 28 张聚合根或作业表；采购申请行随申请聚合以 `lines_json` 持久化，不保留未接线的独立明细表。
+所有表使用 `pharma_oa_` namespace。完整机器可读清单由 `SchemaBaseline()` 提供，当前覆盖 30 张聚合根或作业表；采购申请行随申请聚合以 `lines_json` 持久化，不保留未接线的独立明细表。
 
 | 领域 | 核心表 | 关键约束与索引 |
 | --- | --- | --- |
 | 主数据 | employees, products, suppliers, customers, warehouses | code 唯一；药品批准文号唯一；客户按 organization/owner/status 查询 |
 | 库存 | stock_batches, stock_balances, stock_ledger, stock_locks, stocktakes, transfers | 批次按 product+batch 唯一；余额按完整库位唯一；ledger idempotency 唯一且不可更新 |
-| 采购 | purchase_requests, purchase_request_lines, purchase_orders, purchase_inbounds | 单号唯一；申请与订单一对一；入库 idempotency 唯一 |
+| 采购 | purchase_requests, purchase_orders, purchase_inbounds | 单号唯一；申请与订单一对一；入库 idempotency 唯一 |
 | 销售 | sales_orders, sales_outbounds | 单号唯一；出库 idempotency 唯一；客户/组织范围有索引 |
 | 协同合规 | announcements, contracts, qualifications, quality_complaints, drug_recalls, cold_chain_records | 合同/投诉/召回单号唯一；资质和合同到期时间可索引扫描；冷链记录不可变 |
-| CRM 财务 | customer_follow_ups, sales_opportunities, payment_plans, invoice_records | owner+organization+status/stage 范围索引；机会/发票单号唯一 |
-| 作业 | inventory_alert_jobs, report_export_jobs | idempotency key 唯一；status+created_at 支持重试与清理扫描 |
+| CRM 财务 | customer_follow_ups, sales_opportunities, payment_plans, invoice_records | owner+organization+status/stage 范围索引；付款计划按销售订单唯一，发票单号唯一 |
+| 作业 | payment_reminder_jobs, inventory_alerts, inventory_alert_jobs, report_export_jobs | 告警位置和作业 idempotency key 唯一；status+created_at 支持重试与清理扫描 |
 
 数组型附件只保存 file metadata ID；文件内容仍由 object store 管理。当前不需要独立查询的 contacts、attachments、stage history 和 task snapshot 使用 JSON，后续若出现可证明的查询需求再以新的当前 migration 正规化，不保留双写路径。
 
 ## 字段规则
 
 - ID：使用 `VARCHAR(64)`/字符串 `shared.ID`，不引入数据库自增业务 ID。
-- 金额：SQL 实现使用 `DECIMAL(18,2)`；禁止用浮点列保存最终金额。
+- 金额：合同与既有订单金额使用 `DECIMAL(18,2)`；付款、发票和销售机会使用当前领域定义的整型分值 `BIGINT`，禁止用浮点列保存最终金额。
 - 数量：库存数量使用整数；采购数量沿当前 domain 语义使用 `DECIMAL(18,4)`。
 - 时间：MySQL 使用 UTC `DATETIME(3)`，PostgreSQL 使用 `TIMESTAMPTZ`，SQLite 测试使用 UTC timestamp 文本/driver time。
 - 审计：可变表包含 `created_at`、`updated_at`、`created_by`、`updated_by`；不可变表也保留创建时间和创建者，禁止 update/delete repository 方法。
@@ -96,6 +97,15 @@ H2-03 将库存、采购、销售、盘点和调拨 service 接入 `store.Bundle
 
 SQLite 文件库自动执行库存与全部业务单据的 restart 契约、并发超卖、批量回滚和幂等测试。MySQL/PostgreSQL 使用相同 GORM model 和 repository contract，并由 `SKOLL_TEST_MYSQL_DSN`、`SKOLL_TEST_POSTGRES_DSN` 启用实库测试；完整支持数据库矩阵仍由 H2-05 统一复验。
 
+H2-04 migration：
+
+- `migrations/mysql/20260718_000021_create_pharma_oa_workflow_records.sql`
+- `migrations/postgres/20260718_000021_create_pharma_oa_workflow_records.sql`
+
+H2-04 将合同、质量投诉、召回、客户跟进、销售机会、付款计划、发票、付款提醒、库存告警和报表导出作业接入 `store.Bundle`。独立业务列用于状态、作用域、到期和幂等查询，完整聚合以 `payload_json` 保留工作流引用、参与人、附件、任务、提醒引用、重试次数和日志。SQLite 文件库关闭并重开后执行完整 round-trip；报表服务重建后，相同显式查询窗口复用已有作业与文件，不重复上传。
+
+MySQL/PostgreSQL 使用同一 repository contract，由 `SKOLL_TEST_MYSQL_DSN`、`SKOLL_TEST_POSTGRES_DSN` 启用实库验收；未配置时测试明确标记 SKIP，并由 H2-05 在可用数据库环境中统一复验。
+
 ## 验证
 
 ```powershell
@@ -104,5 +114,7 @@ go test ./internal/repository/pharmaoa -run TestMigrationPlanSupportsAllDialects
 go test ./internal/plugin -run TestPharmaOAPluginManifestCoversIndustrySkeleton -count=1
 go test ./internal/store/sql/gormrepo -run TestPharmaMaster -count=1
 go test ./internal/store/sql/gormrepo -run 'TestPharmaOrder|TestPharmaTransaction' -count=1
+go test ./internal/store/sql/gormrepo -run 'TestPharmaWorkflowRecord' -count=1
 go test ./internal/service/pharmaoa -run 'TestInventory' -count=1
+go test ./internal/service/pharmaoa -run 'TestReportExportServiceRestart' -count=1
 ```

@@ -13,6 +13,7 @@ import (
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 )
@@ -101,8 +102,15 @@ type PaymentOverdueScanInput struct {
 	Scope       PaymentFinanceAccessScope
 }
 
+type PaymentInvoiceRepositories struct {
+	Plans    pharmaoarepo.PaymentPlanRepository
+	Invoices pharmaoarepo.InvoiceRecordRepository
+	Jobs     pharmaoarepo.PaymentReminderJobRepository
+}
+
 type paymentInvoiceService struct {
 	mu             sync.RWMutex
+	opMu           sync.Mutex
 	runMu          sync.Mutex
 	sales          PaymentInvoiceSalesReader
 	notifications  PaymentInvoiceNotifier
@@ -115,17 +123,38 @@ type paymentInvoiceService struct {
 	receiptCounter int64
 	invoiceCounter int64
 	jobCounter     int64
+	planRepo       pharmaoarepo.PaymentPlanRepository
+	invoiceRepo    pharmaoarepo.InvoiceRecordRepository
+	jobRepo        pharmaoarepo.PaymentReminderJobRepository
 }
 
-func NewPaymentInvoiceService(sales PaymentInvoiceSalesReader, notifications PaymentInvoiceNotifier, audit auditsvc.Service) PaymentInvoiceService {
+func NewPaymentInvoiceService(sales PaymentInvoiceSalesReader, notifications PaymentInvoiceNotifier, audit auditsvc.Service, repositories ...PaymentInvoiceRepositories) PaymentInvoiceService {
+	repos := PaymentInvoiceRepositories{Plans: pharmaoarepo.NewMemoryPaymentPlanRepository(), Invoices: pharmaoarepo.NewMemoryInvoiceRecordRepository(), Jobs: pharmaoarepo.NewMemoryPaymentReminderJobRepository()}
+	if len(repositories) > 0 {
+		if repositories[0].Plans != nil {
+			repos.Plans = repositories[0].Plans
+		}
+		if repositories[0].Invoices != nil {
+			repos.Invoices = repositories[0].Invoices
+		}
+		if repositories[0].Jobs != nil {
+			repos.Jobs = repositories[0].Jobs
+		}
+	}
 	return &paymentInvoiceService{
 		sales: sales, notifications: notifications, audit: audit,
 		plans: map[string]*domainpharma.PaymentPlan{}, invoices: map[string]*domainpharma.InvoiceRecord{}, jobs: map[string]*domainpharma.PaymentReminderJob{},
+		planRepo: repos.Plans, invoiceRepo: repos.Invoices, jobRepo: repos.Jobs,
 		nowFn: func() time.Time { return time.Now().UTC() },
 	}
 }
 
 func (s *paymentInvoiceService) CreatePaymentPlan(ctx context.Context, in PaymentPlanCreateInput) (*domainpharma.PaymentPlan, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -152,14 +181,18 @@ func (s *paymentInvoiceService) CreatePaymentPlan(ctx context.Context, in Paymen
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.plans[item.ID.String()] = clonePaymentPlan(item)
-	s.mu.Unlock()
+	if err = s.planRepo.Create(ctx, item); err != nil {
+		return nil, err
+	}
+	s.storePaymentPlan(item)
 	s.appendAudit(ctx, actorID, "pharma_oa.payment_plan.create", "pharma_oa_payment_plan", item.ID.String(), map[string]any{"salesOrderId": item.SalesOrderID, "amountCents": item.AmountCents, "dueAt": item.DueAt})
 	return clonePaymentPlan(item), nil
 }
 
 func (s *paymentInvoiceService) ListPaymentPlans(ctx context.Context, in PaymentPlanListInput) ([]*domainpharma.PaymentPlan, error) {
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -189,6 +222,11 @@ func (s *paymentInvoiceService) ListPaymentPlans(ctx context.Context, in Payment
 }
 
 func (s *paymentInvoiceService) RecordPayment(ctx context.Context, id string, in PaymentRecordInput) (*domainpharma.PaymentPlan, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -213,13 +251,21 @@ func (s *paymentInvoiceService) RecordPayment(ctx context.Context, id string, in
 			return nil, err
 		}
 	}
-	s.plans[id] = clonePaymentPlan(next)
 	s.mu.Unlock()
+	if err = s.planRepo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
+	s.storePaymentPlan(next)
 	s.appendAudit(ctx, actorID, "pharma_oa.payment_plan.receive", "pharma_oa_payment_plan", id, map[string]any{"receiptId": receiptID.String(), "amountCents": in.AmountCents, "paidAmountCents": next.PaidAmountCents, "status": next.Status})
 	return clonePaymentPlan(next), nil
 }
 
 func (s *paymentInvoiceService) CreateInvoice(ctx context.Context, in InvoiceCreateInput) (*domainpharma.InvoiceRecord, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -251,14 +297,18 @@ func (s *paymentInvoiceService) CreateInvoice(ctx context.Context, in InvoiceCre
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.invoices[item.ID.String()] = cloneInvoiceRecord(item)
-	s.mu.Unlock()
+	if err = s.invoiceRepo.Create(ctx, item); err != nil {
+		return nil, err
+	}
+	s.storeInvoice(item)
 	s.appendAudit(ctx, actorID, "pharma_oa.invoice_record.create", "pharma_oa_invoice_record", item.ID.String(), map[string]any{"salesOrderId": item.SalesOrderID, "number": item.Number, "amountCents": item.AmountCents})
 	return cloneInvoiceRecord(item), nil
 }
 
 func (s *paymentInvoiceService) ListInvoices(ctx context.Context, in InvoiceListInput) ([]*domainpharma.InvoiceRecord, error) {
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -283,6 +333,11 @@ func (s *paymentInvoiceService) ListInvoices(ctx context.Context, in InvoiceList
 }
 
 func (s *paymentInvoiceService) VoidInvoice(ctx context.Context, id string, in InvoiceVoidInput) (*domainpharma.InvoiceRecord, error) {
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -299,13 +354,19 @@ func (s *paymentInvoiceService) VoidInvoice(ctx context.Context, id string, in I
 		s.mu.Unlock()
 		return nil, err
 	}
-	s.invoices[id] = cloneInvoiceRecord(next)
 	s.mu.Unlock()
+	if err = s.invoiceRepo.Upsert(ctx, next); err != nil {
+		return nil, err
+	}
+	s.storeInvoice(next)
 	s.appendAudit(ctx, actorID, "pharma_oa.invoice_record.void", "pharma_oa_invoice_record", id, map[string]any{"number": next.Number, "reason": next.VoidReason})
 	return cloneInvoiceRecord(next), nil
 }
 
 func (s *paymentInvoiceService) RunOverdueScan(ctx context.Context, in PaymentOverdueScanInput) (*domainpharma.PaymentReminderJob, error) {
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(in.ActorID, in.Scope)
 	if err != nil {
 		return nil, err
@@ -321,11 +382,17 @@ func (s *paymentInvoiceService) RunOverdueScan(ctx context.Context, in PaymentOv
 	if err != nil {
 		return nil, err
 	}
-	s.savePaymentJob(job)
+	if err = s.jobRepo.Create(ctx, job); err != nil {
+		return nil, err
+	}
+	s.storePaymentJob(job)
 	return s.executeOverdueScan(ctx, job, actorID, false)
 }
 
 func (s *paymentInvoiceService) RetryOverdueScan(ctx context.Context, id, actorID string) (*domainpharma.PaymentReminderJob, error) {
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
 		return nil, fmt.Errorf("actorId is required")
@@ -343,6 +410,9 @@ func (s *paymentInvoiceService) RetryOverdueScan(ctx context.Context, id, actorI
 }
 
 func (s *paymentInvoiceService) ListReminderJobs(ctx context.Context, scope PaymentFinanceAccessScope, actorID string) ([]*domainpharma.PaymentReminderJob, error) {
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
 	actorID, scope, err := normalizePaymentActorAndScope(actorID, scope)
 	if err != nil {
 		return nil, err
@@ -363,10 +433,20 @@ func (s *paymentInvoiceService) ListReminderJobs(ctx context.Context, scope Paym
 func (s *paymentInvoiceService) executeOverdueScan(ctx context.Context, job *domainpharma.PaymentReminderJob, actorID string, retry bool) (*domainpharma.PaymentReminderJob, error) {
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
+	if err := s.syncFromRepositories(ctx); err != nil {
+		return nil, err
+	}
+	stored := s.jobs[job.ID.String()]
+	if stored == nil {
+		return nil, fmt.Errorf("payment reminder job not found")
+	}
+	job = clonePaymentReminderJob(stored)
 	if err := job.Start(actorID, retry, s.nowFn()); err != nil {
 		return nil, err
 	}
-	s.savePaymentJob(job)
+	if err := s.savePaymentJob(ctx, job); err != nil {
+		return nil, err
+	}
 	if s.notifications == nil {
 		return s.failPaymentJob(ctx, job, fmt.Errorf("notification service is required"), retry)
 	}
@@ -404,11 +484,16 @@ func (s *paymentInvoiceService) executeOverdueScan(ctx context.Context, job *dom
 			created++
 			s.appendAudit(ctx, actorID, "pharma_oa.payment_reminder.create", "pharma_oa_payment_plan", plan.ID.String(), map[string]any{"recipientId": job.RecipientID, "notificationId": notificationID})
 		}
-		s.plans[id] = clonePaymentPlan(plan)
 		s.mu.Unlock()
+		if err := s.planRepo.Upsert(ctx, plan); err != nil {
+			return s.failPaymentJob(ctx, job, err, retry)
+		}
+		s.storePaymentPlan(plan)
 	}
 	job.Succeed(len(ids), created, s.nowFn())
-	s.savePaymentJob(job)
+	if err := s.savePaymentJob(ctx, job); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, actorID, "pharma_oa.payment_reminder.run", "pharma_oa_payment_reminder_job", job.ID.String(), map[string]any{"matchedCount": len(ids), "createdCount": created, "retry": retry})
 	return clonePaymentReminderJob(job), nil
 }
@@ -433,15 +518,86 @@ func (s *paymentInvoiceService) authorizedOrder(ctx context.Context, id string, 
 
 func (s *paymentInvoiceService) failPaymentJob(ctx context.Context, job *domainpharma.PaymentReminderJob, cause error, retry bool) (*domainpharma.PaymentReminderJob, error) {
 	job.Fail(cause, s.nowFn())
-	s.savePaymentJob(job)
+	if err := s.savePaymentJob(ctx, job); err != nil {
+		return clonePaymentReminderJob(job), err
+	}
 	s.appendAudit(ctx, job.LastRunBy, "pharma_oa.payment_reminder.fail", "pharma_oa_payment_reminder_job", job.ID.String(), map[string]any{"error": job.Error, "retry": retry, "retryCount": job.RetryCount})
 	return clonePaymentReminderJob(job), cause
 }
 
-func (s *paymentInvoiceService) savePaymentJob(job *domainpharma.PaymentReminderJob) {
+func (s *paymentInvoiceService) savePaymentJob(ctx context.Context, job *domainpharma.PaymentReminderJob) error {
+	if err := s.jobRepo.Upsert(ctx, job); err != nil {
+		return err
+	}
+	s.storePaymentJob(job)
+	return nil
+}
+
+func (s *paymentInvoiceService) storePaymentJob(job *domainpharma.PaymentReminderJob) {
 	s.mu.Lock()
 	s.jobs[job.ID.String()] = clonePaymentReminderJob(job)
 	s.mu.Unlock()
+}
+
+func (s *paymentInvoiceService) storePaymentPlan(item *domainpharma.PaymentPlan) {
+	s.mu.Lock()
+	s.plans[item.ID.String()] = clonePaymentPlan(item)
+	s.mu.Unlock()
+}
+func (s *paymentInvoiceService) storeInvoice(item *domainpharma.InvoiceRecord) {
+	s.mu.Lock()
+	s.invoices[item.ID.String()] = cloneInvoiceRecord(item)
+	s.mu.Unlock()
+}
+
+func (s *paymentInvoiceService) syncFromRepositories(ctx context.Context) error {
+	plans, err := s.planRepo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	invoices, err := s.invoiceRepo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	jobs, err := s.jobRepo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	planMap := make(map[string]*domainpharma.PaymentPlan, len(plans))
+	invoiceMap := make(map[string]*domainpharma.InvoiceRecord, len(invoices))
+	jobMap := make(map[string]*domainpharma.PaymentReminderJob, len(jobs))
+	var planCounter, receiptCounter, invoiceCounter, jobCounter int64
+	for index := range plans {
+		item := clonePaymentPlan(&plans[index])
+		planMap[item.ID.String()] = item
+		if value := sequenceFromID(item.ID.String(), "payment-plan-"); value > planCounter {
+			planCounter = value
+		}
+		for _, receipt := range item.Receipts {
+			if value := sequenceFromID(receipt.ID.String(), "payment-receipt-"); value > receiptCounter {
+				receiptCounter = value
+			}
+		}
+	}
+	for index := range invoices {
+		item := cloneInvoiceRecord(&invoices[index])
+		invoiceMap[item.ID.String()] = item
+		if value := sequenceFromID(item.ID.String(), "invoice-record-"); value > invoiceCounter {
+			invoiceCounter = value
+		}
+	}
+	for index := range jobs {
+		item := clonePaymentReminderJob(&jobs[index])
+		jobMap[item.ID.String()] = item
+		if value := sequenceFromID(item.ID.String(), "payment-reminder-job-"); value > jobCounter {
+			jobCounter = value
+		}
+	}
+	s.mu.Lock()
+	s.plans, s.invoices, s.jobs = planMap, invoiceMap, jobMap
+	s.planCounter, s.receiptCounter, s.invoiceCounter, s.jobCounter = planCounter, receiptCounter, invoiceCounter, jobCounter
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *paymentInvoiceService) appendAudit(ctx context.Context, actorID, action, resource, id string, detail map[string]any) {

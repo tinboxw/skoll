@@ -315,13 +315,15 @@ migrations/
 │   ├── 20260510_000010_create_plugins.sql
 │   ├── 20260510_000011_create_plugin_routes_releases.sql
 │   ├── 20260718_000019_create_pharma_oa_master_data.sql
-│   └── 20260718_000020_create_pharma_oa_inventory_orders.sql
+│   ├── 20260718_000020_create_pharma_oa_inventory_orders.sql
+│   └── 20260718_000021_create_pharma_oa_workflow_records.sql
 └── postgres/
     ├── 20240101_000001_create_users.sql
     ├── 20260510_000010_create_plugins.sql
     ├── 20260510_000011_create_plugin_routes_releases.sql
     ├── 20260718_000019_create_pharma_oa_master_data.sql
-    └── 20260718_000020_create_pharma_oa_inventory_orders.sql
+    ├── 20260718_000020_create_pharma_oa_inventory_orders.sql
+    └── 20260718_000021_create_pharma_oa_workflow_records.sql
 ```
 
 > 注意：迁移脚本由 GORM AutoMigrate 或手动执行，当前项目未集成自动迁移工具。

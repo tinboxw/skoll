@@ -246,6 +246,54 @@ git diff --check
 
 父任务 H2 保持 `Doing`。领取 `H2-02`，实现员工、药品、供应商、客户和仓库/库位的 SQL repository 与多数据库契约测试。
 
+## H2-04 医药 OA 工作流关联业务记录持久化
+
+- Date: 2026-07-18
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 将合同、质量投诉、召回、客户跟进、销售机会、付款计划、发票、付款提醒、库存告警和报表导出作业接入统一 repository，并持久化完整聚合快照、查询列、重试日志与幂等引用。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Repository 与 DI | Pass | memory、MySQL、PostgreSQL store bundle 与 bootstrap 均注入 10 组 repository port，原 service 构造器保持可选 repository 注入以支持既有单元测试。 |
+| 重启持久化 | Pass | SQLite 文件库关闭并重开后，11 张表完整 round-trip；工作流 ID、参与人、附件、召回任务、机会阶段历史、回款、通知引用、作业日志和时间均保留。 |
+| 重试与幂等 | Pass | 付款提醒失败作业恢复后重试成功且 retry count/log 保留；库存告警作业保留唯一幂等键；报表 service 实例重建后，相同显式查询窗口复用既有成功作业和文件，不重复上传。 |
+| Schema 与 migration | Pass | `SchemaBaseline()` 更新为 30 张表；11 个 H2-04 GORM model 的列和命名索引逐项匹配；MySQL/PostgreSQL `000021` migration 均为 retain-only，不含 destructive down。 |
+| 数据库矩阵 | Pass with environment gate | SQLite 契约已实际运行；MySQL/PostgreSQL 同一 round-trip 用例已编译并分别由 `SKOLL_TEST_MYSQL_DSN`、`SKOLL_TEST_POSTGRES_DSN` 启用。本机未配置 DSN，两项明确为 SKIP，不记作实库通过，H2-05 必须复验。 |
+| API/权限/审计/migration/seed | Pass | 未新增或修改 HTTP endpoint、OpenAPI schema、permission key、audit action 或 seed；现有业务审计 action 与权限链保持，新增影响仅为 repository、DI、schema 和 migration。 |
+| 多语言与兼容 | Pass | 无新增前端或用户可见文案，locale 资源无需变更；架构与迁移说明以简体中文为默认入口；未实现旧字段、旧表或双写兼容层。 |
+| 质量门禁 | Pass | 聚焦测试、定向 race、`go test ./... -count=1`、`go vet ./...`、`go build` 与 `git diff --check` 全部通过。 |
+| CodeGraph | Pass | 影响面覆盖 service、handler、bootstrap 与双数据库 adapter；同步后为 691 files / 14,758 nodes / 45,228 edges，状态 up to date；未修改 `docs/refactor/old/`。 |
+
+### Verification Commands
+
+```powershell
+go test ./internal/store/sql/gormrepo -run 'TestPharmaWorkflowRecord' -count=1 -v
+go test ./internal/service/pharmaoa -run 'TestReportExportServiceRestart|TestReportExportFailedJobRetries|TestInventoryAlert' -count=1 -v
+go test ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/store ./internal/service/pharmaoa ./internal/bootstrap -count=1
+go test -race ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/store ./internal/service/pharmaoa ./internal/bootstrap -count=1
+go test ./... -count=1
+go vet ./...
+go build -o "$env:TEMP\skoll-h2-04.exe" ./cmd/skoll
+codegraph impact "ReportExportJobRepository"
+codegraph impact "ContractService"
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Next Step
+
+父任务 H2 保持 `Doing`。按正式 Work Item 顺序领取 `H2-05`，验证 migration、seed 幂等、重启、备份夹具和 MySQL/PostgreSQL 支持矩阵。
+
+## H2-04 Retry Log
+
+| 尝试 | 状态 | 失败证据 | 重试动作 |
+| --- | --- | --- | --- |
+| 1 | Failed | 首轮工作流记录 repository 定向编译失败：内存销售机会筛选器使用了领域实体不存在的 `Number` 字段，说明候选 schema 与当前领域形状不一致 | 改用实际 `Title`、客户字段进行筛选，并在 H2-04 migration/model 中同步校正销售机会列；恢复 `Doing` 后重跑 repository/domain 测试 |
+| 2 | Failed | 服务重启幂等验收使用未指定时间窗的报表请求；服务按当前时刻补齐默认结束时间后，两次请求形成不同业务窗口与幂等键，测试错误期待复用旧作业 | 使用明确且相同的 `From`/`To` 查询窗口重试，继续验证服务实例重建后不会重复上传或创建作业；状态经 `Failed -> Doing` 恢复 |
+
 ## H2-03 医药 OA 库存与业务单据原子持久化
 
 - Date: 2026-07-18

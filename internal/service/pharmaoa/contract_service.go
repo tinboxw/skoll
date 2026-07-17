@@ -14,6 +14,7 @@ import (
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
@@ -96,10 +97,15 @@ type contractService struct {
 	audit         auditsvc.Service
 	nowFn         func() time.Time
 	counter       int64
+	repo          pharmaoarepo.ContractRepository
 }
 
-func NewContractService(suppliers SupplierService, customers CustomerService, workflow workflowsvc.Service, files ContractFileReader, notifications *notificationsvc.Service, audit auditsvc.Service) ContractService {
-	return &contractService{items: map[string]*domainpharma.Contract{}, reminders: map[string]ContractExpiryReminder{}, suppliers: suppliers, customers: customers, workflow: workflow, files: files, notifications: notifications, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewContractService(suppliers SupplierService, customers CustomerService, workflow workflowsvc.Service, files ContractFileReader, notifications *notificationsvc.Service, audit auditsvc.Service, repositories ...pharmaoarepo.ContractRepository) ContractService {
+	repo := pharmaoarepo.ContractRepository(pharmaoarepo.NewMemoryContractRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &contractService{items: map[string]*domainpharma.Contract{}, reminders: map[string]ContractExpiryReminder{}, suppliers: suppliers, customers: customers, workflow: workflow, files: files, notifications: notifications, audit: audit, repo: repo, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *contractService) Create(ctx context.Context, in ContractCreateInput) (*domainpharma.Contract, error) {
@@ -108,6 +114,9 @@ func (s *contractService) Create(ctx context.Context, in ContractCreateInput) (*
 	}
 	s.createMu.Lock()
 	defer s.createMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	if s.contractNumberExists(in.Number) {
 		return nil, fmt.Errorf("contract number already exists")
 	}
@@ -144,15 +153,19 @@ func (s *contractService) Create(ctx context.Context, in ContractCreateInput) (*
 	if _, err = s.workflow.Start(ctx, workflowsvc.StartInput{ID: workflowID, DefinitionID: definition.ID, BusinessType: "pharma_oa.contract", BusinessID: contractID.String(), Title: "Contract " + item.Number, Starter: domainworkflow.Actor{ID: shared.ID(item.OwnerID)}, Now: s.nowFn()}); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.items[item.ID.String()] = cloneContract(item)
-	s.mu.Unlock()
+	if err = s.repo.Create(ctx, item); err != nil {
+		return nil, err
+	}
+	s.storeCached(item)
 	s.appendAudit(ctx, item.OwnerID, "pharma_oa.contract.create", item.ID.String(), map[string]any{"number": item.Number, "partyType": item.PartyType, "partyId": item.PartyID, "attachments": len(item.Attachments), "workflowInstanceId": item.WorkflowInstanceID})
 	return cloneContract(item), nil
 }
 
 func (s *contractService) List(ctx context.Context, in ContractListInput) ([]*domainpharma.Contract, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.syncFromRepository(ctx); err != nil {
 		return nil, err
 	}
 	keyword := strings.ToLower(strings.TrimSpace(in.Keyword))
@@ -174,6 +187,9 @@ func (s *contractService) List(ctx context.Context, in ContractListInput) ([]*do
 
 func (s *contractService) Get(ctx context.Context, id string) (*domainpharma.Contract, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.syncFromRepository(ctx); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
@@ -214,7 +230,9 @@ func (s *contractService) Approve(ctx context.Context, id string, in ContractAct
 		return nil, err
 	}
 	item.MarkExpired(now)
-	s.save(item)
+	if err = s.save(ctx, item); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.contract.approve", item.ID.String(), map[string]any{"status": item.Status, "workflowInstanceId": item.WorkflowInstanceID, "comment": strings.TrimSpace(in.Comment)})
 	return cloneContract(item), nil
 }
@@ -243,7 +261,9 @@ func (s *contractService) Reject(ctx context.Context, id string, in ContractActi
 	if err = item.Reject(in.ActorID, now); err != nil {
 		return nil, err
 	}
-	s.save(item)
+	if err = s.save(ctx, item); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.contract.reject", item.ID.String(), map[string]any{"workflowInstanceId": item.WorkflowInstanceID, "comment": strings.TrimSpace(in.Comment)})
 	return cloneContract(item), nil
 }
@@ -257,6 +277,9 @@ func (s *contractService) ScanExpiry(ctx context.Context, in ContractExpiryScanI
 	}
 	s.scanMu.Lock()
 	defer s.scanMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	now := s.nowFn()
 	deadline := now.AddDate(0, 0, in.Days)
 	s.mu.RLock()
@@ -284,8 +307,10 @@ func (s *contractService) ScanExpiry(ctx context.Context, in ContractExpiryScanI
 		reminder := ContractExpiryReminder{ContractID: item.ID.String(), ContractNumber: item.Number, PartyType: string(item.PartyType), PartyID: item.PartyID, PartyName: item.PartyName, ExpiresAt: item.ExpiresAt, RecipientID: item.OwnerID, NotificationID: notification.ID, TargetPath: targetPath}
 		item.ReminderNotificationID = notification.ID
 		item.MarkExpired(now)
+		if err = s.save(ctx, item); err != nil {
+			return nil, err
+		}
 		s.mu.Lock()
-		s.items[item.ID.String()] = cloneContract(item)
 		s.reminders[item.ID.String()] = reminder
 		s.mu.Unlock()
 		result.CreatedCount++
@@ -375,10 +400,42 @@ func (s *contractService) contractNumberExists(number string) bool {
 	return false
 }
 
-func (s *contractService) save(item *domainpharma.Contract) {
+func (s *contractService) save(ctx context.Context, item *domainpharma.Contract) error {
+	if err := s.repo.Upsert(ctx, item); err != nil {
+		return err
+	}
+	s.storeCached(item)
+	return nil
+}
+
+func (s *contractService) storeCached(item *domainpharma.Contract) {
 	s.mu.Lock()
 	s.items[item.ID.String()] = cloneContract(item)
 	s.mu.Unlock()
+}
+
+func (s *contractService) syncFromRepository(ctx context.Context) error {
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	cached := make(map[string]*domainpharma.Contract, len(items))
+	reminders := map[string]ContractExpiryReminder{}
+	var counter int64
+	for index := range items {
+		item := cloneContract(&items[index])
+		cached[item.ID.String()] = item
+		if sequence := sequenceFromID(item.ID.String(), "contract-"); sequence > counter {
+			counter = sequence
+		}
+		if item.ReminderNotificationID != "" {
+			reminders[item.ID.String()] = ContractExpiryReminder{ContractID: item.ID.String(), ContractNumber: item.Number, PartyType: string(item.PartyType), PartyID: item.PartyID, PartyName: item.PartyName, ExpiresAt: item.ExpiresAt, RecipientID: item.OwnerID, NotificationID: item.ReminderNotificationID, TargetPath: "/skoll/pharma-oa/contracts?contractId=" + item.ID.String()}
+		}
+	}
+	s.mu.Lock()
+	s.items, s.reminders, s.counter = cached, reminders, counter
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *contractService) appendAudit(ctx context.Context, actor, action, resourceID string, detail map[string]any) {

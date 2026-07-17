@@ -68,18 +68,19 @@ type InventoryAlertJobLog struct {
 }
 
 type InventoryAlertJob struct {
-	ID            shared.ID               `json:"id"`
-	Status        InventoryAlertJobStatus `json:"status"`
-	Policy        InventoryAlertPolicy    `json:"policy"`
-	RetryCount    int                     `json:"retryCount"`
-	MatchedCount  int                     `json:"matchedCount"`
-	CreatedCount  int                     `json:"createdCount"`
-	ResolvedCount int                     `json:"resolvedCount"`
-	Error         string                  `json:"error,omitempty"`
-	Logs          []InventoryAlertJobLog  `json:"logs"`
-	CreatedAt     time.Time               `json:"createdAt"`
-	StartedAt     *time.Time              `json:"startedAt,omitempty"`
-	CompletedAt   *time.Time              `json:"completedAt,omitempty"`
+	ID             shared.ID               `json:"id"`
+	Status         InventoryAlertJobStatus `json:"status"`
+	IdempotencyKey string                  `json:"idempotencyKey"`
+	Policy         InventoryAlertPolicy    `json:"policy"`
+	RetryCount     int                     `json:"retryCount"`
+	MatchedCount   int                     `json:"matchedCount"`
+	CreatedCount   int                     `json:"createdCount"`
+	ResolvedCount  int                     `json:"resolvedCount"`
+	Error          string                  `json:"error,omitempty"`
+	Logs           []InventoryAlertJobLog  `json:"logs"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	StartedAt      *time.Time              `json:"startedAt,omitempty"`
+	CompletedAt    *time.Time              `json:"completedAt,omitempty"`
 }
 
 func NewInventoryAlertJob(id shared.ID, policy InventoryAlertPolicy, now time.Time) (*InventoryAlertJob, error) {

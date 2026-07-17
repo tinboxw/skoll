@@ -52,6 +52,8 @@ func TestDB(t *testing.T) *gorm.DB {
 		PharmaWarehouseModel{},
 		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
 		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
+		PharmaContractModel{}, PharmaQualityComplaintModel{}, PharmaDrugRecallModel{}, PharmaCustomerFollowUpModel{}, PharmaSalesOpportunityModel{},
+		PharmaPaymentPlanModel{}, PharmaInvoiceRecordModel{}, PharmaPaymentReminderJobModel{}, PharmaInventoryAlertModel{}, PharmaInventoryAlertJobModel{}, PharmaReportExportJobModel{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
@@ -112,6 +114,8 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 		PharmaWarehouseModel{},
 		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
 		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
+		PharmaContractModel{}, PharmaQualityComplaintModel{}, PharmaDrugRecallModel{}, PharmaCustomerFollowUpModel{}, PharmaSalesOpportunityModel{},
+		PharmaPaymentPlanModel{}, PharmaInvoiceRecordModel{}, PharmaPaymentReminderJobModel{}, PharmaInventoryAlertModel{}, PharmaInventoryAlertJobModel{}, PharmaReportExportJobModel{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)

@@ -12,6 +12,7 @@ import (
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 )
@@ -38,10 +39,15 @@ type inventoryAlertService struct {
 	alerts        map[string]*domainpharma.InventoryAlert
 	nowFn         func() time.Time
 	jobCounter    int64
+	repo          pharmaoarepo.InventoryAlertRepository
 }
 
-func NewInventoryAlertService(stock InventoryAlertStockReader, notifications *notificationsvc.Service, audit auditsvc.Service) InventoryAlertService {
-	return &inventoryAlertService{stock: stock, notifications: notifications, audit: audit, jobs: map[string]*domainpharma.InventoryAlertJob{}, alerts: map[string]*domainpharma.InventoryAlert{}, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewInventoryAlertService(stock InventoryAlertStockReader, notifications *notificationsvc.Service, audit auditsvc.Service, repositories ...pharmaoarepo.InventoryAlertRepository) InventoryAlertService {
+	repo := pharmaoarepo.InventoryAlertRepository(pharmaoarepo.NewMemoryInventoryAlertRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &inventoryAlertService{stock: stock, notifications: notifications, audit: audit, jobs: map[string]*domainpharma.InventoryAlertJob{}, alerts: map[string]*domainpharma.InventoryAlert{}, repo: repo, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *inventoryAlertService) Run(ctx context.Context, policy domainpharma.InventoryAlertPolicy) (*domainpharma.InventoryAlertJob, error) {
@@ -53,17 +59,22 @@ func (s *inventoryAlertService) Run(ctx context.Context, policy domainpharma.Inv
 	}
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	s.jobCounter++
 	id := shared.ID("inventory-alert-job-" + strconv.FormatInt(s.jobCounter, 10))
 	job, err := domainpharma.NewInventoryAlertJob(id, policy, s.nowFn())
-	if err == nil {
-		s.jobs[id.String()] = cloneInventoryAlertJob(job)
-	}
 	s.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
+	job.IdempotencyKey = "inventory-alert:" + id.String()
+	if err = s.repo.CreateJob(ctx, job); err != nil {
+		return nil, err
+	}
+	s.storeJobCached(job)
 	return s.execute(ctx, job, false)
 }
 
@@ -73,6 +84,9 @@ func (s *inventoryAlertService) Retry(ctx context.Context, jobID string) (*domai
 	}
 	s.runMu.Lock()
 	defer s.runMu.Unlock()
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	job := cloneInventoryAlertJob(s.jobs[strings.TrimSpace(jobID)])
 	s.mu.RUnlock()
@@ -91,7 +105,9 @@ func (s *inventoryAlertService) execute(ctx context.Context, job *domainpharma.I
 	if err := job.Start(now); err != nil {
 		return nil, err
 	}
-	s.saveJob(job)
+	if err := s.saveJob(ctx, job); err != nil {
+		return nil, err
+	}
 	balances, err := s.stock.ListBalances(ctx)
 	if err != nil {
 		return s.failJob(ctx, job, err, retry)
@@ -131,7 +147,9 @@ func (s *inventoryAlertService) execute(ctx context.Context, job *domainpharma.I
 	if err = job.Succeed(len(observed), created, resolved, s.nowFn()); err != nil {
 		return s.failJob(ctx, job, err, retry)
 	}
-	s.saveJob(job)
+	if err := s.saveJob(ctx, job); err != nil {
+		return nil, err
+	}
 	s.appendAudit(ctx, "system", "pharma_oa.alert.run", job.ID.String(), map[string]any{"status": job.Status, "matched": job.MatchedCount, "created": job.CreatedCount, "resolved": job.ResolvedCount, "retryCount": job.RetryCount})
 	return cloneInventoryAlertJob(job), nil
 }
@@ -167,6 +185,9 @@ func (s *inventoryAlertService) upsertAlert(ctx context.Context, balance domainp
 		s.mu.Lock()
 		s.alerts[key] = existing
 		s.mu.Unlock()
+		if err := s.repo.UpsertAlert(ctx, existing); err != nil {
+			return false, err
+		}
 		return false, nil
 	}
 	id := shared.ID("inventory-alert-" + string(condition.kind) + "-" + balance.ID.String())
@@ -180,6 +201,9 @@ func (s *inventoryAlertService) upsertAlert(ctx context.Context, balance domainp
 	s.mu.Lock()
 	s.alerts[key] = alert
 	s.mu.Unlock()
+	if err = s.repo.UpsertAlert(ctx, alert); err != nil {
+		return false, err
+	}
 	s.appendAudit(ctx, "system", "pharma_oa.alert.create", alert.ID.String(), map[string]any{"type": alert.Type, "balanceId": alert.BalanceID, "recipientId": alert.RecipientID})
 	return true, nil
 }
@@ -208,6 +232,9 @@ func (s *inventoryAlertService) resolveMissingAlerts(ctx context.Context, observ
 		s.mu.Lock()
 		s.alerts[key] = alert
 		s.mu.Unlock()
+		if err := s.repo.UpsertAlert(ctx, alert); err != nil {
+			return resolved, err
+		}
 		resolved++
 		s.appendAudit(ctx, "system", "pharma_oa.alert.resolve", alert.ID.String(), map[string]any{"type": alert.Type, "balanceId": alert.BalanceID})
 	}
@@ -239,12 +266,21 @@ func inventoryAlertKey(kind domainpharma.InventoryAlertType, balanceID string) s
 
 func (s *inventoryAlertService) failJob(ctx context.Context, job *domainpharma.InventoryAlertJob, cause error, retry bool) (*domainpharma.InventoryAlertJob, error) {
 	job.Fail(cause, s.nowFn())
-	s.saveJob(job)
+	if err := s.saveJob(ctx, job); err != nil {
+		return cloneInventoryAlertJob(job), err
+	}
 	s.appendAudit(ctx, "system", "pharma_oa.alert.fail", job.ID.String(), map[string]any{"error": job.Error, "retry": retry, "retryCount": job.RetryCount})
 	return cloneInventoryAlertJob(job), cause
 }
 
-func (s *inventoryAlertService) saveJob(job *domainpharma.InventoryAlertJob) {
+func (s *inventoryAlertService) saveJob(ctx context.Context, job *domainpharma.InventoryAlertJob) error {
+	if err := s.repo.UpsertJob(ctx, job); err != nil {
+		return err
+	}
+	s.storeJobCached(job)
+	return nil
+}
+func (s *inventoryAlertService) storeJobCached(job *domainpharma.InventoryAlertJob) {
 	s.mu.Lock()
 	s.jobs[job.ID.String()] = cloneInventoryAlertJob(job)
 	s.mu.Unlock()
@@ -252,6 +288,9 @@ func (s *inventoryAlertService) saveJob(job *domainpharma.InventoryAlertJob) {
 
 func (s *inventoryAlertService) ListJobs(ctx context.Context) ([]*domainpharma.InventoryAlertJob, error) {
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.syncFromRepository(ctx); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
@@ -268,6 +307,9 @@ func (s *inventoryAlertService) ListAlerts(ctx context.Context, activeOnly bool)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	out := make([]*domainpharma.InventoryAlert, 0, len(s.alerts))
 	for _, alert := range s.alerts {
@@ -279,6 +321,35 @@ func (s *inventoryAlertService) ListAlerts(ctx context.Context, activeOnly bool)
 	s.mu.RUnlock()
 	sort.Slice(out, func(i, j int) bool { return out[i].ID.String() < out[j].ID.String() })
 	return out, nil
+}
+
+func (s *inventoryAlertService) syncFromRepository(ctx context.Context) error {
+	jobs, err := s.repo.ListJobs(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	alerts, err := s.repo.ListAlerts(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	jobMap := make(map[string]*domainpharma.InventoryAlertJob, len(jobs))
+	alertMap := make(map[string]*domainpharma.InventoryAlert, len(alerts))
+	var counter int64
+	for index := range jobs {
+		item := cloneInventoryAlertJob(&jobs[index])
+		jobMap[item.ID.String()] = item
+		if value := sequenceFromID(item.ID.String(), "inventory-alert-job-"); value > counter {
+			counter = value
+		}
+	}
+	for index := range alerts {
+		item := cloneInventoryAlert(&alerts[index])
+		alertMap[inventoryAlertKey(item.Type, item.BalanceID)] = item
+	}
+	s.mu.Lock()
+	s.jobs, s.alerts, s.jobCounter = jobMap, alertMap, counter
+	s.mu.Unlock()
+	return nil
 }
 
 func cloneInventoryAlert(alert *domainpharma.InventoryAlert) *domainpharma.InventoryAlert {

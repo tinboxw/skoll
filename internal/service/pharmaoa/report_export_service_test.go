@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +14,10 @@ import (
 	domainfile "github.com/tinboxw/skoll/internal/domain/file"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
+	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type reportMetricsFixture struct {
@@ -34,23 +39,75 @@ func (f *reportMetricsFixture) Get(_ context.Context, _ BusinessMetricsInput) (*
 }
 
 type reportFileFixture struct {
-	mu     sync.Mutex
-	input  filesvc.UploadInput
-	body   string
-	err    error
-	fileID string
+	mu      sync.Mutex
+	input   filesvc.UploadInput
+	body    string
+	err     error
+	fileID  string
+	uploads int
 }
 
 func (f *reportFileFixture) Upload(_ context.Context, in filesvc.UploadInput) (*domainfile.FileObject, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.input = in
+	f.uploads++
 	raw, _ := io.ReadAll(in.Body)
 	f.body = string(raw)
 	if f.err != nil {
 		return nil, f.err
 	}
 	return &domainfile.FileObject{ID: shared.ID(f.fileID)}, nil
+}
+
+func TestReportExportServiceRestartPreservesIdempotentResult(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "report-export.db")
+	open := func() *gorm.DB {
+		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.AutoMigrate(&gormrepo.PharmaReportExportJobModel{}); err != nil {
+			t.Fatal(err)
+		}
+		return db
+	}
+	files := &reportFileFixture{fileID: "file-restart"}
+	input := ReportExportCreateInput{
+		ReportType: ReportExportBusinessMetrics,
+		From:       time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+		To:         time.Date(2026, 7, 2, 0, 0, 0, 0, time.UTC),
+		Bucket:     BusinessMetricsBucketDay,
+		ActorID:    "manager-1",
+	}
+	db := open()
+	first := NewReportExportService(&reportMetricsFixture{snapshot: reportSnapshot()}, files, nil, gormrepo.NewPharmaReportExportJobStore(db)).(*reportExportService)
+	first.dispatch = func(run func()) { run() }
+	queued, err := first.Queue(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed, err := first.Get(context.Background(), queued.ID, input.ActorID)
+	if err != nil || completed.Status != ReportExportSucceeded {
+		t.Fatalf("first service completion: %+v %v", completed, err)
+	}
+	sqlDB, _ := db.DB()
+	_ = sqlDB.Close()
+
+	db = open()
+	defer func() {
+		sqlDB, _ := db.DB()
+		_ = sqlDB.Close()
+	}()
+	second := NewReportExportService(&reportMetricsFixture{snapshot: reportSnapshot()}, files, nil, gormrepo.NewPharmaReportExportJobStore(db)).(*reportExportService)
+	second.dispatch = func(run func()) { run() }
+	replayed, err := second.Queue(context.Background(), input)
+	if err != nil || replayed.ID != queued.ID || replayed.Status != ReportExportSucceeded {
+		t.Fatalf("restart idempotency: first=%+v replayed=%+v err=%v", completed, replayed, err)
+	}
+	if files.uploads != 1 {
+		t.Fatalf("restart replay created duplicate file: uploads=%d", files.uploads)
+	}
 }
 
 type reportAuditFixture struct {

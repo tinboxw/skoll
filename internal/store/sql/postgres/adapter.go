@@ -21,28 +21,38 @@ import (
 )
 
 type Adapter struct {
-	dsn       string
-	db        *gorm.DB
-	user      userrepo.UserRepository
-	role      rolerepo.RoleRepository
-	rbac      rbacrepo.RBACRepository
-	sys       systemrepo.SystemRepository
-	plg       pluginrepo.PluginRepository
-	perm      permissionrepo.PermissionRepository
-	menu      menurepo.MenuRepository
-	file      filerepo.FileRepository
-	org       organizationrepo.OrganizationRepository
-	employee  pharmaoarepo.EmployeeRepository
-	product   pharmaoarepo.ProductRepository
-	supplier  pharmaoarepo.SupplierRepository
-	customer  pharmaoarepo.CustomerRepository
-	warehouse pharmaoarepo.WarehouseRepository
-	inventory pharmaoarepo.InventoryRepository
-	purchase  pharmaoarepo.PurchaseRepository
-	inbound   pharmaoarepo.PurchaseInboundRepository
-	sales     pharmaoarepo.SalesRepository
-	stocktake pharmaoarepo.StocktakeRepository
-	transfer  pharmaoarepo.TransferRepository
+	dsn                string
+	db                 *gorm.DB
+	user               userrepo.UserRepository
+	role               rolerepo.RoleRepository
+	rbac               rbacrepo.RBACRepository
+	sys                systemrepo.SystemRepository
+	plg                pluginrepo.PluginRepository
+	perm               permissionrepo.PermissionRepository
+	menu               menurepo.MenuRepository
+	file               filerepo.FileRepository
+	org                organizationrepo.OrganizationRepository
+	employee           pharmaoarepo.EmployeeRepository
+	product            pharmaoarepo.ProductRepository
+	supplier           pharmaoarepo.SupplierRepository
+	customer           pharmaoarepo.CustomerRepository
+	warehouse          pharmaoarepo.WarehouseRepository
+	inventory          pharmaoarepo.InventoryRepository
+	purchase           pharmaoarepo.PurchaseRepository
+	inbound            pharmaoarepo.PurchaseInboundRepository
+	sales              pharmaoarepo.SalesRepository
+	stocktake          pharmaoarepo.StocktakeRepository
+	transfer           pharmaoarepo.TransferRepository
+	contract           pharmaoarepo.ContractRepository
+	complaint          pharmaoarepo.QualityComplaintRepository
+	recall             pharmaoarepo.DrugRecallRepository
+	followUp           pharmaoarepo.CustomerFollowUpRepository
+	opportunity        pharmaoarepo.SalesOpportunityRepository
+	paymentPlan        pharmaoarepo.PaymentPlanRepository
+	invoice            pharmaoarepo.InvoiceRecordRepository
+	paymentReminderJob pharmaoarepo.PaymentReminderJobRepository
+	inventoryAlert     pharmaoarepo.InventoryAlertRepository
+	reportExport       pharmaoarepo.ReportExportJobRepository
 }
 
 func NewAdapter(dsn string) (*Adapter, error) {
@@ -58,28 +68,38 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		return nil, fmt.Errorf("auto migrate postgres schema: %w", err)
 	}
 	return &Adapter{
-		dsn:       resolvedDSN,
-		db:        db,
-		user:      gormrepo.NewUserStore(db),
-		role:      gormrepo.NewRoleStore(db, normalizeRoleKey),
-		rbac:      gormrepo.NewRBACStore(db),
-		sys:       gormrepo.NewSystemStore(db, normalizeSettingKey),
-		plg:       gormrepo.NewPluginStore(db),
-		perm:      gormrepo.NewPermissionStore(db),
-		menu:      gormrepo.NewMenuStore(db),
-		file:      gormrepo.NewFileStore(db),
-		org:       gormrepo.NewOrganizationStore(db),
-		employee:  gormrepo.NewPharmaEmployeeStore(db),
-		product:   gormrepo.NewPharmaProductStore(db),
-		supplier:  gormrepo.NewPharmaSupplierStore(db),
-		customer:  gormrepo.NewPharmaCustomerStore(db),
-		warehouse: gormrepo.NewPharmaWarehouseStore(db),
-		inventory: gormrepo.NewPharmaInventoryStore(db),
-		purchase:  gormrepo.NewPharmaPurchaseStore(db),
-		inbound:   gormrepo.NewPharmaPurchaseInboundStore(db),
-		sales:     gormrepo.NewPharmaSalesStore(db),
-		stocktake: gormrepo.NewPharmaStocktakeStore(db),
-		transfer:  gormrepo.NewPharmaTransferStore(db),
+		dsn:                resolvedDSN,
+		db:                 db,
+		user:               gormrepo.NewUserStore(db),
+		role:               gormrepo.NewRoleStore(db, normalizeRoleKey),
+		rbac:               gormrepo.NewRBACStore(db),
+		sys:                gormrepo.NewSystemStore(db, normalizeSettingKey),
+		plg:                gormrepo.NewPluginStore(db),
+		perm:               gormrepo.NewPermissionStore(db),
+		menu:               gormrepo.NewMenuStore(db),
+		file:               gormrepo.NewFileStore(db),
+		org:                gormrepo.NewOrganizationStore(db),
+		employee:           gormrepo.NewPharmaEmployeeStore(db),
+		product:            gormrepo.NewPharmaProductStore(db),
+		supplier:           gormrepo.NewPharmaSupplierStore(db),
+		customer:           gormrepo.NewPharmaCustomerStore(db),
+		warehouse:          gormrepo.NewPharmaWarehouseStore(db),
+		inventory:          gormrepo.NewPharmaInventoryStore(db),
+		purchase:           gormrepo.NewPharmaPurchaseStore(db),
+		inbound:            gormrepo.NewPharmaPurchaseInboundStore(db),
+		sales:              gormrepo.NewPharmaSalesStore(db),
+		stocktake:          gormrepo.NewPharmaStocktakeStore(db),
+		transfer:           gormrepo.NewPharmaTransferStore(db),
+		contract:           gormrepo.NewPharmaContractStore(db),
+		complaint:          gormrepo.NewPharmaQualityComplaintStore(db),
+		recall:             gormrepo.NewPharmaDrugRecallStore(db),
+		followUp:           gormrepo.NewPharmaCustomerFollowUpStore(db),
+		opportunity:        gormrepo.NewPharmaSalesOpportunityStore(db),
+		paymentPlan:        gormrepo.NewPharmaPaymentPlanStore(db),
+		invoice:            gormrepo.NewPharmaInvoiceRecordStore(db),
+		paymentReminderJob: gormrepo.NewPharmaPaymentReminderJobStore(db),
+		inventoryAlert:     gormrepo.NewPharmaInventoryAlertStore(db),
+		reportExport:       gormrepo.NewPharmaReportExportJobStore(db),
 	}, nil
 }
 
@@ -132,6 +152,32 @@ func (a *Adapter) PharmaPurchaseInboundRepository() pharmaoarepo.PurchaseInbound
 func (a *Adapter) PharmaSalesRepository() pharmaoarepo.SalesRepository         { return a.sales }
 func (a *Adapter) PharmaStocktakeRepository() pharmaoarepo.StocktakeRepository { return a.stocktake }
 func (a *Adapter) PharmaTransferRepository() pharmaoarepo.TransferRepository   { return a.transfer }
+func (a *Adapter) PharmaContractRepository() pharmaoarepo.ContractRepository   { return a.contract }
+func (a *Adapter) PharmaQualityComplaintRepository() pharmaoarepo.QualityComplaintRepository {
+	return a.complaint
+}
+func (a *Adapter) PharmaDrugRecallRepository() pharmaoarepo.DrugRecallRepository { return a.recall }
+func (a *Adapter) PharmaCustomerFollowUpRepository() pharmaoarepo.CustomerFollowUpRepository {
+	return a.followUp
+}
+func (a *Adapter) PharmaSalesOpportunityRepository() pharmaoarepo.SalesOpportunityRepository {
+	return a.opportunity
+}
+func (a *Adapter) PharmaPaymentPlanRepository() pharmaoarepo.PaymentPlanRepository {
+	return a.paymentPlan
+}
+func (a *Adapter) PharmaInvoiceRecordRepository() pharmaoarepo.InvoiceRecordRepository {
+	return a.invoice
+}
+func (a *Adapter) PharmaPaymentReminderJobRepository() pharmaoarepo.PaymentReminderJobRepository {
+	return a.paymentReminderJob
+}
+func (a *Adapter) PharmaInventoryAlertRepository() pharmaoarepo.InventoryAlertRepository {
+	return a.inventoryAlert
+}
+func (a *Adapter) PharmaReportExportJobRepository() pharmaoarepo.ReportExportJobRepository {
+	return a.reportExport
+}
 
 func (a *Adapter) DB() *gorm.DB {
 	return a.db

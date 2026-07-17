@@ -11,6 +11,7 @@ import (
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 )
 
@@ -57,6 +58,7 @@ type recallComplaintReader interface {
 type drugRecallService struct {
 	mu         sync.RWMutex
 	createMu   sync.Mutex
+	actionMu   sync.Mutex
 	items      map[string]*domainpharma.DrugRecall
 	sales      recallSalesReader
 	inventory  recallInventoryReader
@@ -66,10 +68,15 @@ type drugRecallService struct {
 	audit      auditsvc.Service
 	nowFn      func() time.Time
 	counter    int64
+	repo       pharmaoarepo.DrugRecallRepository
 }
 
-func NewDrugRecallService(sales recallSalesReader, inventory recallInventoryReader, products ProductService, customers CustomerService, complaints recallComplaintReader, audit auditsvc.Service) DrugRecallService {
-	return &drugRecallService{items: map[string]*domainpharma.DrugRecall{}, sales: sales, inventory: inventory, products: products, customers: customers, complaints: complaints, audit: audit, nowFn: func() time.Time { return time.Now().UTC() }}
+func NewDrugRecallService(sales recallSalesReader, inventory recallInventoryReader, products ProductService, customers CustomerService, complaints recallComplaintReader, audit auditsvc.Service, repositories ...pharmaoarepo.DrugRecallRepository) DrugRecallService {
+	repo := pharmaoarepo.DrugRecallRepository(pharmaoarepo.NewMemoryDrugRecallRepository())
+	if len(repositories) > 0 && repositories[0] != nil {
+		repo = repositories[0]
+	}
+	return &drugRecallService{items: map[string]*domainpharma.DrugRecall{}, sales: sales, inventory: inventory, products: products, customers: customers, complaints: complaints, audit: audit, repo: repo, nowFn: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *drugRecallService) Create(ctx context.Context, in DrugRecallCreateInput) (*domainpharma.DrugRecall, error) {
@@ -96,6 +103,9 @@ func (s *drugRecallService) Create(ctx context.Context, in DrugRecallCreateInput
 	}
 	s.createMu.Lock()
 	defer s.createMu.Unlock()
+	if err = s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	if s.numberExistsLocked(in.Number) {
 		s.mu.Unlock()
@@ -108,14 +118,18 @@ func (s *drugRecallService) Create(ctx context.Context, in DrugRecallCreateInput
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.items[item.ID.String()] = cloneDrugRecall(item)
-	s.mu.Unlock()
+	if err = s.repo.Create(ctx, item); err != nil {
+		return nil, err
+	}
+	s.storeCached(item)
 	s.appendAudit(ctx, in.ActorID, "pharma_oa.drug_recall.create", item.ID.String(), map[string]any{"batchId": item.BatchID, "batchNo": item.BatchNo, "productId": item.ProductID, "sourceComplaintId": item.SourceComplaintID, "affectedCustomers": len(item.Tasks)})
 	return cloneDrugRecall(item), nil
 }
 
-func (s *drugRecallService) List(_ context.Context, in DrugRecallListInput) ([]*domainpharma.DrugRecall, error) {
+func (s *drugRecallService) List(ctx context.Context, in DrugRecallListInput) ([]*domainpharma.DrugRecall, error) {
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	if in.Status != "" && in.Status != domainpharma.DrugRecallActive && in.Status != domainpharma.DrugRecallCompleted {
 		return nil, fmt.Errorf("invalid drug recall status: %s", in.Status)
 	}
@@ -136,7 +150,10 @@ func (s *drugRecallService) List(_ context.Context, in DrugRecallListInput) ([]*
 	return out, nil
 }
 
-func (s *drugRecallService) Get(_ context.Context, id string) (*domainpharma.DrugRecall, error) {
+func (s *drugRecallService) Get(ctx context.Context, id string) (*domainpharma.DrugRecall, error) {
+	if err := s.syncFromRepository(ctx); err != nil {
+		return nil, err
+	}
 	s.mu.RLock()
 	item := cloneDrugRecall(s.items[strings.TrimSpace(id)])
 	s.mu.RUnlock()
@@ -167,20 +184,24 @@ func (s *drugRecallService) PreviewScope(ctx context.Context, batchID string) ([
 }
 
 func (s *drugRecallService) CompleteTask(ctx context.Context, recallID, taskID string, in DrugRecallTaskCompleteInput) (*domainpharma.DrugRecall, error) {
-	s.mu.Lock()
-	item := s.items[strings.TrimSpace(recallID)]
-	if item == nil {
-		s.mu.Unlock()
-		return nil, fmt.Errorf("drug recall not found")
+	s.actionMu.Lock()
+	defer s.actionMu.Unlock()
+	item, err := s.Get(ctx, recallID)
+	if err != nil {
+		return nil, err
 	}
 	wasCompleted := item.Status == domainpharma.DrugRecallCompleted
 	changed, err := item.CompleteTask(taskID, in.ActorID, in.Note, s.nowFn())
 	if err != nil {
-		s.mu.Unlock()
 		return nil, err
 	}
 	out := cloneDrugRecall(item)
-	s.mu.Unlock()
+	if changed {
+		if err = s.repo.Upsert(ctx, out); err != nil {
+			return nil, err
+		}
+		s.storeCached(out)
+	}
 	if changed {
 		s.appendAudit(ctx, in.ActorID, "pharma_oa.drug_recall.task_complete", out.ID.String(), map[string]any{"taskId": strings.TrimSpace(taskID), "note": strings.TrimSpace(in.Note), "status": out.Status})
 		if !wasCompleted && out.Status == domainpharma.DrugRecallCompleted {
@@ -315,6 +336,32 @@ func (s *drugRecallService) numberExistsLocked(number string) bool {
 		}
 	}
 	return false
+}
+
+func (s *drugRecallService) storeCached(item *domainpharma.DrugRecall) {
+	s.mu.Lock()
+	s.items[item.ID.String()] = cloneDrugRecall(item)
+	s.mu.Unlock()
+}
+
+func (s *drugRecallService) syncFromRepository(ctx context.Context) error {
+	items, err := s.repo.List(ctx, pharmaoarepo.ListFilter{})
+	if err != nil {
+		return err
+	}
+	cached := make(map[string]*domainpharma.DrugRecall, len(items))
+	var counter int64
+	for index := range items {
+		item := cloneDrugRecall(&items[index])
+		cached[item.ID.String()] = item
+		if sequence := sequenceFromID(item.ID.String(), "drug-recall-"); sequence > counter {
+			counter = sequence
+		}
+	}
+	s.mu.Lock()
+	s.items, s.counter = cached, counter
+	s.mu.Unlock()
+	return nil
 }
 
 func (s *drugRecallService) appendAudit(ctx context.Context, actor, action, id string, detail map[string]any) {
