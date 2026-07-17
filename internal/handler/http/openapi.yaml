@@ -4416,6 +4416,12 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Skoll JWT access token. Aggregated plugin API operations require this scheme and declare x-skoll-permission.
   schemas:
     ContractCreateRequest:
       type: object

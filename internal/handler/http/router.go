@@ -95,7 +95,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	apiMux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		WriteMessage(w, http.StatusOK, "ok", "ok")
 	})
-	registerDocumentationRoutes(apiMux, apiPrefix)
+	registerDocumentationRoutes(apiMux, apiPrefix, deps.PluginManager)
 
 	userhttp.RegisterUserRoutes(apiMux, deps.UserService, deps.RBACService, deps.AuditService)
 	rolehttp.RegisterRoleRoutes(apiMux, deps.RoleService, deps.UserService, deps.RBACService, deps.AuditService)
@@ -271,22 +271,23 @@ func safeHandleFunc(mux *http.ServeMux, pattern string, handler func(http.Respon
 	return true
 }
 
-func registerDocumentationRoutes(mux *http.ServeMux, apiPrefix string) {
+func registerDocumentationRoutes(mux *http.ServeMux, apiPrefix string, manager plugin.Manager) {
 	if mux == nil {
 		return
 	}
 	mux.HandleFunc("GET /docs/openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
-		serveOpenAPIYAML(w, apiPrefix)
+		serveOpenAPIYAML(w, apiPrefix, manager)
 	})
 	mux.HandleFunc("GET /docs/swagger", func(w http.ResponseWriter, r *http.Request) {
 		serveSwaggerUI(w, r, apiPrefix)
 	})
 }
 
-func serveOpenAPIYAML(w http.ResponseWriter, apiPrefix string) {
+func serveOpenAPIYAML(w http.ResponseWriter, apiPrefix string, manager plugin.Manager) {
 	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	doc := strings.ReplaceAll(openAPIYAMLDocument, "__API_BASE_PREFIX__", normalizeAPIPrefix(apiPrefix))
+	doc = aggregatePluginOpenAPI(doc, manager)
 	_, _ = w.Write([]byte(doc))
 }
 

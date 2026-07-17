@@ -151,3 +151,58 @@ Result: `go test ./internal/plugin/...`、插件 lifecycle smoke、相关包定�
 ### Next Step
 
 领取 `H1-04`，同步插件路由权限的聚合 OpenAPI、安全元数据与中英文开发文档。
+
+## H1-04 Retry Log
+
+| 尝试 | 状态 | 失败证据 | 重试动作 |
+| --- | --- | --- | --- |
+| 1 | Failed | 聚合 OpenAPI 定向测试可解析 YAML，但启用插件测试路由未进入 `paths` | 检查 route descriptor 过滤条件，修复聚合输入后将任务恢复为 `Doing` 并重跑同一验收 |
+| 2 | Failed | race、全量测试与 vet 的组合命令超过 120 秒被终止，未取得完整退出码 | 拆分门禁并延长超时，逐项取得明确结果后再验收 |
+| 3 | Failed | 隔离 memory 进程中安装并启用 `pharma_oa` 后，`/docs/openapi.yaml` 未出现声明路由 | 检查 bootstrap 到 Router 的 Manager/snapshot provider 依赖注入并补真实依赖链测试 |
+
+- First retry finding: Windows 工作区中的嵌入 OpenAPI 使用 CRLF，聚合插入点仅匹配 LF；route descriptor 校验和渲染内容正常。
+- First retry action: 聚合器同时识别 CRLF 与 LF，状态已恢复为 `Doing`。
+- Second retry action: 门禁已拆分并提高超时，状态已恢复为 `Doing`。
+- Third retry finding: 运行时 debug 已暴露 119 条 `pharma_oa` route snapshot；PowerShell 将 YAML 响应作为 `byte[]` 返回，验收脚本直接执行字符串 `Contains` 导致误报。
+- Third retry action: 按 UTF-8 解码响应字节后重跑运行时文档断言，状态已恢复为 `Doing`。
+
+## H1-04 同步插件路由权限 OpenAPI 与开发指南
+
+- Date: 2026-07-18
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 为启用插件的当前 manifest 路由聚合 OpenAPI JWT、权限、审计与来源元数据，并同步双份基线规范和中英文开发文档。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 聚合路由 | Pass | `/docs/openapi.yaml` 按当前启用插件的 route snapshot 动态聚合；只接受通过既有 route permission registry 校验的声明 |
+| 认证与权限 | Pass | 每个聚合 operation 声明 `security: bearerAuth`、`x-skoll-permission`、plugin id/source，并在 manifest 有声明时附带 `x-skoll-audit-action` |
+| 生命周期 | Pass | 单元测试与隔离 memory 进程均验证 Enabled 展示、Disabled 移除、重新 Enabled 恢复；无效权限声明不进入 OpenAPI |
+| OpenAPI 基线 | Pass | `docs/api/openapi.yaml` 与 `internal/handler/http/openapi.yaml` 完全一致，均定义 HTTP Bearer JWT `bearerAuth`；引用解析通过 |
+| 双语文档 | Pass | `plugin-api-contract.md` 以中文为默认入口，英文版内容对齐；开发索引和插件教程均可进入，示例只使用当前 `plugin.yaml` 格式 |
+| 文档链接 | Pass | 四份受影响开发文档的相对 Markdown 链接全部存在 |
+| 质量门禁 | Pass | 定向 HTTP/plugin 测试、focused race、`go test ./...`、`go vet ./...`、运行时矩阵、diff/边界检查均通过 |
+| 影响面 | Pass | 未新增 HTTP handler、permission key、audit action、migration/seed 或前端页面；仅同步已声明插件路由的运行时文档契约 |
+| CodeGraph | Pass | 索引已同步到 669 files / 13,955 nodes / 41,856 edges，状态为 up to date；未修改 `docs/refactor/old/` |
+
+### Verification Commands
+
+```powershell
+go test ./internal/handler/http/... ./internal/plugin/... -count=1
+go test -race ./internal/handler/http ./internal/plugin/... -count=1
+go test ./... -count=1
+go vet ./...
+Compare-Object (Get-Content -Encoding UTF8 docs/api/openapi.yaml) (Get-Content -Encoding UTF8 internal/handler/http/openapi.yaml)
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Runtime Evidence
+
+隔离 memory 实例使用当前 `plugins/pharma_oa/plugin.yaml`：启用时员工路由及 `bearerAuth`、permission、audit 元数据存在；禁用后路径移除；重新启用后恢复。验收进程已停止。
+
+### Next Step
+
+H1 父任务全部完成。按正式 Work Item 顺序领取 `H2-01`，定义 Pharma OA 持久化契约与 schema 基线。

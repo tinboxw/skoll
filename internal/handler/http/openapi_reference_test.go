@@ -21,6 +21,11 @@ func TestEmbeddedOpenAPIReferencesResolve(t *testing.T) {
 		}
 	}
 	components := openAPIMap(t, document["components"], "components")
+	securitySchemes := openAPIMap(t, components["securitySchemes"], "components.securitySchemes")
+	bearerAuth := openAPIMap(t, securitySchemes["bearerAuth"], "components.securitySchemes.bearerAuth")
+	if bearerAuth["type"] != "http" || bearerAuth["scheme"] != "bearer" {
+		t.Fatalf("invalid bearerAuth security scheme: %+v", bearerAuth)
+	}
 	schemas := openAPIMap(t, components["schemas"], "components.schemas")
 	for name := range schemas {
 		if strings.HasPrefix(strings.TrimSpace(name), "+") {

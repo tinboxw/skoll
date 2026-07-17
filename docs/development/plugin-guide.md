@@ -1,5 +1,7 @@
 # 插件开发教程
 
+> 业务 API、权限和聚合 OpenAPI 的当前格式见 [插件 API 与 OpenAPI 契约](plugin-api-contract.md)，英文版见 [Plugin API and OpenAPI Contract](plugin-api-contract.en.md)。
+
 ## 1. 概述
 
 Skoll 提供完整的插件系统，支持业务功能通过插件方式扩展。插件按 `ui_mode` 分为四种类型：
