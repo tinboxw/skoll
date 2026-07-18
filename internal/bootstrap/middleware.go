@@ -77,7 +77,7 @@ func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker
 			guarded = true
 		}
 
-		if !isRoleBypass(claims.Role) && guarded {
+		if !claims.HasRole("super_admin") && guarded {
 			if checker == nil {
 				appendPermissionDeniedAudit(r, auditSink, claims.Subject, claims.Role, resource, action, "permission_checker_not_configured")
 				writePermissionDenied(w, r, pluginBusinessRoute, "permission denied")

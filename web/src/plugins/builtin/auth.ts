@@ -45,6 +45,9 @@ const AuthPage = defineComponent({
         name?: string;
         email?: string;
         role?: string;
+		roles?: string[];
+		organizationId?: string;
+		organizationPath?: string[];
       };
     };
 
@@ -70,6 +73,9 @@ const AuthPage = defineComponent({
           id: payload.data?.user?.id?.trim() || profileName,
           name: profileName,
           role: payload.data?.user?.role?.trim() || "user",
+		  roles: Array.isArray(payload.data?.user?.roles) ? payload.data.user.roles : [payload.data?.user?.role?.trim() || "user"],
+		  organizationId: payload.data?.user?.organizationId?.trim() || "",
+		  organizationPath: Array.isArray(payload.data?.user?.organizationPath) ? payload.data.user.organizationPath : [],
           email: payload.data?.user?.email?.trim() || ""
         }, Array.isArray(payload.data?.permissions) ? payload.data.permissions : []);
         await userStore.hydrateProfile();

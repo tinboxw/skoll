@@ -171,7 +171,7 @@ type permissionCatalogEnvelope struct {
 func issueSuperAdminToken(t *testing.T, secret string) string {
 	t.Helper()
 
-	token, err := security.SignJWT(secret, "1", "super_admin", time.Hour, time.Now().UTC())
+	token, err := security.SignJWT(secret, security.JWTIdentity{Subject: "1", Role: "super_admin", Roles: []string{"super_admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign integration jwt: %v", err)
 	}

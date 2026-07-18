@@ -32,6 +32,18 @@ Authorization: Bearer <jwt_token>
 
 JWT 密钥通过 `SKOLL_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置项设置，默认值为 `dev-secret-change-me`（仅限开发环境）。
 
+登录成功后，JWT 由服务端写入以下受信任身份声明：
+
+| 声明 | 说明 |
+|------|------|
+| `sub` | 用户 ID，由用户仓储解析 |
+| `organizationId` | 用户当前部门 ID；未分配组织时为空 |
+| `organizationPath` | 从根部门到当前部门的 ID 路径，最后一项必须等于 `organizationId` |
+| `role` | 用于展示和审计上下文的主角色 |
+| `roles` | 从服务端 RBAC 绑定解析的全部角色键 |
+
+客户端提交的 `organizationId`、`organizationPath`、`role` 或 `roles` 不参与身份签发。组织不存在或父链无效时，登录以 `invalid_organization` 拒绝；请求格式错误、凭据错误和会话失效分别使用 `invalid_auth_request`、`invalid_credentials`、`unauthorized`。前端按稳定错误码提供中文和英文消息，默认显示中文。
+
 ## 3. 通用响应格式
 
 所有 API 返回统一 JSON 格式（`internal/handler/http/response.go`）：

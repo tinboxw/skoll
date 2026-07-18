@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,15 +12,15 @@ import (
 
 func TestAuthMiddleware(t *testing.T) {
 	const jwtSecret = "test-secret"
-	validToken, err := security.SignJWT(jwtSecret, "u1", "admin", time.Hour, time.Now().UTC())
+	validToken, err := security.SignJWT(jwtSecret, security.JWTIdentity{Subject: "u1", Role: "admin", Roles: []string{"admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign valid token: %v", err)
 	}
-	wrongSecretToken, err := security.SignJWT("wrong-secret", "u1", "admin", time.Hour, time.Now().UTC())
+	wrongSecretToken, err := security.SignJWT("wrong-secret", security.JWTIdentity{Subject: "u1", Role: "admin", Roles: []string{"admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign wrong-secret token: %v", err)
 	}
-	expiredToken, err := security.SignJWT(jwtSecret, "u1", "admin", time.Second, time.Now().UTC().Add(-2*time.Second))
+	expiredToken, err := security.SignJWT(jwtSecret, security.JWTIdentity{Subject: "u1", Role: "admin", Roles: []string{"admin"}}, time.Second, time.Now().UTC().Add(-2*time.Second))
 	if err != nil {
 		t.Fatalf("sign expired token: %v", err)
 	}
@@ -40,6 +41,10 @@ func TestAuthMiddleware(t *testing.T) {
 	h.ServeHTTP(resp, req)
 	if resp.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", resp.Code)
+	}
+	var unauthorizedBody map[string]string
+	if err := json.Unmarshal(resp.Body.Bytes(), &unauthorizedBody); err != nil || unauthorizedBody["code"] != "unauthorized" {
+		t.Fatalf("expected stable unauthorized response, got body=%s err=%v", resp.Body.String(), err)
 	}
 
 	reqBearerInvalid := httptest.NewRequest(http.MethodGet, "/skoll/v1/users", nil)

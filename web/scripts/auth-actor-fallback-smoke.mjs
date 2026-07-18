@@ -1,11 +1,13 @@
 const baseUrl = (process.env.SKOLL_API_BASE || "http://127.0.0.1:8080").replace(/\/$/, "");
 const apiBasePrefix = (process.env.SKOLL_API_BASE_PREFIX || "/skoll").replace(/\/+$/, "") || "/skoll";
+const account = process.env.SKOLL_AUTH_ACCOUNT || "admin";
+const password = process.env.SKOLL_AUTH_PASSWORD || "Admin@123456";
 
 async function login() {
   const resp = await fetch(`${baseUrl}${apiBasePrefix}/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ account: "admin", password: "admin" })
+    body: JSON.stringify({ account, password })
   });
   if (!resp.ok) {
     throw new Error(`auth login failed with status ${resp.status}`);

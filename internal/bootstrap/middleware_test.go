@@ -118,7 +118,7 @@ func TestAuthGuardMiddlewareValidatesJWT(t *testing.T) {
 		t.Fatalf("expected 401 for bad token, got %d", badResp.Code)
 	}
 
-	token, err := security.SignJWT("test-secret", "admin", "super_admin", time.Hour, time.Now().UTC())
+	token, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "admin", Role: "super_admin", Roles: []string{"super_admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign jwt: %v", err)
 	}
@@ -144,7 +144,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	tokenAlice, err := security.SignJWT("test-secret", "alice", "editor", time.Hour, time.Now().UTC())
+	tokenAlice, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "alice", Role: "editor", Roles: []string{"editor"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign jwt alice: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 		t.Fatalf("expected 200 for allowed permission, got %d", respAllowed.Code)
 	}
 
-	tokenBob, err := security.SignJWT("test-secret", "bob", "editor", time.Hour, time.Now().UTC())
+	tokenBob, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "bob", Role: "editor", Roles: []string{"editor"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign jwt bob: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 		t.Fatalf("expected 403 for denied permission, got %d", respDenied.Code)
 	}
 
-	tokenSuper, err := security.SignJWT("test-secret", "root", "super_admin", time.Hour, time.Now().UTC())
+	tokenSuper, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "root", Role: "super_admin", Roles: []string{"super_admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign jwt super: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestAuthGuardMiddlewareAuditsPermissionDenied(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	token, err := security.SignJWT("test-secret", "bob", "editor", time.Hour, time.Now().UTC())
+	token, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "bob", Role: "editor", Roles: []string{"editor"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign jwt bob: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	allowedToken, err := security.SignJWT("test-secret", "approver", "manager", time.Hour, time.Now().UTC())
+	allowedToken, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "approver", Role: "manager", Roles: []string{"manager"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign allowed jwt: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
 	if allowedResp.Code != http.StatusOK {
 		t.Fatalf("allowed status=%d body=%s", allowedResp.Code, allowedResp.Body.String())
 	}
-	deniedToken, err := security.SignJWT("test-secret", "viewer", "employee", time.Hour, time.Now().UTC())
+	deniedToken, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "viewer", Role: "employee", Roles: []string{"employee"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign denied jwt: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestAuthGuardMiddlewarePluginRouteFailsClosed(t *testing.T) {
 		t.Fatalf("plugin API must require JWT when global auth is disabled: status=%d body=%s", anonymousResp.Code, anonymousResp.Body.String())
 	}
 
-	token, err := security.SignJWT("test-secret", "alice", "editor", time.Hour, time.Now().UTC())
+	token, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "alice", Role: "editor", Roles: []string{"editor"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign editor jwt: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestAuthGuardMiddlewarePluginRouteFailsClosed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create empty route permission resolver: %v", err)
 	}
-	superToken, err := security.SignJWT("test-secret", "root", "super_admin", time.Hour, time.Now().UTC())
+	superToken, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "root", Role: "super_admin", Roles: []string{"super_admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign super admin jwt: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestAuthGuardMiddlewarePluginRoutePermissionMatrixAndCustomPrefix(t *testin
 	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	h := authGuardMiddleware(AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{}}, "/gateway", "test-secret", checker, resolver, events, next)
 
-	aliceToken, err := security.SignJWT("test-secret", "alice", "editor", time.Hour, time.Now().UTC())
+	aliceToken, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "alice", Role: "editor", Roles: []string{"editor"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign alice jwt: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestAuthGuardMiddlewarePluginRoutePermissionMatrixAndCustomPrefix(t *testin
 	}
 	assertPluginRouteAudit(t, events, "demo.items.read", "demo.items.read", http.StatusOK)
 
-	bobToken, err := security.SignJWT("test-secret", "bob", "viewer", time.Hour, time.Now().UTC())
+	bobToken, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "bob", Role: "viewer", Roles: []string{"viewer"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign bob jwt: %v", err)
 	}
@@ -401,7 +401,7 @@ func TestAuthGuardMiddlewarePluginRoutePermissionMatrixAndCustomPrefix(t *testin
 	}
 	assertPermissionDeniedReason(t, events, "demo.items", "read", "permission_denied")
 
-	superToken, err := security.SignJWT("test-secret", "root", "super_admin", time.Hour, time.Now().UTC())
+	superToken, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "root", Role: "super_admin", Roles: []string{"super_admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("sign super admin jwt: %v", err)
 	}

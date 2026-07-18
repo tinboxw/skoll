@@ -415,3 +415,55 @@ git diff --check
 | 1 | Failed | 首轮主数据 repository 契约测试编译失败：fixture 将供应商的 `Primary`、`MimeType` 字段误用于客户联系人/附件 | 按当前 customer domain 字段修正 fixture，将 Work Item 恢复为 `Doing`，重跑同一验收命令 |
 | 2 | Failed | 尝试启动一次性 MySQL 容器时 Docker Desktop Linux engine `_ping` 返回 HTTP 500，容器未创建 | 检查并恢复 Docker engine；成功后继续 MySQL/PostgreSQL 实库契约，仍不可用则保留明确环境证据并由 H2-05 数据库环境门复验 |
 | 3 | Failed | 加入批准文号唯一性后，既有产品导入 fixture 的第二行复用了相同批准文号，原断言仍期望创建两条 | 为不同药品使用不同批准文号，保留批准文号重复拒绝的新约束，恢复 `Doing` 后重跑相关服务与仓储测试 |
+
+## H3-01 Retry Log
+
+| 尝试 | 状态 | 失败证据 | 重试动作 |
+| --- | --- | --- | --- |
+| 1 | Failed | 首次将 JWT、认证、bootstrap、插件和整套 Pharma OA HTTP 包合并执行，命令在 120 秒内无结果并被超时终止，不能作为通过证据 | 按 `Failed -> Doing` 恢复任务，将认证专项、bootstrap、插件与 Pharma OA 调用方拆分为独立批次并延长必要批次的超时后重跑 |
+| 2 | Failed | JWT 与独立认证中间件已通过，但限定 `TestBuiltinAuth|TestAuthGuardMiddleware` 的 bootstrap 包仍在 120 秒内未完成并被外部超时终止 | 保留已通过专项证据，按 `Failed -> Doing` 恢复任务，将 bootstrap 批次超时放宽到 5 分钟以区分冷编译耗时与测试挂起 |
+
+## H3-01 认证契约受信任组织声明
+
+- Date: 2026-07-18
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 将用户 ID、组织 ID、组织父链、主角色和全部角色写入服务端签发的 JWT，并同步认证响应、前端会话类型、双语错误和 OpenAPI。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| JWT 身份契约 | Pass | `JWTIdentity` 仅接收服务端解析结果；签名与解析覆盖 `sub`、`organizationId`、根到叶 `organizationPath`、`role` 和 `roles`，拒绝缺失用户、角色不一致及组织路径不闭合的声明，签名篡改测试通过。 |
+| 受信任数据来源 | Pass | 登录仅解码账号和密码；用户 ID/部门来自用户仓储，组织路径逐级读取组织仓储并检测缺失和循环，角色集合来自 RBAC 绑定。携带伪造组织和角色字段的请求签发结果仍为仓储中的真实身份。 |
+| 权限与审计 | Pass | 超级管理员旁路改为检查全部签名角色；插件开发入口、客户范围和公告角色受众读取签名角色；登录审计记录真实组织和角色集合。未新增 permission key、migration 或 seed。 |
+| API 与前端 | Pass | 登录和 `/auth/me` 返回组织与角色声明；两份 OpenAPI 定义相同的请求/响应 Schema 且引用测试通过；Pinia 会话、登录页和内置认证插件持久化完整身份字段。 |
+| 多语言错误 | Pass | `invalid_auth_request`、`invalid_credentials`、`invalid_organization`、`unauthorized` 使用稳定错误码；新增中文默认与英文翻译，两个新增 locale key 均恰好出现两次。 |
+| 运行时 smoke | Pass | 隔离 memory 实例在 `127.0.0.1:18080` 接受带伪造组织/角色字段的真实登录请求；JWT 与响应一致且未采用伪造值，受保护接口无 Token 为 401、有 Token 通过；验收后进程已停止。 |
+| 质量门禁 | Pass | 认证专项、bootstrap、插件/Pharma OA 调用方、定向 race、全仓 Go 测试、`go vet`、后端构建、前端 typecheck/build、脚本语法、OpenAPI 同步及 `git diff --check` 全部通过。 |
+| CodeGraph 与边界 | Pass | 索引同步后为 694 files / 14,844 nodes / 45,599 edges；`JWTClaims` 影响面 130 个符号并由全仓测试覆盖；未修改 `docs/refactor/old/`，未纳入用户已有文档和本地环境变更。 |
+
+### Verification Commands
+
+```powershell
+go test ./pkg/security ./internal/handler/middleware -count=1
+go test ./internal/bootstrap -run 'TestBuiltinAuth|TestAuthGuardMiddleware' -count=1 -v
+go test ./internal/handler/http/v1/plugin ./internal/handler/http/v1/pharmaoa -count=1
+go test ./internal/handler/http -run 'OpenAPI|Docs' -count=1
+go test -race ./pkg/security ./internal/handler/middleware ./internal/bootstrap -run 'TestSign|TestParseJWT|TestAuthMiddleware|TestBuiltinAuth|TestAuthGuardMiddleware' -count=1
+go test ./... -count=1
+go vet ./...
+go build -o "$env:TEMP\skoll-h3-01.exe" ./cmd/skoll
+npm --prefix web run typecheck
+npm --prefix web run build
+$env:SKOLL_API_BASE='http://127.0.0.1:18080'; npm --prefix web run smoke:auth
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+node --check web/scripts/auth-plugin-smoke.mjs
+codegraph impact "JWTClaims"
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Next Step
+
+父任务 H3 保持 `Doing`。提交 H3-01 后按正式 Work Item 顺序领取 `H3-02`，基于受信任声明和授权实现本人、组织、组织树与全量数据范围策略，并拒绝请求参数扩大范围。

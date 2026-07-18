@@ -20,22 +20,23 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - account
-                - password
-              properties:
-                account:
-                  type: string
-                password:
-                  type: string
+              $ref: '#/components/schemas/AuthLoginRequest'
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthLoginResponse'}
         '400':
-          description: Bad Request
+          description: Invalid authentication request (`invalid_auth_request` or `invalid_credentials`)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
         '401':
-          description: Unauthorized
+          description: Invalid credentials or trusted organization assignment (`invalid_credentials` or `invalid_organization`)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/auth/logout:
     post:
       summary: Logout current user
@@ -48,8 +49,14 @@ paths:
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthProfileResponse'}
         '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/auth/me/profile:
     put:
       summary: Update current user profile
@@ -4423,6 +4430,72 @@ components:
       bearerFormat: JWT
       description: Skoll JWT access token. Aggregated plugin API operations require this scheme and declare x-skoll-permission.
   schemas:
+    AuthLoginRequest:
+      type: object
+      required: [account, password]
+      additionalProperties: false
+      properties:
+        account: {type: string, minLength: 1}
+        password: {type: string, minLength: 1, format: password}
+    AuthUserProfile:
+      type: object
+      required: [id, account, name, email, role, roles, organizationId, organizationPath]
+      properties:
+        id: {type: string, minLength: 1}
+        account: {type: string, minLength: 1}
+        name: {type: string, minLength: 1}
+        email: {type: string}
+        role: {type: string, minLength: 1, description: Primary role for display and audit context}
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: Trusted role keys resolved from server-side RBAC bindings
+          items: {type: string, minLength: 1}
+        organizationId:
+          type: string
+          description: Trusted department ID; empty when the user has no organization assignment
+        organizationPath:
+          type: array
+          uniqueItems: true
+          description: Trusted root-to-leaf department ID path ending at organizationId
+          items: {type: string, minLength: 1}
+    AuthLoginData:
+      type: object
+      required: [token, tokenType, expiresIn, permissions, user]
+      properties:
+        token: {type: string, minLength: 1}
+        tokenType: {type: string, enum: [Bearer]}
+        expiresIn: {type: integer, minimum: 1}
+        permissions:
+          type: array
+          uniqueItems: true
+          items: {type: string}
+        user: {$ref: '#/components/schemas/AuthUserProfile'}
+    AuthLoginResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/AuthLoginData'}
+    AuthProfileData:
+      allOf:
+        - {$ref: '#/components/schemas/AuthUserProfile'}
+        - type: object
+          required: [permissions]
+          properties:
+            permissions:
+              type: array
+              uniqueItems: true
+              items: {type: string}
+    AuthProfileResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/AuthProfileData'}
     ContractCreateRequest:
       type: object
       required: [number, title, partyType, partyId, approverId, amount, currency, effectiveAt, expiresAt, attachmentIds]

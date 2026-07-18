@@ -1838,7 +1838,7 @@ func (h *PluginHandler) isSuperAdmin(r *http.Request) bool {
 	if !ok {
 		return false
 	}
-	return strings.EqualFold(strings.TrimSpace(claims.Role), "super_admin")
+	return claims.HasRole("super_admin")
 }
 
 func (h *PluginHandler) resolveDevPluginsRoot(candidate string) (string, error) {

@@ -129,8 +129,11 @@ func announcementListInputFromRequest(r *http.Request) pharmaoasvc.AnnouncementL
 	}
 	input.OrganizationIDs = cleanAnnouncementQueryValues(r.URL.Query()["organizationId"])
 	input.RoleIDs = cleanAnnouncementQueryValues(r.URL.Query()["roleId"])
-	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok && strings.TrimSpace(claims.Role) != "" {
-		input.RoleIDs = append(input.RoleIDs, strings.TrimSpace(claims.Role))
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
+		input.RoleIDs = append(input.RoleIDs, claims.Roles...)
+		if len(claims.Roles) == 0 && strings.TrimSpace(claims.Role) != "" {
+			input.RoleIDs = append(input.RoleIDs, strings.TrimSpace(claims.Role))
+		}
 	}
 	input.IncludeDraft, _ = strconv.ParseBool(r.URL.Query().Get("includeDraft"))
 	return input

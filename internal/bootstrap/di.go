@@ -21,6 +21,7 @@ import (
 	builtinAuth "github.com/tinboxw/skoll/internal/plugin/builtin/auth"
 	builtinDashboard "github.com/tinboxw/skoll/internal/plugin/builtin/dashboard"
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
+	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
@@ -123,7 +124,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Warehouses: pharmaWarehouseService, Purchases: pharmaPurchaseService, Inbounds: pharmaPurchaseInboundService, Sales: pharmaSalesService,
 		Inventory: pharmaInventoryService, FollowUps: pharmaCustomerFollowUpService, Audit: auditService,
 	})
-	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Plugins, auditService, auditEventService)
+	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
 		UserService:                      userService,
@@ -204,11 +205,11 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, pluginsRepo pluginrepo.PluginRepository, auditSvc audit.Service, auditEventSvc audit.EventService) plugin.Manager {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, auditSvc audit.Service, auditEventSvc audit.EventService) plugin.Manager {
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
 	runtimeManager.SetCatalogRegistry(plugin.NewMemoryCatalogRegistry())
 	runtimeManager.SetCatalogAuditSink(pluginCatalogAuditSink{auditSvc: auditSvc})
-	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, auditSvc, auditEventSvc, logger)
+	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, organizationRepo, auditSvc, auditEventSvc, logger)
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
 	m := &pluginManagerWithExtensions{
 		Manager:          runtimeManager,
@@ -812,7 +813,7 @@ func handleBuiltinAuthLogin(jwtSecret string) http.HandlerFunc {
 			httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_credentials", "account and password are required")
 			return
 		}
-		token, err := security.SignJWT(jwtSecret, req.Account, "super_admin", time.Hour, time.Now().UTC())
+		token, err := security.SignJWT(jwtSecret, security.JWTIdentity{Subject: req.Account, Role: "super_admin", Roles: []string{"super_admin"}}, time.Hour, time.Now().UTC())
 		if err != nil {
 			httpHandler.WriteError(w, http.StatusInternalServerError, err)
 			return
@@ -823,10 +824,15 @@ func handleBuiltinAuthLogin(jwtSecret string) http.HandlerFunc {
 			"tokenType":   "Bearer",
 			"expiresIn":   3600,
 			"permissions": []string{"menu.read", "role.manage", "permission.manage"},
-			"user": map[string]string{
-				"account": req.Account,
-				"name":    req.Account,
-				"role":    "super_admin",
+			"user": map[string]any{
+				"id":               req.Account,
+				"account":          req.Account,
+				"name":             req.Account,
+				"email":            "",
+				"role":             "super_admin",
+				"roles":            []string{"super_admin"},
+				"organizationId":   "",
+				"organizationPath": []string{},
 			},
 		})
 	}

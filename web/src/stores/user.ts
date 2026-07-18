@@ -6,10 +6,13 @@ import { clearToken, getToken, hasToken, setToken } from "../utils/auth";
 
 const USER_SESSION_KEY = "skoll.auth.userSession";
 
-type UserProfile = {
+export type UserProfile = {
 	id: string;
 	name: string;
 	role: string;
+	roles: string[];
+	organizationId: string;
+	organizationPath: string[];
 	email?: string;
 	avatarUrl?: string;
 };
@@ -36,7 +39,14 @@ function loadPersistedSession(): UserSessionSnapshot | null {
 			return null;
 		}
 		const profile = parsed.profile as Partial<UserProfile>;
-		if (typeof profile.id !== "string" || typeof profile.name !== "string" || typeof profile.role !== "string") {
+		if (
+			typeof profile.id !== "string" ||
+			typeof profile.name !== "string" ||
+			typeof profile.role !== "string" ||
+			!Array.isArray(profile.roles) ||
+			typeof profile.organizationId !== "string" ||
+			!Array.isArray(profile.organizationPath)
+		) {
 			return null;
 		}
 		return {
@@ -44,12 +54,13 @@ function loadPersistedSession(): UserSessionSnapshot | null {
 				id: profile.id,
 				name: profile.name,
 				role: profile.role,
+				roles: cleanStringArray(profile.roles),
+				organizationId: profile.organizationId,
+				organizationPath: cleanStringArray(profile.organizationPath),
 				email: typeof profile.email === "string" ? profile.email : "",
 				avatarUrl: typeof profile.avatarUrl === "string" ? profile.avatarUrl : ""
 			},
-			permissions: Array.isArray(parsed.permissions)
-				? parsed.permissions.filter((item): item is string => typeof item === "string" && item.trim() !== "")
-				: []
+			permissions: cleanStringArray(parsed.permissions)
 		};
 	} catch {
 		return null;
@@ -91,6 +102,12 @@ export function hasStoredPermission(permission: string): boolean {
 	return hasPermissionValue(getStoredPermissions(), required);
 }
 
+function cleanStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((item): item is string => typeof item === "string" && item.trim() !== "").map((item) => item.trim())
+		: [];
+}
+
 const persistedSession = loadPersistedSession();
 
 export const useUserStore = defineStore("user", {
@@ -126,6 +143,9 @@ export const useUserStore = defineStore("user", {
 				name?: string;
 				email?: string;
 				role?: string;
+				roles?: string[];
+				organizationId?: string;
+				organizationPath?: string[];
 				permissions?: string[];
 			};
 			try {
@@ -135,12 +155,17 @@ export const useUserStore = defineStore("user", {
 					id: String(data?.id ?? this.profile?.id ?? ""),
 					name: String(data?.name ?? data?.account ?? this.profile?.name ?? "").trim() || "User",
 					role: String(data?.role ?? this.profile?.role ?? "user").trim() || "user",
+					roles: cleanStringArray(data?.roles).length > 0 ? cleanStringArray(data?.roles) : this.profile?.roles ?? ["user"],
+					organizationId: String(data?.organizationId ?? this.profile?.organizationId ?? "").trim(),
+					organizationPath: Array.isArray(data?.organizationPath)
+						? cleanStringArray(data.organizationPath)
+						: this.profile?.organizationPath ?? [],
 					email: String(data?.email ?? this.profile?.email ?? ""),
 					avatarUrl: this.profile?.avatarUrl ?? ""
 				};
 				this.profile = profile;
 				this.permissions = Array.isArray(data?.permissions)
-					? data.permissions.filter((item): item is string => typeof item === "string" && item.trim() !== "")
+					? cleanStringArray(data.permissions)
 					: this.permissions;
 				persistSession(profile, this.permissions);
 			} catch {

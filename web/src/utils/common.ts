@@ -21,6 +21,12 @@ export function toErrorMessage(error: unknown): string {
 		if (code === "invalid_credentials") {
 			return translate("error.invalidCredentials");
 		}
+		if (code === "invalid_auth_request") {
+			return translate("error.invalidAuthRequest");
+		}
+		if (code === "invalid_organization") {
+			return translate("error.invalidOrganization");
+		}
 		if (code === "unauthorized") {
 			return translate("error.unauthorized");
 		}

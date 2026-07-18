@@ -219,7 +219,7 @@ func parseCustomerQualifications(items []customerQualificationRequest) ([]domain
 func customerScopeFromRequest(r *http.Request, body customerScopeRequest) pharmaoasvc.CustomerAccessScope {
 	if r != nil {
 		if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
-			if strings.EqualFold(strings.TrimSpace(claims.Role), "super_admin") {
+			if claims.HasRole("super_admin") {
 				return pharmaoasvc.CustomerAccessScope{IncludeAll: true}
 			}
 			return pharmaoasvc.CustomerAccessScope{OwnerID: strings.TrimSpace(claims.Subject)}

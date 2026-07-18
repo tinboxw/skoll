@@ -16,6 +16,7 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
+	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
@@ -29,6 +30,7 @@ type builtinAuthHandler struct {
 	usersRepo userrepo.UserRepository
 	rolesRepo rolerepo.RoleRepository
 	rbacRepo  rbacrepo.RBACRepository
+	orgRepo   organizationrepo.OrganizationRepository
 	auditSvc  auditsvc.Service
 	eventSvc  auditsvc.EventService
 	logger    logging.Logger
@@ -36,8 +38,8 @@ type builtinAuthHandler struct {
 	idFn      func(prefix string) shared.ID
 }
 
-func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, auditSvc auditsvc.Service, eventSvc auditsvc.EventService, logger logging.Logger) *builtinAuthHandler {
-	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil {
+func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, orgRepo organizationrepo.OrganizationRepository, auditSvc auditsvc.Service, eventSvc auditsvc.EventService, logger logging.Logger) *builtinAuthHandler {
+	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil || orgRepo == nil {
 		return nil
 	}
 	return &builtinAuthHandler{
@@ -45,6 +47,7 @@ func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, 
 		usersRepo: usersRepo,
 		rolesRepo: rolesRepo,
 		rbacRepo:  rbacRepo,
+		orgRepo:   orgRepo,
 		auditSvc:  auditSvc,
 		eventSvc:  eventSvc,
 		logger:    logger,
@@ -62,7 +65,7 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.appendLoginAudit(r, "anonymous", "anonymous", domainaudit.LoginResultFailure, "invalid_payload", "", nil)
-		httpHandler.WriteError(w, http.StatusBadRequest, err)
+		httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_auth_request", "authentication request is invalid")
 		return
 	}
 	account := strings.TrimSpace(req.Account)
@@ -84,13 +87,24 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	roleKey, permissions, err := h.resolveRoleAndPermissions(r.Context(), entity.ID.String())
+	roleKey, roles, permissions, err := h.resolveRolesAndPermissions(r.Context(), entity.ID.String())
 	if err != nil {
 		httpHandler.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
+	organizationID, organizationPath, err := h.resolveOrganizationClaims(r.Context(), entity)
+	if err != nil {
+		httpHandler.WriteMessage(w, http.StatusUnauthorized, "invalid_organization", "user organization is invalid")
+		return
+	}
 
-	token, err := security.SignJWT(h.jwtSecret, entity.ID.String(), roleKey, time.Hour, time.Now().UTC())
+	token, err := security.SignJWT(h.jwtSecret, security.JWTIdentity{
+		Subject:          entity.ID.String(),
+		OrganizationID:   organizationID,
+		OrganizationPath: organizationPath,
+		Role:             roleKey,
+		Roles:            roles,
+	}, time.Hour, h.nowFn())
 	if err != nil {
 		httpHandler.WriteError(w, http.StatusInternalServerError, err)
 		return
@@ -102,14 +116,17 @@ func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request)
 		"expiresIn":   3600,
 		"permissions": permissions,
 		"user": map[string]any{
-			"id":      entity.ID.String(),
-			"account": entity.Account,
-			"name":    entity.Name,
-			"email":   entity.Email.String(),
-			"role":    roleKey,
+			"id":               entity.ID.String(),
+			"account":          entity.Account,
+			"name":             entity.Name,
+			"email":            entity.Email.String(),
+			"role":             roleKey,
+			"roles":            roles,
+			"organizationId":   organizationID,
+			"organizationPath": organizationPath,
 		},
 	})
-	h.appendLoginAudit(r, entity.ID.String(), entity.Account, domainaudit.LoginResultSuccess, "", "", map[string]any{"account": entity.Account, "role": roleKey})
+	h.appendLoginAudit(r, entity.ID.String(), entity.Account, domainaudit.LoginResultSuccess, "", "", map[string]any{"account": entity.Account, "organizationId": organizationID, "roles": roles})
 }
 
 func (h *builtinAuthHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -276,20 +293,22 @@ func (h *builtinAuthHandler) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roleKey := claims.Role
-	permissions, err := h.permissionsForRole(r.Context(), entity.ID.String(), roleKey)
+	permissions, err := h.permissionsForRoles(r.Context(), entity.ID.String(), claims.Roles)
 	if err != nil {
 		httpHandler.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	httpHandler.WriteJSON(w, http.StatusOK, map[string]any{
-		"id":          entity.ID.String(),
-		"account":     entity.Account,
-		"name":        entity.Name,
-		"email":       entity.Email.String(),
-		"role":        roleKey,
-		"permissions": permissions,
+		"id":               entity.ID.String(),
+		"account":          entity.Account,
+		"name":             entity.Name,
+		"email":            entity.Email.String(),
+		"role":             claims.Role,
+		"roles":            claims.Roles,
+		"organizationId":   claims.OrganizationID,
+		"organizationPath": claims.OrganizationPath,
+		"permissions":      permissions,
 	})
 }
 
@@ -403,31 +422,45 @@ func (h *builtinAuthHandler) userFromRequest(r *http.Request) (*domainuser.User,
 	return entity, claims, true
 }
 
-func (h *builtinAuthHandler) resolveRoleAndPermissions(ctx context.Context, userID string) (string, []string, error) {
+func (h *builtinAuthHandler) resolveRolesAndPermissions(ctx context.Context, userID string) (string, []string, []string, error) {
 	bindings, err := h.rbacRepo.ListBindingsBySubject(ctx, domainrbac.SubjectUser, sharedID(userID))
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
-	if len(bindings) == 0 {
-		return "user", []string{"user.read"}, nil
+	roleSet := make(map[string]struct{}, len(bindings))
+	for _, binding := range bindings {
+		role, roleErr := h.rolesRepo.GetByID(ctx, binding.RoleID)
+		if roleErr != nil {
+			return "", nil, nil, roleErr
+		}
+		if role == nil || strings.TrimSpace(role.Key) == "" {
+			continue
+		}
+		roleSet[strings.TrimSpace(role.Key)] = struct{}{}
 	}
-
-	role, err := h.rolesRepo.GetByID(ctx, bindings[0].RoleID)
+	roles := make([]string, 0, len(roleSet))
+	for roleKey := range roleSet {
+		roles = append(roles, roleKey)
+	}
+	if len(roles) == 0 {
+		return "user", []string{"user"}, []string{"user.read"}, nil
+	}
+	sort.Strings(roles)
+	primaryRole := roles[0]
+	for _, roleKey := range roles {
+		if strings.EqualFold(roleKey, "super_admin") {
+			primaryRole = roleKey
+			break
+		}
+	}
+	permissions, err := h.permissionsForRoles(ctx, userID, roles)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
-	if role == nil {
-		return "user", []string{"user.read"}, nil
-	}
-
-	permissions, err := h.permissionsForRole(ctx, userID, role.Key)
-	if err != nil {
-		return "", nil, err
-	}
-	return role.Key, permissions, nil
+	return primaryRole, roles, permissions, nil
 }
 
-func (h *builtinAuthHandler) permissionsForRole(ctx context.Context, userID, roleKey string) ([]string, error) {
+func (h *builtinAuthHandler) permissionsForRoles(ctx context.Context, userID string, roles []string) ([]string, error) {
 	result := map[string]struct{}{}
 
 	bindings, err := h.rbacRepo.ListBindingsBySubject(ctx, domainrbac.SubjectUser, sharedID(userID))
@@ -454,8 +487,11 @@ func (h *builtinAuthHandler) permissionsForRole(ctx context.Context, userID, rol
 		}
 	}
 
-	if strings.EqualFold(strings.TrimSpace(roleKey), "super_admin") {
-		result["*"] = struct{}{}
+	for _, roleKey := range roles {
+		if strings.EqualFold(strings.TrimSpace(roleKey), "super_admin") {
+			result["*"] = struct{}{}
+			break
+		}
 	}
 
 	permissions := make([]string, 0, len(result))
@@ -464,6 +500,39 @@ func (h *builtinAuthHandler) permissionsForRole(ctx context.Context, userID, rol
 	}
 	sort.Strings(permissions)
 	return permissions, nil
+}
+
+func (h *builtinAuthHandler) resolveOrganizationClaims(ctx context.Context, entity *domainuser.User) (string, []string, error) {
+	if entity == nil {
+		return "", nil, fmt.Errorf("user is required")
+	}
+	organizationID := strings.TrimSpace(entity.DepartmentID)
+	if organizationID == "" {
+		return "", []string{}, nil
+	}
+
+	path := make([]string, 0, 4)
+	seen := map[shared.ID]struct{}{}
+	currentID := sharedID(organizationID)
+	for !currentID.IsZero() {
+		if _, ok := seen[currentID]; ok {
+			return "", nil, fmt.Errorf("organization path contains cycle: %s", currentID)
+		}
+		seen[currentID] = struct{}{}
+		department, err := h.orgRepo.GetDepartmentByID(ctx, currentID)
+		if err != nil {
+			return "", nil, err
+		}
+		if department == nil {
+			return "", nil, fmt.Errorf("organization does not exist: %s", currentID)
+		}
+		path = append(path, department.ID.String())
+		currentID = department.ParentID
+	}
+	for left, right := 0, len(path)-1; left < right; left, right = left+1, right-1 {
+		path[left], path[right] = path[right], path[left]
+	}
+	return organizationID, path, nil
 }
 
 func sharedID(raw string) shared.ID {

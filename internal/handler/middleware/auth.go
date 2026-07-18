@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -32,20 +33,27 @@ func Auth(jwtSecret string, skipPaths ...string) func(http.Handler) http.Handler
 			}
 			token, err := parseBearerToken(r.Header.Get("Authorization"))
 			if err != nil {
-				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte("unauthorized"))
+				writeUnauthorized(w)
 				return
 			}
 			claims, err := security.ParseJWT(jwtSecret, token)
 			if err != nil {
-				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte("unauthorized"))
+				writeUnauthorized(w)
 				return
 			}
 			r = r.WithContext(security.WithJWTClaimsContext(r.Context(), claims))
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func writeUnauthorized(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"code":    "unauthorized",
+		"message": "invalid or missing access token",
+	})
 }
 
 func resolveMiddlewareAPIPrefixFromEnv() string {
