@@ -52,6 +52,7 @@ func TestDB(t *testing.T) *gorm.DB {
 		PharmaWarehouseModel{},
 		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
 		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
+		PharmaAnnouncementModel{}, PharmaColdChainRecordModel{},
 		PharmaContractModel{}, PharmaQualityComplaintModel{}, PharmaDrugRecallModel{}, PharmaCustomerFollowUpModel{}, PharmaSalesOpportunityModel{},
 		PharmaPaymentPlanModel{}, PharmaInvoiceRecordModel{}, PharmaPaymentReminderJobModel{}, PharmaInventoryAlertModel{}, PharmaInventoryAlertJobModel{}, PharmaReportExportJobModel{},
 	)
@@ -114,6 +115,7 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 		PharmaWarehouseModel{},
 		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
 		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
+		PharmaAnnouncementModel{}, PharmaColdChainRecordModel{},
 		PharmaContractModel{}, PharmaQualityComplaintModel{}, PharmaDrugRecallModel{}, PharmaCustomerFollowUpModel{}, PharmaSalesOpportunityModel{},
 		PharmaPaymentPlanModel{}, PharmaInvoiceRecordModel{}, PharmaPaymentReminderJobModel{}, PharmaInventoryAlertModel{}, PharmaInventoryAlertJobModel{}, PharmaReportExportJobModel{},
 	)

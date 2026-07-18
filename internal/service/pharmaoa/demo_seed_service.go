@@ -115,6 +115,15 @@ func (s *demoSeedService) Apply(ctx context.Context, actorID string) (DemoSeedSn
 	if current.State == DemoSeedStateFailed {
 		return current, fmt.Errorf("demo seed previously failed at %s: %s", current.Stage, current.Error)
 	}
+	if restored, ok, restoreErr := s.restoreAppliedSeed(ctx, actorID); restoreErr != nil {
+		return DemoSeedSnapshot{}, restoreErr
+	} else if ok {
+		s.mu.Lock()
+		s.snapshot = cloneDemoSeedSnapshot(restored)
+		s.mu.Unlock()
+		s.appendAudit(ctx, actorID, "pharma_oa.seed.apply", map[string]any{"state": restored.State, "reused": true, "source": "persistence"})
+		return restored, nil
+	}
 
 	s.setProgress(actorID, "employee")
 	now := s.nowFn().UTC()
@@ -239,6 +248,189 @@ func (s *demoSeedService) Apply(ctx context.Context, actorID string) (DemoSeedSn
 	s.mu.Unlock()
 	s.appendAudit(ctx, actorID, "pharma_oa.seed.apply", map[string]any{"state": result.State, "reused": false, "counts": result.Counts})
 	return cloneDemoSeedSnapshot(result), nil
+}
+
+func (s *demoSeedService) restoreAppliedSeed(ctx context.Context, actorID string) (DemoSeedSnapshot, bool, error) {
+	employees, err := s.deps.Employees.List(ctx, EmployeeListInput{Keyword: "DEMO-EMP-001"})
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	products, err := s.deps.Products.List(ctx, ProductListInput{Keyword: "DEMO-DRUG-001"})
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	suppliers, err := s.deps.Suppliers.List(ctx, SupplierListInput{Keyword: "DEMO-SUP-001"})
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	customers, err := s.deps.Customers.List(ctx, CustomerListInput{Keyword: "DEMO-CUST-001", Scope: CustomerAccessScope{IncludeAll: true}})
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	warehouses, err := s.deps.Warehouses.List(ctx, WarehouseListInput{Keyword: "DEMO-WH-001"})
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	employee := employeeByCode(employees, "DEMO-EMP-001")
+	product := productByCode(products, "DEMO-DRUG-001")
+	supplier := supplierByCode(suppliers, "DEMO-SUP-001")
+	customer := customerByCode(customers, "DEMO-CUST-001")
+	warehouse := warehouseByCode(warehouses, "DEMO-WH-001")
+	if employee == nil || product == nil || supplier == nil || customer == nil || warehouse == nil {
+		return DemoSeedSnapshot{}, false, nil
+	}
+
+	requests, err := s.deps.Purchases.ListRequests(ctx)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	orders, err := s.deps.Purchases.ListOrders(ctx)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	inbounds, err := s.deps.Inbounds.List(ctx)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	salesOrders, err := s.deps.Sales.ListOrders(ctx)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	outbounds, err := s.deps.Sales.ListOutbounds(ctx)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	request := purchaseRequestByNumber(requests, "PR-DEMO-001")
+	order := purchaseOrderByNumber(orders, "PO-DEMO-001")
+	inbound := purchaseInboundByNumber(inbounds, "IN-DEMO-001")
+	salesOrder := salesOrderByNumber(salesOrders, "SO-DEMO-001")
+	outbound := salesOutboundByNumber(outbounds, "OUT-DEMO-001")
+	if request == nil || order == nil || inbound == nil || len(inbound.Lines) == 0 || salesOrder == nil || outbound == nil ||
+		request.PurchaseOrderID != order.ID.String() || inbound.PurchaseOrderID != order.ID.String() || outbound.SalesOrderID != salesOrder.ID.String() {
+		return DemoSeedSnapshot{}, false, nil
+	}
+	followUps, err := s.deps.FollowUps.List(ctx, CustomerFollowUpListInput{CustomerID: customer.ID.String(), ActorID: actorID, Scope: CustomerFollowUpAccessScope{IncludeAll: true}})
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	if len(followUps) != 1 || followUps[0].CustomerID != customer.ID.String() {
+		return DemoSeedSnapshot{}, false, nil
+	}
+	balances, err := s.deps.Inventory.ListBalances(ctx)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	ledger, err := s.deps.Inventory.ListLedger(ctx)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	if len(balances) != 1 || len(ledger) != 2 || balances[0].BatchID != inbound.Lines[0].BatchID {
+		return DemoSeedSnapshot{}, false, nil
+	}
+	reminders, err := s.deps.Employees.QualificationReminders(ctx, 30)
+	if err != nil {
+		return DemoSeedSnapshot{}, false, err
+	}
+	appliedAt := s.nowFn().UTC()
+	return DemoSeedSnapshot{
+		State: DemoSeedStateApplied, Stage: "complete", Applied: true, Reused: true, ActorID: actorID, AppliedAt: &appliedAt,
+		Entities: DemoSeedEntities{
+			EmployeeID: employee.ID.String(), ProductID: product.ID.String(), SupplierID: supplier.ID.String(), CustomerID: customer.ID.String(), WarehouseID: warehouse.ID.String(),
+			PurchaseRequestID: request.ID.String(), WorkflowInstanceID: request.WorkflowInstanceID, PurchaseOrderID: order.ID.String(), PurchaseInboundID: inbound.ID.String(), BatchID: inbound.Lines[0].BatchID,
+			SalesOrderID: salesOrder.ID.String(), SalesOutboundID: outbound.ID.String(), CustomerFollowUpID: followUps[0].ID.String(),
+		},
+		Counts: map[string]int{"employees": 1, "products": 1, "suppliers": 1, "customers": 1, "warehouses": 1, "stockBalances": len(balances), "stockLedgerEntries": len(ledger), "workflows": 1, "qualificationReminders": len(reminders), "customerFollowUps": len(followUps)},
+	}, true, nil
+}
+
+func employeeByCode(items []*domainpharma.Employee, code string) *domainpharma.Employee {
+	for _, item := range items {
+		if item != nil && item.Code == code {
+			return item
+		}
+	}
+	return nil
+}
+
+func productByCode(items []*domainpharma.Product, code string) *domainpharma.Product {
+	for _, item := range items {
+		if item != nil && item.Code == code {
+			return item
+		}
+	}
+	return nil
+}
+
+func supplierByCode(items []*domainpharma.Supplier, code string) *domainpharma.Supplier {
+	for _, item := range items {
+		if item != nil && item.Code == code {
+			return item
+		}
+	}
+	return nil
+}
+
+func customerByCode(items []*domainpharma.Customer, code string) *domainpharma.Customer {
+	for _, item := range items {
+		if item != nil && item.Code == code {
+			return item
+		}
+	}
+	return nil
+}
+
+func warehouseByCode(items []*domainpharma.Warehouse, code string) *domainpharma.Warehouse {
+	for _, item := range items {
+		if item != nil && item.Code == code {
+			return item
+		}
+	}
+	return nil
+}
+
+func purchaseRequestByNumber(items []*domainpharma.PurchaseRequest, number string) *domainpharma.PurchaseRequest {
+	for _, item := range items {
+		if item != nil && item.Number == number {
+			return item
+		}
+	}
+	return nil
+}
+
+func purchaseOrderByNumber(items []*domainpharma.PurchaseOrder, number string) *domainpharma.PurchaseOrder {
+	for _, item := range items {
+		if item != nil && item.Number == number {
+			return item
+		}
+	}
+	return nil
+}
+
+func purchaseInboundByNumber(items []*domainpharma.PurchaseInbound, number string) *domainpharma.PurchaseInbound {
+	for _, item := range items {
+		if item != nil && item.Number == number {
+			return item
+		}
+	}
+	return nil
+}
+
+func salesOrderByNumber(items []*domainpharma.SalesOrder, number string) *domainpharma.SalesOrder {
+	for _, item := range items {
+		if item != nil && item.Number == number {
+			return item
+		}
+	}
+	return nil
+}
+
+func salesOutboundByNumber(items []*domainpharma.SalesOutbound, number string) *domainpharma.SalesOutbound {
+	for _, item := range items {
+		if item != nil && item.Number == number {
+			return item
+		}
+	}
+	return nil
 }
 
 func (s *demoSeedService) validateDependencies() error {

@@ -99,3 +99,12 @@ PostgreSQL 迁移脚本目录。
 - 幂等：库存告警与报表导出作业使用唯一 idempotency key，库存告警按类型与余额位置唯一。
 - 卸载策略：固定 `retain`；不提供 destructive down 或旧结构兼容路径。
 
+## 医药 OA Schema 补全
+
+### 20260718_000022_complete_pharma_oa_schema.sql
+
+- 表名：`pharma_oa_announcements`、`pharma_oa_cold_chain_records`。
+- 用途：补齐当前公告聚合和不可变冷链采集记录的建表与查询索引。
+- 资质归属：员工、供应商和客户资质继续保存在所属主数据聚合中，不创建独立候选表或双写路径。
+- 卸载策略：固定 `retain`；不提供 destructive down。
+

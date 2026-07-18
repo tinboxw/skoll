@@ -73,10 +73,10 @@ CREATE TABLE IF NOT EXISTS pharma_oa_customers (
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	created_by VARCHAR(64) NOT NULL DEFAULT '',
-	updated_by VARCHAR(64) NOT NULL DEFAULT '',
-	CONSTRAINT uk_pharma_customers_code UNIQUE (code)
+	updated_by VARCHAR(64) NOT NULL DEFAULT ''
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uk_pharma_customers_code ON pharma_oa_customers (code);
 CREATE INDEX IF NOT EXISTS idx_pharma_customers_scope_status ON pharma_oa_customers (organization_id, owner_id, status);
 CREATE INDEX IF NOT EXISTS idx_pharma_customers_name ON pharma_oa_customers (name);
 

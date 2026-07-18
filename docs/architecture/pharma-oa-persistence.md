@@ -30,7 +30,7 @@ H2-02 已将员工、药品、供应商、客户和仓库 service 接入 `store.
 
 ## Schema 归属
 
-所有表使用 `pharma_oa_` namespace。完整机器可读清单由 `SchemaBaseline()` 提供，当前覆盖 30 张聚合根或作业表；采购申请行随申请聚合以 `lines_json` 持久化，不保留未接线的独立明细表。
+所有表使用 `pharma_oa_` namespace。完整机器可读清单由 `SchemaBaseline()` 提供，当前覆盖 29 张聚合根或作业表；采购申请行随申请聚合以 `lines_json` 持久化，员工/供应商/客户资质由所属主数据聚合保存，不保留未接线的独立明细表或独立资质候选表。
 
 | 领域 | 核心表 | 关键约束与索引 |
 | --- | --- | --- |
@@ -105,6 +105,13 @@ H2-04 migration：
 H2-04 将合同、质量投诉、召回、客户跟进、销售机会、付款计划、发票、付款提醒、库存告警和报表导出作业接入 `store.Bundle`。独立业务列用于状态、作用域、到期和幂等查询，完整聚合以 `payload_json` 保留工作流引用、参与人、附件、任务、提醒引用、重试次数和日志。SQLite 文件库关闭并重开后执行完整 round-trip；报表服务重建后，相同显式查询窗口复用已有作业与文件，不重复上传。
 
 MySQL/PostgreSQL 使用同一 repository contract，由 `SKOLL_TEST_MYSQL_DSN`、`SKOLL_TEST_POSTGRES_DSN` 启用实库验收；未配置时测试明确标记 SKIP，并由 H2-05 在可用数据库环境中统一复验。
+
+H2-05 schema completion migration：
+
+- `migrations/mysql/20260718_000022_complete_pharma_oa_schema.sql`
+- `migrations/postgres/20260718_000022_complete_pharma_oa_schema.sql`
+
+该 migration 补齐公告和不可变冷链记录两个当前领域表。自动门禁要求 29 张 `SchemaBaseline()` 表均存在 GORM model、列、命名索引和双数据库建表脚本，并拒绝 `DROP TABLE`/`TRUNCATE TABLE`。独立资质候选表不再声明，避免与主数据聚合形成双写或旧结构兼容路径。
 
 ## 验证
 

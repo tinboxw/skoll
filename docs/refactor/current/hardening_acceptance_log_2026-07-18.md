@@ -246,6 +246,35 @@ git diff --check
 
 父任务 H2 保持 `Doing`。领取 `H2-02`，实现员工、药品、供应商、客户和仓库/库位的 SQL repository 与多数据库契约测试。
 
+## H2-05 Retry Log
+
+| 尝试 | 状态 | 失败证据 | 重试动作 |
+| --- | --- | --- | --- |
+| 1 | Failed | fresh-install migration 覆盖检查显示 `SchemaBaseline()` 的 30 张表中仅 27 张存在建表脚本，缺少 `pharma_oa_announcements`、`pharma_oa_qualifications`、`pharma_oa_cold_chain_records` | 当前资质已归属员工/供应商/客户聚合 JSON，因此删除未实现的独立资质候选表；为真实存在的公告和不可变冷链记录补 GORM model 与 retain-only 双数据库 migration，并加入全覆盖门禁；状态经 `Failed -> Doing` 恢复后重跑 |
+| 2 | Failed | `smoke-pharma-oa-database.ps1` 在 Windows PowerShell 5 中按本地代码页读取 UTF-8 无 BOM 中文字符串，导致字符串终止符解析失败，smoke 未启动 | 可执行 PowerShell 脚本改为 ASCII 输出以兼容 Windows PowerShell 5/PowerShell 7；中文默认说明保留在 UTF-8 验收文档，状态经 `Failed -> Doing` 恢复后重跑同一脚本 |
+| 3 | Failed | Docker Desktop 启动后 engine 在创建隔离 MySQL/PostgreSQL 容器时对 v1.53 API 返回 HTTP 500，MySQL 容器未创建，严格实库矩阵未运行 | 固定兼容 Docker API 版本并复查 engine；若 engine 恢复则重建隔离容器并执行 `-RequireExternalDatabases`，状态经 `Failed -> Doing` 恢复 |
+| 4 | Blocked | 固定 `DOCKER_API_VERSION=1.43` 后 engine 仍返回 HTTP 500；`docker desktop restart` 超时，最终 `docker desktop status`/`docker version` 健康检查也在 30 秒内无响应 | Work Item 转为 `Blocked`，不提交、不进入 H3-01；由本机 Docker Desktop 或独立 MySQL/PostgreSQL 环境恢复后转回 `Doing`，执行严格实库矩阵 |
+| 5 | Failed | 首次 `-Full` 验收被命令执行器 120 秒上限终止，没有完整退出码 | 将执行器超时提高到 600 秒，重跑同一脚本，不复用中断结果 |
+| 6 | Failed | 提高超时后的全仓回归在链接 `workflow.test.exe` 时因系统盘仅剩约 0.6 GB 报 `No space left on device` | 仅执行 `go clean -cache -testcache` 清理可再生成的 Go 缓存，空间恢复到约 3.9 GB；再次执行同一 `-Full` 门禁后全仓测试和 vet 通过 |
+| 7 | Failed | 隔离 MySQL 8.0 已就绪，但首轮实库 contract 在链接测试程序前因系统盘空间再次耗尽，未进入数据库断言 | 将 `GOCACHE`、`GOTMPDIR` 迁移到空间充足的 `D:\skoll-h2-05-db`，清理可再生成的默认 Go 缓存后按 `Failed -> Doing` 重跑同一 MySQL contract |
+| 8 | Failed | 官方 PostgreSQL 16 unattended 安装器触发系统级授权，启动操作被取消，未产生可用 15432 实例 | 不重复请求系统级安装；尝试只解包已校验的官方介质，在 `D:\skoll-h2-05-db` 使用 `initdb`/`pg_ctl` 启动用户态隔离实例，随后按 `Failed -> Doing` 重跑 PostgreSQL contract |
+| 9 | Failed | EDB 官方 PostgreSQL 16.14 ZIP 已按预期字节数下载，但 Windows `Expand-Archive` 在 300 秒执行上限内未完成 | 保留已下载 ZIP 与部分解压内容，改用 Windows `tar` 覆盖解压同一包；确认 `postgres.exe --version` 后再恢复 `Doing` |
+| 10 | Failed | 严格矩阵先执行真实 PostgreSQL migration，再运行主数据 contract 时，`AutoMigrate` 因客户代码唯一索引名与 model 默认约束名不一致，报 `constraint uni_pharma_oa_customers_code does not exist` | 为主数据 model 的业务唯一键补齐与 schema/migration 一致的显式索引名，检查同类隐式命名，恢复 `Doing` 后重跑 migration -> repository 严格路径 |
+
+## H2-05 数据库生命周期验收（Done）
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Schema 与 migration 完整性 | Pass | 最终基线为 29 张真实业务表；MySQL/PostgreSQL `000019` 至 `000022` 在专用空库中各执行两遍，表、列与命名索引完整，生产 migration 无 `DROP`/`TRUNCATE`。 |
+| fresh install 与 upgrade | Pass | SQLite fresh install 和保留既有主数据的 schema upgrade 通过；MySQL 8.0.31/PostgreSQL 16.14 真实 migration fresh install 通过。 |
+| seed、重启与备份恢复 | Pass | 文件 SQLite 完整 seed 后关闭重开，再次 seed 复用相同业务 ID 且无重复库存/流水；备份后写入额外数据，再恢复备份，额外数据消失且 seed 仍可复用。 |
+| repository contract | Pass | SQLite、MySQL 8.0.31、PostgreSQL 16.14 的主数据、订单/库存、工作流业务记录契约均实际通过。 |
+| 严格支持数据库矩阵 | Pass | 隔离 MySQL 运行于 13306，EDB PostgreSQL 16.14 便携实例运行于 15432；`-RequireExternalDatabases -Full` 整体退出码 0，无外部数据库 SKIP。 |
+| API/权限/审计/i18n | Pass | 未新增 HTTP endpoint、权限或审计动作；migration/seed 影响已同步。可执行脚本保持 ASCII 兼容 Windows PowerShell，中文默认说明位于验收报告。 |
+| 质量门禁 | Pass | 严格 smoke、全仓 Go 回归、`go vet`、变更后定向 race、build、diff、文档链接和 CodeGraph 全部通过；缺少 DSN 时严格模式 fail-closed。 |
+
+详细环境、失败重试、复现命令和实库版本见 `pharma_oa_database_acceptance_2026-07-18.md`。H2-05 已按 `Blocked -> Doing -> Failed -> Doing -> Review -> Done` 完成；父任务 H2 同步完成，提交后领取 H3-01。
+
 ## H2-04 医药 OA 工作流关联业务记录持久化
 
 - Date: 2026-07-18

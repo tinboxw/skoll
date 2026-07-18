@@ -22,6 +22,7 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | [current/hardening_task_board_2026-07-18.md](current/hardening_task_board_2026-07-18.md) | Active hardening parent task board |
 | [current/hardening_work_items_2026-07-18.md](current/hardening_work_items_2026-07-18.md) | Active hardening Work Item table |
 | [current/hardening_acceptance_log_2026-07-18.md](current/hardening_acceptance_log_2026-07-18.md) | Active hardening acceptance evidence |
+| [current/pharma_oa_database_acceptance_2026-07-18.md](current/pharma_oa_database_acceptance_2026-07-18.md) | H2-05 database lifecycle acceptance evidence and environment blocker |
 | [current/pharma_oa_milestone_closeout_2026-07-17.md](current/pharma_oa_milestone_closeout_2026-07-17.md) | Closed Pharma OA batch evidence and hardening source |
 | [current/business_plugin_capability_plan_2026-07-04.md](current/business_plugin_capability_plan_2026-07-04.md) | Business-plugin capability gaps, pharma OA function blueprint, and framework infrastructure matrix |
 | [current/pharma_oa_milestone_plan_2026-07-04.md](current/pharma_oa_milestone_plan_2026-07-04.md) | F6-F12 pharma OA milestones and atomic candidate work items |

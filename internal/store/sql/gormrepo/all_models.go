@@ -36,6 +36,8 @@ func AllModels() []any {
 		&PharmaSalesOutboundModel{},
 		&PharmaStocktakeModel{},
 		&PharmaTransferModel{},
+		&PharmaAnnouncementModel{},
+		&PharmaColdChainRecordModel{},
 		&PharmaContractModel{},
 		&PharmaQualityComplaintModel{},
 		&PharmaDrugRecallModel{},

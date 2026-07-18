@@ -39,6 +39,8 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 		"PharmaSalesOutboundModel":      containsModel[PharmaSalesOutboundModel](models),
 		"PharmaStocktakeModel":          containsModel[PharmaStocktakeModel](models),
 		"PharmaTransferModel":           containsModel[PharmaTransferModel](models),
+		"PharmaAnnouncementModel":       containsModel[PharmaAnnouncementModel](models),
+		"PharmaColdChainRecordModel":    containsModel[PharmaColdChainRecordModel](models),
 		"PharmaContractModel":           containsModel[PharmaContractModel](models),
 		"PharmaQualityComplaintModel":   containsModel[PharmaQualityComplaintModel](models),
 		"PharmaDrugRecallModel":         containsModel[PharmaDrugRecallModel](models),
