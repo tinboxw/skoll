@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../../i18n";
+
 import { computed, onMounted, reactive, ref } from "vue";
 import { CheckCircle2, Eye, PackageSearch, Plus, RefreshCw, Truck } from "lucide-vue-next";
 import { ElMessage, ElMessageBox } from "element-plus";
@@ -20,6 +22,8 @@ import {
 } from "../../pharma-oa/api";
 import { useUserStore } from "../../stores/user";
 import { toErrorMessage } from "../../utils/common";
+
+const { t, valueLabel } = useI18n();
 
 type RecallRow = Record<string, unknown> & DrugRecall & { scopeText: string; progressText: string; initiatedText: string };
 
@@ -51,12 +55,12 @@ const rows = computed<RecallRow[]>(() => items.value.map((item) => {
 	return { ...item, scopeText: `${item.productName} / ${item.batchNo}`, progressText: `${completed} / ${item.tasks.length}`, initiatedText: new Date(item.initiatedAt).toLocaleString() };
 }));
 const columns: DataTableColumn[] = [
-	{ key: "number", label: "Recall", minWidth: 145 },
-	{ key: "title", label: "Title", minWidth: 210 },
-	{ key: "scopeText", label: "Product / batch", minWidth: 230 },
-	{ key: "progressText", label: "Tasks", width: 100 },
-	{ key: "status", label: "Status", width: 110 },
-	{ key: "initiatedText", label: "Initiated", minWidth: 170 }
+	{ key: "number", label: t("pharma.drugRecall.recall"), minWidth: 145 },
+	{ key: "title", label: t("pharma.drugRecall.titleColumn"), minWidth: 210 },
+	{ key: "scopeText", label: t("pharma.drugRecall.productBatch"), minWidth: 230 },
+	{ key: "progressText", label: t("pharma.drugRecall.tasks"), width: 100 },
+	{ key: "status", label: t("pharma.drugRecall.status"), width: 110 },
+	{ key: "initiatedText", label: t("pharma.drugRecall.initiated"), minWidth: 170 }
 ];
 const activeCount = computed(() => items.value.filter((item) => item.status === "active").length);
 const completedCount = computed(() => items.value.filter((item) => item.status === "completed").length);
@@ -115,7 +119,7 @@ async function save(): Promise<void> {
 		createOpen.value = false;
 		selected.value = item;
 		detailOpen.value = true;
-		ElMessage.success("Drug recall created");
+		ElMessage.success(t("pharma.drugRecall.created"));
 	} catch (cause) {
 		error.value = toErrorMessage(cause);
 	} finally {
@@ -137,11 +141,11 @@ async function completeTask(item: DrugRecall, task: DrugRecallTask): Promise<voi
 	if (!canComplete.value || task.status === "completed") return;
 	let note = "";
 	try {
-		const result = await ElMessageBox.prompt("Record customer notification, quarantine, return, or disposal evidence.", `Complete ${task.customerName}`, {
+		const result = await ElMessageBox.prompt(t("pharma.drugRecall.recordCustomerNotificationQuarantineReturnOrDisposalEvidence"), `${t("pharma.drugRecall.completeCustomerTask")}: ${task.customerName}`, {
 			type: "warning",
-			confirmButtonText: "Complete task",
+			confirmButtonText: t("pharma.drugRecall.completeCustomerTask"),
 			inputType: "textarea",
-			inputValidator: (value) => Boolean(value.trim()) || "Completion note is required"
+			inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.completionNoteRequired")
 		});
 		note = result.value;
 	} catch {
@@ -151,7 +155,7 @@ async function completeTask(item: DrugRecall, task: DrugRecallTask): Promise<voi
 	error.value = "";
 	try {
 		replaceItem(await completeDrugRecallTask(item.id, task.id, note, actorId.value));
-		ElMessage.success("Customer recall task completed");
+		ElMessage.success(t("pharma.drugRecall.taskCompleted"));
 	} catch (cause) {
 		error.value = toErrorMessage(cause);
 	} finally {
@@ -169,49 +173,49 @@ function taskType(status: DrugRecallTask["status"]): "success" | "info" {
 </script>
 
 <template>
-	<PageShell title="Drug Recall" description="Trace affected batches and complete customer recall actions." :loading="loading" :error="error" :forbidden="!canRead" forbidden-title="No drug recall access" forbidden-description="This page requires pharma_oa.drug_recall.read permission.">
+	<PageShell :title="t('pharma.drugRecall.title')" :description="t('pharma.drugRecall.description')" :loading="loading" :error="error" :forbidden="!canRead" :forbidden-title="t('pharma.drugRecall.noDrugRecallAccess')" :forbidden-description="t('pharma.drugRecall.thisPageRequiresPharmaOaDrugRecallReadPermission')">
 		<template #actions>
-			<el-input v-model="keyword" clearable placeholder="Search recalls" class="filter-control" @keyup.enter="refresh" />
-			<el-select v-model="statusFilter" clearable placeholder="All statuses" class="filter-control" @change="refresh"><el-option label="Active" value="active" /><el-option label="Completed" value="completed" /></el-select>
-			<el-tooltip content="Refresh"><el-button :icon="RefreshCw" circle :loading="loading" @click="refresh" /></el-tooltip>
-			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">New recall</el-button>
+			<el-input v-model="keyword" clearable :placeholder="t('pharma.drugRecall.search')" class="filter-control" @keyup.enter="refresh" />
+			<el-select v-model="statusFilter" clearable :placeholder="t('pharma.drugRecall.allStatuses')" class="filter-control" @change="refresh"><el-option :label="t('pharma.drugRecall.active')" value="active" /><el-option :label="t('pharma.drugRecall.completed')" value="completed" /></el-select>
+			<el-tooltip :content="t('pharma.drugRecall.refresh')"><el-button :icon="RefreshCw" circle :loading="loading" @click="refresh" /></el-tooltip>
+			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">{{ t("pharma.drugRecall.newRecall") }}</el-button>
 		</template>
 
 		<section class="summary-band">
-			<div><span>Total</span><strong>{{ items.length }}</strong></div><div><span>Active</span><strong>{{ activeCount }}</strong></div><div><span>Completed</span><strong>{{ completedCount }}</strong></div><div><span>Customer tasks</span><strong>{{ affectedCount }}</strong></div>
+			<div><span>{{ t("pharma.drugRecall.total") }}</span><strong>{{ items.length }}</strong></div><div><span>{{ t("pharma.drugRecall.active") }}</span><strong>{{ activeCount }}</strong></div><div><span>{{ t("pharma.drugRecall.completed") }}</span><strong>{{ completedCount }}</strong></div><div><span>{{ t("pharma.drugRecall.customerTasks") }}</span><strong>{{ affectedCount }}</strong></div>
 		</section>
 
-		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" empty-text="No drug recalls match the current filters.">
+		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.drugRecall.empty')">
 			<template #cell-number="{ row }"><strong>{{ row.number }}</strong></template>
-			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as DrugRecallStatus)">{{ row.status }}</el-tag></template>
-			<template #actions="{ row }"><el-tooltip content="View processing trace"><el-button circle :icon="Eye" @click="openDetail(row as DrugRecall)" /></el-tooltip></template>
+			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as DrugRecallStatus)">{{ valueLabel(row.status) }}</el-tag></template>
+			<template #actions="{ row }"><el-tooltip :content="t('pharma.drugRecall.viewProcessingTrace')"><el-button circle :icon="Eye" @click="openDetail(row as DrugRecall)" /></el-tooltip></template>
 		</DataTable>
 
-		<DetailDrawer v-model="createOpen" title="New drug recall" size="56%">
+		<DetailDrawer v-model="createOpen" :title="t('pharma.drugRecall.newRecallTitle')" size="56%">
 			<el-form label-position="top">
-				<div class="form-grid"><el-form-item label="Recall number" required><el-input v-model="form.number" maxlength="64" /></el-form-item><el-form-item label="Title" required><el-input v-model="form.title" maxlength="160" /></el-form-item></div>
-				<el-form-item label="Recall reason" required><el-input v-model="form.reason" type="textarea" :rows="4" maxlength="2000" show-word-limit /></el-form-item>
+				<div class="form-grid"><el-form-item :label="t('pharma.drugRecall.recallNumber')" required><el-input v-model="form.number" maxlength="64" /></el-form-item><el-form-item :label="t('pharma.drugRecall.titleColumn')" required><el-input v-model="form.title" maxlength="160" /></el-form-item></div>
+				<el-form-item :label="t('pharma.drugRecall.recallReason')" required><el-input v-model="form.reason" type="textarea" :rows="4" maxlength="2000" show-word-limit /></el-form-item>
 				<div class="form-grid">
-					<el-form-item label="Affected batch" required><el-select v-model="form.batchId" filterable placeholder="Select inventory batch" @change="onBatchChange"><el-option v-for="batch in batches" :key="batch.id" :label="`${batch.batchNo} / ${batch.productId} / expires ${new Date(batch.expiresAt).toLocaleDateString()}`" :value="batch.id" /></el-select></el-form-item>
-					<el-form-item label="Source complaint"><el-select v-model="form.sourceComplaintId" clearable filterable placeholder="Optional"><el-option v-for="complaint in complaints" :key="complaint.id" :label="`${complaint.number} - ${complaint.title}`" :value="complaint.id" /></el-select></el-form-item>
+					<el-form-item :label="t('pharma.drugRecall.affectedBatch')" required><el-select v-model="form.batchId" filterable :placeholder="t('pharma.drugRecall.selectInventoryBatch')" @change="onBatchChange"><el-option v-for="batch in batches" :key="batch.id" :label="`${batch.batchNo} / ${batch.productId} / expires ${new Date(batch.expiresAt).toLocaleDateString()}`" :value="batch.id" /></el-select></el-form-item>
+					<el-form-item :label="t('pharma.drugRecall.sourceComplaint')"><el-select v-model="form.sourceComplaintId" clearable filterable :placeholder="t('pharma.drugRecall.optional')"><el-option v-for="complaint in complaints" :key="complaint.id" :label="`${complaint.number} - ${complaint.title}`" :value="complaint.id" /></el-select></el-form-item>
 				</div>
 				<section class="scope-section" v-loading="scopeLoading">
-					<header><div><PackageSearch :size="18" /><h3>Affected customers</h3></div><span>{{ scope.length }} customers / {{ scopeQuantity }} units</span></header>
-					<el-empty v-if="form.batchId && !scopeLoading && scope.length === 0" :image-size="64" description="No outbound customers found for this batch." />
-					<div v-for="entry in scope" :key="entry.customerId" class="scope-row"><div><strong>{{ entry.customerName }}</strong><small>{{ entry.customerId }}</small></div><div class="scope-evidence"><span>{{ entry.quantity }} units</span><small>{{ entry.outboundIds.join(", ") }}</small></div></div>
+					<header><div><PackageSearch :size="18" /><h3>{{ t("pharma.drugRecall.affectedCustomers") }}</h3></div><span>{{ scope.length }} {{ t("pharma.drugRecall.customerCountSeparator") }} {{ scopeQuantity }} {{ t("pharma.drugRecall.units") }}</span></header>
+					<el-empty v-if="form.batchId && !scopeLoading && scope.length === 0" :image-size="64" :description="t('pharma.drugRecall.noOutboundCustomers')" />
+					<div v-for="entry in scope" :key="entry.customerId" class="scope-row"><div><strong>{{ entry.customerName }}</strong><small>{{ entry.customerId }}</small></div><div class="scope-evidence"><span>{{ entry.quantity }} {{ t("pharma.drugRecall.units") }}</span><small>{{ entry.outboundIds.join(", ") }}</small></div></div>
 				</section>
 			</el-form>
-			<template #footer><el-button :disabled="saving" @click="createOpen = false">Cancel</el-button><el-button type="danger" :icon="Truck" :loading="saving" :disabled="!canSubmit" @click="save">Create recall</el-button></template>
+			<template #footer><el-button :disabled="saving" @click="createOpen = false">{{ t("pharma.drugRecall.cancel") }}</el-button><el-button type="danger" :icon="Truck" :loading="saving" :disabled="!canSubmit" @click="save">{{ t("pharma.drugRecall.createRecall") }}</el-button></template>
 		</DetailDrawer>
 
-		<DetailDrawer v-model="detailOpen" :title="selected ? `${selected.number} - ${selected.title}` : 'Drug recall'" size="58%">
+		<DetailDrawer v-model="detailOpen" :title="selected ? `${selected.number} - ${selected.title}` : t('pharma.drugRecall.title')" size="58%">
 			<template v-if="selected">
-				<div class="detail-status"><el-tag :type="statusType(selected.status)">{{ selected.status }}</el-tag><span>{{ selected.productName }} / {{ selected.batchNo }}</span></div>
+				<div class="detail-status"><el-tag :type="statusType(selected.status)">{{ valueLabel(selected.status) }}</el-tag><span>{{ selected.productName }} / {{ selected.batchNo }}</span></div>
 				<p class="reason">{{ selected.reason }}</p>
-				<dl class="detail-grid"><div><dt>Batch ID</dt><dd>{{ selected.batchId }}</dd></div><div><dt>Source complaint</dt><dd>{{ selected.sourceComplaintId || '-' }}</dd></div><div><dt>Initiated by</dt><dd>{{ selected.initiatedBy }}</dd></div><div><dt>Initiated at</dt><dd>{{ new Date(selected.initiatedAt).toLocaleString() }}</dd></div></dl>
-				<section class="task-section"><h3>Customer processing trace</h3><div v-for="task in selected.tasks" :key="task.id" class="task-row"><div class="task-main"><div><strong>{{ task.customerName }}</strong><el-tag size="small" :type="taskType(task.status)">{{ task.status }}</el-tag></div><small>{{ task.quantity }} units / {{ task.outboundIds.join(", ") }}</small><p v-if="task.completionNote">{{ task.completionNote }}</p><small v-if="task.completedAt">{{ task.completedBy }} / {{ new Date(task.completedAt).toLocaleString() }}</small></div><el-tooltip v-if="task.status === 'pending'" content="Complete customer task"><el-button circle type="success" :icon="CheckCircle2" :loading="actionId === task.id" :disabled="!canComplete" @click="completeTask(selected, task)" /></el-tooltip></div></section>
+				<dl class="detail-grid"><div><dt>{{ t("pharma.drugRecall.batchId") }}</dt><dd>{{ selected.batchId }}</dd></div><div><dt>{{ t("pharma.drugRecall.sourceComplaint") }}</dt><dd>{{ selected.sourceComplaintId || '-' }}</dd></div><div><dt>{{ t("pharma.drugRecall.initiatedBy") }}</dt><dd>{{ selected.initiatedBy }}</dd></div><div><dt>{{ t("pharma.drugRecall.initiatedAt") }}</dt><dd>{{ new Date(selected.initiatedAt).toLocaleString() }}</dd></div></dl>
+				<section class="task-section"><h3>{{ t("pharma.drugRecall.customerTrace") }}</h3><div v-for="task in selected.tasks" :key="task.id" class="task-row"><div class="task-main"><div><strong>{{ task.customerName }}</strong><el-tag size="small" :type="taskType(task.status)">{{ valueLabel(task.status) }}</el-tag></div><small>{{ task.quantity }} {{ t("pharma.drugRecall.unitSeparator") }} {{ task.outboundIds.join(", ") }}</small><p v-if="task.completionNote">{{ task.completionNote }}</p><small v-if="task.completedAt">{{ task.completedBy }} / {{ new Date(task.completedAt).toLocaleString() }}</small></div><el-tooltip v-if="task.status === 'pending'" :content="t('pharma.drugRecall.completeCustomerTask')"><el-button circle type="success" :icon="CheckCircle2" :loading="actionId === task.id" :disabled="!canComplete" @click="completeTask(selected, task)" /></el-tooltip></div></section>
 			</template>
-			<template #footer><el-button @click="detailOpen = false">Close</el-button></template>
+			<template #footer><el-button @click="detailOpen = false">{{ t("pharma.drugRecall.close") }}</el-button></template>
 		</DetailDrawer>
 	</PageShell>
 </template>

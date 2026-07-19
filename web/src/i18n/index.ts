@@ -1,5 +1,7 @@
 import { computed, ref } from "vue";
 
+import pharmaMessages from "./pharma.json";
+
 export type Locale = "zh-CN" | "en-US";
 
 type Dict = Record<string, string>;
@@ -10,6 +12,7 @@ export const DEFAULT_LOCALE: Locale = "zh-CN";
 
 const messages: Record<Locale, Dict> = {
 	"zh-CN": {
+		...pharmaMessages["zh-CN"],
 		"app.title": "Skoll 管理控制台",
 		"app.subtitle": "插件化重构前端基线",
 		"menu.dashboard": "仪表盘",
@@ -531,6 +534,11 @@ const messages: Record<Locale, Dict> = {
 		"tabs.pin": "固定",
 		"error.network": "网络连接失败，请检查后端服务或网络设置。",
 		"error.requestFailed": "请求失败，请稍后重试。",
+		"state.requestFailed": "请求失败",
+		"state.noPermission": "无权限",
+		"state.noPagePermission": "当前账号无权访问此页面。",
+		"state.noDataPermission": "当前账号无权访问这些数据。",
+		"state.noData": "暂无数据",
 		"error.unauthorized": "登录状态无效或已过期，请重新登录。",
 		"error.forbidden": "当前账号没有权限执行该操作。",
 		"error.notFound": "请求的资源不存在。",
@@ -662,6 +670,7 @@ const messages: Record<Locale, Dict> = {
 		"batchUser.passwordInvalid": "密码至少 8 位"
 	},
 	"en-US": {
+		...pharmaMessages["en-US"],
 		"app.title": "Skoll Admin Console",
 		"app.subtitle": "Frontend baseline for plugin refactor",
 		"menu.dashboard": "Dashboard",
@@ -1183,6 +1192,11 @@ const messages: Record<Locale, Dict> = {
 		"tabs.pin": "Pin",
 		"error.network": "Network connection failed. Please check backend service and network settings.",
 		"error.requestFailed": "Request failed. Please try again later.",
+		"state.requestFailed": "Request failed",
+		"state.noPermission": "No permission",
+		"state.noPagePermission": "You do not have access to this page.",
+		"state.noDataPermission": "You do not have access to this data.",
+		"state.noData": "No data",
 		"error.unauthorized": "Session is invalid or expired. Please sign in again.",
 		"error.forbidden": "You do not have permission to perform this action.",
 		"error.notFound": "Requested resource was not found.",
@@ -1325,6 +1339,19 @@ function detectInitialLocale(): Locale {
 
 const locale = ref<Locale>(detectInitialLocale());
 
+const LOCALIZED_ERROR_KEYS = [
+	"error.network",
+	"error.requestFailed",
+	"error.unauthorized",
+	"error.forbidden",
+	"error.notFound",
+	"error.server",
+	"error.clientRuntime",
+	"error.invalidCredentials",
+	"error.invalidAuthRequest",
+	"error.invalidOrganization"
+] as const;
+
 export function setLocale(next: Locale): void {
 	if (!SUPPORTED.includes(next)) {
 		return;
@@ -1337,9 +1364,14 @@ export function useI18n() {
 	const t = (key: string): string => {
 		return messages[locale.value][key] ?? key;
 	};
+	const valueLabel = (value: unknown): string => {
+		const raw = String(value ?? "");
+		return messages[locale.value][`pharma.common.value.${raw}`] ?? raw.replace(/_/g, " ");
+	};
 	return {
 		locale: computed(() => locale.value),
 		t,
+		valueLabel,
 		setLocale,
 		supportedLocales: SUPPORTED
 	};
@@ -1347,4 +1379,17 @@ export function useI18n() {
 
 export function translate(key: string): string {
 	return messages[locale.value][key] ?? key;
+}
+
+export function localizeKnownError(message: string): string {
+	const normalized = message.trim();
+	if (!normalized) {
+		return "";
+	}
+	for (const key of LOCALIZED_ERROR_KEYS) {
+		if (SUPPORTED.some((candidate) => messages[candidate][key] === normalized)) {
+			return messages[locale.value][key] ?? normalized;
+		}
+	}
+	return message;
 }

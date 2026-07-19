@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../../i18n";
+
 import { computed, onMounted, ref } from "vue";
 import { AlarmClock, ExternalLink, RefreshCw } from "lucide-vue-next";
 import { ElMessage, ElMessageBox } from "element-plus";
@@ -15,6 +17,8 @@ import {
 } from "../../pharma-oa/api";
 import { useUserStore } from "../../stores/user";
 import { toErrorMessage } from "../../utils/common";
+
+const { t, valueLabel } = useI18n();
 
 type QualificationRow = Record<string, unknown> & QualificationRecord & {
 	subjectText: string;
@@ -46,17 +50,17 @@ const rows = computed<QualificationRow[]>(() => items.value.map((item) => ({
 	subjectText: `${subjectLabel(item.subjectType)}: ${item.subjectName}`,
 	expiryText: formatExpiry(item.expiresAt),
 	attachmentText: String(item.attachmentCount),
-	reminderText: item.reminderNotificationId ? "Created" : "Not created"
+	reminderText: item.reminderNotificationId ? valueLabel("created") : t("pharma.qualification.notCreated")
 })));
 const columns: DataTableColumn[] = [
-	{ key: "subjectText", label: "Subject", minWidth: 220 },
-	{ key: "subjectCode", label: "Code", minWidth: 130 },
-	{ key: "qualificationName", label: "Qualification", minWidth: 190 },
-	{ key: "number", label: "Number", minWidth: 150 },
-	{ key: "expiryText", label: "Expires", width: 135 },
-	{ key: "status", label: "Status", width: 120 },
-	{ key: "attachmentText", label: "Files", width: 80, align: "center" },
-	{ key: "reminderText", label: "Reminder", width: 125 }
+	{ key: "subjectText", label: t("pharma.qualification.subject"), minWidth: 220 },
+	{ key: "subjectCode", label: t("pharma.qualification.code"), minWidth: 130 },
+	{ key: "qualificationName", label: t("pharma.qualification.qualification"), minWidth: 190 },
+	{ key: "number", label: t("pharma.qualification.number"), minWidth: 150 },
+	{ key: "expiryText", label: t("pharma.qualification.expires"), width: 135 },
+	{ key: "status", label: t("pharma.qualification.status"), width: 120 },
+	{ key: "attachmentText", label: t("pharma.qualification.files"), width: 80, align: "center" },
+	{ key: "reminderText", label: t("pharma.qualification.reminder"), width: 125 }
 ];
 
 onMounted(() => void refresh());
@@ -82,16 +86,16 @@ async function refresh() {
 async function scanExpiry() {
 	if (!canScan.value || scanning.value) return;
 	await ElMessageBox.confirm(
-		`Scan qualifications expired or expiring within ${expiryDays.value} days and create reminders?`,
-		"Run qualification expiry scan",
-		{ type: "warning", confirmButtonText: "Run scan" }
+		`${t("pharma.qualification.runQualificationExpiryScan")}: ${expiryDays.value} ${valueLabel("day")}?`,
+		t("pharma.qualification.runQualificationExpiryScan"),
+		{ type: "warning", confirmButtonText: t("pharma.qualification.runQualificationExpiryScan") }
 	);
 	scanning.value = true;
 	error.value = "";
 	try {
 		const result = await scanQualificationExpiry(expiryDays.value, actorId.value);
 		await refresh();
-		ElMessage.success(`${result.createdCount} new reminder${result.createdCount === 1 ? "" : "s"}`);
+		ElMessage.success(`${result.createdCount} ${t("pharma.common.createdReminders")}`);
 	} catch (cause) {
 		error.value = toErrorMessage(cause);
 	} finally {
@@ -122,44 +126,44 @@ function statusType(status: QualificationStatus): "success" | "warning" | "dange
 
 <template>
 	<PageShell
-		title="Qualification Management"
+		:title="t('pharma.qualification.title')"
 		:loading="loading"
 		:error="error"
 		:forbidden="!canRead"
-		forbidden-title="No qualification access"
-		forbidden-description="This page requires pharma_oa.qualification.read permission."
+		:forbidden-title="t('pharma.qualification.noQualificationAccess')"
+		:forbidden-description="t('pharma.qualification.thisPageRequiresPharmaOaQualificationReadPermission')"
 	>
 		<template #actions>
-			<el-input v-model="keyword" clearable placeholder="Search qualifications" class="filter-control" @keyup.enter="refresh" />
-			<el-select v-model="subjectFilter" clearable placeholder="All subjects" class="filter-control" @change="refresh">
-				<el-option label="Employees" value="employee" />
-				<el-option label="Suppliers" value="supplier" />
-				<el-option label="Customers" value="customer" />
+			<el-input v-model="keyword" clearable :placeholder="t('pharma.qualification.search')" class="filter-control" @keyup.enter="refresh" />
+			<el-select v-model="subjectFilter" clearable :placeholder="t('pharma.qualification.allSubjects')" class="filter-control" @change="refresh">
+				<el-option :label="t('pharma.qualification.employees')" value="employee" />
+				<el-option :label="t('pharma.qualification.suppliers')" value="supplier" />
+				<el-option :label="t('pharma.qualification.customers')" value="customer" />
 			</el-select>
-			<el-select v-model="statusFilter" clearable placeholder="All statuses" class="filter-control" @change="refresh">
-				<el-option label="Valid" value="valid" />
-				<el-option label="Expiring" value="expiring" />
-				<el-option label="Expired" value="expired" />
-				<el-option label="Permanent" value="permanent" />
+			<el-select v-model="statusFilter" clearable :placeholder="t('pharma.qualification.allStatuses')" class="filter-control" @change="refresh">
+				<el-option :label="t('pharma.qualification.valid')" value="valid" />
+				<el-option :label="t('pharma.qualification.expiring')" value="expiring" />
+				<el-option :label="t('pharma.qualification.expired')" value="expired" />
+				<el-option :label="t('pharma.qualification.permanent')" value="permanent" />
 			</el-select>
-			<el-input-number v-model="expiryDays" :min="1" :max="365" controls-position="right" class="days-control" aria-label="Expiry window in days" @change="refresh" />
-			<el-tooltip content="Refresh"><el-button circle :icon="RefreshCw" :loading="loading" @click="refresh" /></el-tooltip>
-			<el-button :icon="AlarmClock" :loading="scanning" :disabled="!canScan || loading" @click="scanExpiry">Expiry scan</el-button>
+			<el-input-number v-model="expiryDays" :min="1" :max="365" controls-position="right" class="days-control" :aria-label="t('pharma.qualification.expiryWindowDays')" @change="refresh" />
+			<el-tooltip :content="t('pharma.qualification.refresh')"><el-button circle :icon="RefreshCw" :loading="loading" @click="refresh" /></el-tooltip>
+			<el-button :icon="AlarmClock" :loading="scanning" :disabled="!canScan || loading" @click="scanExpiry">{{ t("pharma.qualification.expiryScan") }}</el-button>
 		</template>
 
-		<section class="summary-band" aria-label="Qualification summary">
-			<div><span>Total</span><strong>{{ items.length }}</strong></div>
-			<div><span>Expired</span><strong>{{ expiredCount }}</strong></div>
-			<div><span>Expiring</span><strong>{{ expiringCount }}</strong></div>
-			<div><span>Reminders</span><strong>{{ reminderCount }}</strong></div>
+		<section class="summary-band" :aria-label="t('pharma.qualification.summary')">
+			<div><span>{{ t("pharma.qualification.total") }}</span><strong>{{ items.length }}</strong></div>
+			<div><span>{{ t("pharma.qualification.expired") }}</span><strong>{{ expiredCount }}</strong></div>
+			<div><span>{{ t("pharma.qualification.expiring") }}</span><strong>{{ expiringCount }}</strong></div>
+			<div><span>{{ t("pharma.qualification.reminders") }}</span><strong>{{ reminderCount }}</strong></div>
 		</section>
 
-		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" empty-text="No qualifications match the current filters.">
+		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.qualification.empty')">
 			<template #cell-subjectText="{ row }"><strong>{{ row.subjectText }}</strong></template>
-			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as QualificationStatus)">{{ row.status }}</el-tag></template>
+			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as QualificationStatus)">{{ valueLabel(row.status) }}</el-tag></template>
 			<template #cell-reminderText="{ row }"><el-tag :type="row.reminderNotificationId ? 'success' : 'info'" effect="plain">{{ row.reminderText }}</el-tag></template>
 			<template #actions="{ row }">
-				<el-tooltip content="Open subject ledger"><el-button circle :icon="ExternalLink" @click="openSubject(row as QualificationRecord)" /></el-tooltip>
+				<el-tooltip :content="t('pharma.qualification.openSubjectLedger')"><el-button circle :icon="ExternalLink" @click="openSubject(row as QualificationRecord)" /></el-tooltip>
 			</template>
 		</DataTable>
 	</PageShell>

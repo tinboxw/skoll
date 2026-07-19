@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../../i18n";
+
 import { computed, onMounted, ref } from "vue";
 import { Download, ExternalLink, Eye, RefreshCw, Search, ShieldAlert, X } from "lucide-vue-next";
 import { ElMessage } from "element-plus";
@@ -16,6 +18,8 @@ import {
 	type ComplianceSource
 } from "../../pharma-oa/api";
 import { toErrorMessage } from "../../utils/common";
+
+const { t, valueLabel } = useI18n();
 
 type RiskRow = Record<string, unknown> & ComplianceRiskItem & {
 	sourceText: string;
@@ -40,10 +44,10 @@ const canRead = computed(() => access.can("pharma_oa.compliance_dashboard.read")
 const canExport = computed(() => access.can("pharma_oa.compliance_dashboard.export"));
 const summary = computed(() => snapshot.value?.summary ?? { total: 0, high: 0, medium: 0, qualifications: 0, complaints: 0, recalls: 0, coldChain: 0 });
 const sourceStats = computed(() => [
-	{ key: "qualification", label: "Qualifications", value: summary.value.qualifications },
-	{ key: "quality_complaint", label: "Complaints", value: summary.value.complaints },
-	{ key: "drug_recall", label: "Recalls", value: summary.value.recalls },
-	{ key: "cold_chain", label: "Cold chain", value: summary.value.coldChain }
+	{ key: "qualification", label: t("pharma.complianceDashboard.qualifications"), value: summary.value.qualifications },
+	{ key: "quality_complaint", label: t("pharma.complianceDashboard.complaints"), value: summary.value.complaints },
+	{ key: "drug_recall", label: t("pharma.complianceDashboard.recalls"), value: summary.value.recalls },
+	{ key: "cold_chain", label: t("pharma.complianceDashboard.coldChain"), value: summary.value.coldChain }
 ]);
 const rows = computed<RiskRow[]>(() => (snapshot.value?.items ?? []).map((item) => ({
 	...item,
@@ -52,14 +56,14 @@ const rows = computed<RiskRow[]>(() => (snapshot.value?.items ?? []).map((item) 
 	actionText: item.totalActions > 1 ? `${item.pendingActions} / ${item.totalActions}` : String(item.pendingActions)
 })));
 const columns: DataTableColumn[] = [
-	{ key: "risk", label: "Risk", width: 90 },
-	{ key: "sourceText", label: "Source", minWidth: 145 },
-	{ key: "reference", label: "Reference", minWidth: 145 },
-	{ key: "title", label: "Issue", minWidth: 210 },
-	{ key: "subject", label: "Subject", minWidth: 205 },
-	{ key: "batchNo", label: "Batch", minWidth: 125 },
-	{ key: "actionText", label: "Open actions", width: 120 },
-	{ key: "observedText", label: "Observed / due", minWidth: 175 }
+	{ key: "risk", label: t("pharma.complianceDashboard.riskColumn"), width: 90 },
+	{ key: "sourceText", label: t("pharma.complianceDashboard.source"), minWidth: 145 },
+	{ key: "reference", label: t("pharma.complianceDashboard.reference"), minWidth: 145 },
+	{ key: "title", label: t("pharma.complianceDashboard.issue"), minWidth: 210 },
+	{ key: "subject", label: t("pharma.complianceDashboard.subject"), minWidth: 205 },
+	{ key: "batchNo", label: t("pharma.complianceDashboard.batch"), minWidth: 125 },
+	{ key: "actionText", label: t("pharma.complianceDashboard.openActions"), width: 120 },
+	{ key: "observedText", label: t("pharma.complianceDashboard.observedDue"), minWidth: 175 }
 ];
 
 onMounted(() => void refresh());
@@ -93,7 +97,7 @@ async function exportCSV(): Promise<void> {
 	try {
 		const blob = await exportComplianceDashboard(currentQuery());
 		downloadBlob({ blob, filename: `pharma-oa-compliance-risks-${new Date().toISOString().slice(0, 10)}.csv` });
-		ElMessage.success("Compliance evidence export started");
+		ElMessage.success(t("pharma.complianceDashboard.exportStarted"));
 	} catch (cause) {
 		error.value = toErrorMessage(cause);
 	} finally {
@@ -124,7 +128,7 @@ async function openSource(item: ComplianceRiskItem): Promise<void> {
 }
 
 function sourceLabel(value: ComplianceSource): string {
-	return ({ qualification: "Qualification", quality_complaint: "Quality complaint", drug_recall: "Drug recall", cold_chain: "Cold chain" } as Record<ComplianceSource, string>)[value];
+	return valueLabel(value);
 }
 
 function riskType(value: ComplianceRisk): "danger" | "warning" {
@@ -137,58 +141,58 @@ function isComplianceSource(value: unknown): value is ComplianceSource {
 </script>
 
 <template>
-	<PageShell title="Compliance Audit Dashboard" description="Prioritize active quality and regulatory risk with direct source traceability." :loading="loading" :error="error" :forbidden="!canRead" forbidden-title="No compliance dashboard access" forbidden-description="This page requires pharma_oa.compliance_dashboard.read permission.">
+	<PageShell :title="t('pharma.complianceDashboard.title')" :description="t('pharma.complianceDashboard.description')" :loading="loading" :error="error" :forbidden="!canRead" :forbidden-title="t('pharma.complianceDashboard.noComplianceDashboardAccess')" :forbidden-description="t('pharma.complianceDashboard.thisPageRequiresPharmaOaComplianceDashboardReadPermission')">
 		<template #actions>
-			<el-tooltip content="Refresh"><el-button circle aria-label="Refresh dashboard" :icon="RefreshCw" :loading="loading" @click="refresh" /></el-tooltip>
-			<el-button :icon="Download" :loading="exporting" :disabled="!canExport || loading" @click="exportCSV">Export evidence</el-button>
+			<el-tooltip :content="t('pharma.complianceDashboard.refresh56e3badc')"><el-button circle :aria-label="t('pharma.complianceDashboard.refresh')" :icon="RefreshCw" :loading="loading" @click="refresh" /></el-tooltip>
+			<el-button :icon="Download" :loading="exporting" :disabled="!canExport || loading" @click="exportCSV">{{ t("pharma.complianceDashboard.exportEvidence") }}</el-button>
 		</template>
 
-		<section class="summary-band" aria-label="Compliance risk summary">
-			<div><span>Active risks</span><strong>{{ summary.total }}</strong></div>
-			<div class="high"><span>High risk</span><strong>{{ summary.high }}</strong></div>
-			<div><span>Medium risk</span><strong>{{ summary.medium }}</strong></div>
-			<div><span>Matched view</span><strong>{{ snapshot?.matchedCount ?? 0 }}</strong></div>
+		<section class="summary-band" :aria-label="t('pharma.complianceDashboard.riskSummary')">
+			<div><span>{{ t("pharma.complianceDashboard.activeRisks") }}</span><strong>{{ summary.total }}</strong></div>
+			<div class="high"><span>{{ t("pharma.complianceDashboard.highRisk") }}</span><strong>{{ summary.high }}</strong></div>
+			<div><span>{{ t("pharma.complianceDashboard.mediumRisk") }}</span><strong>{{ summary.medium }}</strong></div>
+			<div><span>{{ t("pharma.complianceDashboard.matchedView") }}</span><strong>{{ snapshot?.matchedCount ?? 0 }}</strong></div>
 		</section>
 
-		<section class="source-band" aria-label="Risk sources">
+		<section class="source-band" :aria-label="t('pharma.complianceDashboard.riskSources')">
 			<button v-for="item in sourceStats" :key="item.key" type="button" :class="{ active: source === item.key }" @click="selectSource(item.key)"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></button>
 		</section>
 
 		<div class="filter-band">
-			<el-input v-model="keyword" clearable placeholder="Reference, subject, batch, or issue" :prefix-icon="Search" @keyup.enter="refresh" @clear="refresh" />
-			<el-select v-model="source" clearable placeholder="All sources" @change="refresh">
-				<el-option label="Qualifications" value="qualification" />
-				<el-option label="Quality complaints" value="quality_complaint" />
-				<el-option label="Drug recalls" value="drug_recall" />
-				<el-option label="Cold chain" value="cold_chain" />
+			<el-input v-model="keyword" clearable :placeholder="t('pharma.complianceDashboard.keywordPlaceholder')" :prefix-icon="Search" @keyup.enter="refresh" @clear="refresh" />
+			<el-select v-model="source" clearable :placeholder="t('pharma.complianceDashboard.allSources')" @change="refresh">
+				<el-option :label="t('pharma.complianceDashboard.qualifications')" value="qualification" />
+				<el-option :label="t('pharma.complianceDashboard.qualityComplaints')" value="quality_complaint" />
+				<el-option :label="t('pharma.complianceDashboard.drugRecalls')" value="drug_recall" />
+				<el-option :label="t('pharma.complianceDashboard.coldChain')" value="cold_chain" />
 			</el-select>
-			<el-segmented v-model="risk" :options="[{ label: 'All risk', value: '' }, { label: 'High', value: 'high' }, { label: 'Medium', value: 'medium' }]" @change="refresh" />
-			<el-tooltip content="Clear filters"><el-button circle aria-label="Clear filters" :icon="X" :disabled="!keyword && !risk && !source" @click="clearFilters" /></el-tooltip>
+			<el-segmented v-model="risk" :options="[{ label: t('pharma.complianceDashboard.allRisk'), value: '' }, { label: valueLabel('high'), value: 'high' }, { label: valueLabel('medium'), value: 'medium' }]" @change="refresh" />
+			<el-tooltip :content="t('pharma.complianceDashboard.clearFilters')"><el-button circle :aria-label="t('pharma.complianceDashboard.clearFilters')" :icon="X" :disabled="!keyword && !risk && !source" @click="clearFilters" /></el-tooltip>
 		</div>
 
-		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" empty-text="No active compliance risks match the current filters.">
-			<template #cell-risk="{ row }"><el-tag :type="riskType(row.risk as ComplianceRisk)">{{ row.risk }}</el-tag></template>
+		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.complianceDashboard.empty')">
+			<template #cell-risk="{ row }"><el-tag :type="riskType(row.risk as ComplianceRisk)">{{ valueLabel(row.risk) }}</el-tag></template>
 			<template #cell-reference="{ row }"><strong>{{ row.reference }}</strong></template>
 			<template #cell-batchNo="{ row }">{{ row.batchNo || "-" }}</template>
 			<template #actions="{ row }">
-				<el-tooltip content="View trace"><el-button circle aria-label="View trace" :icon="Eye" @click="openDetail(row as RiskRow)" /></el-tooltip>
-				<el-tooltip content="Open source"><el-button circle type="primary" aria-label="Open source" :icon="ExternalLink" @click="openSource(row as RiskRow)" /></el-tooltip>
+				<el-tooltip :content="t('pharma.complianceDashboard.viewTrace')"><el-button circle :aria-label="t('pharma.complianceDashboard.viewTrace')" :icon="Eye" @click="openDetail(row as RiskRow)" /></el-tooltip>
+				<el-tooltip :content="t('pharma.complianceDashboard.openSource')"><el-button circle type="primary" :aria-label="t('pharma.complianceDashboard.openSource')" :icon="ExternalLink" @click="openSource(row as RiskRow)" /></el-tooltip>
 			</template>
 		</DataTable>
 
-		<DetailDrawer v-model="detailOpen" :title="selected ? `${sourceLabel(selected.source)} / ${selected.reference}` : 'Compliance risk trace'" size="54%">
+		<DetailDrawer v-model="detailOpen" :title="selected ? `${sourceLabel(selected.source)} / ${selected.reference}` : t('pharma.complianceDashboard.sourceTrace')" size="54%">
 			<template v-if="selected">
-				<div class="detail-status"><el-tag :type="riskType(selected.risk)">{{ selected.risk }} risk</el-tag><el-tag>{{ selected.status }}</el-tag></div>
+				<div class="detail-status"><el-tag :type="riskType(selected.risk)">{{ valueLabel(selected.risk) }} {{ t("pharma.complianceDashboard.risk") }}</el-tag><el-tag>{{ valueLabel(selected.status) }}</el-tag></div>
 				<div class="risk-heading"><ShieldAlert :size="22" /><div><h3>{{ selected.title }}</h3><p>{{ selected.subject }}</p></div></div>
 				<dl class="detail-grid">
-					<div><dt>Source ID</dt><dd>{{ selected.sourceId }}</dd></div>
-					<div><dt>Observed / due</dt><dd>{{ new Date(selected.observedAt).toLocaleString() }}</dd></div>
-					<div><dt>Batch</dt><dd>{{ selected.batchNo || "Not batch-specific" }}</dd></div>
-					<div><dt>Open actions</dt><dd>{{ selected.pendingActions }} of {{ selected.totalActions }}</dd></div>
+					<div><dt>{{ t("pharma.complianceDashboard.sourceId") }}</dt><dd>{{ selected.sourceId }}</dd></div>
+					<div><dt>{{ t("pharma.complianceDashboard.observedDue") }}</dt><dd>{{ new Date(selected.observedAt).toLocaleString() }}</dd></div>
+					<div><dt>{{ t("pharma.complianceDashboard.batch") }}</dt><dd>{{ selected.batchNo || "Not batch-specific" }}</dd></div>
+					<div><dt>{{ t("pharma.complianceDashboard.openActions") }}</dt><dd>{{ selected.pendingActions }} {{ t("pharma.complianceDashboard.of") }} {{ selected.totalActions }}</dd></div>
 				</dl>
-				<section class="trace-list"><h3>Source trace</h3><dl><div v-for="item in selected.trace" :key="`${item.label}-${item.value}`"><dt>{{ item.label }}</dt><dd>{{ item.value || "-" }}</dd></div></dl></section>
+				<section class="trace-list"><h3>{{ t("pharma.complianceDashboard.sourceTrace") }}</h3><dl><div v-for="item in selected.trace" :key="`${item.label}-${item.value}`"><dt>{{ item.label }}</dt><dd>{{ item.value || "-" }}</dd></div></dl></section>
 			</template>
-			<template #footer><el-button @click="detailOpen = false">Close</el-button><el-button v-if="selected" type="primary" :icon="ExternalLink" @click="openSource(selected)">Open source</el-button></template>
+			<template #footer><el-button @click="detailOpen = false">{{ t("pharma.complianceDashboard.close") }}</el-button><el-button v-if="selected" type="primary" :icon="ExternalLink" @click="openSource(selected)">{{ t("pharma.complianceDashboard.openSource") }}</el-button></template>
 		</DetailDrawer>
 	</PageShell>
 </template>

@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
+import { localizeKnownError, useI18n } from "../../i18n";
 import StateBlock from "./StateBlock.vue";
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
 	title: string;
 	description?: string;
 	eyebrow?: string;
@@ -16,9 +19,12 @@ withDefaults(defineProps<{
 	loading: false,
 	error: "",
 	forbidden: false,
-	forbiddenTitle: "No permission",
-	forbiddenDescription: "You do not have access to this page."
+	forbiddenTitle: "",
+	forbiddenDescription: ""
 });
+
+const { t } = useI18n();
+const localizedError = computed(() => localizeKnownError(props.error));
 </script>
 
 <template>
@@ -38,14 +44,14 @@ withDefaults(defineProps<{
 		<StateBlock
 			v-if="forbidden"
 			type="forbidden"
-			:title="forbiddenTitle"
-			:description="forbiddenDescription"
+			:title="forbiddenTitle || t('state.noPermission')"
+			:description="forbiddenDescription || t('state.noPagePermission')"
 		>
 			<template v-if="$slots.stateActions" #actions>
 				<slot name="stateActions" />
 			</template>
 		</StateBlock>
-		<StateBlock v-else-if="error" type="error" title="Request failed" :description="error">
+		<StateBlock v-else-if="error" type="error" :title="t('state.requestFailed')" :description="localizedError">
 			<template v-if="$slots.stateActions" #actions>
 				<slot name="stateActions" />
 			</template>

@@ -661,3 +661,49 @@ git diff --check
 ### Next Step
 
 父任务 H4 保持 `Doing`。H4-01 提交后按正式 Work Item 顺序领取 `H4-02`，依据版本化清单完成 Pharma OA 主流程中英文资源迁移和双语浏览器验收。
+
+## H4-02 Pharma OA 主流程双语迁移
+
+- Date: 2026-07-19
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 将 15 个 Pharma OA 主页面的主数据、协同、供应链、合规、CRM、财务和经营看板文案迁移为中文默认、英文完整的资源目录，并覆盖运行时枚举、页面状态、确认框、校验和响应式切换。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 主流程资源迁移 | Pass | `web/src/i18n/pharma.json` 为 15 个页面提供中英文资源；两种 locale 各 1,361 个键且键集一致，1,254 个静态引用全部存在，版本化清单记录每页实际引用数。 |
+| 可见硬编码门禁 | Pass | SFC/TypeScript AST 检查覆盖模板文本、用户可见属性、插值分支、消息、确认提示及按钮、输入校验和错误赋值；15 个页面硬编码计数均为 0。 |
+| 运行时业务值 | Pass | 状态、风险、阶段、渠道、来源、主体类型、合同主体和日/周/月粒度统一经 `valueLabel` 解析；未知值保持可读回退，不直接暴露下划线枚举。 |
+| 状态切换一致性 | Pass | `PageShell` 与 `DataTable` 的 error/no-permission/empty 标题已双语化；已翻译错误在 locale 切换时按稳定错误键重新解析，消除中文错误详情滞留在英文页面的问题。 |
+| 双语浏览器验收 | Pass | 桌面端抽检看板、合规、采购入库、销售出库、客户跟进、销售机会、付款发票、公告、合同和资质；中文/英文标题、动作与错误态正确切换，最终干净标签页无控制台错误。 |
+| 响应式验收 | Pass | 375x844 中文销售页和英文看板截图均无文字重叠，文档 `scrollWidth` 等于 `clientWidth`；重置视口后 1280px 双语看板同样无横向溢出。 |
+| 质量门禁 | Pass | locale 检查、`vue-tsc --noEmit`、Vite 生产构建、Node 语法、两份 JSON 解析和 `git diff --check` 全部通过。 |
+| API/权限/审计/migration/seed | Pass | 本项只调整前端 locale、共享状态展示和检查脚本；未新增或修改 HTTP 契约、权限键、审计动作、migration 或 seed，无需修改 OpenAPI。 |
+| CodeGraph 与边界 | Pass | 同步后索引为 702 files / 15,080 nodes / 46,281 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有文档与本地环境文件。 |
+
+### Verification Commands
+
+```powershell
+npm --prefix web run check:i18n
+npm --prefix web run typecheck
+npm --prefix web run build
+node --check web/scripts/h4-locale-baseline-check.mjs
+node -e "JSON.parse(require('fs').readFileSync('web/i18n/pharma-oa-baseline.json','utf8')); JSON.parse(require('fs').readFileSync('web/src/i18n/pharma.json','utf8'))"
+codegraph sync .
+codegraph status .
+codegraph query "localizeKnownError"
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首次 `vue-tsc` 验收发现 `String.replaceAll` 超出项目 ES2020 目标。 | 改用全局正则替换下划线后重跑类型检查。 |
+| 2 | Failed -> Doing | 英文浏览器模式下错误标题为 `Request failed`，但错误详情仍保留中文“服务暂时不可用”。 | 共享状态层按稳定错误键实时重翻译，并将错误、无权限和空状态标题纳入双语资源。 |
+| 3 | Failed -> Doing | 中文销售页主按钮仍显示 `New order`，原检查器未解析插值条件分支。 | 扩展 AST 门禁并清理由其进一步发现的抽屉标题、确认框、校验和成功提示，校准页面引用基线后完成双语桌面/移动复验。 |
+
+### Next Step
+
+父任务 H4 保持 `Doing`。按正式 Work Item 顺序领取 `H4-03`，强化键盘操作、焦点恢复、ARIA、对比度、错误关联、减少动画和破坏性确认。

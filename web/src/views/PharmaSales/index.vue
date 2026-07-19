@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../../i18n";
+
 import { computed, onMounted, reactive, ref } from "vue";
 import { PackageMinus, Plus, RefreshCw, ShoppingCart } from "lucide-vue-next";
 import { ElMessage } from "element-plus";
@@ -7,6 +9,8 @@ import { useButtonAccess } from "../../permissions/button";
 import { createSalesOrder, createSalesOutbound, listCustomers, listSalesOrders, listSalesOutbounds, type PharmaCustomer, type SalesOrder, type SalesOutbound } from "../../pharma-oa/api";
 import { useUserStore } from "../../stores/user";
 import { toErrorMessage } from "../../utils/common";
+
+const { t, valueLabel } = useI18n();
 
 type Mode = "orders" | "outbounds";
 const access = useButtonAccess();
@@ -30,8 +34,8 @@ const form = reactive({ number: "", customerId: "", productId: "", quantity: 1, 
 const selectedOrder = computed(() => orders.value.find((item) => item.id === form.salesOrderId));
 const orderRows = computed(() => orders.value.map((item) => ({ ...item, lineSummary: item.lines.map((line) => `${line.productId} x ${line.quantity}`).join(", ") })));
 const outboundRows = computed(() => outbounds.value.map((item) => ({ ...item, position: `${item.warehouseId} / ${item.areaId} / ${item.locationId}`, batchSummary: item.lines.map((line) => `${line.batchId} (-${line.quantity})`).join(", ") })));
-const orderColumns: DataTableColumn[] = [{ key: "number", label: "Sales order", minWidth: 140 }, { key: "customerId", label: "Customer", minWidth: 170 }, { key: "lineSummary", label: "Products", minWidth: 180 }, { key: "totalAmount", label: "Total", width: 120 }, { key: "status", label: "Status", width: 100 }, { key: "createdAt", label: "Created", minWidth: 170 }];
-const outboundColumns: DataTableColumn[] = [{ key: "number", label: "Outbound", minWidth: 140 }, { key: "salesOrderId", label: "Sales order", minWidth: 170 }, { key: "position", label: "Position", minWidth: 220 }, { key: "batchSummary", label: "Batch movement", minWidth: 180 }, { key: "status", label: "Status", width: 110 }, { key: "shippedAt", label: "Shipped", minWidth: 170 }];
+const orderColumns: DataTableColumn[] = [{ key: "number", label: t("pharma.sales.salesOrder"), minWidth: 140 }, { key: "customerId", label: t("pharma.sales.customer"), minWidth: 170 }, { key: "lineSummary", label: t("pharma.sales.products"), minWidth: 180 }, { key: "totalAmount", label: t("pharma.sales.total"), width: 120 }, { key: "status", label: t("pharma.sales.status"), width: 100 }, { key: "createdAt", label: t("pharma.sales.created"), minWidth: 170 }];
+const outboundColumns: DataTableColumn[] = [{ key: "number", label: t("pharma.sales.outbound"), minWidth: 140 }, { key: "salesOrderId", label: t("pharma.sales.salesOrder"), minWidth: 170 }, { key: "position", label: t("pharma.sales.position"), minWidth: 220 }, { key: "batchSummary", label: t("pharma.sales.batchMovement"), minWidth: 180 }, { key: "status", label: t("pharma.sales.status"), width: 110 }, { key: "shippedAt", label: t("pharma.sales.shipped"), minWidth: 170 }];
 
 onMounted(() => void refresh());
 
@@ -64,14 +68,14 @@ async function save() {
 		if (mode.value === "orders") {
 			const item = await createSalesOrder({ number: form.number, customerId: form.customerId, actorId: actorId.value, lines: [{ productId: form.productId, quantity: Number(form.quantity), unitPrice: Number(form.unitPrice) }] });
 			orders.value.unshift(item);
-			ElMessage.success("Sales order created");
+			ElMessage.success(t("pharma.sales.salesOrderCreated"));
 		} else {
 			const order = selectedOrder.value;
 			if (!order) throw new Error("Select a sales order");
 			const productId = form.productId || order.lines[0]?.productId || "";
 			const item = await createSalesOutbound({ number: form.number, salesOrderId: order.id, warehouseId: form.warehouseId, areaId: form.areaId, locationId: form.locationId, actorId: actorId.value, lines: [{ productId, quantity: Number(form.quantity), batchId: form.batchId }] });
 			outbounds.value.unshift(item);
-			ElMessage.success("Sales outbound completed");
+			ElMessage.success(t("pharma.sales.salesOutboundCompleted"));
 		}
 		drawerOpen.value = false;
 	} catch (cause) {
@@ -83,38 +87,38 @@ async function save() {
 </script>
 
 <template>
-	<PageShell title="Sales & Outbound" description="Validate customer qualifications and ship batch-controlled inventory." :loading="loading" :error="error" :no-permission="!canRead" no-permission-title="No sales access" no-permission-description="The selected view requires its sales read permission.">
+	<PageShell :title="t('pharma.sales.salesOutbound')" :description="t('pharma.sales.validateCustomerQualificationsAndShipBatchControlledInventory')" :loading="loading" :error="error" :no-permission="!canRead" :no-permission-title="t('pharma.sales.noSalesAccess')" :no-permission-description="t('pharma.sales.theSelectedViewRequiresItsSalesReadPermission')">
 		<template #actions>
-			<el-button :icon="RefreshCw" :loading="loading" @click="refresh">Refresh</el-button>
-			<el-button type="primary" :icon="Plus" :disabled="!canCreate || (mode === 'orders' && customers.length === 0) || (mode === 'outbounds' && orders.length === 0)" @click="openCreate">{{ mode === "orders" ? "New order" : "New outbound" }}</el-button>
+			<el-button :icon="RefreshCw" :loading="loading" @click="refresh">{{ t("pharma.sales.refresh") }}</el-button>
+			<el-button type="primary" :icon="Plus" :disabled="!canCreate || (mode === 'orders' && customers.length === 0) || (mode === 'outbounds' && orders.length === 0)" @click="openCreate">{{ mode === "orders" ? t("pharma.sales.newOrder") : t("pharma.sales.newOutbound") }}</el-button>
 		</template>
 		<el-tabs v-model="mode" class="view-tabs" @tab-change="refresh">
-			<el-tab-pane label="Sales orders" name="orders" />
-			<el-tab-pane label="Sales outbounds" name="outbounds" />
+			<el-tab-pane :label="t('pharma.sales.salesOrders')" name="orders" />
+			<el-tab-pane :label="t('pharma.sales.salesOutbounds')" name="outbounds" />
 		</el-tabs>
 		<section class="summary">
 			<component :is="mode === 'orders' ? ShoppingCart : PackageMinus" :size="20" />
-			<div><strong>{{ mode === "orders" ? orders.length : outbounds.length }}</strong><span>{{ mode === "orders" ? " open sales orders" : " completed outbounds" }}</span></div>
-			<small>Customer qualification is checked again before every shipment.</small>
+			<div><strong>{{ mode === "orders" ? orders.length : outbounds.length }}</strong><span>{{ mode === "orders" ? t("pharma.sales.openSalesOrders") : t("pharma.sales.completedOutbounds") }}</span></div>
+			<small>{{ t("pharma.sales.customerQualificationIsCheckedAgainBeforeEveryShipment") }}</small>
 		</section>
-		<DataTable v-if="mode === 'orders'" :rows="orderRows" :columns="orderColumns" row-key="id" :loading="loading" :error="error" empty-title="No sales orders" empty-description="Create an order for an active, qualified customer."><template #cell-status="{ row }"><el-tag>{{ row.status }}</el-tag></template></DataTable>
-		<DataTable v-else :rows="outboundRows" :columns="outboundColumns" row-key="id" :loading="loading" :error="error" empty-title="No sales outbounds" empty-description="Select an order and ship an available inventory batch."><template #cell-status="{ row }"><el-tag type="success">{{ row.status }}</el-tag></template></DataTable>
+		<DataTable v-if="mode === 'orders'" :rows="orderRows" :columns="orderColumns" row-key="id" :loading="loading" :error="error" :empty-title="t('pharma.sales.noSalesOrders')" :empty-description="t('pharma.sales.createAnOrderForAnActiveQualifiedCustomer')"><template #cell-status="{ row }"><el-tag>{{ valueLabel(row.status) }}</el-tag></template></DataTable>
+		<DataTable v-else :rows="outboundRows" :columns="outboundColumns" row-key="id" :loading="loading" :error="error" :empty-title="t('pharma.sales.noSalesOutbounds')" :empty-description="t('pharma.sales.selectAnOrderAndShipAnAvailableInventoryBatch')"><template #cell-status="{ row }"><el-tag type="success">{{ valueLabel(row.status) }}</el-tag></template></DataTable>
 
-		<DetailDrawer v-model="drawerOpen" :title="mode === 'orders' ? 'New sales order' : 'New sales outbound'" size="48%">
+		<DetailDrawer v-model="drawerOpen" :title="mode === 'orders' ? t('pharma.sales.newSalesOrder') : t('pharma.sales.newSalesOutbound')" size="48%">
 			<el-form label-position="top">
 				<template v-if="mode === 'orders'">
-					<el-form-item label="Customer" required><el-select v-model="form.customerId" filterable><el-option v-for="customer in customers" :key="customer.id" :label="`${customer.code} / ${customer.name}`" :value="customer.id" /></el-select></el-form-item>
-					<div class="grid"><el-form-item label="Order number" required><el-input v-model="form.number" /></el-form-item><el-form-item label="Product ID" required><el-input v-model="form.productId" /></el-form-item></div>
-					<div class="grid"><el-form-item label="Quantity" required><el-input-number v-model="form.quantity" :min="1" /></el-form-item><el-form-item label="Unit price" required><el-input-number v-model="form.unitPrice" :min="0" :precision="2" /></el-form-item></div>
+					<el-form-item :label="t('pharma.sales.customer')" required><el-select v-model="form.customerId" filterable><el-option v-for="customer in customers" :key="customer.id" :label="`${customer.code} / ${customer.name}`" :value="customer.id" /></el-select></el-form-item>
+					<div class="grid"><el-form-item :label="t('pharma.sales.orderNumber')" required><el-input v-model="form.number" /></el-form-item><el-form-item :label="t('pharma.sales.productId')" required><el-input v-model="form.productId" /></el-form-item></div>
+					<div class="grid"><el-form-item :label="t('pharma.sales.quantity')" required><el-input-number v-model="form.quantity" :min="1" /></el-form-item><el-form-item :label="t('pharma.sales.unitPrice')" required><el-input-number v-model="form.unitPrice" :min="0" :precision="2" /></el-form-item></div>
 				</template>
 				<template v-else>
-					<el-form-item label="Sales order" required><el-select v-model="form.salesOrderId" filterable><el-option v-for="order in orders" :key="order.id" :label="`${order.number} / ${order.customerId}`" :value="order.id" /></el-select></el-form-item>
-					<div class="grid"><el-form-item label="Outbound number" required><el-input v-model="form.number" /></el-form-item><el-form-item label="Product ID" required><el-input v-model="form.productId" :placeholder="selectedOrder?.lines[0]?.productId" /></el-form-item></div>
-					<div class="grid"><el-form-item label="Warehouse ID" required><el-input v-model="form.warehouseId" /></el-form-item><el-form-item label="Area ID" required><el-input v-model="form.areaId" /></el-form-item><el-form-item label="Location ID" required><el-input v-model="form.locationId" /></el-form-item></div>
-					<div class="grid"><el-form-item label="Batch ID" required><el-input v-model="form.batchId" /></el-form-item><el-form-item label="Quantity" required><el-input-number v-model="form.quantity" :min="1" /></el-form-item></div>
+					<el-form-item :label="t('pharma.sales.salesOrder')" required><el-select v-model="form.salesOrderId" filterable><el-option v-for="order in orders" :key="order.id" :label="`${order.number} / ${order.customerId}`" :value="order.id" /></el-select></el-form-item>
+					<div class="grid"><el-form-item :label="t('pharma.sales.outboundNumber')" required><el-input v-model="form.number" /></el-form-item><el-form-item :label="t('pharma.sales.productId')" required><el-input v-model="form.productId" :placeholder="selectedOrder?.lines[0]?.productId" /></el-form-item></div>
+					<div class="grid"><el-form-item :label="t('pharma.sales.warehouseId')" required><el-input v-model="form.warehouseId" /></el-form-item><el-form-item :label="t('pharma.sales.areaId')" required><el-input v-model="form.areaId" /></el-form-item><el-form-item :label="t('pharma.sales.locationId')" required><el-input v-model="form.locationId" /></el-form-item></div>
+					<div class="grid"><el-form-item :label="t('pharma.sales.batchId')" required><el-input v-model="form.batchId" /></el-form-item><el-form-item :label="t('pharma.sales.quantity')" required><el-input-number v-model="form.quantity" :min="1" /></el-form-item></div>
 				</template>
 			</el-form>
-			<template #footer><el-button :disabled="saving" @click="drawerOpen = false">Cancel</el-button><el-button type="primary" :loading="saving" :disabled="!canCreate" @click="save">{{ mode === "orders" ? "Create order" : "Complete outbound" }}</el-button></template>
+			<template #footer><el-button :disabled="saving" @click="drawerOpen = false">{{ t("pharma.sales.cancel") }}</el-button><el-button type="primary" :loading="saving" :disabled="!canCreate" @click="save">{{ mode === "orders" ? t("pharma.sales.createOrder") : t("pharma.sales.completeOutbound") }}</el-button></template>
 		</DetailDrawer>
 	</PageShell>
 </template>

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useI18n } from "../../i18n";
+
 import { computed, onMounted, reactive, ref } from "vue";
 import { BadgeAlert, Edit, Plus, RefreshCw, UserMinus } from "lucide-vue-next";
 import { ElMessage } from "element-plus";
@@ -17,6 +19,8 @@ import {
 } from "../../pharma-oa/api";
 import { useUserStore } from "../../stores/user";
 import { toErrorMessage } from "../../utils/common";
+
+const { t } = useI18n();
 
 type EmployeeRow = Record<string, unknown> & PharmaEmployee & {
 	certificateSummary: string;
@@ -81,12 +85,12 @@ const summary = computed(() => ({
 }));
 
 const columns: DataTableColumn[] = [
-	{ key: "code", label: "Code", minWidth: 120 },
-	{ key: "name", label: "Name", minWidth: 150 },
-	{ key: "departmentId", label: "Department", minWidth: 140 },
-	{ key: "positionId", label: "Position", minWidth: 140 },
-	{ key: "status", label: "Status", width: 110 },
-	{ key: "certificateSummary", label: "Certificates", minWidth: 220 }
+	{ key: "code", label: t("pharma.employee.code"), minWidth: 120 },
+	{ key: "name", label: t("pharma.employee.name"), minWidth: 150 },
+	{ key: "departmentId", label: t("pharma.employee.department"), minWidth: 140 },
+	{ key: "positionId", label: t("pharma.employee.position"), minWidth: 140 },
+	{ key: "status", label: t("pharma.employee.status"), width: 110 },
+	{ key: "certificateSummary", label: t("pharma.employee.certificates"), minWidth: 220 }
 ];
 
 onMounted(() => {
@@ -150,15 +154,15 @@ function openLeave(row: EmployeeRow): void {
 
 async function saveEmployee(): Promise<void> {
 	if (form.code.trim() === "" || form.name.trim() === "" || form.departmentId.trim() === "" || form.positionId.trim() === "") {
-		error.value = "Code, name, department, and position are required.";
+		error.value = t("pharma.employee.codeNameDepartmentAndPositionAreRequired");
 		return;
 	}
 	if (editing.value && !canUpdate.value) {
-		error.value = "You do not have permission to update employees.";
+		error.value = t("pharma.employee.youDoNotHavePermissionToUpdateEmployees");
 		return;
 	}
 	if (!editing.value && !canCreate.value) {
-		error.value = "You do not have permission to create employees.";
+		error.value = t("pharma.employee.youDoNotHavePermissionToCreateEmployees");
 		return;
 	}
 	saving.value = true;
@@ -179,7 +183,7 @@ async function saveEmployee(): Promise<void> {
 			: await createEmployee(body);
 		upsert(saved);
 		drawerOpen.value = false;
-		ElMessage.success(editing.value ? "Employee updated" : "Employee created");
+		ElMessage.success(editing.value ? t("pharma.employee.employeeUpdated") : t("pharma.employee.employeeCreated"));
 		await refreshReminders();
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -194,7 +198,7 @@ async function leaveEmployee(): Promise<void> {
 		return;
 	}
 	if (!canLeave.value) {
-		error.value = "You do not have permission to mark employees left.";
+		error.value = t("pharma.employee.youDoNotHavePermissionToMarkEmployeesLeft");
 		return;
 	}
 	saving.value = true;
@@ -204,7 +208,7 @@ async function leaveEmployee(): Promise<void> {
 		upsert(saved);
 		leaveTarget.value = null;
 		leaveDialogOpen.value = false;
-		ElMessage.success("Employee status updated");
+		ElMessage.success(t("pharma.employee.employeeStatusUpdated"));
 		await refreshReminders();
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -277,44 +281,44 @@ function formatDate(value: string): string {
 
 <template>
 	<PageShell
-		title="Employee Management"
-		description="Maintain Pharma OA employee records, departments, positions, certificates, and leave status."
+		:title="t('pharma.employee.employeeManagement')"
+		:description="t('pharma.employee.maintainPharmaOaEmployeeRecordsDepartmentsPositionsCerti901bc254')"
 		:loading="loading"
 		:error="error"
 		:forbidden="!canRead"
-		forbidden-title="Employee management unavailable"
-		forbidden-description="Ask an administrator for pharma_oa.employee.read permission."
+		:forbidden-title="t('pharma.employee.employeeManagementUnavailable')"
+		:forbidden-description="t('pharma.employee.askAnAdministratorForPharmaOaEmployeeReadPermission')"
 		data-testid="pharma-employee-page"
 	>
 		<template #actions>
-			<el-button :icon="RefreshCw" :loading="loading" @click="refresh">Refresh</el-button>
-			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">New employee</el-button>
+			<el-button :icon="RefreshCw" :loading="loading" @click="refresh">{{ t("pharma.employee.refresh") }}</el-button>
+			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">{{ t("pharma.employee.newEmployee") }}</el-button>
 		</template>
 		<template #stateActions>
-			<el-button :icon="RefreshCw" @click="refresh">Retry</el-button>
+			<el-button :icon="RefreshCw" @click="refresh">{{ t("pharma.employee.retry") }}</el-button>
 		</template>
 
-		<section class="summary-grid" aria-label="Employee summary">
-			<div class="summary-tile"><span>Total</span><strong>{{ summary.total }}</strong></div>
-			<div class="summary-tile"><span>Active</span><strong>{{ summary.active }}</strong></div>
-			<div class="summary-tile"><span>Left</span><strong>{{ summary.left }}</strong></div>
-			<div class="summary-tile risk"><span>Expiring certs</span><strong>{{ summary.reminders }}</strong></div>
+		<section class="summary-grid" :aria-label="t('pharma.employee.employeeSummary')">
+			<div class="summary-tile"><span>{{ t("pharma.employee.total") }}</span><strong>{{ summary.total }}</strong></div>
+			<div class="summary-tile"><span>{{ t("pharma.employee.active") }}</span><strong>{{ summary.active }}</strong></div>
+			<div class="summary-tile"><span>{{ t("pharma.employee.left") }}</span><strong>{{ summary.left }}</strong></div>
+			<div class="summary-tile risk"><span>{{ t("pharma.employee.expiringCerts") }}</span><strong>{{ summary.reminders }}</strong></div>
 		</section>
 
 		<PageToolbar>
 			<FilterBar>
-				<el-input v-model="keyword" clearable placeholder="Search code, name, department, position, or email" />
-				<el-select v-model="statusFilter" clearable placeholder="All statuses">
-					<el-option label="Active" value="active" />
-					<el-option label="On leave" value="on_leave" />
-					<el-option label="Left" value="left" />
+				<el-input v-model="keyword" clearable :placeholder="t('pharma.employee.searchCodeNameDepartmentPositionOrEmail')" />
+				<el-select v-model="statusFilter" clearable :placeholder="t('pharma.employee.allStatuses')">
+					<el-option :label="t('pharma.employee.active')" value="active" />
+					<el-option :label="t('pharma.employee.onLeave')" value="on_leave" />
+					<el-option :label="t('pharma.employee.left')" value="left" />
 				</el-select>
 			</FilterBar>
 		</PageToolbar>
 
 		<section v-if="reminders.length > 0" class="reminder-strip" data-testid="employee-reminders">
 			<BadgeAlert aria-hidden="true" />
-			<span>{{ reminders.length }} certificate reminder{{ reminders.length > 1 ? "s" : "" }} due in 30 days.</span>
+			<span>{{ reminders.length }} {{ t("pharma.employee.certificateReminder") }}{{ reminders.length > 1 ? "s" : "" }} {{ t("pharma.employee.dueIn30Days") }}</span>
 		</section>
 
 		<DataTable
@@ -323,76 +327,76 @@ function formatDate(value: string): string {
 			row-key="id"
 			:loading="loading"
 			:error="error"
-			empty-text="No employees match the current filters"
+			:empty-text="t('pharma.employee.noEmployeesMatchTheCurrentFilters')"
 		>
 			<template #cell-status="{ value }">
 				<el-tag :type="statusType(value)">{{ value }}</el-tag>
 			</template>
 			<template #actions="{ row }">
-				<el-tooltip content="Edit">
+				<el-tooltip :content="t('pharma.employee.edit')">
 					<el-button :icon="Edit" circle :disabled="!canUpdate || row.status === 'left'" @click="openEdit(row)" />
 				</el-tooltip>
-				<el-tooltip content="Mark left">
+				<el-tooltip :content="t('pharma.employee.markLeft')">
 					<el-button :icon="UserMinus" circle type="danger" :disabled="!canLeave || row.status === 'left'" @click="openLeave(row)" />
 				</el-tooltip>
 			</template>
 		</DataTable>
 
-		<DetailDrawer v-model="drawerOpen" :title="editing ? 'Edit employee' : 'New employee'" size="46%">
+		<DetailDrawer v-model="drawerOpen" :title="editing ? t('pharma.employee.edit') : t('pharma.employee.newEmployee')" size="46%">
 			<el-form label-position="top">
-				<el-form-item label="Code" required>
+				<el-form-item :label="t('pharma.employee.code')" required>
 					<el-input v-model="form.code" />
 				</el-form-item>
-				<el-form-item label="Name" required>
+				<el-form-item :label="t('pharma.employee.name')" required>
 					<el-input v-model="form.name" />
 				</el-form-item>
 				<div class="form-grid">
-					<el-form-item label="Department" required>
+					<el-form-item :label="t('pharma.employee.department')" required>
 						<el-input v-model="form.departmentId" />
 					</el-form-item>
-					<el-form-item label="Position" required>
+					<el-form-item :label="t('pharma.employee.position')" required>
 						<el-input v-model="form.positionId" />
 					</el-form-item>
 				</div>
 				<div class="form-grid">
-					<el-form-item label="Phone">
+					<el-form-item :label="t('pharma.employee.phone')">
 						<el-input v-model="form.phone" />
 					</el-form-item>
-					<el-form-item label="Email">
+					<el-form-item :label="t('pharma.employee.email')">
 						<el-input v-model="form.email" />
 					</el-form-item>
 				</div>
 				<div class="form-grid">
-					<el-form-item label="Certificate">
+					<el-form-item :label="t('pharma.employee.certificate')">
 						<el-input v-model="form.certificateName" />
 					</el-form-item>
-					<el-form-item label="Certificate no.">
+					<el-form-item :label="t('pharma.employee.certificateNo')">
 						<el-input v-model="form.certificateNumber" />
 					</el-form-item>
 				</div>
-				<el-form-item label="Expires at">
+				<el-form-item :label="t('pharma.employee.expiresAt')">
 					<el-date-picker v-model="form.certificateExpiresAt" value-format="YYYY-MM-DD" type="date" />
 				</el-form-item>
 			</el-form>
 			<div class="drawer-actions">
-				<el-button @click="drawerOpen = false">Cancel</el-button>
-				<el-button type="primary" :loading="saving" @click="saveEmployee">Save</el-button>
+				<el-button @click="drawerOpen = false">{{ t("pharma.employee.cancel") }}</el-button>
+				<el-button type="primary" :loading="saving" @click="saveEmployee">{{ t("pharma.employee.save") }}</el-button>
 			</div>
 		</DetailDrawer>
 
-		<el-dialog v-model="leaveDialogOpen" title="Mark employee left" width="420px" @closed="leaveTarget = null">
+		<el-dialog v-model="leaveDialogOpen" :title="t('pharma.employee.markEmployeeLeft')" width="420px" @closed="leaveTarget = null">
 			<el-form label-position="top">
-				<el-form-item label="Employee">
+				<el-form-item :label="t('pharma.employee.employee')">
 					<el-input :model-value="leaveTarget ? `${leaveTarget.code} / ${leaveTarget.name}` : ''" disabled />
 				</el-form-item>
-				<el-form-item label="Reason">
+				<el-form-item :label="t('pharma.employee.reason')">
 					<el-input v-model="leaveReason" type="textarea" :rows="3" />
 				</el-form-item>
 			</el-form>
 			<template #footer>
-				<el-button @click="leaveDialogOpen = false">Cancel</el-button>
+				<el-button @click="leaveDialogOpen = false">{{ t("pharma.employee.cancel") }}</el-button>
 				<ConfirmAction
-					label="Mark left"
+					:label="t('pharma.employee.markLeft')"
 					message="Mark this employee as left? This removes certificate reminders for the employee."
 					:loading="saving"
 					@confirm="leaveEmployee"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import { localizeKnownError, useI18n } from "../../i18n";
 import StateBlock from "./StateBlock.vue";
 
 export type DataTableColumn<T extends Record<string, unknown> = Record<string, unknown>> = {
@@ -29,13 +30,15 @@ const props = withDefaults(defineProps<{
 	loading: false,
 	error: "",
 	forbidden: false,
-	emptyText: "No data",
+	emptyText: "",
 	height: undefined,
 	stripe: true,
 	border: false
 });
 
 const hasRows = computed(() => props.rows.length > 0);
+const { t } = useI18n();
+const localizedError = computed(() => localizeKnownError(props.error));
 
 function cellText(row: Record<string, unknown>, column: DataTableColumn): string | number {
 	if (column.formatter) {
@@ -54,8 +57,8 @@ function cellText(row: Record<string, unknown>, column: DataTableColumn): string
 
 <template>
 	<section class="data-table">
-		<StateBlock v-if="forbidden" type="forbidden" title="No permission" description="You do not have access to this data." />
-		<StateBlock v-else-if="error" type="error" title="Request failed" :description="error" />
+		<StateBlock v-if="forbidden" type="forbidden" :title="t('state.noPermission')" :description="t('state.noDataPermission')" />
+		<StateBlock v-else-if="error" type="error" :title="t('state.requestFailed')" :description="localizedError" />
 		<el-table
 			v-else
 			:data="rows"
@@ -67,7 +70,7 @@ function cellText(row: Record<string, unknown>, column: DataTableColumn): string
 			class="data-table__el"
 		>
 			<template #empty>
-				<StateBlock type="empty" :description="emptyText" />
+				<StateBlock type="empty" :description="emptyText || t('state.noData')" />
 			</template>
 			<el-table-column
 				v-for="column in columns"
