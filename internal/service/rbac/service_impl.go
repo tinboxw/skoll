@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
@@ -16,6 +18,7 @@ import (
 )
 
 var ErrDataScopeDenied = errors.New("data scope denied")
+var rbacIDSequence atomic.Uint64
 
 type serviceImpl struct {
 	repo             rbacrepo.RBACRepository
@@ -34,7 +37,7 @@ func NewServiceWithOrganization(repo rbacrepo.RBACRepository, organizationRepo o
 		organizationRepo: organizationRepo,
 		nowFn:            func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
-			return shared.ID("new")
+			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10) + "-" + strconv.FormatUint(rbacIDSequence.Add(1), 10))
 		},
 	}
 }

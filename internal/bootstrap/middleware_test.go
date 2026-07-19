@@ -181,6 +181,37 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	}
 }
 
+func TestAuthGuardMiddlewareDataScopeSelfServiceRequiresAuthenticationOnly(t *testing.T) {
+	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{}}
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", &fakePermissionChecker{}, nil, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := security.JWTClaimsFromContext(r.Context())
+		if !ok || claims.Subject != "alice" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	unauthenticated := httptest.NewRequest(http.MethodGet, "/skoll/v1/rbac/data-scope?resource=pharma_oa.customer&action=read", nil)
+	unauthenticatedResponse := httptest.NewRecorder()
+	h.ServeHTTP(unauthenticatedResponse, unauthenticated)
+	if unauthenticatedResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated data-scope status = %d, want %d", unauthenticatedResponse.Code, http.StatusUnauthorized)
+	}
+
+	token, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "alice", Role: "sales", Roles: []string{"sales"}}, time.Hour, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("sign jwt: %v", err)
+	}
+	authenticated := httptest.NewRequest(http.MethodGet, "/skoll/v1/rbac/data-scope?resource=pharma_oa.customer&action=read", nil)
+	authenticated.Header.Set("Authorization", "Bearer "+token)
+	authenticatedResponse := httptest.NewRecorder()
+	h.ServeHTTP(authenticatedResponse, authenticated)
+	if authenticatedResponse.Code != http.StatusOK {
+		t.Fatalf("authenticated data-scope status = %d, want %d", authenticatedResponse.Code, http.StatusOK)
+	}
+}
+
 func TestAuthGuardMiddlewareAuditsPermissionDenied(t *testing.T) {
 	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/skoll/health": {}}}
 	checker := &fakePermissionChecker{allowed: map[string]bool{}}

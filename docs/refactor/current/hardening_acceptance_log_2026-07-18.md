@@ -564,3 +564,56 @@ git diff --check
 ### Next Step
 
 父任务 H3 保持 `Doing`。按正式 Work Item 顺序领取 `H3-04`，建立本人、组织、组织树、全量和拒绝场景的 API/浏览器端到端矩阵，并验证跨组织访问被拒绝且写入审计完整。
+
+## H3-04 组织数据范围端到端矩阵
+
+- Date: 2026-07-19
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 建立默认关闭的本人、当前组织、组织树、全部数据和拒绝五类测试身份，贯通 RBAC、客户 API、拒绝审计、中英文浏览器与 MySQL 持久化验收。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 显式夹具 | Pass | 仅 `SKOLL_SCOPE_MATRIX_FIXTURES=true` 时创建五个测试账号、四级组织节点、角色/策略/绑定和四条客户数据；重复执行不产生重复记录，生产默认关闭并已写入配置文档。 |
+| API 范围矩阵 | Pass | `self` 仅返回 `SCOPE-SELF`；`department` 返回本人和同组织客户；`department_tree` 再包含下级组织客户；`all` 返回四条；`denied` 的范围自省和列表均为 403。伪造 `includeAll`、组织和负责人参数不能扩大集合。 |
+| 越权写入与审计 | Pass | 跨组织更新、禁用和销售资格校验返回 403；服务记录 `pharma_oa.customer.<operation>.denied`，包含 actor、目标组织/负责人、`data_scope` 原因和 denied 结果。集成矩阵验证审计证据与数据未被修改。 |
+| 超级管理员与中间件 | Pass | 超级管理员全量旁路继续由签名角色显式触发；数据范围自省必须携带 JWT，但不误要求 `permission.read` 管理权限，目标资源/动作仍由 RBAC 解析并失败关闭。 |
+| 浏览器双语矩阵 | Pass | 五类账号逐一真实登录；中文默认与英文切换均显示正确范围名称、授权目标和 1/2/3/4 条客户集合；拒绝账号直达客户页在两种语言下都被路由守卫送回仪表盘。 |
+| 空集合契约 | Pass | 客户服务深拷贝保持 `contacts`、`qualifications` 和附件为空数组，JSON 固定输出 `[]`，避免合法空数据在 Vue 页面读取 `.length` 时崩溃。 |
+| MySQL 隔离验收 | Pass | 本机 MySQL 隔离库 `skoll_h304_acceptance` 完成迁移、夹具和同一 API 矩阵；客户负责人使用 SQL 保存后的真实自增用户 ID，因此本人范围与内存实现一致。验收后停止进程并删除隔离库。 |
+| API/权限/migration/seed/i18n | Pass | 未新增业务 HTTP 路径、权限键或 migration；新增拒绝审计动作和测试专用 seed 开关。OpenAPI 两份副本哈希一致；测试夹具业务文案不进入正式 locale，用户界面继续中文默认并具备英文资源。 |
+| 质量门禁 | Pass | 全仓无缓存 Go 测试、目标 race、`go vet`、后端构建、前端 typecheck/build、脚本语法、运行时 memory/MySQL smoke、OpenAPI 一致性和 `git diff --check` 全部通过。 |
+| CodeGraph 与边界 | Pass | 索引同步后为 701 files / 15,008 nodes / 46,090 edges；`ensureScopeMatrixFixtures` 影响 5 个符号并由 bootstrap、运行时和全仓测试覆盖；未修改 `docs/refactor/old/`。 |
+
+### Verification Commands
+
+```powershell
+go test ./internal/bootstrap ./internal/service/rbac ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./tests/integration -count=1
+go test ./... -count=1
+go test -race ./internal/bootstrap ./internal/service/rbac ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./tests/integration -count=1
+go vet ./...
+go build -o "$env:TEMP\skoll-h3-04-final.exe" ./cmd/skoll
+npm --prefix web run typecheck
+npm --prefix web run build
+$env:SKOLL_API_BASE='http://127.0.0.1:18080'; npm --prefix web run smoke:h3-data-scope
+node --check web/scripts/h3-data-scope-smoke.mjs
+codegraph impact ensureScopeMatrixFixtures
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首轮集成矩阵存在未使用导入和上下文变量，无法编译。 | 删除残留变量，保持同一矩阵范围后重跑。 |
+| 2 | Failed -> Doing | 本人范围创建返回 403；内存 RBAC 新绑定统一使用固定 ID `new`，后写绑定覆盖先前绑定。 | 为 RBAC 服务生成唯一绑定 ID并增加多绑定并存回归测试。 |
+| 3 | Failed -> Doing | 运行时 `scope_self` 列表为 200，但数据范围自省为 403。 | 将自省端点从 `/v1/rbac` 管理权限前缀中精确排除，保留 JWT 认证并由目标资源 RBAC 决策。 |
+| 4 | Failed -> Doing | 浏览器加载空联系人客户时，后端将空切片复制为 `nil`，Vue 读取 `.length` 发生渲染异常。 | 服务边界保持空集合为非 nil 切片，补 JSON 数组回归测试并重跑五账号双语矩阵。 |
+| 5 | Failed -> Doing | MySQL 中用户字符串夹具 ID 被映射为自增主键，客户仍引用旧字符串，导致本人范围列表为空。 | 客户夹具反查已持久化账号的真实 ID，增加主键改写仓储替身测试，重建隔离库后矩阵通过。 |
+
+### Next Step
+
+父任务 H3 已完成。按正式 Work Item 顺序领取 `H4-01`，盘点 Pharma OA 硬编码文案并建立中文默认、英文完整和缺失 key 失败的 locale 基线。

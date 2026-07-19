@@ -3,6 +3,7 @@ package pharmaoa
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -112,7 +113,7 @@ func (h *CustomerHandler) create(w http.ResponseWriter, r *http.Request) {
 	input.Scope = scope
 	item, err := h.service.Create(r.Context(), input)
 	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
+		writeCustomerServiceError(w, err)
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{"item": item})
@@ -130,7 +131,7 @@ func (h *CustomerHandler) update(w http.ResponseWriter, r *http.Request) {
 	input.Scope = scope
 	item, err := h.service.Update(r.Context(), r.PathValue("id"), input)
 	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
+		writeCustomerServiceError(w, err)
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": item})
@@ -152,7 +153,7 @@ func (h *CustomerHandler) disable(w http.ResponseWriter, r *http.Request) {
 		Scope:   scope,
 	})
 	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
+		writeCustomerServiceError(w, err)
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": item})
@@ -182,7 +183,7 @@ func (h *CustomerHandler) salesEligibility(w http.ResponseWriter, r *http.Reques
 	}
 	result, err := h.service.ValidateSalesCustomer(r.Context(), r.PathValue("id"), scope)
 	if err != nil {
-		apiv1.WriteError(w, http.StatusBadRequest, err)
+		writeCustomerServiceError(w, err)
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": result})
@@ -245,6 +246,7 @@ func (h *CustomerHandler) resolveScope(w http.ResponseWriter, r *http.Request, a
 		return pharmaoasvc.CustomerAccessScope{}, false
 	}
 	scope := pharmaoasvc.CustomerAccessScope{
+		ActorID:         actorIDFromRequest(r, ""),
 		IncludeAll:      decision.All,
 		OrganizationIDs: append([]string(nil), decision.DepartmentIDs...),
 	}
@@ -252,4 +254,12 @@ func (h *CustomerHandler) resolveScope(w http.ResponseWriter, r *http.Request, a
 		scope.OwnerID = strings.TrimSpace(decision.UserIDs[0])
 	}
 	return scope, true
+}
+
+func writeCustomerServiceError(w http.ResponseWriter, err error) {
+	status := http.StatusBadRequest
+	if errors.Is(err, pharmaoasvc.ErrCustomerAccessDenied) {
+		status = http.StatusForbidden
+	}
+	apiv1.WriteError(w, status, err)
 }

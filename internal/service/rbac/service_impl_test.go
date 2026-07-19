@@ -267,6 +267,27 @@ func TestRBACServiceListBindingsByUser(t *testing.T) {
 	}
 }
 
+func TestRBACServiceBindRoleKeepsDistinctBindings(t *testing.T) {
+	repo := memory.NewRBACStore()
+	svc := NewService(repo)
+	for _, roleID := range []string{"role-self", "role-department", "role-tree", "role-all"} {
+		if _, err := svc.BindRole(context.Background(), BindRoleInput{
+			SubjectType: domainrbac.SubjectUser,
+			SubjectID:   "user-" + roleID,
+			RoleID:      roleID,
+			Scope:       domainrbac.DataScopeAll,
+		}); err != nil {
+			t.Fatalf("BindRole %s error: %v", roleID, err)
+		}
+	}
+	for _, roleID := range []string{"role-self", "role-department", "role-tree", "role-all"} {
+		bindings, err := svc.ListBindingsByUser(context.Background(), "user-"+roleID)
+		if err != nil || len(bindings) != 1 || bindings[0].RoleID.String() != roleID {
+			t.Fatalf("binding %s was overwritten: %+v err=%v", roleID, bindings, err)
+		}
+	}
+}
+
 func TestRBACServiceCheckPermissionNoBindings(t *testing.T) {
 	repo := memory.NewRBACStore()
 	svc := NewService(repo)

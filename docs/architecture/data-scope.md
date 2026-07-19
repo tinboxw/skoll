@@ -38,4 +38,6 @@ HTTP 查询参数或请求体中的 `ownerId`、`organizationId`、`includeAll` 
 
 `GET /v1/rbac/data-scope?resource=<resource>&action=<action>` 仅返回当前 JWT 主体经服务端解析后的有效范围，供前端展示范围标识并收敛可选组织。该接口不接受主体、负责人、组织或全量开关，因此不能扩大授权。
 
+该自省接口必须携带有效 JWT，但不额外要求 `permission.read` 管理权限；处理器会按请求中的目标资源和动作执行 RBAC 范围解析，未获目标权限时返回拒绝结果。
+
 H3-03 新增上述只读 HTTP/OpenAPI 契约和中英文前端资源；不新增权限键、审计动作、migration 或 seed。客户归属字段保持业务语义，不再具有授权语义。

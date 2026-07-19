@@ -86,7 +86,7 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	updateBody["organizationId"] = "org-b"
 	updateBody["scope"] = map[string]any{"ownerId": "sales-b", "organizationId": "org-b"}
 	denied := performCustomerRequest(mux, http.MethodPut, "/v1/pharma-oa/customers/"+id, updateBody)
-	if denied.Code != http.StatusBadRequest || !strings.Contains(denied.Body.String(), "access denied") {
+	if denied.Code != http.StatusForbidden || !strings.Contains(denied.Body.String(), "access denied") {
 		t.Fatalf("expected cross scope update denial, status=%d body=%s", denied.Code, denied.Body.String())
 	}
 

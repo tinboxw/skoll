@@ -188,6 +188,11 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 
 	ensureBuiltinAuthData(context.Background(), logger, bundle.Users, bundle.Roles, bundle.RBAC)
+	if scopeMatrixFixturesEnabled() {
+		if err := ensureScopeMatrixFixtures(context.Background(), bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, pharmaCustomerService); err != nil {
+			return nil, fmt.Errorf("seed organization scope matrix fixtures: %w", err)
+		}
+	}
 	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
 	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus}, nil

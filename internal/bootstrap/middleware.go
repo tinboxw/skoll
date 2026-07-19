@@ -261,6 +261,9 @@ func requiredPermission(method, path, apiPrefix string) (resource, action string
 	cleanMethod := strings.ToUpper(strings.TrimSpace(method))
 	cleanPath := strings.TrimSpace(path)
 	normalizedPrefix := config.NormalizeAPIPrefix(apiPrefix)
+	if cleanMethod == http.MethodGet && cleanPath == normalizedPrefix+"/v1/rbac/data-scope" {
+		return "", "", false
+	}
 
 	for _, policy := range pharmaOACriticalPermissionPolicies(normalizedPrefix) {
 		if cleanMethod == policy.Method && routePatternMatches(cleanPath, policy.PathPattern) {

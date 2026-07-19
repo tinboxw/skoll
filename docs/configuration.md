@@ -94,6 +94,8 @@ configs/skoll.yml
 | `SKOLL_AUTH_ENABLED` | bool | `true` | 是否为普通受保护 API 启用 JWT 认证 |
 | `SKOLL_AUTH_SKIP_PATHS` | string | - | 额外免认证路径，多个路径使用逗号分隔 |
 
+H3 数据范围浏览器矩阵可在隔离验收环境设置 `SKOLL_SCOPE_MATRIX_FIXTURES=true`。该开关默认关闭；启用后会创建 `scope_self`、`scope_department`、`scope_tree`、`scope_all`、`scope_denied` 五个测试账号、对应组织树/角色/策略和四条客户数据，统一测试密码为 `Scope@123456`。生产环境不得启用该开关。
+
 插件公共面仅限 `GET /<api-prefix>/v1/plugins/{id}/page` 与 `GET /<api-prefix>/v1/plugins/{id}/assets/*`。插件业务 API `/<api-prefix>/v1/plugins/{id}/api/*` 始终要求 JWT，并按照已启用插件 manifest 的 `api_contract.routes[].permission` 执行 RBAC；`SKOLL_AUTH_ENABLED=false` 和 `SKOLL_AUTH_SKIP_PATHS` 都不能跳过该边界。路由缺少权限声明或权限解析器不可用时，系统默认拒绝并写入安全审计。
 
 ### 2.6 log（日志）

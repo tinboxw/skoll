@@ -2,12 +2,31 @@ package pharmaoa
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 )
+
+func TestCustomerServicePreservesEmptyCollectionsInJSON(t *testing.T) {
+	service := NewCustomerService(nil)
+	item, err := service.Create(context.Background(), CustomerWriteInput{
+		Code: "CUST-EMPTY", Name: "Empty Collections", Region: "East", OrganizationID: "org-a", OwnerID: "sales-a",
+	})
+	if err != nil {
+		t.Fatalf("create customer: %v", err)
+	}
+	raw, err := json.Marshal(item)
+	if err != nil {
+		t.Fatalf("marshal customer: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, `"contacts":[]`) || !strings.Contains(text, `"qualifications":[]`) {
+		t.Fatalf("empty collections must serialize as arrays: %s", text)
+	}
+}
 
 func TestCustomerServiceScopeAndSalesEligibility(t *testing.T) {
 	service := NewCustomerService(nil).(*customerService)

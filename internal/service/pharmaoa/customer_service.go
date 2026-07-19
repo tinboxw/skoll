@@ -2,6 +2,7 @@ package pharmaoa
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -24,7 +25,10 @@ type CustomerService interface {
 	ValidateSalesCustomer(ctx context.Context, id string, scope CustomerAccessScope) (CustomerSalesEligibility, error)
 }
 
+var ErrCustomerAccessDenied = errors.New("customer access denied")
+
 type CustomerAccessScope struct {
+	ActorID         string
 	OwnerID         string
 	OrganizationID  string
 	OrganizationIDs []string
@@ -108,7 +112,7 @@ func (s *customerService) Create(ctx context.Context, in CustomerWriteInput) (*d
 		}
 	}
 	if !customerValuesInScope(normalized.OwnerID, normalized.OrganizationID, scope) {
-		return nil, fmt.Errorf("customer access denied")
+		return nil, s.customerAccessDenied(ctx, normalized.ActorID, "create", "", normalized.OwnerID, normalized.OrganizationID)
 	}
 	id, err := s.nextAvailableCustomerID(ctx)
 	if err != nil {
@@ -169,10 +173,10 @@ func (s *customerService) Update(ctx context.Context, id string, in CustomerWrit
 		return nil, fmt.Errorf("customer not found")
 	}
 	if !customerInScope(current, scope) {
-		return nil, fmt.Errorf("customer access denied")
+		return nil, s.customerAccessDenied(ctx, normalized.ActorID, "update", id, current.OwnerID, current.OrganizationID)
 	}
 	if !customerValuesInScope(normalized.OwnerID, normalized.OrganizationID, scope) {
-		return nil, fmt.Errorf("customer access denied")
+		return nil, s.customerAccessDenied(ctx, normalized.ActorID, "update", id, normalized.OwnerID, normalized.OrganizationID)
 	}
 	existing, err := s.repo.GetByCode(ctx, normalized.Code)
 	if err != nil {
@@ -206,7 +210,7 @@ func (s *customerService) Disable(ctx context.Context, id string, in CustomerDis
 		return nil, fmt.Errorf("customer not found")
 	}
 	if !customerInScope(current, scope) {
-		return nil, fmt.Errorf("customer access denied")
+		return nil, s.customerAccessDenied(ctx, in.ActorID, "disable", id, current.OwnerID, current.OrganizationID)
 	}
 	next := cloneCustomer(current)
 	if err := next.Disable(in.Reason, s.nowFn()); err != nil {
@@ -273,7 +277,7 @@ func (s *customerService) ValidateSalesCustomer(ctx context.Context, id string, 
 		return CustomerSalesEligibility{}, fmt.Errorf("customer not found")
 	}
 	if !customerInScope(item, scope) {
-		return CustomerSalesEligibility{}, fmt.Errorf("customer access denied")
+		return CustomerSalesEligibility{}, s.customerAccessDenied(ctx, scope.ActorID, "sales", id, item.OwnerID, item.OrganizationID)
 	}
 	result := CustomerSalesEligibility{CustomerID: item.ID.String(), Allowed: true}
 	if err := item.CanUseForSales(s.nowFn()); err != nil {
@@ -311,6 +315,16 @@ func (s *customerService) appendCustomerAudit(ctx context.Context, actorID, acti
 	_, _ = s.audit.Append(ctx, actor, action, "pharma_oa_customer", resourceID, detail)
 }
 
+func (s *customerService) customerAccessDenied(ctx context.Context, actorID, operation, resourceID, ownerID, organizationID string) error {
+	s.appendCustomerAudit(ctx, actorID, "pharma_oa.customer."+operation+".denied", resourceID, map[string]any{
+		"result":         "denied",
+		"reason":         "data_scope",
+		"ownerId":        strings.TrimSpace(ownerID),
+		"organizationId": strings.TrimSpace(organizationID),
+	})
+	return ErrCustomerAccessDenied
+}
+
 func normalizeCustomerWriteInput(in CustomerWriteInput) CustomerWriteInput {
 	in.ActorID = strings.TrimSpace(in.ActorID)
 	in.OwnerID = strings.TrimSpace(in.OwnerID)
@@ -325,6 +339,7 @@ func normalizeCustomerWriteInput(in CustomerWriteInput) CustomerWriteInput {
 }
 
 func normalizeCustomerAccessScope(scope CustomerAccessScope) CustomerAccessScope {
+	scope.ActorID = strings.TrimSpace(scope.ActorID)
 	scope.OwnerID = strings.TrimSpace(scope.OwnerID)
 	scope.OrganizationID = strings.TrimSpace(scope.OrganizationID)
 	scope.OrganizationIDs = compactCustomerOrganizationIDs(append(scope.OrganizationIDs, scope.OrganizationID))
@@ -413,11 +428,11 @@ func cloneCustomer(item *domainpharma.Customer) *domainpharma.Customer {
 		return nil
 	}
 	out := *item
-	out.Contacts = append([]domainpharma.CustomerContact(nil), item.Contacts...)
+	out.Contacts = append(make([]domainpharma.CustomerContact, 0, len(item.Contacts)), item.Contacts...)
 	out.Qualifications = make([]domainpharma.CustomerQualification, 0, len(item.Qualifications))
 	for _, qualification := range item.Qualifications {
 		next := qualification
-		next.Attachments = append([]domainpharma.CustomerAttachment(nil), qualification.Attachments...)
+		next.Attachments = append(make([]domainpharma.CustomerAttachment, 0, len(qualification.Attachments)), qualification.Attachments...)
 		out.Qualifications = append(out.Qualifications, next)
 	}
 	return &out
