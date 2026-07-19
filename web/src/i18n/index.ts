@@ -6,6 +6,7 @@ type Dict = Record<string, string>;
 
 const LOCALE_KEY = "skoll.ui.locale";
 const SUPPORTED: Locale[] = ["zh-CN", "en-US"];
+export const DEFAULT_LOCALE: Locale = "zh-CN";
 
 const messages: Record<Locale, Dict> = {
 	"zh-CN": {
@@ -1319,7 +1320,7 @@ function detectInitialLocale(): Locale {
 	if (raw === "en-US" || raw === "zh-CN") {
 		return raw;
 	}
-	return "zh-CN";
+	return DEFAULT_LOCALE;
 }
 
 const locale = ref<Locale>(detectInitialLocale());

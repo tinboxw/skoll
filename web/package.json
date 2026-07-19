@@ -6,7 +6,8 @@
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
-		"typecheck": "vue-tsc --noEmit",
+		"check:i18n": "node scripts/h4-locale-baseline-check.mjs",
+		"typecheck": "npm run check:i18n && vue-tsc --noEmit",
 		"preview": "vite preview",
 		"smoke:health": "node scripts/health-smoke.mjs",
 		"smoke:auth": "node scripts/auth-plugin-smoke.mjs",

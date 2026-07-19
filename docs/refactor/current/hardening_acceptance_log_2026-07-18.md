@@ -617,3 +617,47 @@ git diff --check
 ### Next Step
 
 父任务 H3 已完成。按正式 Work Item 顺序领取 `H4-01`，盘点 Pharma OA 硬编码文案并建立中文默认、英文完整和缺失 key 失败的 locale 基线。
+
+## H4-01 Pharma OA 多语言基线盘点
+
+- Date: 2026-07-19
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 盘点 15 个 Pharma OA 主页面、全局 locale 字典、静态翻译引用和插件双语桥接，建立中文默认、英文键集对等且可由 CI 强制执行的版本化基线。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 中文默认策略 | Pass | `DEFAULT_LOCALE` 显式声明为 `zh-CN`，无本地持久化偏好时统一回退到该常量；基线检查验证中文是首个受支持字典和默认 locale。 |
+| 双语键完整性 | Pass | `zh-CN` 与 `en-US` 均为 650 个无重复键且键集完全一致；601 个静态 `t`/`translate` 引用全部存在，修正仪表盘无效引用 `page.plugins` 为 `menu.plugins`。 |
+| Pharma OA 清单 | Pass | 15 个 `Pharma*` 主页面全部写入 `web/i18n/pharma-oa-baseline.json`，记录 namespace、迁移状态、静态翻译键数和用户可见硬编码计数；新增、删除或文案漂移均会失败。 |
+| 插件桥接 | Pass | 检查 `plugins/pharma_oa/plugin.yaml` 的中英文插件名、菜单名及 `zh-CN`/`en-US` locale 声明，任一字段缺失都会失败。 |
+| CI 失败策略 | Pass | `npm run typecheck` 先执行 `npm run check:i18n`，键集不对称、静态缺键、页面清单漂移、中文默认策略或插件桥接缺失均以非零状态阻断 CI。 |
+| 质量门禁 | Pass | locale 检查、`vue-tsc --noEmit`、Vite 生产构建、Node 脚本语法、JSON 解析和 `git diff --check` 全部通过。 |
+| API/权限/审计/migration/seed | Pass | 本项仅建立前端 locale 基线与清单，未新增 HTTP 契约、权限键、审计动作、migration 或 seed；无需修改 OpenAPI。 |
+| CodeGraph 与边界 | Pass | 索引同步为 702 files / 15,053 nodes / 46,187 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有文档和本地环境变更。 |
+
+### Verification Commands
+
+```powershell
+npm --prefix web run check:i18n
+npm --prefix web run typecheck
+npm --prefix web run build
+node --check web/scripts/h4-locale-baseline-check.mjs
+node -e "JSON.parse(require('fs').readFileSync('web/i18n/pharma-oa-baseline.json','utf8')); console.log('baseline json valid')"
+codegraph sync .
+codegraph status .
+codegraph query "DEFAULT_LOCALE"
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 初始扫描器把带插值的模板字符串翻译调用当作静态键，且页面清单仍使用零值占位计数。 | 仅收集单引号/双引号静态键，保留动态状态映射为运行时逻辑，并写入 15 个页面的实际基线计数后重验。 |
+| 2 | Failed -> Doing | 修正动态模板排除后，客户页真实静态键数为 58，与粗扫得到的 59 相差一项。 | 使用 SFC/TypeScript 解析结果校准客户页计数；不放宽键完整性和硬编码检查，随后同一验收命令通过。 |
+
+### Next Step
+
+父任务 H4 保持 `Doing`。H4-01 提交后按正式 Work Item 顺序领取 `H4-02`，依据版本化清单完成 Pharma OA 主流程中英文资源迁移和双语浏览器验收。
