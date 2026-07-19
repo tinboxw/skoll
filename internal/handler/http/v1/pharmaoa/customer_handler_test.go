@@ -2,6 +2,7 @@ package pharmaoa
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,13 +10,22 @@ import (
 	"testing"
 
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
-	"github.com/tinboxw/skoll/pkg/security"
+	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 )
+
+type staticCustomerScopeResolver struct {
+	decision rbacsvc.DataScopeDecision
+	err      error
+}
+
+func (r staticCustomerScopeResolver) ResolveDataScope(_ context.Context, _ rbacsvc.ResolveDataScopeInput) (rbacsvc.DataScopeDecision, error) {
+	return r.decision, r.err
+}
 
 func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	service := pharmaoasvc.NewCustomerService(nil)
 	mux := http.NewServeMux()
-	RegisterCustomerRoutes(mux, service)
+	RegisterCustomerRoutes(mux, service, staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{UserIDs: []string{"sales-a"}}})
 
 	createBody := map[string]any{
 		"code":           "CUST-API-001",
@@ -57,18 +67,23 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	if id == "" {
 		t.Fatalf("expected customer id in response: %s", createResp.Body.String())
 	}
+	if _, err := service.Create(context.Background(), pharmaoasvc.CustomerWriteInput{Code: "CUST-API-OTHER", Name: "Other Hospital", Region: "West", OrganizationID: "org-b", OwnerID: "sales-b", Contacts: nil, Scope: pharmaoasvc.CustomerAccessScope{IncludeAll: true}}); err != nil {
+		t.Fatalf("seed other customer: %v", err)
+	}
 
 	listOwned := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers?ownerId=sales-a", nil)
 	if listOwned.Code != http.StatusOK || !strings.Contains(listOwned.Body.String(), "CUST-API-001") {
 		t.Fatalf("expected owner list to include customer, status=%d body=%s", listOwned.Code, listOwned.Body.String())
 	}
-	listOther := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers?ownerId=sales-b&organizationId=org-b", nil)
-	if listOther.Code != http.StatusOK || strings.Contains(listOther.Body.String(), "CUST-API-001") {
-		t.Fatalf("expected other owner/org isolation, status=%d body=%s", listOther.Code, listOther.Body.String())
+	listOther := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers?ownerId=sales-b&organizationId=org-b&includeAll=true", nil)
+	if listOther.Code != http.StatusOK || !strings.Contains(listOther.Body.String(), "CUST-API-001") || strings.Contains(listOther.Body.String(), "CUST-API-OTHER") {
+		t.Fatalf("forged query broadened trusted self scope, status=%d body=%s", listOther.Code, listOther.Body.String())
 	}
 
 	updateBody := createBody
 	updateBody["name"] = "East Hospital Updated"
+	updateBody["ownerId"] = "sales-b"
+	updateBody["organizationId"] = "org-b"
 	updateBody["scope"] = map[string]any{"ownerId": "sales-b", "organizationId": "org-b"}
 	denied := performCustomerRequest(mux, http.MethodPut, "/v1/pharma-oa/customers/"+id, updateBody)
 	if denied.Code != http.StatusBadRequest || !strings.Contains(denied.Body.String(), "access denied") {
@@ -94,26 +109,20 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	}
 }
 
-func TestCustomerScopeFromRequestUsesJWTIdentity(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/customers?ownerId=other&organizationId=other-org&includeAll=true", nil)
-	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{Subject: "sales-a", Role: "employee"}))
-	scope := customerScopeFromRequest(req, customerScopeRequest{OwnerID: "body-owner", OrganizationID: "body-org", IncludeAll: true})
-	if scope.OwnerID != "sales-a" || scope.OrganizationID != "" || scope.IncludeAll {
-		t.Fatalf("unexpected scoped identity: %+v", scope)
-	}
-
-	superReq := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/customers", nil)
-	superReq = superReq.WithContext(security.WithJWTClaimsContext(superReq.Context(), &security.JWTClaims{Subject: "root", Role: "super_admin"}))
-	superScope := customerScopeFromRequest(superReq, customerScopeRequest{})
-	if !superScope.IncludeAll || superScope.OwnerID != "" || superScope.OrganizationID != "" {
-		t.Fatalf("unexpected super admin scope: %+v", superScope)
+func TestCustomerHandlerMapsTrustedOrganizationTreeScope(t *testing.T) {
+	h := &CustomerHandler{scopeResolver: staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{DepartmentIDs: []string{"org-parent", "org-child"}}}}
+	req := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/customers?includeAll=true", nil)
+	rec := httptest.NewRecorder()
+	scope, ok := h.resolveScope(rec, req, "read")
+	if !ok || scope.IncludeAll || strings.Join(scope.OrganizationIDs, ",") != "org-parent,org-child" {
+		t.Fatalf("unexpected trusted tree scope: %+v status=%d", scope, rec.Code)
 	}
 }
 
 func TestCustomerHandlerRejectsUnsafeAttachment(t *testing.T) {
 	service := pharmaoasvc.NewCustomerService(nil)
 	mux := http.NewServeMux()
-	RegisterCustomerRoutes(mux, service)
+	RegisterCustomerRoutes(mux, service, staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{All: true}})
 
 	resp := performCustomerRequest(mux, http.MethodPost, "/v1/pharma-oa/customers", map[string]any{
 		"code":           "CUST-API-002",

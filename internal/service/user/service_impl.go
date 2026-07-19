@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/tinboxw/skoll/internal/domain/audit"
-	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainuser "github.com/tinboxw/skoll/internal/domain/user"
 	"github.com/tinboxw/skoll/internal/repository"
@@ -217,31 +216,11 @@ func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]*domainuser.Use
 	if err := validateListInput(in); err != nil {
 		return nil, err
 	}
-	if in.SuperAdmin {
-		return s.repo.List(ctx, in.Offset, in.Limit)
-	}
-
-	scope := domainrbac.NormalizeDataScope(in.DataScope)
-	if scope == "" {
-		return s.repo.List(ctx, in.Offset, in.Limit)
-	}
-	if err := scope.Validate(); err != nil {
-		return nil, err
-	}
-	if scope == domainrbac.DataScopeAll {
-		return s.repo.List(ctx, in.Offset, in.Limit)
-	}
 	if s.dataScopeResolver == nil {
 		return nil, fmt.Errorf("data scope resolver is required")
 	}
 
-	decision, err := s.dataScopeResolver.ResolveDataScope(ctx, rbacservice.ResolveDataScopeInput{
-		Scope:               scope,
-		ActorUserID:         in.ActorUserID,
-		ActorDepartmentID:   in.ActorDepartmentID,
-		DepartmentTreeIDs:   in.DepartmentTreeIDs,
-		CustomDepartmentIDs: in.CustomDepartmentIDs,
-	})
+	decision, err := s.dataScopeResolver.ResolveDataScope(ctx, rbacservice.ResolveDataScopeInput{Resource: "user", Action: "read"})
 	if err != nil {
 		return nil, err
 	}

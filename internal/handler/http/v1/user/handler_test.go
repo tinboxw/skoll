@@ -54,13 +54,8 @@ func (f *fakeRBACService) ResolvePermission(_ context.Context, _ rbacsvc.CheckPe
 	return rbacsvc.PermissionDecision{}, nil
 }
 
-func (f *fakeRBACService) ResolveDataScope(_ context.Context, in rbacsvc.ResolveDataScopeInput) (rbacsvc.DataScopeDecision, error) {
-	return rbacsvc.DataScopeDecision{
-		Scope:         in.Scope,
-		All:           in.Scope == domainrbac.DataScopeAll,
-		UserIDs:       []string{in.ActorUserID},
-		DepartmentIDs: append([]string(nil), in.CustomDepartmentIDs...),
-	}, nil
+func (f *fakeRBACService) ResolveDataScope(_ context.Context, _ rbacsvc.ResolveDataScopeInput) (rbacsvc.DataScopeDecision, error) {
+	return rbacsvc.DataScopeDecision{Scope: domainrbac.DataScopeAll, All: true}, nil
 }
 
 func (f *fakeRBACService) SetRolePolicies(_ context.Context, _ rbacsvc.SetRolePoliciesInput) error {

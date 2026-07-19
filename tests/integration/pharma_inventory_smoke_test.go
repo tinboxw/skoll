@@ -66,6 +66,7 @@ func TestPharmaOAInventoryEndToEndSmoke(t *testing.T) {
 	customer, err := customers.Create(ctx, pharmaoasvc.CustomerWriteInput{
 		Code: "CUST-E2E", Name: "Inventory Smoke Hospital", Region: "East", OrganizationID: "org-e2e", OwnerID: "sales-e2e", ActorID: "master-data-admin",
 		Qualifications: []domainpharma.CustomerQualification{{Name: "Medical Institution License", Number: "CUST-LIC-E2E", ExpiresAt: now.AddDate(1, 0, 0)}},
+		Scope:          pharmaoasvc.CustomerAccessScope{IncludeAll: true},
 	})
 	if err != nil {
 		t.Fatalf("create smoke customer: %v", err)

@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -13,13 +14,22 @@ import (
 	"github.com/tinboxw/skoll/internal/store"
 )
 
+type staticDataScopeResolver struct {
+	decision rbacservice.DataScopeDecision
+	err      error
+}
+
+func (r staticDataScopeResolver) ResolveDataScope(_ context.Context, _ rbacservice.ResolveDataScopeInput) (rbacservice.DataScopeDecision, error) {
+	return r.decision, r.err
+}
+
 func TestUserServiceCreateAndDisable(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
 	if err != nil {
 		t.Fatalf("store.NewBundle error: %v", err)
 	}
 
-	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, staticDataScopeResolver{decision: rbacservice.DataScopeDecision{All: true}})
 	created, err := svc.Create(context.Background(), CreateUserInput{
 		Account:      "svc_user",
 		Name:         "Service User",
@@ -117,7 +127,7 @@ func TestUserServiceCreateBatchAtomicStopsOnFirstError(t *testing.T) {
 		t.Fatalf("store.NewBundle error: %v", err)
 	}
 
-	svc := NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, staticDataScopeResolver{decision: rbacservice.DataScopeDecision{All: true}})
 	results, err := svc.CreateBatch(context.Background(), BatchCreateInput{
 		Atomic: true,
 		Items: []CreateUserInput{
@@ -182,47 +192,42 @@ func TestUserServiceListAppliesDataScope(t *testing.T) {
 		}
 	}
 
-	svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, rbacservice.NewService(bundle.RBAC))
-
 	cases := []struct {
-		name string
-		in   ListInput
-		want []string
+		name     string
+		decision rbacservice.DataScopeDecision
+		want     []string
 	}{
 		{
-			name: "self",
-			in:   ListInput{DataScope: domainrbac.DataScopeSelf, ActorUserID: "2"},
-			want: []string{"bob"},
+			name:     "self",
+			decision: rbacservice.DataScopeDecision{Scope: domainrbac.DataScopeSelf, UserIDs: []string{"2"}},
+			want:     []string{"bob"},
 		},
 		{
-			name: "department",
-			in:   ListInput{DataScope: domainrbac.DataScopeDepartment, ActorDepartmentID: "dept-b"},
-			want: []string{"bob"},
+			name:     "department",
+			decision: rbacservice.DataScopeDecision{Scope: domainrbac.DataScopeDepartment, DepartmentIDs: []string{"dept-b"}},
+			want:     []string{"bob"},
 		},
 		{
-			name: "department tree",
-			in: ListInput{
-				DataScope:         domainrbac.DataScopeDepartmentTree,
-				ActorDepartmentID: "dept-b",
-				DepartmentTreeIDs: []string{"dept-b-child"},
-			},
-			want: []string{"bob", "dave"},
+			name:     "department tree",
+			decision: rbacservice.DataScopeDecision{Scope: domainrbac.DataScopeDepartmentTree, DepartmentIDs: []string{"dept-b", "dept-b-child"}},
+			want:     []string{"bob", "dave"},
 		},
 		{
-			name: "custom",
-			in:   ListInput{DataScope: domainrbac.DataScopeCustom, CustomDepartmentIDs: []string{"dept-a", "dept-c"}},
-			want: []string{"alice", "carol"},
+			name:     "multiple organizations",
+			decision: rbacservice.DataScopeDecision{Scope: domainrbac.DataScopeDepartmentTree, DepartmentIDs: []string{"dept-a", "dept-c"}},
+			want:     []string{"alice", "carol"},
 		},
 		{
-			name: "super admin bypass",
-			in:   ListInput{DataScope: domainrbac.DataScopeSelf, ActorUserID: "2", SuperAdmin: true},
-			want: []string{"alice", "bob", "carol", "dave"},
+			name:     "all",
+			decision: rbacservice.DataScopeDecision{Scope: domainrbac.DataScopeAll, All: true},
+			want:     []string{"alice", "bob", "carol", "dave"},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := svc.List(ctx, tc.in)
+			svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, staticDataScopeResolver{decision: tc.decision})
+			got, err := svc.List(ctx, ListInput{})
 			if err != nil {
 				t.Fatalf("List error: %v", err)
 			}
@@ -243,12 +248,12 @@ func TestUserServiceListRejectsMissingDataScopeContext(t *testing.T) {
 		t.Fatalf("store.NewBundle error: %v", err)
 	}
 
-	svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, rbacservice.NewService(bundle.RBAC))
-	_, err = svc.List(context.Background(), ListInput{DataScope: domainrbac.DataScopeSelf})
+	svc := NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, staticDataScopeResolver{err: errors.New("trusted identity is required")})
+	_, err = svc.List(context.Background(), ListInput{})
 	if err == nil {
 		t.Fatalf("expected missing actor error")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "actor user id") {
+	if !strings.Contains(strings.ToLower(err.Error()), "trusted identity") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

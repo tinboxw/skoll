@@ -104,7 +104,11 @@ func (r *memoryAggregate[T]) list(_ context.Context, filter ListFilter) ([]T, er
 	keyword := strings.ToLower(strings.TrimSpace(filter.Keyword))
 	status := strings.ToLower(strings.TrimSpace(filter.Status))
 	region := strings.ToLower(strings.TrimSpace(filter.Region))
-	organizationID := filter.OrganizationID.String()
+	organizationIDs := filter.NormalizedOrganizationIDs()
+	organizationSet := make(map[string]struct{}, len(organizationIDs))
+	for _, organizationID := range organizationIDs {
+		organizationSet[organizationID] = struct{}{}
+	}
 	ownerID := filter.OwnerID.String()
 
 	r.mu.RLock()
@@ -119,13 +123,13 @@ func (r *memoryAggregate[T]) list(_ context.Context, filter ListFilter) ([]T, er
 		if region != "" && (r.region == nil || strings.ToLower(r.region(item)) != region) {
 			continue
 		}
-		organizationMatch := organizationID != "" && r.organizationID != nil && r.organizationID(item) == organizationID
+		_, organizationMatch := organizationSet[organizationValue(r, item)]
 		ownerMatch := ownerID != "" && r.ownerID != nil && r.ownerID(item) == ownerID
 		if filter.ScopeAny {
-			if (organizationID != "" || ownerID != "") && !organizationMatch && !ownerMatch {
+			if (len(organizationIDs) > 0 || ownerID != "") && !organizationMatch && !ownerMatch {
 				continue
 			}
-		} else if (organizationID != "" && !organizationMatch) || (ownerID != "" && !ownerMatch) {
+		} else if (len(organizationIDs) > 0 && !organizationMatch) || (ownerID != "" && !ownerMatch) {
 			continue
 		}
 		copyItem, err := cloneJSON(item)
@@ -150,6 +154,13 @@ func (r *memoryAggregate[T]) list(_ context.Context, filter ListFilter) ([]T, er
 		end = offset + filter.Limit
 	}
 	return items[offset:end], nil
+}
+
+func organizationValue[T any](repo *memoryAggregate[T], item T) string {
+	if repo.organizationID == nil {
+		return ""
+	}
+	return repo.organizationID(item)
 }
 
 type MemoryEmployeeRepository struct {

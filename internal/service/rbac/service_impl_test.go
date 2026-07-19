@@ -7,9 +7,11 @@ import (
 	"testing"
 	"time"
 
+	domainorganization "github.com/tinboxw/skoll/internal/domain/organization"
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	"github.com/tinboxw/skoll/internal/store/memory"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type fakeRBACRepo struct {
@@ -177,68 +179,68 @@ func TestRBACServiceSetRolePoliciesNormalizesDataScope(t *testing.T) {
 }
 
 func TestRBACServiceResolveDataScope(t *testing.T) {
-	svc := NewService(memory.NewRBACStore())
-	ctx := context.Background()
+	rbacRepo := memory.NewRBACStore()
+	organizationRepo := memory.NewOrganizationStore()
+	now := nowForTest()
+	for _, input := range []domainorganization.DepartmentInput{
+		{ID: "org-root", Code: "root", Name: "Root", CreatedAt: now},
+		{ID: "org-sales", ParentID: "org-root", Code: "sales", Name: "Sales", CreatedAt: now},
+		{ID: "org-east", ParentID: "org-sales", Code: "sales.east", Name: "East", CreatedAt: now},
+		{ID: "org-other", ParentID: "org-root", Code: "other", Name: "Other", CreatedAt: now},
+	} {
+		item, err := domainorganization.NewDepartment(input)
+		if err != nil {
+			t.Fatalf("NewDepartment error: %v", err)
+		}
+		if err := organizationRepo.SaveDepartment(context.Background(), item); err != nil {
+			t.Fatalf("SaveDepartment error: %v", err)
+		}
+	}
+	svc := NewServiceWithOrganization(rbacRepo, organizationRepo)
 
-	all, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScopeAll})
-	if err != nil {
-		t.Fatalf("ResolveDataScope all error: %v", err)
-	}
-	if !all.All || all.Scope != domainrbac.DataScopeAll {
-		t.Fatalf("unexpected all decision: %+v", all)
-	}
-
-	self, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScopeSelf, ActorUserID: " user-1 "})
-	if err != nil {
-		t.Fatalf("ResolveDataScope self error: %v", err)
-	}
-	if len(self.UserIDs) != 1 || self.UserIDs[0] != "user-1" {
-		t.Fatalf("unexpected self decision: %+v", self)
-	}
-
-	department, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScope("dept"), ActorDepartmentID: "dept-sales"})
-	if err != nil {
-		t.Fatalf("ResolveDataScope department error: %v", err)
-	}
-	if department.Scope != domainrbac.DataScopeDepartment || len(department.DepartmentIDs) != 1 || department.DepartmentIDs[0] != "dept-sales" {
-		t.Fatalf("unexpected department decision: %+v", department)
-	}
-
-	departmentTree, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{
-		Scope:             domainrbac.DataScope("dept_tree"),
-		ActorDepartmentID: "dept-sales",
-		DepartmentTreeIDs: []string{"dept-sales", "dept-east", " "},
-	})
-	if err != nil {
-		t.Fatalf("ResolveDataScope department_tree error: %v", err)
-	}
-	if departmentTree.Scope != domainrbac.DataScopeDepartmentTree || strings.Join(departmentTree.DepartmentIDs, ",") != "dept-sales,dept-east" {
-		t.Fatalf("unexpected department_tree decision: %+v", departmentTree)
-	}
-
-	custom, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Scope: domainrbac.DataScopeCustom, CustomDepartmentIDs: []string{"dept-a", "dept-a", "dept-b"}})
-	if err != nil {
-		t.Fatalf("ResolveDataScope custom error: %v", err)
-	}
-	if custom.Scope != domainrbac.DataScopeCustom || strings.Join(custom.DepartmentIDs, ",") != "dept-a,dept-b" {
-		t.Fatalf("unexpected custom decision: %+v", custom)
+	for _, test := range []struct {
+		name              string
+		userID            string
+		scope             domainrbac.DataScope
+		organizationID    string
+		wantAll           bool
+		wantUsers         string
+		wantOrganizations string
+	}{
+		{name: "self", userID: "user-self", scope: domainrbac.DataScopeSelf, organizationID: "org-sales", wantUsers: "user-self"},
+		{name: "organization", userID: "user-org", scope: domainrbac.DataScopeDepartment, organizationID: "org-sales", wantOrganizations: "org-sales"},
+		{name: "organization tree", userID: "user-tree", scope: domainrbac.DataScopeDepartmentTree, organizationID: "org-sales", wantOrganizations: "org-sales,org-east"},
+		{name: "all", userID: "user-all", scope: domainrbac.DataScopeAll, organizationID: "org-sales", wantAll: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			roleID := "role-" + test.userID
+			if _, err := svc.BindRole(context.Background(), BindRoleInput{SubjectType: domainrbac.SubjectUser, SubjectID: test.userID, RoleID: roleID, Scope: test.scope}); err != nil {
+				t.Fatalf("BindRole error: %v", err)
+			}
+			if err := svc.SetRolePolicies(context.Background(), SetRolePoliciesInput{RoleID: roleID, Rules: []domainrbac.PolicyRule{{Resource: "pharma_oa.customer", Action: "read", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeAll}}}); err != nil {
+				t.Fatalf("SetRolePolicies error: %v", err)
+			}
+			ctx := security.WithJWTClaimsContext(context.Background(), &security.JWTClaims{Subject: test.userID, OrganizationID: test.organizationID, OrganizationPath: []string{"org-root", test.organizationID}, Role: "employee", Roles: []string{"employee"}})
+			got, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{Resource: "pharma_oa.customer", Action: "read"})
+			if err != nil {
+				t.Fatalf("ResolveDataScope error: %v", err)
+			}
+			if got.All != test.wantAll || strings.Join(got.UserIDs, ",") != test.wantUsers || strings.Join(got.DepartmentIDs, ",") != test.wantOrganizations {
+				t.Fatalf("unexpected decision: %+v", got)
+			}
+		})
 	}
 }
 
 func TestRBACServiceResolveDataScopeRejectsMissingContext(t *testing.T) {
 	svc := NewService(memory.NewRBACStore())
-	ctx := context.Background()
-
-	cases := []ResolveDataScopeInput{
-		{Scope: domainrbac.DataScopeSelf},
-		{Scope: domainrbac.DataScopeDepartment},
-		{Scope: domainrbac.DataScopeDepartmentTree},
-		{Scope: domainrbac.DataScopeCustom},
+	if _, err := svc.ResolveDataScope(context.Background(), ResolveDataScopeInput{Resource: "user", Action: "read"}); !errors.Is(err, ErrDataScopeDenied) {
+		t.Fatalf("expected trusted identity denial, got %v", err)
 	}
-	for _, tc := range cases {
-		if _, err := svc.ResolveDataScope(ctx, tc); err == nil {
-			t.Fatalf("expected missing context error for scope %s", tc.Scope)
-		}
+	ctx := security.WithJWTClaimsContext(context.Background(), &security.JWTClaims{Subject: "root", Role: "super_admin", Roles: []string{"super_admin"}})
+	decision, err := svc.ResolveDataScope(ctx, ResolveDataScopeInput{})
+	if err != nil || !decision.All {
+		t.Fatalf("expected explicit super-admin all scope, decision=%+v err=%v", decision, err)
 	}
 }
 

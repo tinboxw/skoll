@@ -290,13 +290,13 @@ func listPharmaModels[M any](ctx context.Context, db *gorm.DB, filter pharmaoare
 	if region := strings.ToLower(strings.TrimSpace(filter.Region)); region != "" && options.regionColumn != "" {
 		query = query.Where("LOWER("+options.regionColumn+") = ?", region)
 	}
-	organizationID := filter.OrganizationID.String()
+	organizationIDs := filter.NormalizedOrganizationIDs()
 	ownerID := filter.OwnerID.String()
-	if filter.ScopeAny && (organizationID != "" || ownerID != "") {
+	if filter.ScopeAny && (len(organizationIDs) > 0 || ownerID != "") {
 		parts := make([]string, 0, 2)
 		args := make([]any, 0, 2)
-		if organizationID != "" && options.organizationColumn != "" {
-			parts, args = append(parts, options.organizationColumn+" = ?"), append(args, organizationID)
+		if len(organizationIDs) > 0 && options.organizationColumn != "" {
+			parts, args = append(parts, options.organizationColumn+" IN ?"), append(args, organizationIDs)
 		}
 		if ownerID != "" && options.ownerColumn != "" {
 			parts, args = append(parts, options.ownerColumn+" = ?"), append(args, ownerID)
@@ -305,8 +305,8 @@ func listPharmaModels[M any](ctx context.Context, db *gorm.DB, filter pharmaoare
 			query = query.Where("("+strings.Join(parts, " OR ")+")", args...)
 		}
 	} else {
-		if organizationID != "" && options.organizationColumn != "" {
-			query = query.Where(options.organizationColumn+" = ?", organizationID)
+		if len(organizationIDs) > 0 && options.organizationColumn != "" {
+			query = query.Where(options.organizationColumn+" IN ?", organizationIDs)
 		}
 		if ownerID != "" && options.ownerColumn != "" {
 			query = query.Where(options.ownerColumn+" = ?", ownerID)

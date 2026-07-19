@@ -107,7 +107,7 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	pharmaoahttp.RegisterEmployeeRoutes(apiMux, deps.PharmaEmployeeService)
 	pharmaoahttp.RegisterProductRoutes(apiMux, deps.PharmaProductService)
 	pharmaoahttp.RegisterSupplierRoutes(apiMux, deps.PharmaSupplierService)
-	pharmaoahttp.RegisterCustomerRoutes(apiMux, deps.PharmaCustomerService)
+	pharmaoahttp.RegisterCustomerRoutes(apiMux, deps.PharmaCustomerService, deps.RBACService)
 	pharmaoahttp.RegisterCustomerFollowUpRoutes(apiMux, deps.PharmaCustomerFollowUpService)
 	pharmaoahttp.RegisterSalesOpportunityRoutes(apiMux, deps.PharmaSalesOpportunityService)
 	pharmaoahttp.RegisterWarehouseRoutes(apiMux, deps.PharmaWarehouseService)

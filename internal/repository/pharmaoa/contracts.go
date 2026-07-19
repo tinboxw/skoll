@@ -2,20 +2,40 @@ package pharmaoa
 
 import (
 	"context"
+	"strings"
 
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 )
 
 type ListFilter struct {
-	Keyword        string
-	Status         string
-	Region         string
-	OrganizationID shared.ID
-	OwnerID        shared.ID
-	ScopeAny       bool
-	Offset         int
-	Limit          int
+	Keyword         string
+	Status          string
+	Region          string
+	OrganizationID  shared.ID
+	OrganizationIDs []shared.ID
+	OwnerID         shared.ID
+	ScopeAny        bool
+	Offset          int
+	Limit           int
+}
+
+func (f ListFilter) NormalizedOrganizationIDs() []string {
+	seen := make(map[string]struct{}, len(f.OrganizationIDs)+1)
+	out := make([]string, 0, len(f.OrganizationIDs)+1)
+	items := append(append([]shared.ID(nil), f.OrganizationIDs...), f.OrganizationID)
+	for _, item := range items {
+		id := strings.TrimSpace(item.String())
+		if id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 type AggregateRepository[T any] interface {

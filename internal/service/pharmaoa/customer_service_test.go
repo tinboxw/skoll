@@ -61,6 +61,13 @@ func TestCustomerServiceScopeAndSalesEligibility(t *testing.T) {
 	if second.Rating != 3 {
 		t.Fatalf("expected default rating 3, got %d", second.Rating)
 	}
+	third, err := service.Create(ctx, CustomerWriteInput{
+		Code: "CUST-CHILD", Name: "Child Hospital", Region: "East", OrganizationID: "org-a-child", OwnerID: "sales-c",
+		Contacts: []domainpharma.CustomerContact{{Name: "Chris"}}, ActorID: "sales-c",
+	})
+	if err != nil {
+		t.Fatalf("create child organization customer: %v", err)
+	}
 
 	owned, err := service.List(ctx, CustomerListInput{Scope: CustomerAccessScope{OwnerID: "sales-a"}})
 	if err != nil {
@@ -77,6 +84,10 @@ func TestCustomerServiceScopeAndSalesEligibility(t *testing.T) {
 	if len(org) != 1 || org[0].ID != second.ID {
 		t.Fatalf("expected only org-b customer, got %+v", org)
 	}
+	tree, err := service.List(ctx, CustomerListInput{Scope: CustomerAccessScope{OrganizationIDs: []string{"org-a", "org-a-child"}}})
+	if err != nil || len(tree) != 2 || tree[0].ID != first.ID || tree[1].ID != third.ID {
+		t.Fatalf("expected organization tree customers, got %+v err=%v", tree, err)
+	}
 
 	_, err = service.Update(ctx, first.ID.String(), CustomerWriteInput{
 		Code:           "CUST-001",
@@ -89,6 +100,21 @@ func TestCustomerServiceScopeAndSalesEligibility(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "access denied") {
 		t.Fatalf("expected cross owner/org update denial, got %v", err)
+	}
+
+	_, err = service.Update(ctx, first.ID.String(), CustomerWriteInput{
+		Code: "CUST-001", Name: "Moved Outside Tree", Region: "East", OrganizationID: "org-outside", OwnerID: "sales-outside",
+		Contacts: []domainpharma.CustomerContact{{Name: "Alice"}}, Scope: CustomerAccessScope{OrganizationIDs: []string{"org-a", "org-a-child"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "access denied") {
+		t.Fatalf("expected target organization write denial, got %v", err)
+	}
+	_, err = service.Create(ctx, CustomerWriteInput{
+		Code: "CUST-OUTSIDE", Name: "Outside", Region: "East", OrganizationID: "org-outside", OwnerID: "sales-outside",
+		Contacts: []domainpharma.CustomerContact{{Name: "Outside"}}, ActorID: "manager", Scope: CustomerAccessScope{OrganizationIDs: []string{"org-a", "org-a-child"}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "access denied") {
+		t.Fatalf("expected out-of-tree create denial, got %v", err)
 	}
 
 	eligible, err := service.ValidateSalesCustomer(ctx, first.ID.String(), CustomerAccessScope{OwnerID: "sales-a"})

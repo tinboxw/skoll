@@ -79,9 +79,9 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 	_ = event.NewPublisher(bus)
 	_ = event.NewSubscriber(bus)
-	userService := user.NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
 	roleService := role.NewService(bundle.Roles)
-	rbacService := rbac.NewService(bundle.RBAC)
+	rbacService := rbac.NewServiceWithOrganization(bundle.RBAC, bundle.Organization)
+	userService := user.NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, rbacService)
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)

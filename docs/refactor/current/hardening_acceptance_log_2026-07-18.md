@@ -467,3 +467,51 @@ git diff --check
 ### Next Step
 
 父任务 H3 保持 `Doing`。提交 H3-01 后按正式 Work Item 顺序领取 `H3-02`，基于受信任声明和授权实现本人、组织、组织树与全量数据范围策略，并拒绝请求参数扩大范围。
+
+## H3-02 组织树数据范围策略
+
+- Date: 2026-07-19
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 基于签名 JWT、RBAC Binding/PolicyRule 和组织仓储生成本人、当前组织、组织树与全量范围，并将同一范围用于用户列表、医药客户读写以及内存/GORM 仓储谓词。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 可信决策来源 | Pass | `ResolveDataScope` 只接收资源和动作；用户、当前组织和超级管理员角色来自签名 JWT，授权范围来自 RBAC，组织树后代来自 OrganizationRepository。缺失身份、组织、授权或不支持的 `custom` 范围均失败关闭。 |
+| 范围矩阵 | Pass | 单元矩阵覆盖 `self`、`department`、`department_tree`、`all`；组织树仅包含当前组织及后代，不包含父级其他分支；超级管理员全量旁路保持显式。 |
+| 仓储谓词与写入 | Pass | 用户仓储使用用户/组织过滤；医药 OA memory、GORM 主数据和 JSON 工作流仓储支持多组织 `IN` 与负责人 `OR`；客户创建、更新、禁用和校验共享同一范围判断，更新不能把记录移出授权树。 |
+| 参数伪造 | Pass | 客户 HTTP handler 不再读取请求体或查询参数中的 scope、`ownerId`、`organizationId`、`includeAll` 作为授权输入；回归测试证明伪造参数不能读取其他负责人记录或执行跨范围写入。 |
+| MySQL 契约 | Pass | 本机 MySQL 5.7 的工作流契约直接通过；默认 MyISAM 导致首次主数据迁移触发 1000-byte key limit，随后在隔离 `skoll_h302_acceptance` InnoDB 会话中主数据和工作流契约均通过，验收库已删除，原 `skoll` 数据未清理。 |
+| API/权限/审计/migration/seed/i18n | Pass | 未新增 HTTP 路径、请求响应 Schema、权限键、审计动作、migration 或 seed；两份 OpenAPI 保持同步。403 继续由框架现有中英文 `error.forbidden` 映射展示，中文为默认语言。 |
+| 质量门禁 | Pass | 聚焦测试、无缓存全仓 Go 测试、定向 race、`go vet ./...`、后端构建、前端 typecheck/build、OpenAPI 同步和运行时 smoke 全部通过。 |
+| 运行时 | Pass | 隔离 memory 后端在 `127.0.0.1:18080` 健康检查为 `ok`；认证 smoke 通过；超级管理员访问客户和用户列表均为 200；验收进程已停止。 |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/rbac ./internal/service/user ./internal/service/pharmaoa ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/bootstrap
+go test ./... -count=1
+go test -race ./internal/service/rbac ./internal/service/user ./internal/service/pharmaoa ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/handler/http/v1/pharmaoa ./internal/handler/http ./internal/bootstrap -count=1
+$env:SKOLL_TEST_MYSQL_DSN='root:root@tcp(127.0.0.1:3306)/skoll_h302_acceptance?charset=utf8mb4&parseTime=true&loc=UTC&default_storage_engine=InnoDB'; go test ./internal/store/sql/gormrepo -run 'TestPharmaMasterRepositoriesMySQLContract|TestPharmaWorkflowRecordRepositoriesMySQLContract' -count=1 -v
+go vet ./...
+go build -o "$env:TEMP\skoll-h3-02.exe" ./cmd/skoll
+npm --prefix web run typecheck
+npm --prefix web run build
+git diff --no-index -- docs/api/openapi.yaml internal/handler/http/openapi.yaml
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首轮聚焦测试发现旧 RBAC/用户测试仍传入调用方范围字段、客户 handler 测试未注入可信解析器，且一个内部客户夹具缺少 actor 或显式系统范围。 | 将测试改为签名身份/RBAC/组织矩阵，HTTP 测试注入确定性解析器，系统调用显式声明可信范围后重跑。 |
+| 2 | Failed -> Doing | 本机 MySQL 5.7 工作流契约通过，但默认 MyISAM 的主数据 AutoMigrate 在进入范围断言前触发 error 1071。 | 创建隔离 InnoDB 验收库重跑同一 MySQL 契约，通过后删除隔离库，不改动原库。 |
+| 3 | Failed -> Doing | 无缓存全仓测试发现用户 handler 假解析器仍读取旧字段，库存集成夹具以系统流程创建客户但未显式声明全量范围。 | 假解析器改为返回可信决策，系统夹具显式使用 `IncludeAll`，聚焦与全仓测试随后通过。 |
+
+### Next Step
+
+父任务 H3 保持 `Doing`。H3-02 提交后按正式 Work Item 顺序领取 `H3-03`，实现已授权范围的中英文前端 UX 与完整页面状态。

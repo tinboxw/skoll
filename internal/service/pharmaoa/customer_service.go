@@ -25,9 +25,10 @@ type CustomerService interface {
 }
 
 type CustomerAccessScope struct {
-	OwnerID        string
-	OrganizationID string
-	IncludeAll     bool
+	OwnerID         string
+	OrganizationID  string
+	OrganizationIDs []string
+	IncludeAll      bool
 }
 
 type CustomerWriteInput struct {
@@ -99,6 +100,16 @@ func NewCustomerService(audit auditsvc.Service, repositories ...pharmaoarepo.Cus
 
 func (s *customerService) Create(ctx context.Context, in CustomerWriteInput) (*domainpharma.Customer, error) {
 	normalized := normalizeCustomerWriteInput(in)
+	scope := normalizeCustomerAccessScope(normalized.Scope)
+	if !scope.IncludeAll && scope.OwnerID == "" && len(scope.OrganizationIDs) == 0 {
+		scope.OwnerID = normalized.ActorID
+		if scope.OwnerID == "" {
+			scope.OwnerID = normalized.OwnerID
+		}
+	}
+	if !customerValuesInScope(normalized.OwnerID, normalized.OrganizationID, scope) {
+		return nil, fmt.Errorf("customer access denied")
+	}
 	id, err := s.nextAvailableCustomerID(ctx)
 	if err != nil {
 		return nil, err
@@ -123,12 +134,12 @@ func (s *customerService) Create(ctx context.Context, in CustomerWriteInput) (*d
 
 func (s *customerService) List(ctx context.Context, in CustomerListInput) ([]*domainpharma.Customer, error) {
 	scope := normalizeCustomerAccessScope(in.Scope)
-	if !scope.IncludeAll && scope.OwnerID == "" && scope.OrganizationID == "" {
+	if !scope.IncludeAll && scope.OwnerID == "" && len(scope.OrganizationIDs) == 0 {
 		return []*domainpharma.Customer{}, nil
 	}
 	filter := pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Region: in.Region, Offset: in.Offset, Limit: normalizeLimit(in.Limit)}
 	if !scope.IncludeAll {
-		filter.OrganizationID = shared.ID(scope.OrganizationID)
+		filter.OrganizationIDs = sharedIDs(scope.OrganizationIDs)
 		filter.OwnerID = shared.ID(scope.OwnerID)
 		filter.ScopeAny = true
 	}
@@ -158,6 +169,9 @@ func (s *customerService) Update(ctx context.Context, id string, in CustomerWrit
 		return nil, fmt.Errorf("customer not found")
 	}
 	if !customerInScope(current, scope) {
+		return nil, fmt.Errorf("customer access denied")
+	}
+	if !customerValuesInScope(normalized.OwnerID, normalized.OrganizationID, scope) {
 		return nil, fmt.Errorf("customer access denied")
 	}
 	existing, err := s.repo.GetByCode(ctx, normalized.Code)
@@ -212,12 +226,12 @@ func (s *customerService) QualificationReminders(ctx context.Context, in Custome
 	}
 	deadline := s.nowFn().AddDate(0, 0, days)
 	scope := normalizeCustomerAccessScope(in.Scope)
-	if !scope.IncludeAll && scope.OwnerID == "" && scope.OrganizationID == "" {
+	if !scope.IncludeAll && scope.OwnerID == "" && len(scope.OrganizationIDs) == 0 {
 		return []CustomerQualificationReminder{}, nil
 	}
 	filter := pharmaoarepo.ListFilter{}
 	if !scope.IncludeAll {
-		filter.OrganizationID = shared.ID(scope.OrganizationID)
+		filter.OrganizationIDs = sharedIDs(scope.OrganizationIDs)
 		filter.OwnerID = shared.ID(scope.OwnerID)
 		filter.ScopeAny = true
 	}
@@ -313,7 +327,38 @@ func normalizeCustomerWriteInput(in CustomerWriteInput) CustomerWriteInput {
 func normalizeCustomerAccessScope(scope CustomerAccessScope) CustomerAccessScope {
 	scope.OwnerID = strings.TrimSpace(scope.OwnerID)
 	scope.OrganizationID = strings.TrimSpace(scope.OrganizationID)
+	scope.OrganizationIDs = compactCustomerOrganizationIDs(append(scope.OrganizationIDs, scope.OrganizationID))
+	if len(scope.OrganizationIDs) > 0 {
+		scope.OrganizationID = scope.OrganizationIDs[0]
+	} else {
+		scope.OrganizationID = ""
+	}
 	return scope
+}
+
+func compactCustomerOrganizationIDs(items []string) []string {
+	seen := make(map[string]struct{}, len(items))
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		id := strings.TrimSpace(item)
+		if id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func sharedIDs(items []string) []shared.ID {
+	out := make([]shared.ID, 0, len(items))
+	for _, item := range items {
+		out = append(out, shared.ID(item))
+	}
+	return out
 }
 
 func toCustomerDomainInput(in CustomerWriteInput) domainpharma.CustomerInput {
@@ -333,14 +378,20 @@ func customerInScope(item *domainpharma.Customer, scope CustomerAccessScope) boo
 	if item == nil {
 		return false
 	}
+	return customerValuesInScope(item.OwnerID, item.OrganizationID, scope)
+}
+
+func customerValuesInScope(ownerID, organizationID string, scope CustomerAccessScope) bool {
 	if scope.IncludeAll {
 		return true
 	}
-	if scope.OwnerID != "" && item.OwnerID == scope.OwnerID {
+	if scope.OwnerID != "" && strings.TrimSpace(ownerID) == scope.OwnerID {
 		return true
 	}
-	if scope.OrganizationID != "" && item.OrganizationID == scope.OrganizationID {
-		return true
+	for _, allowedOrganizationID := range scope.OrganizationIDs {
+		if strings.TrimSpace(organizationID) == allowedOrganizationID {
+			return true
+		}
 	}
 	return false
 }

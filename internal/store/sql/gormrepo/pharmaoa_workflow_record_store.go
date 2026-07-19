@@ -68,14 +68,26 @@ func (s *pharmaJSONAggregateStore[T]) List(ctx context.Context, filter pharmaoar
 	if s.statusColumn != "" && strings.TrimSpace(filter.Status) != "" {
 		query = query.Where(s.statusColumn+" = ?", strings.TrimSpace(filter.Status))
 	}
-	if s.ownerColumn && !filter.OwnerID.IsZero() {
-		query = query.Where("owner_id = ?", filter.OwnerID.String())
-	}
-	if s.orgColumn && !filter.OrganizationID.IsZero() {
-		if filter.ScopeAny && s.ownerColumn && !filter.OwnerID.IsZero() {
-			query = query.Where("organization_id = ? OR owner_id = ?", filter.OrganizationID.String(), filter.OwnerID.String())
-		} else {
-			query = query.Where("organization_id = ?", filter.OrganizationID.String())
+	organizationIDs := filter.NormalizedOrganizationIDs()
+	ownerID := filter.OwnerID.String()
+	if filter.ScopeAny && (len(organizationIDs) > 0 || ownerID != "") {
+		parts := make([]string, 0, 2)
+		args := make([]any, 0, 2)
+		if s.orgColumn && len(organizationIDs) > 0 {
+			parts, args = append(parts, "organization_id IN ?"), append(args, organizationIDs)
+		}
+		if s.ownerColumn && ownerID != "" {
+			parts, args = append(parts, "owner_id = ?"), append(args, ownerID)
+		}
+		if len(parts) > 0 {
+			query = query.Where("("+strings.Join(parts, " OR ")+")", args...)
+		}
+	} else {
+		if s.ownerColumn && ownerID != "" {
+			query = query.Where("owner_id = ?", ownerID)
+		}
+		if s.orgColumn && len(organizationIDs) > 0 {
+			query = query.Where("organization_id IN ?", organizationIDs)
 		}
 	}
 	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {

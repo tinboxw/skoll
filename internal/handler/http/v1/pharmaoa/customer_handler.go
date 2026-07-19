@@ -13,11 +13,16 @@ import (
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
-	"github.com/tinboxw/skoll/pkg/security"
+	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 )
 
 type CustomerHandler struct {
-	service pharmaoasvc.CustomerService
+	service       pharmaoasvc.CustomerService
+	scopeResolver customerDataScopeResolver
+}
+
+type customerDataScopeResolver interface {
+	ResolveDataScope(ctx context.Context, in rbacsvc.ResolveDataScopeInput) (rbacsvc.DataScopeDecision, error)
 }
 
 type customerRequest struct {
@@ -30,13 +35,6 @@ type customerRequest struct {
 	Contacts       []domainpharma.CustomerContact `json:"contacts"`
 	Qualifications []customerQualificationRequest `json:"qualifications"`
 	ActorID        string                         `json:"actorId"`
-	Scope          customerScopeRequest           `json:"scope"`
-}
-
-type customerScopeRequest struct {
-	OwnerID        string `json:"ownerId"`
-	OrganizationID string `json:"organizationId"`
-	IncludeAll     bool   `json:"includeAll"`
 }
 
 type customerQualificationRequest struct {
@@ -47,11 +45,11 @@ type customerQualificationRequest struct {
 	Attachments []domainpharma.CustomerAttachment `json:"attachments"`
 }
 
-func RegisterCustomerRoutes(mux *http.ServeMux, service pharmaoasvc.CustomerService) {
-	if mux == nil || service == nil {
+func RegisterCustomerRoutes(mux *http.ServeMux, service pharmaoasvc.CustomerService, scopeResolver customerDataScopeResolver) {
+	if mux == nil || service == nil || scopeResolver == nil {
 		return
 	}
-	h := &CustomerHandler{service: service}
+	h := &CustomerHandler{service: service, scopeResolver: scopeResolver}
 	mux.HandleFunc("GET /v1/pharma-oa/customers", h.list)
 	mux.HandleFunc("POST /v1/pharma-oa/customers", h.create)
 	mux.HandleFunc("PUT /v1/pharma-oa/customers/{id}", h.update)
@@ -80,6 +78,10 @@ func RegisterCustomerPermissions(service permissionsvc.Service) error {
 }
 
 func (h *CustomerHandler) list(w http.ResponseWriter, r *http.Request) {
+	scope, ok := h.resolveScope(w, r, "read")
+	if !ok {
+		return
+	}
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, limit = normalizePagination(offset, limit)
@@ -89,7 +91,7 @@ func (h *CustomerHandler) list(w http.ResponseWriter, r *http.Request) {
 		Region:  r.URL.Query().Get("region"),
 		Offset:  offset,
 		Limit:   limit,
-		Scope:   customerScopeFromRequest(r, customerScopeRequest{}),
+		Scope:   scope,
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -99,10 +101,15 @@ func (h *CustomerHandler) list(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CustomerHandler) create(w http.ResponseWriter, r *http.Request) {
+	scope, ok := h.resolveScope(w, r, "create")
+	if !ok {
+		return
+	}
 	input, ok := h.decodeCustomerWriteInput(w, r)
 	if !ok {
 		return
 	}
+	input.Scope = scope
 	item, err := h.service.Create(r.Context(), input)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -112,10 +119,15 @@ func (h *CustomerHandler) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CustomerHandler) update(w http.ResponseWriter, r *http.Request) {
+	scope, ok := h.resolveScope(w, r, "update")
+	if !ok {
+		return
+	}
 	input, ok := h.decodeCustomerWriteInput(w, r)
 	if !ok {
 		return
 	}
+	input.Scope = scope
 	item, err := h.service.Update(r.Context(), r.PathValue("id"), input)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -126,15 +138,18 @@ func (h *CustomerHandler) update(w http.ResponseWriter, r *http.Request) {
 
 func (h *CustomerHandler) disable(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Reason  string               `json:"reason"`
-		ActorID string               `json:"actorId"`
-		Scope   customerScopeRequest `json:"scope"`
+		Reason  string `json:"reason"`
+		ActorID string `json:"actorId"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
+	scope, ok := h.resolveScope(w, r, "disable")
+	if !ok {
+		return
+	}
 	item, err := h.service.Disable(r.Context(), r.PathValue("id"), pharmaoasvc.CustomerDisableInput{
 		Reason:  req.Reason,
 		ActorID: actorIDFromRequest(r, req.ActorID),
-		Scope:   customerScopeFromRequest(r, req.Scope),
+		Scope:   scope,
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -144,10 +159,14 @@ func (h *CustomerHandler) disable(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *CustomerHandler) qualificationReminders(w http.ResponseWriter, r *http.Request) {
+	scope, ok := h.resolveScope(w, r, "reminder")
+	if !ok {
+		return
+	}
 	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
 	items, err := h.service.QualificationReminders(r.Context(), pharmaoasvc.CustomerReminderInput{
 		Days:  days,
-		Scope: customerScopeFromRequest(r, customerScopeRequest{}),
+		Scope: scope,
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
@@ -157,7 +176,11 @@ func (h *CustomerHandler) qualificationReminders(w http.ResponseWriter, r *http.
 }
 
 func (h *CustomerHandler) salesEligibility(w http.ResponseWriter, r *http.Request) {
-	result, err := h.service.ValidateSalesCustomer(r.Context(), r.PathValue("id"), customerScopeFromRequest(r, customerScopeRequest{}))
+	scope, ok := h.resolveScope(w, r, "sales")
+	if !ok {
+		return
+	}
+	result, err := h.service.ValidateSalesCustomer(r.Context(), r.PathValue("id"), scope)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
@@ -187,7 +210,6 @@ func (h *CustomerHandler) decodeCustomerWriteInput(w http.ResponseWriter, r *htt
 		Contacts:       req.Contacts,
 		Qualifications: qualifications,
 		ActorID:        actorID,
-		Scope:          customerScopeFromRequest(r, req.Scope),
 	}, true
 }
 
@@ -216,35 +238,18 @@ func parseCustomerQualifications(items []customerQualificationRequest) ([]domain
 	return out, nil
 }
 
-func customerScopeFromRequest(r *http.Request, body customerScopeRequest) pharmaoasvc.CustomerAccessScope {
-	if r != nil {
-		if claims, ok := security.JWTClaimsFromContext(r.Context()); ok {
-			if claims.HasRole("super_admin") {
-				return pharmaoasvc.CustomerAccessScope{IncludeAll: true}
-			}
-			return pharmaoasvc.CustomerAccessScope{OwnerID: strings.TrimSpace(claims.Subject)}
-		}
+func (h *CustomerHandler) resolveScope(w http.ResponseWriter, r *http.Request, action string) (pharmaoasvc.CustomerAccessScope, bool) {
+	decision, err := h.scopeResolver.ResolveDataScope(r.Context(), rbacsvc.ResolveDataScopeInput{Resource: "pharma_oa.customer", Action: action})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusForbidden, err)
+		return pharmaoasvc.CustomerAccessScope{}, false
 	}
-
 	scope := pharmaoasvc.CustomerAccessScope{
-		OwnerID:        body.OwnerID,
-		OrganizationID: body.OrganizationID,
-		IncludeAll:     body.IncludeAll,
+		IncludeAll:      decision.All,
+		OrganizationIDs: append([]string(nil), decision.DepartmentIDs...),
 	}
-	if r != nil {
-		query := r.URL.Query()
-		if ownerID := strings.TrimSpace(query.Get("ownerId")); ownerID != "" {
-			scope.OwnerID = ownerID
-		}
-		if organizationID := strings.TrimSpace(query.Get("organizationId")); organizationID != "" {
-			scope.OrganizationID = organizationID
-		}
-		if includeAll, err := strconv.ParseBool(strings.TrimSpace(query.Get("includeAll"))); err == nil && includeAll {
-			scope.IncludeAll = true
-		}
-		if scope.OwnerID == "" {
-			scope.OwnerID = actorIDFromRequest(r, "")
-		}
+	if len(decision.UserIDs) > 0 {
+		scope.OwnerID = strings.TrimSpace(decision.UserIDs[0])
 	}
-	return scope
+	return scope, true
 }

@@ -26,6 +26,12 @@ import (
 	"github.com/tinboxw/skoll/internal/store"
 )
 
+type routerAllScopeResolver struct{}
+
+func (routerAllScopeResolver) ResolveDataScope(_ context.Context, _ rbacsvc.ResolveDataScopeInput) (rbacsvc.DataScopeDecision, error) {
+	return rbacsvc.DataScopeDecision{All: true}, nil
+}
+
 func TestRouterDocumentationRoutes(t *testing.T) {
 	router := NewRouter(Dependencies{})
 
@@ -117,7 +123,7 @@ func TestRouterUserCreateAndGet(t *testing.T) {
 	}
 	_ = auditsvc.NewService(bundle.Audit)
 	auditService := auditsvc.NewService(bundle.Audit)
-	userService := usersvc.NewService(bundle.Users, bundle.Audit, bundle.UnitOfWork)
+	userService := usersvc.NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, routerAllScopeResolver{})
 	roleService := rolesvc.NewService(bundle.Roles)
 	rbacService := rbacsvc.NewService(bundle.RBAC)
 	systemService := systemsvc.NewService(bundle.System)

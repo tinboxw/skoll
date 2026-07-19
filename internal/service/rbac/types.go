@@ -27,11 +27,8 @@ type PermissionDecision struct {
 }
 
 type ResolveDataScopeInput struct {
-	Scope               domainrbac.DataScope
-	ActorUserID         string
-	ActorDepartmentID   string
-	DepartmentTreeIDs   []string
-	CustomDepartmentIDs []string
+	Resource string
+	Action   string
 }
 
 type DataScopeDecision struct {

@@ -2,25 +2,37 @@ package rbac
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
+var ErrDataScopeDenied = errors.New("data scope denied")
+
 type serviceImpl struct {
-	repo  rbacrepo.RBACRepository
-	nowFn func() time.Time
-	idFn  func(prefix string) shared.ID
+	repo             rbacrepo.RBACRepository
+	organizationRepo organizationrepo.OrganizationRepository
+	nowFn            func() time.Time
+	idFn             func(prefix string) shared.ID
 }
 
 func NewService(repo rbacrepo.RBACRepository) Service {
+	return NewServiceWithOrganization(repo, nil)
+}
+
+func NewServiceWithOrganization(repo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository) Service {
 	return &serviceImpl{
-		repo:  repo,
-		nowFn: func() time.Time { return time.Now().UTC() },
+		repo:             repo,
+		organizationRepo: organizationRepo,
+		nowFn:            func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
 			return shared.ID("new")
 		},
@@ -126,41 +138,108 @@ func (s *serviceImpl) ListBindingsByUser(ctx context.Context, userID string) ([]
 	return s.ListBindings(ctx, domainrbac.SubjectUser, target)
 }
 
-func (s *serviceImpl) ResolveDataScope(_ context.Context, in ResolveDataScopeInput) (DataScopeDecision, error) {
-	scope := domainrbac.NormalizeDataScope(in.Scope)
-	if err := scope.Validate(); err != nil {
+func (s *serviceImpl) ResolveDataScope(ctx context.Context, in ResolveDataScopeInput) (DataScopeDecision, error) {
+	claims, ok := security.JWTClaimsFromContext(ctx)
+	if !ok || strings.TrimSpace(claims.Subject) == "" {
+		return DataScopeDecision{}, fmt.Errorf("%w: trusted identity is required", ErrDataScopeDenied)
+	}
+	if claims.HasRole("super_admin") {
+		return DataScopeDecision{Scope: domainrbac.DataScopeAll, All: true}, nil
+	}
+
+	resource := strings.TrimSpace(in.Resource)
+	action := strings.TrimSpace(in.Action)
+	if resource == "" || action == "" {
+		return DataScopeDecision{}, fmt.Errorf("%w: resource and action are required", ErrDataScopeDenied)
+	}
+	permission, err := s.ResolvePermission(ctx, CheckPermissionInput{
+		SubjectType: domainrbac.SubjectUser,
+		SubjectID:   claims.Subject,
+		Resource:    resource,
+		Action:      action,
+	})
+	if err != nil {
 		return DataScopeDecision{}, err
 	}
+	if !permission.Allowed {
+		return DataScopeDecision{}, fmt.Errorf("%w: permission is not granted", ErrDataScopeDenied)
+	}
+
+	scope := domainrbac.NormalizeDataScope(permission.Scope)
 	decision := DataScopeDecision{Scope: scope}
 	switch scope {
 	case domainrbac.DataScopeAll:
 		decision.All = true
 	case domainrbac.DataScopeSelf:
-		userID := strings.TrimSpace(in.ActorUserID)
-		if userID == "" {
-			return DataScopeDecision{}, fmt.Errorf("actor user id is required for self data scope")
-		}
-		decision.UserIDs = []string{userID}
+		decision.UserIDs = []string{strings.TrimSpace(claims.Subject)}
 	case domainrbac.DataScopeDepartment:
-		departmentID := strings.TrimSpace(in.ActorDepartmentID)
-		if departmentID == "" {
-			return DataScopeDecision{}, fmt.Errorf("actor department id is required for department data scope")
+		organizationID, err := s.requireTrustedOrganization(ctx, claims.OrganizationID)
+		if err != nil {
+			return DataScopeDecision{}, err
 		}
-		decision.DepartmentIDs = []string{departmentID}
+		decision.DepartmentIDs = []string{organizationID}
 	case domainrbac.DataScopeDepartmentTree:
-		departmentIDs := compactUniqueStrings(append([]string{in.ActorDepartmentID}, in.DepartmentTreeIDs...))
-		if len(departmentIDs) == 0 {
-			return DataScopeDecision{}, fmt.Errorf("department tree ids are required for department_tree data scope")
+		organizationID, err := s.requireTrustedOrganization(ctx, claims.OrganizationID)
+		if err != nil {
+			return DataScopeDecision{}, err
 		}
-		decision.DepartmentIDs = departmentIDs
-	case domainrbac.DataScopeCustom:
-		departmentIDs := compactUniqueStrings(in.CustomDepartmentIDs)
-		if len(departmentIDs) == 0 {
-			return DataScopeDecision{}, fmt.Errorf("custom department ids are required for custom data scope")
+		decision.DepartmentIDs, err = s.organizationTreeIDs(ctx, organizationID)
+		if err != nil {
+			return DataScopeDecision{}, err
 		}
-		decision.DepartmentIDs = departmentIDs
+	default:
+		return DataScopeDecision{}, fmt.Errorf("%w: unsupported granted scope %q", ErrDataScopeDenied, scope)
 	}
 	return decision, nil
+}
+
+func (s *serviceImpl) requireTrustedOrganization(ctx context.Context, raw string) (string, error) {
+	organizationID := strings.TrimSpace(raw)
+	if organizationID == "" || s.organizationRepo == nil {
+		return "", fmt.Errorf("%w: trusted organization is unavailable", ErrDataScopeDenied)
+	}
+	item, err := s.organizationRepo.GetDepartmentByID(ctx, shared.ID(organizationID))
+	if err != nil {
+		return "", err
+	}
+	if item == nil {
+		return "", fmt.Errorf("%w: trusted organization no longer exists", ErrDataScopeDenied)
+	}
+	return organizationID, nil
+}
+
+func (s *serviceImpl) organizationTreeIDs(ctx context.Context, rootID string) ([]string, error) {
+	items, err := s.organizationRepo.ListDepartments(ctx, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	included := map[string]struct{}{rootID: {}}
+	for changed := true; changed; {
+		changed = false
+		for _, item := range items {
+			id := strings.TrimSpace(item.ID.String())
+			parentID := strings.TrimSpace(item.ParentID.String())
+			if id == "" {
+				continue
+			}
+			if _, parentIncluded := included[parentID]; !parentIncluded {
+				continue
+			}
+			if _, exists := included[id]; exists {
+				continue
+			}
+			included[id] = struct{}{}
+			changed = true
+		}
+	}
+	descendants := make([]string, 0, len(included)-1)
+	for id := range included {
+		if id != rootID {
+			descendants = append(descendants, id)
+		}
+	}
+	sort.Strings(descendants)
+	return append([]string{rootID}, descendants...), nil
 }
 
 func moreRestrictiveScope(left, right domainrbac.DataScope) domainrbac.DataScope {
@@ -187,21 +266,4 @@ func scopeRank(scope domainrbac.DataScope) int {
 	default:
 		return 4
 	}
-}
-
-func compactUniqueStrings(items []string) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		trimmed := strings.TrimSpace(item)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	return out
 }

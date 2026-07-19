@@ -86,6 +86,7 @@ func TestPharmaMasterRepositoriesPagingFiltersAndUniqueness(t *testing.T) {
 		{ID: "customer-owner", Code: "C-OWNER", Name: "Owner customer", Region: "East", OwnerID: "owner-1", OrganizationID: "org-2", Status: domainpharma.CustomerStatusActive, Meta: shared.AuditMeta{CreatedAt: now, UpdatedAt: now}},
 		{ID: "customer-org", Code: "C-ORG", Name: "Org customer", Region: "East", OwnerID: "owner-2", OrganizationID: "org-1", Status: domainpharma.CustomerStatusActive, Meta: shared.AuditMeta{CreatedAt: now, UpdatedAt: now}},
 		{ID: "customer-denied", Code: "C-DENIED", Name: "Denied customer", Region: "West", OwnerID: "owner-2", OrganizationID: "org-2", Status: domainpharma.CustomerStatusActive, Meta: shared.AuditMeta{CreatedAt: now, UpdatedAt: now}},
+		{ID: "customer-outside", Code: "C-OUTSIDE", Name: "Outside customer", Region: "East", OwnerID: "owner-3", OrganizationID: "org-3", Status: domainpharma.CustomerStatusActive, Meta: shared.AuditMeta{CreatedAt: now, UpdatedAt: now}},
 	} {
 		item := item
 		if err := customers.Upsert(ctx, &item); err != nil {
@@ -97,6 +98,10 @@ func TestPharmaMasterRepositoriesPagingFiltersAndUniqueness(t *testing.T) {
 	})
 	if err != nil || len(scoped) != 2 {
 		t.Fatalf("scoped customer list = %+v, err=%v", scoped, err)
+	}
+	treeScoped, err := customers.List(ctx, pharmaoarepo.ListFilter{OrganizationIDs: []shared.ID{"org-1", "org-2"}, ScopeAny: true})
+	if err != nil || len(treeScoped) != 3 {
+		t.Fatalf("tree-scoped customer list = %+v, err=%v", treeScoped, err)
 	}
 }
 
