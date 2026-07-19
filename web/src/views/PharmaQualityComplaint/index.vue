@@ -77,7 +77,7 @@ async function refresh(): Promise<void> {
 	try {
 		const [complaints, customerItems, productItems] = await Promise.all([
 			listQualityComplaints({ keyword: keyword.value, status: statusFilter.value }),
-			listCustomers({ status: "active", scope: { includeAll: true } }),
+			listCustomers({ status: "active" }),
 			listProducts({ status: "active" })
 		]);
 		items.value = complaints;

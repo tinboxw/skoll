@@ -1117,6 +1117,57 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
+  /v1/rbac/data-scope:
+    get:
+      summary: Resolve the authenticated user's effective data scope
+      description: The decision is derived from signed JWT claims and RBAC grants. Request fields cannot supply user or organization scope.
+      parameters:
+        - name: resource
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trusted data-scope decision for the current user
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [code, message, data]
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    required: [scope, all]
+                    properties:
+                      scope:
+                        type: string
+                        enum: [self, department, department_tree, all]
+                      all:
+                        type: boolean
+                      userIds:
+                        type: array
+                        items:
+                          type: string
+                      departmentIds:
+                        type: array
+                        items:
+                          type: string
+        '400':
+          description: Missing resource or action
+        '401':
+          description: Unauthorized
+        '403':
+          description: Scope is not granted or cannot be resolved
   /v1/rbac/bindings:
     get:
       summary: List role bindings by subject

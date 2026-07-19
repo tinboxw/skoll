@@ -27,6 +27,7 @@ func RegisterRBACRoutes(mux *http.ServeMux, service rbacsvc.Service, auditSvc au
 	mux.HandleFunc("DELETE /v1/rbac/bindings/{id}", h.unbind)
 	mux.HandleFunc("PUT /v1/rbac/policies/{roleId}", h.setPolicies)
 	mux.HandleFunc("POST /v1/rbac/check", h.check)
+	mux.HandleFunc("GET /v1/rbac/data-scope", h.dataScope)
 }
 
 func (h *RBACHandler) bind(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +90,24 @@ func (h *RBACHandler) check(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, decision)
+}
+
+func (h *RBACHandler) dataScope(w http.ResponseWriter, r *http.Request) {
+	resource := strings.TrimSpace(r.URL.Query().Get("resource"))
+	action := strings.TrimSpace(r.URL.Query().Get("action"))
+	if resource == "" || action == "" {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_request", "resource and action are required")
+		return
+	}
+	decision, err := h.service.ResolveDataScope(r.Context(), rbacsvc.ResolveDataScopeInput{
+		Resource: resource,
+		Action:   action,
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusForbidden, err)
 		return
 	}
 	apiv1.WriteJSON(w, http.StatusOK, decision)

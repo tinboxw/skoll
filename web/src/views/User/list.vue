@@ -2,10 +2,11 @@
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 
-import StateBlock from "../../components/Common/StateBlock.vue";
+import { DataScopeIndicator, StateBlock } from "../../components/Common";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
+import { resolveAuthorizedDataScope, type AuthorizedDataScopeDecision } from "../../permissions/data-scope";
 import { type ApiResponse, apiDelete, apiGet, apiPost } from "../../utils/api";
 import { toErrorMessage } from "../../utils/common";
 
@@ -86,7 +87,10 @@ const buttonAccess = useButtonAccess();
 const route = useRoute();
 
 const loading = ref(false);
+const scopeLoading = ref(false);
 const error = ref("");
+const scopeError = ref("");
+const readScope = ref<AuthorizedDataScopeDecision | null>(null);
 const operating = ref(false);
 const rows = ref<UserRecord[]>([]);
 const roles = ref<RoleRecord[]>([]);
@@ -131,11 +135,17 @@ async function loadUsers(targetPage = page.value): Promise<void> {
 		return;
 	}
 	loading.value = true;
+	scopeLoading.value = true;
 	error.value = "";
+	scopeError.value = "";
 	try {
 		const safePage = Math.max(1, targetPage);
 		const offset = (safePage - 1) * pageSize;
-		const payload = await apiGet<ApiResponse<UserRecord[]>>(`/v1/users?offset=${offset}&limit=${pageSize}`);
+		const [payload, decision] = await Promise.all([
+			apiGet<ApiResponse<UserRecord[]>>(`/v1/users?offset=${offset}&limit=${pageSize}`),
+			resolveAuthorizedDataScope("user", "read")
+		]);
+		readScope.value = decision;
 		const list = Array.isArray(payload.data)
 			? payload.data.map((item) => normalizeUserRecord(item)).filter((item): item is UserRecord => item !== null)
 			: [];
@@ -145,10 +155,12 @@ async function loadUsers(targetPage = page.value): Promise<void> {
 		canGoNext.value = list.length >= pageSize;
 	} catch (e) {
 		error.value = toErrorMessage(e);
+		scopeError.value = error.value;
 		rows.value = [];
 		canGoNext.value = false;
 	} finally {
 		loading.value = false;
+		scopeLoading.value = false;
 	}
 }
 
@@ -302,7 +314,9 @@ void loadOrganizationOptions();
 
 		<StateBlock v-if="!canReadUser" type="forbidden" :title="t('user.noPermissionTitle')" :description="t('error.forbidden')" />
 
-		<section v-else class="summary-grid">
+		<DataScopeIndicator v-if="canReadUser" :decision="readScope" :loading="scopeLoading" :error="scopeError" @retry="loadUsers(page)" />
+
+		<section v-if="canReadUser" class="summary-grid">
 			<article class="summary-card">
 				<span>{{ t("user.summary.currentPage") }}</span>
 				<strong>{{ rows.length }}</strong>

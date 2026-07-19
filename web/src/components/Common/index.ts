@@ -1,4 +1,5 @@
 export { default as ConfirmAction } from "./ConfirmAction.vue";
+export { default as DataScopeIndicator } from "./DataScopeIndicator.vue";
 export { default as DataTable } from "./DataTable.vue";
 export type { DataTableColumn } from "./DataTable.vue";
 export { default as DetailDrawer } from "./DetailDrawer.vue";

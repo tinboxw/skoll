@@ -3,8 +3,10 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { BadgeAlert, Edit, Plus, RefreshCw, ShieldOff } from "lucide-vue-next";
 import { ElMessage } from "element-plus";
 
-import { ConfirmAction, DataTable, DetailDrawer, FilterBar, PageShell, PageToolbar, type DataTableColumn } from "../../components/Common";
+import { ConfirmAction, DataScopeIndicator, DataTable, DetailDrawer, FilterBar, PageShell, PageToolbar, StateBlock, type DataTableColumn } from "../../components/Common";
+import { useI18n } from "../../i18n";
 import { useButtonAccess } from "../../permissions/button";
+import { resolveAuthorizedDataScope, type AuthorizedDataScopeDecision } from "../../permissions/data-scope";
 import {
 	createCustomer,
 	disableCustomer,
@@ -15,7 +17,6 @@ import {
 	type CustomerContact,
 	type CustomerQualification,
 	type CustomerQualificationReminder,
-	type CustomerScope,
 	type PharmaCustomer
 } from "../../pharma-oa/api";
 import { useUserStore } from "../../stores/user";
@@ -29,10 +30,15 @@ type CustomerRow = Record<string, unknown> & PharmaCustomer & {
 
 const buttonAccess = useButtonAccess();
 const userStore = useUserStore();
+const { t } = useI18n();
 const loading = ref(false);
 const saving = ref(false);
+const scopeLoading = ref(false);
+const writeScopeLoading = ref(false);
 const checking = ref("");
 const error = ref("");
+const scopeError = ref("");
+const writeScopeError = ref("");
 const keyword = ref("");
 const statusFilter = ref("");
 const regionFilter = ref("");
@@ -42,13 +48,16 @@ const drawerOpen = ref(false);
 const editing = ref<PharmaCustomer | null>(null);
 const disableTarget = ref<PharmaCustomer | null>(null);
 const disableDialogOpen = ref(false);
-const disableReason = ref("Qualification expired");
+const disableReason = ref("");
+const readScope = ref<AuthorizedDataScopeDecision | null>(null);
+const writeScope = ref<AuthorizedDataScopeDecision | null>(null);
+const writeScopeAction = ref<"create" | "update">("create");
 
 const form = reactive({
 	code: "",
 	name: "",
 	region: "East",
-	organizationId: "default",
+	organizationId: "",
 	ownerId: "",
 	rating: 3,
 	contactName: "",
@@ -67,10 +76,21 @@ const canUpdate = computed(() => buttonAccess.can("pharma_oa.customer.update"));
 const canDisable = computed(() => buttonAccess.can("pharma_oa.customer.disable"));
 const canSales = computed(() => buttonAccess.can("pharma_oa.customer.sales"));
 const actorId = computed(() => userStore.profile?.id?.trim() || "system");
-const currentScope = computed<CustomerScope>(() => ({
-	ownerId: actorId.value,
-	organizationId: form.organizationId.trim() || "default"
-}));
+const profileOrganizationId = computed(() => userStore.profile?.organizationId?.trim() || "");
+const allowedOrganizationIDs = computed(() => writeScope.value?.departmentIds ?? []);
+const organizationRestricted = computed(() => writeScope.value?.scope === "department" || writeScope.value?.scope === "department_tree");
+const ownerRestricted = computed(() => writeScope.value?.scope === "self");
+const canSaveTarget = computed(() => {
+	const decision = writeScope.value;
+	if (!decision) return false;
+	if (decision.scope === "all") return true;
+	if (decision.scope === "self") return form.ownerId.trim() === actorId.value;
+	return decision.departmentIds.includes(form.organizationId.trim());
+});
+const canSaveCustomer = computed(() => {
+	const allowed = editing.value ? canUpdate.value : canCreate.value;
+	return allowed && canSaveTarget.value && Boolean(form.code.trim() && form.name.trim() && form.region.trim() && form.organizationId.trim() && form.ownerId.trim());
+});
 
 const rows = computed<CustomerRow[]>(() => customers.value.map((item) => ({
 	...item,
@@ -102,38 +122,45 @@ const summary = computed(() => ({
 	reminders: reminders.value.length
 }));
 
-const columns: DataTableColumn[] = [
-	{ key: "code", label: "Code", minWidth: 120 },
-	{ key: "name", label: "Customer", minWidth: 180 },
-	{ key: "region", label: "Region", width: 120 },
-	{ key: "scopeSummary", label: "Org / Owner", minWidth: 180 },
-	{ key: "status", label: "Status", width: 110 },
-	{ key: "qualificationSummary", label: "Qualifications", minWidth: 220 }
-];
+const columns = computed<DataTableColumn[]>(() => [
+	{ key: "code", label: t("customer.code"), minWidth: 120 },
+	{ key: "name", label: t("customer.name"), minWidth: 180 },
+	{ key: "region", label: t("customer.region"), width: 120 },
+	{ key: "scopeSummary", label: t("customer.organizationOwner"), minWidth: 180 },
+	{ key: "status", label: t("customer.status"), width: 110 },
+	{ key: "qualificationSummary", label: t("customer.qualifications"), minWidth: 220 }
+]);
 
 onMounted(() => {
 	form.ownerId = actorId.value;
+	form.organizationId = profileOrganizationId.value;
+	disableReason.value = t("customer.disable.defaultReason");
 	void refresh();
 });
 
 async function refresh(): Promise<void> {
 	error.value = "";
+	scopeError.value = "";
 	if (!canRead.value) {
 		return;
 	}
 	loading.value = true;
+	scopeLoading.value = true;
 	try {
-		const scope = currentScope.value;
-		const [items, reminderItems] = await Promise.all([
-			listCustomers({ scope }),
-			listCustomerQualificationReminders(30, scope)
+		const [decision, items, reminderItems] = await Promise.all([
+			resolveAuthorizedDataScope("pharma_oa.customer", "read"),
+			listCustomers(),
+			listCustomerQualificationReminders(30)
 		]);
+		readScope.value = decision;
 		customers.value = items;
 		reminders.value = reminderItems;
 	} catch (e) {
 		error.value = toErrorMessage(e);
+		scopeError.value = error.value;
 	} finally {
 		loading.value = false;
+		scopeLoading.value = false;
 	}
 }
 
@@ -143,7 +170,7 @@ function openCreate(): void {
 		code: "",
 		name: "",
 		region: "East",
-		organizationId: form.organizationId || "default",
+		organizationId: profileOrganizationId.value,
 		ownerId: actorId.value,
 		rating: 3,
 		contactName: "",
@@ -156,6 +183,7 @@ function openCreate(): void {
 		attachmentFileName: ""
 	});
 	drawerOpen.value = true;
+	void loadWriteScope("create");
 }
 
 function openEdit(row: CustomerRow): void {
@@ -180,11 +208,33 @@ function openEdit(row: CustomerRow): void {
 		attachmentFileName: attachment?.fileName ?? ""
 	});
 	drawerOpen.value = true;
+	void loadWriteScope("update");
+}
+
+async function loadWriteScope(action: "create" | "update"): Promise<void> {
+	writeScopeAction.value = action;
+	writeScopeLoading.value = true;
+	writeScopeError.value = "";
+	writeScope.value = null;
+	try {
+		const decision = await resolveAuthorizedDataScope("pharma_oa.customer", action);
+		writeScope.value = decision;
+		if (decision.scope === "self") {
+			form.ownerId = actorId.value;
+			if (!editing.value && profileOrganizationId.value) form.organizationId = profileOrganizationId.value;
+		} else if ((decision.scope === "department" || decision.scope === "department_tree") && !decision.departmentIds.includes(form.organizationId.trim())) {
+			form.organizationId = decision.departmentIds[0] ?? "";
+		}
+	} catch (cause) {
+		writeScopeError.value = toErrorMessage(cause);
+	} finally {
+		writeScopeLoading.value = false;
+	}
 }
 
 async function saveCustomer(): Promise<void> {
-	if (editing.value ? !canUpdate.value : !canCreate.value) {
-		error.value = "No permission";
+	if (!canSaveCustomer.value) {
+		error.value = canSaveTarget.value ? t("error.forbidden") : t("dataScope.targetDenied");
 		return;
 	}
 	saving.value = true;
@@ -197,7 +247,7 @@ async function saveCustomer(): Promise<void> {
 		upsert(saved);
 		drawerOpen.value = false;
 		await refreshReminders();
-		ElMessage.success("Customer saved");
+		ElMessage.success(t("customer.saved"));
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -209,12 +259,12 @@ async function refreshReminders(): Promise<void> {
 	if (!canRead.value) {
 		return;
 	}
-	reminders.value = await listCustomerQualificationReminders(30, currentScope.value);
+	reminders.value = await listCustomerQualificationReminders(30);
 }
 
 function openDisable(row: CustomerRow): void {
 	disableTarget.value = row;
-	disableReason.value = "Qualification expired";
+	disableReason.value = t("customer.disable.defaultReason");
 	disableDialogOpen.value = true;
 }
 
@@ -225,11 +275,11 @@ async function confirmDisable(): Promise<void> {
 	saving.value = true;
 	error.value = "";
 	try {
-		const updated = await disableCustomer(disableTarget.value.id, disableReason.value, actorId.value, currentScope.value);
+		const updated = await disableCustomer(disableTarget.value.id, disableReason.value);
 		upsert(updated);
 		disableDialogOpen.value = false;
 		await refreshReminders();
-		ElMessage.success("Customer disabled");
+		ElMessage.success(t("customer.disabled"));
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -244,8 +294,8 @@ async function checkSales(row: CustomerRow): Promise<void> {
 	checking.value = row.id;
 	error.value = "";
 	try {
-		const result = await validateCustomerSalesEligibility(row.id, currentScope.value);
-		ElMessage[result.allowed ? "success" : "warning"](result.allowed ? "Customer can be used for sales" : result.reason || "Customer is blocked");
+		const result = await validateCustomerSalesEligibility(row.id);
+		ElMessage[result.allowed ? "success" : "warning"](result.allowed ? t("customer.sales.allowed") : result.reason || t("customer.sales.blocked"));
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -278,13 +328,11 @@ function buildCustomerRequest() {
 		code: form.code.trim(),
 		name: form.name.trim(),
 		region: form.region.trim(),
-		organizationId: form.organizationId.trim() || "default",
+		organizationId: form.organizationId.trim(),
 		ownerId: form.ownerId.trim() || actorId.value,
 		rating: Number(form.rating) || 3,
 		contacts,
-		qualifications,
-		actorId: actorId.value,
-		scope: currentScope.value
+		qualifications
 	};
 }
 
@@ -316,144 +364,157 @@ function formatInputDate(value: string): string {
 </script>
 
 <template>
-	<PageShell
-		title="Customer Management"
-		description="Maintain Pharma OA customer ownership, regions, contacts, qualification files, and sales eligibility."
-		:loading="loading"
-		:error="error"
-		:no-permission="!canRead"
-		no-permission-title="No customer access"
-		no-permission-description="Customer records require pharma_oa.customer.read permission."
-	>
-		<template #actions>
-			<el-button :icon="RefreshCw" :loading="loading" @click="refresh">Refresh</el-button>
-			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">New customer</el-button>
-		</template>
+		<PageShell
+			:title="t('customer.title')"
+			:description="t('customer.description')"
+			:loading="loading"
+			:error="error"
+			:forbidden="!canRead"
+			:forbidden-title="t('customer.noPermissionTitle')"
+			:forbidden-description="t('customer.noPermissionDescription')"
+		>
+			<template #actions>
+				<el-button :icon="RefreshCw" :loading="loading" @click="refresh">{{ t("common.refresh") }}</el-button>
+				<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">{{ t("customer.new") }}</el-button>
+			</template>
+			<template v-if="canRead" #stateActions>
+				<el-button type="primary" :loading="loading" @click="refresh">{{ t("common.retry") }}</el-button>
+			</template>
 
-		<section class="summary-grid">
-			<div class="summary-tile"><span>Total</span><strong>{{ summary.total }}</strong></div>
-			<div class="summary-tile"><span>Active</span><strong>{{ summary.active }}</strong></div>
-			<div class="summary-tile muted"><span>Disabled</span><strong>{{ summary.disabled }}</strong></div>
-			<div class="summary-tile risk"><span>Expiring quals</span><strong>{{ summary.reminders }}</strong></div>
-		</section>
+			<DataScopeIndicator :decision="readScope" :loading="scopeLoading" :error="scopeError" @retry="refresh" />
+
+			<section class="summary-grid">
+				<div class="summary-tile"><span>{{ t("customer.summary.total") }}</span><strong>{{ summary.total }}</strong></div>
+				<div class="summary-tile"><span>{{ t("customer.summary.active") }}</span><strong>{{ summary.active }}</strong></div>
+				<div class="summary-tile muted"><span>{{ t("customer.summary.disabled") }}</span><strong>{{ summary.disabled }}</strong></div>
+				<div class="summary-tile risk"><span>{{ t("customer.summary.expiring") }}</span><strong>{{ summary.reminders }}</strong></div>
+			</section>
 
 		<PageToolbar>
 			<FilterBar>
-				<el-input v-model="keyword" clearable placeholder="Search code, name, region, organization, owner, or contact" />
-				<el-select v-model="statusFilter" clearable placeholder="All statuses">
-					<el-option label="Active" value="active" />
-					<el-option label="Disabled" value="disabled" />
-				</el-select>
-				<el-select v-model="regionFilter" clearable placeholder="All regions">
-					<el-option label="East" value="East" />
-					<el-option label="South" value="South" />
-					<el-option label="West" value="West" />
-					<el-option label="North" value="North" />
-				</el-select>
+					<el-input v-model="keyword" clearable :placeholder="t('customer.filter.keyword')" />
+					<el-select v-model="statusFilter" clearable :placeholder="t('customer.filter.allStatuses')">
+						<el-option :label="t('customer.status.active')" value="active" />
+						<el-option :label="t('customer.status.disabled')" value="disabled" />
+					</el-select>
+					<el-select v-model="regionFilter" clearable :placeholder="t('customer.filter.allRegions')">
+						<el-option :label="t('customer.region.east')" value="East" />
+						<el-option :label="t('customer.region.south')" value="South" />
+						<el-option :label="t('customer.region.west')" value="West" />
+						<el-option :label="t('customer.region.north')" value="North" />
+					</el-select>
 			</FilterBar>
 		</PageToolbar>
 
 		<section class="reminder-banner" :class="{ active: reminders.length > 0 }">
 			<BadgeAlert :size="18" />
-			<span>{{ reminders.length }} customer qualification reminder{{ reminders.length > 1 ? "s" : "" }} due in 30 days.</span>
+				<span>{{ reminders.length }} {{ t("customer.reminder") }}</span>
 		</section>
 
 		<DataTable
 			:rows="filteredRows"
 			:columns="columns"
-			row-key="id"
-			:loading="loading"
-			:error="error"
-			:empty-title="keyword || statusFilter || regionFilter ? 'No customers match filters' : 'No customer records yet'"
-			empty-description="Create a customer to validate region ownership and sales qualification controls."
+				row-key="id"
+				:loading="loading"
+				:error="error"
+				:empty-text="keyword || statusFilter || regionFilter ? t('customer.empty.filtered') : t('customer.empty.title')"
 		>
 			<template #cell-status="{ row }">
-				<el-tag :type="row.status === 'active' ? 'success' : 'info'" effect="light">{{ row.status }}</el-tag>
+					<el-tag :type="row.status === 'active' ? 'success' : 'info'" effect="light">{{ t(`customer.status.${row.status}`) }}</el-tag>
 			</template>
 			<template #actions="{ row }">
-				<el-button link :icon="Edit" :disabled="!canUpdate" aria-label="Edit customer" @click="openEdit(row as CustomerRow)" />
-				<el-button link :loading="checking === row.id" :disabled="!canSales" aria-label="Validate sales eligibility" @click="checkSales(row as CustomerRow)">Sales</el-button>
-				<el-button link type="danger" :icon="ShieldOff" :disabled="!canDisable || row.status === 'disabled'" aria-label="Disable customer" @click="openDisable(row as CustomerRow)" />
-			</template>
-		</DataTable>
+					<el-tooltip :content="t('customer.edit')"><el-button link :icon="Edit" :disabled="!canUpdate" :aria-label="t('customer.edit')" @click="openEdit(row as CustomerRow)" /></el-tooltip>
+					<el-button link :loading="checking === row.id" :disabled="!canSales" :aria-label="t('customer.sales.check')" @click="checkSales(row as CustomerRow)">{{ t("customer.sales.short") }}</el-button>
+					<el-tooltip :content="t('customer.disable.title')"><el-button link type="danger" :icon="ShieldOff" :disabled="!canDisable || row.status === 'disabled'" :aria-label="t('customer.disable.title')" @click="openDisable(row as CustomerRow)" /></el-tooltip>
+				</template>
+			</DataTable>
 
-		<DetailDrawer v-model="drawerOpen" :title="editing ? 'Edit customer' : 'New customer'" size="48%">
-			<el-form label-position="top">
-				<el-form-item label="Code" required>
-					<el-input v-model="form.code" />
-				</el-form-item>
-				<el-form-item label="Name" required>
+			<DetailDrawer v-model="drawerOpen" :title="editing ? t('customer.edit') : t('customer.new')" size="48%">
+				<el-skeleton v-if="writeScopeLoading" :rows="7" animated />
+				<StateBlock v-else-if="writeScopeError" type="error" :title="t('dataScope.loadFailed')" :description="writeScopeError">
+					<template #actions><el-button type="primary" @click="loadWriteScope(writeScopeAction)">{{ t("common.retry") }}</el-button></template>
+				</StateBlock>
+				<el-form v-else label-position="top">
+					<DataScopeIndicator :decision="writeScope" />
+					<el-alert v-if="writeScope && !canSaveTarget" class="target-warning" type="warning" :title="t('dataScope.targetDenied')" show-icon :closable="false" />
+					<el-form-item :label="t('customer.code')" required>
+						<el-input v-model="form.code" />
+					</el-form-item>
+					<el-form-item :label="t('customer.name')" required>
 					<el-input v-model="form.name" />
 				</el-form-item>
 				<div class="form-grid">
-					<el-form-item label="Region" required>
-						<el-select v-model="form.region">
-							<el-option label="East" value="East" />
-							<el-option label="South" value="South" />
-							<el-option label="West" value="West" />
-							<el-option label="North" value="North" />
-						</el-select>
-					</el-form-item>
-					<el-form-item label="Rating">
+						<el-form-item :label="t('customer.region')" required>
+							<el-select v-model="form.region">
+								<el-option :label="t('customer.region.east')" value="East" />
+								<el-option :label="t('customer.region.south')" value="South" />
+								<el-option :label="t('customer.region.west')" value="West" />
+								<el-option :label="t('customer.region.north')" value="North" />
+							</el-select>
+						</el-form-item>
+						<el-form-item :label="t('customer.rating')">
 						<el-input-number v-model="form.rating" :min="1" :max="5" />
 					</el-form-item>
 				</div>
 				<div class="form-grid">
-					<el-form-item label="Organization" required>
-						<el-input v-model="form.organizationId" />
-					</el-form-item>
-					<el-form-item label="Owner" required>
-						<el-input v-model="form.ownerId" />
+						<el-form-item :label="t('customer.organization')" required>
+							<el-select v-if="organizationRestricted" v-model="form.organizationId" filterable :placeholder="t('dataScope.selectOrganization')">
+								<el-option v-for="id in allowedOrganizationIDs" :key="id" :label="id" :value="id" />
+							</el-select>
+							<el-input v-else v-model="form.organizationId" :disabled="ownerRestricted" />
+						</el-form-item>
+						<el-form-item :label="t('customer.owner')" required>
+							<el-input v-model="form.ownerId" :disabled="ownerRestricted" />
 					</el-form-item>
 				</div>
 				<div class="form-grid">
-					<el-form-item label="Contact" required>
+						<el-form-item :label="t('customer.contact')" required>
 						<el-input v-model="form.contactName" />
 					</el-form-item>
-					<el-form-item label="Phone">
+						<el-form-item :label="t('customer.phone')">
 						<el-input v-model="form.contactPhone" />
 					</el-form-item>
 				</div>
-				<el-form-item label="Email">
+					<el-form-item :label="t('customer.email')">
 					<el-input v-model="form.contactEmail" />
 				</el-form-item>
 				<div class="form-grid">
-					<el-form-item label="Qualification" required>
+						<el-form-item :label="t('customer.qualification')" required>
 						<el-input v-model="form.qualificationName" />
 					</el-form-item>
-					<el-form-item label="Qualification number">
+						<el-form-item :label="t('customer.qualificationNumber')">
 						<el-input v-model="form.qualificationNumber" />
 					</el-form-item>
 				</div>
-				<el-form-item label="Expires at" required>
+					<el-form-item :label="t('customer.expiresAt')" required>
 					<el-date-picker v-model="form.qualificationExpiresAt" type="date" value-format="YYYY-MM-DD" />
 				</el-form-item>
 				<div class="form-grid">
-					<el-form-item label="Attachment file ID">
+						<el-form-item :label="t('customer.attachmentId')">
 						<el-input v-model="form.attachmentFileId" />
 					</el-form-item>
-					<el-form-item label="Attachment file name">
+						<el-form-item :label="t('customer.attachmentName')">
 						<el-input v-model="form.attachmentFileName" />
 					</el-form-item>
 				</div>
-			</el-form>
-			<template #footer>
-				<el-button @click="drawerOpen = false">Cancel</el-button>
-				<el-button type="primary" :loading="saving" @click="saveCustomer">Save</el-button>
-			</template>
-		</DetailDrawer>
+				</el-form>
+				<template #footer>
+					<el-button :disabled="saving" @click="drawerOpen = false">{{ t("common.cancel") }}</el-button>
+					<el-button type="primary" :loading="saving" :disabled="writeScopeLoading || Boolean(writeScopeError) || !canSaveCustomer" @click="saveCustomer">{{ t("common.save") }}</el-button>
+				</template>
+			</DetailDrawer>
 
-		<DetailDrawer v-model="disableDialogOpen" title="Disable customer" size="34%">
-			<el-form label-position="top">
-				<el-form-item label="Reason">
+			<DetailDrawer v-model="disableDialogOpen" :title="t('customer.disable.title')" size="34%">
+				<el-form label-position="top">
+					<el-form-item :label="t('customer.disable.reason')">
 					<el-input v-model="disableReason" type="textarea" :rows="3" />
 				</el-form-item>
 			</el-form>
 			<template #footer>
-				<el-button @click="disableDialogOpen = false">Cancel</el-button>
-				<ConfirmAction
-					label="Disable"
-					message="Disable this customer? Sales eligibility checks will reject it."
+					<el-button :disabled="saving" @click="disableDialogOpen = false">{{ t("common.cancel") }}</el-button>
+					<ConfirmAction
+						:label="t('customer.disable.confirm')"
+						:message="t('customer.disable.message')"
 					:loading="saving"
 					danger
 					@confirm="confirmDisable"
@@ -513,6 +574,10 @@ function formatInputDate(value: string): string {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 12px;
+}
+
+.target-warning {
+	margin: 12px 0;
 }
 
 @media (max-width: 720px) {

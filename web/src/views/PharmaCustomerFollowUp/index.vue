@@ -60,7 +60,7 @@ async function refresh() {
 	try {
 		const [followUps, customerItems] = await Promise.all([
 			listCustomerFollowUps({ keyword: keyword.value, status: statusFilter.value }),
-			listCustomers({ status: "active", scope: { ownerId: actorId.value } })
+			listCustomers({ status: "active" })
 		]);
 		items.value = followUps;
 		customers.value = customerItems;

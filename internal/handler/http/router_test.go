@@ -96,6 +96,7 @@ func TestOpenAPIContractFilesStayInSync(t *testing.T) {
 		"info:",
 		"servers:",
 		"paths:",
+		"/v1/rbac/data-scope:",
 		"components:",
 		"schemas:",
 		"MessageResponse:",

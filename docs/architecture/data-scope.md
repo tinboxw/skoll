@@ -36,4 +36,6 @@ HTTP 查询参数或请求体中的 `ownerId`、`organizationId`、`includeAll` 
 - `internal/service/pharmaoa/customer_service.go`：客户读写范围判断。
 - `internal/repository/pharmaoa`、`internal/store/sql/gormrepo`：内存和 SQL 多组织谓词。
 
-本次变更不新增 HTTP 路径、权限键、审计动作、migration 或 seed。现有 API/OpenAPI 的客户归属字段保持业务语义，不再具有授权语义。
+`GET /v1/rbac/data-scope?resource=<resource>&action=<action>` 仅返回当前 JWT 主体经服务端解析后的有效范围，供前端展示范围标识并收敛可选组织。该接口不接受主体、负责人、组织或全量开关，因此不能扩大授权。
+
+H3-03 新增上述只读 HTTP/OpenAPI 契约和中英文前端资源；不新增权限键、审计动作、migration 或 seed。客户归属字段保持业务语义，不再具有授权语义。

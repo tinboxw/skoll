@@ -129,12 +129,6 @@ export type PharmaCustomer = {
 	qualifications: CustomerQualification[];
 };
 
-export type CustomerScope = {
-	ownerId?: string;
-	organizationId?: string;
-	includeAll?: boolean;
-};
-
 export type CustomerRequest = {
 	code: string;
 	name: string;
@@ -145,7 +139,6 @@ export type CustomerRequest = {
 	contacts: CustomerContact[];
 	qualifications: CustomerQualification[];
 	actorId?: string;
-	scope?: CustomerScope;
 };
 
 export type CustomerQualificationReminder = {
@@ -181,19 +174,7 @@ type CustomerEligibilityPayload = {
 	item: CustomerSalesEligibility;
 };
 
-function appendCustomerScope(params: URLSearchParams, scope: CustomerScope = {}): void {
-	if (scope.ownerId?.trim()) {
-		params.set("ownerId", scope.ownerId.trim());
-	}
-	if (scope.organizationId?.trim()) {
-		params.set("organizationId", scope.organizationId.trim());
-	}
-	if (scope.includeAll === true) {
-		params.set("includeAll", "true");
-	}
-}
-
-export async function listCustomers(query: { keyword?: string; status?: string; region?: string; scope?: CustomerScope } = {}): Promise<PharmaCustomer[]> {
+export async function listCustomers(query: { keyword?: string; status?: string; region?: string } = {}): Promise<PharmaCustomer[]> {
 	const params = new URLSearchParams();
 	if (query.keyword?.trim()) {
 		params.set("keyword", query.keyword.trim());
@@ -204,7 +185,6 @@ export async function listCustomers(query: { keyword?: string; status?: string; 
 	if (query.region?.trim()) {
 		params.set("region", query.region.trim());
 	}
-	appendCustomerScope(params, query.scope);
 	const suffix = params.toString() ? `?${params.toString()}` : "";
 	const payload = await apiGet<ApiResponse<CustomerListPayload>>(`/v1/pharma-oa/customers${suffix}`);
 	return payload.data.items;
@@ -220,23 +200,19 @@ export async function updateCustomer(id: string, body: CustomerRequest): Promise
 	return payload.data.item;
 }
 
-export async function disableCustomer(id: string, reason: string, actorId?: string, scope?: CustomerScope): Promise<PharmaCustomer> {
-	const payload = await apiPost<ApiResponse<CustomerItemPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/disable`, { reason, actorId, scope });
+export async function disableCustomer(id: string, reason: string): Promise<PharmaCustomer> {
+	const payload = await apiPost<ApiResponse<CustomerItemPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/disable`, { reason });
 	return payload.data.item;
 }
 
-export async function listCustomerQualificationReminders(days = 30, scope: CustomerScope = {}): Promise<CustomerQualificationReminder[]> {
+export async function listCustomerQualificationReminders(days = 30): Promise<CustomerQualificationReminder[]> {
 	const params = new URLSearchParams({ days: String(days) });
-	appendCustomerScope(params, scope);
 	const payload = await apiGet<ApiResponse<CustomerReminderPayload>>(`/v1/pharma-oa/customers/qualification-reminders?${params.toString()}`);
 	return payload.data.items;
 }
 
-export async function validateCustomerSalesEligibility(id: string, scope: CustomerScope = {}): Promise<CustomerSalesEligibility> {
-	const params = new URLSearchParams();
-	appendCustomerScope(params, scope);
-	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<CustomerEligibilityPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/sales-eligibility${suffix}`);
+export async function validateCustomerSalesEligibility(id: string): Promise<CustomerSalesEligibility> {
+	const payload = await apiGet<ApiResponse<CustomerEligibilityPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/sales-eligibility`);
 	return payload.data.item;
 }
 

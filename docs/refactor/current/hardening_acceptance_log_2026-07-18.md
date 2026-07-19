@@ -515,3 +515,52 @@ git diff --check
 ### Next Step
 
 父任务 H3 保持 `Doing`。H3-02 提交后按正式 Work Item 顺序领取 `H3-03`，实现已授权范围的中英文前端 UX 与完整页面状态。
+
+## H3-03 已授权数据范围前端体验
+
+- Date: 2026-07-19
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 为用户与医药客户工作流提供服务端授权范围自省、范围指示器和受限选择器，移除前端可伪造范围参数，并补齐中英文与完整页面状态。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 可信范围自省 | Pass | 新增认证后的 `GET /v1/rbac/data-scope`，只接收业务 `resource`/`action`，实际用户、组织和 RBAC 范围继续来自签名身份与服务端策略；缺少参数返回 400，拒绝授权返回 403。 |
+| 范围组件与选择器 | Pass | `DataScopeIndicator` 覆盖 loading、成功、错误和重试；客户创建/更新按 `self` 锁定负责人，按 `department`/`department_tree` 仅展示后端授权组织，`all` 保留业务选择。 |
+| 参数收敛 | Pass | 删除客户 API 的 `scope`、`ownerId`、`organizationId`、`includeAll` 等授权参数及全部调用点；前端仅发送业务筛选和业务字段，不能扩大服务端授权范围。 |
+| 页面状态 | Pass | 客户页覆盖 loading、中文 empty、error/retry、route no-permission、saving、两级 destructive confirm 和授权目标拒绝；用户页复用范围组件并在受限账号下展示可重试错误态。 |
+| 多语言 | Pass | 中文默认；客户流程、范围名称/说明、错误、空状态、保存与停用操作均有 `zh-CN`/`en-US` 资源，浏览器切换后标题、范围、空态和错误文案即时更新。 |
+| 响应式 | Pass | 390x844 下客户页与用户页均无横向文档溢出；移动端页头纵向排列，范围说明和授权 ID 可换行；恢复 1280x720 后桌面布局正常。 |
+| 浏览器业务闭环 | Pass | 隔离 memory 环境以管理员创建并停用 `H303-ACCEPT-001`，统计、列表、成功提示和按钮状态同步；普通账号直达客户页被路由守卫拒绝，用户页范围请求失败时提供中英文错误和重试。 |
+| API/权限/审计/migration/seed | Pass | 两份 OpenAPI 同步新增只读自省契约；未新增权限键、审计动作、migration 或 seed。端点复用既有认证和 RBAC 决策，业务写操作继续使用既有权限与审计。 |
+| 质量门禁 | Pass | RBAC handler/service 聚焦测试、全仓 Go 测试、目标 race、`go vet`、后端构建、前端 typecheck/build、OpenAPI 哈希一致与 `git diff --check` 全部通过。 |
+| CodeGraph 与边界 | Pass | 索引同步后为 697 files / 14,916 nodes / 45,800 edges；`resolveAuthorizedDataScope` 影响 11 个符号并由用户/客户浏览器与全仓回归覆盖；未修改 `docs/refactor/old/`。 |
+
+### Verification Commands
+
+```powershell
+go test ./internal/handler/http/v1/rbac ./internal/handler/http ./internal/service/rbac ./internal/handler/http/v1/pharmaoa -count=1
+go test ./... -count=1
+go test -race ./internal/handler/http/v1/rbac ./internal/service/rbac ./internal/handler/http/v1/pharmaoa -count=1
+go vet ./...
+go build -o "$env:TEMP\skoll-h3-03-final.exe" ./cmd/skoll
+npm --prefix web run typecheck
+npm --prefix web run build
+$a = Get-FileHash docs/api/openapi.yaml -Algorithm SHA256; $b = Get-FileHash internal/handler/http/openapi.yaml -Algorithm SHA256; if ($a.Hash -ne $b.Hash) { exit 1 }
+codegraph impact resolveAuthorizedDataScope
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首轮浏览器空状态显示 Element Plus 默认 `No data`；客户页向 `DataTable` 传入了组件不支持的 `empty-title`/`empty-description` 属性。 | 改用组件契约支持的 `empty-text`，分别映射中文默认空态和筛选无结果文案，重新 typecheck/build 并在浏览器确认 `暂无客户记录`。 |
+| 2 | Failed -> Doing | 390x844 截图发现页头控制区仍保持桌面横排，范围说明和长授权 ID 在窄屏下缺少可靠换行策略。 | 页头在 860px 以下改为纵向排列并允许状态 chips 换行；范围说明和授权 ID 增加断行规则，复测客户/用户页无横向溢出。 |
+
+### Next Step
+
+父任务 H3 保持 `Doing`。按正式 Work Item 顺序领取 `H3-04`，建立本人、组织、组织树、全量和拒绝场景的 API/浏览器端到端矩阵，并验证跨组织访问被拒绝且写入审计完整。

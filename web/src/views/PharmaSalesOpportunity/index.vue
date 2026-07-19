@@ -56,7 +56,7 @@ async function refresh() {
 	try {
 		const [opportunities, stats, customerItems, productItems] = await Promise.all([
 			listSalesOpportunities({ keyword: keyword.value, stage: stageFilter.value }), getSalesOpportunityStatistics(),
-			listCustomers({ status: "active", scope: { ownerId: actorId.value } }), listProducts({ status: "active" })
+			listCustomers({ status: "active" }), listProducts({ status: "active" })
 		]);
 		items.value = opportunities;
 		statistics.value = stats;

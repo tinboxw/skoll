@@ -351,5 +351,20 @@ button:hover {
 button.secondary:hover {
 	background: var(--color-surface-soft);
 }
+
+@media (max-width: 860px) {
+	.header {
+		align-items: stretch;
+		flex-direction: column;
+	}
+
+	.status-box {
+		justify-content: flex-start;
+	}
+
+	.chips {
+		flex-wrap: wrap;
+	}
+}
 </style>
 
