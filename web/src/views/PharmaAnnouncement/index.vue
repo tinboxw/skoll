@@ -57,7 +57,7 @@ async function save() {
 
 async function publish(item: PharmaAnnouncement) {
 	if (!canPublish.value || item.status !== "draft") return;
-	await ElMessageBox.confirm(`${t("pharma.announcement.publishAnnouncement")}: ${item.title}?`, t("pharma.announcement.publishAnnouncement"), { type: "warning", confirmButtonText: t("pharma.announcement.publish") });
+	await ElMessageBox.confirm(`${t("pharma.announcement.publishAnnouncement")}: ${item.title}?`, t("pharma.announcement.publishAnnouncement"), { type: "warning", confirmButtonText: t("pharma.announcement.publish"), cancelButtonText: t("common.cancel") });
 	publishingId.value = item.id; error.value = "";
 	try { const updated = await publishAnnouncement(item.id, actorId.value); items.value = items.value.map((current) => current.id === updated.id ? updated : current); if (selected.value?.id === updated.id) selected.value = updated; ElMessage.success(t("pharma.announcement.published")); }
 	catch (cause) { error.value = toErrorMessage(cause); }
@@ -94,7 +94,7 @@ async function confirmRead() {
 		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.announcement.empty')">
 			<template #cell-kind="{ row }"><el-tag :type="row.kind === 'policy' ? 'warning' : 'info'">{{ valueLabel(row.kind) }}</el-tag></template>
 			<template #cell-status="{ row }"><el-tag :type="row.status === 'published' ? 'success' : 'info'">{{ valueLabel(row.status) }}</el-tag></template>
-			<template #actions="{ row }"><el-tooltip :content="t('pharma.announcement.viewDetails')"><el-button circle :icon="Eye" @click="openDetail(row as PharmaAnnouncement)" /></el-tooltip><el-tooltip v-if="row.status === 'draft'" :content="t('pharma.announcement.publish')"><el-button circle type="primary" :icon="Send" :loading="publishingId === row.id" :disabled="!canPublish" @click="publish(row as PharmaAnnouncement)" /></el-tooltip></template>
+			<template #actions="{ row }"><el-tooltip :content="t('pharma.announcement.viewDetails')"><el-button circle :icon="Eye" :aria-label="t('pharma.announcement.viewDetails')" @click="openDetail(row as PharmaAnnouncement)" /></el-tooltip><el-tooltip v-if="row.status === 'draft'" :content="t('pharma.announcement.publish')"><el-button circle type="primary" :icon="Send" :aria-label="t('pharma.announcement.publish')" :loading="publishingId === row.id" :disabled="!canPublish" @click="publish(row as PharmaAnnouncement)" /></el-tooltip></template>
 		</DataTable>
 
 		<DetailDrawer v-model="createOpen" :title="t('pharma.announcement.draftTitle')" size="48%">

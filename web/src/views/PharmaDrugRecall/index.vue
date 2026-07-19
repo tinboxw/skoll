@@ -142,9 +142,10 @@ async function completeTask(item: DrugRecall, task: DrugRecallTask): Promise<voi
 	let note = "";
 	try {
 		const result = await ElMessageBox.prompt(t("pharma.drugRecall.recordCustomerNotificationQuarantineReturnOrDisposalEvidence"), `${t("pharma.drugRecall.completeCustomerTask")}: ${task.customerName}`, {
-			type: "warning",
-			confirmButtonText: t("pharma.drugRecall.completeCustomerTask"),
-			inputType: "textarea",
+			 type: "warning",
+			 confirmButtonText: t("pharma.drugRecall.completeCustomerTask"),
+			 cancelButtonText: t("common.cancel"),
+			 inputType: "textarea",
 			inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.completionNoteRequired")
 		});
 		note = result.value;
@@ -177,7 +178,7 @@ function taskType(status: DrugRecallTask["status"]): "success" | "info" {
 		<template #actions>
 			<el-input v-model="keyword" clearable :placeholder="t('pharma.drugRecall.search')" class="filter-control" @keyup.enter="refresh" />
 			<el-select v-model="statusFilter" clearable :placeholder="t('pharma.drugRecall.allStatuses')" class="filter-control" @change="refresh"><el-option :label="t('pharma.drugRecall.active')" value="active" /><el-option :label="t('pharma.drugRecall.completed')" value="completed" /></el-select>
-			<el-tooltip :content="t('pharma.drugRecall.refresh')"><el-button :icon="RefreshCw" circle :loading="loading" @click="refresh" /></el-tooltip>
+			<el-tooltip :content="t('pharma.drugRecall.refresh')"><el-button :icon="RefreshCw" circle :aria-label="t('pharma.drugRecall.refresh')" :loading="loading" @click="refresh" /></el-tooltip>
 			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">{{ t("pharma.drugRecall.newRecall") }}</el-button>
 		</template>
 
@@ -188,7 +189,7 @@ function taskType(status: DrugRecallTask["status"]): "success" | "info" {
 		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.drugRecall.empty')">
 			<template #cell-number="{ row }"><strong>{{ row.number }}</strong></template>
 			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as DrugRecallStatus)">{{ valueLabel(row.status) }}</el-tag></template>
-			<template #actions="{ row }"><el-tooltip :content="t('pharma.drugRecall.viewProcessingTrace')"><el-button circle :icon="Eye" @click="openDetail(row as DrugRecall)" /></el-tooltip></template>
+			<template #actions="{ row }"><el-tooltip :content="t('pharma.drugRecall.viewProcessingTrace')"><el-button circle :icon="Eye" :aria-label="t('pharma.drugRecall.viewProcessingTrace')" @click="openDetail(row as DrugRecall)" /></el-tooltip></template>
 		</DataTable>
 
 		<DetailDrawer v-model="createOpen" :title="t('pharma.drugRecall.newRecallTitle')" size="56%">
@@ -213,7 +214,7 @@ function taskType(status: DrugRecallTask["status"]): "success" | "info" {
 				<div class="detail-status"><el-tag :type="statusType(selected.status)">{{ valueLabel(selected.status) }}</el-tag><span>{{ selected.productName }} / {{ selected.batchNo }}</span></div>
 				<p class="reason">{{ selected.reason }}</p>
 				<dl class="detail-grid"><div><dt>{{ t("pharma.drugRecall.batchId") }}</dt><dd>{{ selected.batchId }}</dd></div><div><dt>{{ t("pharma.drugRecall.sourceComplaint") }}</dt><dd>{{ selected.sourceComplaintId || '-' }}</dd></div><div><dt>{{ t("pharma.drugRecall.initiatedBy") }}</dt><dd>{{ selected.initiatedBy }}</dd></div><div><dt>{{ t("pharma.drugRecall.initiatedAt") }}</dt><dd>{{ new Date(selected.initiatedAt).toLocaleString() }}</dd></div></dl>
-				<section class="task-section"><h3>{{ t("pharma.drugRecall.customerTrace") }}</h3><div v-for="task in selected.tasks" :key="task.id" class="task-row"><div class="task-main"><div><strong>{{ task.customerName }}</strong><el-tag size="small" :type="taskType(task.status)">{{ valueLabel(task.status) }}</el-tag></div><small>{{ task.quantity }} {{ t("pharma.drugRecall.unitSeparator") }} {{ task.outboundIds.join(", ") }}</small><p v-if="task.completionNote">{{ task.completionNote }}</p><small v-if="task.completedAt">{{ task.completedBy }} / {{ new Date(task.completedAt).toLocaleString() }}</small></div><el-tooltip v-if="task.status === 'pending'" :content="t('pharma.drugRecall.completeCustomerTask')"><el-button circle type="success" :icon="CheckCircle2" :loading="actionId === task.id" :disabled="!canComplete" @click="completeTask(selected, task)" /></el-tooltip></div></section>
+				<section class="task-section"><h3>{{ t("pharma.drugRecall.customerTrace") }}</h3><div v-for="task in selected.tasks" :key="task.id" class="task-row"><div class="task-main"><div><strong>{{ task.customerName }}</strong><el-tag size="small" :type="taskType(task.status)">{{ valueLabel(task.status) }}</el-tag></div><small>{{ task.quantity }} {{ t("pharma.drugRecall.unitSeparator") }} {{ task.outboundIds.join(", ") }}</small><p v-if="task.completionNote">{{ task.completionNote }}</p><small v-if="task.completedAt">{{ task.completedBy }} / {{ new Date(task.completedAt).toLocaleString() }}</small></div><el-tooltip v-if="task.status === 'pending'" :content="t('pharma.drugRecall.completeCustomerTask')"><el-button circle type="success" :icon="CheckCircle2" :aria-label="t('pharma.drugRecall.completeCustomerTask')" :loading="actionId === task.id" :disabled="!canComplete" @click="completeTask(selected, task)" /></el-tooltip></div></section>
 			</template>
 			<template #footer><el-button @click="detailOpen = false">{{ t("pharma.drugRecall.close") }}</el-button></template>
 		</DetailDrawer>

@@ -107,7 +107,7 @@ async function advance(item: SalesOpportunity) {
 	const target = nextStage(item.stage);
 	if (!target || !canAdvance.value) return;
 	try {
-		await ElMessageBox.confirm(`${t("pharma.salesOpportunity.advanceOpportunity")}: ${item.title} -> ${stageLabel(target)}?`, t("pharma.salesOpportunity.advanceOpportunity"), { type: "warning", confirmButtonText: t("pharma.salesOpportunity.advanceOpportunity") });
+		await ElMessageBox.confirm(`${t("pharma.salesOpportunity.advanceOpportunity")}: ${item.title} -> ${stageLabel(target)}?`, t("pharma.salesOpportunity.advanceOpportunity"), { type: "warning", confirmButtonText: t("pharma.salesOpportunity.advanceOpportunity"), cancelButtonText: t("common.cancel") });
 	} catch {
 		return;
 	}
@@ -118,7 +118,7 @@ async function lose(item: SalesOpportunity) {
 	if (!canAdvance.value || isTerminal(item.stage)) return;
 	let result;
 	try {
-		result = await ElMessageBox.prompt(t("pharma.salesOpportunity.recordWhyThisOpportunityWasLost"), `${t("pharma.salesOpportunity.closeAsLost")}: ${item.title}`, { type: "warning", confirmButtonText: t("pharma.salesOpportunity.closeAsLost"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") });
+		result = await ElMessageBox.prompt(t("pharma.salesOpportunity.recordWhyThisOpportunityWasLost"), `${t("pharma.salesOpportunity.closeAsLost")}: ${item.title}`, { type: "warning", confirmButtonText: t("pharma.salesOpportunity.closeAsLost"), cancelButtonText: t("common.cancel"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") });
 	} catch {
 		return;
 	}

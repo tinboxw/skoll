@@ -178,6 +178,7 @@ async function resolveComplaint(item: QualityComplaint): Promise<void> {
 		const result = await ElMessageBox.prompt(t("pharma.qualityComplaint.recordTheInvestigationResultAndCorrectiveAction"), `${t("pharma.qualityComplaint.resolve")}: ${item.number}`, {
 			type: "warning",
 			confirmButtonText: t("pharma.qualityComplaint.resolve"),
+			cancelButtonText: t("common.cancel"),
 			inputType: "textarea",
 			inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.conclusionRequired")
 		});
@@ -204,6 +205,7 @@ async function rejectComplaint(item: QualityComplaint): Promise<void> {
 		const result = await ElMessageBox.prompt(t("pharma.qualityComplaint.recordWhyTheComplaintIsRejected"), `${t("pharma.qualityComplaint.reject")}: ${item.number}`, {
 			type: "warning",
 			confirmButtonText: t("pharma.qualityComplaint.reject"),
+			cancelButtonText: t("common.cancel"),
 			inputType: "textarea",
 			inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.conclusionRequired")
 		});
@@ -241,7 +243,7 @@ function formatBytes(size: number): string {
 				<el-option :label="t('pharma.qualityComplaint.statusResolved')" value="resolved" />
 				<el-option :label="t('pharma.qualityComplaint.statusRejected')" value="rejected" />
 			</el-select>
-			<el-tooltip :content="t('pharma.qualityComplaint.refresh')"><el-button :icon="RefreshCw" circle :loading="loading" @click="refresh" /></el-tooltip>
+			<el-tooltip :content="t('pharma.qualityComplaint.refresh')"><el-button :icon="RefreshCw" circle :aria-label="t('pharma.qualityComplaint.refresh')" :loading="loading" @click="refresh" /></el-tooltip>
 			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">{{ t("pharma.qualityComplaint.newComplaint") }}</el-button>
 		</template>
 
@@ -256,9 +258,9 @@ function formatBytes(size: number): string {
 			<template #cell-number="{ row }"><strong>{{ row.number }}</strong></template>
 			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as QualityComplaintStatus)">{{ valueLabel(row.status) }}</el-tag></template>
 			<template #actions="{ row }">
-				<el-tooltip :content="t('pharma.qualityComplaint.viewDetails')"><el-button circle :icon="Eye" @click="openDetail(row as QualityComplaint)" /></el-tooltip>
-				<el-tooltip v-if="row.status === 'pending'" :content="t('pharma.qualityComplaint.resolve')"><el-button circle type="success" :icon="Check" :loading="actionId === row.id" :disabled="!canResolve" @click="resolveComplaint(row as QualityComplaint)" /></el-tooltip>
-				<el-tooltip v-if="row.status === 'pending'" :content="t('pharma.qualityComplaint.reject')"><el-button circle type="danger" :icon="X" :loading="actionId === row.id" :disabled="!canReject" @click="rejectComplaint(row as QualityComplaint)" /></el-tooltip>
+				<el-tooltip :content="t('pharma.qualityComplaint.viewDetails')"><el-button circle :icon="Eye" :aria-label="t('pharma.qualityComplaint.viewDetails')" @click="openDetail(row as QualityComplaint)" /></el-tooltip>
+				<el-tooltip v-if="row.status === 'pending'" :content="t('pharma.qualityComplaint.resolve')"><el-button circle type="success" :icon="Check" :aria-label="t('pharma.qualityComplaint.resolve')" :loading="actionId === row.id" :disabled="!canResolve" @click="resolveComplaint(row as QualityComplaint)" /></el-tooltip>
+				<el-tooltip v-if="row.status === 'pending'" :content="t('pharma.qualityComplaint.reject')"><el-button circle type="danger" :icon="X" :aria-label="t('pharma.qualityComplaint.reject')" :loading="actionId === row.id" :disabled="!canReject" @click="rejectComplaint(row as QualityComplaint)" /></el-tooltip>
 			</template>
 		</DataTable>
 

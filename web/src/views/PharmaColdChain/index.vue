@@ -120,7 +120,7 @@ async function saveRecord(): Promise<void> {
 async function runScan(): Promise<void> {
 	if (!canScan.value) return;
 	try {
-		await ElMessageBox.confirm(t("pharma.coldChain.theScanCanCreateOrResolveNotificationCenterRemindersFromc1639dda"), t("pharma.coldChain.runColdChainScan"), { type: "warning", confirmButtonText: t("pharma.coldChain.runScan") });
+		await ElMessageBox.confirm(t("pharma.coldChain.theScanCanCreateOrResolveNotificationCenterRemindersFromc1639dda"), t("pharma.coldChain.runColdChainScan"), { type: "warning", confirmButtonText: t("pharma.coldChain.runScan"), cancelButtonText: t("common.cancel") });
 	} catch {
 		return;
 	}
@@ -142,7 +142,7 @@ async function runScan(): Promise<void> {
 async function retryJob(job: ColdChainJob): Promise<void> {
 	if (!canRun.value || job.status !== "failed") return;
 	try {
-		await ElMessageBox.confirm(`${t("pharma.coldChain.retryFailedScan")}: ${job.id}?`, t("pharma.coldChain.retryFailedScan"), { type: "warning", confirmButtonText: t("pharma.coldChain.retryFailedScan") });
+		await ElMessageBox.confirm(`${t("pharma.coldChain.retryFailedScan")}: ${job.id}?`, t("pharma.coldChain.retryFailedScan"), { type: "warning", confirmButtonText: t("pharma.coldChain.retryFailedScan"), cancelButtonText: t("common.cancel") });
 	} catch {
 		return;
 	}
@@ -177,7 +177,7 @@ function jobType(status: ColdChainJob["status"]): "success" | "danger" | "warnin
 	<PageShell :title="t('pharma.coldChain.title')" :description="t('pharma.coldChain.description')" :loading="loading" :error="error" :forbidden="!canRead" :forbidden-title="t('pharma.coldChain.noColdChainAccess')" :forbidden-description="t('pharma.coldChain.thisPageRequiresPharmaOaColdChainReadPermission')">
 		<template #actions>
 			<el-select v-model="batchFilter" clearable filterable :placeholder="t('pharma.coldChain.allBatches')" class="filter-control" @change="refresh"><el-option v-for="item in batchOptions" :key="item.batchId" :label="`${item.batchNo} / ${item.productId}`" :value="item.batchId" /></el-select>
-			<el-tooltip :content="t('pharma.coldChain.refresh')"><el-button circle :icon="RefreshCw" :loading="loading" @click="refresh" /></el-tooltip>
+			<el-tooltip :content="t('pharma.coldChain.refresh')"><el-button circle :icon="RefreshCw" :aria-label="t('pharma.coldChain.refresh')" :loading="loading" @click="refresh" /></el-tooltip>
 			<el-button :icon="Activity" :disabled="!canRun" @click="scanOpen = true">{{ t("pharma.coldChain.runScan") }}</el-button>
 			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">{{ t("pharma.coldChain.newReading") }}</el-button>
 		</template>
@@ -188,11 +188,11 @@ function jobType(status: ColdChainJob["status"]): "success" | "danger" | "warnin
 			<el-tab-pane :label="t('pharma.coldChain.anomalies')" name="anomalies">
 				<div class="tab-toolbar"><el-checkbox v-model="activeOnly" :label="t('pharma.coldChain.activeOnly')" @change="refresh" /></div>
 				<DataTable :rows="anomalyRows" :columns="anomalyColumns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.coldChain.emptyAnomalies')">
-					<template #cell-batchNo="{ row }"><strong>{{ row.batchNo }}</strong></template><template #cell-risk="{ row }"><el-tag :type="riskType(row.risk as ColdChainAnomaly['risk'])">{{ valueLabel(row.risk) }}</el-tag></template><template #cell-status="{ row }"><el-tag :type="statusType(row.status as ColdChainAnomalyStatus)">{{ valueLabel(row.status) }}</el-tag></template><template #actions="{ row }"><el-tooltip :content="t('pharma.coldChain.viewAnomalyTrace')"><el-button circle :icon="Eye" @click="openDetail(row as AnomalyRow)" /></el-tooltip></template>
+					<template #cell-batchNo="{ row }"><strong>{{ row.batchNo }}</strong></template><template #cell-risk="{ row }"><el-tag :type="riskType(row.risk as ColdChainAnomaly['risk'])">{{ valueLabel(row.risk) }}</el-tag></template><template #cell-status="{ row }"><el-tag :type="statusType(row.status as ColdChainAnomalyStatus)">{{ valueLabel(row.status) }}</el-tag></template><template #actions="{ row }"><el-tooltip :content="t('pharma.coldChain.viewAnomalyTrace')"><el-button circle :icon="Eye" :aria-label="t('pharma.coldChain.viewAnomalyTrace')" @click="openDetail(row as AnomalyRow)" /></el-tooltip></template>
 				</DataTable>
 			</el-tab-pane>
 			<el-tab-pane :label="t('pharma.coldChain.readings')" name="readings"><DataTable :rows="recordRows" :columns="recordColumns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.coldChain.emptyReadings')"><template #cell-batchNo="{ row }"><strong>{{ row.batchNo }}</strong></template></DataTable></el-tab-pane>
-			<el-tab-pane :label="t('pharma.coldChain.scanJobs')" name="jobs"><DataTable :rows="jobRows" :columns="jobColumns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.coldChain.emptyJobs')"><template #cell-status="{ row }"><el-tag :type="jobType(row.status as ColdChainJob['status'])">{{ valueLabel(row.status) }}</el-tag></template><template #actions="{ row }"><el-tooltip v-if="row.status === 'failed'" :content="t('pharma.coldChain.retryFailedScan')"><el-button circle type="warning" :icon="RotateCcw" :loading="actionId === row.id" :disabled="!canRun" @click="retryJob(row as JobRow)" /></el-tooltip></template></DataTable></el-tab-pane>
+			<el-tab-pane :label="t('pharma.coldChain.scanJobs')" name="jobs"><DataTable :rows="jobRows" :columns="jobColumns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.coldChain.emptyJobs')"><template #cell-status="{ row }"><el-tag :type="jobType(row.status as ColdChainJob['status'])">{{ valueLabel(row.status) }}</el-tag></template><template #actions="{ row }"><el-tooltip v-if="row.status === 'failed'" :content="t('pharma.coldChain.retryFailedScan')"><el-button circle type="warning" :icon="RotateCcw" :aria-label="t('pharma.coldChain.retryFailedScan')" :loading="actionId === row.id" :disabled="!canRun" @click="retryJob(row as JobRow)" /></el-tooltip></template></DataTable></el-tab-pane>
 		</el-tabs>
 
 		<DetailDrawer v-model="createOpen" :title="t('pharma.coldChain.newReadingTitle')" size="52%">

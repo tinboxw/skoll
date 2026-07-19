@@ -116,7 +116,7 @@ async function saveInvoice() {
 async function voidInvoice(item: InvoiceRecord) {
 	if (!canVoidInvoice.value || item.status !== "issued") return;
 	let result: { value: string };
-	try { result = await ElMessageBox.prompt(t("pharma.paymentInvoice.voidReason"), `${t("pharma.paymentInvoice.voidInvoice")}: ${item.number}`, { type: "warning", confirmButtonText: t("pharma.paymentInvoice.voidInvoice"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") }); } catch { return; }
+	try { result = await ElMessageBox.prompt(t("pharma.paymentInvoice.voidReason"), `${t("pharma.paymentInvoice.voidInvoice")}: ${item.number}`, { type: "warning", confirmButtonText: t("pharma.paymentInvoice.voidInvoice"), cancelButtonText: t("common.cancel"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") }); } catch { return; }
 	actionId.value = item.id; error.value = "";
 	try { replaceInvoice(await voidInvoiceRecord(item.id, result.value)); ElMessage.success(t("pharma.paymentInvoice.invoiceVoided")); } catch (cause) { error.value = toErrorMessage(cause); } finally { actionId.value = ""; }
 }

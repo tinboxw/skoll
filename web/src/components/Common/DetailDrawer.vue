@@ -1,5 +1,7 @@
 <script setup lang="ts">
-withDefaults(defineProps<{
+import { nextTick, onBeforeUnmount, watch } from "vue";
+
+const props = withDefaults(defineProps<{
 	modelValue: boolean;
 	title: string;
 	size?: string | number;
@@ -14,6 +16,27 @@ const emit = defineEmits<{
 	(e: "close"): void;
 }>();
 
+let returnFocusTarget: HTMLElement | null = null;
+
+watch(() => props.modelValue, (open) => {
+	if (open && document.activeElement instanceof HTMLElement) {
+		returnFocusTarget = document.activeElement;
+	}
+}, { flush: "sync" });
+
+async function restoreFocus(): Promise<void> {
+	const target = returnFocusTarget;
+	returnFocusTarget = null;
+	await nextTick();
+	if (target?.isConnected) {
+		target.focus({ preventScroll: true });
+	}
+}
+
+onBeforeUnmount(() => {
+	void restoreFocus();
+});
+
 function closeDrawer(): void {
 	emit("update:modelValue", false);
 	emit("close");
@@ -24,10 +47,12 @@ function closeDrawer(): void {
 	<el-drawer
 		:model-value="modelValue"
 		:title="title"
+		:aria-label="title"
 		:size="size"
 		class="detail-drawer"
 		@update:model-value="(value: boolean) => emit('update:modelValue', value)"
 		@close="closeDrawer"
+		@closed="restoreFocus"
 	>
 		<template v-if="$slots.header" #header>
 			<slot name="header" />

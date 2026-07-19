@@ -334,10 +334,10 @@ function formatDate(value: string): string {
 			</template>
 			<template #actions="{ row }">
 				<el-tooltip :content="t('pharma.employee.edit')">
-					<el-button :icon="Edit" circle :disabled="!canUpdate || row.status === 'left'" @click="openEdit(row)" />
+					<el-button :icon="Edit" circle :aria-label="t('pharma.employee.edit')" :disabled="!canUpdate || row.status === 'left'" @click="openEdit(row)" />
 				</el-tooltip>
 				<el-tooltip :content="t('pharma.employee.markLeft')">
-					<el-button :icon="UserMinus" circle type="danger" :disabled="!canLeave || row.status === 'left'" @click="openLeave(row)" />
+					<el-button :icon="UserMinus" circle type="danger" :aria-label="t('pharma.employee.markLeft')" :disabled="!canLeave || row.status === 'left'" @click="openLeave(row)" />
 				</el-tooltip>
 			</template>
 		</DataTable>

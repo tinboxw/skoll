@@ -142,7 +142,7 @@ async function completeSelected() {
 
 async function cancel(item: CustomerFollowUp) {
 	if (!canCancel.value || item.status !== "planned") return;
-	const result = await ElMessageBox.prompt(t("pharma.customerFollowUp.recordWhyThisVisitPlanIsBeingCancelled"), `${t("pharma.customerFollowUp.cancel")}: ${item.customerCode}`, { type: "warning", confirmButtonText: t("pharma.customerFollowUp.cancel"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") });
+	const result = await ElMessageBox.prompt(t("pharma.customerFollowUp.recordWhyThisVisitPlanIsBeingCancelled"), `${t("pharma.customerFollowUp.cancel")}: ${item.customerCode}`, { type: "warning", confirmButtonText: t("pharma.customerFollowUp.cancel"), cancelButtonText: t("common.cancel"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") });
 	actionId.value = item.id;
 	error.value = "";
 	try {
@@ -171,14 +171,14 @@ function formatBytes(size: number) { return size < 1024 ? `${size} B` : `${(size
 		<template #actions>
 			<el-input v-model="keyword" clearable :placeholder="t('pharma.customerFollowUp.searchCustomerOrContact')" class="filter-control" @keyup.enter="refresh" />
 			<el-select v-model="statusFilter" clearable :placeholder="t('pharma.customerFollowUp.allStatuses')" class="filter-control" @change="refresh"><el-option :label="t('pharma.customerFollowUp.planned')" value="planned" /><el-option :label="t('pharma.customerFollowUp.completed')" value="completed" /><el-option :label="t('pharma.customerFollowUp.cancelled')" value="cancelled" /></el-select>
-			<el-tooltip :content="t('pharma.customerFollowUp.refresh')"><el-button circle :icon="RefreshCw" :loading="loading" @click="refresh" /></el-tooltip>
+			<el-tooltip :content="t('pharma.customerFollowUp.refresh')"><el-button circle :icon="RefreshCw" :aria-label="t('pharma.customerFollowUp.refresh')" :loading="loading" @click="refresh" /></el-tooltip>
 			<el-button type="primary" :icon="CalendarPlus" :disabled="!canCreate || customers.length === 0" @click="openCreate">{{ t("pharma.customerFollowUp.planFollowUp") }}</el-button>
 		</template>
 		<section class="summary-band"><div><span>{{ t("pharma.customerFollowUp.total") }}</span><strong>{{ items.length }}</strong></div><div><span>{{ t("pharma.customerFollowUp.planned") }}</span><strong>{{ plannedCount }}</strong></div><div><span>{{ t("pharma.customerFollowUp.completed") }}</span><strong>{{ completedCount }}</strong></div></section>
 		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.customerFollowUp.noFollowUpsMatchTheCurrentFilters')">
 			<template #cell-customerText="{ row }"><strong>{{ row.customerText }}</strong></template>
 			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as CustomerFollowUpStatus)">{{ valueLabel(row.status) }}</el-tag></template>
-			<template #actions="{ row }"><el-tooltip :content="t('pharma.customerFollowUp.viewDetails')"><el-button circle :icon="Eye" @click="openDetail(row as CustomerFollowUp)" /></el-tooltip><el-tooltip v-if="row.status === 'planned'" :content="t('pharma.customerFollowUp.editPlan')"><el-button circle :icon="Pencil" :disabled="!canUpdate" @click="openEdit(row as CustomerFollowUp)" /></el-tooltip><el-tooltip v-if="row.status === 'planned'" :content="t('pharma.customerFollowUp.complete')"><el-button circle type="success" :icon="Check" :disabled="!canComplete" @click="openComplete(row as CustomerFollowUp)" /></el-tooltip><el-tooltip v-if="row.status === 'planned'" :content="t('pharma.customerFollowUp.cancel')"><el-button circle type="danger" :icon="X" :loading="actionId === row.id" :disabled="!canCancel" @click="cancel(row as CustomerFollowUp)" /></el-tooltip></template>
+			<template #actions="{ row }"><el-tooltip :content="t('pharma.customerFollowUp.viewDetails')"><el-button circle :icon="Eye" :aria-label="t('pharma.customerFollowUp.viewDetails')" @click="openDetail(row as CustomerFollowUp)" /></el-tooltip><el-tooltip v-if="row.status === 'planned'" :content="t('pharma.customerFollowUp.editPlan')"><el-button circle :icon="Pencil" :aria-label="t('pharma.customerFollowUp.editPlan')" :disabled="!canUpdate" @click="openEdit(row as CustomerFollowUp)" /></el-tooltip><el-tooltip v-if="row.status === 'planned'" :content="t('pharma.customerFollowUp.complete')"><el-button circle type="success" :icon="Check" :aria-label="t('pharma.customerFollowUp.complete')" :disabled="!canComplete" @click="openComplete(row as CustomerFollowUp)" /></el-tooltip><el-tooltip v-if="row.status === 'planned'" :content="t('pharma.customerFollowUp.cancel')"><el-button circle type="danger" :icon="X" :aria-label="t('pharma.customerFollowUp.cancel')" :loading="actionId === row.id" :disabled="!canCancel" @click="cancel(row as CustomerFollowUp)" /></el-tooltip></template>
 		</DataTable>
 
 		<DetailDrawer v-model="planOpen" :title="editingId ? t('pharma.customerFollowUp.editPlan') : t('pharma.customerFollowUp.planFollowUp')" size="50%">

@@ -4,20 +4,20 @@
 	"supportedLocales": ["zh-CN", "en-US"],
 	"pluginManifest": "plugins/pharma_oa/plugin.yaml",
 	"views": [
-		{"path": "src/views/PharmaAnnouncement/index.vue", "namespace": "pharma.announcement", "status": "localized", "translationKeyCount": 35, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaColdChain/index.vue", "namespace": "pharma.coldChain", "status": "localized", "translationKeyCount": 66, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaAnnouncement/index.vue", "namespace": "pharma.announcement", "status": "localized", "translationKeyCount": 36, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaColdChain/index.vue", "namespace": "pharma.coldChain", "status": "localized", "translationKeyCount": 67, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaComplianceDashboard/index.vue", "namespace": "pharma.complianceDashboard", "status": "localized", "translationKeyCount": 40, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaContract/index.vue", "namespace": "pharma.contract", "status": "localized", "translationKeyCount": 60, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaContract/index.vue", "namespace": "pharma.contract", "status": "localized", "translationKeyCount": 61, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaCustomer/index.vue", "namespace": "customer", "status": "localized", "translationKeyCount": 58, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaCustomerFollowUp/index.vue", "namespace": "pharma.customerFollowUp", "status": "localized", "translationKeyCount": 47, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaCustomerFollowUp/index.vue", "namespace": "pharma.customerFollowUp", "status": "localized", "translationKeyCount": 48, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaDashboard/index.vue", "namespace": "pharma.dashboard", "status": "localized", "translationKeyCount": 43, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaDrugRecall/index.vue", "namespace": "pharma.drugRecall", "status": "localized", "translationKeyCount": 44, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaDrugRecall/index.vue", "namespace": "pharma.drugRecall", "status": "localized", "translationKeyCount": 45, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaEmployee/index.vue", "namespace": "pharma.employee", "status": "localized", "translationKeyCount": 43, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaPaymentInvoice/index.vue", "namespace": "pharma.paymentInvoice", "status": "localized", "translationKeyCount": 78, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaPaymentInvoice/index.vue", "namespace": "pharma.paymentInvoice", "status": "localized", "translationKeyCount": 79, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaPurchaseInbound/index.vue", "namespace": "pharma.purchaseInbound", "status": "localized", "translationKeyCount": 31, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaQualification/index.vue", "namespace": "pharma.qualification", "status": "localized", "translationKeyCount": 32, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaQualityComplaint/index.vue", "namespace": "pharma.qualityComplaint", "status": "localized", "translationKeyCount": 51, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaQualification/index.vue", "namespace": "pharma.qualification", "status": "localized", "translationKeyCount": 33, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaQualityComplaint/index.vue", "namespace": "pharma.qualityComplaint", "status": "localized", "translationKeyCount": 52, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaSales/index.vue", "namespace": "pharma.sales", "status": "localized", "translationKeyCount": 42, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaSalesOpportunity/index.vue", "namespace": "pharma.salesOpportunity", "status": "localized", "translationKeyCount": 42, "hardcodedCopyCount": 0}
+		{"path": "src/views/PharmaSalesOpportunity/index.vue", "namespace": "pharma.salesOpportunity", "status": "localized", "translationKeyCount": 43, "hardcodedCopyCount": 0}
 	]
 }

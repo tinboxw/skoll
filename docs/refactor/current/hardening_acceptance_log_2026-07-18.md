@@ -707,3 +707,46 @@ git diff --check
 ### Next Step
 
 父任务 H4 保持 `Doing`。按正式 Work Item 顺序领取 `H4-03`，强化键盘操作、焦点恢复、ARIA、对比度、错误关联、减少动画和破坏性确认。
+
+## H4-03 Pharma OA 可访问交互加固
+
+- Date: 2026-07-19
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 加固 Pharma OA 15 个主页面及共享页面壳、表格、状态块和详情抽屉的键盘操作、焦点恢复、ARIA 名称、表单关联、减少动画和破坏性确认，并建立可重复执行的静态门禁。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 自动化可访问性门禁 | Pass | Vue SFC 与 TypeScript AST 检查覆盖 15 个页面，确认 46 个图标按钮具备可访问名称、14 个破坏性确认同时具备本地化确认/取消动作，且不存在正数 `tabindex`、无替代文本图片或缺失键盘语义的可点击原生元素。 |
+| 键盘与焦点 | Pass | 桌面端仅用键盘打开和关闭客户抽屉、执行资质到期扫描；抽屉初始焦点位于对话框内，Escape 关闭后焦点分别恢复到“新建客户”和“到期扫描”触发按钮。 |
+| ARIA 与表单关联 | Pass | `PageShell` 标题通过 `aria-labelledby` 关联页面区域，数据表具备可访问名称和本地化操作列表头，空/无权限状态使用 polite status、错误状态使用 assertive alert；抽检 12 个表单项的 label `for` 与控件 id 全部匹配。 |
+| 可见焦点、对比度与减少动画 | Pass | 全局 `:focus-visible` 使用 3px 主题色轮廓并保留组件自身边界对比；`prefers-reduced-motion: reduce` 下滚动改为即时，动画和过渡缩短到近即时，同时不隐藏焦点或状态反馈。 |
+| 破坏性操作 | Pass | 14 个确认/输入流程均显式提供中文默认、可切换英文的确认与取消文案；资质扫描对话框可由 Escape 取消，关闭后焦点恢复且未触发操作。 |
+| 响应式验收 | Pass | 390x844 客户页无页面横向溢出，动作区正常换行；359px 抽屉没有页脚溢出，初始焦点位于对话框，Escape 关闭后返回触发按钮。 |
+| 质量门禁 | Pass | `check:a11y`、locale 清单、`vue-tsc --noEmit`、Vite 生产构建、Node 语法和 `git diff --check` 全部通过；构建仅保留上游 Sass/Rollup 提示。 |
+| API/权限/审计/migration/seed | Pass | 本项仅调整前端交互语义、共享组件、样式和检查脚本；未修改 HTTP 契约、权限键、审计动作、migration 或 seed，无需更新 OpenAPI。 |
+| CodeGraph 与边界 | Pass | 同步后索引为 703 files / 15,114 nodes / 46,357 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有文档、本地索引或运行数据。 |
+
+### Verification Commands
+
+```powershell
+npm --prefix web run check:a11y
+node --check web/scripts/h4-accessibility-check.mjs
+npm --prefix web run typecheck
+npm --prefix web run build
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首次静态门禁发现 14 个确认框缺少显式、本地化的取消按钮文案。 | 为全部确认和输入流程补充 `common.cancel`，再次扫描后通过 15 页面 / 46 图标按钮 / 14 确认流程门禁。 |
+| 2 | Failed -> Doing | 首次类型验收发现 9 个页面因新增 `common.cancel` 引用与版本化 locale 基线各差 1。 | 按页面实际 AST 引用更新精确基线，重跑 locale 检查、`vue-tsc` 和生产构建后通过。 |
+
+### Next Step
+
+父任务 H4 保持 `Doing`。按正式 Work Item 顺序领取 `H4-04`，验证中英文 loading、empty、error、no-permission、saving、destructive 和 responsive 状态矩阵。

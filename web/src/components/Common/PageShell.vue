@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, getCurrentInstance } from "vue";
 
 import { localizeKnownError, useI18n } from "../../i18n";
 import StateBlock from "./StateBlock.vue";
@@ -25,14 +25,15 @@ const props = withDefaults(defineProps<{
 
 const { t } = useI18n();
 const localizedError = computed(() => localizeKnownError(props.error));
+const titleId = `page-shell-title-${getCurrentInstance()?.uid ?? "default"}`;
 </script>
 
 <template>
-	<section class="page-shell" :aria-busy="loading ? 'true' : 'false'">
+	<section class="page-shell" :aria-busy="loading ? 'true' : 'false'" :aria-labelledby="titleId">
 		<header class="page-shell__header">
 			<div class="page-shell__title-block">
 				<p v-if="eyebrow" class="page-shell__eyebrow">{{ eyebrow }}</p>
-				<h2>{{ title }}</h2>
+				<h2 :id="titleId">{{ title }}</h2>
 				<p v-if="description" class="page-shell__description">{{ description }}</p>
 			</div>
 			<div v-if="$slots.actions || $slots.meta" class="page-shell__actions">

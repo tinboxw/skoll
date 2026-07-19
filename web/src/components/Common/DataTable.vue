@@ -25,6 +25,7 @@ const props = withDefaults(defineProps<{
 	height?: string | number;
 	stripe?: boolean;
 	border?: boolean;
+	ariaLabel?: string;
 }>(), {
 	rowKey: "id",
 	loading: false,
@@ -33,12 +34,14 @@ const props = withDefaults(defineProps<{
 	emptyText: "",
 	height: undefined,
 	stripe: true,
-	border: false
+	border: false,
+	ariaLabel: ""
 });
 
 const hasRows = computed(() => props.rows.length > 0);
 const { t } = useI18n();
 const localizedError = computed(() => localizeKnownError(props.error));
+const tableLabel = computed(() => props.ariaLabel || props.emptyText || t("state.noData"));
 
 function cellText(row: Record<string, unknown>, column: DataTableColumn): string | number {
 	if (column.formatter) {
@@ -65,9 +68,10 @@ function cellText(row: Record<string, unknown>, column: DataTableColumn): string
 			:row-key="rowKey"
 			:loading="loading"
 			:stripe="stripe"
-			:border="border"
-			:height="height"
-			class="data-table__el"
+				:border="border"
+				:height="height"
+				:aria-label="tableLabel"
+				class="data-table__el"
 		>
 			<template #empty>
 				<StateBlock type="empty" :description="emptyText || t('state.noData')" />
@@ -89,7 +93,7 @@ function cellText(row: Record<string, unknown>, column: DataTableColumn): string
 					</slot>
 				</template>
 			</el-table-column>
-			<el-table-column v-if="$slots.actions" fixed="right" label="" width="132" align="right">
+			<el-table-column v-if="$slots.actions" fixed="right" :label="t('common.actions')" width="132" align="right">
 				<template #default="{ row }">
 					<div class="data-table__actions">
 						<slot name="actions" :row="row" />

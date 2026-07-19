@@ -88,7 +88,7 @@ async function scanExpiry() {
 	await ElMessageBox.confirm(
 		`${t("pharma.qualification.runQualificationExpiryScan")}: ${expiryDays.value} ${valueLabel("day")}?`,
 		t("pharma.qualification.runQualificationExpiryScan"),
-		{ type: "warning", confirmButtonText: t("pharma.qualification.runQualificationExpiryScan") }
+		{ type: "warning", confirmButtonText: t("pharma.qualification.runQualificationExpiryScan"), cancelButtonText: t("common.cancel") }
 	);
 	scanning.value = true;
 	error.value = "";
@@ -147,7 +147,7 @@ function statusType(status: QualificationStatus): "success" | "warning" | "dange
 				<el-option :label="t('pharma.qualification.permanent')" value="permanent" />
 			</el-select>
 			<el-input-number v-model="expiryDays" :min="1" :max="365" controls-position="right" class="days-control" :aria-label="t('pharma.qualification.expiryWindowDays')" @change="refresh" />
-			<el-tooltip :content="t('pharma.qualification.refresh')"><el-button circle :icon="RefreshCw" :loading="loading" @click="refresh" /></el-tooltip>
+			<el-tooltip :content="t('pharma.qualification.refresh')"><el-button circle :icon="RefreshCw" :aria-label="t('pharma.qualification.refresh')" :loading="loading" @click="refresh" /></el-tooltip>
 			<el-button :icon="AlarmClock" :loading="scanning" :disabled="!canScan || loading" @click="scanExpiry">{{ t("pharma.qualification.expiryScan") }}</el-button>
 		</template>
 
@@ -163,7 +163,7 @@ function statusType(status: QualificationStatus): "success" | "warning" | "dange
 			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as QualificationStatus)">{{ valueLabel(row.status) }}</el-tag></template>
 			<template #cell-reminderText="{ row }"><el-tag :type="row.reminderNotificationId ? 'success' : 'info'" effect="plain">{{ row.reminderText }}</el-tag></template>
 			<template #actions="{ row }">
-				<el-tooltip :content="t('pharma.qualification.openSubjectLedger')"><el-button circle :icon="ExternalLink" @click="openSubject(row as QualificationRecord)" /></el-tooltip>
+				<el-tooltip :content="t('pharma.qualification.openSubjectLedger')"><el-button circle :icon="ExternalLink" :aria-label="t('pharma.qualification.openSubjectLedger')" @click="openSubject(row as QualificationRecord)" /></el-tooltip>
 			</template>
 		</DataTable>
 	</PageShell>

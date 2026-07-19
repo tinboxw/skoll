@@ -77,7 +77,7 @@ function replaceItem(item: PharmaContract) { items.value = items.value.map((curr
 
 async function approve(item: PharmaContract) {
 	if (!canApprove.value || item.status !== "pending_approval") return;
-	await ElMessageBox.confirm(`${t("pharma.contract.approveContract")}: ${item.number}?`, t("pharma.contract.approveContract"), { type: "warning", confirmButtonText: t("pharma.contract.approve") });
+	await ElMessageBox.confirm(`${t("pharma.contract.approveContract")}: ${item.number}?`, t("pharma.contract.approveContract"), { type: "warning", confirmButtonText: t("pharma.contract.approve"), cancelButtonText: t("common.cancel") });
 	actionId.value = item.id; error.value = "";
 	try { replaceItem(await approveContract(item.id, actorId.value, "Approved in contract archive")); ElMessage.success(t("pharma.contract.approved")); }
 	catch (cause) { error.value = toErrorMessage(cause); }
@@ -86,7 +86,7 @@ async function approve(item: PharmaContract) {
 
 async function reject(item: PharmaContract) {
 	if (!canReject.value || item.status !== "pending_approval") return;
-	const result = await ElMessageBox.prompt(t("pharma.contract.recordTheRejectionReason"), `${t("pharma.contract.reject")}: ${item.number}`, { type: "warning", confirmButtonText: t("pharma.contract.reject"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") });
+	const result = await ElMessageBox.prompt(t("pharma.contract.recordTheRejectionReason"), `${t("pharma.contract.reject")}: ${item.number}`, { type: "warning", confirmButtonText: t("pharma.contract.reject"), cancelButtonText: t("common.cancel"), inputValidator: (value) => Boolean(value.trim()) || t("pharma.common.reasonRequired") });
 	actionId.value = item.id; error.value = "";
 	try { replaceItem(await rejectContract(item.id, actorId.value, result.value)); ElMessage.success(t("pharma.contract.rejected")); }
 	catch (cause) { error.value = toErrorMessage(cause); }
@@ -95,7 +95,7 @@ async function reject(item: PharmaContract) {
 
 async function scanExpiry() {
 	if (!canScan.value) return;
-	await ElMessageBox.confirm(t("pharma.contract.scanActiveContractsExpiringWithin30DaysAndCreateReminders"), t("pharma.contract.runExpiryScan"), { type: "warning", confirmButtonText: t("pharma.contract.runExpiryScan") });
+	await ElMessageBox.confirm(t("pharma.contract.scanActiveContractsExpiringWithin30DaysAndCreateReminders"), t("pharma.contract.runExpiryScan"), { type: "warning", confirmButtonText: t("pharma.contract.runExpiryScan"), cancelButtonText: t("common.cancel") });
 	scanning.value = true; error.value = "";
 	try { const result = await scanContractExpiry(30, actorId.value); await refresh(); ElMessage.success(`${result.createdCount} ${t("pharma.common.createdReminders")}`); }
 	catch (cause) { error.value = toErrorMessage(cause); }
@@ -112,7 +112,7 @@ function formatBytes(size: number) { return size < 1024 ? `${size} B` : `${(size
 			<el-input v-model="keyword" clearable :placeholder="t('pharma.contract.search')" class="filter-control" @keyup.enter="refresh" />
 			<el-select v-model="partyFilter" clearable :placeholder="t('pharma.contract.allParties')" class="filter-control" @change="refresh"><el-option :label="t('pharma.contract.suppliers')" value="supplier" /><el-option :label="t('pharma.contract.customers')" value="customer" /></el-select>
 			<el-select v-model="statusFilter" clearable :placeholder="t('pharma.contract.allStatuses')" class="filter-control" @change="refresh"><el-option :label="t('pharma.contract.pendingApproval')" value="pending_approval" /><el-option :label="t('pharma.contract.active')" value="active" /><el-option :label="t('pharma.contract.statusRejected')" value="rejected" /><el-option :label="t('pharma.contract.expired')" value="expired" /></el-select>
-			<el-tooltip :content="t('pharma.contract.refresh')"><el-button :icon="RefreshCw" circle :loading="loading" @click="refresh" /></el-tooltip>
+			<el-tooltip :content="t('pharma.contract.refresh')"><el-button :icon="RefreshCw" circle :aria-label="t('pharma.contract.refresh')" :loading="loading" @click="refresh" /></el-tooltip>
 			<el-button :icon="AlarmClock" :loading="scanning" :disabled="!canScan" @click="scanExpiry">{{ t("pharma.contract.expiryScan") }}</el-button>
 			<el-button type="primary" :icon="Plus" :disabled="!canCreate" @click="openCreate">{{ t("pharma.contract.newContract") }}</el-button>
 		</template>
@@ -120,7 +120,7 @@ function formatBytes(size: number) { return size < 1024 ? `${size} B` : `${(size
 		<DataTable :rows="rows" :columns="columns" row-key="id" :loading="loading" :error="error" :empty-text="t('pharma.contract.empty')">
 			<template #cell-number="{ row }"><strong>{{ row.number }}</strong></template>
 			<template #cell-status="{ row }"><el-tag :type="statusType(row.status as ContractStatus)">{{ valueLabel(row.status) }}</el-tag></template>
-			<template #actions="{ row }"><el-tooltip :content="t('pharma.contract.viewDetails')"><el-button circle :icon="Eye" @click="openDetail(row as PharmaContract)" /></el-tooltip><el-tooltip v-if="row.status === 'pending_approval'" :content="t('pharma.contract.approve')"><el-button circle type="success" :icon="Check" :loading="actionId === row.id" :disabled="!canApprove" @click="approve(row as PharmaContract)" /></el-tooltip><el-tooltip v-if="row.status === 'pending_approval'" :content="t('pharma.contract.reject')"><el-button circle type="danger" :icon="X" :loading="actionId === row.id" :disabled="!canReject" @click="reject(row as PharmaContract)" /></el-tooltip></template>
+			<template #actions="{ row }"><el-tooltip :content="t('pharma.contract.viewDetails')"><el-button circle :icon="Eye" :aria-label="t('pharma.contract.viewDetails')" @click="openDetail(row as PharmaContract)" /></el-tooltip><el-tooltip v-if="row.status === 'pending_approval'" :content="t('pharma.contract.approve')"><el-button circle type="success" :icon="Check" :aria-label="t('pharma.contract.approve')" :loading="actionId === row.id" :disabled="!canApprove" @click="approve(row as PharmaContract)" /></el-tooltip><el-tooltip v-if="row.status === 'pending_approval'" :content="t('pharma.contract.reject')"><el-button circle type="danger" :icon="X" :aria-label="t('pharma.contract.reject')" :loading="actionId === row.id" :disabled="!canReject" @click="reject(row as PharmaContract)" /></el-tooltip></template>
 		</DataTable>
 
 		<DetailDrawer v-model="createOpen" :title="t('pharma.contract.newContract')" size="52%">

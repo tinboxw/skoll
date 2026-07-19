@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 const props = withDefaults(defineProps<{
 	type?: "empty" | "error" | "forbidden";
 	title?: string;
@@ -8,11 +10,17 @@ const props = withDefaults(defineProps<{
 	title: ""
 });
 
-const resultIcon = props.type === "forbidden" ? "warning" : "error";
+const resultIcon = computed(() => props.type === "forbidden" ? "warning" : "error");
 </script>
 
 <template>
-	<div class="state-block" :class="`state-block--${type}`">
+	<div
+		class="state-block"
+		:class="`state-block--${type}`"
+		:role="type === 'error' ? 'alert' : 'status'"
+		:aria-live="type === 'error' ? 'assertive' : 'polite'"
+		aria-atomic="true"
+	>
 		<el-empty v-if="type === 'empty'" :description="description">
 			<template v-if="$slots.actions" #default>
 				<div class="state-actions">
