@@ -1,15 +1,19 @@
 # Current Refactor Execution Rules
 
-> Scope: closed hardening work after the Pharma OA sample batch; new implementation requires a new official batch.
+> Scope: active plugin-runtime and frontend-experience implementation after the closed Pharma OA hardening batch.
 > Status: M0-M7/FE/N0 are complete and archived. Do not update archived task status for new work.
 > Pharma OA batch: F6-F12 closed on 2026-07-17. Its files remain closed evidence, not task intake.
 > Latest closed batch: `skoll-hardening-2026-07-18` (closed 2026-07-21).
+> Active batch: `skoll-plugin-runtime-2026-07-21`.
 
 ## Single Source Of Truth
 
 | Need | Read Or Update |
 | --- | --- |
 | Current task intake and progress rules | This file |
+| Active parent task board | `plugin_runtime_task_board_2026-07-21.md` |
+| Active Work Item table | `plugin_runtime_work_items_2026-07-21.md` |
+| Active acceptance log | `plugin_runtime_acceptance_log_2026-07-21.md` |
 | Latest closed parent task board | `hardening_task_board_2026-07-18.md` |
 | Latest closed Work Item table | `hardening_work_items_2026-07-18.md` |
 | Latest closed acceptance log | `hardening_acceptance_log_2026-07-18.md` |
@@ -33,21 +37,21 @@
 
 1. Start from `docs/refactor/README.md`.
 2. Read this file before taking any task.
-3. Read `pharma_oa_milestone_closeout_2026-07-17.md` for the active hardening batch source and boundaries.
-4. Confirm whether a newer official Work Item table exists before taking work; no `Todo` remains in `hardening_work_items_2026-07-18.md`.
+3. Read `plugin_runtime_task_board_2026-07-21.md` for milestone boundaries.
+4. Take only a dependency-ready `Todo` from `plugin_runtime_work_items_2026-07-21.md`.
 5. Do not take tasks from `../old/`; archived files are historical evidence only.
 
-## Latest Closed Task Files
+## Active Task Files
 
-The closed hardening batch uses these files under `docs/refactor/current/`:
+The active batch uses these files under `docs/refactor/current/`:
 
 ```text
-hardening_task_board_2026-07-18.md
-hardening_work_items_2026-07-18.md
-hardening_acceptance_log_2026-07-18.md
+plugin_runtime_task_board_2026-07-21.md
+plugin_runtime_work_items_2026-07-21.md
+plugin_runtime_acceptance_log_2026-07-21.md
 ```
 
-All Work Items in these files are complete. Do not reopen them to take new work. Before the next implementation task, create a new parent board, Work Item table, and acceptance log under `docs/refactor/current/`. The closed Pharma OA files and older plans remain evidence or candidate references, not active progress ledgers.
+The hardening and Pharma OA files are closed evidence. Do not reopen them for new progress.
 
 ## Progress Update Rules
 
@@ -55,7 +59,7 @@ Developers update progress only in the official next-batch files:
 
 | Action | Required Update |
 | --- | --- |
-| Take a task | Set the Work Item status to `Doing` in `hardening_work_items_2026-07-18.md` |
+| Take a task | Set the Work Item status to `Doing` in `plugin_runtime_work_items_2026-07-21.md` |
 | Need review | Set status to `Review` and add verification results |
 | Acceptance passes | Set status to `Done`, append acceptance evidence, then commit once |
 | Acceptance fails | Set status to `Failed`, record reason and rerun the same Work Item |

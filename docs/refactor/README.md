@@ -1,6 +1,6 @@
 # Skoll Refactor Docs
 
-> Status: M0-M7/FE/N0, Pharma OA F6-F12, and the 2026-07-18 hardening batch are complete. New implementation requires a new official batch under `current/`.
+> Status: M0-M7/FE/N0, Pharma OA F6-F12, and hardening are complete. The plugin-runtime and frontend-experience batch is active.
 > Rule: do not design legacy API, legacy data, legacy plugin, or legacy page compatibility plans.
 
 ## How To Read This Directory
@@ -19,6 +19,9 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | Document | Purpose |
 | --- | --- |
 | [current/README.md](current/README.md) | Current task intake, progress update, acceptance, and commit rules |
+| [current/plugin_runtime_task_board_2026-07-21.md](current/plugin_runtime_task_board_2026-07-21.md) | Active plugin-runtime and frontend-experience milestone board |
+| [current/plugin_runtime_work_items_2026-07-21.md](current/plugin_runtime_work_items_2026-07-21.md) | Active atomic Work Item execution table |
+| [current/plugin_runtime_acceptance_log_2026-07-21.md](current/plugin_runtime_acceptance_log_2026-07-21.md) | Active acceptance and retry evidence |
 | [current/hardening_task_board_2026-07-18.md](current/hardening_task_board_2026-07-18.md) | Latest closed hardening parent task board |
 | [current/hardening_work_items_2026-07-18.md](current/hardening_work_items_2026-07-18.md) | Latest closed hardening Work Item table |
 | [current/hardening_acceptance_log_2026-07-18.md](current/hardening_acceptance_log_2026-07-18.md) | Latest closed hardening acceptance evidence |
@@ -31,7 +34,7 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | [current/feature_ui_milestone_plan_2026-07-04.md](current/feature_ui_milestone_plan_2026-07-04.md) | Feature development and UI optimization milestone plan |
 | [current/feature_ui_work_items_2026-07-04.md](current/feature_ui_work_items_2026-07-04.md) | Candidate work items for feature and UI improvements |
 
-Recommended next action: use the hardening closeout recommendations to create a new official parent board, Work Item table, and acceptance log before implementation begins.
+Recommended next action: take the first dependency-ready `Todo` from the active plugin-runtime Work Item table.
 
 ## Governance
 
