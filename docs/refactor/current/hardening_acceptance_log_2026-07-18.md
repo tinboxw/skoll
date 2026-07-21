@@ -1051,3 +1051,37 @@ git diff --check
 ### Next Step
 
 父任务 H6 保持 `Doing`。按正式 Work Item 顺序领取 `H6-02`，补齐示例、监管、许可、数据安全和支持边界。
+
+## H6-02 样板、监管、许可证与支持边界
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: 建立中文默认、英文对照的公开发布与运营边界；统一医药 OA 样板定位、虚构演示数据、持久化模式、监管验证、安全密钥、MIT/第三方许可证和社区支持范围；将边界纳入插件指南与发布清单。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 样板与监管定位 | Pass | `release-boundaries.md` 和英文对照明确 `pharma_oa` 是行业样板，不是经监管验证的 GSP/GMP、医疗器械、临床或药品追溯系统；功能名称不构成合规保证、医疗建议或监管认证。 |
+| 演示与数据安全 | Pass | 明确所有 `DEMO-*` 人员、机构、药品、证照和交易均为虚构测试数据，禁止在生产应用 demo seed 或将真实个人/健康/商业秘密写入仓库、Issue、日志和证据；列明最小化、权限、加密、留存删除和备份恢复责任。 |
+| 密钥与安全报告 | Pass | 要求更换默认账号密码和 `SKOLL_SECURITY_JWT_SECRET`，凭据进入密钥管理系统；公开文档链接 `SECURITY.md` 私密报告流程，并明确维护者不持有采用者生产密钥。 |
+| 许可证 | Pass | 明确项目根 `LICENSE` 为 MIT、分发时保留声明、软件按原样提供；第三方组件保留自身许可证，发布者必须基于实际 Go/Node/容器构建生成并审查 SBOM 和第三方许可证清单。 |
+| 支持边界 | Pass | 社区支持按维护者可用时间尽力提供，不承诺商业支持、响应时限、可用性、数据恢复、监管验证或安全值守 SLA；生产采用者负责容量、监控、值班、回滚和灾难恢复。 |
+| 中英文一致 | Pass | 中文默认与英文文档均有 7 个对应章节，双向链接并包含 GSP/GMP、demo、密钥、MIT、SBOM、数据卷、支持和持久化模式等共同标记。 |
+| 插件与发布指南 | Pass | 医药 OA 两份 README 引用正式边界，修正已过期的“仓储仅进程内”和“主流程未本地化”表述；发布清单新增许可证、监管、数据、安全渠道、支持和双语边界门禁，并停止指示更新 `old/`。 |
+| 自动审计与链接 | Pass | `h6-release-boundary-audit.ps1` 使用 UTF-8 读取并校验双语结构、稳定标记、根许可证、过期表述、当前发布记录规则及六份文档的全部本地链接。 |
+| API/权限/审计/migration/seed | Pass | 本项只修改公开文档和审计脚本，不改变 HTTP/OpenAPI、权限、审计动作、migration 或 seed；文档只说明现有持久化与 demo seed 行为。 |
+| 边界与 CodeGraph | Pass | 插件定向测试、`git diff --check`、归档目录边界和 CodeGraph up to date 均通过；未修改 `docs/refactor/old/`，未纳入用户已有文档、IDE、CodeGraph 目录或运行数据。 |
+
+### Verification Commands
+
+```powershell
+./scripts/h6-release-boundary-audit.ps1
+go test ./internal/plugin -run TestPharmaOA -count=1
+codegraph status .
+git diff --check
+```
+
+### Next Step
+
+父任务 H6 保持 `Doing`。按正式 Work Item 顺序领取 `H6-03`，执行最终强化发布门禁并关闭批次。

@@ -45,4 +45,6 @@ docker compose -f deploy/compose/docker-compose.yaml up --build
 ## 运维手册
 
 - [operations.md](operations.md): 配置、部署、备份、日志和常见故障处理。
+- [deployment.md](deployment.md): 部署、升级、恢复和回滚操作。
+- [release-boundaries.md](release-boundaries.md): 中文默认的发布、监管、数据、许可证和支持边界；[English](release-boundaries.en.md)。
 

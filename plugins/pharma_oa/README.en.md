@@ -4,7 +4,7 @@ English | [简体中文](README.md)
 
 `pharma_oa` is Skoll's pharmaceutical industry sample plugin. Its installable contract brings master data, approvals, purchase/sales/inventory, compliance, CRM, analytics, and an end-to-end demo together while reusing Skoll permissions, audit, workflow, notification, file, and frontend host capabilities.
 
-> Current position: an executable, testable, extensible industry sample, not a production GSP/GMP system with regulatory validation.
+> Current position: an executable, testable, extensible industry sample, not a production GSP/GMP system with regulatory validation. Read the [Release, Regulatory, and Support Boundaries](../../docs/user/release-boundaries.en.md) before adoption.
 
 ## Quick Start
 
@@ -76,12 +76,19 @@ When the directory is added after startup, call `POST /skoll/v1/plugins/prefligh
 
 The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages call `/v1/pharma-oa/*`; the `/v1/plugins/pharma_oa/api/*` entries in `plugin.yaml` declare plugin catalog, permission, and extension routes. Do not add a legacy compatibility API beside them.
 
+## Regulatory And Data Boundary
+
+- Compliance, qualification, recall, cold-chain, and audit are sample capability labels. They do not assert conformity with any jurisdiction, validation practice, electronic-record rule, or quality system.
+- Built-in `DEMO-*` people, organizations, medicines, qualifications, and transactions are fictional. Do not replace or combine them with real personal data, patient data, production credentials, or legal records while continuing to treat the seed as a demo.
+- Production adopters own regulatory analysis, system validation, data classification, least privilege, retention/deletion, backup/recovery, incident response, and go-live approval. Maintainers provide no regulatory certification or production SLA.
+- The [English boundary](../../docs/user/release-boundaries.en.md) and [Chinese-default counterpart](../../docs/user/release-boundaries.md) are authoritative for license, security, data, and support scope.
+
 ## Runtime Boundaries
 
 - `plugin.yaml` is the single install contract for menus, config, permissions, routes, audit actions, and events.
 - The current business services are wired into the Skoll host from `internal/domain/pharmaoa`, `internal/service/pharmaoa`, and `internal/handler/http/v1/pharmaoa`.
 - Business pages are host-integrated. Routes live in `web/src/router/index.ts` and the typed client in `web/src/pharma-oa/api.ts`. `static/` is a plugin page/lifecycle fixture, not the full business console.
-- Pharma OA repositories are currently process-local. Apply the demo seed after restart; report files use the existing private object store.
+- `mysql` / `postgres` modes persist Pharma OA business records in SQL and rediscover the applied demo seed after restart. `memory` remains a process-local development fixture and loses data on restart. Report files use the existing private object store.
 - Disabling the plugin removes its catalog menu, permissions, and extensions, but does not hot-unload host services already wired at startup. It is not a process sandbox.
 - No legacy API, data, plugin format, or page route compatibility is provided.
 
@@ -91,7 +98,7 @@ The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages cal
 - Manifest names, menu labels, and config labels provide both Chinese and English values.
 - [README.md](README.md) is the default Chinese guide; this file is its English counterpart.
 - New frontend copy must use host `useI18n()` and `web/src/i18n/index.ts`; do not add single-language hard-coded component text.
-- Some existing integrated Pharma OA pages still contain English business copy. This is a known sample boundary, not a claim of complete page localization.
+- Visible main-flow copy has passed Chinese-default and English-switch acceptance. New copy must update both locales and retain complete state and responsive coverage.
 
 ## Extend a Domain
 
@@ -123,6 +130,6 @@ npm run build
 | Pharma OA is absent from the plugin list | Start from the repository root, verify `plugins/pharma_oa/plugin.yaml`, and inspect backend startup logs |
 | Menu is hidden | Enable the plugin and grant `pharma_oa.menu.read`; `super_admin` can verify directly |
 | API returns 401/403 | Refresh the JWT and verify the corresponding `pharma_oa.*` permission |
-| Demo data disappeared | Reapply the demo seed after a backend restart because repositories are process-local |
+| Demo data disappeared | Check whether `memory` mode is active; for persistent modes inspect the DSN, migrations, and startup logs, and verify a backup before recovery |
 | Duplicate install fails | Startup discovery already installed it; use list, enable, or disable instead |
 | Business API is not found | Use `/skoll/v1/pharma-oa/*` and check the OpenAPI contract |

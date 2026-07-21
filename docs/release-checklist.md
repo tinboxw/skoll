@@ -40,10 +40,10 @@
 |---|---|---|
 | Docker image | `docker build -f deploy/docker/Dockerfile -t skoll:<version> .` | [ ] |
 | Docker Compose | `docker compose -f deploy/compose/docker-compose.yaml config` | [ ] |
-| Kubernetes manifests | Review `deploy/k8s/deployment.yaml` and `deploy/k8s/service.yaml`. | [ ] |
+| Kubernetes manifests | `kubectl kustomize deploy/k8s` renders Deployment, Service, ConfigMap, and PVC resources. | [ ] |
 | Runtime config | Required `SKOLL_*` values are recorded for target environment. | [ ] |
 | Secrets | `SKOLL_SECURITY_JWT_SECRET`, database credentials, and plugin secrets are not committed. | [ ] |
-| Health endpoint | `/skoll/health` returns ok in target environment. | [ ] |
+| Health/readiness | `/skoll/health` and `/skoll/ready` return ok in the target environment. | [ ] |
 | Logs | `SKOLL_LOG_DIR`, `SKOLL_LOG_FILE`, and retention policy are documented. | [ ] |
 
 ## 5. Database, Files, and Plugin Assets
@@ -76,13 +76,25 @@
 | Performance | Backend and frontend performance baselines are not newly regressed. | [ ] |
 | Known warnings | Sass/Rollup frontend warnings match the documented baseline. | [ ] |
 
-## 8. Final Record
+## 8. License, Regulatory, Data, And Support Boundaries
+
+| Area | Check | Result |
+|---|---|---|
+| Project license | Release artifacts retain the root `LICENSE` and identify Skoll as MIT licensed. | [ ] |
+| Third-party licenses | SBOM and third-party license report were generated for the actual Go, Node.js, and container build. | [ ] |
+| Sample position | Product copy identifies Pharma OA as an industry sample, not regulatory certification or a compliance guarantee. | [ ] |
+| Demo data | No demo seed is enabled in production; evidence contains no real personal, health, customer, supplier, or credential data. | [ ] |
+| Data safety | Classification, least privilege, encryption, retention/deletion, audit, backup, and restore owners are recorded. | [ ] |
+| Security channel | `SECURITY.md` private-reporting path was reviewed; public issues contain no exploit details. | [ ] |
+| Support boundary | Release notes do not promise an SLA, emergency response, data recovery, or regulatory validation unless separately contracted. | [ ] |
+| Bilingual boundary | `docs/user/release-boundaries.md` and `.en.md` remain equivalent and linked from the Pharma OA guides. | [ ] |
+
+## 9. Final Record
 
 Before publishing, update:
 
-- `docs/refactor/old/completed-m0-m7-2026-07-04/work_items.md`
-- `docs/refactor/old/completed-m0-m7-2026-07-04/task_board.md`
-- `docs/refactor/old/completed-m0-m7-2026-07-04/acceptance_log.md`
-- release notes or GitHub release draft
+- the active Work Item table under `docs/refactor/current/`;
+- the active acceptance log under `docs/refactor/current/`;
+- the current release notes or GitHub release draft.
 
 Record the final commands, results, commit SHA, release tag, and any accepted residual risk.
