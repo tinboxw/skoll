@@ -41,6 +41,8 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return formatGoTemplate(renderServiceTest(spec))
 	case "backend.handler":
 		return formatGoTemplate(renderHandler(spec))
+	case "backend.handler.test":
+		return formatGoTemplate(renderHandlerTest(spec))
 	case "backend.router":
 		return formatGoTemplate(renderRouter(spec))
 	case "backend.openapi.docs", "backend.openapi.runtime":
@@ -86,13 +88,13 @@ func renderDomainEntity(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "import (\n\t\"fmt\"\n\t\"time\"\n\n\t\"github.com/tinboxw/skoll/internal/domain/shared\"\n)\n\n")
 	fmt.Fprintf(&b, "type %s struct {\n", domainName)
 	for _, field := range spec.Fields {
-		fmt.Fprintf(&b, "\t%s %s\n", exportedName(field.Name), goFieldType(field))
+		fmt.Fprintf(&b, "\t%s %s `json:\"%s\"`\n", exportedName(field.Name), goFieldType(field), field.Name)
 	}
-	fmt.Fprintf(&b, "\tMeta shared.AuditMeta\n")
+	fmt.Fprintf(&b, "\tMeta shared.AuditMeta `json:\"meta\"`\n")
 	fmt.Fprintf(&b, "}\n\n")
 	fmt.Fprintf(&b, "type %sInput struct {\n", domainName)
 	for _, field := range spec.Fields {
-		fmt.Fprintf(&b, "\t%s %s\n", exportedName(field.Name), goFieldType(field))
+		fmt.Fprintf(&b, "\t%s %s `json:\"%s\"`\n", exportedName(field.Name), goFieldType(field), field.Name)
 	}
 	fmt.Fprintf(&b, "\tCreatedAt time.Time\n\tUpdatedAt time.Time\n")
 	fmt.Fprintf(&b, "}\n\n")
@@ -659,137 +661,327 @@ func renderServiceTest(spec domaingenerator.GeneratorSpec) string {
 }
 
 func renderHandler(spec domaingenerator.GeneratorSpec) string {
-	pkg := spec.Module.Package
-	route := spec.Menu.Path
-	return fmt.Sprintf(`package %s
+	content := `package {{PACKAGE}}
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
+	{{PACKAGE}}svc "github.com/tinboxw/skoll/internal/service/{{PACKAGE}}"
 )
 
-type Handler struct {
-	service Service
+type RouteContract struct {
+	Method      string
+	Path        string
+	Permission  string
+	AuditAction string
 }
 
-func NewHandler(service Service) *Handler {
+var {{DOMAIN}}RouteContracts = []RouteContract{
+	{Method: http.MethodGet, Path: "{{ROUTE}}", Permission: "{{READ_PERMISSION}}", AuditAction: "{{AUDIT_RESOURCE}}.read"},
+	{Method: http.MethodGet, Path: "{{ROUTE}}/{id}", Permission: "{{READ_PERMISSION}}", AuditAction: "{{AUDIT_RESOURCE}}.read"},
+	{Method: http.MethodPost, Path: "{{ROUTE}}", Permission: "{{CREATE_PERMISSION}}", AuditAction: "{{AUDIT_RESOURCE}}.create"},
+	{Method: http.MethodPut, Path: "{{ROUTE}}/{id}", Permission: "{{UPDATE_PERMISSION}}", AuditAction: "{{AUDIT_RESOURCE}}.update"},
+	{Method: http.MethodDelete, Path: "{{ROUTE}}/{id}", Permission: "{{DELETE_PERMISSION}}", AuditAction: "{{AUDIT_RESOURCE}}.delete"},
+}
+
+func RouteContracts() []RouteContract {
+	return append([]RouteContract(nil), {{DOMAIN}}RouteContracts...)
+}
+
+type Handler struct {
+	service {{PACKAGE}}svc.Service
+}
+
+func NewHandler(service {{PACKAGE}}svc.Service) *Handler {
+	if service == nil {
+		panic("{{PACKAGE}} service is required")
+	}
 	return &Handler{service: service}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET %s", h.list)
-	mux.HandleFunc("POST %s", h.create)
-	mux.HandleFunc("PUT %s/{id}", h.update)
-	mux.HandleFunc("DELETE %s/{id}", h.delete)
+	if mux == nil {
+		panic("{{PACKAGE}} route mux is required")
+	}
+	mux.HandleFunc("GET {{ROUTE}}", h.list)
+	mux.HandleFunc("GET {{ROUTE}}/{id}", h.get)
+	mux.HandleFunc("POST {{ROUTE}}", h.create)
+	mux.HandleFunc("PUT {{ROUTE}}/{id}", h.update)
+	mux.HandleFunc("DELETE {{ROUTE}}/{id}", h.delete)
 }
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	items, err := h.service.List(r.Context(), ListInput{})
+	in, err := listInput(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(items)
+	items, err := h.service.List(r.Context(), in)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "offset": in.Offset, "limit": in.Limit})
+}
+
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	item, err := h.service.Get(r.Context(), shared.ID(strings.TrimSpace(r.PathValue("id"))))
+	if err != nil {
+		apiv1.WriteError(w, http.StatusNotFound, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": item})
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
-	var in CreateInput
+	var in {{PACKAGE}}svc.CreateInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
 	item, err := h.service.Create(r.Context(), in)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	_ = json.NewEncoder(w).Encode(item)
+	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{"item": item})
 }
 
 func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
-	var in UpdateInput
+	var in {{PACKAGE}}svc.UpdateInput
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	item, err := h.service.Update(r.Context(), shared.ID(r.PathValue("id")), in)
+	item, err := h.service.Update(r.Context(), shared.ID(strings.TrimSpace(r.PathValue("id"))), in)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(item)
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": item})
 }
 
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.service.Delete(r.Context(), shared.ID(r.PathValue("id"))); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := h.service.Delete(r.Context(), shared.ID(strings.TrimSpace(r.PathValue("id")))); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	apiv1.WriteMessage(w, http.StatusOK, "ok", "ok")
 }
-`, pkg, route, route, route, route)
+
+func listInput(r *http.Request) ({{PACKAGE}}svc.ListInput, error) {
+	query := r.URL.Query()
+	offset, err := parseWindowValue(query.Get("offset"), 0, 0, 0)
+	if err != nil {
+		return {{PACKAGE}}svc.ListInput{}, fmt.Errorf("offset: %w", err)
+	}
+	limit, err := parseWindowValue(query.Get("limit"), 20, 1, 100)
+	if err != nil {
+		return {{PACKAGE}}svc.ListInput{}, fmt.Errorf("limit: %w", err)
+	}
+	return {{PACKAGE}}svc.ListInput{Keyword: strings.TrimSpace(query.Get("keyword")), Offset: offset, Limit: limit}, nil
+}
+
+func parseWindowValue(raw string, defaultValue, minimum, maximum int) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return defaultValue, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < minimum || maximum > 0 && value > maximum {
+		return 0, fmt.Errorf("must be an integer between %d and %d", minimum, maximum)
+	}
+	return value, nil
+}
+`
+	return strings.NewReplacer(
+		"{{PACKAGE}}", spec.Module.Package,
+		"{{DOMAIN}}", spec.Table.DomainName,
+		"{{ROUTE}}", spec.Menu.Path,
+		"{{READ_PERMISSION}}", spec.Permissions.ReadKey,
+		"{{CREATE_PERMISSION}}", spec.Permissions.CreateKey,
+		"{{UPDATE_PERMISSION}}", spec.Permissions.UpdateKey,
+		"{{DELETE_PERMISSION}}", spec.Permissions.DeleteKey,
+		"{{AUDIT_RESOURCE}}", spec.Audit.Resource,
+	).Replace(content)
+}
+
+func renderHandlerTest(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	pkg := spec.Module.Package
+	domainName := spec.Table.DomainName
+	fmt.Fprintf(&b, "package %s\n\n", pkg)
+	fmt.Fprintf(&b, "import (\n\t\"bytes\"\n\t\"encoding/json\"\n\t\"net/http\"\n\t\"net/http/httptest\"\n\t\"strings\"\n\t\"testing\"\n")
+	if hasFieldType(spec, domaingenerator.FieldTypeTime) {
+		fmt.Fprintf(&b, "\t\"time\"\n")
+	}
+	fmt.Fprintf(&b, "\n\t%sservice \"github.com/tinboxw/skoll/internal/service/%s\"\n", pkg, pkg)
+	fmt.Fprintf(&b, "\t\"github.com/tinboxw/skoll/internal/store/memory\"\n)\n\n")
+	fmt.Fprintf(&b, "func TestRouteContractsDeclarePermissionAndAudit(t *testing.T) {\n")
+	fmt.Fprintf(&b, "\tcontracts := RouteContracts()\n\tif len(contracts) != 5 {\n\t\tt.Fatalf(\"route contracts = %%+v\", contracts)\n\t}\n")
+	fmt.Fprintf(&b, "\tmutations := 0\n\tfor _, contract := range contracts {\n\t\tif strings.TrimSpace(contract.Permission) == \"\" {\n\t\t\tt.Fatalf(\"missing permission: %%+v\", contract)\n\t\t}\n\t\tswitch contract.Method {\n\t\tcase http.MethodPost, http.MethodPut, http.MethodDelete:\n\t\t\tmutations++\n\t\t\tif strings.TrimSpace(contract.AuditAction) == \"\" {\n\t\t\t\tt.Fatalf(\"missing mutation audit: %%+v\", contract)\n\t\t\t}\n\t\t}\n\t}\n\tif mutations != 3 {\n\t\tt.Fatalf(\"mutation contracts = %%d\", mutations)\n\t}\n}\n\n")
+	fmt.Fprintf(&b, "func TestHandlerUsesCurrentResponseEnvelope(t *testing.T) {\n")
+	fmt.Fprintf(&b, "\tmux := http.NewServeMux()\n\tNewHandler(%sservice.NewService(memory.New%sStore())).Register(mux)\n", pkg, domainName)
+	fmt.Fprintf(&b, "\tpayload, err := json.Marshal(map[string]any{\n")
+	renderJSONSampleAssignments(&b, spec)
+	fmt.Fprintf(&b, "\t})\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n")
+	fmt.Fprintf(&b, "\tcreate := httptest.NewRecorder()\n\tmux.ServeHTTP(create, httptest.NewRequest(http.MethodPost, %q, bytes.NewReader(payload)))\n", spec.Menu.Path)
+	fmt.Fprintf(&b, "\tassertEnvelope(t, create, http.StatusCreated, \"ok\")\n")
+	fmt.Fprintf(&b, "\tlist := httptest.NewRecorder()\n\tmux.ServeHTTP(list, httptest.NewRequest(http.MethodGet, %q+\"?offset=0&limit=20\", nil))\n", spec.Menu.Path)
+	fmt.Fprintf(&b, "\tassertEnvelope(t, list, http.StatusOK, \"ok\")\n")
+	fmt.Fprintf(&b, "\tinvalid := httptest.NewRecorder()\n\tmux.ServeHTTP(invalid, httptest.NewRequest(http.MethodGet, %q+\"?offset=-1\", nil))\n", spec.Menu.Path)
+	fmt.Fprintf(&b, "\tassertEnvelope(t, invalid, http.StatusBadRequest, \"error\")\n}\n\n")
+	fmt.Fprintf(&b, "func assertEnvelope(t *testing.T, recorder *httptest.ResponseRecorder, status int, code string) {\n\tt.Helper()\n\tif recorder.Code != status || !strings.HasPrefix(recorder.Header().Get(\"Content-Type\"), \"application/json\") {\n\t\tt.Fatalf(\"response = %%d %%s %%s\", recorder.Code, recorder.Header().Get(\"Content-Type\"), recorder.Body.String())\n\t}\n\tvar body struct { Code string `json:\"code\"`; Message string `json:\"message\"`; Data any `json:\"data\"` }\n\tif err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil || body.Code != code || body.Message == \"\" {\n\t\tt.Fatalf(\"envelope = %%+v, %%v\", body, err)\n\t}\n}\n")
+	return b.String()
 }
 
 func renderRouter(spec domaingenerator.GeneratorSpec) string {
-	pkg := spec.Module.Package
-	return fmt.Sprintf(`package v1
+	return fmt.Sprintf(`package httpserver
 
 import (
 	"net/http"
 
-	%s "github.com/tinboxw/skoll/internal/handler/http/v1/%s"
+	%shttp "github.com/tinboxw/skoll/internal/handler/http/v1/%s"
+	%ssvc "github.com/tinboxw/skoll/internal/service/%s"
 )
 
-func Register%sRoutes(mux *http.ServeMux, service %s.Service) {
-	%s.NewHandler(service).Register(mux)
+func RegisterGenerated%sRoutes(mux *http.ServeMux, service %ssvc.Service) []%shttp.RouteContract {
+	%shttp.NewHandler(service).Register(mux)
+	return %shttp.RouteContracts()
 }
-`, pkg, pkg, spec.Table.DomainName, pkg, pkg)
+`, spec.Module.Package, spec.Module.Package, spec.Module.Package, spec.Module.Package, spec.Table.DomainName, spec.Module.Package, spec.Module.Package, spec.Module.Package, spec.Module.Package)
 }
 
 func renderOpenAPI(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
 	route := spec.Menu.Path
 	domainName := spec.Table.DomainName
-	return fmt.Sprintf(`paths:
-  %s:
-    get:
-      operationId: list%s
-      tags:
-        - %s
-      responses:
-        "200":
-          description: OK
-    post:
-      operationId: create%s
-      tags:
-        - %s
-      responses:
-        "201":
-          description: Created
-components:
-  schemas:
-    %s:
-      type: object
-`, route, domainName, spec.Module.Name, domainName, spec.Module.Name, domainName)
+	fmt.Fprintf(&b, "openapi: 3.0.3\npaths:\n")
+	fmt.Fprintf(&b, "  %s:\n", route)
+	renderOpenAPIOperation(&b, "get", "list"+domainName, spec.Module.Name, spec.Permissions.ReadKey, spec.Audit.Resource+".read", "200", "#/components/schemas/"+domainName+"ListResponse", "")
+	renderOpenAPIOperation(&b, "post", "create"+domainName, spec.Module.Name, spec.Permissions.CreateKey, spec.Audit.Resource+".create", "201", "#/components/schemas/"+domainName+"ItemResponse", "#/components/schemas/"+domainName+"CreateInput")
+	fmt.Fprintf(&b, "  %s/{id}:\n", route)
+	fmt.Fprintf(&b, "    parameters:\n      - name: id\n        in: path\n        required: true\n        schema:\n          type: string\n")
+	renderOpenAPIOperation(&b, "get", "get"+domainName, spec.Module.Name, spec.Permissions.ReadKey, spec.Audit.Resource+".read", "200", "#/components/schemas/"+domainName+"ItemResponse", "")
+	renderOpenAPIOperation(&b, "put", "update"+domainName, spec.Module.Name, spec.Permissions.UpdateKey, spec.Audit.Resource+".update", "200", "#/components/schemas/"+domainName+"ItemResponse", "#/components/schemas/"+domainName+"UpdateInput")
+	renderOpenAPIOperation(&b, "delete", "delete"+domainName, spec.Module.Name, spec.Permissions.DeleteKey, spec.Audit.Resource+".delete", "200", "#/components/schemas/MessageResponse", "")
+	fmt.Fprintf(&b, "components:\n  schemas:\n")
+	renderOpenAPIEntitySchema(&b, spec)
+	renderOpenAPIInputSchema(&b, spec, domainName+"CreateInput", true)
+	renderOpenAPIInputSchema(&b, spec, domainName+"UpdateInput", false)
+	fmt.Fprintf(&b, "    %sItemResponse:\n      allOf:\n        - $ref: '#/components/schemas/ResponseEnvelope'\n        - type: object\n          properties:\n            data:\n              type: object\n              properties:\n                item:\n                  $ref: '#/components/schemas/%s'\n", domainName, domainName)
+	fmt.Fprintf(&b, "    %sListResponse:\n      allOf:\n        - $ref: '#/components/schemas/ResponseEnvelope'\n        - type: object\n          properties:\n            data:\n              type: object\n              properties:\n                items:\n                  type: array\n                  items:\n                    $ref: '#/components/schemas/%s'\n                offset:\n                  type: integer\n                limit:\n                  type: integer\n", domainName, domainName)
+	fmt.Fprintf(&b, "    ResponseEnvelope:\n      type: object\n      required: [code, message]\n      properties:\n        code:\n          type: string\n        message:\n          type: string\n        data: {}\n")
+	fmt.Fprintf(&b, "    MessageResponse:\n      $ref: '#/components/schemas/ResponseEnvelope'\n")
+	return b.String()
+}
+
+func renderOpenAPIOperation(b *bytes.Buffer, method, operationID, tag, permission, auditAction, status, responseRef, requestRef string) {
+	fmt.Fprintf(b, "    %s:\n      operationId: %s\n      tags: [%s]\n      x-permission: %s\n      x-audit-action: %s\n", method, operationID, tag, permission, auditAction)
+	if requestRef != "" {
+		fmt.Fprintf(b, "      requestBody:\n        required: true\n        content:\n          application/json:\n            schema:\n              $ref: '%s'\n", requestRef)
+	}
+	fmt.Fprintf(b, "      responses:\n        %q:\n          description: %s\n          content:\n            application/json:\n              schema:\n                $ref: '%s'\n", status, httpStatusDescription(status), responseRef)
+}
+
+func renderOpenAPIEntitySchema(b *bytes.Buffer, spec domaingenerator.GeneratorSpec) {
+	fmt.Fprintf(b, "    %s:\n      type: object\n      required:\n", spec.Table.DomainName)
+	for _, field := range spec.Fields {
+		if field.Required || field.PrimaryKey {
+			fmt.Fprintf(b, "        - %s\n", field.Name)
+		}
+	}
+	fmt.Fprintf(b, "      properties:\n")
+	for _, field := range spec.Fields {
+		renderOpenAPIField(b, field, 8)
+	}
+}
+
+func renderOpenAPIInputSchema(b *bytes.Buffer, spec domaingenerator.GeneratorSpec, name string, includePrimary bool) {
+	fmt.Fprintf(b, "    %s:\n      type: object\n      required:\n", name)
+	for _, field := range spec.Fields {
+		if field.PrimaryKey && !includePrimary {
+			continue
+		}
+		if field.Required || field.PrimaryKey {
+			fmt.Fprintf(b, "        - %s\n", field.Name)
+		}
+	}
+	fmt.Fprintf(b, "      properties:\n")
+	for _, field := range spec.Fields {
+		if field.PrimaryKey && !includePrimary {
+			continue
+		}
+		renderOpenAPIField(b, field, 8)
+	}
+}
+
+func renderOpenAPIField(b *bytes.Buffer, field domaingenerator.FieldSpec, indent int) {
+	spaces := strings.Repeat(" ", indent)
+	fmt.Fprintf(b, "%s%s:\n", spaces, field.Name)
+	switch field.Type {
+	case domaingenerator.FieldTypeInt:
+		fmt.Fprintf(b, "%s  type: integer\n", spaces)
+	case domaingenerator.FieldTypeDecimal:
+		fmt.Fprintf(b, "%s  type: number\n%s  format: double\n", spaces, spaces)
+	case domaingenerator.FieldTypeBool:
+		fmt.Fprintf(b, "%s  type: boolean\n", spaces)
+	case domaingenerator.FieldTypeTime:
+		fmt.Fprintf(b, "%s  type: string\n%s  format: date-time\n", spaces, spaces)
+	case domaingenerator.FieldTypeJSON:
+		fmt.Fprintf(b, "%s  type: object\n%s  additionalProperties: true\n", spaces, spaces)
+	default:
+		fmt.Fprintf(b, "%s  type: string\n", spaces)
+	}
+}
+
+func httpStatusDescription(status string) string {
+	switch status {
+	case "201":
+		return "Created"
+	default:
+		return "OK"
+	}
 }
 
 func renderPermissionSeed(spec domaingenerator.GeneratorSpec) string {
 	var b bytes.Buffer
+	domainName := spec.Table.DomainName
 	fmt.Fprintf(&b, "package bootstrap\n\n")
-	fmt.Fprintf(&b, "var %sGeneratedPermissions = []string{\n", spec.Table.DomainName)
-	for _, key := range []string{spec.Permissions.ReadKey, spec.Permissions.CreateKey, spec.Permissions.UpdateKey, spec.Permissions.DeleteKey, spec.Permissions.ManageKey} {
-		fmt.Fprintf(&b, "\t%q,\n", key)
+	fmt.Fprintf(&b, "import (\n\t\"context\"\n\t\"fmt\"\n\n")
+	fmt.Fprintf(&b, "\tdomainmenu \"github.com/tinboxw/skoll/internal/domain/menu\"\n")
+	fmt.Fprintf(&b, "\tdomainpermission \"github.com/tinboxw/skoll/internal/domain/permission\"\n")
+	fmt.Fprintf(&b, "\tmenusvc \"github.com/tinboxw/skoll/internal/service/menu\"\n")
+	fmt.Fprintf(&b, "\tpermissionsvc \"github.com/tinboxw/skoll/internal/service/permission\"\n)\n\n")
+	fmt.Fprintf(&b, "var %sGeneratedPermissions = []permissionsvc.RegisterResourceInput{\n", domainName)
+	permissions := []struct {
+		key, action, risk string
+	}{
+		{spec.Permissions.ReadKey, "Read", "Low"},
+		{spec.Permissions.CreateKey, "Create", "Medium"},
+		{spec.Permissions.UpdateKey, "Update", "Medium"},
+		{spec.Permissions.DeleteKey, "Delete", "High"},
+		{spec.Permissions.ManageKey, "Manage", "High"},
+	}
+	for _, permission := range permissions {
+		fmt.Fprintf(&b, "\t{Key: %q, Type: domainpermission.ResourceTypeAPI, Module: %q, Source: \"system\", Name: %q, Risk: domainpermission.RiskLevel%s},\n", permission.key, spec.Module.Package, permission.action+" "+spec.Table.CollectionName, permission.risk)
 	}
 	fmt.Fprintf(&b, "}\n\n")
-	fmt.Fprintf(&b, "var %sGeneratedMenu = map[string]any{\n", spec.Table.DomainName)
-	fmt.Fprintf(&b, "\t\"key\": %q,\n\t\"path\": %q,\n\t\"component\": %q,\n", spec.Menu.Key, spec.Menu.Path, spec.Menu.Component)
-	fmt.Fprintf(&b, "\t\"requiredPermissions\": []string{%q},\n", strings.Join(spec.Menu.RequiredPermissions, ","))
-	fmt.Fprintf(&b, "}\n")
+	fmt.Fprintf(&b, "func Register%sGeneratedCatalog(ctx context.Context, permissionService permissionsvc.Service, menuService menusvc.Service) error {\n", domainName)
+	fmt.Fprintf(&b, "\tif permissionService == nil || menuService == nil {\n\t\treturn fmt.Errorf(\"generated %s catalog services are required\")\n\t}\n", spec.Module.Package)
+	fmt.Fprintf(&b, "\tfor _, item := range %sGeneratedPermissions {\n\t\tif _, err := permissionService.RegisterResource(ctx, item); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n", domainName)
+	fmt.Fprintf(&b, "\tnode, err := domainmenu.NewNode(\n")
+	fmt.Fprintf(&b, "\t\tdomainmenu.NodeIdentity{Key: %q, ParentKey: %q, Source: \"system\"},\n", spec.Menu.Key, spec.Menu.ParentKey)
+	fmt.Fprintf(&b, "\t\tdomainmenu.NodeView{Name: %q, Path: %q, Component: %q, Icon: %q},\n", spec.Page.Title, spec.Menu.Path, spec.Menu.Component, spec.Menu.Icon)
+	fmt.Fprintf(&b, "\t\t%d,\n\t)\n\tif err != nil {\n\t\treturn err\n\t}\n", spec.Menu.Order)
+	fmt.Fprintf(&b, "\tnode.RequiredPermissions = %#v\n", spec.Menu.RequiredPermissions)
+	fmt.Fprintf(&b, "\t_, err = menuService.MergeNodes(ctx, menusvc.MergeNodesInput{Nodes: []domainmenu.MenuNode{node}})\n\treturn err\n}\n")
 	return b.String()
 }
 
@@ -807,9 +999,9 @@ func renderFrontendAPI(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "export type %sInput = Partial<Omit<%s, \"id\">>;\n\n", typeName, typeName)
 	fmt.Fprintf(&b, "const basePath = %q;\n\n", spec.Menu.Path)
 	fmt.Fprintf(&b, "export async function list%s(query: %sListQuery = {}): Promise<%s[]> {\n", typeName, typeName, typeName)
-	fmt.Fprintf(&b, "\tconst params = new URLSearchParams();\n\tif (query.keyword) params.set(\"keyword\", query.keyword);\n\tif (query.offset !== undefined) params.set(\"offset\", String(query.offset));\n\tif (query.limit !== undefined) params.set(\"limit\", String(query.limit));\n\tconst suffix = params.toString();\n\tconst resp = await apiGet<ApiResponse<%s[]>>(`${basePath}${suffix ? `?${suffix}` : \"\"}`);\n\treturn resp.data;\n}\n\n", typeName)
-	fmt.Fprintf(&b, "export async function create%s(input: %sInput): Promise<%s> {\n\tconst resp = await apiPost<ApiResponse<%s>>(basePath, input);\n\treturn resp.data;\n}\n\n", typeName, typeName, typeName, typeName)
-	fmt.Fprintf(&b, "export async function update%s(id: string, input: %sInput): Promise<%s> {\n\tconst resp = await apiPut<ApiResponse<%s>>(`${basePath}/${id}`, input);\n\treturn resp.data;\n}\n\n", typeName, typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\tconst params = new URLSearchParams();\n\tif (query.keyword) params.set(\"keyword\", query.keyword);\n\tif (query.offset !== undefined) params.set(\"offset\", String(query.offset));\n\tif (query.limit !== undefined) params.set(\"limit\", String(query.limit));\n\tconst suffix = params.toString();\n\tconst resp = await apiGet<ApiResponse<{ items: %s[]; offset: number; limit: number }>>(`${basePath}${suffix ? `?${suffix}` : \"\"}`);\n\treturn resp.data.items;\n}\n\n", typeName)
+	fmt.Fprintf(&b, "export async function create%s(input: %sInput): Promise<%s> {\n\tconst resp = await apiPost<ApiResponse<{ item: %s }>>(basePath, input);\n\treturn resp.data.item;\n}\n\n", typeName, typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export async function update%s(id: string, input: %sInput): Promise<%s> {\n\tconst resp = await apiPut<ApiResponse<{ item: %s }>>(`${basePath}/${id}`, input);\n\treturn resp.data.item;\n}\n\n", typeName, typeName, typeName, typeName)
 	fmt.Fprintf(&b, "export async function delete%s(id: string): Promise<void> {\n\tawait apiDelete<ApiResponse<null>>(`${basePath}/${id}`);\n}\n", typeName)
 	_ = module
 	return b.String()
@@ -930,6 +1122,29 @@ func renderSampleAssignments(b *bytes.Buffer, spec domaingenerator.GeneratorSpec
 			continue
 		}
 		fmt.Fprintf(b, "\t\t%s: %s,\n", exportedName(field.Name), sampleFieldValue(field, nowExpression))
+	}
+}
+
+func renderJSONSampleAssignments(b *bytes.Buffer, spec domaingenerator.GeneratorSpec) {
+	for _, field := range spec.Fields {
+		fmt.Fprintf(b, "\t\t%q: %s,\n", field.Name, sampleJSONValue(field))
+	}
+}
+
+func sampleJSONValue(field domaingenerator.FieldSpec) string {
+	switch field.Type {
+	case domaingenerator.FieldTypeInt:
+		return "7"
+	case domaingenerator.FieldTypeDecimal:
+		return "12.5"
+	case domaingenerator.FieldTypeBool:
+		return "true"
+	case domaingenerator.FieldTypeTime:
+		return `time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)`
+	case domaingenerator.FieldTypeJSON:
+		return `map[string]any{"key": "value"}`
+	default:
+		return fmt.Sprintf("%q", "generated-"+field.Name)
 	}
 }
 

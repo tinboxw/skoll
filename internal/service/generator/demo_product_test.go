@@ -182,20 +182,19 @@ func assertDemoProductBackendContract(t *testing.T, result *DryRunResult) {
 	assertGeneratedContains(t, result, "internal/store/memory/demo_product_store_test.go", "TestDemoProductStoreCRUD")
 	assertGeneratedContains(t, result, "internal/store/sql/gormrepo/demo_product_store_test.go", "TestDemoProductModelRoundTrip")
 	assertGeneratedContains(t, result, "internal/service/demo_product/service_impl_test.go", "TestServiceCRUD")
-	assertGeneratedContains(t, result, "internal/bootstrap/permission_menu_seed.go",
+	assertGeneratedContains(t, result, "internal/bootstrap/generated_demo_product_catalog.go",
 		"DemoProductGeneratedPermissions",
 		`"demo_product.read"`,
 		`"demo_product.create"`,
 		`"demo_product.update"`,
 		`"demo_product.delete"`,
 		`"demo_product.manage"`,
-		"DemoProductGeneratedMenu",
-		`"key":`,
-		`"demo_product"`,
-		`"path":`,
-		`"/demo-products"`,
-		`"component":`,
-		`"DemoProduct/index"`,
+		"RegisterDemoProductGeneratedCatalog",
+		"domainmenu.NewNode",
+		`Key: "demo_product"`,
+		`Path: "/demo-products"`,
+		`Component: "DemoProduct/index"`,
+		`node.RequiredPermissions = []string{"demo_product.read"}`,
 	)
 }
 
@@ -209,6 +208,10 @@ func assertDemoProductFrontendContract(t *testing.T, result *DryRunResult) {
 		"updateDemoProduct",
 		"deleteDemoProduct",
 		`const basePath = "/demo-products"`,
+		"ApiResponse<{ items: DemoProduct[]; offset: number; limit: number }>",
+		"return resp.data.items",
+		"ApiResponse<{ item: DemoProduct }>",
+		"return resp.data.item",
 	)
 	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts",
 		"items: DemoProduct[]",

@@ -15,6 +15,7 @@ import (
 
 	domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	"gopkg.in/yaml.v3"
 )
 
 func TestDryRunBuildsDeterministicFileList(t *testing.T) {
@@ -111,8 +112,9 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 		"internal/service/product/service_impl.go",
 		"internal/service/product/service_impl_test.go",
 		"internal/handler/http/v1/product/handler.go",
-		"internal/handler/http/v1/router.go",
-		"internal/bootstrap/permission_menu_seed.go",
+		"internal/handler/http/v1/product/handler_test.go",
+		"internal/handler/http/generated_product_routes.go",
+		"internal/bootstrap/generated_product_catalog.go",
 	}
 	for _, path := range goPaths {
 		plan := findPlan(t, result.Files, path)
@@ -129,15 +131,17 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 		t.Fatalf("postgres migration content = %q", postgres.GeneratedContent)
 	}
 	openapi := findPlan(t, result.Files, "docs/api/openapi.yaml")
-	if !strings.Contains(openapi.GeneratedContent, "/products:") || !strings.Contains(openapi.GeneratedContent, "operationId: listProduct") || !strings.Contains(openapi.GeneratedContent, "Product:") {
-		t.Fatalf("openapi content = %q", openapi.GeneratedContent)
-	}
-	seed := findPlan(t, result.Files, "internal/bootstrap/permission_menu_seed.go")
+	assertGeneratedOpenAPI(t, openapi.GeneratedContent, "Product")
+	seed := findPlan(t, result.Files, "internal/bootstrap/generated_product_catalog.go")
 	if !strings.Contains(seed.GeneratedContent, "ProductGeneratedPermissions") || !strings.Contains(seed.GeneratedContent, "product.manage") {
 		t.Fatalf("permission seed content = %q", seed.GeneratedContent)
 	}
 	api := findPlan(t, result.Files, "web/src/api/product.ts")
-	if !strings.Contains(api.GeneratedContent, "apiGet") || !strings.Contains(api.GeneratedContent, "export type Product") || !strings.Contains(api.GeneratedContent, "createProduct") {
+	if !strings.Contains(api.GeneratedContent, "apiGet") ||
+		!strings.Contains(api.GeneratedContent, "export type Product") ||
+		!strings.Contains(api.GeneratedContent, "createProduct") ||
+		!strings.Contains(api.GeneratedContent, "return resp.data.items") ||
+		strings.Count(api.GeneratedContent, "return resp.data.item;") != 2 {
 		t.Fatalf("frontend api content = %q", api.GeneratedContent)
 	}
 	store := findPlan(t, result.Files, "web/src/stores/product.ts")
@@ -179,6 +183,11 @@ require gorm.io/gorm v1.31.1
 		t.Fatalf("read shared domain source: %v", err)
 	}
 	writeTestFile(t, root, "internal/domain/shared/types.go", string(sharedSource))
+	responseSource, err := os.ReadFile(filepath.Join("..", "..", "handler", "http", "v1", "response.go"))
+	if err != nil {
+		t.Fatalf("read HTTP response source: %v", err)
+	}
+	writeTestFile(t, root, "internal/handler/http/v1/response.go", string(responseSource))
 
 	backendPaths := []string{
 		"internal/domain/demo_product/doc.go",
@@ -193,6 +202,9 @@ require gorm.io/gorm v1.31.1
 		"internal/service/demo_product/service.go",
 		"internal/service/demo_product/service_impl.go",
 		"internal/service/demo_product/service_impl_test.go",
+		"internal/handler/http/v1/demo_product/handler.go",
+		"internal/handler/http/v1/demo_product/handler_test.go",
+		"internal/handler/http/generated_demo_product_routes.go",
 	}
 	for _, path := range backendPaths {
 		plan := findPlan(t, result.Files, path)
@@ -205,6 +217,36 @@ require gorm.io/gorm v1.31.1
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("generated go test ./... failed: %v\n%s", err, output)
+	}
+}
+
+func assertGeneratedOpenAPI(t *testing.T, content, domainName string) {
+	t.Helper()
+	var document map[string]any
+	if err := yaml.Unmarshal([]byte(content), &document); err != nil {
+		t.Fatalf("generated OpenAPI is invalid YAML: %v\n%s", err, content)
+	}
+	paths, ok := document["paths"].(map[string]any)
+	if !ok || len(paths) != 2 {
+		t.Fatalf("OpenAPI paths = %#v", document["paths"])
+	}
+	for _, operation := range []string{"list", "get", "create", "update", "delete"} {
+		operationID := "operationId: " + operation + domainName
+		if count := strings.Count(content, operationID); count != 1 {
+			t.Fatalf("%s count = %d\n%s", operationID, count, content)
+		}
+	}
+	for _, marker := range []string{
+		"x-permission: product.create",
+		"x-audit-action: product.create",
+		"x-permission: product.update",
+		"x-audit-action: product.update",
+		"x-permission: product.delete",
+		"x-audit-action: product.delete",
+	} {
+		if !strings.Contains(content, marker) {
+			t.Fatalf("OpenAPI missing %q\n%s", marker, content)
+		}
 	}
 }
 
@@ -282,7 +324,7 @@ func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
 	if firstSnapshot != secondSnapshot {
 		t.Fatalf("dry-run is not idempotent\nfirst=%s\nsecond=%s", firstSnapshot, secondSnapshot)
 	}
-	const expectedSnapshotHash = "e45093df8e363e865abc0579961b59a5c7b89851a3d3cf63736696968a8927ce"
+	const expectedSnapshotHash = "495b139f45deb6110ae18d8733a89378a603515cb142d5a97e7b0ef74b5970b6"
 	if got := sha256Hex(firstSnapshot); got != expectedSnapshotHash {
 		t.Fatalf("golden snapshot hash = %s, want %s\n%s", got, expectedSnapshotHash, firstSnapshot)
 	}

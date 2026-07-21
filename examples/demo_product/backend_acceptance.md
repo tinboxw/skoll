@@ -7,15 +7,17 @@
 
 | Area | Evidence |
 |---|---|
-| HTTP API | `TestDemoProductBackendAcceptanceContract` asserts generated list/create/update/delete handler routes for `/demo-products`. |
+| HTTP API | `TestDemoProductBackendAcceptanceContract` asserts generated list/get/create/update/delete handler routes for `/demo-products`. Each route declares a permission, and every mutation declares an audit action. |
+| Response contract | Handler responses use the platform `code/message/data` envelope; list data contains `items/offset/limit`, while create/update data contains `item`. Generated frontend clients consume the same shape. |
 | Service flow | The test asserts generated service implementation calls repository create/update/list/delete paths. |
 | Store flow | The test asserts generated memory store contains create/update/get/list/delete methods. |
 | GORM mapping | Generated round-trip tests verify every field and audit timestamp crosses the persistence boundary without empty placeholder models. |
 | Generated tests | Domain validation, memory CRUD, GORM mapping, and service CRUD tests are emitted with the backend slice. |
 | Compile acceptance | `TestGeneratedBackendCompilesAndPassesGeneratedTests` writes the current backend output to a clean temporary module and runs `go test ./...` without manual edits. |
 | Audit | The test asserts generated audit constants for `demo_product.create`, `demo_product.update`, and `demo_product.delete`. |
-| Permission seed | The test asserts generated permission seed includes read/create/update/delete/manage keys. |
-| Menu seed | The test asserts generated menu seed includes key `demo_product`, path `/demo-products`, and component `DemoProduct/index`. |
+| Permission seed | The test asserts a typed permission catalog registers read/create/update/delete/manage resources through `permissionsvc.Service`. |
+| Menu seed | The test asserts a typed menu node is built with `domainmenu.NewNode` and merged through `menusvc.Service`. |
+| OpenAPI | Parsed YAML contract tests require list/get/create/update/delete operations exactly once and require permission/audit extensions on every mutation. |
 | Rollback/history | Existing demo generation acceptance records dry-run history and rollback planning. |
 
 ## Commands

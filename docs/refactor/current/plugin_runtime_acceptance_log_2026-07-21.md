@@ -1164,3 +1164,74 @@ Result: all acceptance gates passed after three documented retries. The complete
 ### Commit
 
 `PR3-01: generate tested backend slices`
+
+## PR3-02 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused Demo Product generator contract
+- Evidence: the output safety matrix rejected the new module-specific `internal/bootstrap/generated_<module>_catalog.go` path because it still allowed only the former shared seed file.
+- Retry action: replace shared-file allowances with explicit current module prefixes, update path contracts and example matrices, then restart focused generator tests.
+
+## PR3-02 Retry Record 2
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused Demo Product catalog contract
+- Evidence: the generated catalog correctly used typed permission inputs and `domainmenu.NewNode`, while the existing assertion still required the removed `DemoProductGeneratedMenu` map.
+- Retry action: validate the current typed catalog registration function, menu constructor, path, component, and required permission, then restart focused tests.
+
+## PR3-02 Retry Record 3
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: generator golden snapshot
+- Evidence: the complete deterministic output changed after adding the current HTTP routes, typed catalog, OpenAPI operations, handler tests, and response-envelope alignment, while the expected snapshot hash still represented the previous template set.
+- Retry action: replace only the expected hash with the full snapshot hash emitted by the strict golden test, retain deterministic content and idempotency assertions, and restart the complete PR3-02 acceptance sequence.
+
+## PR3-02 Generate Handlers, Routes, Permissions, Audit, And OpenAPI
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Generate a current HTTP and API contract surface for each backend slice, with executable route declarations, platform response envelopes, typed permission/menu registration, mutation audit metadata, and one deterministic OpenAPI definition.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| HTTP routes | Pass | Generated handlers expose list/get/create/update/delete routes and validate IDs, JSON bodies, offsets, and bounded limits |
+| Route declarations | Pass | Five generated `RouteContract` entries bind method, path, permission, and mutation audit action without shared router-file collisions |
+| Response envelope | Pass | Handlers use platform `code/message/data`; list emits `items/offset/limit`, create/update emit `item`, and generated frontend clients consume those exact shapes |
+| Permission catalog | Pass after retry | Typed `permissionsvc.RegisterResourceInput` entries register read/create/update/delete/manage resources with explicit risks |
+| Menu catalog | Pass after retry | Module-specific bootstrap code builds a current `domainmenu.Node` and merges it through `menusvc.Service` |
+| Audit declarations | Pass | Create, update, and delete routes each declare a non-empty generated audit action; generated contract tests reject omissions |
+| OpenAPI uniqueness | Pass | Parsed YAML contains list/get/create/update/delete exactly once with request/response schemas and permission/audit extensions on mutations |
+| Generated tests | Pass | Emitted handler tests execute create/list/bad-query flows and contract tests verify all route security declarations |
+| Clean-module compilation | Pass | Generated backend, response helper, HTTP handler tests, and route wrapper compile and pass in a temporary clean module |
+| Determinism | Pass after retry | The 25-file golden snapshot and idempotent regeneration suite pass repeatedly using the strict current hash |
+| Impact review | Pass | CodeGraph limits renderer changes to candidate dispatch and `DryRun`; no unexpected runtime or domain callers were introduced |
+| Current-only architecture | Pass | Output uses one typed catalog, one response contract, and module-specific route/catalog paths; no legacy seed, fallback, or compatibility branch remains |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/generator ./internal/service/generator -count=3
+go test -race ./internal/domain/generator ./internal/service/generator -count=1
+go test ./... -count=1
+go vet ./...
+codegraph sync .
+codegraph impact renderHandler
+codegraph impact renderOpenAPI
+codegraph impact renderPermissionSeed
+codegraph impact renderFrontendAPI
+codegraph impact buildCandidates
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after three documented retries. Generated mutations now carry enforceable permission and audit declarations, the current OpenAPI contains every generated operation once, generated HTTP tests execute without manual edits, and frontend clients share the platform response contract.
+
+### Commit
+
+`PR3-02: generate secured HTTP contracts`

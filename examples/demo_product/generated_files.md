@@ -6,7 +6,7 @@
 
 ## Output Matrix
 
-The generator dry-run should produce 24 file plans for `demo_product` with no conflicts and no blocked paths.
+The generator dry-run should produce 25 file plans for `demo_product` with no conflicts and no blocked paths.
 
 | Layer | Template ID | Path | Expected status in clean repo |
 |---|---|---|---|
@@ -27,10 +27,11 @@ The generator dry-run should produce 24 file plans for `demo_product` with no co
 | Service implementation | `backend.service.impl` | `internal/service/demo_product/service_impl.go` | create |
 | Service test | `backend.service.test` | `internal/service/demo_product/service_impl_test.go` | create |
 | HTTP handler | `backend.handler` | `internal/handler/http/v1/demo_product/handler.go` | create |
-| Router registration | `backend.router` | `internal/handler/http/v1/router.go` | update-clean or conflict if user-edited |
+| HTTP handler test | `backend.handler.test` | `internal/handler/http/v1/demo_product/handler_test.go` | create |
+| Router registration | `backend.router` | `internal/handler/http/generated_demo_product_routes.go` | create |
 | OpenAPI docs | `backend.openapi.docs` | `docs/api/openapi.yaml` | update-clean or conflict if user-edited |
 | OpenAPI runtime | `backend.openapi.runtime` | `internal/handler/http/openapi.yaml` | update-clean or conflict if user-edited |
-| Permission/menu seed | `backend.permission.seed` | `internal/bootstrap/permission_menu_seed.go` | update-clean or conflict if user-edited |
+| Permission/menu catalog | `backend.permission.seed` | `internal/bootstrap/generated_demo_product_catalog.go` | create |
 | Frontend API | `frontend.api` | `web/src/api/demo_product.ts` | create |
 | Frontend store | `frontend.store` | `web/src/stores/demo_product.ts` | create |
 | Frontend view | `frontend.view` | `web/src/views/DemoProduct/index.vue` | create |
