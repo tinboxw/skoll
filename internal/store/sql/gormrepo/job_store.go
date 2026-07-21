@@ -50,7 +50,7 @@ func (s *JobStore) Schedule(ctx context.Context, item jobsvc.Job) (jobsvc.Job, b
 	return jobFromRow(stored), created, nil
 }
 
-func (s *JobStore) LeaseDue(ctx context.Context, workerID string, now, leaseUntil time.Time, limit int) ([]jobsvc.Job, error) {
+func (s *JobStore) LeaseDue(ctx context.Context, namespace, workerID string, now, leaseUntil time.Time, limit int) ([]jobsvc.Job, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("job repository is required")
 	}
@@ -58,7 +58,7 @@ func (s *JobStore) LeaseDue(ctx context.Context, workerID string, now, leaseUnti
 	err := withDBRetry(func() error {
 		leased = nil
 		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := expireExhaustedJobs(tx, now); err != nil {
+			if err := expireExhaustedJobs(tx, namespace, now); err != nil {
 				return err
 			}
 			var ids []string
@@ -67,6 +67,7 @@ func (s *JobStore) LeaseDue(ctx context.Context, workerID string, now, leaseUnti
 				candidateLimit = 400
 			}
 			eligible := tx.Model(&JobModel{}).
+				Where("namespace = ?", namespace).
 				Where("attempt_count < max_attempts").
 				Where("((status IN ? AND run_at <= ?) OR (status = ? AND lease_expires_at <= ?))",
 					[]string{string(jobsvc.StatusScheduled), string(jobsvc.StatusRetryWait)}, now, string(jobsvc.StatusRunning), now).
@@ -83,7 +84,7 @@ func (s *JobStore) LeaseDue(ctx context.Context, workerID string, now, leaseUnti
 					return err
 				}
 				result := tx.Model(&JobModel{}).
-					Where("id = ? AND attempt_count < max_attempts", id).
+					Where("id = ? AND namespace = ? AND attempt_count < max_attempts", id, namespace).
 					Where("((status IN ? AND run_at <= ?) OR (status = ? AND lease_expires_at <= ?))",
 						[]string{string(jobsvc.StatusScheduled), string(jobsvc.StatusRetryWait)}, now, string(jobsvc.StatusRunning), now).
 					Updates(map[string]any{
@@ -227,9 +228,9 @@ func (s *JobStore) List(ctx context.Context, filter jobsvc.Filter) ([]jobsvc.Job
 	return out, nil
 }
 
-func expireExhaustedJobs(tx *gorm.DB, now time.Time) error {
+func expireExhaustedJobs(tx *gorm.DB, namespace string, now time.Time) error {
 	return tx.Model(&JobModel{}).
-		Where("status = ? AND lease_expires_at <= ? AND attempt_count >= max_attempts", string(jobsvc.StatusRunning), now).
+		Where("namespace = ? AND status = ? AND lease_expires_at <= ? AND attempt_count >= max_attempts", namespace, string(jobsvc.StatusRunning), now).
 		Updates(map[string]any{
 			"status": string(jobsvc.StatusDeadLetter), "last_error": "job lease expired after final attempt",
 			"dead_lettered_at": now, "updated_at": now, "lease_owner": "", "lease_token": "", "lease_expires_at": nil,

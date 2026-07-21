@@ -122,13 +122,13 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pluginHost, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
 		PluginID: pharmaoaplugin.PluginID, Transactions: transactionService, DataScopes: dataScopeService,
 		Files: fileService, Audit: auditService, ConfigStore: configStore, System: systemService,
-		MasterSecret: cfg.AppConfig.Security.JWTSecret,
+		MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
 	})
 	if err != nil {
 		return nil, err
 	}
 	pharmaBackendDeps := pharmaoaplugin.Dependencies{
-		Stores: bundle, Host: pluginHost, Workflow: workflowService, Notification: notificationService,
+		Stores: bundle, Host: pluginHost, Notification: notificationService,
 	}
 	registrar, ok := pluginManager.(interface {
 		RegisterInProcessBackend(string, plugin.InProcessBackendFactory) error

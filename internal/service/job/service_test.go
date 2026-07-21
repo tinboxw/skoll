@@ -35,17 +35,17 @@ func TestServiceRetriesAndDeadLettersJob(t *testing.T) {
 	if _, err := service.Schedule(ctx, conflict); !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected schedule conflict, got %v", err)
 	}
-	if leased, err := service.LeaseDue(ctx, LeaseInput{WorkerID: "worker-1", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(leased) != 0 {
+	if leased, err := service.LeaseDue(ctx, LeaseInput{Namespace: input.Namespace, WorkerID: "worker-1", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(leased) != 0 {
 		t.Fatalf("future job was leased: items=%+v err=%v", leased, err)
 	}
 
 	now = now.Add(time.Minute)
-	leased, err := service.LeaseDue(ctx, LeaseInput{WorkerID: "worker-1", Limit: 1, LeaseDuration: time.Minute})
+	leased, err := service.LeaseDue(ctx, LeaseInput{Namespace: input.Namespace, WorkerID: "worker-1", Limit: 1, LeaseDuration: time.Minute})
 	if err != nil || len(leased) != 1 || leased[0].AttemptCount != 1 || leased[0].LeaseToken == "" {
 		t.Fatalf("first lease failed: items=%+v err=%v", leased, err)
 	}
 	firstToken := leased[0].LeaseToken
-	if duplicateLease, err := service.LeaseDue(ctx, LeaseInput{WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(duplicateLease) != 0 {
+	if duplicateLease, err := service.LeaseDue(ctx, LeaseInput{Namespace: input.Namespace, WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(duplicateLease) != 0 {
 		t.Fatalf("active lease allowed duplicate execution: items=%+v err=%v", duplicateLease, err)
 	}
 	failed, err := service.Fail(ctx, FailInput{JobID: created.ID, LeaseToken: firstToken, Error: "temporary outage", RetryAfter: time.Minute})
@@ -54,7 +54,7 @@ func TestServiceRetriesAndDeadLettersJob(t *testing.T) {
 	}
 
 	now = now.Add(time.Minute)
-	retry, err := service.LeaseDue(ctx, LeaseInput{WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute})
+	retry, err := service.LeaseDue(ctx, LeaseInput{Namespace: input.Namespace, WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute})
 	if err != nil || len(retry) != 1 || retry[0].AttemptCount != 2 || retry[0].LeaseToken == firstToken {
 		t.Fatalf("retry lease failed: items=%+v err=%v", retry, err)
 	}
@@ -68,6 +68,35 @@ func TestServiceRetriesAndDeadLettersJob(t *testing.T) {
 	items, err := service.List(ctx, Filter{Namespace: input.Namespace, Status: StatusDeadLetter})
 	if err != nil || len(items) != 1 || items[0].LastError != "permanent outage" {
 		t.Fatalf("dead letter was not observable: items=%+v err=%v", items, err)
+	}
+}
+
+func TestServiceRejectsLeaseWithoutNamespace(t *testing.T) {
+	service := NewService(NewMemoryRepository(), nil)
+	if _, err := service.LeaseDue(context.Background(), LeaseInput{WorkerID: "worker", Limit: 1, LeaseDuration: time.Minute}); err == nil {
+		t.Fatal("lease without namespace was accepted")
+	}
+}
+
+func TestMemoryRepositoryExpiresOnlyRequestedNamespace(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 7, 22, 20, 0, 0, 0, time.UTC)
+	service := NewService(NewMemoryRepository(), func() time.Time { return now })
+	for _, namespace := range []string{"plugin.a", "plugin.b"} {
+		if _, err := service.Schedule(ctx, ScheduleInput{ID: namespace, Namespace: namespace, Kind: "sync", MaxAttempts: 1}); err != nil {
+			t.Fatalf("Schedule %s error: %v", namespace, err)
+		}
+		if items, err := service.LeaseDue(ctx, LeaseInput{Namespace: namespace, WorkerID: namespace, Limit: 1, LeaseDuration: time.Minute}); err != nil || len(items) != 1 {
+			t.Fatalf("LeaseDue %s items=%+v err=%v", namespace, items, err)
+		}
+	}
+	now = now.Add(time.Minute)
+	if _, err := service.LeaseDue(ctx, LeaseInput{Namespace: "plugin.a", WorkerID: "plugin.a", Limit: 1, LeaseDuration: time.Minute}); err != nil {
+		t.Fatalf("expire plugin.a error: %v", err)
+	}
+	other, err := service.Get(ctx, "plugin.b")
+	if err != nil || other.Status != StatusRunning {
+		t.Fatalf("plugin.a changed plugin.b state: item=%+v err=%v", other, err)
 	}
 }
 
@@ -90,7 +119,7 @@ func TestMemoryRepositoryLeasesJobOnceConcurrently(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			items, err := service.LeaseDue(ctx, LeaseInput{WorkerID: string(rune('a' + i)), Limit: 1, LeaseDuration: time.Minute})
+			items, err := service.LeaseDue(ctx, LeaseInput{Namespace: "system", WorkerID: string(rune('a' + i)), Limit: 1, LeaseDuration: time.Minute})
 			counts <- len(items)
 			errs <- err
 		}()
@@ -120,7 +149,7 @@ func TestServiceCompletesCurrentLease(t *testing.T) {
 	if _, err := service.Schedule(ctx, ScheduleInput{ID: "job-success", Namespace: "system", Kind: "snapshot", MaxAttempts: 1}); err != nil {
 		t.Fatalf("Schedule error: %v", err)
 	}
-	leased, err := service.LeaseDue(ctx, LeaseInput{WorkerID: "worker-success", Limit: 1, LeaseDuration: time.Minute})
+	leased, err := service.LeaseDue(ctx, LeaseInput{Namespace: "system", WorkerID: "worker-success", Limit: 1, LeaseDuration: time.Minute})
 	if err != nil || len(leased) != 1 {
 		t.Fatalf("LeaseDue error=%v items=%+v", err, leased)
 	}

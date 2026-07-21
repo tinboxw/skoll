@@ -31,6 +31,8 @@ type HostServices struct {
 	Audit        AuditService
 	Config       ConfigService
 	Secrets      SecretService
+	Workflows    WorkflowService
+	Jobs         JobService
 }
 
 func (s HostServices) Validate() error {
@@ -54,6 +56,12 @@ func (s HostServices) Validate() error {
 	}
 	if s.Secrets == nil {
 		return fmt.Errorf("plugin host secret service is required")
+	}
+	if s.Workflows == nil {
+		return fmt.Errorf("plugin host workflow service is required")
+	}
+	if s.Jobs == nil {
+		return fmt.Errorf("plugin host job service is required")
 	}
 	return nil
 }

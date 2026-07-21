@@ -1023,3 +1023,65 @@ Result: all acceptance gates passed without retry. Repeated security contracts, 
 ### Commit
 
 `PR2-06: publish bounded plugin host services`
+
+## PR2-07 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Review -> Failed -> Doing`
+- Failed gate: namespace side-effect review after the initial PR2-07 acceptance sequence
+- Evidence: job lease candidates were filtered by namespace, but both memory and SQL repositories expired exhausted leases globally before selecting candidates. A plugin worker could not lease another plugin's job, yet it could advance another namespace from `running` to `dead_letter`.
+- Retry action: bind exhausted-lease transition to the requested namespace in both repositories, add memory and SQL cross-namespace regression tests, then rerun the complete PR2-07 acceptance sequence.
+
+## PR2-07 Freeze Current Plugin SDK Contracts
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Freeze the current public plugin contract for lifecycle, workflow, jobs, transactions, data scope, files, audit, configuration, and secrets; prove it with a third-party conformance plugin that imports no host internals.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Public SDK completeness | Pass | `HostServices.Validate` requires transaction, scope, file, audit, config, secret, workflow, and job ports |
+| Third-party import boundary | Pass | `plugins/sdk-conformance` imports only the Go standard library and `pkg/pluginsdk`; dependency and AST checks reject host internals |
+| Plugin lifecycle | Pass | The conformance manifest installs, enables, disables, and uninstalls through the current lifecycle without fallback paths |
+| Shared host services | Pass | The conformance plugin executes transaction, scope, file, audit, config, and secret operations through public SDK ports |
+| Workflow contract | Pass | Definition, publication, instance start, and approval pass with plugin-bound identifiers, business types, trusted actors, and cross-plugin denial |
+| Job contract | Pass after retry | Schedule, lease, completion, retry, query, and dead-letter transitions are bound to `plugin.{pluginID}` in memory and SQL stores |
+| Cross-plugin side effects | Pass after retry | A namespace cannot lease or expire another namespace's running job; dedicated memory and SQLite regressions pass repeatedly |
+| Pharma OA boundary | Pass | Pharma OA receives workflow through public `HostServices`; direct workflow, file, and audit service injection is absent |
+| Developer reference | Pass | The SDK reference documents all ports, lifecycle, workflow, job, identity, failure, and conformance rules and is linked from plugin guides |
+| Current-only architecture | Pass | No legacy injection, compatibility adapter, dual path, or permissive fallback is present |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/hostservice ./pkg/pluginsdk ./plugins/sdk-conformance ./internal/service/job ./internal/store/sql/gormrepo -run "Conformance|HostServices|WorkflowService|JobService|JobStore|Service.*Job|Namespace" -count=20
+go test -race ./internal/plugin/hostservice ./pkg/pluginsdk ./plugins/sdk-conformance ./internal/service/job ./internal/store/sql/gormrepo -run "Conformance|HostServices|WorkflowService|JobService|JobStore|Service.*Job|Namespace" -count=1
+go test ./... -count=1
+go vet ./...
+go list -deps ./plugins/sdk-conformance
+codegraph sync .
+codegraph impact WorkflowService
+codegraph impact JobService
+codegraph impact LeaseDue
+codegraph impact HostServices
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after one documented retry. The retry removed the last cross-plugin dead-letter side effect; repeated conformance and namespace tests, race detection, the full repository suite, vet, dependency checks, CodeGraph synchronization and impact review, documentation checks, boundary scans, and diff validation now pass.
+
+### Impact Review
+
+- SDK: workflow and durable job contracts are public, mandatory, and independent of host implementation packages.
+- Isolation: workflow identifiers and business types are plugin-bound; durable jobs require an explicit namespace for every lease and expiration transition.
+- Identity: workflow actors and audit principals come from trusted context or the bound background plugin identity.
+- Reference plugin: one executable conformance scenario demonstrates the supported third-party development surface end to end.
+- Pharma OA: the business plugin consumes the same public workflow contract available to external plugins.
+- Architecture: only the current contract remains; no compatibility bridge or direct internal service path was introduced.
+
+### Commit
+
+`PR2-07: freeze plugin SDK contracts`

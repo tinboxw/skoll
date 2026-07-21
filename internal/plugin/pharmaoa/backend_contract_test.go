@@ -14,6 +14,7 @@ import (
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
+	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	systemsvc "github.com/tinboxw/skoll/internal/service/system"
@@ -113,7 +114,8 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 		PluginID: PluginID, Transactions: transactions, DataScopes: dataScopes,
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditService,
 		ConfigStore: &backendContractConfigStore{info: pluginruntime.Info{ID: PluginID}}, System: systemsvc.NewService(bundle.System),
-		MasterSecret: "pharma-backend-contract-secret",
+		MasterSecret: "pharma-backend-contract-secret", Workflow: workflowsvc.NewService(workflowsvc.NewMemoryRepository()),
+		Jobs: jobsvc.NewService(jobsvc.NewMemoryRepository(), nil),
 	})
 	if err != nil {
 		t.Fatalf("build plugin host services: %v", err)
@@ -122,7 +124,6 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 	handler, err := NewBackend(Dependencies{
 		Stores:       bundle,
 		Host:         host,
-		Workflow:     workflowsvc.NewService(workflowsvc.NewMemoryRepository()),
 		Notification: notifications,
 	})
 	if err != nil {

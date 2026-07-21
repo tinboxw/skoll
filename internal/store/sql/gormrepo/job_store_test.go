@@ -42,7 +42,7 @@ func TestJobStorePersistsLeaseRetryAndDeadLetterAcrossRestart(t *testing.T) {
 			t.Fatalf("schedule job without idempotency key %s: %v", id, err)
 		}
 	}
-	first, err := service.LeaseDue(ctx, jobsvc.LeaseInput{WorkerID: "worker-1", Limit: 1, LeaseDuration: time.Minute})
+	first, err := service.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "plugin.pharma_oa", WorkerID: "worker-1", Limit: 1, LeaseDuration: time.Minute})
 	if err != nil || len(first) != 1 || first[0].AttemptCount != 1 {
 		t.Fatalf("first lease error=%v items=%+v", err, first)
 	}
@@ -56,12 +56,12 @@ func TestJobStorePersistsLeaseRetryAndDeadLetterAcrossRestart(t *testing.T) {
 	if err != nil || stored.Status != jobsvc.StatusRunning || stored.LeaseToken != firstToken {
 		t.Fatalf("lease did not survive restart: item=%+v err=%v", stored, err)
 	}
-	if duplicate, err := restarted.LeaseDue(ctx, jobsvc.LeaseInput{WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(duplicate) != 0 {
+	if duplicate, err := restarted.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "plugin.pharma_oa", WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(duplicate) != 0 {
 		t.Fatalf("restart ignored active lease: items=%+v err=%v", duplicate, err)
 	}
 
 	now = now.Add(time.Minute)
-	second, err := restarted.LeaseDue(ctx, jobsvc.LeaseInput{WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute})
+	second, err := restarted.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "plugin.pharma_oa", WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute})
 	if err != nil || len(second) != 1 || second[0].AttemptCount != 2 || second[0].LeaseToken == firstToken {
 		t.Fatalf("expired lease was not recovered: items=%+v err=%v", second, err)
 	}
@@ -105,7 +105,7 @@ func TestJobStoreLeasesDueJobOnceConcurrently(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			items, err := service.LeaseDue(ctx, jobsvc.LeaseInput{WorkerID: fmt.Sprintf("worker-%d", i), Limit: 1, LeaseDuration: time.Minute})
+			items, err := service.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "system", WorkerID: fmt.Sprintf("worker-%d", i), Limit: 1, LeaseDuration: time.Minute})
 			counts <- len(items)
 			errs <- err
 		}()
@@ -128,12 +128,36 @@ func TestJobStoreLeasesDueJobOnceConcurrently(t *testing.T) {
 	}
 
 	now = now.Add(time.Minute)
-	if items, err := service.LeaseDue(ctx, jobsvc.LeaseInput{WorkerID: "observer", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(items) != 0 {
+	if items, err := service.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "system", WorkerID: "observer", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(items) != 0 {
 		t.Fatalf("exhausted expired job was leased again: items=%+v err=%v", items, err)
 	}
 	stored, err := service.Get(ctx, "job-concurrent")
 	if err != nil || stored.Status != jobsvc.StatusDeadLetter || stored.LastError == "" {
 		t.Fatalf("expired final lease was not observable as dead letter: item=%+v err=%v", stored, err)
+	}
+}
+
+func TestJobStoreExpiresOnlyRequestedNamespace(t *testing.T) {
+	ctx := context.Background()
+	db := openJobTestDB(t, filepath.Join(t.TempDir(), "job-namespace.db"))
+	t.Cleanup(func() { closeJobTestDB(t, db) })
+	now := time.Date(2026, 7, 22, 22, 0, 0, 0, time.UTC)
+	service := jobsvc.NewService(NewJobStore(db), func() time.Time { return now })
+	for _, namespace := range []string{"plugin.a", "plugin.b"} {
+		if _, err := service.Schedule(ctx, jobsvc.ScheduleInput{ID: namespace, Namespace: namespace, Kind: "sync", MaxAttempts: 1}); err != nil {
+			t.Fatalf("Schedule %s error: %v", namespace, err)
+		}
+		if items, err := service.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: namespace, WorkerID: namespace, Limit: 1, LeaseDuration: time.Minute}); err != nil || len(items) != 1 {
+			t.Fatalf("LeaseDue %s items=%+v err=%v", namespace, items, err)
+		}
+	}
+	now = now.Add(time.Minute)
+	if _, err := service.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "plugin.a", WorkerID: "plugin.a", Limit: 1, LeaseDuration: time.Minute}); err != nil {
+		t.Fatalf("expire plugin.a error: %v", err)
+	}
+	other, err := service.Get(ctx, "plugin.b")
+	if err != nil || other.Status != jobsvc.StatusRunning {
+		t.Fatalf("plugin.a changed plugin.b state: item=%+v err=%v", other, err)
 	}
 }
 

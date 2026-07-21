@@ -1,6 +1,6 @@
 # 插件开发教程
 
-> 业务 API、权限和聚合 OpenAPI 的当前格式见 [插件 API 与 OpenAPI 契约](plugin-api-contract.md)，英文版见 [Plugin API and OpenAPI Contract](plugin-api-contract.en.md)。
+> Go 插件宿主能力见 [插件 SDK 当前契约](plugin-sdk-reference.md)；业务 API、权限和聚合 OpenAPI 的当前格式见 [插件 API 与 OpenAPI 契约](plugin-api-contract.md)，英文版见 [Plugin API and OpenAPI Contract](plugin-api-contract.en.md)。
 
 ## 1. 概述
 
@@ -13,13 +13,14 @@ Skoll 提供完整的插件系统，支持业务功能通过插件方式扩展�
 | 单体 | `monolith` | 前后端在同一个插件目录 | `demo-monolith` |
 | 分离 | `separated` | 前后端分属独立目录/工程 | `demo` |
 
-插件目录：`plugins/`，已内置 6 个示例插件：
+插件目录：`plugins/`，内置产品示例及一个 SDK 一致性插件：
 - `demo`（分离模式，完整前后端示例）
 - `demo-backend`（纯后端）
 - `demo-frontend`（纯前端）
 - `demo-monolith`（单体模式）
 - `demo-system`（系统级后端插件）
 - `developer-portal`（开发者门户）
+- `sdk-conformance`（无 UI，仅用于公开 SDK 与生命周期一致性验收）
 
 ## 2. 插件项目结构
 

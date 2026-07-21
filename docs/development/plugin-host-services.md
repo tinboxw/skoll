@@ -1,6 +1,8 @@
 # 插件宿主服务契约
 
-本文说明进程内 Go 业务插件如何使用 Skoll 提供的事务、可信数据范围、文件、审计、配置与密钥能力。公开契约位于 `pkg/pluginsdk`，宿主适配器位于 `internal/plugin/hostservice`。
+本文说明进程内 Go 业务插件如何使用 Skoll 提供的事务、可信数据范围、文件、审计、配置、密钥、工作流与持久任务能力。公开契约位于 `pkg/pluginsdk`，宿主适配器位于 `internal/plugin/hostservice`。
+
+完整端口、工作流、持久任务和第三方一致性测试入口见 [插件 SDK 当前契约](plugin-sdk-reference.md)。
 
 ## 基本规则
 

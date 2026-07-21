@@ -54,6 +54,7 @@ type ScheduleInput struct {
 }
 
 type LeaseInput struct {
+	Namespace     string
 	WorkerID      string
 	Limit         int
 	LeaseDuration time.Duration

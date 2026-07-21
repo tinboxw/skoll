@@ -8,7 +8,6 @@ import (
 	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
-	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
@@ -18,7 +17,6 @@ const PluginID = "pharma_oa"
 type Dependencies struct {
 	Stores       *store.Bundle
 	Host         pluginsdk.HostServices
-	Workflow     workflowsvc.Service
 	Notification *notificationsvc.Service
 }
 
@@ -28,6 +26,7 @@ func NewBackend(deps Dependencies) (http.Handler, error) {
 	}
 	audit := newHostAuditAdapter(deps.Host.Audit)
 	files := newHostFileAdapter(deps.Host.Files)
+	workflow := newHostWorkflowAdapter(deps.Host.Workflows)
 	stores, err := repositories(deps)
 	if err != nil {
 		return nil, err
@@ -44,11 +43,11 @@ func NewBackend(deps Dependencies) (http.Handler, error) {
 	opportunities := pharmaoasvc.NewSalesOpportunityService(customers, products, audit, stores.Opportunities)
 	warehouses := pharmaoasvc.NewWarehouseService(audit, stores.Warehouses)
 	masterData := pharmaoasvc.NewMasterDataExchangeService(employees, products, suppliers, customers)
-	purchases := pharmaoasvc.NewPurchaseService(suppliers, deps.Workflow, audit, stores.Purchases)
+	purchases := pharmaoasvc.NewPurchaseService(suppliers, workflow, audit, stores.Purchases)
 	inventory := pharmaoasvc.NewInventoryService(audit, stores.Inventory)
 	inbounds := pharmaoasvc.NewPurchaseInboundService(purchases, warehouses, inventory, audit, stores.Inbounds)
 	sales := pharmaoasvc.NewSalesService(customers, warehouses, inventory, audit, stores.Sales)
-	inventoryOperations := pharmaoasvc.NewInventoryOperationService(inventory, warehouses, deps.Workflow, audit, pharmaoasvc.InventoryOperationRepositories{
+	inventoryOperations := pharmaoasvc.NewInventoryOperationService(inventory, warehouses, workflow, audit, pharmaoasvc.InventoryOperationRepositories{
 		Stocktakes: stores.Stocktakes,
 		Transfers:  stores.Transfers,
 	})
@@ -59,9 +58,9 @@ func NewBackend(deps Dependencies) (http.Handler, error) {
 	})
 	inventoryAlerts := pharmaoasvc.NewInventoryAlertService(inventory, deps.Notification, audit, stores.InventoryAlerts)
 	announcements := pharmaoasvc.NewAnnouncementService(audit)
-	contracts := pharmaoasvc.NewContractService(suppliers, customers, deps.Workflow, files, deps.Notification, audit, stores.Contracts)
+	contracts := pharmaoasvc.NewContractService(suppliers, customers, workflow, files, deps.Notification, audit, stores.Contracts)
 	qualifications := pharmaoasvc.NewQualificationService(employees, suppliers, customers, deps.Notification, audit)
-	complaints := pharmaoasvc.NewQualityComplaintService(customers, products, inventory, deps.Workflow, files, audit, stores.Complaints)
+	complaints := pharmaoasvc.NewQualityComplaintService(customers, products, inventory, workflow, files, audit, stores.Complaints)
 	recalls := pharmaoasvc.NewDrugRecallService(sales, inventory, products, customers, complaints, audit, stores.Recalls)
 	coldChain := pharmaoasvc.NewColdChainService(inventory, warehouses, deps.Notification, audit)
 	compliance := pharmaoasvc.NewComplianceDashboardService(qualifications, complaints, recalls, coldChain, audit)

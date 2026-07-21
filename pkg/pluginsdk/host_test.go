@@ -51,10 +51,53 @@ type hostTestSecrets struct{}
 func (hostTestSecrets) Get(context.Context, string) (string, error) { return "", nil }
 func (hostTestSecrets) Set(context.Context, string, string) error   { return nil }
 
+type hostTestWorkflows struct{}
+
+func (hostTestWorkflows) CreateDefinition(context.Context, WorkflowDefinitionInput) (WorkflowDefinition, error) {
+	return WorkflowDefinition{}, nil
+}
+func (hostTestWorkflows) GetDefinition(context.Context, string) (WorkflowDefinition, error) {
+	return WorkflowDefinition{}, nil
+}
+func (hostTestWorkflows) PublishDefinition(context.Context, string) (WorkflowDefinition, error) {
+	return WorkflowDefinition{}, nil
+}
+func (hostTestWorkflows) Start(context.Context, WorkflowStartInput) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
+func (hostTestWorkflows) GetInstance(context.Context, string) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
+func (hostTestWorkflows) Approve(context.Context, WorkflowTaskActionInput) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
+func (hostTestWorkflows) Reject(context.Context, WorkflowTaskActionInput) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
+func (hostTestWorkflows) Withdraw(context.Context, WorkflowInstanceActionInput) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
+func (hostTestWorkflows) Transfer(context.Context, WorkflowTargetActionInput) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
+func (hostTestWorkflows) Copy(context.Context, WorkflowTargetActionInput) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
+
+type hostTestJobs struct{}
+
+func (hostTestJobs) Schedule(context.Context, JobScheduleInput) (Job, error) { return Job{}, nil }
+func (hostTestJobs) LeaseDue(context.Context, JobLeaseInput) ([]Job, error)  { return nil, nil }
+func (hostTestJobs) Complete(context.Context, JobCompleteInput) (Job, error) { return Job{}, nil }
+func (hostTestJobs) Fail(context.Context, JobFailInput) (Job, error)         { return Job{}, nil }
+func (hostTestJobs) Get(context.Context, string) (Job, error)                { return Job{}, nil }
+func (hostTestJobs) List(context.Context, JobQuery) ([]Job, error)           { return nil, nil }
+
 func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 	valid := HostServices{
 		PluginID: "test", Transactions: hostTestTransactions{}, DataScopes: hostTestDataScopes{},
 		Files: hostTestFiles{}, Audit: hostTestAudit{}, Config: hostTestConfig{}, Secrets: hostTestSecrets{},
+		Workflows: hostTestWorkflows{}, Jobs: hostTestJobs{},
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid host services rejected: %v", err)
@@ -70,6 +113,8 @@ func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 		{name: "audit", mutate: func(host *HostServices) { host.Audit = nil }},
 		{name: "config", mutate: func(host *HostServices) { host.Config = nil }},
 		{name: "secrets", mutate: func(host *HostServices) { host.Secrets = nil }},
+		{name: "workflows", mutate: func(host *HostServices) { host.Workflows = nil }},
+		{name: "jobs", mutate: func(host *HostServices) { host.Jobs = nil }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

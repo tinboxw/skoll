@@ -1,0 +1,17 @@
+id: sdk_conformance
+name: "SDK Conformance Plugin"
+version: 1.0.0
+api_version: v1
+ui_mode: backend_only
+level: app
+app_id: sdk_conformance
+mount_policy: admin
+ui_nav_position: none
+ui_open_mode: integrated
+ui_tab_mode: disabled
+permissions:
+  - key: sdk_conformance.run
+    type: api
+    module: sdk_conformance
+    name: "Run SDK conformance"
+    risk: medium

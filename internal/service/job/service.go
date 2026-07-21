@@ -63,9 +63,10 @@ func (s *Service) Schedule(ctx context.Context, in ScheduleInput) (Job, error) {
 }
 
 func (s *Service) LeaseDue(ctx context.Context, in LeaseInput) ([]Job, error) {
+	in.Namespace = strings.TrimSpace(in.Namespace)
 	in.WorkerID = strings.TrimSpace(in.WorkerID)
-	if in.WorkerID == "" {
-		return nil, fmt.Errorf("job worker id is required")
+	if in.Namespace == "" || in.WorkerID == "" {
+		return nil, fmt.Errorf("job namespace and worker id are required")
 	}
 	if in.Limit <= 0 || in.Limit > 100 {
 		return nil, fmt.Errorf("job lease limit must be between 1 and 100")
@@ -74,7 +75,7 @@ func (s *Service) LeaseDue(ctx context.Context, in LeaseInput) ([]Job, error) {
 		return nil, fmt.Errorf("job lease duration must be positive")
 	}
 	now := s.now().UTC()
-	items, err := s.repo.LeaseDue(ctx, in.WorkerID, now, now.Add(in.LeaseDuration), in.Limit)
+	items, err := s.repo.LeaseDue(ctx, in.Namespace, in.WorkerID, now, now.Add(in.LeaseDuration), in.Limit)
 	return cloneJobs(items), err
 }
 

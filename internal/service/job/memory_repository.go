@@ -40,16 +40,16 @@ func (r *MemoryRepository) Schedule(ctx context.Context, item Job) (Job, bool, e
 	return cloneJob(item), true, nil
 }
 
-func (r *MemoryRepository) LeaseDue(ctx context.Context, workerID string, now, leaseUntil time.Time, limit int) ([]Job, error) {
+func (r *MemoryRepository) LeaseDue(ctx context.Context, namespace, workerID string, now, leaseUntil time.Time, limit int) ([]Job, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.expireExhausted(now)
+	r.expireExhausted(namespace, now)
 	candidates := make([]Job, 0, len(r.items))
 	for _, item := range r.items {
-		if leaseEligible(item, now) {
+		if item.Namespace == namespace && leaseEligible(item, now) {
 			candidates = append(candidates, item)
 		}
 	}
@@ -167,9 +167,9 @@ func (r *MemoryRepository) List(ctx context.Context, filter Filter) ([]Job, erro
 	return out, nil
 }
 
-func (r *MemoryRepository) expireExhausted(now time.Time) {
+func (r *MemoryRepository) expireExhausted(namespace string, now time.Time) {
 	for id, item := range r.items {
-		if item.Status != StatusRunning || item.LeaseExpiresAt == nil || item.LeaseExpiresAt.After(now) || item.AttemptCount < item.MaxAttempts {
+		if item.Namespace != namespace || item.Status != StatusRunning || item.LeaseExpiresAt == nil || item.LeaseExpiresAt.After(now) || item.AttemptCount < item.MaxAttempts {
 			continue
 		}
 		item.Status = StatusDeadLetter
