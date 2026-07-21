@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,12 +15,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/event"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/logging"
 	"gorm.io/gorm"
 )
+
+type recordingPluginEventDelivery struct {
+	calls      []string
+	failEvents map[string]bool
+}
+
+func (d *recordingPluginEventDelivery) Deliver(_ context.Context, _ plugin.Info, subscription plugin.EventSubscription, evt event.BusinessEvent) error {
+	d.calls = append(d.calls, evt.ID+":"+subscription.Handler)
+	if d.failEvents[evt.ID] {
+		delete(d.failEvents, evt.ID)
+		return errors.New("temporary plugin event failure")
+	}
+	return nil
+}
 
 func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 	tmp := t.TempDir()
@@ -48,7 +64,7 @@ func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil).(*pluginManagerWithExtensions)
+	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil).(*pluginManagerWithExtensions)
 	if !ok {
 		t.Fatalf("expected pluginManagerWithExtensions")
 	}
@@ -906,5 +922,103 @@ api:
 	serviceState, ok = supervisor.Snapshot("reports")
 	if !ok || serviceState.State != plugin.ServiceStateStopped {
 		t.Fatalf("disabled service state=%+v exists=%v", serviceState, ok)
+	}
+}
+
+func TestPluginManagerDeliversEventsOnlyAcrossEnabledDeclaredLifecycle(t *testing.T) {
+	pluginDir := filepath.Join(t.TempDir(), "reports")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeEventManifest := func(version, handler string) {
+		t.Helper()
+		manifest := "id: reports\n" +
+			"name: Reports\n" +
+			"version: " + version + "\n" +
+			"events:\n" +
+			"  subscriptions:\n" +
+			"    - name: approval-completed\n" +
+			"      handler: " + handler + "\n" +
+			"      retry_policy: standard\n"
+		if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeEventManifest("1.0.0", "onApprovalCompleted")
+
+	bus := event.NewBusinessEventBus(nil)
+	delivery := &recordingPluginEventDelivery{failEvents: map[string]bool{"event-retry": true}}
+	manager := &pluginManagerWithExtensions{
+		Manager:            plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
+		builtinInfos:       map[string]plugin.Info{},
+		extensions:         map[string]plugin.RegistrySnapshot{},
+		routeHandlers:      map[string]http.HandlerFunc{},
+		routePermissions:   mustEmptyRoutePermissionRegistry(),
+		businessEvents:     bus,
+		eventDelivery:      delivery,
+		eventSubscriptions: map[string][]func(){},
+	}
+	if _, err := manager.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin: %v", err)
+	}
+	publish := func(id, name string) error {
+		return manager.PublishBusinessEvent(context.Background(), event.BusinessEvent{ID: id, EventName: name, Source: "host", OccurredAt: time.Now().UTC()})
+	}
+	if err := publish("event-installed", event.BusinessEventApprovalCompleted); err != nil || len(delivery.calls) != 0 {
+		t.Fatalf("installed plugin received event: calls=%v err=%v", delivery.calls, err)
+	}
+	if err := manager.Enable("reports"); err != nil {
+		t.Fatalf("enable plugin: %v", err)
+	}
+	if err := publish("event-enabled", event.BusinessEventApprovalCompleted); err != nil {
+		t.Fatalf("publish enabled event: %v", err)
+	}
+	if err := publish("event-enabled", event.BusinessEventApprovalCompleted); err != nil {
+		t.Fatalf("duplicate publish: %v", err)
+	}
+	if len(delivery.calls) != 1 || delivery.calls[0] != "event-enabled:onApprovalCompleted" {
+		t.Fatalf("enabled delivery was not idempotent: %v", delivery.calls)
+	}
+	if err := publish("event-undeclared", event.BusinessEventInboundCompleted); err != nil || len(delivery.calls) != 1 {
+		t.Fatalf("undeclared event was delivered: calls=%v err=%v", delivery.calls, err)
+	}
+	if err := publish("event-retry", event.BusinessEventApprovalCompleted); err == nil {
+		t.Fatal("expected observable delivery failure")
+	}
+	processed, err := manager.RetryBusinessEvents(context.Background(), time.Now().Add(time.Hour))
+	if err != nil || processed != 1 {
+		t.Fatalf("retry event: processed=%d err=%v", processed, err)
+	}
+	retries := manager.BusinessEventRetryRecords()
+	if len(retries) != 1 || retries[0].Status != event.BusinessRetryStatusSucceeded || retries[0].Attempt != 2 {
+		t.Fatalf("retry state is not observable: %+v", retries)
+	}
+
+	if err := manager.Disable("reports"); err != nil {
+		t.Fatalf("disable plugin: %v", err)
+	}
+	beforeDisabled := len(delivery.calls)
+	if err := publish("event-disabled", event.BusinessEventApprovalCompleted); err != nil || len(delivery.calls) != beforeDisabled {
+		t.Fatalf("disabled plugin received event: calls=%v err=%v", delivery.calls, err)
+	}
+	if err := manager.Enable("reports"); err != nil {
+		t.Fatalf("re-enable plugin: %v", err)
+	}
+	writeEventManifest("1.1.0", "onApprovalV2")
+	if err := manager.ReloadPluginMetadata("reports"); err != nil {
+		t.Fatalf("reload plugin: %v", err)
+	}
+	if err := publish("event-reloaded", event.BusinessEventApprovalCompleted); err != nil {
+		t.Fatalf("publish reloaded event: %v", err)
+	}
+	if got := delivery.calls[len(delivery.calls)-1]; got != "event-reloaded:onApprovalV2" {
+		t.Fatalf("reloaded handler not active: %v", delivery.calls)
+	}
+	if err := manager.Uninstall("reports"); err != nil {
+		t.Fatalf("uninstall plugin: %v", err)
+	}
+	beforeUninstalled := len(delivery.calls)
+	if err := publish("event-uninstalled", event.BusinessEventApprovalCompleted); err != nil || len(delivery.calls) != beforeUninstalled {
+		t.Fatalf("uninstalled plugin received event: calls=%v err=%v", delivery.calls, err)
 	}
 }

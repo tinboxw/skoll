@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +28,7 @@ func TestBusinessEventBusPublishesKnownBusinessEvents(t *testing.T) {
 	}
 
 	if err := bus.Publish(context.Background(), BusinessEvent{
+		ID:        "event-approval-1",
 		EventName: BusinessEventApprovalCompleted,
 		Source:    "workflow",
 		Payload:   map[string]any{"approvalId": "ap-1"},
@@ -57,6 +60,7 @@ func TestBusinessEventBusRecordsAndRetriesFailedHandlers(t *testing.T) {
 	}
 
 	if err := bus.Publish(context.Background(), BusinessEvent{
+		ID:        "event-inbound-1",
 		EventName: BusinessEventInboundCompleted,
 		Source:    "purchase",
 		SubjectID: "in-1",
@@ -84,15 +88,13 @@ func TestBusinessEventBusRecordsAndRetriesFailedHandlers(t *testing.T) {
 func TestBusinessEventBusMovesExhaustedRetriesToDeadLetter(t *testing.T) {
 	store := NewMemoryBusinessRetryStore()
 	bus := NewBusinessEventBus(store)
-	bus.retryDelay = 0
-	bus.maxAttempts = 3
 	_, err := bus.Subscribe(BusinessEventInboundCompleted, "always-fails", func(context.Context, BusinessEvent) error {
 		return errors.New("plugin unavailable")
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = bus.Publish(context.Background(), BusinessEvent{EventName: BusinessEventInboundCompleted}); err == nil {
+	if err = bus.Publish(context.Background(), BusinessEvent{ID: "event-dead-1", EventName: BusinessEventInboundCompleted}); err == nil {
 		t.Fatal("expected initial handler failure")
 	}
 	for attempt := 2; attempt <= 3; attempt++ {
@@ -114,14 +116,13 @@ func TestBusinessEventBusMovesExhaustedRetriesToDeadLetter(t *testing.T) {
 func TestBusinessEventBusDeadLettersUnavailableRetryHandler(t *testing.T) {
 	store := NewMemoryBusinessRetryStore()
 	bus := NewBusinessEventBus(store)
-	bus.retryDelay = 0
 	unsubscribe, err := bus.Subscribe(BusinessEventInboundCompleted, "removed-handler", func(context.Context, BusinessEvent) error {
 		return errors.New("temporary failure")
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = bus.Publish(context.Background(), BusinessEvent{EventName: BusinessEventInboundCompleted}); err == nil {
+	if err = bus.Publish(context.Background(), BusinessEvent{ID: "event-removed-1", EventName: BusinessEventInboundCompleted}); err == nil {
 		t.Fatal("expected initial handler failure")
 	}
 	unsubscribe()
@@ -145,7 +146,6 @@ func TestH5BusinessEventSoak(t *testing.T) {
 	scenario := jobsoak.Measure("插件业务事件重试与副作用幂等", iterations, thresholds, func(index int) (jobsoak.Observation, error) {
 		store := NewMemoryBusinessRetryStore()
 		bus := NewBusinessEventBus(store)
-		bus.retryDelay = 0
 		calls, sideEffects := 0, 0
 		_, err := bus.Subscribe(BusinessEventApprovalCompleted, fmt.Sprintf("soak-handler-%d", index), func(context.Context, BusinessEvent) error {
 			calls++
@@ -158,7 +158,7 @@ func TestH5BusinessEventSoak(t *testing.T) {
 		if err != nil {
 			return jobsoak.Observation{}, err
 		}
-		if err = bus.Publish(context.Background(), BusinessEvent{EventName: BusinessEventApprovalCompleted, SubjectID: fmt.Sprintf("approval-%d", index)}); err == nil {
+		if err = bus.Publish(context.Background(), BusinessEvent{ID: fmt.Sprintf("event-soak-%d", index), EventName: BusinessEventApprovalCompleted, SubjectID: fmt.Sprintf("approval-%d", index)}); err == nil {
 			return jobsoak.Observation{}, errors.New("initial transient failure was not exposed")
 		}
 		processed, err := bus.RetryDue(context.Background(), time.Now().Add(time.Hour))
@@ -180,11 +180,10 @@ func TestH5BusinessEventSoak(t *testing.T) {
 	// A permanently failing subscriber proves that exhausted work reaches a visible terminal state.
 	deadStore := NewMemoryBusinessRetryStore()
 	deadBus := NewBusinessEventBus(deadStore)
-	deadBus.retryDelay = 0
 	_, _ = deadBus.Subscribe(BusinessEventQualificationExpiring, "dead-letter-proof", func(context.Context, BusinessEvent) error {
 		return errors.New("permanent plugin failure")
 	})
-	_ = deadBus.Publish(context.Background(), BusinessEvent{EventName: BusinessEventQualificationExpiring})
+	_ = deadBus.Publish(context.Background(), BusinessEvent{ID: "event-soak-dead", EventName: BusinessEventQualificationExpiring})
 	_, _ = deadBus.RetryDue(context.Background(), time.Now().Add(time.Hour))
 	_, _ = deadBus.RetryDue(context.Background(), time.Now().Add(time.Hour))
 	deadLetters := 0
@@ -218,7 +217,7 @@ func TestAfterCommitQueuePublishesOnlyOnCommit(t *testing.T) {
 		t.Fatalf("subscribe failed: %v", err)
 	}
 	rolledBack := NewAfterCommitQueue(bus)
-	if err := rolledBack.Enqueue(BusinessEvent{EventName: BusinessEventQualificationExpiring}); err != nil {
+	if err := rolledBack.Enqueue(BusinessEvent{ID: "event-rollback-1", EventName: BusinessEventQualificationExpiring}); err != nil {
 		t.Fatalf("enqueue failed: %v", err)
 	}
 	rolledBack.Rollback()
@@ -227,7 +226,7 @@ func TestAfterCommitQueuePublishesOnlyOnCommit(t *testing.T) {
 	}
 
 	committed := NewAfterCommitQueue(bus)
-	if err := committed.Enqueue(BusinessEvent{EventName: BusinessEventQualificationExpiring}); err != nil {
+	if err := committed.Enqueue(BusinessEvent{ID: "event-commit-1", EventName: BusinessEventQualificationExpiring}); err != nil {
 		t.Fatalf("enqueue failed: %v", err)
 	}
 	if err := committed.Commit(context.Background()); err != nil {
@@ -243,7 +242,87 @@ func TestBusinessEventBusRejectsInvalidSubscriptionsAndEvents(t *testing.T) {
 	if _, err := bus.Subscribe("bad event", "handler", func(context.Context, BusinessEvent) error { return nil }); err == nil {
 		t.Fatal("expected invalid event subscription error")
 	}
-	if err := bus.Publish(context.Background(), BusinessEvent{EventName: "bad event"}); err == nil {
+	if err := bus.Publish(context.Background(), BusinessEvent{ID: "event-invalid-1", EventName: "bad event"}); err == nil {
 		t.Fatal("expected invalid event publish error")
+	}
+	if err := bus.Publish(context.Background(), BusinessEvent{EventName: BusinessEventApprovalCompleted}); err == nil {
+		t.Fatal("expected missing event id error")
+	}
+}
+
+func TestBusinessEventBusDeduplicatesSuccessfulAndFailedDeliveries(t *testing.T) {
+	bus := NewBusinessEventBus(nil)
+	successCalls, failedCalls := 0, 0
+	if _, err := bus.Subscribe(BusinessEventApprovalCompleted, "success", func(context.Context, BusinessEvent) error {
+		successCalls++
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := bus.Subscribe(BusinessEventApprovalCompleted, "failed", func(context.Context, BusinessEvent) error {
+		failedCalls++
+		return errors.New("temporary failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	evt := BusinessEvent{ID: "event-deduplicate-1", EventName: BusinessEventApprovalCompleted}
+	if err := bus.Publish(context.Background(), evt); err == nil {
+		t.Fatal("expected first publish failure")
+	}
+	if err := bus.Publish(context.Background(), evt); err != nil {
+		t.Fatalf("duplicate publish should be idempotent: %v", err)
+	}
+	if successCalls != 1 || failedCalls != 1 {
+		t.Fatalf("duplicate event was delivered: success=%d failed=%d", successCalls, failedCalls)
+	}
+	if records := bus.DeliveryRecords(); len(records) != 2 {
+		t.Fatalf("expected two observable deliveries, got %+v", records)
+	}
+}
+
+func TestBusinessEventBusAppliesSubscriptionRetryPolicy(t *testing.T) {
+	bus := NewBusinessEventBus(nil)
+	policy, err := ParseBusinessRetryPolicy(BusinessRetryPolicyNone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = bus.SubscribeWithPolicy(BusinessEventInboundCompleted, "no-retry", policy, func(context.Context, BusinessEvent) error {
+		return errors.New("permanent failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err = bus.Publish(context.Background(), BusinessEvent{ID: "event-no-retry-1", EventName: BusinessEventInboundCompleted}); err == nil {
+		t.Fatal("expected publish failure")
+	}
+	records := bus.RetryRecords()
+	if len(records) != 1 || records[0].Status != BusinessRetryStatusDeadLetter || records[0].MaxAttempts != 1 {
+		t.Fatalf("none policy did not terminate immediately: %+v", records)
+	}
+}
+
+func TestBusinessEventBusDeduplicatesConcurrentPublish(t *testing.T) {
+	bus := NewBusinessEventBus(nil)
+	var calls atomic.Int64
+	if _, err := bus.Subscribe(BusinessEventApprovalCompleted, "concurrent", func(context.Context, BusinessEvent) error {
+		calls.Add(1)
+		time.Sleep(5 * time.Millisecond)
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	evt := BusinessEvent{ID: "event-concurrent-1", EventName: BusinessEventApprovalCompleted}
+	var group sync.WaitGroup
+	for range 32 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			if err := bus.Publish(context.Background(), evt); err != nil {
+				t.Errorf("publish duplicate: %v", err)
+			}
+		}()
+	}
+	group.Wait()
+	if calls.Load() != 1 {
+		t.Fatalf("concurrent duplicate delivered %d times", calls.Load())
 	}
 }

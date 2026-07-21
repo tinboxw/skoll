@@ -347,3 +347,82 @@ Result: all locally executable gates passed. The first combined test command exc
 ### Commit
 
 `PR1-05: execute plugin migrations transactionally`
+
+## PR1-06 Retry Record 1
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: focused event, plugin, and bootstrap test batch
+- Evidence: `go test ./internal/event ./internal/plugin/... ./internal/bootstrap -count=1` exceeded the 120-second command limit before producing a package result.
+- Retry action: split the event, plugin, and bootstrap packages, preserve the isolated PR1-06 cache, fix any package-specific failure, and rerun the complete acceptance matrix.
+
+## PR1-06 Retry Record 2
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: focused bootstrap package tests
+- Evidence: `go test ./internal/bootstrap -count=1` exceeded 180 seconds after the plugin package had already passed from the same warm cache.
+- Retry action: rerun bootstrap with Go's short test timeout to capture blocked goroutine stacks, correct lifecycle lock ordering, then rerun the package and complete matrix.
+
+## PR1-06 Retry Record 3
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: combined event, plugin, and bootstrap race test batch
+- Evidence: `go test -race ./internal/event ./internal/plugin/... ./internal/bootstrap -count=1 -timeout 120s` exceeded the 300-second command limit without a package result during the first isolated race build.
+- Retry action: split each package into an independent race gate using the warmed PR1-06 cache, then rerun all non-race and repository-wide gates.
+
+## PR1-06 Deliver Host Events To Enabled Plugin Handlers
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Connect manifest event subscriptions to the host business event bus, add stable delivery identity and retry policies, deliver a current HTTP envelope to external plugin services, and synchronize subscriptions with plugin lifecycle state.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Event identity | Pass | Every business event requires a stable non-empty ID; delivery IDs are deterministic for event ID, plugin ID, and handler |
+| Declared subscribers | Pass | The runtime registers only manifest subscriptions and rechecks enabled state plus the current declaration immediately before delivery |
+| Lifecycle registration | Pass | Enable registers target and newly enabled dependency subscriptions; disable, uninstall, reload, and host close remove them under the lifecycle gate |
+| In-flight behavior | Pass | Event handlers take the lifecycle read gate, so disable/reload waits for active delivery and stale snapshots cannot deliver after state changes |
+| HTTP contract | Pass | External services receive `POST /_skoll/events` with a typed envelope, stable `Idempotency-Key`, plugin ID, and handler headers |
+| Transport safety | Pass | Delivery accepts only HTTP(S), rejects URL credentials/query/fragment, never follows redirects, bounds response draining, and does not expose response bodies |
+| Host idempotency | Pass | Initial and concurrent duplicate publication atomically claims one delivery; successful, failed, running, and dead-letter records suppress duplicate side effects |
+| Retry policies | Pass | `none`, `standard`, and `aggressive` map to 1/3/5 maximum attempts and 0/1s/250ms retry delays; each failure record retains its policy |
+| Failure observability | Pass | Failed attempts, retry success, attempt count, last error, next run, and terminal dead-letter state remain queryable from the runtime |
+| Retry behavior | Pass | Due work is atomically claimed, retries keep the same delivery identity, successful retry closes the record, and missing handlers dead-letter visibly |
+| Developer contract | Pass | Chinese-default and English documents define the sole current endpoint, envelope, headers, idempotency, lifecycle, and retry semantics |
+| Current-only boundary | Pass | No legacy endpoint, envelope, compatibility flag, or dual delivery path was added |
+| Quality gates | Pass | Focused tests, lifecycle tests, split race tests, vet, full Go suite, CodeGraph sync, gofmt, and diff checks pass |
+
+### Verification Commands
+
+```powershell
+$env:GOCACHE='D:\.cache\skoll-go-pr106'
+$env:GOTMPDIR='D:\.tmp\skoll-go-pr106'
+go test ./internal/event ./internal/plugin/... ./internal/bootstrap -count=1 -timeout 90s
+go test -race ./internal/event -count=1 -timeout 90s
+go test -race ./internal/plugin/... -count=1 -timeout 120s
+go test -race ./internal/bootstrap -count=1 -timeout 120s
+go vet ./internal/event ./internal/plugin/... ./internal/bootstrap
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: all gates passed after three recorded retries. The first combined package command and first combined race command exceeded their execution limits during cold builds; split warm-cache gates produced explicit package results. The bootstrap retry exposed and corrected eager event-bus validation in manually constructed managers before the complete matrix passed.
+
+### Impact Review
+
+- API/OpenAPI: no public admin endpoint changed; external plugin services gain the sole current `POST /_skoll/events` host callback contract.
+- Permission/audit: event registration follows plugin enabled state and current manifest declarations; delivery failures are represented by runtime delivery/retry records without response-body leakage.
+- Migration/seed: no database migration or seed impact; durable job persistence remains outside PR1-06.
+- Frontend/i18n: no frontend runtime change; the developer contract is available in default Chinese and English.
+- Runtime/concurrency: lifecycle writes drain in-flight delivery; delivery and retry claims are atomic in the current runtime store; host shutdown removes all subscriptions before service shutdown.
+- Compatibility: none; only the current event endpoint and envelope are implemented.
+
+### Commit
+
+`PR1-06: deliver host events to plugins`

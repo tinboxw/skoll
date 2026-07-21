@@ -47,11 +47,12 @@ import (
 )
 
 type dependencies struct {
-	logger        logging.Logger
-	handler       http.Handler
-	server        *http.Server
-	eventBus      event.Bus
-	pluginRuntime closeable
+	logger           logging.Logger
+	handler          http.Handler
+	server           *http.Server
+	eventBus         event.Bus
+	businessEventBus *event.BusinessEventBus
+	pluginRuntime    closeable
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
@@ -82,6 +83,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 	_ = event.NewPublisher(bus)
 	_ = event.NewSubscriber(bus)
+	businessEventBus := event.NewBusinessEventBus(nil)
 	roleService := role.NewService(bundle.Roles)
 	rbacService := rbac.NewServiceWithOrganization(bundle.RBAC, bundle.Organization)
 	userService := user.NewServiceWithDataScope(bundle.Users, bundle.Audit, bundle.UnitOfWork, rbacService)
@@ -127,7 +129,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Warehouses: pharmaWarehouseService, Purchases: pharmaPurchaseService, Inbounds: pharmaPurchaseInboundService, Sales: pharmaSalesService,
 		Inventory: pharmaInventoryService, FollowUps: pharmaCustomerFollowUpService, Audit: auditService,
 	})
-	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService)
+	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
 		UserService:                      userService,
@@ -199,7 +201,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
 	pluginRuntime, _ := pluginManager.(closeable)
-	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, pluginRuntime: pluginRuntime}, nil
+	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime}, nil
 }
 
 func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
@@ -214,7 +216,10 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService) plugin.Manager {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService, businessEvents *event.BusinessEventBus) plugin.Manager {
+	if businessEvents == nil {
+		businessEvents = event.NewBusinessEventBus(nil)
+	}
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
 	runtimeManager.SetCatalogRegistry(plugin.NewMemoryCatalogRegistry())
 	runtimeManager.SetCatalogAuditSink(pluginCatalogAuditSink{auditSvc: auditSvc})
@@ -222,16 +227,19 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
 	healthChecker := plugin.NewHTTPHealthChecker(2 * time.Second)
 	m := &pluginManagerWithExtensions{
-		Manager:          runtimeManager,
-		builtinInfos:     builtinInfos,
-		extensions:       extensions,
-		routeHandlers:    handlers,
-		pluginsRepo:      pluginsRepo,
-		routePermissions: mustEmptyRoutePermissionRegistry(),
-		healthChecker:    healthChecker,
-		healthCache:      make(map[string]plugin.HealthReport),
-		healthTTL:        5 * time.Second,
-		migrationHook:    plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
+		Manager:            runtimeManager,
+		builtinInfos:       builtinInfos,
+		extensions:         extensions,
+		routeHandlers:      handlers,
+		pluginsRepo:        pluginsRepo,
+		routePermissions:   mustEmptyRoutePermissionRegistry(),
+		healthChecker:      healthChecker,
+		healthCache:        make(map[string]plugin.HealthReport),
+		healthTTL:          5 * time.Second,
+		businessEvents:     businessEvents,
+		eventDelivery:      plugin.NewHTTPEventDeliveryClient(nil, 5*time.Second),
+		eventSubscriptions: make(map[string][]func()),
+		migrationHook:      plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
 		serviceSupervisor: plugin.NewServiceSupervisor(
 			plugin.NewExternalServiceLauncher(healthChecker, 5*time.Second),
 			pluginServiceAuditSink{auditSvc: auditSvc},
@@ -338,19 +346,22 @@ func hasPluginManifest(path string) (bool, error) {
 
 type pluginManagerWithExtensions struct {
 	plugin.Manager
-	lifecycleMu       sync.RWMutex
-	mu                sync.RWMutex
-	builtinInfos      map[string]plugin.Info
-	extensions        map[string]plugin.RegistrySnapshot
-	routeHandlers     map[string]http.HandlerFunc
-	pluginsRepo       pluginrepo.PluginRepository
-	routePermissions  *plugin.RoutePermissionRegistry
-	healthChecker     plugin.HealthChecker
-	healthMu          sync.RWMutex
-	healthCache       map[string]plugin.HealthReport
-	healthTTL         time.Duration
-	serviceSupervisor *plugin.ServiceSupervisor
-	migrationHook     *plugin.PluginMigrationHook
+	lifecycleMu        sync.RWMutex
+	mu                 sync.RWMutex
+	builtinInfos       map[string]plugin.Info
+	extensions         map[string]plugin.RegistrySnapshot
+	routeHandlers      map[string]http.HandlerFunc
+	pluginsRepo        pluginrepo.PluginRepository
+	routePermissions   *plugin.RoutePermissionRegistry
+	healthChecker      plugin.HealthChecker
+	healthMu           sync.RWMutex
+	healthCache        map[string]plugin.HealthReport
+	healthTTL          time.Duration
+	serviceSupervisor  *plugin.ServiceSupervisor
+	migrationHook      *plugin.PluginMigrationHook
+	businessEvents     *event.BusinessEventBus
+	eventDelivery      plugin.EventDeliveryClient
+	eventSubscriptions map[string][]func()
 }
 
 var _ plugin.RoutePermissionResolver = (*pluginManagerWithExtensions)(nil)
@@ -382,6 +393,7 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	if err := reloader.ReloadPluginMetadata(pluginID); err != nil {
 		if serviceWasRunning {
 			_ = m.Manager.Disable(pluginID)
+			m.removePluginEventSubscriptions(pluginID)
 			_ = m.refreshRoutePermissions()
 			m.clearHealthCache()
 			m.persistOne(context.Background(), pluginID)
@@ -395,6 +407,7 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	if err := m.runPluginMigrations(context.Background(), next, plugin.PluginMigrationUpgrade); err != nil {
 		if current.State == plugin.StateEnabled {
 			_ = m.Manager.Disable(pluginID)
+			m.removePluginEventSubscriptions(pluginID)
 			_ = m.refreshRoutePermissions()
 			m.clearHealthCache()
 			m.persistOne(context.Background(), pluginID)
@@ -402,8 +415,9 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 		return err
 	}
 	if err := m.refreshRoutePermissions(); err != nil {
-		if serviceWasRunning {
+		if current.State == plugin.StateEnabled {
 			_ = m.Manager.Disable(pluginID)
+			m.removePluginEventSubscriptions(pluginID)
 			_ = m.refreshRoutePermissions()
 			m.clearHealthCache()
 			m.persistOne(context.Background(), pluginID)
@@ -413,8 +427,20 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	if serviceWasRunning {
 		if err := m.serviceSupervisor.Start(context.Background(), next); err != nil {
 			_ = m.Manager.Disable(pluginID)
+			m.removePluginEventSubscriptions(pluginID)
 			_ = m.refreshRoutePermissions()
 			m.clearHealthCache()
+			m.persistOne(context.Background(), pluginID)
+			return err
+		}
+	}
+	m.removePluginEventSubscriptions(pluginID)
+	if next.State == plugin.StateEnabled {
+		if err := m.registerPluginEventSubscriptions(next); err != nil {
+			_ = m.Manager.Disable(pluginID)
+			m.removePluginEventSubscriptions(pluginID)
+			_ = m.refreshRoutePermissions()
+			_ = m.stopPluginService(pluginID)
 			m.persistOne(context.Background(), pluginID)
 			return err
 		}
@@ -746,6 +772,15 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 			}
 			return err
 		}
+		if err := m.registerEnabledPluginEventSubscriptions(); err != nil {
+			_ = m.Manager.Disable(pluginID)
+			m.removePluginEventSubscriptions(pluginID)
+			_ = m.refreshRoutePermissions()
+			if serviceStarted {
+				_ = m.serviceSupervisor.Stop(context.Background(), pluginID)
+			}
+			return err
+		}
 		m.clearHealthCache()
 		m.persistOne(context.Background(), pluginID)
 		return nil
@@ -763,6 +798,13 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 			stored.State = plugin.StateEnabled
 			stored.EnabledAt = &now
 			_ = m.pluginsRepo.Save(context.Background(), *stored)
+			if err := m.registerPluginEventSubscriptions(*stored); err != nil {
+				stored.State = plugin.StateDisabled
+				stored.EnabledAt = nil
+				_ = m.pluginsRepo.Save(context.Background(), *stored)
+				_ = m.stopPluginService(pluginID)
+				return err
+			}
 			m.clearHealthCache()
 			return nil
 		}
@@ -778,6 +820,12 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	item.State = plugin.StateEnabled
 	item.EnabledAt = &now
 	m.builtinInfos[pluginID] = item
+	if err := m.registerPluginEventSubscriptions(item); err != nil {
+		item.State = plugin.StateDisabled
+		item.EnabledAt = nil
+		m.builtinInfos[pluginID] = item
+		return err
+	}
 	m.clearHealthCache()
 	m.persistOne(context.Background(), pluginID)
 	return nil
@@ -790,6 +838,7 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
 	if err := m.Manager.Disable(pluginID); err == nil {
+		m.removePluginEventSubscriptions(pluginID)
 		if err := m.refreshRoutePermissions(); err != nil {
 			_ = m.stopPluginService(pluginID)
 			return err
@@ -810,6 +859,7 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 			stored.State = plugin.StateDisabled
 			stored.EnabledAt = nil
 			_ = m.pluginsRepo.Save(context.Background(), *stored)
+			m.removePluginEventSubscriptions(pluginID)
 			m.clearHealthCache()
 			return m.stopPluginService(pluginID)
 		}
@@ -845,6 +895,7 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 			if err := m.Manager.Disable(pluginID); err != nil {
 				return err
 			}
+			m.removePluginEventSubscriptions(pluginID)
 			if err := m.refreshRoutePermissions(); err != nil {
 				return err
 			}
@@ -857,6 +908,7 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 		if err := m.pluginsRepo.Save(context.Background(), info); err != nil {
 			return err
 		}
+		m.removePluginEventSubscriptions(pluginID)
 	}
 	if err := m.stopPluginService(pluginID); err != nil {
 		return err
@@ -879,6 +931,134 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	}
 	m.clearHealthCache()
 	return nil
+}
+
+func (m *pluginManagerWithExtensions) PublishBusinessEvent(ctx context.Context, businessEvent event.BusinessEvent) error {
+	if m == nil || m.businessEvents == nil {
+		return errors.New("business event bus is not configured")
+	}
+	return m.businessEvents.Publish(ctx, businessEvent)
+}
+
+func (m *pluginManagerWithExtensions) RetryBusinessEvents(ctx context.Context, now time.Time) (int, error) {
+	if m == nil || m.businessEvents == nil {
+		return 0, errors.New("business event bus is not configured")
+	}
+	return m.businessEvents.RetryDue(ctx, now)
+}
+
+func (m *pluginManagerWithExtensions) BusinessEventRetryRecords() []event.BusinessRetryRecord {
+	if m == nil || m.businessEvents == nil {
+		return nil
+	}
+	return m.businessEvents.RetryRecords()
+}
+
+func (m *pluginManagerWithExtensions) BusinessEventDeliveryRecords() []event.BusinessDeliveryRecord {
+	if m == nil || m.businessEvents == nil {
+		return nil
+	}
+	return m.businessEvents.DeliveryRecords()
+}
+
+func (m *pluginManagerWithExtensions) registerEnabledPluginEventSubscriptions() error {
+	if m == nil || m.Manager == nil {
+		return nil
+	}
+	for _, info := range m.Manager.List() {
+		if info.State != plugin.StateEnabled {
+			continue
+		}
+		if err := m.registerPluginEventSubscriptions(info); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *pluginManagerWithExtensions) registerPluginEventSubscriptions(info plugin.Info) error {
+	if m == nil {
+		return errors.New("plugin manager is not configured")
+	}
+	pluginID := strings.TrimSpace(info.ID)
+	if pluginID == "" {
+		return plugin.ErrPluginManifestBroken
+	}
+	subscriptions := info.EventSubscriptions()
+	if len(subscriptions) == 0 {
+		return nil
+	}
+	if m.businessEvents == nil {
+		m.businessEvents = event.NewBusinessEventBus(nil)
+	}
+	if m.eventDelivery == nil {
+		m.eventDelivery = plugin.NewHTTPEventDeliveryClient(nil, 5*time.Second)
+	}
+	if m.eventSubscriptions == nil {
+		m.eventSubscriptions = make(map[string][]func())
+	}
+	if _, exists := m.eventSubscriptions[pluginID]; exists {
+		return nil
+	}
+	unsubscribers := make([]func(), 0, len(subscriptions))
+	for _, declared := range subscriptions {
+		subscription := declared
+		policy, err := event.ParseBusinessRetryPolicy(subscription.RetryPolicy)
+		if err != nil {
+			for _, unsubscribe := range unsubscribers {
+				unsubscribe()
+			}
+			return plugin.ErrPluginManifestBroken
+		}
+		handlerName := pluginID + ":" + subscription.Handler
+		unsubscribe, err := m.businessEvents.SubscribeWithPolicy(subscription.Name, handlerName, policy, func(ctx context.Context, businessEvent event.BusinessEvent) error {
+			return m.deliverPluginBusinessEvent(ctx, pluginID, subscription, businessEvent)
+		})
+		if err != nil {
+			for _, registered := range unsubscribers {
+				registered()
+			}
+			return err
+		}
+		unsubscribers = append(unsubscribers, unsubscribe)
+	}
+	m.eventSubscriptions[pluginID] = unsubscribers
+	return nil
+}
+
+func (m *pluginManagerWithExtensions) removePluginEventSubscriptions(pluginID string) {
+	if m == nil {
+		return
+	}
+	pluginID = strings.TrimSpace(pluginID)
+	for _, unsubscribe := range m.eventSubscriptions[pluginID] {
+		if unsubscribe != nil {
+			unsubscribe()
+		}
+	}
+	delete(m.eventSubscriptions, pluginID)
+}
+
+func (m *pluginManagerWithExtensions) deliverPluginBusinessEvent(ctx context.Context, pluginID string, subscription plugin.EventSubscription, businessEvent event.BusinessEvent) error {
+	if m == nil || m.eventDelivery == nil {
+		return errors.New("plugin event delivery is not configured")
+	}
+	m.lifecycleMu.RLock()
+	defer m.lifecycleMu.RUnlock()
+	info, err := m.getCurrent(pluginID)
+	if err != nil || info.State != plugin.StateEnabled || !pluginEventSubscriptionDeclared(info, subscription) {
+		return nil
+	}
+	return m.eventDelivery.Deliver(ctx, info, subscription, businessEvent)
+}
+
+func pluginEventSubscriptionDeclared(info plugin.Info, expected plugin.EventSubscription) bool {
+	for _, subscription := range info.EventSubscriptions() {
+		if subscription.Name == expected.Name && subscription.Handler == expected.Handler {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *pluginManagerWithExtensions) runEnableMigrations(ctx context.Context, pluginID string) error {
@@ -983,7 +1163,15 @@ func (m *pluginManagerWithExtensions) stopPluginService(pluginID string) error {
 }
 
 func (m *pluginManagerWithExtensions) Close() error {
-	if m == nil || m.serviceSupervisor == nil {
+	if m == nil {
+		return nil
+	}
+	m.lifecycleMu.Lock()
+	for pluginID := range m.eventSubscriptions {
+		m.removePluginEventSubscriptions(pluginID)
+	}
+	m.lifecycleMu.Unlock()
+	if m.serviceSupervisor == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
