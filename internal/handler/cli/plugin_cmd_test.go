@@ -270,20 +270,14 @@ func TestPluginCommandMigrateLifecycle(t *testing.T) {
 		t.Fatalf("unexpected migrate plan output: %s", planOut)
 	}
 
-	applyOut, err := cmd.Handle(context.Background(), []string{"migrate", pluginDir, "apply", "1"})
-	if err != nil {
-		t.Fatalf("migrate apply should succeed, got err: %v", err)
-	}
-	if !strings.Contains(applyOut, "applied=1") {
-		t.Fatalf("unexpected migrate apply output: %s", applyOut)
+	_, err = cmd.Handle(context.Background(), []string{"migrate", pluginDir, "apply", "1"})
+	if err == nil || !strings.Contains(err.Error(), "configured plugin lifecycle") {
+		t.Fatalf("migrate apply must reject unconfigured execution, got err: %v", err)
 	}
 
-	rollbackOut, err := cmd.Handle(context.Background(), []string{"migrate", pluginDir, "rollback", "1"})
-	if err != nil {
-		t.Fatalf("migrate rollback should succeed, got err: %v", err)
-	}
-	if !strings.Contains(rollbackOut, "rolled_back=1") {
-		t.Fatalf("unexpected migrate rollback output: %s", rollbackOut)
+	_, err = cmd.Handle(context.Background(), []string{"migrate", pluginDir, "rollback", "1"})
+	if err == nil || !strings.Contains(err.Error(), "configured plugin lifecycle") {
+		t.Fatalf("migrate rollback must reject unconfigured execution, got err: %v", err)
 	}
 }
 

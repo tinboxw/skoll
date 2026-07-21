@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -37,12 +38,15 @@ type PluginMigrationEvent struct {
 }
 
 type PluginMigrationHookInput struct {
-	PluginID    string
-	PluginDir   string
-	Action      PluginMigrationAction
-	FromVersion string
-	ToVersion   string
-	Limit       int
+	PluginID           string
+	PluginDir          string
+	MigrationDirectory string
+	Action             PluginMigrationAction
+	FromVersion        string
+	ToVersion          string
+	UninstallPolicy    DataUninstallPolicy
+	RollbackPolicy     DataRollbackPolicy
+	Limit              int
 }
 
 type PluginMigrationRecorder interface {
@@ -50,6 +54,7 @@ type PluginMigrationRecorder interface {
 }
 
 type PluginMigrationHook struct {
+	store    MigrationStore
 	recorder PluginMigrationRecorder
 	now      func() time.Time
 }
@@ -59,11 +64,12 @@ type MemoryPluginMigrationRecorder struct {
 	events []PluginMigrationEvent
 }
 
-func NewPluginMigrationHook(recorder PluginMigrationRecorder) *PluginMigrationHook {
+func NewPluginMigrationHook(store MigrationStore, recorder PluginMigrationRecorder) *PluginMigrationHook {
 	if recorder == nil {
 		recorder = NewMemoryPluginMigrationRecorder()
 	}
 	return &PluginMigrationHook{
+		store:    store,
 		recorder: recorder,
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -75,9 +81,9 @@ func NewMemoryPluginMigrationRecorder() *MemoryPluginMigrationRecorder {
 	return &MemoryPluginMigrationRecorder{events: []PluginMigrationEvent{}}
 }
 
-func (h *PluginMigrationHook) Run(in PluginMigrationHookInput) ([]MigrationStep, error) {
+func (h *PluginMigrationHook) Run(ctx context.Context, in PluginMigrationHookInput) ([]MigrationStep, error) {
 	if h == nil {
-		h = NewPluginMigrationHook(nil)
+		h = NewPluginMigrationHook(nil, nil)
 	}
 	in.PluginID = strings.TrimSpace(in.PluginID)
 	in.PluginDir = strings.TrimSpace(in.PluginDir)
@@ -89,7 +95,7 @@ func (h *PluginMigrationHook) Run(in PluginMigrationHookInput) ([]MigrationStep,
 	}
 
 	h.record(in, PluginMigrationStarted, nil, "")
-	steps, err := runPluginMigrationAction(in)
+	steps, err := h.run(ctx, in)
 	if err != nil {
 		h.record(in, PluginMigrationFailed, steps, err.Error())
 		return steps, err
@@ -146,13 +152,25 @@ func (h *PluginMigrationHook) record(in PluginMigrationHookInput, status PluginM
 	})
 }
 
-func runPluginMigrationAction(in PluginMigrationHookInput) ([]MigrationStep, error) {
-	migrator := NewMigrator(in.PluginDir)
+func (h *PluginMigrationHook) run(ctx context.Context, in PluginMigrationHookInput) ([]MigrationStep, error) {
+	migrator := NewMigrator(in.PluginID, in.PluginDir, in.MigrationDirectory, h.store)
 	switch in.Action {
 	case PluginMigrationInstall, PluginMigrationUpgrade:
-		return migrator.Apply(in.Limit)
-	case PluginMigrationDowngrade, PluginMigrationUninstall:
-		return migrator.Rollback(in.Limit)
+		return migrator.Apply(ctx, in.Limit)
+	case PluginMigrationDowngrade:
+		if in.RollbackPolicy != DataRollbackAutomatic {
+			return nil, fmt.Errorf("plugin downgrade requires automatic rollback policy")
+		}
+		return migrator.Rollback(ctx, in.Limit)
+	case PluginMigrationUninstall:
+		switch in.UninstallPolicy {
+		case DataUninstallRetain, DataUninstallArchive:
+			return []MigrationStep{}, nil
+		case DataUninstallDrop:
+			return migrator.Rollback(ctx, in.Limit)
+		default:
+			return nil, fmt.Errorf("plugin uninstall requires an explicit data policy")
+		}
 	default:
 		return nil, fmt.Errorf("%w: migration action is invalid", ErrPluginManifestBroken)
 	}

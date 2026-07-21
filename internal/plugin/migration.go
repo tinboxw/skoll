@@ -1,7 +1,10 @@
 package plugin
 
 import (
-	"encoding/json"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var migrationFilePattern = regexp.MustCompile(`^([0-9]{3,})_[a-zA-Z0-9._-]+\.(up|down)\.sql$`)
@@ -16,12 +20,17 @@ var migrationFilePattern = regexp.MustCompile(`^([0-9]{3,})_[a-zA-Z0-9._-]+\.(up
 type MigrationStep struct {
 	Version  int
 	Name     string
+	Checksum string
 	UpPath   string
 	DownPath string
 }
 
-type MigrationState struct {
-	AppliedVersions []int `json:"appliedVersions"`
+type MigrationRecord struct {
+	PluginID  string
+	Version   int
+	Name      string
+	Checksum  string
+	AppliedAt time.Time
 }
 
 type MigrationPlan struct {
@@ -29,82 +38,194 @@ type MigrationPlan struct {
 	Pending []MigrationStep
 }
 
+type MigrationTransaction interface {
+	ExecSQL(sql string) error
+	MarkApplied(record MigrationRecord) error
+	RemoveApplied(pluginID string, version int) error
+}
+
+type MigrationStore interface {
+	ListApplied(ctx context.Context, pluginID string) ([]MigrationRecord, error)
+	WithTransaction(ctx context.Context, fn func(tx MigrationTransaction) error) error
+	RequiresApplyCompensation() bool
+}
+
+type MigrationPlanner struct {
+	pluginDir          string
+	migrationDirectory string
+}
+
 type Migrator struct {
-	pluginDir string
+	pluginID string
+	planner  *MigrationPlanner
+	store    MigrationStore
+	now      func() time.Time
 }
 
-func NewMigrator(pluginDir string) *Migrator {
-	return &Migrator{pluginDir: strings.TrimSpace(pluginDir)}
+func NewMigrationPlanner(pluginDir, migrationDirectory string) *MigrationPlanner {
+	directory := strings.Trim(strings.TrimSpace(migrationDirectory), `/\`)
+	if directory == "" {
+		directory = "migrations"
+	}
+	return &MigrationPlanner{
+		pluginDir:          strings.TrimSpace(pluginDir),
+		migrationDirectory: directory,
+	}
 }
 
-func (m *Migrator) Plan() (MigrationPlan, error) {
-	steps, err := m.loadSteps()
+func NewMigrator(pluginID, pluginDir, migrationDirectory string, store MigrationStore) *Migrator {
+	return &Migrator{
+		pluginID: strings.TrimSpace(pluginID),
+		planner:  NewMigrationPlanner(pluginDir, migrationDirectory),
+		store:    store,
+		now: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
+}
+
+func (p *MigrationPlanner) Plan(applied []MigrationRecord) (MigrationPlan, error) {
+	steps, err := p.loadSteps()
 	if err != nil {
 		return MigrationPlan{}, err
 	}
-	state, err := m.loadState()
-	if err != nil {
-		return MigrationPlan{}, err
-	}
 
-	appliedMap := make(map[int]struct{}, len(state.AppliedVersions))
-	for _, v := range state.AppliedVersions {
-		appliedMap[v] = struct{}{}
+	appliedByVersion := make(map[int]MigrationRecord, len(applied))
+	for _, record := range applied {
+		if record.Version <= 0 {
+			return MigrationPlan{}, fmt.Errorf("invalid applied migration version %d", record.Version)
+		}
+		if _, exists := appliedByVersion[record.Version]; exists {
+			return MigrationPlan{}, fmt.Errorf("duplicate applied migration version %03d", record.Version)
+		}
+		appliedByVersion[record.Version] = record
 	}
 
 	plan := MigrationPlan{
-		Applied: make([]MigrationStep, 0),
-		Pending: make([]MigrationStep, 0),
+		Applied: make([]MigrationStep, 0, len(applied)),
+		Pending: make([]MigrationStep, 0, len(steps)),
 	}
 	for _, step := range steps {
-		if _, ok := appliedMap[step.Version]; ok {
-			plan.Applied = append(plan.Applied, step)
+		record, ok := appliedByVersion[step.Version]
+		if !ok {
+			plan.Pending = append(plan.Pending, step)
 			continue
 		}
-		plan.Pending = append(plan.Pending, step)
+		if !strings.EqualFold(strings.TrimSpace(record.Checksum), step.Checksum) {
+			return MigrationPlan{}, fmt.Errorf("migration %03d checksum does not match the applied ledger", step.Version)
+		}
+		plan.Applied = append(plan.Applied, step)
+		delete(appliedByVersion, step.Version)
+	}
+	if len(appliedByVersion) > 0 {
+		versions := make([]int, 0, len(appliedByVersion))
+		for version := range appliedByVersion {
+			versions = append(versions, version)
+		}
+		sort.Ints(versions)
+		return MigrationPlan{}, fmt.Errorf("applied migration %03d is missing from the plugin package", versions[0])
 	}
 	return plan, nil
 }
 
-func (m *Migrator) Apply(limit int) ([]MigrationStep, error) {
-	plan, err := m.Plan()
+func (m *Migrator) Plan(ctx context.Context) (MigrationPlan, error) {
+	if err := m.validate(); err != nil {
+		return MigrationPlan{}, err
+	}
+	records, err := m.store.ListApplied(normalizeMigrationContext(ctx), m.pluginID)
+	if err != nil {
+		return MigrationPlan{}, fmt.Errorf("list applied plugin migrations: %w", err)
+	}
+	return m.planner.Plan(records)
+}
+
+func (m *Migrator) Apply(ctx context.Context, limit int) ([]MigrationStep, error) {
+	ctx = normalizeMigrationContext(ctx)
+	plan, err := m.Plan(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if len(plan.Pending) == 0 {
-		return nil, nil
+		return []MigrationStep{}, nil
 	}
-
 	if limit <= 0 || limit > len(plan.Pending) {
 		limit = len(plan.Pending)
 	}
-	toApply := plan.Pending[:limit]
-
-	state, err := m.loadState()
+	toApply := append([]MigrationStep(nil), plan.Pending[:limit]...)
+	scripts, err := readMigrationScripts(toApply, true)
 	if err != nil {
 		return nil, err
 	}
-	for _, step := range toApply {
-		if err := ensureMigrationSQL(step.UpPath); err != nil {
+
+	downScripts := []string(nil)
+	if m.store.RequiresApplyCompensation() {
+		downScripts, err = readMigrationScripts(toApply, false)
+		if err != nil {
 			return nil, err
 		}
-		state.AppliedVersions = append(state.AppliedVersions, step.Version)
 	}
-	if err := m.saveState(state); err != nil {
+	attempted := 0
+	err = m.store.WithTransaction(ctx, func(tx MigrationTransaction) error {
+		for i, step := range toApply {
+			attempted = i + 1
+			if err := tx.ExecSQL(scripts[i]); err != nil {
+				return fmt.Errorf("apply migration %03d: %w", step.Version, err)
+			}
+			appliedAt := time.Now().UTC()
+			if m.now != nil {
+				appliedAt = m.now().UTC()
+			}
+			if err := tx.MarkApplied(MigrationRecord{
+				PluginID:  m.pluginID,
+				Version:   step.Version,
+				Name:      step.Name,
+				Checksum:  step.Checksum,
+				AppliedAt: appliedAt,
+			}); err != nil {
+				return fmt.Errorf("record migration %03d: %w", step.Version, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if attempted > 0 && m.store.RequiresApplyCompensation() {
+			if compensationErr := m.compensateApply(ctx, toApply[:attempted], downScripts[:attempted]); compensationErr != nil {
+				return nil, errors.Join(err, fmt.Errorf("migration compensation failed: %w", compensationErr))
+			}
+		}
 		return nil, err
 	}
 	return toApply, nil
 }
 
-func (m *Migrator) Rollback(limit int) ([]MigrationStep, error) {
-	plan, err := m.Plan()
+func (m *Migrator) compensateApply(ctx context.Context, steps []MigrationStep, scripts []string) error {
+	compensationErrors := make([]error, 0)
+	err := m.store.WithTransaction(ctx, func(tx MigrationTransaction) error {
+		for i := len(steps) - 1; i >= 0; i-- {
+			if execErr := tx.ExecSQL(scripts[i]); execErr != nil {
+				compensationErrors = append(compensationErrors, fmt.Errorf("rollback attempted migration %03d: %w", steps[i].Version, execErr))
+			}
+			if ledgerErr := tx.RemoveApplied(m.pluginID, steps[i].Version); ledgerErr != nil {
+				compensationErrors = append(compensationErrors, fmt.Errorf("remove attempted migration %03d ledger entry: %w", steps[i].Version, ledgerErr))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		compensationErrors = append(compensationErrors, err)
+	}
+	return errors.Join(compensationErrors...)
+}
+
+func (m *Migrator) Rollback(ctx context.Context, limit int) ([]MigrationStep, error) {
+	ctx = normalizeMigrationContext(ctx)
+	plan, err := m.Plan(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if len(plan.Applied) == 0 {
-		return nil, nil
+		return []MigrationStep{}, nil
 	}
-
 	if limit <= 0 || limit > len(plan.Applied) {
 		limit = len(plan.Applied)
 	}
@@ -113,28 +234,46 @@ func (m *Migrator) Rollback(limit int) ([]MigrationStep, error) {
 	for i := len(plan.Applied) - 1; i >= 0 && len(toRollback) < limit; i-- {
 		toRollback = append(toRollback, plan.Applied[i])
 	}
-
-	state, err := m.loadState()
+	scripts, err := readMigrationScripts(toRollback, false)
 	if err != nil {
 		return nil, err
 	}
-	for _, step := range toRollback {
-		if err := ensureMigrationSQL(step.DownPath); err != nil {
-			return nil, err
+
+	err = m.store.WithTransaction(ctx, func(tx MigrationTransaction) error {
+		for i, step := range toRollback {
+			if err := tx.ExecSQL(scripts[i]); err != nil {
+				return fmt.Errorf("rollback migration %03d: %w", step.Version, err)
+			}
+			if err := tx.RemoveApplied(m.pluginID, step.Version); err != nil {
+				return fmt.Errorf("remove migration %03d ledger entry: %w", step.Version, err)
+			}
 		}
-		state.AppliedVersions = removeMigrationVersion(state.AppliedVersions, step.Version)
-	}
-	if err := m.saveState(state); err != nil {
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	return toRollback, nil
 }
 
-func (m *Migrator) loadSteps() ([]MigrationStep, error) {
-	if m == nil || m.pluginDir == "" {
+func (m *Migrator) validate() error {
+	if m == nil || strings.TrimSpace(m.pluginID) == "" {
+		return fmt.Errorf("plugin id is required")
+	}
+	if m.planner == nil {
+		return fmt.Errorf("migration planner is required")
+	}
+	if m.store == nil {
+		return fmt.Errorf("transactional plugin migration store is required")
+	}
+	return nil
+}
+
+func (p *MigrationPlanner) loadSteps() ([]MigrationStep, error) {
+	if p == nil || p.pluginDir == "" {
 		return nil, fmt.Errorf("plugin dir is required")
 	}
-	migrationsDir := filepath.Join(m.pluginDir, "migrations")
+	migrationsDir := filepath.Join(p.pluginDir, p.migrationDirectory)
 	entries, err := os.ReadDir(migrationsDir)
 	if err != nil {
 		return nil, fmt.Errorf("read migrations dir: %w", err)
@@ -161,16 +300,15 @@ func (m *Migrator) loadSteps() ([]MigrationStep, error) {
 			return nil, fmt.Errorf("invalid migration version in %s", name)
 		}
 		typ := match[2]
-
 		p, ok := pairs[version]
 		if !ok {
-			p = &pair{version: version, name: name}
+			p = &pair{version: version}
 			pairs[version] = p
 		}
-
 		fullPath := filepath.Join(migrationsDir, name)
 		if typ == "up" {
 			p.up = fullPath
+			p.name = strings.TrimSuffix(name, ".up.sql")
 		} else {
 			p.down = fullPath
 		}
@@ -179,7 +317,6 @@ func (m *Migrator) loadSteps() ([]MigrationStep, error) {
 	if len(pairs) == 0 {
 		return nil, fmt.Errorf("no migration files found under %s", migrationsDir)
 	}
-
 	versions := make([]int, 0, len(pairs))
 	for version := range pairs {
 		versions = append(versions, version)
@@ -192,9 +329,15 @@ func (m *Migrator) loadSteps() ([]MigrationStep, error) {
 		if strings.TrimSpace(p.up) == "" || strings.TrimSpace(p.down) == "" {
 			return nil, fmt.Errorf("migration %03d requires both up and down sql files", version)
 		}
+		upSQL, err := readMigrationSQL(p.up)
+		if err != nil {
+			return nil, err
+		}
+		digest := sha256.Sum256([]byte(upSQL))
 		steps = append(steps, MigrationStep{
 			Version:  version,
 			Name:     p.name,
+			Checksum: hex.EncodeToString(digest[:]),
 			UpPath:   p.up,
 			DownPath: p.down,
 		})
@@ -202,87 +345,37 @@ func (m *Migrator) loadSteps() ([]MigrationStep, error) {
 	return steps, nil
 }
 
-func (m *Migrator) loadState() (MigrationState, error) {
-	statePath := m.stateFilePath()
-	raw, err := os.ReadFile(statePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return MigrationState{AppliedVersions: []int{}}, nil
+func readMigrationScripts(steps []MigrationStep, up bool) ([]string, error) {
+	scripts := make([]string, 0, len(steps))
+	for _, step := range steps {
+		path := step.DownPath
+		if up {
+			path = step.UpPath
 		}
-		return MigrationState{}, err
+		sql, err := readMigrationSQL(path)
+		if err != nil {
+			return nil, err
+		}
+		scripts = append(scripts, sql)
 	}
-
-	var state MigrationState
-	if err := json.Unmarshal(raw, &state); err != nil {
-		return MigrationState{}, err
-	}
-	if state.AppliedVersions == nil {
-		state.AppliedVersions = []int{}
-	}
-	sort.Ints(state.AppliedVersions)
-	return state, nil
+	return scripts, nil
 }
 
-func (m *Migrator) saveState(state MigrationState) error {
-	sort.Ints(state.AppliedVersions)
-	state.AppliedVersions = uniqueSortedVersions(state.AppliedVersions)
-	statePath := m.stateFilePath()
-	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
-		return err
-	}
-	raw, err := json.MarshalIndent(state, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(statePath, raw, 0o644)
-}
-
-func (m *Migrator) stateFilePath() string {
-	return filepath.Join(m.pluginDir, ".skoll", "migration-state.json")
-}
-
-func ensureMigrationSQL(path string) error {
+func readMigrationSQL(path string) (string, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if strings.TrimSpace(string(raw)) == "" {
-		return fmt.Errorf("migration sql is empty: %s", path)
+	sql := strings.TrimSpace(string(raw))
+	if sql == "" {
+		return "", fmt.Errorf("migration sql is empty: %s", path)
 	}
-	return nil
+	return sql, nil
 }
 
-func removeMigrationVersion(versions []int, target int) []int {
-	if len(versions) == 0 {
-		return versions
+func normalizeMigrationContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
 	}
-	out := make([]int, 0, len(versions))
-	removed := false
-	for i := len(versions) - 1; i >= 0; i-- {
-		v := versions[i]
-		if !removed && v == target {
-			removed = true
-			continue
-		}
-		out = append(out, v)
-	}
-	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
-		out[i], out[j] = out[j], out[i]
-	}
-	return out
-}
-
-func uniqueSortedVersions(in []int) []int {
-	if len(in) == 0 {
-		return in
-	}
-	out := make([]int, 0, len(in))
-	last := in[0] - 1
-	for _, v := range in {
-		if len(out) == 0 || v != last {
-			out = append(out, v)
-			last = v
-		}
-	}
-	return out
+	return ctx
 }

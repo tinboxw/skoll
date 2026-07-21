@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/repository"
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
 	filerepo "github.com/tinboxw/skoll/internal/repository/file"
@@ -45,6 +46,7 @@ type Bundle struct {
 	Audit                     auditrepo.AuditRepository
 	System                    systemrepo.SystemRepository
 	Plugins                   pluginrepo.PluginRepository
+	PluginMigrations          pluginruntime.MigrationStore
 	Permissions               permissionrepo.PermissionRepository
 	Menus                     menurepo.MenuRepository
 	UnitOfWork                repository.UnitOfWork
@@ -125,6 +127,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Audit:                     auditRepo,
 			System:                    primary.SystemRepository(),
 			Plugins:                   primary.PluginRepository(),
+			PluginMigrations:          gormrepo.NewPluginMigrationStore(primary.DB()),
 			Permissions:               primary.PermissionRepository(),
 			Menus:                     primary.MenuRepository(),
 			UnitOfWork:                sql.NewUnitOfWorkWithDB(primary.DB()),
@@ -169,6 +172,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Audit:                     audit.AuditRepository(),
 			System:                    primary.SystemRepository(),
 			Plugins:                   primary.PluginRepository(),
+			PluginMigrations:          gormrepo.NewPluginMigrationStore(primary.DB()),
 			Permissions:               primary.PermissionRepository(),
 			Menus:                     primary.MenuRepository(),
 			UnitOfWork:                sql.NewUnitOfWorkWithDB(primary.DB()),

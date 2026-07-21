@@ -127,7 +127,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Warehouses: pharmaWarehouseService, Purchases: pharmaPurchaseService, Inbounds: pharmaPurchaseInboundService, Sales: pharmaSalesService,
 		Inventory: pharmaInventoryService, FollowUps: pharmaCustomerFollowUpService, Audit: auditService,
 	})
-	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, auditService, auditEventService)
+	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService)
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
 		UserService:                      userService,
@@ -214,7 +214,7 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, auditSvc audit.Service, auditEventSvc audit.EventService) plugin.Manager {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService) plugin.Manager {
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
 	runtimeManager.SetCatalogRegistry(plugin.NewMemoryCatalogRegistry())
 	runtimeManager.SetCatalogAuditSink(pluginCatalogAuditSink{auditSvc: auditSvc})
@@ -231,6 +231,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		healthChecker:    healthChecker,
 		healthCache:      make(map[string]plugin.HealthReport),
 		healthTTL:        5 * time.Second,
+		migrationHook:    plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
 		serviceSupervisor: plugin.NewServiceSupervisor(
 			plugin.NewExternalServiceLauncher(healthChecker, 5*time.Second),
 			pluginServiceAuditSink{auditSvc: auditSvc},
@@ -284,6 +285,24 @@ type pluginServiceAuditSink struct {
 	auditSvc audit.Service
 }
 
+type pluginMigrationAuditSink struct {
+	auditSvc audit.Service
+}
+
+func (s pluginMigrationAuditSink) RecordPluginMigration(event plugin.PluginMigrationEvent) error {
+	if s.auditSvc == nil {
+		return nil
+	}
+	_, err := s.auditSvc.Append(context.Background(), "system", "plugin_migration_"+string(event.Action), "plugin", event.PluginID, map[string]any{
+		"status":      event.Status,
+		"fromVersion": event.FromVersion,
+		"toVersion":   event.ToVersion,
+		"steps":       len(event.Steps),
+		"error":       event.Error,
+	})
+	return err
+}
+
 func (s pluginServiceAuditSink) RecordPluginServiceEvent(event plugin.ServiceLifecycleEvent) error {
 	if s.auditSvc == nil {
 		return nil
@@ -331,6 +350,7 @@ type pluginManagerWithExtensions struct {
 	healthCache       map[string]plugin.HealthReport
 	healthTTL         time.Duration
 	serviceSupervisor *plugin.ServiceSupervisor
+	migrationHook     *plugin.PluginMigrationHook
 }
 
 var _ plugin.RoutePermissionResolver = (*pluginManagerWithExtensions)(nil)
@@ -368,6 +388,19 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 		}
 		return err
 	}
+	next, err := m.getCurrent(pluginID)
+	if err != nil {
+		return err
+	}
+	if err := m.runPluginMigrations(context.Background(), next, plugin.PluginMigrationUpgrade); err != nil {
+		if current.State == plugin.StateEnabled {
+			_ = m.Manager.Disable(pluginID)
+			_ = m.refreshRoutePermissions()
+			m.clearHealthCache()
+			m.persistOne(context.Background(), pluginID)
+		}
+		return err
+	}
 	if err := m.refreshRoutePermissions(); err != nil {
 		if serviceWasRunning {
 			_ = m.Manager.Disable(pluginID)
@@ -378,10 +411,6 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 		return err
 	}
 	if serviceWasRunning {
-		next, err := m.getCurrent(pluginID)
-		if err != nil {
-			return err
-		}
 		if err := m.serviceSupervisor.Start(context.Background(), next); err != nil {
 			_ = m.Manager.Disable(pluginID)
 			_ = m.refreshRoutePermissions()
@@ -698,6 +727,9 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	}
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
+	if err := m.runEnableMigrations(context.Background(), pluginID); err != nil {
+		return err
+	}
 	serviceStarted := false
 	if info, err := m.getCurrent(pluginID); err == nil && info.State != plugin.StateEnabled && strings.TrimSpace(info.ServiceBaseURL) != "" && m.serviceSupervisor != nil {
 		if err := m.serviceSupervisor.Start(context.Background(), info); err != nil {
@@ -798,39 +830,107 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	}
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
-	if err := m.Manager.Uninstall(pluginID); err == nil {
-		if err := m.refreshRoutePermissions(); err != nil {
-			_ = m.stopPluginService(pluginID)
-			return err
-		}
-		m.clearHealthCache()
-		if m.pluginsRepo != nil {
-			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
-		}
-		return m.stopPluginService(pluginID)
-	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
+	info, err := m.getCurrent(pluginID)
+	if err != nil {
 		return err
 	}
+	if info.SystemBuiltin {
+		return plugin.ErrPluginSystemProtected
+	}
 
-	if m.pluginsRepo != nil {
-		stored, storedErr := m.pluginsRepo.Get(context.Background(), pluginID)
-		if storedErr == nil && stored != nil {
-			if stored.SystemBuiltin {
-				return plugin.ErrPluginSystemProtected
+	managedByRuntime := false
+	if _, runtimeErr := m.Manager.Get(pluginID); runtimeErr == nil {
+		managedByRuntime = true
+		if info.State == plugin.StateEnabled {
+			if err := m.Manager.Disable(pluginID); err != nil {
+				return err
 			}
-			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
-			m.clearHealthCache()
-			return m.stopPluginService(pluginID)
+			if err := m.refreshRoutePermissions(); err != nil {
+				return err
+			}
+		}
+	} else if !errors.Is(runtimeErr, plugin.ErrPluginNotFound) {
+		return runtimeErr
+	} else if info.State == plugin.StateEnabled && m.pluginsRepo != nil {
+		info.State = plugin.StateDisabled
+		info.EnabledAt = nil
+		if err := m.pluginsRepo.Save(context.Background(), info); err != nil {
+			return err
 		}
 	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	_, ok := m.builtinInfos[pluginID]
-	if !ok {
-		return plugin.ErrPluginNotFound
+	if err := m.stopPluginService(pluginID); err != nil {
+		return err
 	}
-	return plugin.ErrPluginSystemProtected
+	if err := m.runPluginMigrations(context.Background(), info, plugin.PluginMigrationUninstall); err != nil {
+		return err
+	}
+	if managedByRuntime {
+		if err := m.Manager.Uninstall(pluginID); err != nil {
+			return err
+		}
+		if err := m.refreshRoutePermissions(); err != nil {
+			return err
+		}
+	}
+	if m.pluginsRepo != nil {
+		if err := m.pluginsRepo.Delete(context.Background(), pluginID); err != nil {
+			return err
+		}
+	}
+	m.clearHealthCache()
+	return nil
+}
+
+func (m *pluginManagerWithExtensions) runEnableMigrations(ctx context.Context, pluginID string) error {
+	items := m.Manager.List()
+	byID := make(map[string]plugin.Info, len(items))
+	for _, item := range items {
+		byID[item.ID] = item
+	}
+	if _, ok := byID[pluginID]; !ok {
+		item, err := m.getCurrent(pluginID)
+		if err != nil {
+			return err
+		}
+		return m.runPluginMigrations(ctx, item, plugin.PluginMigrationInstall)
+	}
+	order, err := plugin.NewTopologicalResolver().ResolveEnableOrder(pluginID, byID)
+	if err != nil {
+		return err
+	}
+	for _, id := range order {
+		item := byID[id]
+		if item.State == plugin.StateEnabled {
+			continue
+		}
+		action := plugin.PluginMigrationUpgrade
+		if item.State == plugin.StateInstalled {
+			action = plugin.PluginMigrationInstall
+		}
+		if err := m.runPluginMigrations(ctx, item, action); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (m *pluginManagerWithExtensions) runPluginMigrations(ctx context.Context, info plugin.Info, action plugin.PluginMigrationAction) error {
+	if info.DataManifest == nil || strings.TrimSpace(info.DataManifest.MigrationVersion) == "" {
+		return nil
+	}
+	if m.migrationHook == nil {
+		return fmt.Errorf("plugin %s requires a transactional migration store", info.ID)
+	}
+	_, err := m.migrationHook.Run(ctx, plugin.PluginMigrationHookInput{
+		PluginID:           info.ID,
+		PluginDir:          info.Source,
+		MigrationDirectory: info.DataManifest.MigrationDirectory,
+		Action:             action,
+		ToVersion:          info.DataManifest.MigrationVersion,
+		UninstallPolicy:    info.DataManifest.UninstallPolicy,
+		RollbackPolicy:     info.DataManifest.RollbackPolicy,
+	})
+	return err
 }
 
 func (m *pluginManagerWithExtensions) refreshRoutePermissions() error {
@@ -989,6 +1089,12 @@ func (m *pluginManagerWithExtensions) getCurrent(pluginID string) (plugin.Info, 
 	}
 	if !errors.Is(err, plugin.ErrPluginNotFound) {
 		return plugin.Info{}, err
+	}
+	if m.pluginsRepo != nil {
+		item, repoErr := m.pluginsRepo.Get(context.Background(), pluginID)
+		if repoErr == nil && item != nil {
+			return *item, nil
+		}
 	}
 	m.mu.RLock()
 	defer m.mu.RUnlock()

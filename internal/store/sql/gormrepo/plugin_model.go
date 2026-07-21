@@ -13,8 +13,10 @@ type PluginModel struct {
 	PluginID         string `gorm:"size:128;uniqueIndex"`
 	Name             string `gorm:"size:128"`
 	Version          string `gorm:"size:64"`
+	MigrationVersion string `gorm:"size:64"`
 	Description      string `gorm:"size:512"`
 	ConfigJSON       string `gorm:"type:text"`
+	DataManifestJSON string `gorm:"type:text"`
 	State            string `gorm:"size:32;index"`
 	Source           string `gorm:"size:512"`
 	UIMode           string `gorm:"size:64"`
@@ -40,12 +42,15 @@ func PluginModelFromInfo(info plugin.Info) PluginModel {
 	permissions, _ := json.Marshal(info.Permissions)
 	dependencies, _ := json.Marshal(info.Dependencies)
 	signature, _ := json.Marshal(info.Signature)
+	dataManifest, _ := json.Marshal(info.DataManifest)
 	return PluginModel{
 		PluginID:         strings.TrimSpace(info.ID),
 		Name:             strings.TrimSpace(info.Name),
 		Version:          strings.TrimSpace(info.Version),
+		MigrationVersion: strings.TrimSpace(info.MigrationVersion),
 		Description:      strings.TrimSpace(info.Description),
 		ConfigJSON:       strings.TrimSpace(info.ConfigJSON),
+		DataManifestJSON: string(dataManifest),
 		State:            string(info.State),
 		Source:           strings.TrimSpace(info.Source),
 		UIMode:           string(info.UIMode),
@@ -68,6 +73,7 @@ func (m PluginModel) ToInfo() plugin.Info {
 	permissions := []string{}
 	dependencies := []plugin.Dependency{}
 	signature := (*plugin.Signature)(nil)
+	dataManifest := (*plugin.DataManifest)(nil)
 
 	if strings.TrimSpace(m.PermissionsJSON) != "" {
 		_ = json.Unmarshal([]byte(m.PermissionsJSON), &permissions)
@@ -81,27 +87,35 @@ func (m PluginModel) ToInfo() plugin.Info {
 			signature = sig
 		}
 	}
+	if strings.TrimSpace(m.DataManifestJSON) != "" && strings.TrimSpace(m.DataManifestJSON) != "null" {
+		manifest := &plugin.DataManifest{}
+		if err := json.Unmarshal([]byte(m.DataManifestJSON), manifest); err == nil {
+			dataManifest = manifest
+		}
+	}
 
 	return plugin.Info{
-		ID:            strings.TrimSpace(m.PluginID),
-		Name:          strings.TrimSpace(m.Name),
-		Version:       strings.TrimSpace(m.Version),
-		Description:   strings.TrimSpace(m.Description),
-		ConfigJSON:    strings.TrimSpace(m.ConfigJSON),
-		Dependencies:  dependencies,
-		Permissions:   permissions,
-		State:         plugin.State(strings.TrimSpace(m.State)),
-		InstalledAt:   m.InstalledAt,
-		EnabledAt:     m.EnabledAt,
-		Source:        strings.TrimSpace(m.Source),
-		UIMode:        plugin.UIMode(strings.TrimSpace(m.UIMode)),
-		Level:         plugin.Level(strings.TrimSpace(m.PluginLevel)),
-		AppID:         strings.TrimSpace(m.AppID),
-		MountPolicy:   plugin.MountPolicy(strings.TrimSpace(m.MountPolicy)),
-		FrontendEntry: strings.TrimSpace(m.FrontendEntry),
-		SystemBuiltin: m.SystemBuiltin,
-		Vendor:        strings.TrimSpace(m.Vendor),
-		VendorURL:     strings.TrimSpace(m.VendorURL),
-		Signature:     signature,
+		ID:               strings.TrimSpace(m.PluginID),
+		Name:             strings.TrimSpace(m.Name),
+		Version:          strings.TrimSpace(m.Version),
+		MigrationVersion: strings.TrimSpace(m.MigrationVersion),
+		Description:      strings.TrimSpace(m.Description),
+		ConfigJSON:       strings.TrimSpace(m.ConfigJSON),
+		Dependencies:     dependencies,
+		Permissions:      permissions,
+		State:            plugin.State(strings.TrimSpace(m.State)),
+		InstalledAt:      m.InstalledAt,
+		EnabledAt:        m.EnabledAt,
+		Source:           strings.TrimSpace(m.Source),
+		UIMode:           plugin.UIMode(strings.TrimSpace(m.UIMode)),
+		Level:            plugin.Level(strings.TrimSpace(m.PluginLevel)),
+		AppID:            strings.TrimSpace(m.AppID),
+		MountPolicy:      plugin.MountPolicy(strings.TrimSpace(m.MountPolicy)),
+		FrontendEntry:    strings.TrimSpace(m.FrontendEntry),
+		SystemBuiltin:    m.SystemBuiltin,
+		Vendor:           strings.TrimSpace(m.Vendor),
+		VendorURL:        strings.TrimSpace(m.VendorURL),
+		Signature:        signature,
+		DataManifest:     dataManifest,
 	}
 }

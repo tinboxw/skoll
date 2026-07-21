@@ -16,7 +16,9 @@ import (
 
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/logging"
+	"gorm.io/gorm"
 )
 
 func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
@@ -46,7 +48,7 @@ func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil).(*pluginManagerWithExtensions)
+	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil).(*pluginManagerWithExtensions)
 	if !ok {
 		t.Fatalf("expected pluginManagerWithExtensions")
 	}
@@ -111,6 +113,186 @@ api:
 		t.Fatalf("uninstall plugin: %v", err)
 	}
 	assertRoutePermissionState(t, manager, false)
+}
+
+func TestPluginManagerMigrationFailureBlocksEnable(t *testing.T) {
+	db := gormrepo.TestDB(t)
+	pluginDir := writeLifecycleMigrationPlugin(t, "broken-migration", plugin.DataUninstallDrop, map[string]string{
+		"001_create.up.sql":   "CREATE TABLE broken_migration_items (id INTEGER PRIMARY KEY);",
+		"001_create.down.sql": "DROP TABLE broken_migration_items;",
+		"002_fail.up.sql":     "INSERT INTO missing_migration_table(id) VALUES (1);",
+		"002_fail.down.sql":   "DELETE FROM missing_migration_table WHERE id = 1;",
+	})
+	manager := newMigrationTestPluginManager(db)
+	if _, err := manager.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin metadata: %v", err)
+	}
+	if err := manager.Enable("broken-migration"); err == nil {
+		t.Fatal("expected migration failure to block enable")
+	}
+	info, err := manager.Get("broken-migration")
+	if err != nil {
+		t.Fatalf("get plugin after failed enable: %v", err)
+	}
+	if info.State != plugin.StateInstalled {
+		t.Fatalf("failed migration changed plugin state to %s", info.State)
+	}
+	if db.Migrator().HasTable("broken_migration_items") {
+		t.Fatal("failed enable leaked migration schema")
+	}
+}
+
+func TestPluginManagerUninstallHonorsDataPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		policy     plugin.DataUninstallPolicy
+		wantTable  bool
+		wantLedger int
+	}{
+		{name: "retain", policy: plugin.DataUninstallRetain, wantTable: true, wantLedger: 1},
+		{name: "archive", policy: plugin.DataUninstallArchive, wantTable: true, wantLedger: 1},
+		{name: "drop", policy: plugin.DataUninstallDrop, wantTable: false, wantLedger: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := gormrepo.TestDB(t)
+			pluginID := "policy-" + tc.name
+			table := "policy_" + tc.name + "_items"
+			pluginDir := writeLifecycleMigrationPlugin(t, pluginID, tc.policy, map[string]string{
+				"001_create.up.sql":   "CREATE TABLE " + table + " (id INTEGER PRIMARY KEY);",
+				"001_create.down.sql": "DROP TABLE " + table + ";",
+			})
+			manager := newMigrationTestPluginManager(db)
+			if _, err := manager.Install(pluginDir); err != nil {
+				t.Fatalf("install plugin metadata: %v", err)
+			}
+			if err := manager.Enable(pluginID); err != nil {
+				t.Fatalf("enable plugin: %v", err)
+			}
+			if err := manager.Uninstall(pluginID); err != nil {
+				t.Fatalf("uninstall plugin: %v", err)
+			}
+			if got := db.Migrator().HasTable(table); got != tc.wantTable {
+				t.Fatalf("table retained=%v want=%v", got, tc.wantTable)
+			}
+			records, err := gormrepo.NewPluginMigrationStore(db).ListApplied(context.Background(), pluginID)
+			if err != nil {
+				t.Fatalf("list migration ledger: %v", err)
+			}
+			if len(records) != tc.wantLedger {
+				t.Fatalf("ledger records=%d want=%d", len(records), tc.wantLedger)
+			}
+		})
+	}
+}
+
+func TestPluginManagerReloadAppliesUpgradeAndDisablesOnMigrationFailure(t *testing.T) {
+	db := gormrepo.TestDB(t)
+	pluginDir := writeLifecycleMigrationPlugin(t, "upgrade-migration", plugin.DataUninstallDrop, map[string]string{
+		"001_create.up.sql":   "CREATE TABLE upgrade_migration_items (id INTEGER PRIMARY KEY);",
+		"001_create.down.sql": "DROP TABLE upgrade_migration_items;",
+	})
+	manager := newMigrationTestPluginManager(db)
+	if _, err := manager.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin metadata: %v", err)
+	}
+	if err := manager.Enable("upgrade-migration"); err != nil {
+		t.Fatalf("enable plugin: %v", err)
+	}
+
+	writeLifecycleMigrationFile(t, pluginDir, "002_add_name.up.sql", "ALTER TABLE upgrade_migration_items ADD COLUMN name TEXT;")
+	writeLifecycleMigrationFile(t, pluginDir, "002_add_name.down.sql", "ALTER TABLE upgrade_migration_items DROP COLUMN name;")
+	rewriteLifecycleMigrationVersion(t, pluginDir, "1.1.0", "v1.1.0")
+	if err := manager.ReloadPluginMetadata("upgrade-migration"); err != nil {
+		t.Fatalf("reload plugin upgrade: %v", err)
+	}
+	if !db.Migrator().HasColumn("upgrade_migration_items", "name") {
+		t.Fatal("successful plugin upgrade did not apply pending schema")
+	}
+
+	writeLifecycleMigrationFile(t, pluginDir, "003_add_leaked.up.sql", "ALTER TABLE upgrade_migration_items ADD COLUMN leaked TEXT;")
+	writeLifecycleMigrationFile(t, pluginDir, "003_add_leaked.down.sql", "ALTER TABLE upgrade_migration_items DROP COLUMN leaked;")
+	writeLifecycleMigrationFile(t, pluginDir, "004_fail.up.sql", "INSERT INTO missing_upgrade_table(id) VALUES (1);")
+	writeLifecycleMigrationFile(t, pluginDir, "004_fail.down.sql", "DELETE FROM missing_upgrade_table WHERE id = 1;")
+	rewriteLifecycleMigrationVersion(t, pluginDir, "1.2.0", "v1.2.0")
+	if err := manager.ReloadPluginMetadata("upgrade-migration"); err == nil {
+		t.Fatal("expected failed upgrade migration")
+	}
+	if db.Migrator().HasColumn("upgrade_migration_items", "leaked") {
+		t.Fatal("failed upgrade leaked schema from the pending transaction")
+	}
+	info, err := manager.Get("upgrade-migration")
+	if err != nil {
+		t.Fatalf("get plugin after failed upgrade: %v", err)
+	}
+	if info.State != plugin.StateDisabled {
+		t.Fatalf("failed upgrade left plugin state=%s want=%s", info.State, plugin.StateDisabled)
+	}
+}
+
+func newMigrationTestPluginManager(db *gorm.DB) *pluginManagerWithExtensions {
+	return &pluginManagerWithExtensions{
+		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
+		builtinInfos:     map[string]plugin.Info{},
+		extensions:       map[string]plugin.RegistrySnapshot{},
+		routeHandlers:    map[string]http.HandlerFunc{},
+		routePermissions: mustEmptyRoutePermissionRegistry(),
+		migrationHook:    plugin.NewPluginMigrationHook(gormrepo.NewPluginMigrationStore(db), nil),
+	}
+}
+
+func writeLifecycleMigrationPlugin(t *testing.T, pluginID string, policy plugin.DataUninstallPolicy, files map[string]string) string {
+	t.Helper()
+	dir := filepath.Join(t.TempDir(), pluginID)
+	migrations := filepath.Join(dir, "migrations")
+	if err := os.MkdirAll(migrations, 0o755); err != nil {
+		t.Fatalf("create migrations: %v", err)
+	}
+	manifest := "id: " + pluginID + "\n" +
+		"name: Migration Plugin\n" +
+		"version: 1.0.0\n" +
+		"data:\n" +
+		"  namespace: " + strings.ReplaceAll(pluginID, "-", "_") + "\n" +
+		"  migration_version: v1.0.0\n" +
+		"  migration_directory: migrations\n" +
+		"  uninstall_policy: " + string(policy) + "\n" +
+		"  rollback_policy: automatic\n"
+	if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write plugin manifest: %v", err)
+	}
+	for name, sql := range files {
+		if err := os.WriteFile(filepath.Join(migrations, name), []byte(sql), 0o600); err != nil {
+			t.Fatalf("write migration %s: %v", name, err)
+		}
+	}
+	return dir
+}
+
+func writeLifecycleMigrationFile(t *testing.T, pluginDir, name, sql string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(pluginDir, "migrations", name), []byte(sql), 0o600); err != nil {
+		t.Fatalf("write migration %s: %v", name, err)
+	}
+}
+
+func rewriteLifecycleMigrationVersion(t *testing.T, pluginDir, pluginVersion, migrationVersion string) {
+	t.Helper()
+	path := filepath.Join(pluginDir, "plugin.yaml")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read plugin manifest: %v", err)
+	}
+	lines := strings.Split(string(raw), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "version: ") {
+			lines[i] = "version: " + pluginVersion
+		}
+		if strings.HasPrefix(strings.TrimSpace(line), "migration_version: ") {
+			lines[i] = "  migration_version: " + migrationVersion
+		}
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), 0o600); err != nil {
+		t.Fatalf("rewrite plugin manifest: %v", err)
+	}
 }
 
 func assertRoutePermissionState(t *testing.T, manager *pluginManagerWithExtensions, expected bool) {

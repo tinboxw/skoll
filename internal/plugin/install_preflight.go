@@ -455,7 +455,11 @@ func buildInstallPreflightMigration(info Info, source string) InstallPreflightMi
 	if out.Version == "" {
 		return out
 	}
-	plan, err := NewMigrator(source).Plan()
+	directory := "migrations"
+	if info.DataManifest != nil && strings.TrimSpace(info.DataManifest.MigrationDirectory) != "" {
+		directory = info.DataManifest.MigrationDirectory
+	}
+	plan, err := NewMigrationPlanner(source, directory).Plan(nil)
 	if err != nil {
 		out.Error = err.Error()
 		return out

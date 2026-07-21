@@ -117,6 +117,53 @@ func TestPluginStore_SaveAndUpdate(t *testing.T) {
 	}
 }
 
+func TestPluginStorePersistsMigrationContract(t *testing.T) {
+	db := TestDB(t)
+	store := NewPluginStore(db)
+	ctx := context.Background()
+	info := plugin.Info{
+		ID:               "migration-plugin",
+		Name:             "Migration Plugin",
+		Version:          "1.0.0",
+		MigrationVersion: "v1.0.0",
+		Source:           "plugins/migration-plugin",
+		State:            plugin.StateInstalled,
+		DataManifest: &plugin.DataManifest{
+			Namespace:          "migration_plugin",
+			MigrationVersion:   "v1.0.0",
+			MigrationDirectory: "database/migrations",
+			UninstallPolicy:    plugin.DataUninstallDrop,
+			RollbackPolicy:     plugin.DataRollbackAutomatic,
+		},
+	}
+	if err := store.Save(ctx, info); err != nil {
+		t.Fatalf("save plugin migration contract: %v", err)
+	}
+	got, err := store.Get(ctx, info.ID)
+	if err != nil {
+		t.Fatalf("get plugin migration contract: %v", err)
+	}
+	if got == nil || got.MigrationVersion != info.MigrationVersion || got.DataManifest == nil {
+		t.Fatalf("migration contract was not persisted: %+v", got)
+	}
+	if got.DataManifest.MigrationDirectory != "database/migrations" || got.DataManifest.UninstallPolicy != plugin.DataUninstallDrop || got.DataManifest.RollbackPolicy != plugin.DataRollbackAutomatic {
+		t.Fatalf("unexpected persisted migration contract: %+v", got.DataManifest)
+	}
+	info.MigrationVersion = "v1.1.0"
+	info.DataManifest.MigrationVersion = "v1.1.0"
+	info.DataManifest.UninstallPolicy = plugin.DataUninstallRetain
+	if err := store.Save(ctx, info); err != nil {
+		t.Fatalf("update plugin migration contract: %v", err)
+	}
+	updated, err := store.Get(ctx, info.ID)
+	if err != nil {
+		t.Fatalf("get updated plugin migration contract: %v", err)
+	}
+	if updated == nil || updated.MigrationVersion != "v1.1.0" || updated.DataManifest == nil || updated.DataManifest.MigrationVersion != "v1.1.0" || updated.DataManifest.UninstallPolicy != plugin.DataUninstallRetain {
+		t.Fatalf("migration contract update was not persisted: %+v", updated)
+	}
+}
+
 func TestPluginStore_Delete(t *testing.T) {
 	db := TestDB(t)
 	store := NewPluginStore(db)

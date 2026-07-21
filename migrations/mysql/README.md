@@ -21,6 +21,7 @@ MySQL 迁移脚本目录。
 - 20260622_000017_create_dictionary.sql
 - 20260629_000018_create_organization.sql
 - 20260718_000019_create_pharma_oa_master_data.sql
+- 20260722_000023_create_plugin_migration_ledger.sql
 
 ## 执行顺序
 
@@ -69,6 +70,15 @@ MySQL 迁移脚本目录。
 ## 回滚说明
 
 当前项目未集成自动迁移工具，也未维护 down migration 文件。需要回滚时由维护者按依赖倒序手动处理：先处理 `sk_dictionary_items`、`sk_dictionary_types` 和 `sk_file_objects`，再处理 `sk_menu_nodes`、`sk_permission_resources`，并在执行前备份业务数据。
+
+## 插件迁移账本
+
+### 20260722_000023_create_plugin_migration_ledger.sql
+
+- 表名：`sk_plugin_migrations`。
+- 用途：记录每个插件已成功提交的 migration 版本、名称、SHA-256 和执行时间。
+- 唯一约束：`idx_plugin_migration_version(plugin_id, version)`，用于保证生命周期重试幂等。
+- 事务边界：插件 SQL 与账本写入由同一个 GORM transaction 提交；失败不会生成成功账本。
 
 ## 医药 OA 主数据表
 

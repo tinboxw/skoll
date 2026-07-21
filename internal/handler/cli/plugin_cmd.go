@@ -361,10 +361,9 @@ func resolveCoreVersionForValidation() string {
 }
 
 func (c *PluginCommand) handleMigrate(pluginDir, action string, steps int) (string, error) {
-	migrator := plugin.NewMigrator(pluginDir)
 	switch strings.ToLower(strings.TrimSpace(action)) {
 	case "plan":
-		plan, err := migrator.Plan()
+		plan, err := plugin.NewMigrationPlanner(pluginDir, "migrations").Plan(nil)
 		if err != nil {
 			return "", err
 		}
@@ -374,31 +373,9 @@ func (c *PluginCommand) handleMigrate(pluginDir, action string, steps int) (stri
 		}
 		return strings.Join(rows, "\n"), nil
 	case "apply":
-		applied, err := migrator.Apply(steps)
-		if err != nil {
-			return "", err
-		}
-		if len(applied) == 0 {
-			return "applied=0", nil
-		}
-		rows := []string{fmt.Sprintf("applied=%d", len(applied))}
-		for _, step := range applied {
-			rows = append(rows, fmt.Sprintf("- applied %03d", step.Version))
-		}
-		return strings.Join(rows, "\n"), nil
+		return "", fmt.Errorf("apply is available only through the configured plugin lifecycle migration store")
 	case "rollback":
-		rolled, err := migrator.Rollback(steps)
-		if err != nil {
-			return "", err
-		}
-		if len(rolled) == 0 {
-			return "rolled_back=0", nil
-		}
-		rows := []string{fmt.Sprintf("rolled_back=%d", len(rolled))}
-		for _, step := range rolled {
-			rows = append(rows, fmt.Sprintf("- rolled_back %03d", step.Version))
-		}
-		return strings.Join(rows, "\n"), nil
+		return "", fmt.Errorf("rollback is available only through the configured plugin lifecycle migration store")
 	default:
 		return "", fmt.Errorf("unsupported migrate action: %s", action)
 	}

@@ -8,6 +8,7 @@ func AllModels() []any {
 		&PolicyRuleModel{},
 		&SystemSettingModel{},
 		&PluginModel{},
+		&PluginMigrationModel{},
 		&PluginRouteModel{},
 		&PluginReleaseModel{},
 		&PermissionResourceModel{},

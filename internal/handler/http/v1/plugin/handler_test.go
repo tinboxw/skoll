@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,8 +22,9 @@ import (
 )
 
 type fakePluginManager struct {
-	items     map[string]plugin.Info
-	snapshots map[string]plugin.RegistrySnapshot
+	items        map[string]plugin.Info
+	snapshots    map[string]plugin.RegistrySnapshot
+	uninstallErr error
 }
 
 func TestPluginRecordFromInfoIncludesUIMenu(t *testing.T) {
@@ -181,6 +183,9 @@ func (f *fakePluginManager) Disable(pluginID string) error {
 }
 
 func (f *fakePluginManager) Uninstall(pluginID string) error {
+	if f.uninstallErr != nil {
+		return f.uninstallErr
+	}
 	item, ok := f.items[pluginID]
 	if !ok {
 		return plugin.ErrPluginNotFound
@@ -782,6 +787,34 @@ func TestPluginHandlerDevPortalConfigProjectsRemoveAndPackage(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(pluginsRoot, "dev-work")); !os.IsNotExist(err) {
 		t.Fatalf("expected project directory removed, err=%v", err)
+	}
+}
+
+func TestPluginHandlerDevRemoveKeepsFilesWhenUninstallFails(t *testing.T) {
+	pluginsRoot := filepath.Join(t.TempDir(), "plugins")
+	pluginDir := filepath.Join(pluginsRoot, "migration-failed")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("create plugin directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte("id: migration-failed\nname: Migration Failed\nversion: 1.0.0\n"), 0o600); err != nil {
+		t.Fatalf("write plugin manifest: %v", err)
+	}
+	mgr := &fakePluginManager{
+		items:        map[string]plugin.Info{"migration-failed": {ID: "migration-failed", State: plugin.StateDisabled}},
+		uninstallErr: errors.New("plugin migration rollback failed"),
+	}
+	mux := http.NewServeMux()
+	RegisterPluginRoutes(mux, mgr, WithPluginDevPortal(true, pluginsRoot, []string{pluginsRoot}))
+
+	payload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"migration-failed","removeFiles":true}`)
+	req := withRole(httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/remove", bytes.NewReader(payload)), "super_admin")
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("remove status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if _, err := os.Stat(filepath.Join(pluginDir, "plugin.yaml")); err != nil {
+		t.Fatalf("failed uninstall must preserve plugin files: %v", err)
 	}
 }
 

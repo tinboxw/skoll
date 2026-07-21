@@ -1651,6 +1651,9 @@ func (h *PluginHandler) devRemove(w http.ResponseWriter, r *http.Request) {
 	uninstalled := false
 	if err := h.manager.Uninstall(pluginID); err == nil {
 		uninstalled = true
+	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
 	}
 
 	filesRemoved := false

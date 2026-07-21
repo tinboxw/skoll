@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ import (
 func TestPluginMigrationHookInstallAndUninstallTraceState(t *testing.T) {
 	dir := setupMigrationHookPlugin(t)
 	recorder := NewMemoryPluginMigrationRecorder()
-	hook := NewPluginMigrationHook(recorder)
+	hook := NewPluginMigrationHook(newTestMigrationStore(), recorder)
 	baseTime := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
 	ticks := 0
 	hook.now = func() time.Time {
@@ -19,7 +20,7 @@ func TestPluginMigrationHookInstallAndUninstallTraceState(t *testing.T) {
 		return baseTime.Add(time.Duration(ticks) * time.Second)
 	}
 
-	installed, err := hook.Run(PluginMigrationHookInput{
+	installed, err := hook.Run(context.Background(), PluginMigrationHookInput{
 		PluginID:  "demo",
 		PluginDir: dir,
 		Action:    PluginMigrationInstall,
@@ -32,11 +33,12 @@ func TestPluginMigrationHookInstallAndUninstallTraceState(t *testing.T) {
 		t.Fatalf("expected two install steps, got %+v", installed)
 	}
 
-	rolledBack, err := hook.Run(PluginMigrationHookInput{
-		PluginID:    "demo",
-		PluginDir:   dir,
-		Action:      PluginMigrationUninstall,
-		FromVersion: "1.0.0",
+	rolledBack, err := hook.Run(context.Background(), PluginMigrationHookInput{
+		PluginID:        "demo",
+		PluginDir:       dir,
+		Action:          PluginMigrationUninstall,
+		FromVersion:     "1.0.0",
+		UninstallPolicy: DataUninstallDrop,
 	})
 	if err != nil {
 		t.Fatalf("uninstall migration hook: %v", err)
@@ -63,9 +65,9 @@ func TestPluginMigrationHookInstallAndUninstallTraceState(t *testing.T) {
 func TestPluginMigrationHookUpgradeDowngradeLimit(t *testing.T) {
 	dir := setupMigrationHookPlugin(t)
 	recorder := NewMemoryPluginMigrationRecorder()
-	hook := NewPluginMigrationHook(recorder)
+	hook := NewPluginMigrationHook(newTestMigrationStore(), recorder)
 
-	upgraded, err := hook.Run(PluginMigrationHookInput{
+	upgraded, err := hook.Run(context.Background(), PluginMigrationHookInput{
 		PluginID:    "demo",
 		PluginDir:   dir,
 		Action:      PluginMigrationUpgrade,
@@ -80,13 +82,14 @@ func TestPluginMigrationHookUpgradeDowngradeLimit(t *testing.T) {
 		t.Fatalf("expected one upgrade step, got %+v", upgraded)
 	}
 
-	downgraded, err := hook.Run(PluginMigrationHookInput{
-		PluginID:    "demo",
-		PluginDir:   dir,
-		Action:      PluginMigrationDowngrade,
-		FromVersion: "1.1.0",
-		ToVersion:   "1.0.0",
-		Limit:       1,
+	downgraded, err := hook.Run(context.Background(), PluginMigrationHookInput{
+		PluginID:       "demo",
+		PluginDir:      dir,
+		Action:         PluginMigrationDowngrade,
+		FromVersion:    "1.1.0",
+		ToVersion:      "1.0.0",
+		Limit:          1,
+		RollbackPolicy: DataRollbackAutomatic,
 	})
 	if err != nil {
 		t.Fatalf("downgrade migration hook: %v", err)
@@ -99,9 +102,9 @@ func TestPluginMigrationHookUpgradeDowngradeLimit(t *testing.T) {
 func TestPluginMigrationHookRecordsFailure(t *testing.T) {
 	dir := t.TempDir()
 	recorder := NewMemoryPluginMigrationRecorder()
-	hook := NewPluginMigrationHook(recorder)
+	hook := NewPluginMigrationHook(newTestMigrationStore(), recorder)
 
-	_, err := hook.Run(PluginMigrationHookInput{
+	_, err := hook.Run(context.Background(), PluginMigrationHookInput{
 		PluginID:  "broken",
 		PluginDir: dir,
 		Action:    PluginMigrationInstall,
