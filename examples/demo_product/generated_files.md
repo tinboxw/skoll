@@ -6,22 +6,26 @@
 
 ## Output Matrix
 
-The generator dry-run should produce 20 file plans for `demo_product` with no conflicts and no blocked paths.
+The generator dry-run should produce 24 file plans for `demo_product` with no conflicts and no blocked paths.
 
 | Layer | Template ID | Path | Expected status in clean repo |
 |---|---|---|---|
 | Domain | `backend.domain.doc` | `internal/domain/demo_product/doc.go` | create |
 | Domain | `backend.domain.entity` | `internal/domain/demo_product/entity.go` | create |
+| Domain test | `backend.domain.test` | `internal/domain/demo_product/entity_test.go` | create |
 | Repository port | `backend.repository` | `internal/repository/demo_product/demo_product_repo.go` | create |
 | Memory store | `backend.store.memory` | `internal/store/memory/demo_product_store.go` | create |
+| Memory store test | `backend.store.memory.test` | `internal/store/memory/demo_product_store_test.go` | create |
 | GORM model | `backend.store.gorm.model` | `internal/store/sql/gormrepo/demo_product_model.go` | create |
 | GORM repository | `backend.store.gorm.repo` | `internal/store/sql/gormrepo/demo_product_store.go` | create |
+| GORM mapping test | `backend.store.gorm.test` | `internal/store/sql/gormrepo/demo_product_store_test.go` | create |
 | GORM registry | `backend.store.gorm.registry` | `internal/store/sql/gormrepo/all_models.go` | update-clean or conflict if user-edited |
 | Store factory | `backend.store.factory` | `internal/store/factory.go` | update-clean or conflict if user-edited |
 | MySQL migration | `backend.migration.mysql` | `migrations/mysql/20260629_030000_create_demo_products.sql` | create |
 | PostgreSQL migration | `backend.migration.postgres` | `migrations/postgres/20260629_030000_create_demo_products.sql` | create |
 | Service port | `backend.service` | `internal/service/demo_product/service.go` | create |
 | Service implementation | `backend.service.impl` | `internal/service/demo_product/service_impl.go` | create |
+| Service test | `backend.service.test` | `internal/service/demo_product/service_impl_test.go` | create |
 | HTTP handler | `backend.handler` | `internal/handler/http/v1/demo_product/handler.go` | create |
 | Router registration | `backend.router` | `internal/handler/http/v1/router.go` | update-clean or conflict if user-edited |
 | OpenAPI docs | `backend.openapi.docs` | `docs/api/openapi.yaml` | update-clean or conflict if user-edited |

@@ -15,14 +15,20 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return formatGoTemplate(renderDomainDoc(spec))
 	case "backend.domain.entity":
 		return formatGoTemplate(renderDomainEntity(spec))
+	case "backend.domain.test":
+		return formatGoTemplate(renderDomainTest(spec))
 	case "backend.repository":
 		return formatGoTemplate(renderRepository(spec))
 	case "backend.store.memory":
 		return formatGoTemplate(renderMemoryStore(spec))
+	case "backend.store.memory.test":
+		return formatGoTemplate(renderMemoryStoreTest(spec))
 	case "backend.store.gorm.model":
 		return formatGoTemplate(renderGORMModel(spec))
 	case "backend.store.gorm.repo":
 		return formatGoTemplate(renderGORMStore(spec))
+	case "backend.store.gorm.test":
+		return formatGoTemplate(renderGORMStoreTest(spec))
 	case "backend.migration.mysql":
 		return renderMigration(spec, "mysql")
 	case "backend.migration.postgres":
@@ -31,6 +37,8 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return formatGoTemplate(renderService(spec))
 	case "backend.service.impl":
 		return formatGoTemplate(renderServiceImpl(spec))
+	case "backend.service.test":
+		return formatGoTemplate(renderServiceTest(spec))
 	case "backend.handler":
 		return formatGoTemplate(renderHandler(spec))
 	case "backend.router":
@@ -112,6 +120,25 @@ func renderDomainEntity(spec domaingenerator.GeneratorSpec) string {
 	return b.String()
 }
 
+func renderDomainTest(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	domainName := spec.Table.DomainName
+	primary := primaryField(spec)
+	fmt.Fprintf(&b, "package %s\n\n", spec.Module.Package)
+	fmt.Fprintf(&b, "import (\n\t\"testing\"\n\t\"time\"\n)\n\n")
+	fmt.Fprintf(&b, "func TestNew%sValidatesAndBuildsEntity(t *testing.T) {\n", domainName)
+	fmt.Fprintf(&b, "\tnow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)\n")
+	fmt.Fprintf(&b, "\titem, err := New%s(%sInput{\n", domainName, domainName)
+	renderSampleAssignments(&b, spec, "now", true)
+	fmt.Fprintf(&b, "\t\tCreatedAt: now,\n\t})\n")
+	fmt.Fprintf(&b, "\tif err != nil {\n\t\tt.Fatalf(\"New%s() error = %%v\", err)\n\t}\n", domainName)
+	fmt.Fprintf(&b, "\tif item.%s == %s || item.Meta.CreatedAt != now || item.Meta.UpdatedAt != now {\n", exportedName(primary.Name), zeroFieldValue(primary))
+	fmt.Fprintf(&b, "\t\tt.Fatalf(\"entity = %%+v\", item)\n\t}\n")
+	fmt.Fprintf(&b, "\tif _, err := New%s(%sInput{CreatedAt: now}); err == nil {\n", domainName, domainName)
+	fmt.Fprintf(&b, "\t\tt.Fatal(\"expected required-field validation error\")\n\t}\n}\n")
+	return b.String()
+}
+
 func renderRepository(spec domaingenerator.GeneratorSpec) string {
 	pkg := spec.Module.Package
 	domainName := spec.Table.DomainName
@@ -145,7 +172,8 @@ func renderMemoryStore(spec domaingenerator.GeneratorSpec) string {
 	storeName := domainName + "Store"
 	alias := "domain" + pkg
 	repoAlias := pkg + "repo"
-	return fmt.Sprintf(`package memory
+	primaryName := exportedName(primaryField(spec).Name)
+	content := fmt.Sprintf(`package memory
 
 import (
 	"context"
@@ -171,20 +199,20 @@ func New%s() *%s {
 func (s *%s) Create(_ context.Context, item %s.%s) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.items[item.ID]; ok {
+	if _, ok := s.items[item.{{PRIMARY}}]; ok {
 		return fmt.Errorf("%s already exists")
 	}
-	s.items[item.ID] = item
+	s.items[item.{{PRIMARY}}] = item
 	return nil
 }
 
 func (s *%s) Update(_ context.Context, item %s.%s) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.items[item.ID]; !ok {
+	if _, ok := s.items[item.{{PRIMARY}}]; !ok {
 		return fmt.Errorf("%s not found")
 	}
-	s.items[item.ID] = item
+	s.items[item.{{PRIMARY}}] = item
 	return nil
 }
 
@@ -208,7 +236,7 @@ func (s *%s) List(_ context.Context, filter %s.ListFilter, offset int, limit int
 		}
 		items = append(items, item)
 	}
-	sort.SliceStable(items, func(i, j int) bool { return fmt.Sprint(items[i].ID) < fmt.Sprint(items[j].ID) })
+	sort.SliceStable(items, func(i, j int) bool { return fmt.Sprint(items[i].{{PRIMARY}}) < fmt.Sprint(items[j].{{PRIMARY}}) })
 	if offset > len(items) {
 		return []%s.%s{}, nil
 	}
@@ -229,6 +257,34 @@ func (s *%s) Delete(_ context.Context, id shared.ID) error {
 	return nil
 }
 `, alias, pkg, repoAlias, pkg, storeName, alias, domainName, storeName, storeName, storeName, alias, domainName, storeName, alias, domainName, pkg, storeName, alias, domainName, pkg, storeName, alias, domainName, pkg, storeName, repoAlias, alias, domainName, alias, domainName, alias, domainName, alias, domainName, storeName, pkg)
+	content = strings.ReplaceAll(content, "{{PRIMARY}}", primaryName)
+	return content
+}
+
+func renderMemoryStoreTest(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	pkg := spec.Module.Package
+	domainName := spec.Table.DomainName
+	alias := "domain" + pkg
+	primary := primaryField(spec)
+	fmt.Fprintf(&b, "package memory\n\n")
+	fmt.Fprintf(&b, "import (\n\t\"context\"\n\t\"testing\"\n\t\"time\"\n\n")
+	fmt.Fprintf(&b, "\t%s \"github.com/tinboxw/skoll/internal/domain/%s\"\n", alias, pkg)
+	fmt.Fprintf(&b, "\t%srepo \"github.com/tinboxw/skoll/internal/repository/%s\"\n)\n\n", pkg, pkg)
+	fmt.Fprintf(&b, "func Test%sStoreCRUD(t *testing.T) {\n", domainName)
+	fmt.Fprintf(&b, "\tctx := context.Background()\n\tnow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)\n")
+	fmt.Fprintf(&b, "\titem, err := %s.New%s(%s.%sInput{\n", alias, domainName, alias, domainName)
+	renderSampleAssignments(&b, spec, "now", true)
+	fmt.Fprintf(&b, "\t\tCreatedAt: now,\n\t})\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n")
+	fmt.Fprintf(&b, "\tstore := New%sStore()\n", domainName)
+	fmt.Fprintf(&b, "\tif err := store.Create(ctx, *item); err != nil {\n\t\tt.Fatal(err)\n\t}\n")
+	fmt.Fprintf(&b, "\tgot, err := store.Get(ctx, item.%s)\n\tif err != nil || got.%s != item.%s {\n\t\tt.Fatalf(\"Get() = %%+v, %%v\", got, err)\n\t}\n", exportedName(primary.Name), exportedName(primary.Name), exportedName(primary.Name))
+	fmt.Fprintf(&b, "\titem.Meta.UpdatedAt = now.Add(time.Minute)\n\tif err := store.Update(ctx, *item); err != nil {\n\t\tt.Fatal(err)\n\t}\n")
+	fmt.Fprintf(&b, "\titems, err := store.List(ctx, %srepo.ListFilter{}, 0, 10)\n", pkg)
+	fmt.Fprintf(&b, "\tif err != nil || len(items) != 1 {\n\t\tt.Fatalf(\"List() = %%+v, %%v\", items, err)\n\t}\n")
+	fmt.Fprintf(&b, "\tif err := store.Delete(ctx, item.%s); err != nil {\n\t\tt.Fatal(err)\n\t}\n", exportedName(primary.Name))
+	fmt.Fprintf(&b, "\tif _, err := store.Get(ctx, item.%s); err == nil {\n\t\tt.Fatal(\"expected deleted entity to be absent\")\n\t}\n}\n", exportedName(primary.Name))
+	return b.String()
 }
 
 func renderGORMModel(spec domaingenerator.GeneratorSpec) string {
@@ -249,6 +305,7 @@ func renderGORMStore(spec domaingenerator.GeneratorSpec) string {
 	domainName := spec.Table.DomainName
 	alias := "domain" + pkg
 	repoAlias := pkg + "repo"
+	primary := primaryField(spec)
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "package gormrepo\n\n")
 	fmt.Fprintf(&b, "import (\n\t\"context\"\n\t\"fmt\"\n\n")
@@ -262,15 +319,56 @@ func renderGORMStore(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "func (s *%sStore) Update(ctx context.Context, item %s.%s) error {\n\treturn s.db.WithContext(ctx).Save(to%sModel(item)).Error\n}\n\n", domainName, alias, domainName, domainName)
 	fmt.Fprintf(&b, "func (s *%sStore) Get(ctx context.Context, id shared.ID) (*%s.%s, error) {\n", domainName, alias, domainName)
 	fmt.Fprintf(&b, "\tvar model %sModel\n", domainName)
-	fmt.Fprintf(&b, "\tif err := s.db.WithContext(ctx).First(&model, \"id = ?\", id.String()).Error; err != nil {\n\t\tif err == gorm.ErrRecordNotFound {\n\t\t\treturn nil, fmt.Errorf(\"%s not found\")\n\t\t}\n\t\treturn nil, err\n\t}\n", pkg)
-	fmt.Fprintf(&b, "\titem := from%sModel(model)\n\treturn &item, nil\n}\n\n", domainName)
+	fmt.Fprintf(&b, "\tif err := s.db.WithContext(ctx).First(&model, \"%s = ?\", id.String()).Error; err != nil {\n\t\tif err == gorm.ErrRecordNotFound {\n\t\t\treturn nil, fmt.Errorf(\"%s not found\")\n\t\t}\n\t\treturn nil, err\n\t}\n", primary.ColumnName, pkg)
+	fmt.Fprintf(&b, "\titem, err := from%sModel(model)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn &item, nil\n}\n\n", domainName)
 	fmt.Fprintf(&b, "func (s *%sStore) List(ctx context.Context, filter %s.ListFilter, offset int, limit int) ([]%s.%s, error) {\n", domainName, repoAlias, alias, domainName)
 	fmt.Fprintf(&b, "\tvar models []%sModel\n\tquery := s.db.WithContext(ctx).Model(&%sModel{})\n", domainName, domainName)
 	fmt.Fprintf(&b, "\tif filter.Keyword != \"\" {\n\t\tquery = query.Where(\"id LIKE ?\", \"%%\"+filter.Keyword+\"%%\")\n\t}\n\tif offset > 0 {\n\t\tquery = query.Offset(offset)\n\t}\n\tif limit > 0 {\n\t\tquery = query.Limit(limit)\n\t}\n\tif err := query.Find(&models).Error; err != nil {\n\t\treturn nil, err\n\t}\n")
-	fmt.Fprintf(&b, "\titems := make([]%s.%s, 0, len(models))\n\tfor _, model := range models {\n\t\titems = append(items, from%sModel(model))\n\t}\n\treturn items, nil\n}\n\n", alias, domainName, domainName)
-	fmt.Fprintf(&b, "func (s *%sStore) Delete(ctx context.Context, id shared.ID) error {\n\treturn s.db.WithContext(ctx).Delete(&%sModel{}, \"id = ?\", id.String()).Error\n}\n\n", domainName, domainName)
-	fmt.Fprintf(&b, "func to%sModel(item %s.%s) %sModel {\n\treturn %sModel{}\n}\n\n", domainName, alias, domainName, domainName, domainName)
-	fmt.Fprintf(&b, "func from%sModel(model %sModel) %s.%s {\n\titem, _ := %s.New%s(%s.%sInput{})\n\treturn *item\n}\n", domainName, domainName, alias, domainName, alias, domainName, alias, domainName)
+	fmt.Fprintf(&b, "\titems := make([]%s.%s, 0, len(models))\n\tfor _, model := range models {\n\t\titem, err := from%sModel(model)\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\titems = append(items, item)\n\t}\n\treturn items, nil\n}\n\n", alias, domainName, domainName)
+	fmt.Fprintf(&b, "func (s *%sStore) Delete(ctx context.Context, id shared.ID) error {\n\treturn s.db.WithContext(ctx).Delete(&%sModel{}, \"%s = ?\", id.String()).Error\n}\n\n", domainName, domainName, primary.ColumnName)
+	fmt.Fprintf(&b, "func to%sModel(item %s.%s) %sModel {\n\treturn %sModel{\n", domainName, alias, domainName, domainName, domainName)
+	for _, field := range spec.Fields {
+		name := exportedName(field.Name)
+		value := "item." + name
+		if field.Type == domaingenerator.FieldTypeID {
+			value += ".String()"
+		}
+		fmt.Fprintf(&b, "\t\t%s: %s,\n", name, value)
+	}
+	fmt.Fprintf(&b, "\t\tCreatedAt: item.Meta.CreatedAt,\n\t\tUpdatedAt: item.Meta.UpdatedAt,\n\t}\n}\n\n")
+	fmt.Fprintf(&b, "func from%sModel(model %sModel) (%s.%s, error) {\n", domainName, domainName, alias, domainName)
+	fmt.Fprintf(&b, "\titem, err := %s.New%s(%s.%sInput{\n", alias, domainName, alias, domainName)
+	for _, field := range spec.Fields {
+		name := exportedName(field.Name)
+		value := "model." + name
+		if field.Type == domaingenerator.FieldTypeID {
+			value = "shared.ID(" + value + ")"
+		}
+		fmt.Fprintf(&b, "\t\t%s: %s,\n", name, value)
+	}
+	fmt.Fprintf(&b, "\t\tCreatedAt: model.CreatedAt,\n\t\tUpdatedAt: model.UpdatedAt,\n\t})\n")
+	fmt.Fprintf(&b, "\tif err != nil {\n\t\treturn %s.%s{}, fmt.Errorf(\"decode %s model: %%w\", err)\n\t}\n", alias, domainName, pkg)
+	fmt.Fprintf(&b, "\treturn *item, nil\n}\n")
+	return b.String()
+}
+
+func renderGORMStoreTest(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	pkg := spec.Module.Package
+	domainName := spec.Table.DomainName
+	alias := "domain" + pkg
+	fmt.Fprintf(&b, "package gormrepo\n\n")
+	fmt.Fprintf(&b, "import (\n\t\"reflect\"\n\t\"testing\"\n\t\"time\"\n\n")
+	fmt.Fprintf(&b, "\t%s \"github.com/tinboxw/skoll/internal/domain/%s\"\n)\n\n", alias, pkg)
+	fmt.Fprintf(&b, "func Test%sModelRoundTrip(t *testing.T) {\n", domainName)
+	fmt.Fprintf(&b, "\tnow := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)\n")
+	fmt.Fprintf(&b, "\twant, err := %s.New%s(%s.%sInput{\n", alias, domainName, alias, domainName)
+	renderSampleAssignments(&b, spec, "now", true)
+	fmt.Fprintf(&b, "\t\tCreatedAt: now,\n\t})\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n")
+	fmt.Fprintf(&b, "\tmodel := to%sModel(*want)\n", domainName)
+	fmt.Fprintf(&b, "\tgot, err := from%sModel(model)\n", domainName)
+	fmt.Fprintf(&b, "\tif err != nil || !reflect.DeepEqual(got, *want) {\n")
+	fmt.Fprintf(&b, "\t\tt.Fatalf(\"round trip = %%+v, %%v\", got, err)\n\t}\n}\n")
 	return b.String()
 }
 
@@ -506,12 +604,13 @@ func renderServiceImpl(spec domaingenerator.GeneratorSpec) string {
 	domainName := spec.Table.DomainName
 	alias := "domain" + pkg
 	repoAlias := pkg + "repo"
+	primaryName := exportedName(primaryField(spec).Name)
 	fmt.Fprintf(&b, "package %s\n\n", pkg)
 	fmt.Fprintf(&b, "import (\n\t\"context\"\n\t\"time\"\n\n")
 	fmt.Fprintf(&b, "\t%s \"github.com/tinboxw/skoll/internal/domain/%s\"\n\t\"github.com/tinboxw/skoll/internal/domain/shared\"\n", alias, pkg)
 	fmt.Fprintf(&b, "\t%s \"github.com/tinboxw/skoll/internal/repository/%s\"\n)\n\n", repoAlias, pkg)
 	fmt.Fprintf(&b, "const (\n")
-	for _, action := range spec.Audit.Actions {
+	for _, action := range generatedAuditActions(spec) {
 		fmt.Fprintf(&b, "\tAuditAction%s%s = \"%s.%s\"\n", domainName, exportedName(action), spec.Audit.Resource, action)
 	}
 	fmt.Fprintf(&b, ")\n\n")
@@ -520,15 +619,42 @@ func renderServiceImpl(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "func (s *serviceImpl) Create(ctx context.Context, in CreateInput) (*%s.%s, error) {\n", alias, domainName)
 	fmt.Fprintf(&b, "\tnow := time.Now().UTC()\n\titem, err := %s.New%s(%s.%sInput{\n", alias, domainName, alias, domainName)
 	renderConstructorAssignments(&b, spec, "in", false)
-	fmt.Fprintf(&b, "\t\tCreatedAt: now,\n\t\tUpdatedAt: now,\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := s.repo.Create(ctx, *item); err != nil {\n\t\treturn nil, err\n\t}\n\ts.audit(ctx, AuditAction%sCreate, item.ID.String())\n\treturn item, nil\n}\n\n", domainName)
+	fmt.Fprintf(&b, "\t\tCreatedAt: now,\n\t\tUpdatedAt: now,\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := s.repo.Create(ctx, *item); err != nil {\n\t\treturn nil, err\n\t}\n\ts.audit(ctx, AuditAction%sCreate, item.%s.String())\n\treturn item, nil\n}\n\n", domainName, primaryName)
 	fmt.Fprintf(&b, "func (s *serviceImpl) Update(ctx context.Context, id shared.ID, in UpdateInput) (*%s.%s, error) {\n", alias, domainName)
 	fmt.Fprintf(&b, "\tcurrent, err := s.repo.Get(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tnow := time.Now().UTC()\n\titem, err := %s.New%s(%s.%sInput{\n", alias, domainName, alias, domainName)
 	renderConstructorAssignments(&b, spec, "in", true)
-	fmt.Fprintf(&b, "\t\tCreatedAt: current.Meta.CreatedAt,\n\t\tUpdatedAt: now,\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := s.repo.Update(ctx, *item); err != nil {\n\t\treturn nil, err\n\t}\n\ts.audit(ctx, AuditAction%sUpdate, item.ID.String())\n\treturn item, nil\n}\n\n", domainName)
+	fmt.Fprintf(&b, "\t\tCreatedAt: current.Meta.CreatedAt,\n\t\tUpdatedAt: now,\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := s.repo.Update(ctx, *item); err != nil {\n\t\treturn nil, err\n\t}\n\ts.audit(ctx, AuditAction%sUpdate, item.%s.String())\n\treturn item, nil\n}\n\n", domainName, primaryName)
 	fmt.Fprintf(&b, "func (s *serviceImpl) Get(ctx context.Context, id shared.ID) (*%s.%s, error) {\n\treturn s.repo.Get(ctx, id)\n}\n\n", alias, domainName)
 	fmt.Fprintf(&b, "func (s *serviceImpl) List(ctx context.Context, in ListInput) ([]%s.%s, error) {\n\treturn s.repo.List(ctx, %s.ListFilter{Keyword: in.Keyword}, in.Offset, in.Limit)\n}\n\n", alias, domainName, repoAlias)
 	fmt.Fprintf(&b, "func (s *serviceImpl) Delete(ctx context.Context, id shared.ID) error {\n\tif err := s.repo.Delete(ctx, id); err != nil {\n\t\treturn err\n\t}\n\ts.audit(ctx, AuditAction%sDelete, id.String())\n\treturn nil\n}\n\n", domainName)
 	fmt.Fprintf(&b, "func (s *serviceImpl) audit(ctx context.Context, action string, resourceID string) {\n\tif s.auditFn != nil {\n\t\t_ = s.auditFn(ctx, action, resourceID)\n\t}\n}\n")
+	return b.String()
+}
+
+func renderServiceTest(spec domaingenerator.GeneratorSpec) string {
+	var b bytes.Buffer
+	pkg := spec.Module.Package
+	domainName := spec.Table.DomainName
+	primary := primaryField(spec)
+	fmt.Fprintf(&b, "package %s\n\n", pkg)
+	fmt.Fprintf(&b, "import (\n\t\"context\"\n\t\"testing\"\n")
+	if hasFieldType(spec, domaingenerator.FieldTypeTime) {
+		fmt.Fprintf(&b, "\t\"time\"\n")
+	}
+	fmt.Fprintf(&b, "\n\t\"github.com/tinboxw/skoll/internal/store/memory\"\n)\n\n")
+	fmt.Fprintf(&b, "func TestServiceCRUD(t *testing.T) {\n")
+	fmt.Fprintf(&b, "\tctx := context.Background()\n\tsvc := NewService(memory.New%sStore())\n", domainName)
+	fmt.Fprintf(&b, "\tcreated, err := svc.Create(ctx, CreateInput{\n")
+	renderSampleAssignments(&b, spec, "time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)", true)
+	fmt.Fprintf(&b, "\t})\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n")
+	fmt.Fprintf(&b, "\tgot, err := svc.Get(ctx, created.%s)\n", exportedName(primary.Name))
+	fmt.Fprintf(&b, "\tif err != nil || got.%s != created.%s {\n\t\tt.Fatalf(\"Get() = %%+v, %%v\", got, err)\n\t}\n", exportedName(primary.Name), exportedName(primary.Name))
+	fmt.Fprintf(&b, "\tupdated, err := svc.Update(ctx, created.%s, UpdateInput{\n", exportedName(primary.Name))
+	renderSampleAssignments(&b, spec, "time.Date(2026, 1, 2, 3, 5, 5, 0, time.UTC)", false)
+	fmt.Fprintf(&b, "\t})\n\tif err != nil || updated.%s != created.%s {\n\t\tt.Fatalf(\"Update() = %%+v, %%v\", updated, err)\n\t}\n", exportedName(primary.Name), exportedName(primary.Name))
+	fmt.Fprintf(&b, "\titems, err := svc.List(ctx, ListInput{Limit: 10})\n\tif err != nil || len(items) != 1 {\n\t\tt.Fatalf(\"List() = %%+v, %%v\", items, err)\n\t}\n")
+	fmt.Fprintf(&b, "\tif err := svc.Delete(ctx, created.%s); err != nil {\n\t\tt.Fatal(err)\n\t}\n", exportedName(primary.Name))
+	fmt.Fprintf(&b, "\tif _, err := svc.Get(ctx, created.%s); err == nil {\n\t\tt.Fatal(\"expected deleted entity to be absent\")\n\t}\n}\n", exportedName(primary.Name))
 	return b.String()
 }
 
@@ -798,6 +924,96 @@ func renderConstructorAssignments(b *bytes.Buffer, spec domaingenerator.Generato
 	}
 }
 
+func renderSampleAssignments(b *bytes.Buffer, spec domaingenerator.GeneratorSpec, nowExpression string, includePrimary bool) {
+	for _, field := range spec.Fields {
+		if field.PrimaryKey && !includePrimary {
+			continue
+		}
+		fmt.Fprintf(b, "\t\t%s: %s,\n", exportedName(field.Name), sampleFieldValue(field, nowExpression))
+	}
+}
+
+func sampleFieldValue(field domaingenerator.FieldSpec, nowExpression string) string {
+	switch field.Type {
+	case domaingenerator.FieldTypeID:
+		return fmt.Sprintf("%q", "generated-"+field.Name)
+	case domaingenerator.FieldTypeString, domaingenerator.FieldTypeText:
+		return fmt.Sprintf("%q", "sample "+field.Name)
+	case domaingenerator.FieldTypeInt:
+		return "7"
+	case domaingenerator.FieldTypeDecimal:
+		return "12.5"
+	case domaingenerator.FieldTypeBool:
+		return "true"
+	case domaingenerator.FieldTypeTime:
+		return nowExpression
+	case domaingenerator.FieldTypeJSON:
+		fieldType := goFieldType(field)
+		switch fieldType {
+		case "string":
+			return `"{"key":"value"}"`
+		case "map[string]any", "map[string]interface{}":
+			return `map[string]any{"key": "value"}`
+		default:
+			if strings.HasPrefix(fieldType, "[]") || strings.HasPrefix(fieldType, "map[") {
+				return fieldType + "{}"
+			}
+			return "*new(" + fieldType + ")"
+		}
+	default:
+		return "*new(" + goFieldType(field) + ")"
+	}
+}
+
+func zeroFieldValue(field domaingenerator.FieldSpec) string {
+	switch field.Type {
+	case domaingenerator.FieldTypeString, domaingenerator.FieldTypeText, domaingenerator.FieldTypeID:
+		return `""`
+	case domaingenerator.FieldTypeBool:
+		return "false"
+	case domaingenerator.FieldTypeTime:
+		return "time.Time{}"
+	case domaingenerator.FieldTypeJSON:
+		if goFieldType(field) == "string" {
+			return `""`
+		}
+		return "nil"
+	default:
+		return "0"
+	}
+}
+
+func primaryField(spec domaingenerator.GeneratorSpec) domaingenerator.FieldSpec {
+	for _, field := range spec.Fields {
+		if field.PrimaryKey {
+			return field
+		}
+	}
+	return spec.Fields[0]
+}
+
+func hasFieldType(spec domaingenerator.GeneratorSpec, fieldType domaingenerator.FieldType) bool {
+	for _, field := range spec.Fields {
+		if field.Type == fieldType {
+			return true
+		}
+	}
+	return false
+}
+
+func generatedAuditActions(spec domaingenerator.GeneratorSpec) []string {
+	actions := []string{"create", "update", "delete"}
+	seen := map[string]struct{}{"create": {}, "update": {}, "delete": {}}
+	for _, action := range spec.Audit.Actions {
+		if _, ok := seen[action]; ok {
+			continue
+		}
+		seen[action] = struct{}{}
+		actions = append(actions, action)
+	}
+	return actions
+}
+
 func formatGoTemplate(source string) string {
 	out, err := format.Source([]byte(source))
 	if err != nil {
@@ -812,7 +1028,18 @@ func exportedName(value string) string {
 		if part == "" {
 			continue
 		}
-		parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		switch strings.ToLower(part) {
+		case "api":
+			parts[i] = "API"
+		case "id":
+			parts[i] = "ID"
+		case "ip":
+			parts[i] = "IP"
+		case "url":
+			parts[i] = "URL"
+		default:
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
 	}
 	return strings.Join(parts, "")
 }

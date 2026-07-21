@@ -422,6 +422,7 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 	}
 	fieldNames := make(map[string]struct{}, len(in.Fields))
 	columnNames := make(map[string]struct{}, len(in.Fields))
+	primaryCount := 0
 	for _, field := range in.Fields {
 		if field.Name == "" || field.ColumnName == "" || field.Label == "" || field.Type == "" {
 			return fmt.Errorf("generator field spec is incomplete")
@@ -434,6 +435,12 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 		}
 		if err := validateFieldType(field.Type); err != nil {
 			return err
+		}
+		if field.PrimaryKey {
+			primaryCount++
+			if field.Type != FieldTypeID || !field.Required {
+				return fmt.Errorf("generator primary field must be a required id")
+			}
 		}
 		if _, ok := fieldNames[field.Name]; ok {
 			return fmt.Errorf("generator field name conflict: %s", field.Name)
@@ -448,6 +455,9 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 				return err
 			}
 		}
+	}
+	if primaryCount != 1 {
+		return fmt.Errorf("generator requires exactly one primary field")
 	}
 	for _, index := range in.Indexes {
 		if err := validateIndexSpec(index, fieldNames); err != nil {

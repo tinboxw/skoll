@@ -1085,3 +1085,82 @@ Result: all acceptance gates passed after one documented retry. The retry remove
 ### Commit
 
 `PR2-07: freeze plugin SDK contracts`
+
+## PR3-01 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused generator package compilation
+- Evidence: the memory repository test renderer was accidentally inserted inside the raw generated store template, so the template dispatcher could not resolve `renderMemoryStoreTest`.
+- Retry action: move the renderer into generator source scope, rerun formatting and focused compilation, then execute the complete PR3-01 acceptance sequence from the beginning.
+
+## PR3-01 Retry Record 2
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: generated temporary module `go test ./...`
+- Evidence: the domain template exported `id` as `Id`, while memory repository and service templates referenced a hard-coded `ID` field. Syntax checks passed, but generated packages did not compile together.
+- Retry action: implement Go initialism-aware exported names, derive repository and service identity access from the declared primary field, and restart focused and generated-module tests.
+
+## PR3-01 Retry Record 3
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused Demo Product backend contract suite
+- Evidence: semantic GORM mapping output and the generated temporary-module tests passed, but two content assertions required one exact spacing form that `gofmt` expanded for field alignment.
+- Retry action: assert stable mapping expressions instead of formatter-owned whitespace and rerun the complete generator package suite.
+
+## PR3-01 Generate Backend Domain, Application, Repository, And Tests
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Generate a current Go backend vertical slice containing domain, repository port, memory repository, GORM model/repository, application service, and executable generated tests without manual correction.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Metadata identity contract | Pass | Specs require exactly one required `id`-typed primary field; missing, optional, multiple, and non-ID primary definitions are rejected |
+| Go naming | Pass after retry | Initialisms including ID, API, IP, and URL use idiomatic exported names consistently across domain, repository, service, persistence, and tests |
+| Domain generation | Pass | Entity, constructor, validation, audit metadata, package doc, and constructor tests are generated and formatted |
+| Repository generation | Pass | Repository port and concurrency-safe memory CRUD store are generated from the declared primary field |
+| GORM persistence | Pass after retry | Models map every field and audit timestamp in both directions, propagate reconstruction errors, and query the declared primary column |
+| Application generation | Pass | CRUD service port and implementation preserve IDs and creation time while generating complete audit action constants |
+| Generated tests | Pass | Domain validation, memory CRUD, GORM full-entity round trip, and service CRUD tests are emitted as first-class candidates |
+| Clean-module compilation | Pass after retry | Demo Product backend output is written to a clean temporary module and its generated `go test ./...` succeeds without edits |
+| Golden and regeneration | Pass | The 24-file deterministic snapshot, content hashes, dry-run conflict classification, history, and rollback tests pass repeatedly |
+| Module boundaries | Pass | Generated domain, repository, store, and service packages compile together with dependencies flowing inward through repository contracts |
+| Developer example | Pass | Demo Product backend acceptance and 24-file output matrix document generated tests and clean-module verification |
+| Current-only architecture | Pass | Invalid legacy primary-key shapes are rejected; no compatibility mode, alternate template path, or fallback output exists |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/generator ./internal/service/generator -count=3
+go test -race ./internal/domain/generator ./internal/service/generator -count=1
+go test ./... -count=1
+go vet ./...
+codegraph sync .
+codegraph impact NewGeneratorSpec
+codegraph impact buildCandidates
+codegraph impact renderGORMStore
+codegraph impact exportedName
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after three documented retries. The completed suite proves generated source syntax, cross-package compilation, generated test execution, persistence round trips, deterministic golden output, race safety, full repository behavior, static analysis, CodeGraph impact review, documentation consistency, and clean diffs.
+
+### Impact Review
+
+- Metadata: current generator specs now match the repository's canonical `shared.ID` contract and fail before rendering unsupported identity shapes.
+- Domain: generated constructors own validation and audit metadata initialization.
+- Persistence: memory and GORM stores share the declared primary field; GORM decoding cannot silently return a zero entity.
+- Application: generated services preserve immutable identity and creation metadata across updates.
+- Testing: generated code carries its own domain, repository, mapping, and service regressions into downstream projects.
+- Architecture: the generator emits one current backend shape; no compatibility template, manual patch phase, or hidden fallback remains.
+
+### Commit
+
+`PR3-01: generate tested backend slices`

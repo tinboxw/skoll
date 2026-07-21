@@ -129,7 +129,7 @@ func TestNewGeneratorSpecRejectsIncompleteSections(t *testing.T) {
 		ID:        shared.ID("spec-incomplete"),
 		Module:    ModuleSpec{Name: "product", Package: "product", DisplayName: "Product"},
 		Table:     TableSpec{Name: "products", DomainName: "Product", CollectionName: "Products"},
-		Fields:    []FieldSpec{{Name: "id", Label: "ID", Type: FieldTypeID}},
+		Fields:    []FieldSpec{{Name: "id", Label: "ID", Type: FieldTypeID, PrimaryKey: true, Required: true}},
 		CreatedAt: now,
 	})
 	if err == nil {
@@ -159,6 +159,27 @@ func TestNewGeneratorSpecValidationRules(t *testing.T) {
 				in.Fields[1].Type = FieldType("money")
 			},
 			wantErr: "field type",
+		},
+		{
+			name: "missing primary field",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Fields[0].PrimaryKey = false
+			},
+			wantErr: "exactly one primary field",
+		},
+		{
+			name: "multiple primary fields",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Fields[1].PrimaryKey = true
+			},
+			wantErr: "required id",
+		},
+		{
+			name: "optional primary field",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Fields[0].Required = false
+			},
+			wantErr: "required id",
 		},
 		{
 			name: "duplicate field name",

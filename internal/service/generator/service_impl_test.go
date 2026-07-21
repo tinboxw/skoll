@@ -6,6 +6,9 @@ import (
 	"encoding/hex"
 	"go/parser"
 	"go/token"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -97,12 +100,16 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 	goPaths := []string{
 		"internal/domain/product/doc.go",
 		"internal/domain/product/entity.go",
+		"internal/domain/product/entity_test.go",
 		"internal/repository/product/product_repo.go",
 		"internal/store/memory/product_store.go",
+		"internal/store/memory/product_store_test.go",
 		"internal/store/sql/gormrepo/product_model.go",
 		"internal/store/sql/gormrepo/product_store.go",
+		"internal/store/sql/gormrepo/product_store_test.go",
 		"internal/service/product/service.go",
 		"internal/service/product/service_impl.go",
+		"internal/service/product/service_impl_test.go",
 		"internal/handler/http/v1/product/handler.go",
 		"internal/handler/http/v1/router.go",
 		"internal/bootstrap/permission_menu_seed.go",
@@ -144,6 +151,60 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 		!strings.Contains(view.GeneratedContent, "store.hasError") ||
 		!strings.Contains(view.GeneratedContent, "useProductStore") {
 		t.Fatalf("frontend view content = %q", view.GeneratedContent)
+	}
+}
+
+func TestGeneratedBackendCompilesAndPassesGeneratedTests(t *testing.T) {
+	spec := loadDemoProductSpec(t)
+	result, err := NewService().DryRun(context.Background(), DryRunInput{
+		Spec:               spec,
+		BatchID:            "pr3-backend-compile",
+		ActorID:            "generator-test",
+		MigrationTimestamp: "20260722_010203",
+	})
+	if err != nil {
+		t.Fatalf("DryRun() error = %v", err)
+	}
+
+	root := t.TempDir()
+	moduleFile := `module github.com/tinboxw/skoll
+
+go 1.24
+
+require gorm.io/gorm v1.31.1
+`
+	writeTestFile(t, root, "go.mod", moduleFile)
+	sharedSource, err := os.ReadFile(filepath.Join("..", "..", "domain", "shared", "types.go"))
+	if err != nil {
+		t.Fatalf("read shared domain source: %v", err)
+	}
+	writeTestFile(t, root, "internal/domain/shared/types.go", string(sharedSource))
+
+	backendPaths := []string{
+		"internal/domain/demo_product/doc.go",
+		"internal/domain/demo_product/entity.go",
+		"internal/domain/demo_product/entity_test.go",
+		"internal/repository/demo_product/demo_product_repo.go",
+		"internal/store/memory/demo_product_store.go",
+		"internal/store/memory/demo_product_store_test.go",
+		"internal/store/sql/gormrepo/demo_product_model.go",
+		"internal/store/sql/gormrepo/demo_product_store.go",
+		"internal/store/sql/gormrepo/demo_product_store_test.go",
+		"internal/service/demo_product/service.go",
+		"internal/service/demo_product/service_impl.go",
+		"internal/service/demo_product/service_impl_test.go",
+	}
+	for _, path := range backendPaths {
+		plan := findPlan(t, result.Files, path)
+		writeTestFile(t, root, path, plan.GeneratedContent)
+	}
+
+	cmd := exec.Command("go", "test", "./...", "-count=1", "-mod=mod")
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "GOWORK=off")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated go test ./... failed: %v\n%s", err, output)
 	}
 }
 
@@ -221,7 +282,7 @@ func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
 	if firstSnapshot != secondSnapshot {
 		t.Fatalf("dry-run is not idempotent\nfirst=%s\nsecond=%s", firstSnapshot, secondSnapshot)
 	}
-	const expectedSnapshotHash = "153627e5736edda9ce5ca88d4c8f2f9ba9a2e60aead258aecf1185d6b7f01f29"
+	const expectedSnapshotHash = "e45093df8e363e865abc0579961b59a5c7b89851a3d3cf63736696968a8927ce"
 	if got := sha256Hex(firstSnapshot); got != expectedSnapshotHash {
 		t.Fatalf("golden snapshot hash = %s, want %s\n%s", got, expectedSnapshotHash, firstSnapshot)
 	}
@@ -428,6 +489,17 @@ func goldenSnapshot(result *DryRunResult) string {
 func sha256Hex(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])
+}
+
+func writeTestFile(t *testing.T, root, relativePath, content string) {
+	t.Helper()
+	path := filepath.Join(root, filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("create generated directory for %s: %v", relativePath, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write generated file %s: %v", relativePath, err)
+	}
 }
 
 func mustSpec(t *testing.T) *domaingenerator.GeneratorSpec {

@@ -32,10 +32,16 @@ func TestDemoProductGenerationAcceptance(t *testing.T) {
 
 	goPaths := []string{
 		"internal/domain/demo_product/entity.go",
+		"internal/domain/demo_product/entity_test.go",
 		"internal/repository/demo_product/demo_product_repo.go",
 		"internal/store/memory/demo_product_store.go",
+		"internal/store/memory/demo_product_store_test.go",
+		"internal/store/sql/gormrepo/demo_product_model.go",
+		"internal/store/sql/gormrepo/demo_product_store.go",
+		"internal/store/sql/gormrepo/demo_product_store_test.go",
 		"internal/service/demo_product/service.go",
 		"internal/service/demo_product/service_impl.go",
+		"internal/service/demo_product/service_impl_test.go",
 		"internal/handler/http/v1/demo_product/handler.go",
 	}
 	for _, path := range goPaths {
@@ -165,6 +171,17 @@ func assertDemoProductBackendContract(t *testing.T, result *DryRunResult) {
 		"func (s *DemoProductStore) List",
 		"func (s *DemoProductStore) Delete",
 	)
+	assertGeneratedContains(t, result, "internal/store/sql/gormrepo/demo_product_store.go",
+		"func toDemoProductModel",
+		"item.ID.String()",
+		"func fromDemoProductModel",
+		"shared.ID(model.ID)",
+		"CreatedAt: model.CreatedAt",
+	)
+	assertGeneratedContains(t, result, "internal/domain/demo_product/entity_test.go", "TestNewDemoProductValidatesAndBuildsEntity")
+	assertGeneratedContains(t, result, "internal/store/memory/demo_product_store_test.go", "TestDemoProductStoreCRUD")
+	assertGeneratedContains(t, result, "internal/store/sql/gormrepo/demo_product_store_test.go", "TestDemoProductModelRoundTrip")
+	assertGeneratedContains(t, result, "internal/service/demo_product/service_impl_test.go", "TestServiceCRUD")
 	assertGeneratedContains(t, result, "internal/bootstrap/permission_menu_seed.go",
 		"DemoProductGeneratedPermissions",
 		`"demo_product.read"`,
