@@ -969,3 +969,57 @@ Result: all acceptance gates passed after one documented retry. The retry remove
 ### Commit
 
 `PR2-05: publish trusted plugin host services`
+
+## PR2-06 Publish File, Audit, Config, And Secret Services
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Publish bounded file, audit, config, and secret SDK ports; bind them to one trusted plugin identity; remove direct file and audit service injection from the Pharma OA plugin boundary.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Complete host contract | Pass | `HostServices.Validate` rejects an empty plugin identity or any missing transaction, scope, file, audit, config, or secret port |
+| File ownership | Pass | Keys are fixed under `plugins/{pluginID}/`; list/get/download/delete recheck source plugin ownership and reject cross-plugin access |
+| File content policy | Pass | Host computes size, MIME, and SHA-256; executable content, executable names, path traversal, public visibility, and oversized bodies are rejected |
+| Trusted file identity | Pass | Owners and audit actors come from verified JWT context or the bound background plugin actor, never plugin input |
+| Audit namespace | Pass | Actions and resources are bound to the plugin namespace; the Pharma OA adapter normalizes existing business names before recording |
+| Audit redaction | Pass | Nested secrets, passwords, tokens, credentials, authorization headers, cookies, and sessions are recursively redacted; metadata is limited to 64 KiB |
+| Config validation | Pass | Config is validated against the current manifest Schema; sensitive keys are rejected and a declared but unavailable Schema fails closed without saving |
+| Secret isolation | Pass | Secret names use a plugin-specific hashed namespace; AES-256-GCM ciphertext is stored as encrypted settings and audit details never contain plaintext |
+| Pharma OA boundary | Pass | Plugin dependencies expose only public `HostServices`; internal file and audit service fields and bootstrap injection are absent |
+| Existing attachment flow | Pass | Contract and complaint uploads declare `sourcePluginId=pharma_oa`; bounded reads preserve the current owner/source workflow |
+| Runtime wiring | Pass | Bootstrap constructs all ports from current host services and refuses an undersized master secret |
+| Public developer contract | Pass | `docs/development/plugin-host-services.md` documents file, audit, config, secret, identity, failure, and conformance rules |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/hostservice ./pkg/pluginsdk ./internal/plugin/pharmaoa -count=20
+go test -race ./internal/plugin/hostservice ./pkg/pluginsdk ./internal/plugin/pharmaoa -count=1
+go test ./... -count=1
+go vet ./...
+codegraph sync .
+codegraph impact FileService
+codegraph impact HostServices
+codegraph status .
+rg -n "Audit\s+auditsvc\.Service|File\s+filesvc\.Service|deps\.Audit|deps\.File" internal/plugin/pharmaoa internal/bootstrap/di.go
+git diff --check
+```
+
+Result: all acceptance gates passed without retry. Repeated security contracts, race detection, the complete repository suite, vet, CodeGraph synchronization and impact review, direct dependency scanning, and diff validation pass.
+
+### Impact Review
+
+- Public SDK: plugins receive explicit file, audit, config, and secret ports without importing host service, repository, store, or encryption implementations.
+- Files: source, key prefix, owner, actor, MIME, hash, visibility, size, and executable policy are host-owned decisions.
+- Audit: persisted identity is derived from trusted context; claimed business actors remain evidence only and cannot select the audit principal.
+- Config and secrets: ordinary config remains Schema-validated and redacted, while encrypted secret storage is isolated by plugin and key.
+- Pharma OA: contracts, complaints, report exports, and all business audits flow through public host ports using one-way plugin adapters.
+- Runtime: every port is mandatory; no legacy injection, permissive fallback, dual path, or compatibility bridge remains.
+
+### Commit
+
+`PR2-06: publish bounded plugin host services`

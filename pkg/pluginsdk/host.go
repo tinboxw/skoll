@@ -3,6 +3,7 @@ package pluginsdk
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
 type Transaction interface {
@@ -23,16 +24,36 @@ type DataScopeService interface {
 }
 
 type HostServices struct {
+	PluginID     string
 	Transactions TransactionService
 	DataScopes   DataScopeService
+	Files        FileService
+	Audit        AuditService
+	Config       ConfigService
+	Secrets      SecretService
 }
 
 func (s HostServices) Validate() error {
+	if strings.TrimSpace(s.PluginID) == "" {
+		return fmt.Errorf("plugin host identity is required")
+	}
 	if s.Transactions == nil {
 		return fmt.Errorf("plugin host transaction service is required")
 	}
 	if s.DataScopes == nil {
 		return fmt.Errorf("plugin host data-scope service is required")
+	}
+	if s.Files == nil {
+		return fmt.Errorf("plugin host file service is required")
+	}
+	if s.Audit == nil {
+		return fmt.Errorf("plugin host audit service is required")
+	}
+	if s.Config == nil {
+		return fmt.Errorf("plugin host config service is required")
+	}
+	if s.Secrets == nil {
+		return fmt.Errorf("plugin host secret service is required")
 	}
 	return nil
 }

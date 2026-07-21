@@ -6,8 +6,6 @@ import (
 
 	pharmaoahttp "github.com/tinboxw/skoll/internal/handler/http/v1/pharmaoa"
 	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
-	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
-	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
@@ -20,9 +18,7 @@ const PluginID = "pharma_oa"
 type Dependencies struct {
 	Stores       *store.Bundle
 	Host         pluginsdk.HostServices
-	Audit        auditsvc.Service
 	Workflow     workflowsvc.Service
-	File         filesvc.Service
 	Notification *notificationsvc.Service
 }
 
@@ -30,49 +26,51 @@ func NewBackend(deps Dependencies) (http.Handler, error) {
 	if err := deps.Host.Validate(); err != nil {
 		return nil, err
 	}
+	audit := newHostAuditAdapter(deps.Host.Audit)
+	files := newHostFileAdapter(deps.Host.Files)
 	stores, err := repositories(deps)
 	if err != nil {
 		return nil, err
 	}
 
-	employees := pharmaoasvc.NewEmployeeService(deps.Audit, stores.Employees)
-	products := pharmaoasvc.NewProductService(deps.Audit, stores.Products)
-	suppliers := pharmaoasvc.NewSupplierService(deps.Audit, stores.Suppliers)
-	customers, err := NewCustomerService(deps)
+	employees := pharmaoasvc.NewEmployeeService(audit, stores.Employees)
+	products := pharmaoasvc.NewProductService(audit, stores.Products)
+	suppliers := pharmaoasvc.NewSupplierService(audit, stores.Suppliers)
+	customers, err := newCustomerService(deps, audit)
 	if err != nil {
 		return nil, err
 	}
-	followUps := pharmaoasvc.NewCustomerFollowUpService(customers, deps.Audit, stores.FollowUps)
-	opportunities := pharmaoasvc.NewSalesOpportunityService(customers, products, deps.Audit, stores.Opportunities)
-	warehouses := pharmaoasvc.NewWarehouseService(deps.Audit, stores.Warehouses)
+	followUps := pharmaoasvc.NewCustomerFollowUpService(customers, audit, stores.FollowUps)
+	opportunities := pharmaoasvc.NewSalesOpportunityService(customers, products, audit, stores.Opportunities)
+	warehouses := pharmaoasvc.NewWarehouseService(audit, stores.Warehouses)
 	masterData := pharmaoasvc.NewMasterDataExchangeService(employees, products, suppliers, customers)
-	purchases := pharmaoasvc.NewPurchaseService(suppliers, deps.Workflow, deps.Audit, stores.Purchases)
-	inventory := pharmaoasvc.NewInventoryService(deps.Audit, stores.Inventory)
-	inbounds := pharmaoasvc.NewPurchaseInboundService(purchases, warehouses, inventory, deps.Audit, stores.Inbounds)
-	sales := pharmaoasvc.NewSalesService(customers, warehouses, inventory, deps.Audit, stores.Sales)
-	inventoryOperations := pharmaoasvc.NewInventoryOperationService(inventory, warehouses, deps.Workflow, deps.Audit, pharmaoasvc.InventoryOperationRepositories{
+	purchases := pharmaoasvc.NewPurchaseService(suppliers, deps.Workflow, audit, stores.Purchases)
+	inventory := pharmaoasvc.NewInventoryService(audit, stores.Inventory)
+	inbounds := pharmaoasvc.NewPurchaseInboundService(purchases, warehouses, inventory, audit, stores.Inbounds)
+	sales := pharmaoasvc.NewSalesService(customers, warehouses, inventory, audit, stores.Sales)
+	inventoryOperations := pharmaoasvc.NewInventoryOperationService(inventory, warehouses, deps.Workflow, audit, pharmaoasvc.InventoryOperationRepositories{
 		Stocktakes: stores.Stocktakes,
 		Transfers:  stores.Transfers,
 	})
-	paymentInvoices := pharmaoasvc.NewPaymentInvoiceService(sales, deps.Notification, deps.Audit, pharmaoasvc.PaymentInvoiceRepositories{
+	paymentInvoices := pharmaoasvc.NewPaymentInvoiceService(sales, deps.Notification, audit, pharmaoasvc.PaymentInvoiceRepositories{
 		Plans:    stores.PaymentPlans,
 		Invoices: stores.Invoices,
 		Jobs:     stores.PaymentReminderJobs,
 	})
-	inventoryAlerts := pharmaoasvc.NewInventoryAlertService(inventory, deps.Notification, deps.Audit, stores.InventoryAlerts)
-	announcements := pharmaoasvc.NewAnnouncementService(deps.Audit)
-	contracts := pharmaoasvc.NewContractService(suppliers, customers, deps.Workflow, deps.File, deps.Notification, deps.Audit, stores.Contracts)
-	qualifications := pharmaoasvc.NewQualificationService(employees, suppliers, customers, deps.Notification, deps.Audit)
-	complaints := pharmaoasvc.NewQualityComplaintService(customers, products, inventory, deps.Workflow, deps.File, deps.Audit, stores.Complaints)
-	recalls := pharmaoasvc.NewDrugRecallService(sales, inventory, products, customers, complaints, deps.Audit, stores.Recalls)
-	coldChain := pharmaoasvc.NewColdChainService(inventory, warehouses, deps.Notification, deps.Audit)
-	compliance := pharmaoasvc.NewComplianceDashboardService(qualifications, complaints, recalls, coldChain, deps.Audit)
-	metrics := pharmaoasvc.NewBusinessMetricsService(inventoryAlerts, qualifications, purchases, followUps, sales, deps.Audit)
-	reportExports := pharmaoasvc.NewReportExportService(metrics, deps.File, deps.Audit, stores.ReportExports)
+	inventoryAlerts := pharmaoasvc.NewInventoryAlertService(inventory, deps.Notification, audit, stores.InventoryAlerts)
+	announcements := pharmaoasvc.NewAnnouncementService(audit)
+	contracts := pharmaoasvc.NewContractService(suppliers, customers, deps.Workflow, files, deps.Notification, audit, stores.Contracts)
+	qualifications := pharmaoasvc.NewQualificationService(employees, suppliers, customers, deps.Notification, audit)
+	complaints := pharmaoasvc.NewQualityComplaintService(customers, products, inventory, deps.Workflow, files, audit, stores.Complaints)
+	recalls := pharmaoasvc.NewDrugRecallService(sales, inventory, products, customers, complaints, audit, stores.Recalls)
+	coldChain := pharmaoasvc.NewColdChainService(inventory, warehouses, deps.Notification, audit)
+	compliance := pharmaoasvc.NewComplianceDashboardService(qualifications, complaints, recalls, coldChain, audit)
+	metrics := pharmaoasvc.NewBusinessMetricsService(inventoryAlerts, qualifications, purchases, followUps, sales, audit)
+	reportExports := pharmaoasvc.NewReportExportService(metrics, files, audit, stores.ReportExports)
 	demoSeed := pharmaoasvc.NewDemoSeedService(pharmaoasvc.DemoSeedDependencies{
 		Employees: employees, Products: products, Suppliers: suppliers, Customers: customers,
 		Warehouses: warehouses, Purchases: purchases, Inbounds: inbounds, Sales: sales,
-		Inventory: inventory, FollowUps: followUps, Audit: deps.Audit,
+		Inventory: inventory, FollowUps: followUps, Audit: audit,
 	})
 
 	mux := http.NewServeMux()
@@ -104,11 +102,18 @@ func NewBackend(deps Dependencies) (http.Handler, error) {
 }
 
 func NewCustomerService(deps Dependencies) (pharmaoasvc.CustomerService, error) {
+	if err := deps.Host.Validate(); err != nil {
+		return nil, err
+	}
+	return newCustomerService(deps, newHostAuditAdapter(deps.Host.Audit))
+}
+
+func newCustomerService(deps Dependencies, audit *hostAuditAdapter) (pharmaoasvc.CustomerService, error) {
 	stores, err := repositories(deps)
 	if err != nil {
 		return nil, err
 	}
-	return pharmaoasvc.NewCustomerService(deps.Audit, stores.Customers), nil
+	return pharmaoasvc.NewCustomerService(audit, stores.Customers), nil
 }
 
 func repositories(deps Dependencies) (*pharmaoarepo.Repositories, error) {

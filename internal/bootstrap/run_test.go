@@ -168,7 +168,7 @@ func appConfigForTest(addr string) config.AppConfig {
 		},
 		Store: config.StoreConfig{Mode: "memory"},
 		Security: config.SecurityConfig{
-			JWTSecret: "test-secret",
+			JWTSecret: "test-secret-123456",
 		},
 		Log: config.LogConfig{Level: "error"},
 	}

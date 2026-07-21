@@ -13,13 +13,28 @@ import (
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
+	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
+	systemsvc "github.com/tinboxw/skoll/internal/service/system"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
-	"github.com/tinboxw/skoll/pkg/pluginsdk"
+	objectstore "github.com/tinboxw/skoll/internal/store/object"
 	"gopkg.in/yaml.v3"
 )
+
+type backendContractConfigStore struct {
+	info pluginruntime.Info
+}
+
+func (s *backendContractConfigStore) Get(pluginID string) (pluginruntime.Info, error) {
+	if pluginID != s.info.ID {
+		return pluginruntime.Info{}, pluginruntime.ErrPluginNotFound
+	}
+	return s.info, nil
+}
+
+func (*backendContractConfigStore) SavePluginConfig(string, map[string]any) error { return nil }
 
 func TestManifestRoutesMatchPharmaOAHandlers(t *testing.T) {
 	root := repositoryRoot(t)
@@ -89,11 +104,24 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build plugin data-scope service: %v", err)
 	}
+	objects, err := objectstore.NewLocalStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("build object store: %v", err)
+	}
+	auditService := auditsvc.NewService(bundle.Audit)
+	host, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
+		PluginID: PluginID, Transactions: transactions, DataScopes: dataScopes,
+		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditService,
+		ConfigStore: &backendContractConfigStore{info: pluginruntime.Info{ID: PluginID}}, System: systemsvc.NewService(bundle.System),
+		MasterSecret: "pharma-backend-contract-secret",
+	})
+	if err != nil {
+		t.Fatalf("build plugin host services: %v", err)
+	}
 	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil)
 	handler, err := NewBackend(Dependencies{
 		Stores:       bundle,
-		Audit:        auditsvc.NewService(bundle.Audit),
-		Host:         pluginsdk.HostServices{Transactions: transactions, DataScopes: dataScopes},
+		Host:         host,
 		Workflow:     workflowsvc.NewService(workflowsvc.NewMemoryRepository()),
 		Notification: notifications,
 	})

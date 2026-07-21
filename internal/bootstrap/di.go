@@ -114,14 +114,21 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	if err != nil {
 		return nil, err
 	}
-	pluginHost := pluginsdk.HostServices{Transactions: transactionService, DataScopes: dataScopeService}
-	if err := pluginHost.Validate(); err != nil {
+	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
+	configStore, ok := pluginManager.(hostservice.PluginConfigStore)
+	if !ok {
+		return nil, fmt.Errorf("plugin manager does not support host config services")
+	}
+	pluginHost, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
+		PluginID: pharmaoaplugin.PluginID, Transactions: transactionService, DataScopes: dataScopeService,
+		Files: fileService, Audit: auditService, ConfigStore: configStore, System: systemService,
+		MasterSecret: cfg.AppConfig.Security.JWTSecret,
+	})
+	if err != nil {
 		return nil, err
 	}
-	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
 	pharmaBackendDeps := pharmaoaplugin.Dependencies{
-		Stores: bundle, Host: pluginHost, Audit: auditService, Workflow: workflowService,
-		File: fileService, Notification: notificationService,
+		Stores: bundle, Host: pluginHost, Workflow: workflowService, Notification: notificationService,
 	}
 	registrar, ok := pluginManager.(interface {
 		RegisterInProcessBackend(string, plugin.InProcessBackendFactory) error
