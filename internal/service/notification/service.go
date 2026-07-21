@@ -2,10 +2,10 @@ package notification
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
-	"sort"
+	"fmt"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -23,6 +23,13 @@ const (
 	StatusPending Status = "pending"
 	StatusDone    Status = "done"
 	StatusRead    Status = "read"
+)
+
+type DeliveryStatus string
+
+const (
+	DeliverySucceeded DeliveryStatus = "succeeded"
+	DeliveryFailed    DeliveryStatus = "failed"
 )
 
 type Target struct {
@@ -71,35 +78,48 @@ type ReminderRule struct {
 	Interval time.Duration
 }
 
+type DeliveryAttempt struct {
+	ID             string
+	NotificationID string
+	Channel        string
+	IdempotencyKey string
+	Status         DeliveryStatus
+	Attempt        int
+	Error          string
+	CreatedAt      time.Time
+}
+
+type DeliveryAttemptInput struct {
+	ID             string
+	NotificationID string
+	Channel        string
+	IdempotencyKey string
+	Status         DeliveryStatus
+	Error          string
+}
+
 type Service struct {
-	mu       sync.RWMutex
-	items    map[string]Item
-	rules    map[string]ReminderRule
+	repo     Repository
 	now      func() time.Time
 	generate func(prefix string) string
 }
 
-func NewService(now func() time.Time, generate func(prefix string) string) *Service {
+func NewService(repo Repository, now func() time.Time, generate func(prefix string) string) *Service {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 	if generate == nil {
 		generate = func(prefix string) string { return prefix + "-" + time.Now().UTC().Format("20060102150405.000000000") }
 	}
-	return &Service{
-		items:    map[string]Item{},
-		rules:    map[string]ReminderRule{},
-		now:      now,
-		generate: generate,
-	}
+	return &Service{repo: repo, now: now, generate: generate}
 }
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	if err := ctx.Err(); err != nil {
 		return Item{}, err
 	}
-	if s == nil {
-		return Item{}, errors.New("notification service is not configured")
+	if s == nil || s.repo == nil {
+		return Item{}, errors.New("notification repository is not configured")
 	}
 	category := in.Category
 	if category == "" {
@@ -117,80 +137,52 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (Item, error) {
 	if strings.TrimSpace(in.Target.Path) == "" {
 		return Item{}, errors.New("notification target path is required")
 	}
-	now := s.now()
+	now := s.now().UTC()
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
 		id = s.generate(string(category))
 	}
 	item := Item{
-		ID:        id,
-		Category:  category,
-		Status:    initialStatus(category),
-		Title:     strings.TrimSpace(in.Title),
-		Body:      strings.TrimSpace(in.Body),
-		ActorID:   strings.TrimSpace(in.ActorID),
-		Target:    normalizeTarget(in.Target),
-		DueAt:     in.DueAt,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID: id, Category: category, Status: initialStatus(category), Title: strings.TrimSpace(in.Title), Body: strings.TrimSpace(in.Body),
+		ActorID: strings.TrimSpace(in.ActorID), Target: normalizeTarget(in.Target), DueAt: in.DueAt, CreatedAt: now, UpdatedAt: now,
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.items[item.ID] = item
-	return item, nil
+	stored, created, err := s.repo.CreateItem(ctx, item)
+	if err != nil {
+		return Item{}, err
+	}
+	if !created && !sameItemContract(stored, item) {
+		return Item{}, errors.New("notification id conflicts with existing item")
+	}
+	return stored, nil
 }
 
 func (s *Service) Complete(ctx context.Context, id string, actorID string) (Item, error) {
 	if err := ctx.Err(); err != nil {
 		return Item{}, err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	item, ok := s.items[strings.TrimSpace(id)]
-	if !ok {
-		return Item{}, errors.New("notification item not found")
+	if s == nil || s.repo == nil {
+		return Item{}, errors.New("notification repository is not configured")
 	}
-	if item.ActorID != strings.TrimSpace(actorID) {
-		return Item{}, errors.New("notification actor does not own item")
-	}
-	if item.Category == CategoryMessage {
-		item.Status = StatusRead
-	} else {
-		item.Status = StatusDone
-	}
-	item.UpdatedAt = s.now()
-	s.items[item.ID] = item
-	return item, nil
+	return s.repo.CompleteItem(ctx, strings.TrimSpace(id), strings.TrimSpace(actorID), s.now().UTC())
 }
 
 func (s *Service) List(ctx context.Context, filter Filter) ([]Item, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	out := make([]Item, 0, len(s.items))
-	for _, item := range s.items {
-		if filter.ActorID != "" && item.ActorID != filter.ActorID {
-			continue
-		}
-		if filter.Category != "" && item.Category != filter.Category {
-			continue
-		}
-		if filter.Status != "" && item.Status != filter.Status {
-			continue
-		}
-		out = append(out, item)
+	if s == nil || s.repo == nil {
+		return nil, errors.New("notification repository is not configured")
 	}
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].UpdatedAt.After(out[j].UpdatedAt)
-	})
-	return out, nil
+	filter.ActorID = strings.TrimSpace(filter.ActorID)
+	return s.repo.ListItems(ctx, filter)
 }
 
 func (s *Service) UpsertReminderRule(ctx context.Context, rule ReminderRule) error {
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	if s == nil || s.repo == nil {
+		return errors.New("notification repository is not configured")
 	}
 	if strings.TrimSpace(rule.ID) == "" || strings.TrimSpace(rule.ActorID) == "" || strings.TrimSpace(rule.Title) == "" {
 		return errors.New("reminder rule id, actor, and title are required")
@@ -198,41 +190,35 @@ func (s *Service) UpsertReminderRule(ctx context.Context, rule ReminderRule) err
 	if strings.TrimSpace(rule.Target.Path) == "" {
 		return errors.New("reminder target path is required")
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	rule.ID = strings.TrimSpace(rule.ID)
+	rule.Name = strings.TrimSpace(rule.Name)
 	rule.ActorID = strings.TrimSpace(rule.ActorID)
 	rule.Title = strings.TrimSpace(rule.Title)
+	rule.Body = strings.TrimSpace(rule.Body)
 	rule.Target = normalizeTarget(rule.Target)
-	s.rules[rule.ID] = rule
-	return nil
+	return s.repo.UpsertReminderRule(ctx, rule)
 }
 
 func (s *Service) EmitDueReminders(ctx context.Context) ([]Item, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	s.mu.RLock()
-	rules := make([]ReminderRule, 0, len(s.rules))
-	for _, rule := range s.rules {
-		rules = append(rules, rule)
+	if s == nil || s.repo == nil {
+		return nil, errors.New("notification repository is not configured")
 	}
-	s.mu.RUnlock()
-
-	now := s.now()
+	rules, err := s.repo.ListReminderRules(ctx)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now().UTC()
 	out := make([]Item, 0)
 	for _, rule := range rules {
 		if rule.DueAt.IsZero() || rule.DueAt.After(now) {
 			continue
 		}
 		item, err := s.Create(ctx, CreateInput{
-			ID:       s.generate("reminder"),
-			Category: CategoryReminder,
-			Title:    rule.Title,
-			Body:     rule.Body,
-			ActorID:  rule.ActorID,
-			Target:   rule.Target,
-			DueAt:    rule.DueAt,
+			ID: reminderItemID(rule), Category: CategoryReminder, Title: rule.Title, Body: rule.Body,
+			ActorID: rule.ActorID, Target: rule.Target, DueAt: rule.DueAt,
 		})
 		if err != nil {
 			return nil, err
@@ -242,17 +228,60 @@ func (s *Service) EmitDueReminders(ctx context.Context) ([]Item, error) {
 	return out, nil
 }
 
-func initialStatus(category Category) Status {
-	if category == CategoryMessage {
-		return StatusPending
+func (s *Service) RecordDeliveryAttempt(ctx context.Context, in DeliveryAttemptInput) (DeliveryAttempt, error) {
+	if err := ctx.Err(); err != nil {
+		return DeliveryAttempt{}, err
 	}
-	return StatusPending
+	if s == nil || s.repo == nil {
+		return DeliveryAttempt{}, errors.New("notification repository is not configured")
+	}
+	in.NotificationID = strings.TrimSpace(in.NotificationID)
+	in.Channel = strings.TrimSpace(strings.ToLower(in.Channel))
+	in.IdempotencyKey = strings.TrimSpace(in.IdempotencyKey)
+	if in.NotificationID == "" || in.Channel == "" || in.IdempotencyKey == "" {
+		return DeliveryAttempt{}, errors.New("notification delivery identity is incomplete")
+	}
+	if in.Status != DeliverySucceeded && in.Status != DeliveryFailed {
+		return DeliveryAttempt{}, errors.New("notification delivery status is invalid")
+	}
+	if in.Status == DeliveryFailed && strings.TrimSpace(in.Error) == "" {
+		return DeliveryAttempt{}, errors.New("failed notification delivery requires an error")
+	}
+	id := strings.TrimSpace(in.ID)
+	if id == "" {
+		id = s.generate("delivery")
+	}
+	attempt := DeliveryAttempt{
+		ID: id, NotificationID: in.NotificationID, Channel: in.Channel, IdempotencyKey: in.IdempotencyKey,
+		Status: in.Status, Error: strings.TrimSpace(in.Error), CreatedAt: s.now().UTC(),
+	}
+	stored, _, err := s.repo.RecordDeliveryAttempt(ctx, attempt)
+	return stored, err
 }
 
-func normalizeTarget(target Target) Target {
-	return Target{
-		Type: strings.TrimSpace(target.Type),
-		ID:   strings.TrimSpace(target.ID),
-		Path: strings.TrimSpace(target.Path),
+func (s *Service) ListDeliveryAttempts(ctx context.Context, notificationID, channel string) ([]DeliveryAttempt, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
+	if s == nil || s.repo == nil {
+		return nil, errors.New("notification repository is not configured")
+	}
+	return s.repo.ListDeliveryAttempts(ctx, strings.TrimSpace(notificationID), strings.TrimSpace(strings.ToLower(channel)))
+}
+
+func initialStatus(Category) Status { return StatusPending }
+
+func normalizeTarget(target Target) Target {
+	return Target{Type: strings.TrimSpace(target.Type), ID: strings.TrimSpace(target.ID), Path: strings.TrimSpace(target.Path)}
+}
+
+func sameItemContract(left, right Item) bool {
+	return left.ID == right.ID && left.Category == right.Category && left.Title == right.Title && left.Body == right.Body &&
+		left.ActorID == right.ActorID && left.Target == right.Target && left.DueAt.Equal(right.DueAt)
+}
+
+func reminderItemID(rule ReminderRule) string {
+	identity := fmt.Sprintf("%s\x00%d", rule.ID, rule.DueAt.UTC().UnixNano())
+	digest := sha256.Sum256([]byte(identity))
+	return fmt.Sprintf("reminder-%x", digest[:12])
 }

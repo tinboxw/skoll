@@ -18,6 +18,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
+	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store/clickhouse"
 	"github.com/tinboxw/skoll/internal/store/memory"
@@ -56,6 +57,7 @@ type Bundle struct {
 	Files            filerepo.FileRepository
 	Organization     organizationrepo.OrganizationRepository
 	Workflow         workflowsvc.Repository
+	Notifications    notificationsvc.Repository
 	PharmaOA         func() *pharmaoarepo.Repositories
 }
 
@@ -76,8 +78,9 @@ func NewBundle(opts Options) (*Bundle, error) {
 		return &Bundle{
 			Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions,
 			Menus: menus, UnitOfWork: sql.NewUnitOfWork(), AuditEvents: auditEvents, Files: files, Organization: organization,
-			Workflow: workflowsvc.NewMemoryRepository(),
-			PharmaOA: lazyPharmaOARepositories(newMemoryPharmaOARepositories),
+			Workflow:      workflowsvc.NewMemoryRepository(),
+			Notifications: notificationsvc.NewMemoryRepository(),
+			PharmaOA:      lazyPharmaOARepositories(newMemoryPharmaOARepositories),
 		}, nil
 	case ModeMySQL:
 		primary, err := mysql.NewAdapter(opts.PrimaryDSN)
@@ -101,6 +104,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Files:            primary.FileRepository(),
 			Organization:     primary.OrganizationRepository(),
 			Workflow:         primary.WorkflowRepository(),
+			Notifications:    primary.NotificationRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 		}, nil
 	case ModePostgres:
@@ -127,6 +131,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Files:            primary.FileRepository(),
 			Organization:     primary.OrganizationRepository(),
 			Workflow:         primary.WorkflowRepository(),
+			Notifications:    primary.NotificationRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 		}, nil
 	default:

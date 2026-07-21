@@ -26,7 +26,7 @@ func TestColdChainHTTPRecordsJobsAndAnomalies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("seed inventory: %v", err)
 	}
-	service := pharmaoasvc.NewColdChainService(inventory, warehouses, notificationsvc.NewService(nil, nil), nil)
+	service := pharmaoasvc.NewColdChainService(inventory, warehouses, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	mux := http.NewServeMux()
 	RegisterColdChainRoutes(mux, service)
 

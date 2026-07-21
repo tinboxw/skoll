@@ -23,7 +23,7 @@ func TestQualificationHTTPListAndExpiryScan(t *testing.T) {
 	}
 	suppliers := servicepharma.NewSupplierService(nil)
 	customers := servicepharma.NewCustomerService(nil)
-	service := servicepharma.NewQualificationService(employees, suppliers, customers, notificationsvc.NewService(nil, nil), nil)
+	service := servicepharma.NewQualificationService(employees, suppliers, customers, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	mux := http.NewServeMux()
 	RegisterQualificationRoutes(mux, service)
 

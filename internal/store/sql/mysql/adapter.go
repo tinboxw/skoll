@@ -19,6 +19,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
+	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
@@ -40,6 +41,7 @@ type Adapter struct {
 	file               filerepo.FileRepository
 	org                organizationrepo.OrganizationRepository
 	workflow           workflowsvc.Repository
+	notification       notificationsvc.Repository
 	employee           pharmaoarepo.EmployeeRepository
 	product            pharmaoarepo.ProductRepository
 	supplier           pharmaoarepo.SupplierRepository
@@ -107,6 +109,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		file:               gormrepo.NewFileStore(db),
 		org:                gormrepo.NewOrganizationStore(db),
 		workflow:           gormrepo.NewWorkflowStore(db),
+		notification:       gormrepo.NewNotificationStore(db),
 		employee:           gormrepo.NewPharmaEmployeeStore(db),
 		product:            gormrepo.NewPharmaProductStore(db),
 		supplier:           gormrepo.NewPharmaSupplierStore(db),
@@ -172,6 +175,10 @@ func (a *Adapter) OrganizationRepository() organizationrepo.OrganizationReposito
 
 func (a *Adapter) WorkflowRepository() workflowsvc.Repository {
 	return a.workflow
+}
+
+func (a *Adapter) NotificationRepository() notificationsvc.Repository {
+	return a.notification
 }
 
 func (a *Adapter) PharmaEmployeeRepository() pharmaoarepo.EmployeeRepository   { return a.employee }

@@ -27,7 +27,7 @@ func TestNewBundleModes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewBundle error: %v", err)
 			}
-			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.Permissions == nil || b.Menus == nil || b.UnitOfWork == nil || b.Workflow == nil || b.PharmaOA == nil {
+			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.Permissions == nil || b.Menus == nil || b.UnitOfWork == nil || b.Workflow == nil || b.Notifications == nil || b.PharmaOA == nil {
 				t.Fatalf("bundle has nil repositories")
 			}
 			assertPharmaOARepositories(t, b)
@@ -49,7 +49,7 @@ func TestNewBundleMySQLIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBundle mysql error: %v", err)
 	}
-	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil || b.Permissions == nil || b.Menus == nil || b.Workflow == nil || b.PharmaOA == nil {
+	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil || b.Permissions == nil || b.Menus == nil || b.Workflow == nil || b.Notifications == nil || b.PharmaOA == nil {
 		t.Fatalf("mysql bundle has nil repositories")
 	}
 	assertPharmaOARepositories(t, b)

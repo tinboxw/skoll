@@ -9,7 +9,7 @@ import (
 func TestNotificationServiceTodoMessageAndDone(t *testing.T) {
 	now := time.Date(2026, 7, 4, 10, 0, 0, 0, time.UTC)
 	seq := 0
-	svc := NewService(func() time.Time {
+	svc := NewService(NewMemoryRepository(), func() time.Time {
 		now = now.Add(time.Minute)
 		return now
 	}, func(prefix string) string {
@@ -66,7 +66,7 @@ func TestNotificationServiceTodoMessageAndDone(t *testing.T) {
 
 func TestNotificationServiceReminderRulesAndOwnership(t *testing.T) {
 	now := time.Date(2026, 7, 4, 10, 0, 0, 0, time.UTC)
-	svc := NewService(func() time.Time { return now }, func(prefix string) string { return prefix + "-1" })
+	svc := NewService(NewMemoryRepository(), func() time.Time { return now }, func(prefix string) string { return prefix + "-1" })
 
 	if err := svc.UpsertReminderRule(context.Background(), ReminderRule{
 		ID:      "qual-expiring",

@@ -113,7 +113,7 @@ func TestPharmaOAInventoryEndToEndSmoke(t *testing.T) {
 
 	assertInventorySmokeBalancesAndLedger(t, ctx, inventory, source.ID.String(), target.ID.String())
 
-	notifications := notificationsvc.NewService(nil, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil)
 	alerts := pharmaoasvc.NewInventoryAlertService(inventory, notifications, audit)
 	job, err := alerts.Run(ctx, domainpharma.InventoryAlertPolicy{NearExpiryDays: 30, LowStockThreshold: 4, OverStockThreshold: 100, RecipientID: "inventory-manager-e2e"})
 	if err != nil {

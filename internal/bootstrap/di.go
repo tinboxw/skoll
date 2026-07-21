@@ -99,7 +99,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Permission: rbacService,
 		Audit:      auditEventService,
 	})
-	notificationService := notificationsvc.NewService(nil, nil)
+	notificationService := notificationsvc.NewService(bundle.Notifications, nil, nil)
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
 	pharmaBackendDeps := pharmaoaplugin.Dependencies{
 		Stores: bundle, Audit: auditService, RBAC: rbacService, Workflow: workflowService,

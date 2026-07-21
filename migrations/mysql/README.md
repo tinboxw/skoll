@@ -23,6 +23,7 @@ MySQL 迁移脚本目录。
 - 20260718_000019_create_pharma_oa_master_data.sql
 - 20260722_000023_create_plugin_migration_ledger.sql
 - 20260722_000024_create_workflow_persistence.sql
+- 20260722_000025_create_notification_persistence.sql
 
 ## 执行顺序
 
@@ -89,6 +90,15 @@ MySQL 迁移脚本目录。
 - 聚合边界：定义和实例分别作为事务写入单元，子记录写入失败时整笔回滚。
 - 查询索引：业务对象、实例状态、发起人、任务审批人、动作参与人和时间线顺序。
 - 对应实现：`internal/store/sql/gormrepo/workflow_model.go`、`workflow_store.go`。
+
+## 通知持久化
+
+### 20260722_000025_create_notification_persistence.sql
+
+- 表名：`sk_notification_items`、`sk_notification_reminder_rules`、`sk_notification_delivery_attempts`。
+- 用途：持久化通知收件箱、已读/完成状态、提醒规则及不可变投递尝试。
+- 幂等：通知 ID 唯一；投递按通知、渠道和幂等键唯一；成功渠道不再创建重复尝试。
+- 重试：失败尝试保留错误，新幂等键产生下一次尝试并递增 attempt。
 
 ## 医药 OA 主数据表
 

@@ -18,7 +18,7 @@ func TestPaymentInvoiceLifecycleAndSalesOrderLimits(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
 	reader := paymentOrderFixture("order-1", "SO-001", "customer-1", "sales-1", 1000)
-	service := NewPaymentInvoiceService(reader, notificationsvc.NewService(nil, nil), nil)
+	service := NewPaymentInvoiceService(reader, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	impl := service.(*paymentInvoiceService)
 	impl.nowFn = func() time.Time { return now }
 
@@ -70,7 +70,7 @@ func TestPaymentInvoiceLifecycleAndSalesOrderLimits(t *testing.T) {
 func TestPaymentOverdueReminderIsIdempotentAndCompletesOnReceipt(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 16, 9, 0, 0, 0, time.UTC)
-	notifications := notificationsvc.NewService(func() time.Time { return now }, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), func() time.Time { return now }, nil)
 	service := NewPaymentInvoiceService(paymentOrderFixture("order-1", "SO-001", "customer-1", "sales-1", 500), notifications, nil)
 	impl := service.(*paymentInvoiceService)
 	impl.nowFn = func() time.Time { return now }

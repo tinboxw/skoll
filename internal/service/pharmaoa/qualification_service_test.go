@@ -35,7 +35,7 @@ func TestQualificationLedgerAndExpiryScanAreUnifiedAndIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	notifications := notificationsvc.NewService(func() time.Time { return now }, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), func() time.Time { return now }, nil)
 	audit := auditsvc.NewService(clickhouse.NewAuditStore())
 	service := NewQualificationService(employees, suppliers, customers, notifications, audit).(*qualificationService)
 	service.nowFn = func() time.Time { return now }

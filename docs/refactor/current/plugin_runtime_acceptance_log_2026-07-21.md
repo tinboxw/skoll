@@ -769,3 +769,61 @@ Result: all acceptance gates passed without retry. The repeated concurrency suit
 ### Commit
 
 `PR2-02: serialize workflow decisions`
+
+## PR2-03 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: notification migration contract parity
+- Evidence: the PostgreSQL `000025` migration used an inline `REFERENCES` clause, while the cross-dialect acceptance test requires an explicit `FOREIGN KEY` declaration; restart, inbox state, reminder idempotency, delivery retry, concurrent deduplication, memory repository, and bundle tests passed.
+- Retry action: express the PostgreSQL delivery-to-item relation as a named foreign-key constraint and rerun the same focused acceptance command.
+
+## PR2-03 Persist Notification Inbox And Delivery State
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Persist notification inbox items, completion state, reminder rules, and channel-delivery attempts with restart-safe idempotency and retry semantics.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Inbox restart recovery | Pass | File-backed SQL reopen preserves notification content, ownership, due time, and completion state |
+| Reminder restart idempotency | Pass | Stable reminder IDs prevent duplicate inbox rows across repeated scans and repository restart |
+| Delivery duplicate suppression | Pass | Notification, channel, and idempotency key form a unique delivery boundary; 12 concurrent attempts persist one row |
+| Failed-channel retry | Pass | A failed attempt remains retryable with a new key and increments the attempt number after restart |
+| Successful-channel suppression | Pass | Once a channel succeeds, later keys return the committed success without another delivery row |
+| Repository parity | Pass | Memory and SQL repositories implement the same explicit notification contract |
+| Runtime wiring | Pass | Bootstrap receives the configured notification repository from memory, MySQL, or PostgreSQL bundles |
+| Migration parity | Pass after retry | MySQL and PostgreSQL `000025` migrations expose equivalent tables, indexes, uniqueness, and explicit foreign keys |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/notification ./internal/store/sql/gormrepo ./internal/store ./internal/bootstrap -run "TestNotification|TestAllModels|TestNewBundle" -count=1 -v
+go test ./internal/service/pharmaoa ./internal/handler/http/v1/pharmaoa ./internal/plugin/pharmaoa ./tests/integration -count=1
+go test ./internal/store/sql/gormrepo -run "TestNotificationStoreDeduplicatesConcurrentDeliveryKey|TestNotificationStorePersistsInboxRulesAndDeliveryAcrossRestart" -count=20
+go test -race ./internal/service/notification ./internal/store/sql/gormrepo ./internal/service/pharmaoa ./internal/bootstrap -count=1 -timeout 300s
+go test ./... -count=1 -timeout 300s
+go vet ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: all locally executable acceptance gates passed after one documented migration-contract retry. Live MySQL and PostgreSQL DSNs were not available; dialect migrations are statically verified, and persistence, restart, concurrency, and rollback behavior execute against file-backed SQL.
+
+### Impact Review
+
+- Notification state: inbox items, completion state, reminder rules, and delivery attempts survive process and database connection restarts in SQL modes.
+- Idempotency: explicit notification IDs deduplicate creation; deterministic reminder IDs deduplicate scans; delivery keys deduplicate concurrent channel attempts.
+- Retry: failed channels remain retryable with a fresh delivery key, while the first success closes the channel-delivery boundary.
+- Runtime: bootstrap no longer creates private notification memory and follows the configured store bundle.
+- Migrations: version `000025` adds the same current relational model for MySQL and PostgreSQL.
+- API/frontend: no wire contract or user interface changed.
+- Compatibility: none; no legacy constructor, old read path, dual write, fallback, or migration bridge was added.
+
+### Commit
+
+`PR2-03: persist notification delivery state`

@@ -279,6 +279,20 @@ M4 新增一等组织模型表，迁移脚本：
 
 > **Domain 实体**：`internal/domain/workflow/types.go` → `Definition`、`Instance`、`Task`、`Action`。
 
+### 2.12 通知持久化表
+
+迁移脚本：
+- `migrations/mysql/20260722_000025_create_notification_persistence.sql`
+- `migrations/postgres/20260722_000025_create_notification_persistence.sql`
+
+通知使用收件箱、提醒规则和投递尝试三张当前模型表。收件箱状态直接保存消息已读或任务完成结果；提醒规则生成稳定通知 ID，重复扫描不会重复建项；投递尝试按通知、渠道和幂等键唯一，失败记录可用新幂等键继续重试，渠道成功后不再创建重复投递。
+
+| 表 | 职责 | 关键索引或约束 |
+|------|------|------|
+| `sk_notification_items` | 通知内容、归属人、目标、到期时间和已读/完成状态 | 用户+分类+状态+更新时间、目标对象 |
+| `sk_notification_reminder_rules` | 可跨重启执行的提醒规则 | 用户+到期时间 |
+| `sk_notification_delivery_attempts` | 不可变渠道投递结果和错误 | `UNIQUE(notification_id, channel, idempotency_key)`、渠道尝试顺序、状态 |
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：
@@ -302,6 +316,8 @@ M4 新增一等组织模型表，迁移脚本：
 | `domain/system.DictionaryItem` | `DictionaryItemModel` (sk_dictionary_items) | `dictionary_model.go` |
 | `domain/workflow.Definition` | `WorkflowDefinitionModel` 等定义关系表 | `workflow_model.go` / `workflow_store.go` |
 | `domain/workflow.Instance` | `WorkflowInstanceModel`、`WorkflowTaskModel`、`WorkflowActionModel` | `workflow_model.go` / `workflow_store.go` |
+| `service/notification.Item` | `NotificationItemModel` | `notification_model.go` / `notification_store.go` |
+| `service/notification.DeliveryAttempt` | `NotificationDeliveryAttemptModel` | `notification_model.go` / `notification_store.go` |
 
 **ID 转换**：Domain 使用 `shared.ID`（字符串类型）。用户、角色、系统设置等早期 GORM Model 使用 `uint64`，通过 `parseUintID` / `formatUintID` 辅助函数双向转换；审计事件、文件对象、字典类型与字典条目直接使用字符串 ID。
 
@@ -343,7 +359,8 @@ migrations/
 │   ├── 20260718_000021_create_pharma_oa_workflow_records.sql
 │   ├── 20260718_000022_complete_pharma_oa_schema.sql
 │   ├── 20260722_000023_create_plugin_migration_ledger.sql
-│   └── 20260722_000024_create_workflow_persistence.sql
+│   ├── 20260722_000024_create_workflow_persistence.sql
+│   └── 20260722_000025_create_notification_persistence.sql
 └── postgres/
     ├── 20240101_000001_create_users.sql
     ├── 20260510_000010_create_plugins.sql
@@ -353,7 +370,8 @@ migrations/
     ├── 20260718_000021_create_pharma_oa_workflow_records.sql
     ├── 20260718_000022_complete_pharma_oa_schema.sql
     ├── 20260722_000023_create_plugin_migration_ledger.sql
-    └── 20260722_000024_create_workflow_persistence.sql
+    ├── 20260722_000024_create_workflow_persistence.sql
+    └── 20260722_000025_create_notification_persistence.sql
 ```
 
 > 注意：迁移脚本由 GORM AutoMigrate 或手动执行，当前项目未集成自动迁移工具。

@@ -40,6 +40,15 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 		}
 	}
 	for name, present := range map[string]bool{
+		"NotificationItemModel":            containsModel[NotificationItemModel](models),
+		"NotificationReminderRuleModel":    containsModel[NotificationReminderRuleModel](models),
+		"NotificationDeliveryAttemptModel": containsModel[NotificationDeliveryAttemptModel](models),
+	} {
+		if !present {
+			t.Fatalf("AllModels() should include %s", name)
+		}
+	}
+	for name, present := range map[string]bool{
 		"PharmaEmployeeModel":           containsModel[PharmaEmployeeModel](models),
 		"PharmaProductModel":            containsModel[PharmaProductModel](models),
 		"PharmaSupplierModel":           containsModel[PharmaSupplierModel](models),

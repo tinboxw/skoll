@@ -79,7 +79,7 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build memory stores: %v", err)
 	}
-	notifications := notificationsvc.NewService(nil, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil)
 	handler, err := NewBackend(Dependencies{
 		Stores:       bundle,
 		Audit:        auditsvc.NewService(bundle.Audit),

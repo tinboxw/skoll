@@ -19,7 +19,7 @@ func TestColdChainScanCreatesAndResolvesBatchAnomaly(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
 	inventory, warehouses, balanceID, batchID := seedColdChainContext(t, ctx, now)
-	notifications := notificationsvc.NewService(func() time.Time { return now }, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), func() time.Time { return now }, nil)
 	auditService := auditsvc.NewService(clickhouse.NewAuditStore())
 	service := NewColdChainService(inventory, warehouses, notifications, auditService)
 	impl := service.(*coldChainService)
@@ -86,7 +86,7 @@ func TestColdChainRejectsUnrelatedOrUncontrolledStock(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
 	inventory, warehouses, _, _ := seedColdChainContext(t, ctx, now)
-	service := NewColdChainService(inventory, warehouses, notificationsvc.NewService(nil, nil), nil)
+	service := NewColdChainService(inventory, warehouses, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	if _, err := service.CreateRecord(ctx, ColdChainRecordCreateInput{BalanceID: "missing", TemperatureCelsius: 5, HumidityPercent: 50, Source: "manual", RecordedAt: now, ActorID: "quality-user"}); err == nil {
 		t.Fatal("unrelated stock balance must fail")
 	}
@@ -96,7 +96,7 @@ func TestColdChainRejectsUnrelatedOrUncontrolledStock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create uncontrolled warehouse: %v", err)
 	}
-	contexts, err := NewColdChainService(inventory, uncontrolled, notificationsvc.NewService(nil, nil), nil).ListContexts(ctx)
+	contexts, err := NewColdChainService(inventory, uncontrolled, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil).ListContexts(ctx)
 	if err != nil || len(contexts) != 0 {
 		t.Fatalf("uncontrolled stock must not be eligible: %+v %v", contexts, err)
 	}
@@ -132,7 +132,7 @@ func TestColdChainFailedJobCanRetry(t *testing.T) {
 func TestColdChainScanDoesNotInheritPublicRecordLimit(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
-	service := NewColdChainService(nil, nil, notificationsvc.NewService(nil, nil), nil)
+	service := NewColdChainService(nil, nil, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	impl := service.(*coldChainService)
 	impl.nowFn = func() time.Time { return now }
 	for i := 0; i < 501; i++ {

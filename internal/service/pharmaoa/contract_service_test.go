@@ -65,7 +65,7 @@ func TestContractArchiveRejectsInaccessibleFileBeforeWorkflow(t *testing.T) {
 	ctx := context.Background()
 	suppliers, customers := contractParties(t)
 	workflow := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
-	service := NewContractService(suppliers, customers, workflow, contractFileFixture{deny: true}, notificationsvc.NewService(nil, nil), nil)
+	service := NewContractService(suppliers, customers, workflow, contractFileFixture{deny: true}, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	_, err := service.Create(ctx, ContractCreateInput{Number: "CTR-FAIL", Title: "Denied file", PartyType: domainpharma.ContractPartySupplier, PartyID: "pharma-supplier-1", OwnerID: "owner-1", ApproverID: "approver-1", Currency: "CNY", EffectiveAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().AddDate(0, 1, 0), AttachmentIDs: []string{"file-1"}})
 	if err == nil {
 		t.Fatal("inaccessible attachment was accepted")
@@ -107,7 +107,7 @@ func TestContractExpiryReminderIsQueryableAndIdempotent(t *testing.T) {
 func newContractFixture(t *testing.T) (ContractService, *notificationsvc.Service, auditsvc.Service) {
 	t.Helper()
 	suppliers, customers := contractParties(t)
-	notifications := notificationsvc.NewService(nil, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil)
 	audit := auditsvc.NewService(clickhouse.NewAuditStore())
 	file := &domainfile.FileObject{ID: "file-1", Name: "contract.pdf", MIME: "application/pdf", Size: 1024, Status: domainfile.StatusAvailable}
 	service := NewContractService(suppliers, customers, workflowsvc.NewService(workflowsvc.NewMemoryRepository()), contractFileFixture{items: map[string]*domainfile.FileObject{"file-1": file}}, notifications, audit)

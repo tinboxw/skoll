@@ -33,7 +33,7 @@ func TestContractHTTPCreateApproveAndExpiryScan(t *testing.T) {
 	_, _ = suppliers.Create(ctx, pharmaoasvc.SupplierWriteInput{Code: "SUP-HTTP", Name: "HTTP Supplier", Contacts: []domainpharma.SupplierContact{{Name: "Alice"}}})
 	customers := pharmaoasvc.NewCustomerService(nil)
 	_, _ = customers.Create(ctx, pharmaoasvc.CustomerWriteInput{Code: "CUS-HTTP", Name: "HTTP Customer", Region: "East", OrganizationID: "org-1", OwnerID: "owner-1", Contacts: []domainpharma.CustomerContact{{Name: "Bob"}}, Scope: pharmaoasvc.CustomerAccessScope{IncludeAll: true}})
-	service := pharmaoasvc.NewContractService(suppliers, customers, workflowsvc.NewService(workflowsvc.NewMemoryRepository()), contractHTTPFileReader{}, notificationsvc.NewService(nil, nil), nil)
+	service := pharmaoasvc.NewContractService(suppliers, customers, workflowsvc.NewService(workflowsvc.NewMemoryRepository()), contractHTTPFileReader{}, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	mux := http.NewServeMux()
 	RegisterContractRoutes(mux, service)
 

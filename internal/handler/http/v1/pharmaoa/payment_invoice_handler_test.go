@@ -23,7 +23,7 @@ func TestPaymentInvoiceHTTPRejectsScopeAndActorSpoofing(t *testing.T) {
 		"order-1": {ID: shared.ID("order-1"), Number: "SO-001", CustomerID: "customer-1", TotalAmount: 100, CreatedBy: "sales-1", Status: domainpharma.SalesOrderOpen},
 		"order-2": {ID: shared.ID("order-2"), Number: "SO-002", CustomerID: "customer-2", TotalAmount: 100, CreatedBy: "sales-2", Status: domainpharma.SalesOrderOpen},
 	}}
-	service := pharmaoasvc.NewPaymentInvoiceService(reader, notificationsvc.NewService(nil, nil), nil)
+	service := pharmaoasvc.NewPaymentInvoiceService(reader, notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil), nil)
 	_, _ = service.CreatePaymentPlan(ctx, pharmaoasvc.PaymentPlanCreateInput{SalesOrderID: "order-1", AmountCents: 10000, DueAt: now, ActorID: "sales-1"})
 	_, _ = service.CreatePaymentPlan(ctx, pharmaoasvc.PaymentPlanCreateInput{SalesOrderID: "order-2", AmountCents: 10000, DueAt: now, ActorID: "sales-2"})
 	mux := http.NewServeMux()

@@ -20,7 +20,7 @@ func TestInventoryAlertJobEmitsDeduplicatedNotifications(t *testing.T) {
 	seedAlertStock(t, ctx, inventory, "near", 50, now.AddDate(0, 0, 10))
 	seedAlertStock(t, ctx, inventory, "low", 2, now.AddDate(1, 0, 0))
 	seedAlertStock(t, ctx, inventory, "over", 200, now.AddDate(1, 0, 0))
-	notifications := notificationsvc.NewService(func() time.Time { return now }, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), func() time.Time { return now }, nil)
 	auditService := auditsvc.NewService(clickhouse.NewAuditStore())
 	service := NewInventoryAlertService(inventory, notifications, auditService)
 	impl := service.(*inventoryAlertService)
@@ -79,7 +79,7 @@ func TestInventoryAlertJobResolvesClearedCondition(t *testing.T) {
 	now := time.Date(2026, 7, 13, 8, 0, 0, 0, time.UTC)
 	inventory := NewInventoryService(nil)
 	seed := seedAlertStock(t, ctx, inventory, "low-resolve", 2, now.AddDate(1, 0, 0))
-	notifications := notificationsvc.NewService(func() time.Time { return now }, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), func() time.Time { return now }, nil)
 	service := NewInventoryAlertService(inventory, notifications, nil)
 	impl := service.(*inventoryAlertService)
 	impl.nowFn = func() time.Time { return now }
@@ -110,7 +110,7 @@ func TestInventoryAlertJobResolvesClearedCondition(t *testing.T) {
 func TestInventoryAlertFailedJobCanRetry(t *testing.T) {
 	ctx := context.Background()
 	reader := &failingInventoryAlertReader{err: errors.New("inventory unavailable")}
-	notifications := notificationsvc.NewService(nil, nil)
+	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil)
 	service := NewInventoryAlertService(reader, notifications, nil)
 	policy := domainpharma.InventoryAlertPolicy{NearExpiryDays: 30, LowStockThreshold: 5, OverStockThreshold: 100, RecipientID: "inventory-manager"}
 	failed, err := service.Run(ctx, policy)
