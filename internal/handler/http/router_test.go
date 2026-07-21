@@ -527,15 +527,10 @@ func TestRouterFailsClosedWithoutPluginRouteExecutor(t *testing.T) {
 		items: []plugin.Info{
 			{ID: "demo", State: plugin.StateEnabled},
 		},
-		snapshots: map[string]plugin.RegistrySnapshot{
-			"demo": {
-				Routes: []plugin.RouteExtension{{Method: http.MethodGet, Path: "/v1/demo/ping"}},
-			},
-		},
 	}
 
 	router := NewRouter(Dependencies{PluginManager: manager})
-	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/demo/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo/api/ping", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusBadGateway {
@@ -553,33 +548,32 @@ func TestRouterFailsClosedWithoutPluginRouteExecutor(t *testing.T) {
 	}
 }
 
-func TestRouterSkipsDisabledPluginExtensionRoutes(t *testing.T) {
+func TestRouterKeepsDisabledPluginBusinessBoundaryFailClosed(t *testing.T) {
 	manager := &fakePluginManager{
 		items: []plugin.Info{{ID: "demo", State: plugin.StateDisabled}},
-		snapshots: map[string]plugin.RegistrySnapshot{
-			"demo": {
-				Routes: []plugin.RouteExtension{{Method: http.MethodGet, Path: "/v1/demo/ping"}},
-			},
+		executor: func(pluginID, method, path string, w http.ResponseWriter, _ *http.Request) bool {
+			if pluginID != "demo" || method != http.MethodGet || path != "/v1/plugins/demo/api/ping" {
+				return false
+			}
+			WriteMessage(w, http.StatusServiceUnavailable, "plugin_not_enabled", "插件未启用")
+			return true
 		},
 	}
 
 	router := NewRouter(Dependencies{PluginManager: manager})
-	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/demo/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo/api/ping", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
-	if resp.Code != http.StatusNotFound {
-		t.Fatalf("disabled plugin route should not mount, got %d", resp.Code)
+	if resp.Code != http.StatusServiceUnavailable || !strings.Contains(resp.Body.String(), `"code":"plugin_not_enabled"`) {
+		t.Fatalf("disabled plugin route status=%d body=%s", resp.Code, resp.Body.String())
 	}
 }
 
 func TestRouterDelegatesToPluginRouteExecutor(t *testing.T) {
 	manager := &fakePluginManager{
 		items: []plugin.Info{{ID: "demo", State: plugin.StateEnabled}},
-		snapshots: map[string]plugin.RegistrySnapshot{
-			"demo": {Routes: []plugin.RouteExtension{{Method: http.MethodGet, Path: "/v1/demo/ping"}}},
-		},
 		executor: func(pluginID, method, path string, w http.ResponseWriter, _ *http.Request) bool {
-			if pluginID != "demo" || method != http.MethodGet || path != "/v1/demo/ping" {
+			if pluginID != "demo" || method != http.MethodGet || path != "/v1/plugins/demo/api/ping" {
 				return false
 			}
 			WriteJSON(w, http.StatusAccepted, map[string]string{"status": "executed", "plugin": pluginID})
@@ -588,7 +582,7 @@ func TestRouterDelegatesToPluginRouteExecutor(t *testing.T) {
 	}
 
 	router := NewRouter(Dependencies{PluginManager: manager})
-	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/demo/ping", nil)
+	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/plugins/demo/api/ping", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusAccepted {

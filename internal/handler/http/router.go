@@ -216,42 +216,18 @@ func registerPluginExtensionRoutes(mux *http.ServeMux, manager plugin.Manager) {
 	if mux == nil || manager == nil {
 		return
 	}
-
-	provider, ok := manager.(pluginExtensionSnapshotProvider)
-	if !ok {
-		return
-	}
-
-	registered := map[string]struct{}{}
-	for _, item := range manager.List() {
-		if item.State != plugin.StateEnabled {
-			continue
-		}
-		snapshot, exists := provider.GetExtensionSnapshot(item.ID)
-		if !exists {
-			continue
-		}
-		for _, route := range snapshot.Routes {
-			method := strings.ToUpper(strings.TrimSpace(route.Method))
-			path := strings.TrimSpace(route.Path)
-			if !isAllowedPluginRoute(method, path) {
-				continue
-			}
-
-			pattern := method + " " + path
-			if _, seen := registered[pattern]; seen {
-				continue
-			}
-			if !safeHandleFunc(mux, pattern, pluginRouteHandler(manager, item.ID, method, path)) {
-				continue
-			}
-			registered[pattern] = struct{}{}
-		}
-	}
+	mux.HandleFunc("/v1/plugins/{pluginID}/api/{resource...}", pluginRouteHandler(manager))
 }
 
-func pluginRouteHandler(manager plugin.Manager, pluginID, method, path string) func(http.ResponseWriter, *http.Request) {
+func pluginRouteHandler(manager plugin.Manager) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		pluginID := strings.TrimSpace(r.PathValue("pluginID"))
+		method := strings.ToUpper(strings.TrimSpace(r.Method))
+		path := strings.TrimSpace(r.URL.Path)
+		if pluginID == "" || !isAllowedPluginRoute(method, path) {
+			WriteMessage(w, http.StatusMethodNotAllowed, "plugin_route_method_not_allowed", "插件路由方法不可用")
+			return
+		}
 		if executor, ok := manager.(pluginRouteExecutor); ok {
 			if executor.HandlePluginRoute(pluginID, method, path, w, r) {
 				return
@@ -271,16 +247,6 @@ func isAllowedPluginRoute(method, path string) bool {
 	default:
 		return false
 	}
-}
-
-func safeHandleFunc(mux *http.ServeMux, pattern string, handler func(http.ResponseWriter, *http.Request)) (ok bool) {
-	defer func() {
-		if recover() != nil {
-			ok = false
-		}
-	}()
-	mux.HandleFunc(pattern, handler)
-	return true
 }
 
 func registerDocumentationRoutes(mux *http.ServeMux, apiPrefix string, manager plugin.Manager) {

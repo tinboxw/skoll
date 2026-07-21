@@ -545,3 +545,133 @@ func TestPluginManagerHealthBlocksTrafficAndDrivesReadiness(t *testing.T) {
 		t.Fatalf("health calls=%d want=4; business traffic should reuse the readiness cache", healthCalls.Load())
 	}
 }
+
+func TestPluginManagerRouteLifecycleIsAtomicWithoutRouterRestart(t *testing.T) {
+	const routePath = "/v1/plugins/reports/api/items"
+	var businessCalls atomic.Int32
+	var blockNext atomic.Bool
+	requestEntered := make(chan struct{}, 1)
+	releaseRequest := make(chan struct{})
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != routePath {
+			http.NotFound(w, r)
+			return
+		}
+		businessCalls.Add(1)
+		if blockNext.CompareAndSwap(true, false) {
+			requestEntered <- struct{}{}
+			<-releaseRequest
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"executed"}`))
+	}))
+	defer backend.Close()
+
+	pluginDir := filepath.Join(t.TempDir(), "reports")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("create plugin dir: %v", err)
+	}
+	manifest := strings.ReplaceAll(`id: reports
+name: Reports
+version: 1.0.0
+service_base_url: SERVICE_URL
+service_health_url: SERVICE_URL/health
+api:
+  routes:
+    - method: POST
+      path: /v1/plugins/reports/api/items
+      permission: reports.items.write
+      audit_action: reports.items.write
+`, "SERVICE_URL", backend.URL)
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write plugin manifest: %v", err)
+	}
+
+	manager := &pluginManagerWithExtensions{
+		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
+		builtinInfos:     map[string]plugin.Info{},
+		extensions:       map[string]plugin.RegistrySnapshot{},
+		routeHandlers:    map[string]http.HandlerFunc{},
+		routePermissions: mustEmptyRoutePermissionRegistry(),
+		healthChecker:    fixedHealthChecker{status: plugin.HealthStatusHealthy, code: "health_ok"},
+		healthCache:      make(map[string]plugin.HealthReport),
+		healthTTL:        5 * time.Second,
+	}
+	if _, err := manager.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin: %v", err)
+	}
+	router := httpHandler.NewRouter(httpHandler.Dependencies{PluginManager: manager})
+
+	request := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/skoll"+routePath, bytes.NewBufferString(`{"name":"monthly"}`))
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+		return resp
+	}
+	assertRuntimeState := func(enabled bool) {
+		t.Helper()
+		_, permissionOK := manager.ResolveRoutePermission(http.MethodPost, routePath)
+		_, extensionOK := manager.GetExtensionSnapshot("reports")
+		if permissionOK != enabled || extensionOK != enabled {
+			t.Fatalf("runtime state permission=%v extension=%v want=%v", permissionOK, extensionOK, enabled)
+		}
+	}
+
+	if resp := request(); resp.Code != http.StatusServiceUnavailable || !strings.Contains(resp.Body.String(), `"code":"plugin_not_enabled"`) {
+		t.Fatalf("installed route status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	assertRuntimeState(false)
+	manager.healthCache["reports"] = plugin.HealthReport{
+		PluginID:  "reports",
+		Status:    plugin.HealthStatusUnhealthy,
+		Code:      "stale_health",
+		CheckedAt: time.Now().UTC(),
+	}
+
+	if err := manager.Enable("reports"); err != nil {
+		t.Fatalf("enable plugin: %v", err)
+	}
+	assertRuntimeState(true)
+	if resp := request(); resp.Code != http.StatusOK {
+		t.Fatalf("enabled route status=%d body=%s", resp.Code, resp.Body.String())
+	}
+
+	blockNext.Store(true)
+	inFlightDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() { inFlightDone <- request() }()
+	select {
+	case <-requestEntered:
+	case <-time.After(time.Second):
+		t.Fatal("in-flight request did not reach plugin backend")
+	}
+
+	disableDone := make(chan error, 1)
+	go func() { disableDone <- manager.Disable("reports") }()
+	select {
+	case err := <-disableDone:
+		t.Fatalf("disable returned before in-flight request drained: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(releaseRequest)
+	if resp := <-inFlightDone; resp.Code != http.StatusOK {
+		t.Fatalf("in-flight route status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if err := <-disableDone; err != nil {
+		t.Fatalf("disable plugin: %v", err)
+	}
+	assertRuntimeState(false)
+	if resp := request(); resp.Code != http.StatusServiceUnavailable || !strings.Contains(resp.Body.String(), `"code":"plugin_not_enabled"`) {
+		t.Fatalf("disabled route status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if got := businessCalls.Load(); got != 2 {
+		t.Fatalf("backend business calls=%d want=2", got)
+	}
+
+	if err := manager.Enable("reports"); err != nil {
+		t.Fatalf("re-enable plugin: %v", err)
+	}
+	assertRuntimeState(true)
+	if resp := request(); resp.Code != http.StatusOK {
+		t.Fatalf("re-enabled route status=%d body=%s", resp.Code, resp.Body.String())
+	}
+}

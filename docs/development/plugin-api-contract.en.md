@@ -41,6 +41,8 @@ Plugin pages and static assets use a separate bounded public policy. `/v1/plugin
 
 After authentication and authorization, Skoll forwards the request method, declared path, query, body, and ordinary request headers to the plugin backend. The backend status, response headers, and body are returned to the caller. An unreachable backend or missing execution configuration never produces placeholder success.
 
+Enable, disable, uninstall, and metadata reload share one lifecycle gate with route execution. When enable returns, declared routes, extension snapshots, and permission snapshots are published together without restarting the host. Disable and uninstall first drain in-flight requests; after they return, new business requests, extension lookups, and permission resolution can no longer access that plugin. Re-enabling republishes the current declaration through the same Router instance.
+
 Skoll probes `service_health_url` with an unauthenticated GET request. A 2xx response is healthy; redirects, non-2xx responses, timeouts, and connection errors are unhealthy. Unhealthy plugins receive no business traffic. Business requests reuse health results for at most five seconds; `GET /ready` and `GET /v1/plugins/{pluginId}/health` force a fresh probe. Reports contain only plugin ID, stable status code, timestamp, latency, and HTTP status; they never expose URLs, tokens, or underlying error text.
 
 | HTTP | Code | Meaning |

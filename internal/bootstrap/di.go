@@ -296,6 +296,7 @@ func hasPluginManifest(path string) (bool, error) {
 
 type pluginManagerWithExtensions struct {
 	plugin.Manager
+	lifecycleMu      sync.RWMutex
 	mu               sync.RWMutex
 	builtinInfos     map[string]plugin.Info
 	extensions       map[string]plugin.RegistrySnapshot
@@ -319,6 +320,8 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	if pluginID == "" {
 		return plugin.ErrPluginNotFound
 	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	reloader, ok := m.Manager.(interface {
 		ReloadPluginMetadata(pluginID string) error
 	})
@@ -331,6 +334,7 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	if err := m.refreshRoutePermissions(); err != nil {
 		return err
 	}
+	m.clearHealthCache()
 	m.persistOne(context.Background(), pluginID)
 	return nil
 }
@@ -348,6 +352,8 @@ func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path s
 	if m == nil || w == nil || r == nil {
 		return false
 	}
+	m.lifecycleMu.RLock()
+	defer m.lifecycleMu.RUnlock()
 	key := pluginRouteKey(pluginID, method, path)
 	m.mu.RLock()
 	h, ok := m.routeHandlers[key]
@@ -531,6 +537,8 @@ func (m *pluginManagerWithExtensions) GetExtensionSnapshot(pluginID string) (plu
 	if m == nil {
 		return plugin.RegistrySnapshot{}, false
 	}
+	m.lifecycleMu.RLock()
+	defer m.lifecycleMu.RUnlock()
 	m.mu.RLock()
 	snapshot, ok := m.extensions[pluginID]
 	m.mu.RUnlock()
@@ -559,6 +567,8 @@ func (m *pluginManagerWithExtensions) ResolveRoutePermission(method, path string
 	if m == nil {
 		return plugin.RoutePermissionDescriptor{}, false
 	}
+	m.lifecycleMu.RLock()
+	defer m.lifecycleMu.RUnlock()
 	m.mu.RLock()
 	registry := m.routePermissions
 	m.mu.RUnlock()
@@ -627,10 +637,16 @@ func (m *pluginManagerWithExtensions) Get(pluginID string) (plugin.Info, error) 
 }
 
 func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
+	if m == nil {
+		return plugin.ErrPluginNotFound
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	if err := m.Manager.Enable(pluginID); err == nil {
 		if err := m.refreshRoutePermissions(); err != nil {
 			return err
 		}
+		m.clearHealthCache()
 		m.persistOne(context.Background(), pluginID)
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
@@ -644,6 +660,7 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 			stored.State = plugin.StateEnabled
 			stored.EnabledAt = &now
 			_ = m.pluginsRepo.Save(context.Background(), *stored)
+			m.clearHealthCache()
 			return nil
 		}
 	}
@@ -658,15 +675,22 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	item.State = plugin.StateEnabled
 	item.EnabledAt = &now
 	m.builtinInfos[pluginID] = item
+	m.clearHealthCache()
 	m.persistOne(context.Background(), pluginID)
 	return nil
 }
 
 func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
+	if m == nil {
+		return plugin.ErrPluginNotFound
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	if err := m.Manager.Disable(pluginID); err == nil {
 		if err := m.refreshRoutePermissions(); err != nil {
 			return err
 		}
+		m.clearHealthCache()
 		m.persistOne(context.Background(), pluginID)
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
@@ -682,6 +706,7 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 			stored.State = plugin.StateDisabled
 			stored.EnabledAt = nil
 			_ = m.pluginsRepo.Save(context.Background(), *stored)
+			m.clearHealthCache()
 			return nil
 		}
 	}
@@ -696,10 +721,16 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 }
 
 func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
+	if m == nil {
+		return plugin.ErrPluginNotFound
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	if err := m.Manager.Uninstall(pluginID); err == nil {
 		if err := m.refreshRoutePermissions(); err != nil {
 			return err
 		}
+		m.clearHealthCache()
 		if m.pluginsRepo != nil {
 			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
 		}
@@ -715,6 +746,7 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 				return plugin.ErrPluginSystemProtected
 			}
 			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
+			m.clearHealthCache()
 			return nil
 		}
 	}
@@ -759,6 +791,15 @@ func mustEmptyRoutePermissionRegistry() *plugin.RoutePermissionRegistry {
 		panic(err)
 	}
 	return registry
+}
+
+func (m *pluginManagerWithExtensions) clearHealthCache() {
+	if m == nil {
+		return
+	}
+	m.healthMu.Lock()
+	clear(m.healthCache)
+	m.healthMu.Unlock()
 }
 
 func (m *pluginManagerWithExtensions) persistAll(ctx context.Context) {

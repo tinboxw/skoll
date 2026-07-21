@@ -177,3 +177,61 @@ Result: all final gates passed. Six failed attempts were recorded and resolved o
 ### Commit
 
 `PR1-02: enforce plugin health readiness`
+
+## PR1-03 Retry Record
+
+| Attempt | Status | Failed Gate | Retry Action |
+| --- | --- | --- | --- |
+| 1 | Failed | The lifecycle smoke returned HTTP 404 for an installed plugin because the Router registered only routes that were enabled at host startup | Keep the same Work Item in `Doing`, replace startup-only route exposure with a stable dynamic dispatch boundary, and rerun the lifecycle and race gates |
+| 2 | Failed | The focused packages did not compile because `pluginExtensionSnapshotProvider` is also the live OpenAPI aggregation contract | Restore the shared provider type only, keep dynamic route registration independent from it, and rerun the same focused gate |
+
+Retry status: `PR1-03` returned to `Doing` after the static route-registration gap was identified.
+
+## PR1-03 Synchronize Plugin Route Lifecycle
+
+- Date: 2026-07-21
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Replace startup-only plugin business-route registration with a current-format dynamic dispatcher and synchronize route execution, lifecycle mutations, permission snapshots, extension snapshots, and health-cache invalidation.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Dynamic dispatch | Pass | One stable `/v1/plugins/{pluginId}/api/*` boundary delegates the actual plugin ID, method, and stripped manifest path on every request; the Router is not rebuilt |
+| Enable visibility | Pass | An installed plugin returns 503, then the same Router returns the backend 200 immediately after enable |
+| Atomic publication | Pass | Enable publishes runtime state, route permissions, extension snapshots, and cleared health state before releasing the lifecycle write gate |
+| Concurrent disable | Pass | Disable waits for an in-flight proxied request to finish and prevents later requests from reaching the backend |
+| Snapshot closure | Pass | Route permission and extension resolution both disappear when disable returns and reappear after re-enable |
+| Health freshness | Pass | A fresh stale-unhealthy cache entry is discarded by enable, so historical health cannot delay route recovery |
+| Current-only boundary | Pass | Dynamic routing is limited to `/v1/plugins/{pluginId}/api/*`; no legacy route or compatibility branch was added |
+| Failure behavior | Pass | Unsupported methods and missing executors fail closed; disabled and undeclared routes cannot produce placeholder success |
+| Quality gates | Pass | Focused tests, relevant package tests, full race tests, vet, full Go suite, CodeGraph sync, and diff check pass |
+
+### Verification Commands
+
+```powershell
+$env:GOCACHE='D:\.cache\skoll-go'
+$env:GOTMPDIR='D:\.tmp\skoll-go'
+go test ./internal/plugin/... ./internal/handler/http/... ./internal/bootstrap -count=1
+go test -race ./internal/plugin/... ./internal/handler/http/... ./internal/bootstrap -count=1
+go vet ./internal/plugin/... ./internal/handler/http/... ./internal/bootstrap
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: all final gates passed. Two failed attempts were recorded and resolved on the same Work Item before acceptance.
+
+### Impact Review
+
+- API/OpenAPI: no schema change; current plugin business routes now use one stable dynamic dispatch boundary and runtime OpenAPI aggregation remains live.
+- Permission/audit: lifecycle publication and permission snapshots are synchronized; existing JWT, permission, and route-audit middleware remain unchanged.
+- Migration/seed: no impact.
+- Frontend/i18n: no frontend API change; Chinese default runtime messages remain stable and the bilingual developer contract documents lifecycle behavior.
+- Performance/concurrency: lifecycle writes drain in-flight plugin requests; normal requests share a read gate and health cache is cleared only on lifecycle mutations.
+- Compatibility: none; only the current `/v1/plugins/{pluginId}/api/*` contract is routed dynamically.
+
+### Commit
+
+`PR1-03: synchronize plugin route lifecycle`
