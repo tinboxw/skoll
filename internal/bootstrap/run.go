@@ -41,13 +41,16 @@ func NewRunner(cfg RuntimeConfig) (*Runner, error) {
 }
 
 // Run starts the runtime and blocks until context cancellation.
-func (r *Runner) Run(ctx context.Context) error {
+func (r *Runner) Run(ctx context.Context) (runErr error) {
 	if r == nil || r.deps == nil || r.deps.server == nil {
 		return errors.New("runner is not initialized")
 	}
 	defer func() {
+		if r.deps.pluginRuntime != nil {
+			runErr = errors.Join(runErr, r.deps.pluginRuntime.Close())
+		}
 		if bus, ok := r.deps.eventBus.(closeable); ok && bus != nil {
-			_ = bus.Close()
+			runErr = errors.Join(runErr, bus.Close())
 		}
 	}()
 

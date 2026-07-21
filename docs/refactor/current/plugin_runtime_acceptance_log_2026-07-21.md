@@ -235,3 +235,54 @@ Result: all final gates passed. Two failed attempts were recorded and resolved o
 ### Commit
 
 `PR1-03: synchronize plugin route lifecycle`
+
+## PR1-04 Supervise Plugin Service Lifecycle
+
+- Date: 2026-07-21
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Add current service-launcher contracts, deterministic supervision, an external HTTP-service adapter, lifecycle audit events, bounded graceful/forced shutdown, plugin-manager integration, and host cleanup.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Launcher contract | Pass | `ServiceLauncher` returns only after readiness; `ServiceHandle` owns completion, graceful stop, and mandatory force-stop behavior |
+| State model | Pass | `not_applicable`, `starting`, `ready`, `stopping`, `stopped`, and `failed` transitions expose stable codes and UTC timestamps |
+| External adapter | Pass | Initial health must pass before Ready; periodic health failure is detected as a crash without leaking endpoint or network-error details |
+| Enable integration | Pass | External service readiness completes before plugin state, route permissions, and extension snapshots are published |
+| Disable/uninstall | Pass | Business traffic closes first, then the service handle stops; lifecycle failures cannot reopen routes |
+| Metadata reload | Pass | Enabled services stop and restart around current metadata; reload/readiness failure rolls the plugin back to Disabled |
+| Timeout policy | Pass | Start and stop use five-second defaults; graceful-stop timeout is audited and followed by mandatory force release |
+| Crash handling | Pass | Unexpected handle completion and health-monitor failure enter Failed and emit stable audited transitions |
+| Host shutdown | Pass | Runner closes plugin runtime before the event bus and returns cleanup errors; supervisor deterministically stops every owned handle |
+| No-service plugins | Pass | Plugins without `service_base_url` are `not_applicable` and create no service handle |
+| Quality gates | Pass | Focused tests, full relevant package tests, race tests, vet, full Go suite, CodeGraph sync, and diff check pass |
+
+### Verification Commands
+
+```powershell
+$env:GOCACHE='D:\.cache\skoll-go'
+$env:GOTMPDIR='D:\.tmp\skoll-go'
+go test ./internal/plugin/... ./internal/bootstrap -count=1
+go test -race ./internal/plugin/... ./internal/bootstrap -count=1
+go vet ./internal/plugin/... ./internal/bootstrap
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: all gates passed on the first acceptance cycle.
+
+### Impact Review
+
+- API/OpenAPI: no HTTP schema change; service lifecycle is an internal runtime contract.
+- Permission/audit: lifecycle transitions write stable `plugin_service.<state>` audit actions with codes only; route authorization remains unchanged.
+- Migration/seed: no impact.
+- Frontend/i18n: no client change; Chinese and English developer contracts and deployment guidance describe the runtime behavior.
+- Runtime/deployment: plugin enable now requires readiness; Runner cleanup owns supervised handles and surfaces cleanup failures.
+- Compatibility: none; only current paired service declarations participate in supervision.
+
+### Commit
+
+`PR1-04: supervise plugin services`

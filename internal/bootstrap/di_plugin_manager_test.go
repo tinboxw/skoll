@@ -675,3 +675,54 @@ api:
 		t.Fatalf("re-enabled route status=%d body=%s", resp.Code, resp.Body.String())
 	}
 }
+
+func TestPluginManagerSupervisesExternalServiceLifecycle(t *testing.T) {
+	pluginDir := filepath.Join(t.TempDir(), "reports")
+	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
+		t.Fatalf("create plugin dir: %v", err)
+	}
+	manifest := `id: reports
+name: Reports
+version: 1.0.0
+service_base_url: http://127.0.0.1:18090
+service_health_url: http://127.0.0.1:18090/health
+api:
+  routes:
+    - method: GET
+      path: /v1/plugins/reports/api/items
+      permission: reports.items.read
+`
+	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write plugin manifest: %v", err)
+	}
+	health := fixedHealthChecker{status: plugin.HealthStatusHealthy, code: "health_ok"}
+	supervisor := plugin.NewServiceSupervisor(plugin.NewExternalServiceLauncher(health, time.Hour), nil, time.Second, time.Second)
+	manager := &pluginManagerWithExtensions{
+		Manager:           plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
+		builtinInfos:      map[string]plugin.Info{},
+		extensions:        map[string]plugin.RegistrySnapshot{},
+		routeHandlers:     map[string]http.HandlerFunc{},
+		routePermissions:  mustEmptyRoutePermissionRegistry(),
+		healthChecker:     health,
+		healthCache:       make(map[string]plugin.HealthReport),
+		healthTTL:         5 * time.Second,
+		serviceSupervisor: supervisor,
+	}
+	if _, err := manager.Install(pluginDir); err != nil {
+		t.Fatalf("install plugin: %v", err)
+	}
+	if err := manager.Enable("reports"); err != nil {
+		t.Fatalf("enable plugin: %v", err)
+	}
+	serviceState, ok := supervisor.Snapshot("reports")
+	if !ok || serviceState.State != plugin.ServiceStateReady {
+		t.Fatalf("enabled service state=%+v exists=%v", serviceState, ok)
+	}
+	if err := manager.Disable("reports"); err != nil {
+		t.Fatalf("disable plugin: %v", err)
+	}
+	serviceState, ok = supervisor.Snapshot("reports")
+	if !ok || serviceState.State != plugin.ServiceStateStopped {
+		t.Fatalf("disabled service state=%+v exists=%v", serviceState, ok)
+	}
+}

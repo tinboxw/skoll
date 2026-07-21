@@ -119,3 +119,5 @@ $env:SKOLL_H6_MYSQL_PASSWORD = '<local-test-password>'
 ## English Summary
 
 Skoll supports binary, Docker Compose, and Kubernetes deployments. Use `/skoll/health` for liveness and `/skoll/ready` for readiness. Keep DSNs and `SKOLL_SECURITY_JWT_SECRET` in secret management. MySQL upgrades require a verified restore-point backup and an explicit migration range; rollback restores that backup into an isolated database before traffic is switched.
+
+The runtime owns enabled external plugin-service handles. Plugin enable must pass readiness before routes open; shutdown closes HTTP traffic, drains plugin requests, stops supervised services within their bounded policy, and only then completes process cleanup. A graceful-stop timeout triggers the launcher's mandatory force-stop operation so the host does not leave a managed process behind.

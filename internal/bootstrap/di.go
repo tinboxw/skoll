@@ -47,10 +47,11 @@ import (
 )
 
 type dependencies struct {
-	logger   logging.Logger
-	handler  http.Handler
-	server   *http.Server
-	eventBus event.Bus
+	logger        logging.Logger
+	handler       http.Handler
+	server        *http.Server
+	eventBus      event.Bus
+	pluginRuntime closeable
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
@@ -197,7 +198,8 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
-	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus}, nil
+	pluginRuntime, _ := pluginManager.(closeable)
+	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, pluginRuntime: pluginRuntime}, nil
 }
 
 func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
@@ -218,6 +220,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 	runtimeManager.SetCatalogAuditSink(pluginCatalogAuditSink{auditSvc: auditSvc})
 	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, organizationRepo, auditSvc, auditEventSvc, logger)
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
+	healthChecker := plugin.NewHTTPHealthChecker(2 * time.Second)
 	m := &pluginManagerWithExtensions{
 		Manager:          runtimeManager,
 		builtinInfos:     builtinInfos,
@@ -225,9 +228,15 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		routeHandlers:    handlers,
 		pluginsRepo:      pluginsRepo,
 		routePermissions: mustEmptyRoutePermissionRegistry(),
-		healthChecker:    plugin.NewHTTPHealthChecker(2 * time.Second),
+		healthChecker:    healthChecker,
 		healthCache:      make(map[string]plugin.HealthReport),
 		healthTTL:        5 * time.Second,
+		serviceSupervisor: plugin.NewServiceSupervisor(
+			plugin.NewExternalServiceLauncher(healthChecker, 5*time.Second),
+			pluginServiceAuditSink{auditSvc: auditSvc},
+			5*time.Second,
+			5*time.Second,
+		),
 	}
 
 	entries, err := os.ReadDir("plugins")
@@ -271,6 +280,20 @@ type pluginCatalogAuditSink struct {
 	auditSvc audit.Service
 }
 
+type pluginServiceAuditSink struct {
+	auditSvc audit.Service
+}
+
+func (s pluginServiceAuditSink) RecordPluginServiceEvent(event plugin.ServiceLifecycleEvent) error {
+	if s.auditSvc == nil {
+		return nil
+	}
+	_, err := s.auditSvc.Append(context.Background(), "system", "plugin_service."+string(event.State), "plugin", event.PluginID, map[string]any{
+		"code": event.Code,
+	})
+	return err
+}
+
 func (s pluginCatalogAuditSink) RecordPluginCatalogEvent(event plugin.CatalogAuditEvent) error {
 	if s.auditSvc == nil {
 		return nil
@@ -296,17 +319,18 @@ func hasPluginManifest(path string) (bool, error) {
 
 type pluginManagerWithExtensions struct {
 	plugin.Manager
-	lifecycleMu      sync.RWMutex
-	mu               sync.RWMutex
-	builtinInfos     map[string]plugin.Info
-	extensions       map[string]plugin.RegistrySnapshot
-	routeHandlers    map[string]http.HandlerFunc
-	pluginsRepo      pluginrepo.PluginRepository
-	routePermissions *plugin.RoutePermissionRegistry
-	healthChecker    plugin.HealthChecker
-	healthMu         sync.RWMutex
-	healthCache      map[string]plugin.HealthReport
-	healthTTL        time.Duration
+	lifecycleMu       sync.RWMutex
+	mu                sync.RWMutex
+	builtinInfos      map[string]plugin.Info
+	extensions        map[string]plugin.RegistrySnapshot
+	routeHandlers     map[string]http.HandlerFunc
+	pluginsRepo       pluginrepo.PluginRepository
+	routePermissions  *plugin.RoutePermissionRegistry
+	healthChecker     plugin.HealthChecker
+	healthMu          sync.RWMutex
+	healthCache       map[string]plugin.HealthReport
+	healthTTL         time.Duration
+	serviceSupervisor *plugin.ServiceSupervisor
 }
 
 var _ plugin.RoutePermissionResolver = (*pluginManagerWithExtensions)(nil)
@@ -322,6 +346,13 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	}
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
+	current, currentErr := m.getCurrent(pluginID)
+	serviceWasRunning := currentErr == nil && current.State == plugin.StateEnabled && strings.TrimSpace(current.ServiceBaseURL) != "" && m.serviceSupervisor != nil
+	if serviceWasRunning {
+		if err := m.serviceSupervisor.Stop(context.Background(), pluginID); err != nil {
+			return err
+		}
+	}
 	reloader, ok := m.Manager.(interface {
 		ReloadPluginMetadata(pluginID string) error
 	})
@@ -329,10 +360,35 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 		return nil
 	}
 	if err := reloader.ReloadPluginMetadata(pluginID); err != nil {
+		if serviceWasRunning {
+			_ = m.Manager.Disable(pluginID)
+			_ = m.refreshRoutePermissions()
+			m.clearHealthCache()
+			m.persistOne(context.Background(), pluginID)
+		}
 		return err
 	}
 	if err := m.refreshRoutePermissions(); err != nil {
+		if serviceWasRunning {
+			_ = m.Manager.Disable(pluginID)
+			_ = m.refreshRoutePermissions()
+			m.clearHealthCache()
+			m.persistOne(context.Background(), pluginID)
+		}
 		return err
+	}
+	if serviceWasRunning {
+		next, err := m.getCurrent(pluginID)
+		if err != nil {
+			return err
+		}
+		if err := m.serviceSupervisor.Start(context.Background(), next); err != nil {
+			_ = m.Manager.Disable(pluginID)
+			_ = m.refreshRoutePermissions()
+			m.clearHealthCache()
+			m.persistOne(context.Background(), pluginID)
+			return err
+		}
 	}
 	m.clearHealthCache()
 	m.persistOne(context.Background(), pluginID)
@@ -642,14 +698,29 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	}
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
+	serviceStarted := false
+	if info, err := m.getCurrent(pluginID); err == nil && info.State != plugin.StateEnabled && strings.TrimSpace(info.ServiceBaseURL) != "" && m.serviceSupervisor != nil {
+		if err := m.serviceSupervisor.Start(context.Background(), info); err != nil {
+			return err
+		}
+		serviceStarted = true
+	}
 	if err := m.Manager.Enable(pluginID); err == nil {
 		if err := m.refreshRoutePermissions(); err != nil {
+			_ = m.Manager.Disable(pluginID)
+			_ = m.refreshRoutePermissions()
+			if serviceStarted {
+				_ = m.serviceSupervisor.Stop(context.Background(), pluginID)
+			}
 			return err
 		}
 		m.clearHealthCache()
 		m.persistOne(context.Background(), pluginID)
 		return nil
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
+		if serviceStarted {
+			_ = m.serviceSupervisor.Stop(context.Background(), pluginID)
+		}
 		return err
 	}
 
@@ -688,11 +759,12 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 	defer m.lifecycleMu.Unlock()
 	if err := m.Manager.Disable(pluginID); err == nil {
 		if err := m.refreshRoutePermissions(); err != nil {
+			_ = m.stopPluginService(pluginID)
 			return err
 		}
 		m.clearHealthCache()
 		m.persistOne(context.Background(), pluginID)
-		return nil
+		return m.stopPluginService(pluginID)
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
 		return err
 	}
@@ -707,7 +779,7 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 			stored.EnabledAt = nil
 			_ = m.pluginsRepo.Save(context.Background(), *stored)
 			m.clearHealthCache()
-			return nil
+			return m.stopPluginService(pluginID)
 		}
 	}
 
@@ -728,13 +800,14 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	defer m.lifecycleMu.Unlock()
 	if err := m.Manager.Uninstall(pluginID); err == nil {
 		if err := m.refreshRoutePermissions(); err != nil {
+			_ = m.stopPluginService(pluginID)
 			return err
 		}
 		m.clearHealthCache()
 		if m.pluginsRepo != nil {
 			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
 		}
-		return nil
+		return m.stopPluginService(pluginID)
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
 		return err
 	}
@@ -747,7 +820,7 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 			}
 			_ = m.pluginsRepo.Delete(context.Background(), pluginID)
 			m.clearHealthCache()
-			return nil
+			return m.stopPluginService(pluginID)
 		}
 	}
 
@@ -800,6 +873,22 @@ func (m *pluginManagerWithExtensions) clearHealthCache() {
 	m.healthMu.Lock()
 	clear(m.healthCache)
 	m.healthMu.Unlock()
+}
+
+func (m *pluginManagerWithExtensions) stopPluginService(pluginID string) error {
+	if m == nil || m.serviceSupervisor == nil {
+		return nil
+	}
+	return m.serviceSupervisor.Stop(context.Background(), pluginID)
+}
+
+func (m *pluginManagerWithExtensions) Close() error {
+	if m == nil || m.serviceSupervisor == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return m.serviceSupervisor.Shutdown(ctx)
 }
 
 func (m *pluginManagerWithExtensions) persistAll(ctx context.Context) {

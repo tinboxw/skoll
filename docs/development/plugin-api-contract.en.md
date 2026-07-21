@@ -43,6 +43,8 @@ After authentication and authorization, Skoll forwards the request method, decla
 
 Enable, disable, uninstall, and metadata reload share one lifecycle gate with route execution. When enable returns, declared routes, extension snapshots, and permission snapshots are published together without restarting the host. Disable and uninstall first drain in-flight requests; after they return, new business requests, extension lookups, and permission resolution can no longer access that plugin. Re-enabling republishes the current declaration through the same Router instance.
 
+Plugins that declare an external service are also owned by the service supervisor. Enable must pass initial readiness within five seconds or the plugin remains closed. Once ready, the existing health contract monitors the service every five seconds and moves an unhealthy or unexpectedly exited service to Failed. Disable, uninstall, and host shutdown close business traffic first and then allow five seconds for graceful stop; a timeout records a stable failure code and forces resource release. Every transition is audited without service URLs or underlying network errors. A plugin without `service_base_url` is `not_applicable` and receives no service handle.
+
 Skoll probes `service_health_url` with an unauthenticated GET request. A 2xx response is healthy; redirects, non-2xx responses, timeouts, and connection errors are unhealthy. Unhealthy plugins receive no business traffic. Business requests reuse health results for at most five seconds; `GET /ready` and `GET /v1/plugins/{pluginId}/health` force a fresh probe. Reports contain only plugin ID, stable status code, timestamp, latency, and HTTP status; they never expose URLs, tokens, or underlying error text.
 
 | HTTP | Code | Meaning |

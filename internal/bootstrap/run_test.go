@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -47,6 +48,34 @@ func TestRunReturnsAfterCancel(t *testing.T) {
 	if err := r.Run(ctx); err != nil {
 		t.Fatalf("Run error: %v", err)
 	}
+}
+
+func TestRunClosesPluginRuntimeOnShutdown(t *testing.T) {
+	closed := &trackingCloseable{}
+	runner := &Runner{
+		config: RuntimeConfig{AppConfig: appConfigForTest("127.0.0.1:0")},
+		deps: &dependencies{
+			server:        &http.Server{Addr: "127.0.0.1:0", Handler: http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})},
+			pluginRuntime: closed,
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := runner.Run(ctx); err != nil {
+		t.Fatalf("Run error: %v", err)
+	}
+	if !closed.closed.Load() {
+		t.Fatal("plugin runtime was not closed")
+	}
+}
+
+type trackingCloseable struct {
+	closed atomic.Bool
+}
+
+func (c *trackingCloseable) Close() error {
+	c.closed.Store(true)
+	return nil
 }
 
 func TestHealthEndpointNoAuth(t *testing.T) {
