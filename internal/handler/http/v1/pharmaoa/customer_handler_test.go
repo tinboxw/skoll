@@ -10,22 +10,27 @@ import (
 	"testing"
 
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
-	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 type staticCustomerScopeResolver struct {
-	decision rbacsvc.DataScopeDecision
-	err      error
+	scope pluginsdk.TrustedScope
+	err   error
 }
 
-func (r staticCustomerScopeResolver) ResolveDataScope(_ context.Context, _ rbacsvc.ResolveDataScopeInput) (rbacsvc.DataScopeDecision, error) {
-	return r.decision, r.err
+func (r staticCustomerScopeResolver) Resolve(_ context.Context, _ pluginsdk.Permission) (pluginsdk.ScopePredicate, error) {
+	if r.err != nil {
+		return pluginsdk.ScopePredicate{}, r.err
+	}
+	return pluginsdk.NewScopePredicate(r.scope)
 }
 
 func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	service := pharmaoasvc.NewCustomerService(nil)
 	mux := http.NewServeMux()
-	RegisterCustomerRoutes(mux, service, staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{UserIDs: []string{"sales-a"}}})
+	RegisterCustomerRoutes(mux, service, staticCustomerScopeResolver{scope: pluginsdk.TrustedScope{
+		SubjectID: "sales-a", AllTenants: true, OwnerIDs: []string{"sales-a"}, AllOrganizations: true,
+	}})
 
 	createBody := map[string]any{
 		"code":           "CUST-API-001",
@@ -110,7 +115,9 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 }
 
 func TestCustomerHandlerMapsTrustedOrganizationTreeScope(t *testing.T) {
-	h := &CustomerHandler{scopeResolver: staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{DepartmentIDs: []string{"org-parent", "org-child"}}}}
+	h := &CustomerHandler{scopeResolver: staticCustomerScopeResolver{scope: pluginsdk.TrustedScope{
+		SubjectID: "manager", AllTenants: true, AllOwners: true, OrganizationIDs: []string{"org-parent", "org-child"},
+	}}}
 	req := httptest.NewRequest(http.MethodGet, "/v1/plugins/pharma_oa/api/customers?includeAll=true", nil)
 	rec := httptest.NewRecorder()
 	scope, ok := h.resolveScope(rec, req, "read")
@@ -122,7 +129,9 @@ func TestCustomerHandlerMapsTrustedOrganizationTreeScope(t *testing.T) {
 func TestCustomerHandlerRejectsUnsafeAttachment(t *testing.T) {
 	service := pharmaoasvc.NewCustomerService(nil)
 	mux := http.NewServeMux()
-	RegisterCustomerRoutes(mux, service, staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{All: true}})
+	RegisterCustomerRoutes(mux, service, staticCustomerScopeResolver{scope: pluginsdk.TrustedScope{
+		SubjectID: "admin", AllTenants: true, AllOwners: true, AllOrganizations: true,
+	}})
 
 	resp := performCustomerRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/customers", map[string]any{
 		"code":           "CUST-API-002",

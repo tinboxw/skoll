@@ -14,6 +14,7 @@ import (
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
 	pharmahttp "github.com/tinboxw/skoll/internal/handler/http/v1/pharmaoa"
 	rbachttp "github.com/tinboxw/skoll/internal/handler/http/v1/rbac"
+	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
@@ -26,11 +27,15 @@ func TestPharmaCustomerOrganizationScopeMatrix(t *testing.T) {
 	organizations := memory.NewOrganizationStore()
 	seedScopeOrganizations(t, organizations)
 	rbacService := rbacsvc.NewServiceWithOrganization(memory.NewRBACStore(), organizations)
+	dataScopes, err := hostservice.NewDataScopeService(rbacService, organizations)
+	if err != nil {
+		t.Fatalf("build host data-scope service: %v", err)
+	}
 	auditService := auditsvc.NewService(clickhouse.NewAuditStore())
 	customerService := pharmaoasvc.NewCustomerService(auditService)
 	mux := http.NewServeMux()
 	rbachttp.RegisterRBACRoutes(mux, rbacService, auditService)
-	pharmahttp.RegisterCustomerRoutes(mux, customerService, rbacService)
+	pharmahttp.RegisterCustomerRoutes(mux, customerService, dataScopes)
 
 	customers := seedScopeCustomers(t, customerService)
 	identities := []struct {

@@ -11,11 +11,13 @@ import (
 	"testing"
 
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -79,11 +81,19 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build memory stores: %v", err)
 	}
+	transactions, err := hostservice.NewTransactionService(bundle.UnitOfWork)
+	if err != nil {
+		t.Fatalf("build plugin transaction service: %v", err)
+	}
+	dataScopes, err := hostservice.NewDataScopeService(rbacsvc.NewServiceWithOrganization(bundle.RBAC, bundle.Organization), bundle.Organization)
+	if err != nil {
+		t.Fatalf("build plugin data-scope service: %v", err)
+	}
 	notifications := notificationsvc.NewService(notificationsvc.NewMemoryRepository(), nil, nil)
 	handler, err := NewBackend(Dependencies{
 		Stores:       bundle,
 		Audit:        auditsvc.NewService(bundle.Audit),
-		RBAC:         rbacsvc.NewServiceWithOrganization(bundle.RBAC, bundle.Organization),
+		Host:         pluginsdk.HostServices{Transactions: transactions, DataScopes: dataScopes},
 		Workflow:     workflowsvc.NewService(workflowsvc.NewMemoryRepository()),
 		Notification: notifications,
 	})

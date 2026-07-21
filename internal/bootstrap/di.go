@@ -23,6 +23,7 @@ import (
 	builtinAuth "github.com/tinboxw/skoll/internal/plugin/builtin/auth"
 	builtinDashboard "github.com/tinboxw/skoll/internal/plugin/builtin/dashboard"
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
+	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	pharmaoaplugin "github.com/tinboxw/skoll/internal/plugin/pharmaoa"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
@@ -44,6 +45,7 @@ import (
 	objectstore "github.com/tinboxw/skoll/internal/store/object"
 	"github.com/tinboxw/skoll/pkg/config"
 	"github.com/tinboxw/skoll/pkg/logging"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
@@ -55,6 +57,7 @@ type dependencies struct {
 	businessEventBus *event.BusinessEventBus
 	pluginRuntime    closeable
 	jobService       *jobsvc.Service
+	pluginHost       pluginsdk.HostServices
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
@@ -103,9 +106,21 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	})
 	notificationService := notificationsvc.NewService(bundle.Notifications, nil, nil)
 	jobService := jobsvc.NewService(bundle.Jobs, nil)
+	transactionService, err := hostservice.NewTransactionService(bundle.UnitOfWork)
+	if err != nil {
+		return nil, err
+	}
+	dataScopeService, err := hostservice.NewDataScopeService(rbacService, bundle.Organization)
+	if err != nil {
+		return nil, err
+	}
+	pluginHost := pluginsdk.HostServices{Transactions: transactionService, DataScopes: dataScopeService}
+	if err := pluginHost.Validate(); err != nil {
+		return nil, err
+	}
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
 	pharmaBackendDeps := pharmaoaplugin.Dependencies{
-		Stores: bundle, Audit: auditService, RBAC: rbacService, Workflow: workflowService,
+		Stores: bundle, Host: pluginHost, Audit: auditService, Workflow: workflowService,
 		File: fileService, Notification: notificationService,
 	}
 	registrar, ok := pluginManager.(interface {
@@ -170,7 +185,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
 	pluginRuntime, _ := pluginManager.(closeable)
-	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime, jobService: jobService}, nil
+	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime, jobService: jobService, pluginHost: pluginHost}, nil
 }
 
 func buildEventBus(cfg config.EventConfig) (event.Bus, error) {

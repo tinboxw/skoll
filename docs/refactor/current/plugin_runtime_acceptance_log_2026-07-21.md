@@ -909,3 +909,63 @@ Result: all locally executable acceptance gates passed after three documented re
 ### Commit
 
 `PR2-04: persist scheduled jobs and dead letters`
+
+## PR2-05 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: full repository test suite
+- Evidence: `tests/integration/pharma_data_scope_matrix_test.go` still passed the internal RBAC service directly to `RegisterCustomerRoutes`; the new public `pluginsdk.DataScopeService` contract rejected the stale dependency at compile time. Focused transaction, scope, SQL, Pharma OA, bootstrap, repeated, and race gates passed.
+- Retry action: construct the host data-scope adapter from the integration fixture's RBAC and organization dependencies, inject only the public plugin SDK port, then rerun the full PR2-05 acceptance sequence.
+
+## PR2-05 Publish Host Transaction And Trusted Data-Scope Services
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Publish stable Go plugin SDK ports for host transactions and trusted data scope, provide strict host adapters, and move the Pharma OA customer boundary to the public contract.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Atomic plugin operation | Pass | File-backed SQL contract writes a header and line in one host transaction and proves both roll back on callback failure |
+| Transaction context propagation | Pass | Unit of Work publishes the active GORM transaction through callback context and nested calls reuse the same boundary |
+| Missing transaction dependency | Pass | Host service construction and common transaction manager fail closed without a Unit of Work or callback |
+| Trusted identity | Pass | Data scope reads JWT claims only from authenticated context; missing subject or non-super tenant is rejected |
+| Self scope | Pass | Owner is pinned to the authenticated subject and ignores request/resolver user IDs |
+| Tenant boundary | Pass | Non-super all scope is bounded to the trusted tenant root and its organization descendants |
+| Request narrowing | Pass | Immutable predicates intersect tenant, owner, and organization filters; forged dimensions become denied and cannot authorize a record |
+| Global scope | Pass | Only `super_admin` receives all tenants, owners, and organizations |
+| Pharma OA integration | Pass after retry | Customer routes receive `pluginsdk.DataScopeService`; the complete self/department/tree/all/denied/super-admin matrix passes through the host adapter |
+| Runtime wiring | Pass | Bootstrap constructs and validates one `HostServices` value from configured Unit of Work, RBAC, and organization dependencies |
+| Public developer contract | Pass | `docs/development/plugin-host-services.md` documents injection, transactions, trusted scope, narrowing, and mandatory conformance tests |
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./internal/plugin/hostservice ./internal/store/sql ./internal/service/common ./internal/handler/http/v1/pharmaoa ./internal/plugin/pharmaoa ./internal/bootstrap ./tests/integration -run "TestScope|TestHostServices|TestDataScope|TestTransaction|TestUnitOfWork|TestCustomer|TestBackend|TestPharmaCustomerOrganizationScopeMatrix" -count=20 -timeout 300s
+go test -race ./pkg/pluginsdk ./internal/plugin/hostservice ./internal/store/sql ./internal/service/common ./internal/handler/http/v1/pharmaoa ./internal/plugin/pharmaoa ./internal/bootstrap ./tests/integration -run "TestScope|TestHostServices|TestDataScope|TestTransaction|TestUnitOfWork|TestCustomer|TestBackend|TestPharmaCustomerOrganizationScopeMatrix" -count=1 -timeout 300s
+go test ./... -count=1 -timeout 300s
+go vet ./...
+codegraph sync .
+codegraph status .
+codegraph impact NewTransactionService
+codegraph impact ScopePredicate
+git diff --check
+```
+
+Result: all acceptance gates passed after one documented retry. The retry removed the final integration-test dependency on the internal RBAC service; repeated contract tests, race detection, the full repository suite, vet, CodeGraph synchronization, impact review, and diff validation now pass.
+
+### Impact Review
+
+- Public SDK: `pkg/pluginsdk` owns transaction, permission, host-service, trusted-scope, narrowing, and record-predicate contracts without exposing host internals.
+- Transactions: SQL callbacks use GORM's transaction API, nested calls reuse the active context, and absent boundaries fail closed instead of executing a callback without atomicity.
+- Scope security: tenant, owner, and organization dimensions are immutable defensive copies and combine with AND semantics.
+- Identity: request payloads and query strings cannot select authorization identity; only verified JWT context determines subject and tenant.
+- Pharma OA: customer handlers consume the public scope port and preserve the existing organization-scope integration matrix.
+- Runtime: the current host services are mandatory dependencies; no legacy RBAC injection, dual path, fallback, or compatibility adapter remains.
+
+### Commit
+
+`PR2-05: publish trusted plugin host services`

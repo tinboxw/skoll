@@ -10,23 +10,26 @@ import (
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
-	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 const PluginID = "pharma_oa"
 
 type Dependencies struct {
 	Stores       *store.Bundle
+	Host         pluginsdk.HostServices
 	Audit        auditsvc.Service
-	RBAC         rbacsvc.Service
 	Workflow     workflowsvc.Service
 	File         filesvc.Service
 	Notification *notificationsvc.Service
 }
 
 func NewBackend(deps Dependencies) (http.Handler, error) {
+	if err := deps.Host.Validate(); err != nil {
+		return nil, err
+	}
 	stores, err := repositories(deps)
 	if err != nil {
 		return nil, err
@@ -76,7 +79,7 @@ func NewBackend(deps Dependencies) (http.Handler, error) {
 	pharmaoahttp.RegisterEmployeeRoutes(mux, employees)
 	pharmaoahttp.RegisterProductRoutes(mux, products)
 	pharmaoahttp.RegisterSupplierRoutes(mux, suppliers)
-	pharmaoahttp.RegisterCustomerRoutes(mux, customers, deps.RBAC)
+	pharmaoahttp.RegisterCustomerRoutes(mux, customers, deps.Host.DataScopes)
 	pharmaoahttp.RegisterCustomerFollowUpRoutes(mux, followUps)
 	pharmaoahttp.RegisterSalesOpportunityRoutes(mux, opportunities)
 	pharmaoahttp.RegisterWarehouseRoutes(mux, warehouses)

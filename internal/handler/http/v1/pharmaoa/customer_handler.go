@@ -14,16 +14,12 @@ import (
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
-	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 type CustomerHandler struct {
 	service       pharmaoasvc.CustomerService
-	scopeResolver customerDataScopeResolver
-}
-
-type customerDataScopeResolver interface {
-	ResolveDataScope(ctx context.Context, in rbacsvc.ResolveDataScopeInput) (rbacsvc.DataScopeDecision, error)
+	scopeResolver pluginsdk.DataScopeService
 }
 
 type customerRequest struct {
@@ -46,7 +42,7 @@ type customerQualificationRequest struct {
 	Attachments []domainpharma.CustomerAttachment `json:"attachments"`
 }
 
-func RegisterCustomerRoutes(mux *http.ServeMux, service pharmaoasvc.CustomerService, scopeResolver customerDataScopeResolver) {
+func RegisterCustomerRoutes(mux *http.ServeMux, service pharmaoasvc.CustomerService, scopeResolver pluginsdk.DataScopeService) {
 	if mux == nil || service == nil || scopeResolver == nil {
 		return
 	}
@@ -242,18 +238,18 @@ func parseCustomerQualifications(items []customerQualificationRequest) ([]domain
 }
 
 func (h *CustomerHandler) resolveScope(w http.ResponseWriter, r *http.Request, action string) (pharmaoasvc.CustomerAccessScope, bool) {
-	decision, err := h.scopeResolver.ResolveDataScope(r.Context(), rbacsvc.ResolveDataScopeInput{Resource: "pharma_oa.customer", Action: action})
+	predicate, err := h.scopeResolver.Resolve(r.Context(), pluginsdk.Permission{Resource: "pharma_oa.customer", Action: action})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusForbidden, err)
 		return pharmaoasvc.CustomerAccessScope{}, false
 	}
 	scope := pharmaoasvc.CustomerAccessScope{
-		ActorID:         actorIDFromRequest(r, ""),
-		IncludeAll:      decision.All,
-		OrganizationIDs: append([]string(nil), decision.DepartmentIDs...),
+		ActorID:         predicate.SubjectID(),
+		IncludeAll:      predicate.AllTenants() && predicate.AllOwners() && predicate.AllOrganizations(),
+		OrganizationIDs: predicate.OrganizationIDs(),
 	}
-	if len(decision.UserIDs) > 0 {
-		scope.OwnerID = strings.TrimSpace(decision.UserIDs[0])
+	if ownerIDs := predicate.OwnerIDs(); len(ownerIDs) > 0 {
+		scope.OwnerID = strings.TrimSpace(ownerIDs[0])
 	}
 	return scope, true
 }
