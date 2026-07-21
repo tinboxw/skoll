@@ -57,7 +57,7 @@ plugins/demo-monolith/
     └── app.js
 ```
 
-## 3. manifest.yaml 编写
+## 3. plugin.yaml 编写
 
 插件清单 `plugin.yaml` 是插件的核心元数据文件，Schema 定义见 `docs/schemas/plugin-manifest.schema.json`。
 
@@ -78,7 +78,6 @@ name_zh_cn: "示例分离插件"
 name_en_us: "Demo Separated Plugin"
 version: 0.2.0
 api_version: v1
-compatibility_skoll: ">=1.0.0 <2.0.0"
 migration_version: v0.1.0
 ui_mode: separated          # backend_only / frontend_only / monolith / separated
 level: app                  # system / app
@@ -145,7 +144,6 @@ dependencies:               # 可选，声明依赖其他插件
 
 ### 3.3 字段约束
 
-- **api_version**：若声明则必须同时声明 `compatibility_skoll`
 - **i18n_locales**：非 `backend_only` 插件必须声明至少一个 locale
 - **ui_open_mode=standalone** 时：`ui_nav_position` 必须为 `none`，`ui_tab_mode` 必须为 `disabled`
 - **ui_menu.path**：若声明必须以 `/` 开头；当前前端支持 `dashboard/users/roles/permissions/audit/plugins/settings` 图标名，未知图标会回退为 `plugins`
@@ -407,12 +405,11 @@ plugins/my-plugin/
 
 ```yaml
 # plugin.yaml 中声明签名
-signature:
-  algorithm: RSA-SHA256
-  timestamp: "2026-01-01T00:00:00Z"
-  value: "<base64_encoded_signature>"
-  vendor_id: "vendor-org"
-  public_key: "<public_key_pem>"
+sign_algo: RSA-SHA256
+sign_timestamp: "2026-01-01T00:00:00Z"
+sign_value: "<base64_encoded_signature>"
+vendor_id: "vendor-org"
+vendor_pubkey: "<public_key_pem>"
 ```
 
 ## 11. 常见问题

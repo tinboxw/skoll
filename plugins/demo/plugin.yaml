@@ -4,7 +4,6 @@ name_zh_cn: "示例分离插件"
 name_en_us: "Demo Separated Plugin"
 version: 0.2.0
 api_version: v1
-compatibility_skoll: ">=1.0.0 <2.0.0"
 migration_version: v0.1.0
 ui_mode: separated
 level: app

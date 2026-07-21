@@ -115,7 +115,7 @@ func TestPluginHandlerDevPermissionCatalogAggregatesPermissions(t *testing.T) {
 		t.Fatalf("scaffold other status=%d body=%s", scaffoldOtherResp.Code, scaffoldOtherResp.Body.String())
 	}
 
-	betaManifest := []byte("id: beta\nname: \"Beta\"\nversion: 0.1.0\napi_version: v1\ncompatibility_skoll: \">=1.0.0 <2.0.0\"\npermissions:\n  - \"beta.read\"\n  - \"beta.write\"\n")
+	betaManifest := []byte("id: beta\nname: \"Beta\"\nversion: 0.1.0\napi_version: v1\npermissions:\n  - \"beta.read\"\n  - \"beta.write\"\n")
 	if err := os.WriteFile(filepath.Join(pluginsRoot, "beta", "plugin.yaml"), betaManifest, 0o644); err != nil {
 		t.Fatalf("write beta manifest: %v", err)
 	}

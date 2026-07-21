@@ -4,7 +4,7 @@
 
 ## Scope
 
-This document explains the current business-plugin API declaration and how Skoll aggregates enabled plugin routes into `/skoll/docs/openapi.yaml`. Only the current `plugin.yaml` format is supported; there is no legacy manifest or route compatibility path.
+This document explains the current business-plugin API declaration and how Skoll aggregates enabled plugin routes into `/skoll/docs/openapi.yaml`. `plugin.yaml` is the sole supported declaration format.
 
 ## Manifest Declaration
 

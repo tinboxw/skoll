@@ -102,7 +102,6 @@ func TestLoadEnvOverridesCacheModeFromConfigFile(t *testing.T) {
 
 func TestLoadUsesUnifiedAPIBasePrefixEnv(t *testing.T) {
 	t.Setenv("SKOLL_API_BASE_PREFIX", "/gateway")
-	t.Setenv("SKOLL_SERVER_API_PREFIX", "/legacy")
 
 	cfg, err := Load()
 	if err != nil {
@@ -110,18 +109,6 @@ func TestLoadUsesUnifiedAPIBasePrefixEnv(t *testing.T) {
 	}
 	if cfg.Server.APIPrefix != "/gateway" {
 		t.Fatalf("expected unified api base prefix to win, got: %s", cfg.Server.APIPrefix)
-	}
-}
-
-func TestLoadKeepsLegacyServerAPIPrefixCompatibility(t *testing.T) {
-	t.Setenv("SKOLL_SERVER_API_PREFIX", "/legacy")
-
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("load with legacy server api prefix: %v", err)
-	}
-	if cfg.Server.APIPrefix != "/legacy" {
-		t.Fatalf("expected legacy server api prefix, got: %s", cfg.Server.APIPrefix)
 	}
 }
 

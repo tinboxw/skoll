@@ -112,8 +112,8 @@ const (
 | 级别 | 常量 | 说明 |
 |------|------|------|
 | 本人 | `DataScopeSelf` | 仅能操作自己的数据 |
-| 本部门 | `DataScopeDept` | 能操作所在部门的数据 |
-| 部门树 | `DataScopeDeptTree` | 能操作所在部门及子部门的数据 |
+| 本部门 | `DataScopeDepartment` | 能操作所在部门的数据 |
+| 部门树 | `DataScopeDepartmentTree` | 能操作所在部门及子部门的数据 |
 | 全部 | `DataScopeAll` | 能操作全部数据 |
 | 自定义 | `DataScopeCustom` | 自定义数据范围 |
 
@@ -188,7 +188,7 @@ PUT /skoll/v1/rbac/roles/{roleId}/policies
 {
   "rules": [
     { "resource": "content", "action": "read",  "effect": "allow", "scope": "all" },
-    { "resource": "content", "action": "write", "effect": "allow", "scope": "dept" },
+    { "resource": "content", "action": "write", "effect": "allow", "scope": "department" },
     { "resource": "content", "action": "delete", "effect": "deny",  "scope": "all" }
   ]
 }
@@ -202,7 +202,7 @@ POST /skoll/v1/rbac/bindings
   "subject_type": "user",
   "subject_id": "<user_id>",
   "role_id": "<role_id>",
-  "scope": "dept"
+  "scope": "department"
 }
 ```
 

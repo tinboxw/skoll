@@ -312,7 +312,6 @@ func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "version: %s\n", spec.Plugin.Version)
 	fmt.Fprintf(&b, "description: %s\n", spec.Plugin.Description)
 	fmt.Fprintf(&b, "api_version: v1\n")
-	fmt.Fprintf(&b, "compatibility_skoll: \">=1.0.0 <2.0.0\"\n")
 	fmt.Fprintf(&b, "ui_mode: %s\n", spec.Plugin.UIMode)
 	fmt.Fprintf(&b, "frontend_entry: %s\n", spec.Plugin.FrontendEntry)
 	fmt.Fprintf(&b, "i18n_locales:\n  - zh-CN\n  - en-US\n")

@@ -225,11 +225,9 @@ Dev Portal response contract (`data` payload):
 
 - Unified API base prefix: `SKOLL_API_BASE_PREFIX` (default: `/skoll`, injected to frontend at build time and used by backend at runtime)
 - Frontend page base path: `SKOLL_WEB_BASE_PATH` (default: `/skoll`, admin UI is mounted under this path)
-- Legacy compatibility: `SKOLL_SERVER_API_PREFIX` is still accepted as a fallback
 - Dev Portal toggle: `SKOLL_DEV_PORTAL_ENABLED` (default: `false`; when enabled, `/v1/plugins/dev/*` routes are registered)
 - Dev Portal allowlisted roots: `SKOLL_DEV_PLUGINS_ROOT` (default: `plugins`; supports multiple roots separated by `;` or `,`; request `pluginsRoot` must match one allowlisted root)
 - Event bus mode: `SKOLL_EVENT_MODE` (`memory` or `redis`)
 - Redis Pub/Sub address: `SKOLL_EVENT_REDIS_ADDR` (required when `SKOLL_EVENT_MODE=redis`)
 - Swagger UI: `GET {API_BASE_PREFIX}/docs/swagger`
 - OpenAPI document: `GET {API_BASE_PREFIX}/docs/openapi.yaml` (`servers.url` is generated from the current prefix)
-

@@ -430,13 +430,11 @@ func parseManifest(raw []byte) (Info, error) {
 			}
 		case "api_version":
 			info.APIVersion = value
-		case "compatibility_skoll", "compatibility.skoll":
-			info.CompatibilitySkoll = value
-		case "service_base_url", "service.base_url":
+		case "service_base_url":
 			info.ServiceBaseURL = value
-		case "service_health_url", "service.health_url":
+		case "service_health_url":
 			info.ServiceHealthURL = value
-		case "migration_version", "migrations.version":
+		case "migration_version":
 			info.MigrationVersion = value
 		case "description":
 			info.Description = value
@@ -469,6 +467,11 @@ func parseManifest(raw []byte) (Info, error) {
 			info.Vendor = value
 		case "vendor_url":
 			info.VendorURL = value
+		case "vendor_id":
+			if info.Signature == nil {
+				info.Signature = &Signature{}
+			}
+			info.Signature.VendorID = value
 		case "sign_algo":
 			if info.Signature == nil {
 				info.Signature = &Signature{}
@@ -491,7 +494,13 @@ func parseManifest(raw []byte) (Info, error) {
 				info.Signature = &Signature{}
 			}
 			info.Signature.PublicKey = value
-			info.Signature.VendorID = info.Vendor
+			if info.Signature.VendorID == "" {
+				info.Signature.VendorID = info.Vendor
+			}
+		default:
+			if isTopLevel {
+				return Info{}, fmt.Errorf("unsupported plugin manifest field: %s", key)
+			}
 		}
 	}
 
@@ -735,13 +744,13 @@ func applyDataManifestField(data *DataManifest, table *DataTable, key, value str
 		switch key {
 		case "namespace":
 			data.Namespace = value
-		case "migration_version", "migrations.version":
+		case "migration_version":
 			data.MigrationVersion = value
-		case "migration_directory", "migrations.directory":
+		case "migration_directory":
 			data.MigrationDirectory = value
-		case "uninstall_policy", "uninstall.policy":
+		case "uninstall_policy":
 			data.UninstallPolicy = DataUninstallPolicy(strings.ToLower(strings.TrimSpace(value)))
-		case "rollback_policy", "rollback.policy":
+		case "rollback_policy":
 			data.RollbackPolicy = DataRollbackPolicy(strings.ToLower(strings.TrimSpace(value)))
 		case "tables":
 			*section = sectionDataTables
@@ -973,7 +982,7 @@ func applyUIMenuField(menu *UIMenu, key, value string, section *string) bool {
 	switch key {
 	case "key":
 		menu.Key = value
-	case "parent_key", "parentKey":
+	case "parent_key":
 		menu.ParentKey = value
 	case "label":
 		menu.Label = value

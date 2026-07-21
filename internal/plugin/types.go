@@ -229,7 +229,6 @@ type Info struct {
 	NameEnUS            string
 	Version             string
 	APIVersion          string
-	CompatibilitySkoll  string
 	ServiceBaseURL      string
 	ServiceHealthURL    string
 	MigrationVersion    string
@@ -270,9 +269,6 @@ func (i Info) ValidateManifest() error {
 		return ErrPluginManifestBroken
 	}
 	if mv := strings.TrimSpace(i.MigrationVersion); mv != "" && !migrationVersionPattern.MatchString(mv) {
-		return ErrPluginManifestBroken
-	}
-	if cu := strings.TrimSpace(i.CompatibilitySkoll); cu == "" && strings.TrimSpace(i.APIVersion) != "" {
 		return ErrPluginManifestBroken
 	}
 	base := strings.TrimSpace(i.ServiceBaseURL)

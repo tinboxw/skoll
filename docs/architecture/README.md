@@ -125,7 +125,7 @@ handler(HTTP) → service(业务) → repository(接口) ← store(实现)
 |------|---------|---------|
 | `user` | `User` + `Email`/`PasswordHash` 值对象 | ID, Account, Name, Email, Status(active/disabled), AuditMeta |
 | `role` | `Role` | ID, Name, Key, Description, Permissions[], BuiltIn, AuditMeta |
-| `rbac` | `Binding` / `PolicyRule` / `DataScope` | SubjectType(user/role), Effect(allow/deny), Scope(self/dept/dept_tree/all/custom) |
+| `rbac` | `Binding` / `PolicyRule` / `DataScope` | SubjectType(user/role), Effect(allow/deny), Scope(self/department/department_tree/all/custom) |
 | `audit` | `Record` | ID, ActorID, Action, Resource, ResourceID, Detail(map), OccurredAt |
 | `system` | `Setting` | ID, Key, Value, Encrypted, AuditMeta |
 | `shared` | `ID`(string) / `TimeRange` / `AuditMeta` | 通用类型：CreatedAt/UpdatedAt 审计时间戳 |

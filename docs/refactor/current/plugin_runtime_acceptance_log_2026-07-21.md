@@ -426,3 +426,81 @@ Result: all gates passed after three recorded retries. The first combined packag
 ### Commit
 
 `PR1-06: deliver host events to plugins`
+
+## PR1-07 Retry Record 1
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: focused plugin, CLI, HTTP, RBAC, and config tests
+- Evidence: deletion of the compatibility parser removed `normalizeSemver`, while `internal/plugin/local_marketplace.go` still referenced that helper for release sorting and keys; packages depending on `internal/plugin` did not compile.
+- Retry action: use the current marketplace-specific version normalizer at both call sites, format only existing Go files, and rerun the focused acceptance batch.
+
+## PR1-07 Retry Record 2
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: focused plugin contract tests
+- Evidence: strict top-level manifest validation rejected the current `vendor_id` signature field, and removing the manifest field correctly invalidated the demo plugin's recorded `plugin.yaml` digest.
+- Retry action: declare and parse the complete current signature/vendor field set, align the developer guide with the flat manifest contract, refresh the demo manifest digest, and rerun the focused acceptance batch.
+
+## PR1-07 Retry Record 3
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: combined full Go, frontend typecheck, schema, and portal syntax batch
+- Evidence: the parallel command exceeded its 300-second outer limit before returning per-command results, so no child result was accepted as evidence.
+- Retry action: execute frontend/schema checks independently, then rerun the warmed full Go suite with an explicit Go test timeout and a larger outer command limit.
+
+## PR1-07 Remove Plugin Compatibility Mode And Legacy Format Code
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Remove plugin/core version compatibility constraints, aliases, compatibility fixtures, and project-level transition fallbacks; publish one strict current manifest and marketplace contract.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Runtime model | Pass | `CompatibilitySkoll`, `ValidateCompatibility`, the constraint parser, and core-version preflight input were deleted |
+| Manifest parser | Pass | Only canonical snake-case fields are parsed; dotted/camel aliases are gone and unknown top-level fields fail closed |
+| Current schema | Pass | Manifest schema is strict and declares bilingual names, vendor/signature, data, API, and event contracts; every current plugin manifest top-level field is covered |
+| Scaffolding and portal | Pass | CLI, HTTP scaffold, generator template, and developer portal emit/edit the same current manifest without a compatibility field |
+| Marketplace | Pass | Index releases no longer carry core-version or deprecation fields; version identity preserves distinct prereleases while normalizing only an optional leading `v` |
+| Examples and signatures | Pass | Current plugin manifests and fixtures were updated; the demo manifest signature digest matches the new content |
+| Project transition paths | Pass | Old API-prefix environment fallback, tab storage fallback, default-home compatibility writer, and abbreviated data-scope aliases were removed |
+| Documentation | Pass | Developer guide, API/event contracts, marketplace reference, architecture docs, OpenAPI enum, and plugin READMEs describe current contracts only |
+| Repository scan | Pass | Removed compatibility symbols and fields have no hit in runtime, tests, plugins, frontend, active schemas, or developer docs |
+| Backend quality | Pass | Focused packages, `go vet ./...`, and `go test ./... -count=1 -timeout 300s` pass |
+| Frontend quality | Pass | i18n, accessibility, large-list checks, Vue typecheck, portal syntax check, and production build pass |
+| CodeGraph | Pass | Index synced; manifest load/preflight/scaffold/package callers still converge on one `MetadataLoader.Load` path |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin ./internal/handler/cli ./internal/handler/http/v1/plugin ./internal/domain/rbac ./internal/service/rbac ./pkg/config
+go test ./... -count=1 -timeout 300s
+go vet ./...
+cd web; npm run typecheck; npm run build
+node --check plugins/developer-portal/static/app.js
+Get-Content docs/schemas/plugin-manifest.schema.json -Raw | ConvertFrom-Json
+Get-Content docs/schemas/plugin-marketplace-index.schema.json -Raw | ConvertFrom-Json
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after three recorded retries. The production build retained only the existing third-party Rollup annotation and Sass API deprecation warnings.
+
+### Impact Review
+
+- API/OpenAPI: public endpoint paths are unchanged in PR1-07; data-scope values are now only `self`, `department`, `department_tree`, `custom`, and `all`.
+- Plugin contract: `plugin.yaml` is the sole manifest format; strict schema/parser behavior rejects undeclared fields instead of interpreting aliases.
+- Marketplace: release identity is plugin ID plus plugin version; core-version constraints and deprecation flags are not part of the current index.
+- Configuration/frontend state: only `SKOLL_API_BASE_PREFIX`, the current tabs-state key, and typed default-home targets remain.
+- Migration/seed: no database migration is required; built-in RBAC seeds now use canonical data-scope constants.
+- Compatibility: none; no bridge, fallback, dual parser, or transition write path remains in the implemented surfaces.
+
+### Commit
+
+`PR1-07: remove plugin compatibility code`

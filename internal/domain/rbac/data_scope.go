@@ -13,9 +13,6 @@ const (
 	DataScopeDepartmentTree DataScope = "department_tree"
 	DataScopeAll            DataScope = "all"
 	DataScopeCustom         DataScope = "custom"
-
-	DataScopeDept     DataScope = DataScopeDepartment
-	DataScopeDeptTree DataScope = DataScopeDepartmentTree
 )
 
 func (s DataScope) Validate() error {
@@ -31,9 +28,9 @@ func NormalizeDataScope(scope DataScope) DataScope {
 	switch DataScope(strings.ToLower(strings.TrimSpace(string(scope)))) {
 	case DataScopeSelf:
 		return DataScopeSelf
-	case "dept", DataScopeDepartment:
+	case DataScopeDepartment:
 		return DataScopeDepartment
-	case "dept_tree", DataScopeDepartmentTree:
+	case DataScopeDepartmentTree:
 		return DataScopeDepartmentTree
 	case DataScopeAll:
 		return DataScopeAll

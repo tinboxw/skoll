@@ -30,12 +30,6 @@ func TestValidateMarketplaceIndexInvalid(t *testing.T) {
 			},
 		},
 		{
-			name: "invalid skoll version",
-			edit: func(index *MarketplaceIndex) {
-				index.Plugins[0].SkollVersion = ">=1.0"
-			},
-		},
-		{
 			name: "missing signature",
 			edit: func(index *MarketplaceIndex) {
 				index.Plugins[0].Signature.Required = false
@@ -98,6 +92,19 @@ func TestValidateMarketplaceIndexAllowsMultipleVersions(t *testing.T) {
 	}
 }
 
+func TestValidateMarketplaceIndexAllowsDistinctPrereleases(t *testing.T) {
+	index := validMarketplaceIndex()
+	index.Plugins[0].Version = "0.2.0-alpha.1"
+	next := index.Plugins[0]
+	next.Version = "0.2.0-beta.1"
+	next.Source.URL = "https://marketplace.example.com/plugins/demo-0.2.0-beta.1.zip"
+	index.Plugins = append(index.Plugins, next)
+
+	if err := ValidateMarketplaceIndex(index); err != nil {
+		t.Fatalf("expected distinct prereleases to remain independently installable, got %v", err)
+	}
+}
+
 func validMarketplaceIndex() MarketplaceIndex {
 	return MarketplaceIndex{
 		SchemaVersion: "v1",
@@ -109,10 +116,9 @@ func validMarketplaceIndex() MarketplaceIndex {
 		},
 		Plugins: []MarketplacePluginRelease{
 			{
-				ID:           "demo",
-				Name:         "Demo Separated Plugin",
-				Version:      "0.2.0",
-				SkollVersion: ">=1.0.0 <2.0.0",
+				ID:      "demo",
+				Name:    "Demo Separated Plugin",
+				Version: "0.2.0",
 				Manifest: &MarketplaceManifest{
 					Path:   "plugin.yaml",
 					Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

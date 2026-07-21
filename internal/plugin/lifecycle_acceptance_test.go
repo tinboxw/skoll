@@ -132,7 +132,6 @@ func writeLifecyclePluginManifest(t *testing.T, dir string, fixture lifecyclePlu
 		`name: "Reports"`,
 		`version: "` + fixture.version + `"`,
 		`api_version: "v1"`,
-		`compatibility_skoll: ">=1.0.0 <2.0.0"`,
 		`ui_mode: "monolith"`,
 		`ui_nav_position: "sidebar"`,
 		`migration_version: "` + fixture.migrationVersion + `"`,

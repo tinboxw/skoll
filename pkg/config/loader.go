@@ -79,10 +79,9 @@ func Load() (AppConfig, error) {
 	v.SetEnvPrefix("SKOLL")
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	v.AutomaticEnv()
-	_ = v.BindEnv("api.base_prefix", "SKOLL_API_BASE_PREFIX", "SKOLL_SERVER_API_PREFIX")
+	_ = v.BindEnv("api.base_prefix", "SKOLL_API_BASE_PREFIX")
 
 	v.SetDefault("server.address", ":8080")
-	v.SetDefault("server.api_prefix", "")
 	v.SetDefault("api.base_prefix", DefaultAPIBasePrefix)
 	v.SetDefault("server.shutdown_timeout", "10s")
 	v.SetDefault("store.mode", "mysql")
@@ -205,10 +204,6 @@ func resolveAPIPrefix(v *viper.Viper) string {
 	vv := strings.TrimSpace(v.GetString("api.base_prefix"))
 	if vv != "" {
 		return vv
-	}
-	legacy := strings.TrimSpace(v.GetString("server.api_prefix"))
-	if legacy != "" {
-		return legacy
 	}
 	return DefaultAPIBasePrefix
 }

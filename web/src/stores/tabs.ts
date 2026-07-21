@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
 
-const LEGACY_TABS_KEY = "skoll.ui.pinnedTabs";
 const TABS_STATE_KEY = "skoll.ui.tabsState";
 const MAX_RECENT_TABS = 8;
 
@@ -60,30 +59,12 @@ function loadState(): TabsState {
 				pinnedItems: normalizeTabArray(parsed?.pinnedItems),
 				recentItems: normalizeTabArray(parsed?.recentItems).slice(0, MAX_RECENT_TABS)
 			};
-		} catch {
-			// Fallback to legacy key.
-		}
+		} catch {}
 	}
-
-	const legacyRaw = localStorage.getItem(LEGACY_TABS_KEY);
-	if (!legacyRaw) {
-		return {
-			pinnedItems: [],
-			recentItems: []
-		};
-	}
-	try {
-		const parsed = JSON.parse(legacyRaw) as unknown;
-		return {
-			pinnedItems: normalizeTabArray(parsed),
-			recentItems: []
-		};
-	} catch {
-		return {
-			pinnedItems: [],
-			recentItems: []
-		};
-	}
+	return {
+		pinnedItems: [],
+		recentItems: []
+	};
 }
 
 function saveState(state: TabsState): void {

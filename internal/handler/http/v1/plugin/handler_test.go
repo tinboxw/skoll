@@ -292,7 +292,6 @@ func TestPluginHandlerLocalMarketplace(t *testing.T) {
 		"name: Demo Plugin",
 		"version: 0.2.0",
 		"api_version: v1",
-		`compatibility_skoll: ">=1.0.0 <2.0.0"`,
 		"ui_mode: frontend_only",
 		"sign_algo: RSA-SHA256",
 		"sign_timestamp: 2026-06-29T00:00:00Z",
@@ -354,7 +353,6 @@ func TestPluginHandlerInstallPreflight(t *testing.T) {
 		"name: Reports",
 		"version: 1.0.0",
 		"api_version: v1",
-		`compatibility_skoll: ">=1.0.0 <2.0.0"`,
 		"ui_mode: frontend_only",
 		"i18n_locales:",
 		"  - zh-CN",
@@ -376,13 +374,13 @@ func TestPluginHandlerInstallPreflight(t *testing.T) {
 
 	mux := http.NewServeMux()
 	RegisterPluginRoutes(mux, &fakePluginManager{items: map[string]plugin.Info{
-		"legacy": {
-			ID:      "legacy",
-			Name:    "Legacy",
+		"existing": {
+			ID:      "existing",
+			Name:    "Existing",
 			Version: "1.0.0",
 			State:   plugin.StateEnabled,
 			PermissionResources: []plugin.PermissionDeclaration{
-				{Key: "legacy.read", Type: "api", Module: "legacy", Name: "Read legacy", Risk: "low"},
+				{Key: "existing.read", Type: "api", Module: "existing", Name: "Read existing", Risk: "low"},
 			},
 		},
 	}})
@@ -846,7 +844,6 @@ func TestPluginHandlerDevPortalManifestPipelineAndRollout(t *testing.T) {
 		"name: \"Dev Edit Updated\"",
 		"version: 0.1.1",
 		"api_version: v1",
-		"compatibility_skoll: \">=1.0.0 <2.0.0\"",
 		"migration_version: v0.1.0",
 		"ui_mode: separated",
 		"level: system",

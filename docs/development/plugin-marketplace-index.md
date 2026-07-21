@@ -19,7 +19,6 @@ Schema: `docs/schemas/plugin-marketplace-index.schema.json`
       "id": "demo",
       "name": "Demo Separated Plugin",
       "version": "0.2.0",
-      "skoll_version": ">=1.0.0 <2.0.0",
       "manifest": {
         "path": "plugin.yaml",
         "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -63,7 +62,6 @@ Schema: `docs/schemas/plugin-marketplace-index.schema.json`
 |---|---|---|
 | `id` | Stable plugin identifier matching `plugin.yaml` | Lowercase stable id, unique with `version` in one index |
 | `version` | Installable plugin release version | Semver, accepts optional leading `v` |
-| `skoll_version` | Skoll core compatibility expression | Same intent as manifest `compatibility_skoll` |
 | `risk` | Preflight risk report seed | Must include permission, migration, network, and asset sections |
 | `signature` | Verification material for the indexed release | Required and pinned to `RSA-SHA256` for v1 |
 | `source` | Download location and package digest | Must include HTTPS URL, size, and sha256 digest |
@@ -72,17 +70,17 @@ Schema: `docs/schemas/plugin-marketplace-index.schema.json`
 ## Index Rules
 
 - The index is release-oriented: each `plugins[]` entry represents one plugin id and one version.
-- No compatibility mode is defined for old plugin formats or source-injected plugins.
-- `id`, `name`, `version`, and `skoll_version` must agree with the release manifest before install.
+- Only packages containing the current `plugin.yaml` contract are accepted.
+- `id`, `name`, and `version` must agree with the release manifest before install.
 - `source.digest` verifies the package archive; `manifest.digest` verifies the manifest inside the package; `signature.digest` identifies the signed payload.
 - `risk.level=critical` must block normal install until a privileged approval path exists.
-- The next validator task must reject duplicate `(id, version)` pairs, malformed compatibility expressions, missing signatures, invalid digests, and HTTPS source violations.
+- The validator rejects duplicate `(id, version)` pairs, missing signatures, invalid digests, and HTTPS source violations.
 
 ## Preflight Handoff
 
 The marketplace index does not install or mutate plugin state. It hands the following material to install preflight:
 
-- release identity: `id`, `version`, `skoll_version`
+- release identity: `id`, `version`
 - package provenance: `source`, `signature`, `manifest`
 - user-facing review data: `risk`, `changelog`, `description`
 - registry diff seeds: permissions, migrations, network, assets from `risk`

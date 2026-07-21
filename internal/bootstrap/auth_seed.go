@@ -57,8 +57,8 @@ func ensureBuiltinAuthData(ctx context.Context, logger logging.Logger, usersRepo
 			permissions: []string{"user.read", "user.update", "role.read"},
 			builtIn:     true,
 			rules: []domainrbac.PolicyRule{
-				{Resource: "user", Action: "read", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeDeptTree},
-				{Resource: "user", Action: "update", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeDeptTree},
+				{Resource: "user", Action: "read", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeDepartmentTree},
+				{Resource: "user", Action: "update", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeDepartmentTree},
 				{Resource: "role", Action: "read", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeAll},
 			},
 		},

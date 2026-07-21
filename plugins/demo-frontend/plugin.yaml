@@ -2,7 +2,6 @@ id: demo-frontend
 name: "Demo Frontend Plugin"
 version: 0.1.0
 api_version: v1
-compatibility_skoll: ">=1.0.0 <2.0.0"
 migration_version: v0.1.0
 ui_mode: frontend_only
 level: app

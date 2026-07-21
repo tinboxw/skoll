@@ -19,9 +19,6 @@ func TestDataScopeValidate(t *testing.T) {
 	if err := DataScopeDepartmentTree.Validate(); err != nil {
 		t.Fatalf("unexpected scope error: %v", err)
 	}
-	if got := NormalizeDataScope("dept_tree"); got != DataScopeDepartmentTree {
-		t.Fatalf("expected legacy dept_tree alias normalized, got %s", got)
-	}
 	if got := NormalizeDataScope("department"); got != DataScopeDepartment {
 		t.Fatalf("expected department scope, got %s", got)
 	}
@@ -31,7 +28,7 @@ func TestDataScopeValidate(t *testing.T) {
 }
 
 func TestPolicyRuleNormalized(t *testing.T) {
-	rule := PolicyRule{Resource: " user:* ", Action: " read ", Effect: EffectAllow, Scope: DataScope("dept")}
+	rule := PolicyRule{Resource: " user:* ", Action: " read ", Effect: EffectAllow, Scope: DataScope("department")}
 	normalized := rule.Normalized()
 	if normalized.Resource != "user:*" || normalized.Action != "read" || normalized.Scope != DataScopeDepartment {
 		t.Fatalf("unexpected normalized rule: %+v", normalized)

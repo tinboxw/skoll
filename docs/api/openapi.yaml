@@ -1179,7 +1179,7 @@ paths:
                     type: boolean
                   scope:
                     type: string
-                    enum: [self, dept, dept_tree, custom, all]
+                    enum: [self, department, department_tree, custom, all]
         '400':
           description: Bad Request
         '401':

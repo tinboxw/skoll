@@ -23,7 +23,7 @@ type PolicyRule = {
 	resource: string;
 	action: string;
 	effect: "allow" | "deny";
-	scope: "self" | "dept" | "dept_tree" | "all" | "custom";
+	scope: "self" | "department" | "department_tree" | "all" | "custom";
 };
 
 type RuleRow = PolicyRule & { id: string };
@@ -80,7 +80,7 @@ const selectedMatrixPermissions = ref<string[]>([]);
 const rules = ref<RuleRow[]>([]);
 
 const effectOptions: Array<"allow" | "deny"> = ["allow", "deny"];
-const scopeOptions: Array<RuleRow["scope"]> = ["self", "dept", "dept_tree", "all", "custom"];
+const scopeOptions: Array<RuleRow["scope"]> = ["self", "department", "department_tree", "all", "custom"];
 
 const checkSubjectType = ref("user");
 const checkSubjectId = ref("");

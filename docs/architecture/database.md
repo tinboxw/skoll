@@ -60,7 +60,7 @@ Model 定义：`internal/store/sql/gormrepo/rbac_model.go`
 | `subject_type` | VARCHAR(32) | INDEX(idx_subject) | 主体类型：`user` / `role` |
 | `subject_id` | BIGINT UNSIGNED | INDEX(idx_subject) | 主体 ID |
 | `role_id` | BIGINT UNSIGNED | INDEX | 被绑定的角色 ID |
-| `scope` | VARCHAR(32) | - | 数据范围：self/dept/dept_tree/all/custom |
+| `scope` | VARCHAR(32) | - | 数据范围：self/department/department_tree/all/custom |
 | `created_at` | TIMESTAMP | - | 创建时间 |
 | `updated_at` | TIMESTAMP | - | 更新时间 |
 

@@ -225,7 +225,6 @@ func TestPluginCommandScaffold(t *testing.T) {
 	for _, fragment := range []string{
 		"id: oa",
 		"api_version: v1",
-		"compatibility_skoll",
 		"migration_version: v0.1.0",
 		"level: app",
 		"app_id: oa",

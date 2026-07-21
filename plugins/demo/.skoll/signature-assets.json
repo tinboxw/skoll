@@ -3,7 +3,7 @@
   "files": [
     {
       "path": "plugin.yaml",
-      "sha256": "sha256:29de25ef8c7b6ee1ff81cf2611d13f075dfb836b069c09005a7e3f375f9eb1cd"
+      "sha256": "sha256:51ab3b61deb7e18396f35db5fe5437ecfda4ec06d469206fc34737ec2031469a"
     },
     {
       "path": "backend/main.go",

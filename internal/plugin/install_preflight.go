@@ -16,9 +16,8 @@ type InstallPreflightService struct {
 }
 
 type InstallPreflightInput struct {
-	Path        string
-	CoreVersion string
-	Installed   []Info
+	Path      string
+	Installed []Info
 }
 
 type InstallPreflightResult struct {
@@ -214,9 +213,6 @@ func (s *InstallPreflightService) Check(in InstallPreflightInput) (InstallPrefli
 	}
 	if err := info.ValidateManifest(); err != nil {
 		result.Blockers = append(result.Blockers, "manifest invalid: "+err.Error())
-	}
-	if err := info.ValidateCompatibility(in.CoreVersion); err != nil {
-		result.Blockers = append(result.Blockers, "compatibility failed: "+err.Error())
 	}
 	if len(result.Permissions.Conflict) > 0 {
 		result.Blockers = append(result.Blockers, "permission conflicts detected")

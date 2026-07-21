@@ -59,14 +59,13 @@ func TestInfoValidateManifestLevelConstraints(t *testing.T) {
 
 func TestInfoValidateManifestContractFields(t *testing.T) {
 	valid := Info{
-		ID:                 "oa-plugin",
-		Name:               "OA Plugin",
-		Version:            "1.0.0",
-		APIVersion:         "v1",
-		CompatibilitySkoll: ">=1.0.0 <2.0.0",
-		ServiceBaseURL:     "https://oa.example.com",
-		ServiceHealthURL:   "https://oa.example.com/health",
-		MigrationVersion:   "v1.2.3",
+		ID:               "oa-plugin",
+		Name:             "OA Plugin",
+		Version:          "1.0.0",
+		APIVersion:       "v1",
+		ServiceBaseURL:   "https://oa.example.com",
+		ServiceHealthURL: "https://oa.example.com/health",
+		MigrationVersion: "v1.2.3",
 	}
 	if err := valid.ValidateManifest(); err != nil {
 		t.Fatalf("expected valid contract fields, got %v", err)
@@ -76,12 +75,6 @@ func TestInfoValidateManifestContractFields(t *testing.T) {
 	badAPIVersion.APIVersion = "1"
 	if err := badAPIVersion.ValidateManifest(); err == nil {
 		t.Fatalf("expected validation error for invalid api_version")
-	}
-
-	missingCompat := valid
-	missingCompat.CompatibilitySkoll = ""
-	if err := missingCompat.ValidateManifest(); err == nil {
-		t.Fatalf("expected validation error when api_version is set without compatibility")
 	}
 
 	badURL := valid

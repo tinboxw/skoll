@@ -75,7 +75,6 @@
       "status.manifestInvalidRequired": "manifest 必填字段不完整（id/name/version）",
       "status.manifestInvalidApiVersion": "api_version 格式无效，应为 v数字（例如 v1）",
       "status.manifestInvalidMigration": "migration_version 格式无效，应为 v1.2.3 或 1.2.3",
-      "status.manifestInvalidCompat": "api_version 已设置时 compatibility_skoll 不能为空",
       "status.manifestInvalidLevel": "level 与 app_id 不匹配：system 不能填 app_id，app 必须提供合法 app_id",
       "status.manifestInvalidOpenMode": "standalone 模式下必须 ui_nav_position=none 且 ui_tab_mode=disabled",
       "status.manifestInvalidLocales": "非 backend_only 模式必须至少一个合法 i18n_locales（如 zh-CN）",
@@ -145,7 +144,6 @@
       "manifestVisual.version": "version",
       "manifestVisual.description": "description",
       "manifestVisual.apiVersion": "api_version",
-      "manifestVisual.compat": "compatibility_skoll",
       "manifestVisual.migration": "migration_version",
       "manifestVisual.level": "level",
       "manifestVisual.appId": "app_id",
@@ -339,7 +337,6 @@
       "status.manifestInvalidRequired": "Manifest required fields are missing (id/name/version)",
       "status.manifestInvalidApiVersion": "Invalid api_version format; expected v<number> (e.g. v1)",
       "status.manifestInvalidMigration": "Invalid migration_version; expected v1.2.3 or 1.2.3",
-      "status.manifestInvalidCompat": "compatibility_skoll is required when api_version is set",
       "status.manifestInvalidLevel": "level and app_id mismatch: system must not have app_id, app requires valid app_id",
       "status.manifestInvalidOpenMode": "standalone requires ui_nav_position=none and ui_tab_mode=disabled",
       "status.manifestInvalidLocales": "Non-backend_only mode requires at least one valid i18n locale (e.g. zh-CN)",
@@ -409,7 +406,6 @@
       "manifestVisual.version": "version",
       "manifestVisual.description": "description",
       "manifestVisual.apiVersion": "api_version",
-      "manifestVisual.compat": "compatibility_skoll",
       "manifestVisual.migration": "migration_version",
       "manifestVisual.level": "level",
       "manifestVisual.appId": "app_id",
@@ -575,7 +571,6 @@
   const manifestFieldVersionEl = document.getElementById("manifestFieldVersion");
   const manifestFieldDescriptionEl = document.getElementById("manifestFieldDescription");
   const manifestFieldApiVersionEl = document.getElementById("manifestFieldApiVersion");
-  const manifestFieldCompatEl = document.getElementById("manifestFieldCompat");
   const manifestFieldMigrationEl = document.getElementById("manifestFieldMigration");
   const manifestFieldLevelEl = document.getElementById("manifestFieldLevel");
   const manifestFieldAppIdEl = document.getElementById("manifestFieldAppId");
@@ -2027,7 +2022,6 @@
       version: "0.1.0",
       description: "",
       api_version: "v1",
-      compatibility_skoll: ">=1.0.0 <2.0.0",
       migration_version: "v0.1.0",
       ui_mode: "separated",
       level: "system",
@@ -2100,7 +2094,6 @@
     if (manifestFieldVersionEl) { manifestFieldVersionEl.value = String(manifest.version || ""); }
     if (manifestFieldDescriptionEl) { manifestFieldDescriptionEl.value = String(manifest.description || ""); }
     if (manifestFieldApiVersionEl) { manifestFieldApiVersionEl.value = String(manifest.api_version || ""); }
-    if (manifestFieldCompatEl) { manifestFieldCompatEl.value = String(manifest.compatibility_skoll || ""); }
     if (manifestFieldMigrationEl) { manifestFieldMigrationEl.value = String(manifest.migration_version || ""); }
     if (manifestFieldLevelEl) { manifestFieldLevelEl.value = String(manifest.level || "system"); }
     if (manifestFieldAppIdEl) { manifestFieldAppIdEl.value = String(manifest.app_id || ""); }
@@ -2174,7 +2167,6 @@
     const version = String((manifestFieldVersionEl && manifestFieldVersionEl.value) || "").trim();
     const apiVersion = String((manifestFieldApiVersionEl && manifestFieldApiVersionEl.value) || "").trim();
     const migration = String((manifestFieldMigrationEl && manifestFieldMigrationEl.value) || "").trim();
-    const compat = String((manifestFieldCompatEl && manifestFieldCompatEl.value) || "").trim();
     const mode = String((manifestFieldUiModeEl && manifestFieldUiModeEl.value) || "backend_only").trim();
     const level = String((manifestFieldLevelEl && manifestFieldLevelEl.value) || "system").trim();
     const appId = String((manifestFieldAppIdEl && manifestFieldAppIdEl.value) || "").trim();
@@ -2194,9 +2186,6 @@
     }
     if (migration && !/^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(migration)) {
       return t("status.manifestInvalidMigration");
-    }
-    if (apiVersion && !compat) {
-      return t("status.manifestInvalidCompat");
     }
     if (level === "app") {
       if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(appId) || appId === "skoll") {
@@ -2234,7 +2223,6 @@
     const version = String((manifestFieldVersionEl && manifestFieldVersionEl.value) || "0.1.0").trim();
     const description = String((manifestFieldDescriptionEl && manifestFieldDescriptionEl.value) || "").trim();
     const apiVersion = String((manifestFieldApiVersionEl && manifestFieldApiVersionEl.value) || "v1").trim();
-    const compat = String((manifestFieldCompatEl && manifestFieldCompatEl.value) || ">=1.0.0 <2.0.0").trim();
     const migration = String((manifestFieldMigrationEl && manifestFieldMigrationEl.value) || "v0.1.0").trim();
     const uiMode = String((manifestFieldUiModeEl && manifestFieldUiModeEl.value) || "separated").trim();
     const level = String((manifestFieldLevelEl && manifestFieldLevelEl.value) || "system").trim();
@@ -2288,7 +2276,6 @@
     }
     lines.push(
       "api_version: " + quoteManifestValue(apiVersion),
-      "compatibility_skoll: " + quoteManifestValue(compat),
       "migration_version: " + quoteManifestValue(migration),
       "ui_mode: " + quoteManifestValue(uiMode),
       "level: " + quoteManifestValue(level),
@@ -3310,7 +3297,6 @@
     manifestFieldVersionEl,
     manifestFieldDescriptionEl,
     manifestFieldApiVersionEl,
-    manifestFieldCompatEl,
     manifestFieldMigrationEl,
     manifestFieldLevelEl,
     manifestFieldAppIdEl,
@@ -3379,7 +3365,6 @@
     manifestFieldVersionEl,
     manifestFieldDescriptionEl,
     manifestFieldApiVersionEl,
-    manifestFieldCompatEl,
     manifestFieldMigrationEl,
     manifestFieldLevelEl,
     manifestFieldAppIdEl,

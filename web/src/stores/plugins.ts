@@ -226,18 +226,6 @@ export function getSystemDefaultHomePath(): string {
 	return SYSTEM_DEFAULT_HOME;
 }
 
-export function setDefaultHomePath(path: string): void {
-	const value = path.trim();
-	if (!isValidDefaultHomePath(value)) {
-		return;
-	}
-	localStorage.setItem(DEFAULT_HOME_KEY, JSON.stringify({
-		level: "system",
-		pluginId: "legacy-path",
-		path: value
-	}));
-}
-
 export function clearDefaultHomePath(): void {
 	localStorage.removeItem(DEFAULT_HOME_KEY);
 }

@@ -35,4 +35,4 @@ Result on 2026-07-04: Passed.
 
 ## Warning Baseline
 
-Frontend build still reports the known Sass legacy JS API warning and Rollup PURE annotation warning from dependencies. No new build failure was introduced by the demo plugin lifecycle acceptance.
+Frontend build still reports the known Sass JS API deprecation warning and Rollup PURE annotation warning from dependencies. No new build failure was introduced by the demo plugin lifecycle acceptance.

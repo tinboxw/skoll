@@ -502,7 +502,7 @@ func (h *PluginHandler) applyDevRollback(pluginID string, actorID string, taskID
 			TaskID:        last.TaskID,
 		}
 	} else {
-		// Backward-compatible: rollback to the state before the last rollout
+		// Roll back to the state before the last rollout.
 		// Remove the last point and use the new last point's percent
 		last := entry.Points[len(entry.Points)-1]
 		previousState = adapter.DevRolloutStrategy{

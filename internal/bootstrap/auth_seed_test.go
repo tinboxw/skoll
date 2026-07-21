@@ -18,20 +18,20 @@ func TestEnsureBuiltinAuthDataResetsSeedAdminPassword(t *testing.T) {
 	rbac := memory.NewRBACStore()
 	logger := logging.Discard()
 
-	legacy, err := domainuser.New(shared.ID("legacy-admin"), "admin", "Legacy Admin", "admin@skoll.local", time.Now().UTC())
+	existing, err := domainuser.New(shared.ID("existing-admin"), "admin", "Existing Admin", "admin@skoll.local", time.Now().UTC())
 	if err != nil {
 		t.Fatalf("new user error: %v", err)
 	}
-	legacyHash, err := domainuser.HashPassword("Legacy@123456")
+	existingHash, err := domainuser.HashPassword("Existing@123456")
 	if err != nil {
-		t.Fatalf("hash legacy password error: %v", err)
+		t.Fatalf("hash existing password error: %v", err)
 	}
-	if err := legacy.SetPasswordHash(legacyHash.String()); err != nil {
-		t.Fatalf("set legacy password error: %v", err)
+	if err := existing.SetPasswordHash(existingHash.String()); err != nil {
+		t.Fatalf("set existing password error: %v", err)
 	}
-	legacy.Disable(time.Now().UTC())
-	if err := users.Save(ctx, legacy); err != nil {
-		t.Fatalf("save legacy user error: %v", err)
+	existing.Disable(time.Now().UTC())
+	if err := users.Save(ctx, existing); err != nil {
+		t.Fatalf("save existing user error: %v", err)
 	}
 
 	ensureBuiltinAuthData(ctx, logger, users, roles, rbac)

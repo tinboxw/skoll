@@ -4,7 +4,7 @@
 
 ## 适用范围
 
-本文说明当前业务插件如何声明后端 API，以及 Skoll 如何把已启用插件的路由聚合到 `/skoll/docs/openapi.yaml`。仅使用当前 `plugin.yaml` 格式，不提供旧格式或旧路径兼容。
+本文说明当前业务插件如何声明后端 API，以及 Skoll 如何把已启用插件的路由聚合到 `/skoll/docs/openapi.yaml`。`plugin.yaml` 是唯一受支持的声明格式。
 
 ## Manifest 声明
 

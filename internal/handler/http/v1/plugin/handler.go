@@ -1187,20 +1187,19 @@ func (h *PluginHandler) devScaffold(w http.ResponseWriter, r *http.Request) {
 	}
 
 	info := plugin.Info{
-		ID:                 pluginID,
-		Name:               pluginName,
-		Version:            "0.1.0",
-		APIVersion:         "v1",
-		CompatibilitySkoll: ">=1.0.0 <2.0.0",
-		MigrationVersion:   "v0.1.0",
-		UIMode:             plugin.UIModeSeparated,
-		MountPolicy:        plugin.MountPolicyAdmin,
-		UINavPosition:      plugin.UINavPositionNone,
-		UIOpenMode:         plugin.UIOpenModeIntegrated,
-		UITabMode:          plugin.UITabModeOptional,
-		I18nLocales:        []string{"zh-CN", "en-US"},
-		Level:              plugin.LevelSystem,
-		Permissions:        []string{pluginID + ".read"},
+		ID:               pluginID,
+		Name:             pluginName,
+		Version:          "0.1.0",
+		APIVersion:       "v1",
+		MigrationVersion: "v0.1.0",
+		UIMode:           plugin.UIModeSeparated,
+		MountPolicy:      plugin.MountPolicyAdmin,
+		UINavPosition:    plugin.UINavPositionNone,
+		UIOpenMode:       plugin.UIOpenModeIntegrated,
+		UITabMode:        plugin.UITabModeOptional,
+		I18nLocales:      []string{"zh-CN", "en-US"},
+		Level:            plugin.LevelSystem,
+		Permissions:      []string{pluginID + ".read"},
 	}
 	if appID != "" {
 		info.Level = plugin.LevelApp
@@ -2071,7 +2070,6 @@ func renderScaffoldManifest(info plugin.Info) string {
 		"name: " + quoteYAML(info.Name),
 		"version: " + info.Version,
 		"api_version: " + info.APIVersion,
-		"compatibility_skoll: " + quoteYAML(info.CompatibilitySkoll),
 		"migration_version: " + info.MigrationVersion,
 		"ui_mode: " + string(info.UIMode),
 		"level: " + string(info.Level),

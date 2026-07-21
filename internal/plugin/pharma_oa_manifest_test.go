@@ -287,8 +287,7 @@ func TestPharmaOAPluginManifestCoversIndustrySkeleton(t *testing.T) {
 func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
 	dir := pharmaOAPluginDir()
 	preflight, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
-		Path:        dir,
-		CoreVersion: "1.0.0",
+		Path: dir,
 	})
 	if err != nil {
 		t.Fatalf("preflight pharma oa plugin: %v", err)

@@ -12,7 +12,6 @@ func TestFileLoaderLoad(t *testing.T) {
 name: "Sample Plugin"
 version: "1.0.0"
 api_version: "v1"
-compatibility_skoll: ">=1.0.0 <2.0.0"
 service_base_url: "https://oa.example.com"
 service_health_url: "https://oa.example.com/health"
 migration_version: "v1.2.0"
@@ -113,9 +112,6 @@ frontend_entry: "/plugins/sample-plugin"
 	}
 	if info.APIVersion != "v1" {
 		t.Fatalf("unexpected api version: %s", info.APIVersion)
-	}
-	if info.CompatibilitySkoll != ">=1.0.0 <2.0.0" {
-		t.Fatalf("unexpected compatibility: %s", info.CompatibilitySkoll)
 	}
 	if info.ServiceBaseURL != "https://oa.example.com" {
 		t.Fatalf("unexpected service base url: %s", info.ServiceBaseURL)
@@ -219,6 +215,18 @@ frontend_entry: "/plugins/sample-plugin"
 	}
 }
 
+func TestFileLoaderRejectsUnsupportedManifestField(t *testing.T) {
+	dir := t.TempDir()
+	manifest := "id: sample-plugin\nname: Sample\nversion: 1.0.0\nunsupported_field: value\n"
+	if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+
+	if _, err := NewFileLoader().Load(dir); err == nil {
+		t.Fatal("expected unsupported manifest field to fail")
+	}
+}
+
 func TestFileLoaderLoadStructuredPermissions(t *testing.T) {
 	dir := t.TempDir()
 	manifest := `id: "report-plugin"
@@ -276,7 +284,7 @@ func TestFileLoaderRejectsInvalidPermissions(t *testing.T) {
 `,
 		"invalid type": `permissions:
   - key: "report.read"
-    type: "legacy"
+    type: "unsupported"
 `,
 	}
 

@@ -35,18 +35,16 @@ type MarketplacePublisher struct {
 }
 
 type MarketplacePluginRelease struct {
-	ID           string                `json:"id"`
-	Name         string                `json:"name"`
-	Description  string                `json:"description,omitempty"`
-	Version      string                `json:"version"`
-	SkollVersion string                `json:"skoll_version"`
-	Manifest     *MarketplaceManifest  `json:"manifest,omitempty"`
-	Risk         MarketplaceRiskReport `json:"risk"`
-	Signature    MarketplaceSignature  `json:"signature"`
-	Source       MarketplaceSource     `json:"source"`
-	Changelog    MarketplaceChangelog  `json:"changelog"`
-	PublishedAt  string                `json:"published_at,omitempty"`
-	Deprecated   bool                  `json:"deprecated,omitempty"`
+	ID          string                `json:"id"`
+	Name        string                `json:"name"`
+	Description string                `json:"description,omitempty"`
+	Version     string                `json:"version"`
+	Manifest    *MarketplaceManifest  `json:"manifest,omitempty"`
+	Risk        MarketplaceRiskReport `json:"risk"`
+	Signature   MarketplaceSignature  `json:"signature"`
+	Source      MarketplaceSource     `json:"source"`
+	Changelog   MarketplaceChangelog  `json:"changelog"`
+	PublishedAt string                `json:"published_at,omitempty"`
 }
 
 type MarketplaceManifest struct {
@@ -124,7 +122,7 @@ func ValidateMarketplaceIndex(index MarketplaceIndex) error {
 		}
 		seenRaw[rawKey] = struct{}{}
 
-		normalizedVersion := normalizeSemver(version)
+		normalizedVersion := normalizeMarketplaceVersion(version)
 		normalizedKey := id + "@" + normalizedVersion
 		if existing, ok := seenNormalized[normalizedKey]; ok && existing != version {
 			return fmt.Errorf("%w: %s conflicts with %s", ErrMarketplaceVersionConflict, version, existing)
@@ -157,9 +155,6 @@ func validateMarketplaceRelease(release MarketplacePluginRelease) error {
 	if !marketplaceSemverPattern.MatchString(strings.TrimSpace(release.Version)) {
 		return fmt.Errorf("%w: version is invalid", ErrMarketplaceIndexInvalid)
 	}
-	if _, err := parseConstraints(release.SkollVersion); err != nil {
-		return fmt.Errorf("%w: skoll_version is invalid: %v", ErrMarketplaceIndexInvalid, err)
-	}
 	if release.Manifest != nil {
 		if strings.TrimSpace(release.Manifest.Path) == "" || !marketplaceSHA256Pattern.MatchString(release.Manifest.Digest) {
 			return fmt.Errorf("%w: manifest path and digest are required", ErrMarketplaceIndexInvalid)
@@ -178,6 +173,10 @@ func validateMarketplaceRelease(release MarketplacePluginRelease) error {
 		return err
 	}
 	return nil
+}
+
+func normalizeMarketplaceVersion(raw string) string {
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(raw)), "v")
 }
 
 func validateMarketplaceRisk(risk MarketplaceRiskReport) error {

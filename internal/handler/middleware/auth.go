@@ -60,9 +60,6 @@ func resolveMiddlewareAPIPrefixFromEnv() string {
 	if v := strings.TrimSpace(os.Getenv("SKOLL_API_BASE_PREFIX")); v != "" {
 		return config.NormalizeAPIPrefix(v)
 	}
-	if v := strings.TrimSpace(os.Getenv("SKOLL_SERVER_API_PREFIX")); v != "" {
-		return config.NormalizeAPIPrefix(v)
-	}
 	return config.DefaultAPIBasePrefix
 }
 

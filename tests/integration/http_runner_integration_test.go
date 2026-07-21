@@ -81,8 +81,8 @@ func TestRunnerPermissionCatalogVisibleAfterLogin(t *testing.T) {
 		t.Fatalf("create beta dir: %v", err)
 	}
 
-	alphaManifest := []byte("id: alpha\nname: \"Alpha\"\nversion: 0.1.0\napi_version: v1\ncompatibility_skoll: \">=1.0.0 <2.0.0\"\npermissions:\n  - \"alpha.read\"\n")
-	betaManifest := []byte("id: beta\nname: \"Beta\"\nversion: 0.1.0\napi_version: v1\ncompatibility_skoll: \">=1.0.0 <2.0.0\"\npermissions:\n  - \"beta.read\"\n")
+	alphaManifest := []byte("id: alpha\nname: \"Alpha\"\nversion: 0.1.0\napi_version: v1\npermissions:\n  - \"alpha.read\"\n")
+	betaManifest := []byte("id: beta\nname: \"Beta\"\nversion: 0.1.0\napi_version: v1\npermissions:\n  - \"beta.read\"\n")
 	if err := os.WriteFile(filepath.Join(pluginsRoot, "alpha", "plugin.yaml"), alphaManifest, 0o644); err != nil {
 		t.Fatalf("write alpha manifest: %v", err)
 	}

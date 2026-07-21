@@ -56,7 +56,6 @@ validated=3
 ```
 
 兼容性校验：
-- `validate` 与 `validate-all` 会校验 `compatibility_skoll`。
 - 可通过环境变量 `SKOLL_CORE_VERSION` 指定当前 core 版本（例如 `1.0.0`）。
 
 ### scaffold

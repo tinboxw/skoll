@@ -82,7 +82,7 @@ Invoke-RestMethod -Method Post `
 | CRM 与财务协同 | 客户跟进、销售机会、回款计划、发票记录、逾期提醒 | `/skoll/pharma-oa/customer-follow-ups`、`/sales-opportunities`、`/payment-invoices` |
 | 分析与演示 | 经营指标、响应式看板、异步 CSV 报表、完整演示数据 | `/skoll/pharma-oa/dashboard`、演示数据及报表 API |
 
-完整 HTTP 契约以 [OpenAPI](../../docs/api/openapi.yaml) 为准。宿主前端使用 `/v1/pharma-oa/*`；`plugin.yaml` 中 `/v1/plugins/pharma_oa/api/*` 路由用于插件目录、权限和扩展注册，不应另建一套旧接口兼容层。
+完整 HTTP 契约以 [OpenAPI](../../docs/api/openapi.yaml) 为准。宿主前端使用 `/v1/pharma-oa/*`；`plugin.yaml` 中 `/v1/plugins/pharma_oa/api/*` 路由用于插件目录、权限和扩展注册，以上声明构成当前契约。
 
 ## 监管与数据边界
 
@@ -98,7 +98,7 @@ Invoke-RestMethod -Method Post `
 - 当前业务前端是宿主集成页面，路由位于 `web/src/router/index.ts`，类型化客户端位于 `web/src/pharma-oa/api.ts`。`static/` 只用于插件页面和生命周期能力验证，不是完整业务控制台。
 - `mysql` / `postgres` 模式使用 SQL 仓储持久化医药 OA 业务数据，演示 seed 可在重启后识别并复用；`memory` 模式仍是进程内开发夹具，重启即丢失。报表文件使用现有私有对象存储。
 - 禁用插件会撤销插件目录中的菜单、权限和扩展注册，但不会热卸载已经由宿主启动的医药 OA 服务。不要据此声称具备进程级沙箱或热卸载能力。
-- 本样板不提供旧 API、旧数据结构、旧插件格式或旧页面路径兼容方案。
+- 本样板只支持当前 API、数据结构、插件格式和页面路径契约。
 
 ## 多语言
 

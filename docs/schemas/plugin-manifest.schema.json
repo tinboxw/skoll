@@ -3,7 +3,7 @@
   "$id": "https://skoll.local/schemas/plugin-manifest.schema.json",
   "title": "Skoll Plugin Manifest",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "required": ["id", "name", "version"],
   "properties": {
     "id": {
@@ -14,6 +14,14 @@
       "type": "string",
       "minLength": 1
     },
+    "name_zh_cn": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name_en_us": {
+      "type": "string",
+      "minLength": 1
+    },
     "version": {
       "type": "string",
       "minLength": 1
@@ -21,10 +29,6 @@
     "api_version": {
       "type": "string",
       "pattern": "^v[0-9]+$"
-    },
-    "compatibility_skoll": {
-      "type": "string",
-      "minLength": 1
     },
     "description": {
       "type": "string"
@@ -164,10 +168,38 @@
       "type": "string",
       "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"
     },
+    "vendor": {
+      "type": "string"
+    },
+    "vendor_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "sign_algo": {
+      "type": "string",
+      "const": "RSA-SHA256"
+    },
+    "sign_timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sign_value": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vendor_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "vendor_pubkey": {
+      "type": "string",
+      "minLength": 1
+    },
     "dependencies": {
       "type": "array",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": ["id"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
@@ -218,17 +250,122 @@
           }
         ]
       }
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["namespace"],
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,63}$"
+        },
+        "migration_version": {
+          "type": "string",
+          "pattern": "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "migration_directory": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uninstall_policy": {
+          "type": "string",
+          "enum": ["retain", "drop", "archive"]
+        },
+        "rollback_policy": {
+          "type": "string",
+          "enum": ["manual", "automatic", "none"]
+        },
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "columns"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{1,127}$"
+              },
+              "description": { "type": "string" },
+              "primary_key": { "type": "string" },
+              "columns": {
+                "type": "string",
+                "minLength": 1
+              },
+              "indexes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["routes"],
+      "properties": {
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["method", "path", "permission"],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]
+              },
+              "path": {
+                "type": "string",
+                "pattern": "^/v1/plugins/[a-z0-9_-]+/api/"
+              },
+              "summary": { "type": "string" },
+              "permission": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_:.\\-]{1,127}$"
+              },
+              "audit_action": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,63}\\.[a-z][a-z0-9_-]{0,63}\\.[a-z][a-z0-9_-]{0,63}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "events": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subscriptions"],
+      "properties": {
+        "subscriptions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "handler"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{2,127}$"
+              },
+              "handler": {
+                "type": "string",
+                "minLength": 1
+              },
+              "retry_policy": {
+                "type": "string",
+                "enum": ["none", "standard", "aggressive"]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "allOf": [
-    {
-      "if": {
-        "required": ["api_version"]
-      },
-      "then": {
-        "required": ["compatibility_skoll"]
-      }
-    },
     {
       "if": {
         "not": {

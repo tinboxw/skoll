@@ -21,8 +21,7 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 	})
 
 	result, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
-		Path:        root,
-		CoreVersion: "1.2.0",
+		Path: root,
 		Installed: []Info{
 			{
 				ID:      "audit",
@@ -87,13 +86,13 @@ func TestInstallPreflightServiceBlocksPermissionAndMenuConflicts(t *testing.T) {
 		Path: root,
 		Installed: []Info{
 			{
-				ID:      "legacy",
-				Name:    "Legacy",
+				ID:      "existing",
+				Name:    "Existing",
 				Version: "1.0.0",
 				PermissionResources: []PermissionDeclaration{
-					{Key: "reports.export", Type: "api", Module: "legacy", Name: "Legacy export", Risk: "low"},
+					{Key: "reports.export", Type: "api", Module: "existing", Name: "Existing export", Risk: "low"},
 				},
-				UIMenu: &UIMenu{Key: "plugin.reports", Label: "Legacy Reports", Path: "/skoll/legacy-reports"},
+				UIMenu: &UIMenu{Key: "plugin.reports", Label: "Existing Reports", Path: "/skoll/existing-reports"},
 				State:  StateEnabled,
 			},
 		},
@@ -156,7 +155,6 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 		"name: Reports\n" +
 		"version: 1.0.0\n" +
 		"api_version: v1\n" +
-		"compatibility_skoll: \">=1.0.0 <2.0.0\"\n" +
 		"ui_mode: frontend_only\n" +
 		"i18n_locales:\n" +
 		"  - zh-CN\n" +

@@ -74,7 +74,7 @@ When the directory is added after startup, call `POST /skoll/v1/plugins/prefligh
 | CRM and finance collaboration | Follow-ups, opportunities, payment plans, invoices, overdue reminders | `/skoll/pharma-oa/customer-follow-ups`, `/sales-opportunities`, `/payment-invoices` |
 | Analytics and demo | Metrics, responsive dashboard, asynchronous CSV reports, full demo data | `/skoll/pharma-oa/dashboard`, demo-seed and report APIs |
 
-The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages call `/v1/pharma-oa/*`; the `/v1/plugins/pharma_oa/api/*` entries in `plugin.yaml` declare plugin catalog, permission, and extension routes. Do not add a legacy compatibility API beside them.
+The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages call `/v1/pharma-oa/*`; the `/v1/plugins/pharma_oa/api/*` entries in `plugin.yaml` declare plugin catalog, permission, and extension routes. These declared routes are the current contract.
 
 ## Regulatory And Data Boundary
 
@@ -90,7 +90,7 @@ The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages cal
 - Business pages are host-integrated. Routes live in `web/src/router/index.ts` and the typed client in `web/src/pharma-oa/api.ts`. `static/` is a plugin page/lifecycle fixture, not the full business console.
 - `mysql` / `postgres` modes persist Pharma OA business records in SQL and rediscover the applied demo seed after restart. `memory` remains a process-local development fixture and loses data on restart. Report files use the existing private object store.
 - Disabling the plugin removes its catalog menu, permissions, and extensions, but does not hot-unload host services already wired at startup. It is not a process sandbox.
-- No legacy API, data, plugin format, or page route compatibility is provided.
+- Only the current API, data, plugin, and page-route contracts are supported.
 
 ## Localization
 

@@ -1,6 +1,6 @@
 <template>
 	<el-card class="table-shell" shadow="never">
-		<table class="legacy-table">
+		<table class="common-table">
 			<slot />
 		</table>
 	</el-card>
@@ -12,7 +12,7 @@
 	border: 1px solid var(--color-border);
 }
 
-.legacy-table {
+.common-table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 0.92rem;

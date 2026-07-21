@@ -4,7 +4,6 @@ name_zh_cn: 医药 OA
 name_en_us: Pharma OA
 version: 0.1.0
 api_version: v1
-compatibility_skoll: ">=1.0.0 <2.0.0"
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: frontend_only
 level: app

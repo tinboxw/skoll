@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/tinboxw/skoll/internal/plugin"
-	buildver "github.com/tinboxw/skoll/pkg/version"
 )
 
 type PluginCommand struct {
@@ -159,10 +158,6 @@ func (c *PluginCommand) handleValidate(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := info.ValidateCompatibility(resolveCoreVersionForValidation()); err != nil {
-		return "", err
-	}
-
 	return fmt.Sprintf("valid id=%s version=%s deps=%d perms=%d", info.ID, info.Version, len(info.Dependencies), len(info.Permissions)), nil
 }
 
@@ -188,10 +183,6 @@ func (c *PluginCommand) handleValidateAll(root string) (string, error) {
 		info, loadErr := c.loader.Load(path)
 		if loadErr != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", path, loadErr))
-			continue
-		}
-		if compatErr := info.ValidateCompatibility(resolveCoreVersionForValidation()); compatErr != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", path, compatErr))
 			continue
 		}
 		rows = append(rows, fmt.Sprintf("- ok %s id=%s version=%s", path, info.ID, info.Version))
@@ -253,20 +244,19 @@ func (c *PluginCommand) handleScaffold(root, pluginID, pluginName, appID string)
 	}
 
 	info := plugin.Info{
-		ID:                 pluginID,
-		Name:               pluginName,
-		Version:            "0.1.0",
-		APIVersion:         "v1",
-		CompatibilitySkoll: ">=1.0.0 <2.0.0",
-		MigrationVersion:   "v0.1.0",
-		UIMode:             plugin.UIModeSeparated,
-		MountPolicy:        plugin.MountPolicyAdmin,
-		UINavPosition:      plugin.UINavPositionNone,
-		UIOpenMode:         plugin.UIOpenModeIntegrated,
-		UITabMode:          plugin.UITabModeOptional,
-		I18nLocales:        []string{"zh-CN", "en-US"},
-		Level:              plugin.LevelSystem,
-		Permissions:        []string{pluginID + ".read"},
+		ID:               pluginID,
+		Name:             pluginName,
+		Version:          "0.1.0",
+		APIVersion:       "v1",
+		MigrationVersion: "v0.1.0",
+		UIMode:           plugin.UIModeSeparated,
+		MountPolicy:      plugin.MountPolicyAdmin,
+		UINavPosition:    plugin.UINavPositionNone,
+		UIOpenMode:       plugin.UIOpenModeIntegrated,
+		UITabMode:        plugin.UITabModeOptional,
+		I18nLocales:      []string{"zh-CN", "en-US"},
+		Level:            plugin.LevelSystem,
+		Permissions:      []string{pluginID + ".read"},
 	}
 	if appID != "" {
 		info.Level = plugin.LevelApp
@@ -325,7 +315,6 @@ func renderScaffoldManifest(info plugin.Info) string {
 		"name: " + quoteYAML(info.Name),
 		"version: " + info.Version,
 		"api_version: " + info.APIVersion,
-		"compatibility_skoll: " + quoteYAML(info.CompatibilitySkoll),
 		"migration_version: " + info.MigrationVersion,
 		"ui_mode: " + string(info.UIMode),
 		"level: " + string(info.Level),
@@ -351,13 +340,6 @@ func quoteYAML(value string) string {
 	trimmed := strings.TrimSpace(value)
 	trimmed = strings.ReplaceAll(trimmed, `"`, `\"`)
 	return `"` + trimmed + `"`
-}
-
-func resolveCoreVersionForValidation() string {
-	if v := strings.TrimSpace(os.Getenv("SKOLL_CORE_VERSION")); v != "" {
-		return v
-	}
-	return strings.TrimSpace(buildver.String())
 }
 
 func (c *PluginCommand) handleMigrate(pluginDir, action string, steps int) (string, error) {

@@ -49,4 +49,4 @@ Any `2xx` response succeeds. Network errors, redirects, and non-`2xx` responses 
 - Only enabled plugins with a current matching declaration receive events. Disable, uninstall, and reload remove old subscriptions and drain in-flight delivery.
 - Failure, retry success, and dead-letter states remain observable. Delivery stops after the declared policy reaches its maximum attempts.
 
-There is no legacy endpoint, envelope, or dual delivery path.
+This is the sole event delivery protocol.

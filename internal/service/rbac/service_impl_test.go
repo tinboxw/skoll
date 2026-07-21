@@ -117,7 +117,7 @@ func TestRBACServiceResolvePermissionUsesMostRestrictiveScope(t *testing.T) {
 		SubjectType: domainrbac.SubjectUser,
 		SubjectID:   "u-scope",
 		RoleID:      "r-scope",
-		Scope:       domainrbac.DataScopeDeptTree,
+		Scope:       domainrbac.DataScopeDepartmentTree,
 	})
 	if err != nil {
 		t.Fatalf("BindRole error: %v", err)
@@ -126,7 +126,7 @@ func TestRBACServiceResolvePermissionUsesMostRestrictiveScope(t *testing.T) {
 	err = svc.SetRolePolicies(context.Background(), SetRolePoliciesInput{
 		RoleID: "r-scope",
 		Rules: []domainrbac.PolicyRule{
-			{Resource: "user:*", Action: "read", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeDept},
+			{Resource: "user:*", Action: "read", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeDepartment},
 			{Resource: "user:*", Action: "update", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScopeAll},
 		},
 	})
@@ -144,7 +144,7 @@ func TestRBACServiceResolvePermissionUsesMostRestrictiveScope(t *testing.T) {
 		t.Fatalf("ResolvePermission read error: %v", err)
 	}
 	if !readDecision.Allowed || readDecision.Scope != domainrbac.DataScopeDepartment {
-		t.Fatalf("expected dept scope, got %+v", readDecision)
+		t.Fatalf("expected department scope, got %+v", readDecision)
 	}
 
 	updateDecision, err := svc.ResolvePermission(context.Background(), CheckPermissionInput{
@@ -157,7 +157,7 @@ func TestRBACServiceResolvePermissionUsesMostRestrictiveScope(t *testing.T) {
 		t.Fatalf("ResolvePermission update error: %v", err)
 	}
 	if !updateDecision.Allowed || updateDecision.Scope != domainrbac.DataScopeDepartmentTree {
-		t.Fatalf("expected dept_tree scope, got %+v", updateDecision)
+		t.Fatalf("expected department_tree scope, got %+v", updateDecision)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestRBACServiceSetRolePoliciesNormalizesDataScope(t *testing.T) {
 
 	err := svc.SetRolePolicies(context.Background(), SetRolePoliciesInput{
 		RoleID: "r-1",
-		Rules:  []domainrbac.PolicyRule{{Resource: " user:* ", Action: " read ", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScope("dept_tree")}},
+		Rules:  []domainrbac.PolicyRule{{Resource: " user:* ", Action: " read ", Effect: domainrbac.EffectAllow, Scope: domainrbac.DataScope("department_tree")}},
 	})
 	if err != nil {
 		t.Fatalf("SetRolePolicies error: %v", err)

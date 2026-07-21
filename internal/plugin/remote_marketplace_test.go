@@ -57,7 +57,6 @@ func TestMarketplaceCatalogServiceKeepsLocalCatalogWhenRemoteFails(t *testing.T)
 name: Demo Plugin
 version: 0.2.0
 api_version: v1
-compatibility_skoll: ">=1.0.0 <2.0.0"
 `), 0o644); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}

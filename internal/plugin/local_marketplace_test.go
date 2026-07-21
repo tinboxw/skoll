@@ -17,7 +17,6 @@ func TestLocalMarketplaceServiceListsPluginsAndPackages(t *testing.T) {
 name: Demo Plugin
 version: 0.2.0
 api_version: v1
-compatibility_skoll: ">=1.0.0 <2.0.0"
 migration_version: v0.2.0
 ui_mode: frontend_only
 sign_algo: RSA-SHA256

@@ -117,7 +117,7 @@ func (s *LocalMarketplaceService) List(root string) (LocalMarketplaceCatalog, er
 		if items[i].ID != items[j].ID {
 			return items[i].ID < items[j].ID
 		}
-		return normalizeSemver(items[i].Version) < normalizeSemver(items[j].Version)
+		return normalizeMarketplaceVersion(items[i].Version) < normalizeMarketplaceVersion(items[j].Version)
 	})
 	return LocalMarketplaceCatalog{PluginsRoot: cleanRoot, Items: items}, nil
 }
@@ -315,7 +315,7 @@ func packageDigest(path string) (digest string, size int64, err error) {
 }
 
 func localMarketplaceReleaseKey(id, version string) string {
-	return strings.TrimSpace(strings.ToLower(id)) + "@" + normalizeSemver(version)
+	return strings.TrimSpace(strings.ToLower(id)) + "@" + normalizeMarketplaceVersion(version)
 }
 
 func riskRank(level string) int {
