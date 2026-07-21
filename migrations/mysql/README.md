@@ -22,6 +22,7 @@ MySQL 迁移脚本目录。
 - 20260629_000018_create_organization.sql
 - 20260718_000019_create_pharma_oa_master_data.sql
 - 20260722_000023_create_plugin_migration_ledger.sql
+- 20260722_000024_create_workflow_persistence.sql
 
 ## 执行顺序
 
@@ -79,6 +80,15 @@ MySQL 迁移脚本目录。
 - 用途：记录每个插件已成功提交的 migration 版本、名称、SHA-256 和执行时间。
 - 唯一约束：`idx_plugin_migration_version(plugin_id, version)`，用于保证生命周期重试幂等。
 - 事务边界：插件 SQL 与账本写入由同一个 GORM transaction 提交；失败不会生成成功账本。
+
+## 工作流持久化
+
+### 20260722_000024_create_workflow_persistence.sql
+
+- 表名：工作流定义、节点、节点审批人、流转、实例、任务和动作历史共 7 张表。
+- 聚合边界：定义和实例分别作为事务写入单元，子记录写入失败时整笔回滚。
+- 查询索引：业务对象、实例状态、发起人、任务审批人、动作参与人和时间线顺序。
+- 对应实现：`internal/store/sql/gormrepo/workflow_model.go`、`workflow_store.go`。
 
 ## 医药 OA 主数据表
 

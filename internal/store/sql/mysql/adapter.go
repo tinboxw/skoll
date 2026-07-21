@@ -19,6 +19,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
+	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"gorm.io/driver/mysql"
@@ -38,6 +39,7 @@ type Adapter struct {
 	menu               menurepo.MenuRepository
 	file               filerepo.FileRepository
 	org                organizationrepo.OrganizationRepository
+	workflow           workflowsvc.Repository
 	employee           pharmaoarepo.EmployeeRepository
 	product            pharmaoarepo.ProductRepository
 	supplier           pharmaoarepo.SupplierRepository
@@ -104,6 +106,7 @@ func NewAdapter(dsn string) (*Adapter, error) {
 		menu:               gormrepo.NewMenuStore(db),
 		file:               gormrepo.NewFileStore(db),
 		org:                gormrepo.NewOrganizationStore(db),
+		workflow:           gormrepo.NewWorkflowStore(db),
 		employee:           gormrepo.NewPharmaEmployeeStore(db),
 		product:            gormrepo.NewPharmaProductStore(db),
 		supplier:           gormrepo.NewPharmaSupplierStore(db),
@@ -165,6 +168,10 @@ func (a *Adapter) FileRepository() filerepo.FileRepository {
 
 func (a *Adapter) OrganizationRepository() organizationrepo.OrganizationRepository {
 	return a.org
+}
+
+func (a *Adapter) WorkflowRepository() workflowsvc.Repository {
+	return a.workflow
 }
 
 func (a *Adapter) PharmaEmployeeRepository() pharmaoarepo.EmployeeRepository   { return a.employee }

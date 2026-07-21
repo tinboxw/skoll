@@ -233,7 +233,7 @@ M4 新增一等组织模型表，迁移脚本：
 - `migrations/mysql/20260629_000018_create_organization.sql`
 - `migrations/postgres/20260629_000018_create_organization.sql`
 
-`sk_departments` 保存部门树节点；`sk_positions` 保存岗位；`sk_user_organization_assignments` 保存用户和部门/岗位归属。旧 `sk_users.department_id`、`sk_users.position_id` 字段保留给用户列表和兼容读取，新的组织归属以 assignment 表为准。
+`sk_departments` 保存部门树节点；`sk_positions` 保存岗位；`sk_user_organization_assignments` 保存用户和部门/岗位归属，并作为组织归属的唯一数据模型。
 
 | 字段 | 类型 | 约束 | 说明 |
 |------|------|------|------|
@@ -257,6 +257,26 @@ M4 新增一等组织模型表，迁移脚本：
 
 > **Domain 实体**：`internal/domain/organization/organization.go` → `Department`、`Position`、`UserAssignment`。
 
+### 2.11 工作流持久化表
+
+迁移脚本：
+- `migrations/mysql/20260722_000024_create_workflow_persistence.sql`
+- `migrations/postgres/20260722_000024_create_workflow_persistence.sql`
+
+工作流按定义聚合和实例聚合拆分为 7 张关系表，完整保存节点、审批人、流转、任务、决策参与人和动作历史。定义或实例更新均在单个数据库事务中替换其子记录，任何子记录写入失败都会回滚父记录更新。
+
+| 表 | 聚合职责 | 关键索引或约束 |
+|------|------|------|
+| `sk_workflow_definitions` | 流程定义、版本和发布状态 | `UNIQUE(definition_key, version)`、状态更新时间 |
+| `sk_workflow_nodes` | 定义内有序节点 | `PK(definition_id, node_id)`、定义内顺序 |
+| `sk_workflow_node_assignees` | 节点审批人及顺序 | `PK(definition_id, node_id, position)`、审批人 |
+| `sk_workflow_transitions` | 定义内有序流转边 | `PK(definition_id, position)`、起止节点外键 |
+| `sk_workflow_instances` | 业务流程实例和发起人 | 业务对象、定义状态、发起人状态 |
+| `sk_workflow_tasks` | 实例任务、审批人和完成时间 | 实例顺序、实例状态、审批人状态 |
+| `sk_workflow_actions` | 审批、驳回、转交、抄送等不可缺失历史 | 实例顺序、参与人时间、任务 |
+
+> **Domain 实体**：`internal/domain/workflow/types.go` → `Definition`、`Instance`、`Task`、`Action`。
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：
@@ -278,6 +298,8 @@ M4 新增一等组织模型表，迁移脚本：
 | `domain/file.FileObject` | `FileObjectModel` (sk_file_objects) | `file_model.go` |
 | `domain/system.DictionaryType` | `DictionaryTypeModel` (sk_dictionary_types) | `dictionary_model.go` |
 | `domain/system.DictionaryItem` | `DictionaryItemModel` (sk_dictionary_items) | `dictionary_model.go` |
+| `domain/workflow.Definition` | `WorkflowDefinitionModel` 等定义关系表 | `workflow_model.go` / `workflow_store.go` |
+| `domain/workflow.Instance` | `WorkflowInstanceModel`、`WorkflowTaskModel`、`WorkflowActionModel` | `workflow_model.go` / `workflow_store.go` |
 
 **ID 转换**：Domain 使用 `shared.ID`（字符串类型）。用户、角色、系统设置等早期 GORM Model 使用 `uint64`，通过 `parseUintID` / `formatUintID` 辅助函数双向转换；审计事件、文件对象、字典类型与字典条目直接使用字符串 ID。
 
@@ -317,7 +339,9 @@ migrations/
 │   ├── 20260718_000019_create_pharma_oa_master_data.sql
 │   ├── 20260718_000020_create_pharma_oa_inventory_orders.sql
 │   ├── 20260718_000021_create_pharma_oa_workflow_records.sql
-│   └── 20260718_000022_complete_pharma_oa_schema.sql
+│   ├── 20260718_000022_complete_pharma_oa_schema.sql
+│   ├── 20260722_000023_create_plugin_migration_ledger.sql
+│   └── 20260722_000024_create_workflow_persistence.sql
 └── postgres/
     ├── 20240101_000001_create_users.sql
     ├── 20260510_000010_create_plugins.sql
@@ -325,7 +349,9 @@ migrations/
     ├── 20260718_000019_create_pharma_oa_master_data.sql
     ├── 20260718_000020_create_pharma_oa_inventory_orders.sql
     ├── 20260718_000021_create_pharma_oa_workflow_records.sql
-    └── 20260718_000022_complete_pharma_oa_schema.sql
+    ├── 20260718_000022_complete_pharma_oa_schema.sql
+    ├── 20260722_000023_create_plugin_migration_ledger.sql
+    └── 20260722_000024_create_workflow_persistence.sql
 ```
 
 > 注意：迁移脚本由 GORM AutoMigrate 或手动执行，当前项目未集成自动迁移工具。

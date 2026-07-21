@@ -674,3 +674,50 @@ Result: all gates passed after one recorded retry. The race batch completed succ
 ### Commit
 
 `PR1-09: close plugin runtime milestone`
+
+## PR2-01 Replace In-Memory Workflow Repository with SQL Persistence
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Persist workflow definitions and instances as queryable SQL relations, make aggregate writes and reads transactional, and inject the configured repository into the runtime.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Relational schema | Pass | Seven GORM models and matching MySQL/PostgreSQL migrations cover definitions, nodes, node assignees, transitions, instances, tasks, and action history |
+| Aggregate transaction | Pass | Definition and instance saves update the parent and replace ordered children in one transaction; duplicate task insertion proves parent and children roll back together |
+| Restart recovery | Pass | A file-backed SQL restart restores definition version/status, node order, assignees, transitions, instance state, tasks, decisions, actor names, comments, and completion timestamps |
+| Runtime injection | Pass | Memory mode provides the explicit memory repository; MySQL/PostgreSQL adapters provide `WorkflowStore`; Bootstrap consumes only `bundle.Workflow` |
+| Error contract | Pass | Missing definitions and instances preserve the current service-facing not-found messages |
+| Dialect contract | Pass | Both migration scripts contain every relation, foreign-key boundary, uniqueness rule, and required query index; aggregate JSON fallback is forbidden by test |
+| Concurrency safety | Pass | Workflow service, store, GORM repository, and Bootstrap pass the race detector |
+| Repository quality | Pass | Focused packages, all Go packages, and `go vet ./...` pass |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/workflow ./internal/store/... ./internal/bootstrap -count=1
+go test -race ./internal/service/workflow ./internal/store ./internal/store/sql/gormrepo ./internal/bootstrap -count=1 -timeout 300s
+go test ./... -count=1 -timeout 300s
+go vet ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: all locally executable acceptance gates passed without retry. Live MySQL/PostgreSQL DSNs were not present; their migration contracts are statically verified, while restart and rollback behavior is executed against a file-backed SQL database.
+
+### Impact Review
+
+- Workflow data: definitions, instances, tasks, actors, decisions, and complete action history now survive process and database connection restarts in SQL modes.
+- Transactionality: aggregate replacement and aggregate reconstruction execute inside database transactions; partial child writes cannot become visible as successful state.
+- Runtime: Bootstrap no longer creates a private in-memory workflow repository and follows the configured store mode.
+- Migrations: version `000024` adds the same current relational model for MySQL and PostgreSQL with explicit indexes and foreign keys.
+- Frontend/API: no request or response contract changed.
+- Compatibility: none; no legacy table reader, dual write, fallback, or migration bridge was added.
+
+### Commit
+
+`PR2-01: persist workflow aggregates in SQL`

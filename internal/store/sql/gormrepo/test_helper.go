@@ -25,38 +25,8 @@ func TestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("failed to open test database: %v", err)
 	}
 
-	// Auto migrate all models
-	err = db.AutoMigrate(
-		UserModel{},
-		RoleModel{},
-		BindingModel{},
-		PolicyRuleModel{},
-		AuditRecordModel{},
-		SystemSettingModel{},
-		PluginModel{},
-		PluginMigrationModel{},
-		PluginReleaseModel{},
-		PluginRouteModel{},
-		PermissionResourceModel{},
-		MenuNodeModel{},
-		FileObjectModel{},
-		DictionaryTypeModel{},
-		DictionaryItemModel{},
-		DepartmentModel{},
-		PositionModel{},
-		UserAssignmentModel{},
-		AuditEventModel{},
-		PharmaEmployeeModel{},
-		PharmaProductModel{},
-		PharmaSupplierModel{},
-		PharmaCustomerModel{},
-		PharmaWarehouseModel{},
-		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
-		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
-		PharmaAnnouncementModel{}, PharmaColdChainRecordModel{},
-		PharmaContractModel{}, PharmaQualityComplaintModel{}, PharmaDrugRecallModel{}, PharmaCustomerFollowUpModel{}, PharmaSalesOpportunityModel{},
-		PharmaPaymentPlanModel{}, PharmaInvoiceRecordModel{}, PharmaPaymentReminderJobModel{}, PharmaInventoryAlertModel{}, PharmaInventoryAlertJobModel{}, PharmaReportExportJobModel{},
-	)
+	// Keep test schema registration identical to production adapters.
+	err = db.AutoMigrate(AllModels()...)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
 	}
@@ -89,38 +59,8 @@ func SetupTestDBWithLogger(t *testing.T) (*gorm.DB, func()) {
 		},
 	)
 
-	// Auto migrate all models
-	err = db.AutoMigrate(
-		UserModel{},
-		RoleModel{},
-		BindingModel{},
-		PolicyRuleModel{},
-		AuditRecordModel{},
-		SystemSettingModel{},
-		PluginModel{},
-		PluginMigrationModel{},
-		PluginReleaseModel{},
-		PluginRouteModel{},
-		PermissionResourceModel{},
-		MenuNodeModel{},
-		FileObjectModel{},
-		DictionaryTypeModel{},
-		DictionaryItemModel{},
-		DepartmentModel{},
-		PositionModel{},
-		UserAssignmentModel{},
-		AuditEventModel{},
-		PharmaEmployeeModel{},
-		PharmaProductModel{},
-		PharmaSupplierModel{},
-		PharmaCustomerModel{},
-		PharmaWarehouseModel{},
-		PharmaStockBatchModel{}, PharmaStockBalanceModel{}, PharmaStockLedgerModel{}, PharmaStockLockModel{},
-		PharmaPurchaseRequestModel{}, PharmaPurchaseOrderModel{}, PharmaPurchaseInboundModel{}, PharmaSalesOrderModel{}, PharmaSalesOutboundModel{}, PharmaStocktakeModel{}, PharmaTransferModel{},
-		PharmaAnnouncementModel{}, PharmaColdChainRecordModel{},
-		PharmaContractModel{}, PharmaQualityComplaintModel{}, PharmaDrugRecallModel{}, PharmaCustomerFollowUpModel{}, PharmaSalesOpportunityModel{},
-		PharmaPaymentPlanModel{}, PharmaInvoiceRecordModel{}, PharmaPaymentReminderJobModel{}, PharmaInventoryAlertModel{}, PharmaInventoryAlertJobModel{}, PharmaReportExportJobModel{},
-	)
+	// Keep test schema registration identical to production adapters.
+	err = db.AutoMigrate(AllModels()...)
 	if err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
 	}

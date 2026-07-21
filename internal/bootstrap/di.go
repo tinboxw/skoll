@@ -90,7 +90,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
-	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
+	workflowService := workflowsvc.NewService(bundle.Workflow)
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err

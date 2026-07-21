@@ -18,6 +18,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
+	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store/clickhouse"
 	"github.com/tinboxw/skoll/internal/store/memory"
 	"github.com/tinboxw/skoll/internal/store/sql"
@@ -54,6 +55,7 @@ type Bundle struct {
 	AuditEvents      auditrepo.EventRepository
 	Files            filerepo.FileRepository
 	Organization     organizationrepo.OrganizationRepository
+	Workflow         workflowsvc.Repository
 	PharmaOA         func() *pharmaoarepo.Repositories
 }
 
@@ -74,6 +76,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 		return &Bundle{
 			Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions,
 			Menus: menus, UnitOfWork: sql.NewUnitOfWork(), AuditEvents: auditEvents, Files: files, Organization: organization,
+			Workflow: workflowsvc.NewMemoryRepository(),
 			PharmaOA: lazyPharmaOARepositories(newMemoryPharmaOARepositories),
 		}, nil
 	case ModeMySQL:
@@ -97,6 +100,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			AuditEvents:      auditEvents,
 			Files:            primary.FileRepository(),
 			Organization:     primary.OrganizationRepository(),
+			Workflow:         primary.WorkflowRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 		}, nil
 	case ModePostgres:
@@ -122,6 +126,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			AuditEvents:      gormrepo.NewAuditStore(primary.DB()),
 			Files:            primary.FileRepository(),
 			Organization:     primary.OrganizationRepository(),
+			Workflow:         primary.WorkflowRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 		}, nil
 	default:
