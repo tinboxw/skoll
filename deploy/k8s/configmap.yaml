@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: skoll-runtime
+data:
+  SKOLL_SERVER_ADDRESS: ":8080"
+  SKOLL_API_BASE_PREFIX: "/skoll"
+  SKOLL_STORE_MODE: "mysql"
+  SKOLL_LOG_LEVEL: "info"
+  SKOLL_LOG_DIR: "/app/log"
+  SKOLL_LOG_FILE: ""

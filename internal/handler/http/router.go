@@ -95,6 +95,9 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	apiMux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		WriteMessage(w, http.StatusOK, "ok", "ok")
 	})
+	apiMux.HandleFunc("GET /ready", func(w http.ResponseWriter, _ *http.Request) {
+		WriteMessage(w, http.StatusOK, "ready", "ready")
+	})
 	registerDocumentationRoutes(apiMux, apiPrefix, deps.PluginManager)
 
 	userhttp.RegisterUserRoutes(apiMux, deps.UserService, deps.RBACService, deps.AuditService)

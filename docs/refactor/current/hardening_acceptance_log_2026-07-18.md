@@ -1000,3 +1000,54 @@ git diff --check
 ### Next Step
 
 父任务 H5 完成。按正式 Work Item 顺序领取 `H6-01`，演练部署、备份、恢复、升级与回滚。
+
+## H6-01 部署、升级与恢复演练
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 修复并验证 Docker Compose、Docker 和 Kubernetes 部署资产；新增 MySQL 校验备份、隔离恢复、版本区间升级和恢复点回滚脚本；增加公开 readiness 契约；在本地 MySQL 隔离库完成可重复全链路演练并发布中英双语证据。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 部署清单 | Pass | Compose 配置可解析并包含 MySQL、应用数据、日志、插件包四个持久卷；Kustomize 渲染 Deployment、Service、ConfigMap 和两个 PVC，容器以非 root、只读根文件系统运行，`/app/data` 与 `/app/plugins` 可写。 |
+| 干净部署与探针 | Pass | 当前二进制在随机 MySQL 5.7 隔离库完成干净启动并创建 47 张表；`GET /skoll/health` 与新增 `GET /skoll/ready` 均返回 200，运行时和公开 OpenAPI 两份契约同步。 |
+| 备份与恢复 | Pass | 单事务备份生成 91,705 B SQL、SHA-256 元数据；恢复脚本校验摘要并重建指定隔离库，业务标记恢复为 `clean-v1`。系统库名和缺少 `-AllowRecreate` 均失败关闭。 |
+| 前向升级 | Pass | 从已安装的 21 号基线执行 `20260718_000022_complete_pharma_oa_schema.sql`，目标表由 0 增至 2；升级前自动生成恢复点，升级后服务 health/readiness 通过。缺少 `-AllowUpgrade` 失败关闭。 |
+| 回滚 | Pass | 将升级前恢复点还原到另一隔离库，两张 22 号目标表均不存在，原业务标记 `source-v1` 保持；不执行 down migration 或旧结构兼容。 |
+| 可重复演练 | Pass | `h6-deployment-recovery-smoke.ps1` 必须显式传入 `-AllowDatabaseLifecycle`，最终机器报告耗时 54.95 秒且 `passed=true`；结束后四个随机 `skoll_h6_*` 数据库和临时文件全部清理。 |
+| 文档与多语言 | Pass | `deployment_recovery_rehearsal_2026-07-21.md`、用户部署文档及三类部署 README 默认中文并含英文摘要；清理当前文档中的旧 JWT 变量、旧 API 前缀配置和旧探针路径。 |
+| API/权限/审计/migration/seed | Pass | 新增公开 `/ready` 并同步 OpenAPI；探针不授予业务权限且不产生业务审计。未修改产品 migration 或 seed，只新增显式确认保护的运维脚本。 |
+| 质量门禁 | Pass | `go test ./...`、`go vet ./...`、聚焦路由/OpenAPI 测试、Compose/Kustomize、PowerShell 语法、确认开关、证据契约、链接、diff 和历史目录边界全部通过。 |
+| CodeGraph | Pass | 同步后索引为 716 files / 15,372 nodes / 47,187 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有文档、IDE、CodeGraph 目录或运行数据。 |
+
+### Verification Commands
+
+```powershell
+$env:SKOLL_H6_MYSQL_PASSWORD = '<local-test-password>'
+./scripts/h6-deployment-recovery-smoke.ps1 -AllowDatabaseLifecycle
+go test ./...
+go vet ./...
+go test ./internal/handler/http ./internal/bootstrap -run 'TestRouterHealthAndReadinessRoutes|TestOpenAPIContractFilesStayInSync|TestHealth|TestRunner' -count=1
+docker compose -f deploy/compose/docker-compose.yaml config --quiet
+kubectl kustomize deploy/k8s | Out-Null
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | MySQL 8 `mysqldump` 对 MySQL 5.7 查询不存在的 `COLUMN_STATISTICS`。 | 检测客户端能力并加入 `--skip-column-statistics`。 |
+| 2 | Failed -> Doing | migration 文件名解析未组合日期与六位序号，未选中脚本。 | 按 `YYYYMMDD_NNNNNN` 生成 14 位版本号。 |
+| 3 | Failed -> Doing | 本地 MySQL 默认 MyISAM，历史建表索引超过 1000 字节限制。 | 在每个 migration 输入前设置会话默认引擎为 InnoDB。 |
+| 4 | Failed -> Doing | Windows `Start-Process` 拆分带空格的 `--init-command`。 | 生成临时 UTF-8 SQL 输入并在 finally 中清理。 |
+| 5 | Failed -> Doing | 历史 migration 与当前 GORM 表名不能从空库连续回放。 | 按真实升级路径从已安装基线恢复后只执行目标增量。 |
+| 6 | Failed -> Doing | Docker daemon 未启动时，环境探测被 PowerShell 提升为异常并阻断证据写入。 | 改用进程退出码记录 `daemon-unavailable`，不将清单校验误报为容器运行。 |
+
+### Next Step
+
+父任务 H6 保持 `Doing`。按正式 Work Item 顺序领取 `H6-02`，补齐示例、监管、许可、数据安全和支持边界。

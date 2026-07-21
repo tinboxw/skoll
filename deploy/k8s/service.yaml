@@ -1,15 +1,14 @@
-﻿apiVersion: v1
+apiVersion: v1
 kind: Service
 metadata:
-	name: skoll
-	labels:
-		app: skoll
+  name: skoll
+  labels:
+    app.kubernetes.io/name: skoll
 spec:
-	type: ClusterIP
-	selector:
-		app: skoll
-	ports:
-		- name: http
-			port: 80
-			targetPort: 8080
-
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: skoll
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

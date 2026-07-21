@@ -1,42 +1,79 @@
-﻿apiVersion: apps/v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
-	name: skoll
-	labels:
-		app: skoll
+  name: skoll
+  labels:
+    app.kubernetes.io/name: skoll
 spec:
-	replicas: 1
-	selector:
-		matchLabels:
-			app: skoll
-	template:
-		metadata:
-			labels:
-				app: skoll
-		spec:
-			containers:
-				- name: skoll
-					image: skoll:latest
-					imagePullPolicy: IfNotPresent
-					ports:
-						- containerPort: 8080
-					env:
-						- name: SKOLL_SERVER_ADDRESS
-							value: ":8080"
-						- name: SKOLL_STORE_MODE
-							value: "memory"
-						- name: SKOLL_JWT_SECRET
-							value: "k8s-dev-secret"
-					readinessProbe:
-						httpGet:
-							path: /health
-							port: 8080
-						initialDelaySeconds: 2
-						periodSeconds: 5
-					livenessProbe:
-						httpGet:
-							path: /health
-							port: 8080
-						initialDelaySeconds: 5
-						periodSeconds: 10
-
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: skoll
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: skoll
+    spec:
+      securityContext:
+        fsGroup: 10001
+        runAsNonRoot: true
+      containers:
+        - name: skoll
+          image: skoll:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: skoll-runtime
+            - secretRef:
+                name: skoll-runtime
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: plugins
+              mountPath: /app/plugins
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsUser: 10001
+            runAsGroup: 10001
+          startupProbe:
+            httpGet:
+              path: /skoll/health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /skoll/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /skoll/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: skoll-data
+        - name: plugins
+          persistentVolumeClaim:
+            claimName: skoll-plugins

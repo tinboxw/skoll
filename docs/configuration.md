@@ -28,7 +28,7 @@ configs/skoll.yml
 - 前缀：`SKOLL_`
 - 分隔符：`.` 替换为 `_`
 - 示例：`SKOLL_SERVER_ADDRESS` → `server.address`
-- 兼容变量：`SKOLL_API_BASE_PREFIX` 和 `SKOLL_SERVER_API_PREFIX` 均映射到 `api.base_prefix`
+- API 前缀变量：`SKOLL_API_BASE_PREFIX` 映射到 `api.base_prefix`
 
 ## 2. 完整配置项参考
 
@@ -39,7 +39,6 @@ configs/skoll.yml
 | `server.address` | string | `:8080` | `SKOLL_SERVER_ADDRESS` | HTTP 监听地址，格式 `:8080` 或 `127.0.0.1:8080` |
 | `server.port` | string | - | `SKOLL_SERVER_PORT` | 监听端口，设置后覆盖 `address` 中的端口部分 |
 | `api.base_prefix` | string | `/skoll` | `SKOLL_API_BASE_PREFIX` | API 路径前缀，所有接口均挂载在此前缀之下 |
-| `server.api_prefix` | string | - | `SKOLL_SERVER_API_PREFIX` | API 前缀（兼容旧版，优先级低于 `api.base_prefix`） |
 | `server.shutdown_timeout` | string | `10s` | `SKOLL_SERVER_SHUTDOWN_TIMEOUT` | 优雅关闭超时时间（Go Duration 格式，如 `30s`、`1m`） |
 
 ### 2.2 store（存储）
@@ -85,7 +84,7 @@ configs/skoll.yml
 
 | 键名 | 类型 | 默认值 | 环境变量 | 说明 |
 |------|------|--------|---------|------|
-| `security.jwt_secret` | string | `dev-secret-change-me` | `SKOLL_JWT_SECRET` | JWT HMAC 签名密钥。**生产环境必须修改为强随机字符串** |
+| `security.jwt_secret` | string | `dev-secret-change-me` | `SKOLL_SECURITY_JWT_SECRET` | JWT HMAC 签名密钥。**生产环境必须修改为强随机字符串** |
 
 认证中间件还读取以下安全环境变量：
 
@@ -168,7 +167,7 @@ event:
   channel_prefix: "skoll.events"
 
 security:
-  jwt_secret: "${SKOLL_JWT_SECRET}"
+  jwt_secret: "<set-through-secret-manager>"
 
 log:
   level: "info"
@@ -190,7 +189,7 @@ export SKOLL_CACHE_MODE="redis"
 export SKOLL_CACHE_REDIS_ADDR="cache.internal:6379"
 export SKOLL_EVENT_MODE="redis"
 export SKOLL_EVENT_REDIS_ADDR="cache.internal:6379"
-export SKOLL_JWT_SECRET="$(openssl rand -hex 32)"
+export SKOLL_SECURITY_JWT_SECRET="$(openssl rand -hex 32)"
 export SKOLL_LOG_LEVEL="warn"
 export SKOLL_LOG_DIR="/var/log/skoll"
 export SKOLL_DEV_PORTAL_ENABLED="false"

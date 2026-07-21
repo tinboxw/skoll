@@ -60,7 +60,7 @@ skoll/
 ```bash
 # 设置环境变量使用内存存储
 $env:SKOLL_STORE_MODE="memory"
-$env:SKOLL_JWT_SECRET="dev-secret-local"
+$env:SKOLL_SECURITY_JWT_SECRET="dev-secret-local-change-me"
 
 # 启动后端
 go run ./cmd/skoll
@@ -95,6 +95,7 @@ npm run dev
 ```bash
 # 健康检查端点（无需认证）
 curl http://localhost:8080/skoll/health
+curl http://localhost:8080/skoll/ready
 
 # Swagger UI（API 文档浏览器）
 # 浏览器访问 http://localhost:8080/skoll/docs/swagger
@@ -123,7 +124,7 @@ curl -H "Authorization: Bearer <token>" http://localhost:8080/skoll/v1/auth/me
 | `SKOLL_SERVER_ADDRESS` | `:8080` | 监听地址 |
 | `SKOLL_STORE_MODE` | `mysql` | 存储模式（memory/mysql/postgres） |
 | `SKOLL_STORE_DSN` | 见配置文件 | 数据库连接串 |
-| `SKOLL_JWT_SECRET` | `dev-secret-change-me` | JWT 签名密钥（**生产必须修改**） |
+| `SKOLL_SECURITY_JWT_SECRET` | `dev-secret-change-me` | JWT 签名密钥（**生产必须修改**） |
 | `SKOLL_LOG_LEVEL` | `info` | 日志级别（debug/info/warn/error） |
 | `SKOLL_DEV_PORTAL_ENABLED` | `false` | 开发者门户开关 |
 | `SKOLL_EVENT_MODE` | `memory` | 事件总线模式（memory/redis） |

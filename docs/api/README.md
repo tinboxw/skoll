@@ -5,7 +5,7 @@
 | 环境 | 基地址 |
 |------|--------|
 | 本地开发 | `http://localhost:8080/skoll` |
-| 可配置 | 通过 `SKOLL_API_BASE_PREFIX` 环境变量或 `server.api_prefix` 配置项修改前缀 |
+| 可配置 | 通过 `SKOLL_API_BASE_PREFIX` 环境变量或 `api.base_prefix` 配置项修改前缀 |
 
 默认 API 前缀为 `/skoll`（由 `pkg/config/loader.go` 中 `DefaultAPIBasePrefix` 常量定义）。
 
@@ -30,7 +30,7 @@ Authorization: Bearer <jwt_token>
 
 **获取 Token**：通过 `POST /skoll/v1/auth/login` 登录接口获取。
 
-JWT 密钥通过 `SKOLL_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置项设置，默认值为 `dev-secret-change-me`（仅限开发环境）。
+JWT 密钥通过 `SKOLL_SECURITY_JWT_SECRET` 环境变量或 `security.jwt_secret` 配置项设置，默认值为 `dev-secret-change-me`（仅限开发环境）。
 
 登录成功后，JWT 由服务端写入以下受信任身份声明：
 

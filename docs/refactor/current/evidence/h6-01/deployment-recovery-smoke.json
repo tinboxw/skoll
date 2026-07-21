@@ -1,0 +1,58 @@
+﻿{
+    "schemaVersion":  "skoll.h6-deployment-recovery.v1",
+    "locale":  "zh-CN",
+    "generatedAt":  "2026-07-21T14:39:46.1589916Z",
+    "environment":  {
+                        "mysqlHost":  "127.0.0.1",
+                        "mysqlPort":  3306,
+                        "docker":  "daemon-unavailable",
+                        "kubernetes":  "kustomize-client-validated"
+                    },
+    "cleanDeployment":  {
+                            "tables":  47,
+                            "health":  "passed",
+                            "readiness":  "passed",
+                            "passed":  true
+                        },
+    "backupRestore":  {
+                          "bytes":  91705,
+                          "sha256":  "0c2d7d1e6e2ddf5fd2eace9c64c0345aa5f3d533770b6bba9133c1a329775e72",
+                          "marker":  "clean-v1",
+                          "passed":  true
+                      },
+    "forwardUpgrade":  {
+                           "from":  20260718000021,
+                           "to":  20260718000022,
+                           "targetTablesBefore":  0,
+                           "targetTablesAfter":  2,
+                           "health":  "passed",
+                           "readiness":  "passed",
+                           "passed":  true
+                       },
+    "rollback":  {
+                     "strategy":  "restore-point",
+                     "backupBytes":  88665,
+                     "targetTablesAfterRollback":  0,
+                     "marker":  "source-v1",
+                     "passed":  true
+                 },
+    "compose":  {
+                    "configValidated":  true,
+                    "persistentVolumes":  [
+                                              "mysql_data",
+                                              "skoll_data",
+                                              "skoll_logs",
+                                              "skoll_plugins"
+                                          ]
+                },
+    "kubernetes":  {
+                       "kustomizeValidated":  true,
+                       "probes":  [
+                                      "/skoll/health",
+                                      "/skoll/ready"
+                                  ],
+                       "secretName":  "skoll-runtime"
+                   },
+    "durationSeconds":  54.95,
+    "passed":  true
+}

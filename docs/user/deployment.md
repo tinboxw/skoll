@@ -1,249 +1,121 @@
-# 部署运维文档
+# 部署、升级与恢复
 
-## 1. 概述
+Skoll 是 Go 单体应用。默认 API 前缀为 `/skoll`，默认界面语言为中文；生产环境应使用 MySQL 或 PostgreSQL、强随机 JWT 密钥和外部密钥管理。
 
-Skoll 是一个 Go 单体应用，编译为单个可执行文件，支持以下部署方式：
+## 部署方式
 
-| 方式 | 适用场景 | 资源文件 |
-|------|---------|---------|
-| 直接运行 | 裸机 / VM | `go build -o skoll ./cmd/skoll` |
-| Docker | 容器化单节点 | `deploy/docker/Dockerfile` |
-| Docker Compose | 开发/测试环境 | `deploy/compose/docker-compose.yaml` |
-| Kubernetes | 生产集群 | `deploy/k8s/deployment.yaml` + `service.yaml` |
+| 方式 | 适用场景 | 入口 |
+| --- | --- | --- |
+| 二进制 | 裸机或 VM | `go build -trimpath -o skoll.exe ./cmd/skoll` |
+| Docker | 单容器 | `deploy/docker/Dockerfile` |
+| Docker Compose | 本地或受控测试 | `deploy/compose/docker-compose.yaml` |
+| Kubernetes | 集群 | `deploy/k8s/kustomization.yaml` |
 
-## 2. Docker 部署
+关键配置：
 
-### 2.1 Dockerfile
+| 环境变量 | 要求 |
+| --- | --- |
+| `SKOLL_SERVER_ADDRESS` | 默认 `:8080` |
+| `SKOLL_API_BASE_PREFIX` | 默认 `/skoll` |
+| `SKOLL_STORE_MODE` | 持久环境使用 `mysql` 或 `postgres` |
+| `SKOLL_STORE_DSN` | 从密钥管理系统注入，不写入镜像或仓库 |
+| `SKOLL_SECURITY_JWT_SECRET` | 必须替换开发默认值，建议至少 32 个随机字符 |
+| `SKOLL_LOG_DIR` / `SKOLL_LOG_FILE` | 确保目录可写或交由标准输出采集 |
 
-`deploy/docker/Dockerfile` 使用多阶段构建：
+## Docker Compose
 
-```dockerfile
-FROM golang:1.22-alpine AS builder
-WORKDIR /src
-COPY go.mod ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/skoll ./cmd/skoll
-
-FROM alpine:3.20
-RUN adduser -D -u 10001 app
-USER app
-WORKDIR /app
-COPY --from=builder /out/skoll /app/skoll
-EXPOSE 8080
-ENTRYPOINT ["/app/skoll"]
+```powershell
+$env:SKOLL_MYSQL_PASSWORD = '<database-user-password>'
+$env:SKOLL_MYSQL_ROOT_PASSWORD = '<database-root-password>'
+$env:SKOLL_SECURITY_JWT_SECRET = '<at-least-32-random-characters>'
+docker compose -f deploy/compose/docker-compose.yaml config --quiet
+docker compose -f deploy/compose/docker-compose.yaml up --build -d
+Invoke-RestMethod http://127.0.0.1:8080/skoll/health
+Invoke-RestMethod http://127.0.0.1:8080/skoll/ready
 ```
 
-### 2.2 构建与运行
+Compose 的 MySQL、应用数据、日志和插件包卷相互独立。普通 `down` 不删除卷；不要在未验证备份时使用 `down --volumes`。
 
-```bash
-# 构建镜像
-docker build -f deploy/docker/Dockerfile -t skoll:latest .
+## Kubernetes
 
-# 运行容器（内存模式）
-docker run -d -p 8080:8080 \
-  -e SKOLL_STORE_MODE=memory \
-  -e SKOLL_JWT_SECRET=my-production-secret \
-  --name skoll skoll:latest
-
-# 运行容器（MySQL 模式）
-docker run -d -p 8080:8080 \
-  -e SKOLL_STORE_MODE=mysql \
-  -e SKOLL_STORE_DSN="user:pass@tcp(host.docker.internal:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local" \
-  -e SKOLL_JWT_SECRET=my-production-secret \
-  --name skoll skoll:latest
+```powershell
+kubectl create secret generic skoll-runtime `
+  --from-literal=SKOLL_STORE_DSN='skoll:<password>@tcp(mysql.example:3306)/skoll?charset=utf8mb4&parseTime=True&loc=UTC' `
+  --from-literal=SKOLL_SECURITY_JWT_SECRET='<at-least-32-random-characters>'
+kubectl kustomize deploy/k8s | Out-Null
+kubectl apply -k deploy/k8s
+kubectl rollout status deployment/skoll --timeout=120s
 ```
 
-## 3. Docker Compose 部署
+基础清单使用非 root 用户、只读根文件系统，并为应用数据和插件包提供独立 PVC。生产 overlay 还必须固定镜像 digest、StorageClass、资源配额、网络策略、Ingress 和 TLS。
 
-`deploy/compose/docker-compose.yaml`：
+## 健康与就绪
 
-```yaml
-version: "3.9"
-services:
-  skoll:
-    build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile
-    image: skoll:local
-    container_name: skoll
-    ports:
-      - "8080:8080"
-    environment:
-      SKOLL_SERVER_ADDRESS: ":8080"
-      SKOLL_STORE_MODE: "memory"
-      SKOLL_JWT_SECRET: "compose-dev-secret"
-    restart: unless-stopped
+| 端点 | 用途 | 认证 |
+| --- | --- | --- |
+| `GET /skoll/health` | 进程存活和 startup/liveness | 无 |
+| `GET /skoll/ready` | 接收流量前的 readiness | 无 |
+
+探针端点只报告运行状态，不执行权限或审计动作。业务 API 仍按 JWT、RBAC 和审计契约执行。
+
+## MySQL 备份与恢复
+
+密码仅通过环境变量传递。备份脚本同时生成 `<backup>.metadata.json`，包含大小和 SHA-256；恢复时会自动校验。
+
+```powershell
+$env:SKOLL_MYSQL_PASSWORD = '<database-password>'
+./scripts/skoll-mysql-backup.ps1 `
+  -Database skoll `
+  -OutputPath ./backup/skoll-20260721.sql `
+  -HostName 127.0.0.1 -Port 3306 -User skoll
+
+./scripts/skoll-mysql-restore.ps1 `
+  -Database skoll_restore_check `
+  -InputPath ./backup/skoll-20260721.sql `
+  -HostName 127.0.0.1 -Port 3306 -User skoll `
+  -AllowRecreate
 ```
 
-```bash
-# 启动
-docker-compose -f deploy/compose/docker-compose.yaml up -d
+`-AllowRecreate` 表示确认删除并重建指定目标库。脚本拒绝系统数据库名；首次恢复应使用隔离库，核对记录数、关键业务数据和应用探针后再制定切换窗口。文件对象、插件包和外部对象存储需要按各自策略备份。
 
-# 停止
-docker-compose -f deploy/compose/docker-compose.yaml down
+## 前向升级
+
+`migrations/mysql/` 是已有版本基线上的增量迁移集合，不是空库安装器。空库安装由当前应用模型创建 schema；升级必须先确认当前版本、做恢复点备份，再执行明确版本区间。
+
+```powershell
+$env:SKOLL_MYSQL_PASSWORD = '<database-password>'
+./scripts/skoll-mysql-upgrade.ps1 `
+  -Database skoll `
+  -FromExclusive 20260718000021 `
+  -ToInclusive 20260718000022 `
+  -BackupPath ./backup/skoll-before-22.sql `
+  -ReportPath ./backup/skoll-upgrade-22.json `
+  -HostName 127.0.0.1 -Port 3306 -User skoll `
+  -AllowUpgrade
 ```
 
-## 4. Kubernetes 部署
+升级脚本先备份，再按文件名前缀顺序执行选定 migration。成功后应启动新版本，验证 `/skoll/health`、`/skoll/ready` 和关键业务读写。
 
-### 4.1 Deployment
+## 回滚
 
-`deploy/k8s/deployment.yaml` 定义单副本 Deployment，包含健康检查探针：
+当前不维护 down migration，也不保留旧接口、旧数据结构、旧插件格式或旧页面路径兼容方案。数据库回滚采用恢复点策略：
 
-```yaml
-spec:
-  replicas: 1
-  template:
-    spec:
-      containers:
-        - name: skoll
-          image: skoll:latest
-          ports:
-            - containerPort: 8080
-          env:
-            - name: SKOLL_SERVER_ADDRESS
-              value: ":8080"
-            - name: SKOLL_STORE_MODE
-              value: "memory"
-            - name: SKOLL_JWT_SECRET
-              value: "k8s-dev-secret"
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 2
-            periodSeconds: 5
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 5
-            periodSeconds: 10
+1. 停止写流量并保留失败升级日志。
+2. 使用升级前备份恢复到新的隔离数据库。
+3. 用旧版本应用验证健康、就绪和关键业务数据。
+4. 完成流量切换；不要在原库上手工逆向删除字段。
+
+## 可重复演练
+
+以下命令会创建并删除随机命名的 `skoll_h6_*` 隔离数据库，必须显式确认：
+
+```powershell
+$env:SKOLL_H6_MYSQL_PASSWORD = '<local-test-password>'
+./scripts/h6-deployment-recovery-smoke.ps1 -AllowDatabaseLifecycle
 ```
 
-### 4.2 Service
+演练覆盖 Compose 清单、Kustomize、二进制构建、MySQL 干净部署、health/readiness、备份校验、隔离恢复、前向升级和恢复点回滚。Docker daemon 未启动时仍会校验 Compose 配置，并在证据中如实记录环境限制。
 
-`deploy/k8s/service.yaml` 定义 ClusterIP 类型服务：
+## English Summary
 
-```yaml
-spec:
-  type: ClusterIP
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-```
-
-### 4.3 部署命令
-
-```bash
-kubectl apply -f deploy/k8s/deployment.yaml
-kubectl apply -f deploy/k8s/service.yaml
-```
-
-## 5. 环境变量完整参考表
-
-所有配置项均支持 `SKOLL_` 前缀的环境变量覆盖（由 `pkg/config/loader.go` 中 Viper 处理）。环境变量名遵循：`SKOLL_<SECTION>_<KEY>`（全大写，下划线分隔）。
-
-### 5.1 服务器配置
-
-| 环境变量 | 配置键 | 默认值 | 说明 |
-|---------|--------|--------|------|
-| `SKOLL_SERVER_ADDRESS` | `server.address` | `:8080` | HTTP 监听地址 |
-| `SKOLL_SERVER_PORT` | `server.port` | - | 监听端口（优先级高于 address） |
-| `SKOLL_API_BASE_PREFIX` | `api.base_prefix` | `/skoll` | API 路径前缀 |
-| `SKOLL_SERVER_API_PREFIX` | `server.api_prefix` | - | API 前缀（兼容旧版） |
-| `SKOLL_SERVER_SHUTDOWN_TIMEOUT` | `server.shutdown_timeout` | `10s` | 优雅关闭超时时间 |
-
-### 5.2 存储配置
-
-| 环境变量 | 配置键 | 默认值 | 说明 |
-|---------|--------|--------|------|
-| `SKOLL_STORE_MODE` | `store.mode` | `mysql` | 存储模式：memory/mysql/postgres |
-| `SKOLL_STORE_DSN` | `store.dsn` | `root:root@tcp(127.0.0.1:3306)/skoll?...` | 数据库连接串 |
-
-### 5.3 缓存配置
-
-| 环境变量 | 配置键 | 默认值 | 说明 |
-|---------|--------|--------|------|
-| `SKOLL_CACHE_MODE` | `cache.mode` | `memory` | 缓存模式：memory/redis/memcached |
-| `SKOLL_CACHE_REDIS_ADDR` | `cache.redis_addr` | `127.0.0.1:6379` | Redis 地址 |
-| `SKOLL_CACHE_MEMCACHED_ADDR` | `cache.memcached_addr` | `127.0.0.1:11211` | Memcached 地址 |
-| `SKOLL_CACHE_LOCAL_SIZE` | `cache.local_size` | `4096` | 本地缓存容量（条目数） |
-
-### 5.4 事件总线配置
-
-| 环境变量 | 配置键 | 默认值 | 说明 |
-|---------|--------|--------|------|
-| `SKOLL_EVENT_MODE` | `event.mode` | `memory` | 事件总线模式：memory/redis |
-| `SKOLL_EVENT_REDIS_ADDR` | `event.redis_addr` | - | Redis 事件总线地址 |
-| `SKOLL_EVENT_CHANNEL_PREFIX` | `event.channel_prefix` | `skoll.events` | 事件频道前缀 |
-
-### 5.5 安全配置
-
-| 环境变量 | 配置键 | 默认值 | 说明 |
-|---------|--------|--------|------|
-| `SKOLL_SECURITY_JWT_SECRET` | `security.jwt_secret` | `dev-secret-change-me` | JWT 签名密钥（**生产必须修改**） |
-
-### 5.6 日志配置
-
-| 环境变量 | 配置键 | 默认值 | 说明 |
-|---------|--------|--------|------|
-| `SKOLL_LOG_LEVEL` | `log.level` | `info` | 日志级别：debug/info/warn/error |
-| `SKOLL_LOG_DIR` | `log.dir` | `log` | 日志文件目录 |
-| `SKOLL_LOG_FILE` | `log.file` | - | 统一日志文件名 |
-| `SKOLL_LOG_PLUGIN_PER_FILE` | `log.plugin_per_file` | `false` | 是否按插件分日志文件 |
-
-### 5.7 开发者配置
-
-| 环境变量 | 配置键 | 默认值 | 说明 |
-|---------|--------|--------|------|
-| `SKOLL_DEV_PORTAL_ENABLED` | `dev.portal_enabled` | `false` | 开启开发者门户 |
-| `SKOLL_DEV_PLUGINS_ROOT` | `dev.plugins_root` | `plugins` | 插件根目录（支持 `;` / `,` 分隔多目录） |
-
-## 6. 存储模式选择
-
-| 环境 | 推荐 | 理由 |
-|------|------|------|
-| 本地开发 | `memory` | 零依赖，快速迭代 |
-| CI/CD 流水线 | `memory` | 环境纯净，无需外部服务 |
-| 测试/预发布 | `mysql` | 与生产一致的数据行为 |
-| 生产环境 | `mysql` / `postgres` | 数据持久化 + 备份恢复 |
-
-## 7. 健康检查端点
-
-| 端点 | 方法 | 认证 | 说明 |
-|------|------|------|------|
-| `/skoll/health` | GET | 否 | 服务健康状态（liveness/readiness probe） |
-| `/skoll/ready` | GET | 否 | 服务就绪状态 |
-
-健康检查端点位于认证中间件白名单中，无需 JWT Token 即可访问。
-
-### K8s 探针配置示例
-
-```yaml
-readinessProbe:
-  httpGet:
-    path: /skoll/health
-    port: 8080
-  initialDelaySeconds: 2
-  periodSeconds: 5
-livenessProbe:
-  httpGet:
-    path: /skoll/health
-    port: 8080
-  initialDelaySeconds: 5
-  periodSeconds: 10
-```
-
-## 8. 启动流程
-
-`cmd/skoll/main.go` → `newServerRunner()` → `bootstrap.NewRunnerFromEnv()`：
-
-1. 加载配置（`pkg/config.Load()`：环境变量 > 配置文件 > 默认值）
-2. 初始化 Logger（Zap）
-3. 创建 Store Bundle（根据 `store.mode` 选择 memory/mysql/postgres）
-4. 构建 5 个 Service（user/role/rbac/audit/system）
-5. 创建 PluginManager（扫描 `plugins/` 目录 + 内置插件）
-6. 构建 HTTP Router（注册 v1 路由 + 中间件链）
-7. 启动 HTTP Server（优雅关闭）
+Skoll supports binary, Docker Compose, and Kubernetes deployments. Use `/skoll/health` for liveness and `/skoll/ready` for readiness. Keep DSNs and `SKOLL_SECURITY_JWT_SECRET` in secret management. MySQL upgrades require a verified restore-point backup and an explicit migration range; rollback restores that backup into an isolated database before traffic is switched.

@@ -9,16 +9,17 @@ go run ./cmd/skoll
 - `SKOLL_SERVER_ADDRESS`
 - `SKOLL_STORE_MODE` (`memory`/`mysql`/`postgres`)
 - `SKOLL_STORE_DSN`
-- `SKOLL_JWT_SECRET`
+- `SKOLL_SECURITY_JWT_SECRET`
 
 ## 健康检查
 ```bash
-curl http://127.0.0.1:8080/health
+curl http://127.0.0.1:8080/skoll/health
+curl http://127.0.0.1:8080/skoll/ready
 ```
 
 ## 创建用户示例
 ```bash
-curl -X POST http://127.0.0.1:8080/v1/users \
+curl -X POST http://127.0.0.1:8080/skoll/v1/users \
 	-H "Content-Type: application/json" \
 	-H "Authorization: Bearer dev-token" \
 	-d '{

@@ -12,6 +12,12 @@ paths:
       responses:
         '200':
           description: OK
+  /ready:
+    get:
+      summary: Readiness check
+      responses:
+        '200':
+          description: Ready
   /v1/auth/login:
     post:
       summary: Login with account and password

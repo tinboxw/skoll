@@ -32,6 +32,24 @@ func (routerAllScopeResolver) ResolveDataScope(_ context.Context, _ rbacsvc.Reso
 	return rbacsvc.DataScopeDecision{All: true}, nil
 }
 
+func TestRouterHealthAndReadinessRoutes(t *testing.T) {
+	router := NewRouter(Dependencies{APIPrefix: "/skoll"})
+	for _, tc := range []struct {
+		path string
+		body string
+	}{
+		{path: "/skoll/health", body: `"code":"ok"`},
+		{path: "/skoll/ready", body: `"code":"ready"`},
+	} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, tc.path, nil)
+		router.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), tc.body) {
+			t.Fatalf("GET %s: status=%d body=%s", tc.path, recorder.Code, recorder.Body.String())
+		}
+	}
+}
+
 func TestRouterDocumentationRoutes(t *testing.T) {
 	router := NewRouter(Dependencies{})
 

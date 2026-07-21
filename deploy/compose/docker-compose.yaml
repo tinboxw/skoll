@@ -1,17 +1,57 @@
-﻿version: "3.9"
-
 services:
-	skoll:
-		build:
-			context: ../..
-			dockerfile: deploy/docker/Dockerfile
-		image: skoll:local
-		container_name: skoll
-		ports:
-			- "8080:8080"
-		environment:
-			SKOLL_SERVER_ADDRESS: ":8080"
-			SKOLL_STORE_MODE: "memory"
-			SKOLL_JWT_SECRET: "compose-dev-secret"
-		restart: unless-stopped
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: skoll
+      MYSQL_USER: skoll
+      MYSQL_PASSWORD: "${SKOLL_MYSQL_PASSWORD:?set SKOLL_MYSQL_PASSWORD}"
+      MYSQL_ROOT_PASSWORD: "${SKOLL_MYSQL_ROOT_PASSWORD:?set SKOLL_MYSQL_ROOT_PASSWORD}"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
 
+  skoll:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    image: "${SKOLL_IMAGE:-skoll:local}"
+    ports:
+      - "${SKOLL_HTTP_PORT:-8080}:8080"
+    environment:
+      SKOLL_SERVER_ADDRESS: ":8080"
+      SKOLL_API_BASE_PREFIX: "/skoll"
+      SKOLL_STORE_MODE: "mysql"
+      SKOLL_STORE_DSN: "skoll:${SKOLL_MYSQL_PASSWORD}@tcp(mysql:3306)/skoll?charset=utf8mb4&parseTime=True&loc=UTC"
+      SKOLL_SECURITY_JWT_SECRET: "${SKOLL_SECURITY_JWT_SECRET:?set SKOLL_SECURITY_JWT_SECRET}"
+      SKOLL_LOG_LEVEL: "${SKOLL_LOG_LEVEL:-info}"
+      SKOLL_LOG_DIR: "/app/log"
+      SKOLL_LOG_FILE: "skoll.log"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - skoll_data:/app/data
+      - skoll_logs:/app/log
+      - skoll_plugins:/app/plugins
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/skoll/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  skoll_data:
+  skoll_logs:
+  skoll_plugins:

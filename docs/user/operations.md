@@ -56,6 +56,7 @@ Health check:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8080/skoll/health
+Invoke-RestMethod http://127.0.0.1:8080/skoll/ready
 ```
 
 ### Docker
@@ -71,15 +72,23 @@ docker run --rm -p 18080:8080 `
 ### Docker Compose
 
 ```powershell
-docker compose -f deploy/compose/docker-compose.yaml up --build
+$env:SKOLL_MYSQL_PASSWORD = "<database-user-password>"
+$env:SKOLL_MYSQL_ROOT_PASSWORD = "<database-root-password>"
+$env:SKOLL_SECURITY_JWT_SECRET = "<replace-with-secret>"
+docker compose -f deploy/compose/docker-compose.yaml config --quiet
+docker compose -f deploy/compose/docker-compose.yaml up --build -d
 docker compose -f deploy/compose/docker-compose.yaml down
 ```
 
 ### Kubernetes
 
 ```powershell
-kubectl apply -f deploy/k8s/deployment.yaml
-kubectl apply -f deploy/k8s/service.yaml
+kubectl create secret generic skoll-runtime `
+  --from-literal=SKOLL_STORE_DSN='<mysql-or-postgres-dsn>' `
+  --from-literal=SKOLL_SECURITY_JWT_SECRET='<replace-with-secret>'
+kubectl kustomize deploy/k8s | Out-Null
+kubectl apply -k deploy/k8s
+kubectl rollout status deployment/skoll --timeout=120s
 kubectl get pods
 kubectl logs deploy/skoll
 ```
@@ -93,15 +102,12 @@ Skoll stores durable business data in the configured SQL database. File/object s
 ### MySQL Backup
 
 ```powershell
-mysqldump --single-transaction --routines --triggers `
-  -u <user> -p skoll > skoll-backup.sql
+$env:SKOLL_MYSQL_PASSWORD = "<database-password>"
+./scripts/skoll-mysql-backup.ps1 -Database skoll -OutputPath ./backup/skoll.sql -User skoll
+./scripts/skoll-mysql-restore.ps1 -Database skoll_restore_check -InputPath ./backup/skoll.sql -User skoll -AllowRecreate
 ```
 
-Restore:
-
-```powershell
-mysql -u <user> -p skoll < skoll-backup.sql
-```
+The backup script writes SHA-256 metadata. Restore recreates only the explicitly named non-system database and requires `-AllowRecreate`. See `docs/user/deployment.md` for forward upgrade and restore-point rollback commands.
 
 ### PostgreSQL Backup
 
@@ -157,7 +163,8 @@ Operational checks:
 
 | Endpoint | Purpose |
 |---|---|
-| `/skoll/health` | Liveness/readiness health check. |
+| `/skoll/health` | Startup and liveness health check. |
+| `/skoll/ready` | Readiness check before accepting traffic. |
 | `/skoll/docs/swagger` | Swagger UI. |
 | `/skoll/docs/openapi.yaml` | OpenAPI YAML. |
 

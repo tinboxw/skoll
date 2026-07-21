@@ -14,6 +14,7 @@
 | Active Work Item table | `hardening_work_items_2026-07-18.md` |
 | Active acceptance log | `hardening_acceptance_log_2026-07-18.md` |
 | Active performance baseline | `performance_capacity_baseline_2026-07-21.md` |
+| Active deployment and recovery rehearsal | `deployment_recovery_rehearsal_2026-07-21.md` |
 | Active H2-05 database acceptance report | `pharma_oa_database_acceptance_2026-07-18.md` |
 | Active batch source | `pharma_oa_milestone_closeout_2026-07-17.md` |
 | Closed Pharma OA parent board | `pharma_oa_task_board.md` |
