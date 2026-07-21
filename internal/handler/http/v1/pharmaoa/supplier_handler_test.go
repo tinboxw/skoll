@@ -3,8 +3,10 @@ package pharmaoa
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 )
@@ -14,14 +16,15 @@ func TestSupplierHandlerCreateReminderAndPurchaseBlock(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterSupplierRoutes(mux, service)
 
-	createResp := performRequest(mux, http.MethodPost, "/v1/pharma-oa/suppliers", []byte(`{
+	expiresAt := time.Now().AddDate(0, 0, 30).Format("2006-01-02")
+	createResp := performRequest(mux, http.MethodPost, "/v1/pharma-oa/suppliers", []byte(fmt.Sprintf(`{
 		"code":"SUP001",
 		"name":"Skoll Medical Supply",
 		"rating":5,
 		"contacts":[{"id":"primary","name":"Jane","phone":"13800000000","email":"jane@skoll.local","primary":true}],
-		"qualifications":[{"id":"gsp","name":"GSP License","number":"GSP-SUP-001","expiresAt":"2026-07-20","attachments":[{"fileId":"file-001","fileName":"gsp-license.pdf","mimeType":"application/pdf","size":1024}]}],
+		"qualifications":[{"id":"gsp","name":"GSP License","number":"GSP-SUP-001","expiresAt":"%s","attachments":[{"fileId":"file-001","fileName":"gsp-license.pdf","mimeType":"application/pdf","size":1024}]}],
 		"actorId":"admin"
-	}`))
+	}`, expiresAt)))
 	if createResp.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", createResp.Code, createResp.Body.String())
 	}

@@ -7,6 +7,7 @@ toolchain go1.24.1
 require (
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/doug-martin/goqu/v9 v9.19.0
+	github.com/go-sql-driver/mysql v1.8.1
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/spf13/viper v1.20.1
 	go.uber.org/zap v1.28.0
@@ -20,7 +21,6 @@ require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
-	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

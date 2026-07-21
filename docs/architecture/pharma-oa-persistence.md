@@ -34,13 +34,13 @@ H2-02 已将员工、药品、供应商、客户和仓库 service 接入 `store.
 
 | 领域 | 核心表 | 关键约束与索引 |
 | --- | --- | --- |
-| 主数据 | employees, products, suppliers, customers, warehouses | code 唯一；药品批准文号唯一；客户按 organization/owner/status 查询 |
+| 主数据 | employees, products, suppliers, customers, warehouses | code 唯一；药品批准文号唯一；客户按 organization/owner/status 查询，范围分支按 organization/status/code 与 owner/status/code 覆盖 |
 | 库存 | stock_batches, stock_balances, stock_ledger, stock_locks, stocktakes, transfers | 批次按 product+batch 唯一；余额按完整库位唯一；ledger idempotency 唯一且不可更新 |
 | 采购 | purchase_requests, purchase_orders, purchase_inbounds | 单号唯一；申请与订单一对一；入库 idempotency 唯一 |
 | 销售 | sales_orders, sales_outbounds | 单号唯一；出库 idempotency 唯一；客户/组织范围有索引 |
 | 协同合规 | announcements, contracts, qualifications, quality_complaints, drug_recalls, cold_chain_records | 合同/投诉/召回单号唯一；资质和合同到期时间可索引扫描；冷链记录不可变 |
 | CRM 财务 | customer_follow_ups, sales_opportunities, payment_plans, invoice_records | owner+organization+status/stage 范围索引；付款计划按销售订单唯一，发票单号唯一 |
-| 作业 | payment_reminder_jobs, inventory_alerts, inventory_alert_jobs, report_export_jobs | 告警位置和作业 idempotency key 唯一；status+created_at 支持重试与清理扫描 |
+| 作业 | payment_reminder_jobs, inventory_alerts, inventory_alert_jobs, report_export_jobs | 告警位置和作业 idempotency key 唯一；告警按 status/type/last_seen_at 聚合，报表队列按 owner/status/created_at 查询 |
 
 数组型附件只保存 file metadata ID；文件内容仍由 object store 管理。当前不需要独立查询的 contacts、attachments、stage history 和 task snapshot 使用 JSON，后续若出现可证明的查询需求再以新的当前 migration 正规化，不保留双写路径。
 

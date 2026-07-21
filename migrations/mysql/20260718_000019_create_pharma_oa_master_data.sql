@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS pharma_oa_customers (
 	updated_by VARCHAR(64) NOT NULL DEFAULT '',
 	UNIQUE KEY uk_pharma_customers_code (code),
 	KEY idx_pharma_customers_scope_status (organization_id, owner_id, status),
+	KEY idx_pharma_customers_org_status_code (organization_id, status, code),
+	KEY idx_pharma_customers_owner_status_code (owner_id, status, code),
 	KEY idx_pharma_customers_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

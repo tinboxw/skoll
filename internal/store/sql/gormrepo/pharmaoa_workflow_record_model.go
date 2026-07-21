@@ -164,15 +164,15 @@ func (PharmaPaymentReminderJobModel) TableName() string { return "pharma_oa_paym
 
 type PharmaInventoryAlertModel struct {
 	ID             string    `gorm:"primaryKey;size:64"`
-	Type           string    `gorm:"size:32;not null;uniqueIndex:uk_pharma_inventory_alert_position,priority:1"`
-	Status         string    `gorm:"size:32;not null;index:idx_pharma_inventory_alerts_status_seen,priority:1"`
+	Type           string    `gorm:"size:32;not null;uniqueIndex:uk_pharma_inventory_alert_position,priority:1;index:idx_pharma_inventory_alerts_status_type_seen,priority:2"`
+	Status         string    `gorm:"size:32;not null;index:idx_pharma_inventory_alerts_status_seen,priority:1;index:idx_pharma_inventory_alerts_status_type_seen,priority:1"`
 	BalanceID      string    `gorm:"size:64;not null;uniqueIndex:uk_pharma_inventory_alert_position,priority:2"`
 	ProductID      string    `gorm:"size:64;not null"`
 	WarehouseID    string    `gorm:"size:64;not null"`
 	BatchID        string    `gorm:"size:64;not null;index"`
 	RecipientID    string    `gorm:"size:64;not null"`
 	NotificationID string    `gorm:"size:128;not null"`
-	LastSeenAt     time.Time `gorm:"not null;index:idx_pharma_inventory_alerts_status_seen,priority:2"`
+	LastSeenAt     time.Time `gorm:"not null;index:idx_pharma_inventory_alerts_status_seen,priority:2;index:idx_pharma_inventory_alerts_status_type_seen,priority:3"`
 	ResolvedAt     *time.Time
 	PayloadJSON    string    `gorm:"type:text;not null"`
 	CreatedAt      time.Time `gorm:"not null"`
@@ -203,8 +203,8 @@ func (PharmaInventoryAlertJobModel) TableName() string { return "pharma_oa_inven
 type PharmaReportExportJobModel struct {
 	ID             string `gorm:"primaryKey;size:64"`
 	ReportType     string `gorm:"size:64;not null"`
-	Status         string `gorm:"size:32;not null;index:idx_pharma_export_jobs_status_created,priority:1"`
-	OwnerID        string `gorm:"size:64;not null;index"`
+	Status         string `gorm:"size:32;not null;index:idx_pharma_export_jobs_status_created,priority:1;index:idx_pharma_export_jobs_owner_status_created,priority:2"`
+	OwnerID        string `gorm:"size:64;not null;index;index:idx_pharma_export_jobs_owner_status_created,priority:1"`
 	IdempotencyKey string `gorm:"size:191;not null;uniqueIndex:uk_pharma_export_jobs_idempotency"`
 	RetryCount     int    `gorm:"not null"`
 	FileID         string `gorm:"size:64;not null;default:''"`
@@ -212,7 +212,7 @@ type PharmaReportExportJobModel struct {
 	StartedAt      *time.Time
 	CompletedAt    *time.Time
 	PayloadJSON    string    `gorm:"type:text;not null"`
-	CreatedAt      time.Time `gorm:"not null;index:idx_pharma_export_jobs_status_created,priority:2"`
+	CreatedAt      time.Time `gorm:"not null;index:idx_pharma_export_jobs_status_created,priority:2;index:idx_pharma_export_jobs_owner_status_created,priority:3"`
 	UpdatedAt      time.Time `gorm:"not null"`
 	CreatedBy      string    `gorm:"size:64;not null;default:''"`
 	UpdatedBy      string    `gorm:"size:64;not null;default:''"`

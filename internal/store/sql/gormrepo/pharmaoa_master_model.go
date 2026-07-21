@@ -66,13 +66,13 @@ func (PharmaSupplierModel) TableName() string { return "pharma_oa_suppliers" }
 
 type PharmaCustomerModel struct {
 	ID                 string    `gorm:"column:id;type:varchar(64);primaryKey"`
-	Code               string    `gorm:"column:code;type:varchar(128);not null;uniqueIndex:uk_pharma_customers_code"`
+	Code               string    `gorm:"column:code;type:varchar(128);not null;uniqueIndex:uk_pharma_customers_code;index:idx_pharma_customers_org_status_code,priority:3;index:idx_pharma_customers_owner_status_code,priority:3"`
 	Name               string    `gorm:"column:name;type:varchar(255);not null;index:idx_pharma_customers_name"`
 	Region             string    `gorm:"column:region;type:varchar(128)"`
-	OrganizationID     string    `gorm:"column:organization_id;type:varchar(64);index:idx_pharma_customers_scope_status,priority:1"`
-	OwnerID            string    `gorm:"column:owner_id;type:varchar(64);index:idx_pharma_customers_scope_status,priority:2"`
+	OrganizationID     string    `gorm:"column:organization_id;type:varchar(64);index:idx_pharma_customers_scope_status,priority:1;index:idx_pharma_customers_org_status_code,priority:1"`
+	OwnerID            string    `gorm:"column:owner_id;type:varchar(64);index:idx_pharma_customers_scope_status,priority:2;index:idx_pharma_customers_owner_status_code,priority:1"`
 	Rating             int       `gorm:"column:rating;not null"`
-	Status             string    `gorm:"column:status;type:varchar(32);not null;index:idx_pharma_customers_scope_status,priority:3"`
+	Status             string    `gorm:"column:status;type:varchar(32);not null;index:idx_pharma_customers_scope_status,priority:3;index:idx_pharma_customers_org_status_code,priority:2;index:idx_pharma_customers_owner_status_code,priority:2"`
 	DisableReason      string    `gorm:"column:disable_reason;type:varchar(512)"`
 	ContactsJSON       string    `gorm:"column:contacts_json;type:text"`
 	QualificationsJSON string    `gorm:"column:qualifications_json;type:text"`

@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS pharma_oa_customers (
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_pharma_customers_code ON pharma_oa_customers (code);
 CREATE INDEX IF NOT EXISTS idx_pharma_customers_scope_status ON pharma_oa_customers (organization_id, owner_id, status);
+CREATE INDEX IF NOT EXISTS idx_pharma_customers_org_status_code ON pharma_oa_customers (organization_id, status, code);
+CREATE INDEX IF NOT EXISTS idx_pharma_customers_owner_status_code ON pharma_oa_customers (owner_id, status, code);
 CREATE INDEX IF NOT EXISTS idx_pharma_customers_name ON pharma_oa_customers (name);
 
 CREATE TABLE IF NOT EXISTS pharma_oa_warehouses (

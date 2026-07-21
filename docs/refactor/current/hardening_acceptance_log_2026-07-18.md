@@ -795,3 +795,55 @@ git diff --check
 ### Next Step
 
 父任务 H4 完成。按正式 Work Item 顺序领取 `H5-01`，建立数据库代表性数据集、查询计划、P95/P99 与慢查询预算。
+
+## H5-01 数据库查询与索引基准
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 为 Pharma OA 的常用列表、仪表盘、库存、组织/负责人范围和报表队列建立 MySQL 代表性数据集、查询计划、P50/P95/P99 与慢查询预算；同步 GORM、MySQL/PostgreSQL 基线 migration、机器可读 schema 和持久化文档中的索引契约。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 代表性数据集 | Pass | `cmd/skoll-db-benchmark` 在 MySQL 5.7.26 中生成 50,000 行隔离夹具：客户 10,000、库存余额 20,000、库存预警 10,000、报表任务 10,000；仅允许显式 `--allow-write-fixtures` 写入，运行前后按 `h5-bench-` 前缀清理，最终四表残留均为 0。 |
+| 查询计划与索引 | Pass | 6/6 查询使用 `ref` 访问并命中约定索引：客户常用列表、预警仪表盘、库存位置、组织范围、负责人范围和报表队列分别命中 `idx_pharma_customers_scope_status`、`idx_pharma_inventory_alerts_status_type_seen`、`uk_pharma_balance_position`、`idx_pharma_customers_org_status_code`、`idx_pharma_customers_owner_status_code`、`idx_pharma_export_jobs_owner_status_created`。 |
+| P95/P99 与预算 | Pass | 每个查询预热 10 次并计时 100 次；P95 依次为 4.9154、20.2846、5.0241、2.5645、2.6405、4.6185 ms，均低于 25 ms 或仪表盘 40 ms 预算；P99 依次为 5.4790、22.4239、5.7937、3.1228、2.8340、5.4282 ms。完整机器可读结果保存在 `docs/refactor/current/evidence/h5-01/mysql-query-benchmark.json`。 |
+| Schema 与 migration | Pass | 新增四个复合索引契约，并同步 GORM model、repository schema、MySQL/PostgreSQL 干净基线 migration 和 `docs/architecture/pharma-oa-persistence.md`；真实 MySQL migration 合同连续执行两次通过，验证建表和幂等升级路径。 |
+| 安全与可重复性 | Pass | 基准工具要求 DSN 明确选择数据库，不输出 DSN/凭据；PowerShell 包装脚本使用框架一致的 `zh-CN` 默认中文并支持英文提示，参数限制为 5,000-100,000 基础行和 20-1,000 次迭代。 |
+| 质量门禁 | Pass | 聚焦 Go 测试、真实 MySQL migration 合同、`go test ./...`、`go vet ./...`、证据 JSON 逐查询断言和 `git diff --check` 全部通过；同步修复供应商资质测试的固定日期漂移，使其继续验证 30 天有效期与 60 天提醒语义。 |
+| API/权限/审计/migration/seed | Pass | 本项未改变 HTTP/OpenAPI 契约、权限键或审计动作；migration 与 schema 索引已同步，未新增 seed。基准夹具仅在显式写入模式创建，验收后无残留。 |
+| CodeGraph 与边界 | Pass | 同步后索引为 706 files / 15,205 nodes / 46,609 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有文档、本地索引、IDE 或运行数据。 |
+
+### Verification Commands
+
+```powershell
+$env:SKOLL_BENCHMARK_MYSQL_DSN = 'root:root@tcp(127.0.0.1:3306)/skoll?charset=utf8mb4&parseTime=True&loc=Local'
+go run ./cmd/skoll-db-benchmark --allow-write-fixtures --rows 10000 --iterations 100 --output docs/refactor/current/evidence/h5-01/mysql-query-benchmark.json
+./scripts/benchmark-pharma-oa-mysql.ps1 -Rows 10000 -Iterations 100 -OutputPath tmp/h5-01-wrapper-final.json
+$env:SKOLL_TEST_MYSQL_DSN = 'root:root@tcp(127.0.0.1:3306)/skoll_acceptance?charset=utf8mb4&parseTime=True&loc=Local'
+go test ./internal/store/sql/gormrepo -run '^TestPharmaMigrationSQLMySQL$' -count=1 -v
+go test ./cmd/skoll-db-benchmark ./internal/repository/pharmaoa ./internal/store/sql/gormrepo ./internal/handler/http/v1/pharmaoa
+go test ./...
+go vet ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首次造数在第 5,000 行触发库存位置唯一键冲突。 | 将库存批次 ID 改为全数据集唯一值，清理夹具后重新造数。 |
+| 2 | Failed -> Doing | 基线计划中预警仪表盘 P95 为 87.898 ms，范围与报表查询缺少规定索引。 | 补充复合索引并同步 model、schema、双数据库 migration 与文档。 |
+| 3 | Failed -> Doing | 首轮调优后仪表盘仍选择旧索引且 P95 为 89.306 ms，范围查询中的 OR 条件阻碍复合索引。 | 调整预警索引列顺序，将组织和负责人范围拆为独立基准。 |
+| 4 | Failed -> Doing | 组织范围使用 IN 条件时优化器仍选择客户编码索引。 | 按实际单组织数据范围改为等值条件，复验命中 `idx_pharma_customers_org_status_code`。 |
+| 5 | Failed -> Doing | 全量 Go 测试发现供应商资质夹具中的固定日期已随当前日期失效。 | 使用相对当前时间的 30 天有效期，保留 60 天到期提醒语义后重跑全量测试。 |
+| 6 | Failed -> Doing | 包装脚本使用 1,000 行小样本时优化器选择旧预警索引，不能代表生产查询计划。 | 将最小基础数据集提升到 5,000 行，并以 10,000 行、100 次迭代完成正式复验。 |
+| 7 | Failed -> Doing | 最终夹具核对首次使用了不存在的无前缀表名。 | 读取实际 migration 表名，改用 `pharma_oa_*` 四张表重试。 |
+| 8 | Failed -> Doing | 第二次夹具核对错误引用库存余额不存在的 `batch_no` 字段。 | 与基准工具的清理实现统一按 `id LIKE 'h5-bench-%'` 断言，四表均返回 0。 |
+
+### Next Step
+
+父任务 H5 进入 `Doing`。按正式 Work Item 顺序领取 `H5-02`，实现服务端分页与前端大列表性能基线。
