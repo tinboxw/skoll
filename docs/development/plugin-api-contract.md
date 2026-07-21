@@ -13,6 +13,7 @@
 ```yaml
 id: pharma_oa
 version: 1.0.0
+service_base_url: http://127.0.0.1:18090
 api:
   routes:
     - method: GET
@@ -24,6 +25,8 @@ api:
 
 安装预检会校验 method、path、permission、audit action 和来源。无效声明不会进入路由权限注册表或聚合 OpenAPI。
 
+`service_base_url` 是插件后端的 HTTP(S) 基地址。Skoll 仅执行 `api.routes` 中明确声明的 method/path，并将声明路径追加到该基地址。例如，上述请求会发送到 `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`。如果基地址带路径前缀，该前缀会保留。
+
 ## 运行时行为
 
 | 插件状态 | 业务路由执行 | 聚合 OpenAPI |
@@ -34,6 +37,15 @@ api:
 | Uninstalled | 不可执行 | 移除 |
 
 插件页面和静态资源使用独立的公开边界；`/v1/plugins/{pluginId}/api/*` 始终属于受保护业务 API。缺少路由解析器、权限声明或权限检查器时，服务端默认拒绝请求。
+
+通过认证与授权后，Skoll 会把请求 method、声明路径、query、body 和普通请求头发送到插件后端，并把后端 status、响应头和 body 返回给调用方。后端不可达或缺少执行配置时不会返回占位成功。
+
+| HTTP | Code | 含义 |
+| --- | --- | --- |
+| 502 | `plugin_route_unavailable` | 主机没有可用的插件路由执行器 |
+| 502 | `plugin_backend_unavailable` | 插件后端连接或执行失败 |
+| 503 | `plugin_backend_not_configured` | 已声明业务路由但未配置有效后端地址 |
+| 503 | `plugin_not_enabled` | 插件当前未启用 |
 
 ## 聚合元数据
 

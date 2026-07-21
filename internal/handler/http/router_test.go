@@ -522,7 +522,7 @@ func (m *fakePluginManager) RegisterExternalPlugin(info plugin.Info) error {
 	return nil
 }
 
-func TestRouterMountsEnabledPluginExtensionRoutes(t *testing.T) {
+func TestRouterFailsClosedWithoutPluginRouteExecutor(t *testing.T) {
 	manager := &fakePluginManager{
 		items: []plugin.Info{
 			{ID: "demo", State: plugin.StateEnabled},
@@ -538,19 +538,18 @@ func TestRouterMountsEnabledPluginExtensionRoutes(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/skoll/v1/demo/ping", nil)
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK {
+	if resp.Code != http.StatusBadGateway {
 		t.Fatalf("plugin route status=%d body=%s", resp.Code, resp.Body.String())
 	}
 
 	var body struct {
-		Code string            `json:"code"`
-		Data map[string]string `json:"data"`
+		Code string `json:"code"`
 	}
 	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body error: %v", err)
 	}
-	if body.Data["plugin"] != "demo" || body.Data["route"] != "/v1/demo/ping" {
-		t.Fatalf("unexpected body data: %+v", body.Data)
+	if body.Code != "plugin_route_unavailable" {
+		t.Fatalf("unexpected response code: %s", body.Code)
 	}
 }
 

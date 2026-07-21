@@ -243,12 +243,7 @@ func pluginRouteHandler(manager plugin.Manager, pluginID, method, path string) f
 				return
 			}
 		}
-		WriteJSON(w, http.StatusOK, map[string]string{
-			"plugin": pluginID,
-			"method": method,
-			"route":  path,
-			"status": "registered",
-		})
+		WriteMessage(w, http.StatusBadGateway, "plugin_route_unavailable", "插件路由不可用")
 	}
 }
 

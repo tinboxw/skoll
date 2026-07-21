@@ -70,3 +70,48 @@ Result: document links, Work Item field/count/status checks, archive boundary ch
 ### Commit
 
 `PR0-00: establish plugin runtime batch`
+
+## PR1-01 Execute Declared External Plugin Routes
+
+- Date: 2026-07-21
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Replace placeholder route success with declared-route validation and real HTTP execution against `service_base_url`.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Real execution | Pass | Full Router test reaches an `httptest` plugin backend through the `/skoll` prefix and manifest-declared route |
+| Request preservation | Pass | Method, base-path join, declared path, query, body, and ordinary request header assertions pass |
+| Response preservation | Pass | Backend HTTP 201, response header, and raw JSON body reach the caller unchanged |
+| Fail closed | Pass | Missing backend returns 503, unreachable backend returns 502, disabled plugin returns 503, and missing executor returns 502; no placeholder 200 remains |
+| Declaration boundary | Pass | A method/path pair absent from `api.routes` is not executed |
+| Contract documentation | Pass | Chinese-default and English plugin API references define `service_base_url`, forwarding behavior, and stable failure codes |
+| Quality gates | Pass | Focused tests, race tests, vet, full Go suite, diff check, and CodeGraph sync pass |
+
+### Verification Commands
+
+```powershell
+go test ./internal/bootstrap ./internal/handler/http/... ./internal/plugin/... -count=1
+go test -race ./internal/bootstrap ./internal/handler/http ./internal/plugin/... -count=1
+go vet ./internal/bootstrap ./internal/handler/http/... ./internal/plugin/...
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: all commands passed; CodeGraph synchronized 4 changed Go files.
+
+### Impact Review
+
+- API/OpenAPI: no new path or schema; execution semantics for existing declared plugin routes changed from placeholder success to real backend response.
+- Permission/audit: existing JWT, route permission, and audit middleware remain in front of the executor.
+- Migration/seed: no impact.
+- Frontend/i18n: no client change; stable Chinese-default runtime error messages added.
+- Documentation: Chinese and English plugin API contracts updated.
+- Compatibility: none; current manifest contracts only.
+
+### Commit
+
+`PR1-01: execute external plugin routes`

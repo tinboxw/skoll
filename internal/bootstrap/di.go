@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -342,11 +344,73 @@ func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path s
 	m.mu.RLock()
 	h, ok := m.routeHandlers[key]
 	m.mu.RUnlock()
-	if !ok {
+	if ok {
+		h(w, r)
+		return true
+	}
+
+	if m.Manager == nil {
 		return false
 	}
-	h(w, r)
+	info, err := m.Manager.Get(strings.TrimSpace(pluginID))
+	if err != nil {
+		return false
+	}
+	declared, err := pluginRouteDeclared(info, method, path)
+	if err != nil {
+		httpHandler.WriteMessage(w, http.StatusServiceUnavailable, "plugin_manifest_invalid", "插件清单无效")
+		return true
+	}
+	if !declared {
+		return false
+	}
+	if info.State != plugin.StateEnabled {
+		httpHandler.WriteMessage(w, http.StatusServiceUnavailable, "plugin_not_enabled", "插件未启用")
+		return true
+	}
+
+	target, err := parsePluginServiceURL(info.ServiceBaseURL)
+	if err != nil {
+		httpHandler.WriteMessage(w, http.StatusServiceUnavailable, "plugin_backend_not_configured", "插件后端未配置")
+		return true
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	director := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		director(req)
+		req.Host = target.Host
+	}
+	proxy.ErrorHandler = func(response http.ResponseWriter, _ *http.Request, _ error) {
+		httpHandler.WriteMessage(response, http.StatusBadGateway, "plugin_backend_unavailable", "插件后端不可用")
+	}
+	proxy.ServeHTTP(w, r)
 	return true
+}
+
+func pluginRouteDeclared(info plugin.Info, method, path string) (bool, error) {
+	routes, err := info.RouteExtensions()
+	if err != nil {
+		return false, err
+	}
+	wantMethod := strings.ToUpper(strings.TrimSpace(method))
+	wantPath := plugin.NormalizeEntryPath(path)
+	for _, route := range routes {
+		if strings.ToUpper(strings.TrimSpace(route.Method)) == wantMethod && plugin.NormalizeEntryPath(route.Path) == wantPath {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func parsePluginServiceURL(raw string) (*url.URL, error) {
+	target, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || target == nil || target.Host == "" {
+		return nil, plugin.ErrPluginManifestBroken
+	}
+	if target.Scheme != "http" && target.Scheme != "https" {
+		return nil, plugin.ErrPluginManifestBroken
+	}
+	return target, nil
 }
 
 func (m *pluginManagerWithExtensions) GetExtensionSnapshot(pluginID string) (plugin.RegistrySnapshot, bool) {

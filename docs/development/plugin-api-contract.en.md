@@ -13,6 +13,7 @@ Every business route must live under `/v1/plugins/{pluginId}/api/` and declare a
 ```yaml
 id: pharma_oa
 version: 1.0.0
+service_base_url: http://127.0.0.1:18090
 api:
   routes:
     - method: GET
@@ -24,6 +25,8 @@ api:
 
 Install preflight validates the method, path, permission, audit action, and source. Invalid declarations do not enter the route-permission registry or aggregated OpenAPI document.
 
+`service_base_url` is the plugin backend HTTP(S) base URL. Skoll executes only method/path pairs declared in `api.routes` and appends the declared path to this base. For example, the request above is sent to `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`. A path prefix in the base URL is preserved.
+
 ## Runtime Behavior
 
 | Plugin state | Business route execution | Aggregated OpenAPI |
@@ -34,6 +37,15 @@ Install preflight validates the method, path, permission, audit action, and sour
 | Uninstalled | Not executable | Removed |
 
 Plugin pages and static assets use a separate bounded public policy. `/v1/plugins/{pluginId}/api/*` is always a protected business API. A missing route resolver, permission declaration, or permission checker fails closed.
+
+After authentication and authorization, Skoll forwards the request method, declared path, query, body, and ordinary request headers to the plugin backend. The backend status, response headers, and body are returned to the caller. An unreachable backend or missing execution configuration never produces placeholder success.
+
+| HTTP | Code | Meaning |
+| --- | --- | --- |
+| 502 | `plugin_route_unavailable` | The host has no available plugin route executor |
+| 502 | `plugin_backend_unavailable` | The plugin backend connection or execution failed |
+| 503 | `plugin_backend_not_configured` | A business route is declared without a valid backend URL |
+| 503 | `plugin_not_enabled` | The plugin is not enabled |
 
 ## Aggregated Metadata
 

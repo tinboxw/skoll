@@ -3,12 +3,14 @@ package bootstrap
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 
+	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/pkg/logging"
 )
@@ -343,4 +345,118 @@ func TestPluginManagerWithExtensionsBuiltinRouteHandlers(t *testing.T) {
 			t.Fatalf("expected widget payload")
 		}
 	})
+}
+
+func TestPluginManagerWithExtensionsProxiesDeclaredExternalRoute(t *testing.T) {
+	const routePath = "/v1/plugins/reports/api/items"
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method=%s", r.Method)
+		}
+		if r.URL.Path != "/runtime"+routePath {
+			t.Errorf("path=%s", r.URL.Path)
+		}
+		if r.URL.RawQuery != "page=2" {
+			t.Errorf("query=%s", r.URL.RawQuery)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read body: %v", err)
+		}
+		if string(body) != `{"name":"monthly"}` {
+			t.Errorf("body=%s", body)
+		}
+		if r.Header.Get("X-Request-ID") != "request-42" {
+			t.Errorf("request header not forwarded")
+		}
+		w.Header().Set("X-Plugin-Response", "reports")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"source":"plugin-backend"}`))
+	}))
+	defer backend.Close()
+
+	manager := newExternalRouteTestManager(backend.URL+"/runtime", plugin.StateEnabled)
+	router := httpHandler.NewRouter(httpHandler.Dependencies{PluginManager: manager})
+	req := httptest.NewRequest(http.MethodPost, "/skoll"+routePath+"?page=2", bytes.NewBufferString(`{"name":"monthly"}`))
+	req.Header.Set("X-Request-ID", "request-42")
+	resp := httptest.NewRecorder()
+
+	router.ServeHTTP(resp, req)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+	}
+	if resp.Header().Get("X-Plugin-Response") != "reports" {
+		t.Fatalf("backend response header was not preserved")
+	}
+	if resp.Body.String() != `{"source":"plugin-backend"}` {
+		t.Fatalf("body=%s", resp.Body.String())
+	}
+}
+
+func TestPluginManagerWithExtensionsExternalRouteFailures(t *testing.T) {
+	const routePath = "/v1/plugins/reports/api/items"
+
+	tests := []struct {
+		name       string
+		serviceURL string
+		state      plugin.State
+		method     string
+		handled    bool
+		status     int
+		code       string
+	}{
+		{name: "missing backend", state: plugin.StateEnabled, method: http.MethodPost, handled: true, status: http.StatusServiceUnavailable, code: "plugin_backend_not_configured"},
+		{name: "disabled", serviceURL: "http://127.0.0.1:1", state: plugin.StateDisabled, method: http.MethodPost, handled: true, status: http.StatusServiceUnavailable, code: "plugin_not_enabled"},
+		{name: "unreachable", serviceURL: "http://127.0.0.1:1", state: plugin.StateEnabled, method: http.MethodPost, handled: true, status: http.StatusBadGateway, code: "plugin_backend_unavailable"},
+		{name: "undeclared method", serviceURL: "http://127.0.0.1:1", state: plugin.StateEnabled, method: http.MethodDelete, handled: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			manager := newExternalRouteTestManager(tt.serviceURL, tt.state)
+			req := httptest.NewRequest(tt.method, routePath, nil)
+			resp := httptest.NewRecorder()
+			handled := manager.HandlePluginRoute("reports", tt.method, routePath, resp, req)
+			if handled != tt.handled {
+				t.Fatalf("handled=%v want=%v", handled, tt.handled)
+			}
+			if !tt.handled {
+				return
+			}
+			if resp.Code != tt.status {
+				t.Fatalf("status=%d want=%d body=%s", resp.Code, tt.status, resp.Body.String())
+			}
+			var body struct {
+				Code string `json:"code"`
+			}
+			if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if body.Code != tt.code {
+				t.Fatalf("code=%s want=%s", body.Code, tt.code)
+			}
+		})
+	}
+}
+
+func newExternalRouteTestManager(serviceURL string, state plugin.State) *pluginManagerWithExtensions {
+	const routePath = "/v1/plugins/reports/api/items"
+	return &pluginManagerWithExtensions{
+		Manager: &fakeManager{items: map[string]plugin.Info{
+			"reports": {
+				ID:             "reports",
+				Name:           "Reports",
+				Version:        "1.0.0",
+				State:          state,
+				ServiceBaseURL: serviceURL,
+				APIContract: &plugin.APIContract{Routes: []plugin.APIRoute{{
+					Method: http.MethodPost,
+					Path:   routePath,
+				}}},
+			},
+		}},
+		builtinInfos:  map[string]plugin.Info{},
+		extensions:    map[string]plugin.RegistrySnapshot{},
+		routeHandlers: map[string]http.HandlerFunc{},
+	}
 }
