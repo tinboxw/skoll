@@ -586,3 +586,91 @@ Result: all acceptance gates passed after three recorded retries. The frontend b
 ### Commit
 
 `PR1-08: move Pharma OA behind plugin boundary`
+
+## PR1-09 Retry Record 1
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: real plugin runtime milestone E2E
+- Evidence: external service startup passed the installed plugin state to the real HTTP health checker, which correctly returned `plugin_not_enabled`; the enable endpoint failed with `service_start_failed` before the runtime could enter enabled state.
+- Retry action: probe startup readiness with the pending enabled state while preserving the committed lifecycle transition order, then rerun the same install/migrate/start/auth/route/audit/event/disable/uninstall test.
+
+## PR1-09 Close Real Plugin Runtime Milestone
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Close the first plugin-runtime milestone with one real external plugin fixture that crosses metadata, migration, service supervision, HTTP health, JWT, RBAC, route dispatch, audit, event delivery, disable, stop, and destructive uninstall boundaries.
+
+### Lifecycle E2E
+
+| Step | Result | Evidence |
+| --- | --- | --- |
+| Install | Pass | Current manifest loads into `installed` state without creating runtime data tables |
+| Migrate | Pass | Enable applies the SQLite migration and creates the plugin-owned table transactionally |
+| Start | Pass | External service launcher uses the real HTTP health checker and reaches `ready` |
+| Enable | Pass | HTTP lifecycle endpoint enables the plugin, publishes route permissions, registers events, and records lifecycle audit |
+| Authenticate | Pass | Missing and invalid JWT requests return 401 before the plugin backend is called |
+| Authorize | Pass | Denied users, undeclared routes, and undeclared methods return 403 without backend execution; authorized and super-admin requests pass |
+| Execute | Pass | Query parameters reach the external service and its exact JSON response returns through the runtime proxy; call counts prove no placeholder response |
+| Audit | Pass | Successful enable/route/disable/uninstall actions and the denied permission attempt exist in the audit-event test store |
+| Event | Pass | One declared event reaches `/_skoll/events` with the current envelope and headers; duplicate event ID is idempotent |
+| Disable | Pass | HTTP lifecycle endpoint removes route permissions and event subscriptions immediately |
+| Stop | Pass | Disable stops the supervised service and records `stopped` state |
+| Uninstall | Pass | HTTP lifecycle endpoint runs the `drop` policy, removes the table and ledger, and leaves runtime state `uninstalled` |
+
+### Security Matrix
+
+| Scenario | Expected | Result |
+| --- | --- | --- |
+| No bearer token | 401; backend calls unchanged | Pass |
+| Invalid bearer token | 401; backend calls unchanged | Pass |
+| Valid user without route permission | 403; security denial audited; backend calls unchanged | Pass |
+| Valid user with route permission | 200; exact external response; plugin-route audit recorded | Pass |
+| Super admin on declared route | 200; manifest declaration still required | Pass |
+| Super admin on undeclared path | 403; backend calls unchanged | Pass |
+| Super admin using undeclared method | 403; backend calls unchanged | Pass |
+| Authorized user after disable | 403; backend calls unchanged | Pass |
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Real runtime fixture | Pass | `TestPluginRuntimeMilestoneEndToEnd` uses `httptest.Server`, real HTTP health/event clients, reverse proxy, JWT parser, permission checker, audit store, and SQLite migration store |
+| Startup ordering | Pass | Service readiness probes use the pending enabled state while the durable runtime state changes only after startup succeeds |
+| Runtime execution | Pass | Declared enabled routes execute the external backend; missing backend, undeclared, unauthorized, denied, disabled, and uninstalled states fail closed |
+| Concurrency | Pass | Bootstrap, all plugin packages, and the full HTTP stack pass the race detector, including lifecycle and event tests |
+| Repository scan | Pass | Runtime execution paths contain no placeholder or mock-success response; remaining hits are config-schema placeholder fields and future generator scaffold text outside runtime execution |
+| Backend quality | Pass | Focused runtime packages, all Go packages, and `go vet ./...` pass |
+| CodeGraph | Pass | Impact analysis for `pluginManagerWithExtensions.Enable` covers bootstrap assembly and every direct lifecycle test; the refreshed index is current |
+| Milestone dependencies | Pass | PR1-01 through PR1-08 are Done and their acceptance records remain linked in this batch log |
+
+### Verification Commands
+
+```powershell
+go test ./internal/bootstrap -run TestPluginRuntimeMilestoneEndToEnd -count=1 -v
+go test ./internal/bootstrap ./internal/plugin/... ./internal/handler/http/... -count=1 -timeout 300s
+go test -race ./internal/bootstrap ./internal/plugin/... ./internal/handler/http/... -count=1 -timeout 300s
+go test ./... -count=1 -timeout 300s
+go vet ./...
+rg -n -i "placeholder|mock success|not implemented|todo" internal/plugin internal/bootstrap/di.go internal/handler/http/router.go internal/handler/http/v1/plugin --glob '*.go'
+codegraph impact pluginManagerWithExtensions.Enable
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: all gates passed after one recorded retry. The race batch completed successfully across Bootstrap, every plugin package, and the HTTP stack. The E2E retry exposed and fixed a real startup-order bug that fixed health-check fixtures did not detect.
+
+### Impact Review
+
+- Lifecycle: external startup now probes readiness as the pending enabled state; the manager still commits enabled state only after service startup and keeps the existing stop-on-failure compensation.
+- API/security: no endpoint or permission contract changed; the new matrix proves current JWT, RBAC, manifest, and disabled-state behavior.
+- Audit/events: no schema changed; tests verify current lifecycle, route, denial, and event envelope contracts together.
+- Migration/data: no production migration added; the isolated fixture proves apply and `drop` uninstall against SQLite.
+- Frontend: no frontend source changed; PR1-08 already passed typecheck, build, i18n, accessibility, and large-list gates for the same runtime boundary.
+- Compatibility: none; no bridge, fallback, dual path, legacy fixture, or placeholder business response was added.
+
+### Commit
+
+`PR1-09: close plugin runtime milestone`

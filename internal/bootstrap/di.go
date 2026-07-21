@@ -741,7 +741,9 @@ func (m *pluginManagerWithExtensions) Enable(pluginID string) error {
 	}
 	serviceStarted := false
 	if info, err := m.getCurrent(pluginID); err == nil && info.State != plugin.StateEnabled && strings.TrimSpace(info.ServiceBaseURL) != "" && m.serviceSupervisor != nil {
-		if err := m.serviceSupervisor.Start(context.Background(), info); err != nil {
+		probeInfo := info
+		probeInfo.State = plugin.StateEnabled
+		if err := m.serviceSupervisor.Start(context.Background(), probeInfo); err != nil {
 			return err
 		}
 		serviceStarted = true
