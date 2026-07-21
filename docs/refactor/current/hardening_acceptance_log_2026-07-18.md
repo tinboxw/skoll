@@ -906,3 +906,52 @@ git diff --check
 ### Next Step
 
 父任务 H5 保持 `Doing`。按正式 Work Item 顺序领取 `H5-03`，验证长任务、重试、死信、资源稳定性和监控阈值。
+
+## H5-03 长任务、重试与资源稳定性
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 为主数据导入导出、逾期提醒、异步报表导出和插件业务事件建立可重复 race/soak 验收；补齐事件重试耗尽或处理器卸载后的可观测 `dead_letter` 终态，并输出 P50/P95/P99、堆与 goroutine 增量、重试、死信和重复副作用阈值证据。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 导入导出 soak | Pass | 主数据导入、重复提交与 XLSX 导出执行 100 次，100/100 成功；P50/P95/P99 为 11.1640/16.6587/19.9975 ms，堆增长 78,360 B，goroutine 增长 0，重复副作用 0。 |
+| 提醒与报表重试 | Pass | 逾期提醒和真实异步报表各执行 100 次“首次失败 -> 重试成功 -> 幂等重放”；两类任务均 100/100 成功、各记录 100 次重试、重复通知/文件为 0，goroutine 增长均为 0；报表 P95/P99 为 17.1745/27.0794 ms。 |
+| 插件事件与死信 | Pass | 插件事件执行 100 次临时失败与重试，100/100 成功，P95/P99 为 0.6801/0.9548 ms；永久失败在第 3 次尝试后进入 1 条 `dead_letter`，处理器卸载同样进入死信并向调用者返回错误，后续不会再次调度。 |
+| 指标与告警阈值 | Pass | `internal/testing/jobsoak` 统一计算延迟分位数、堆/goroutine 增量、失败、重试、死信和重复副作用；独立阈值单测证明超限会使报告失败，`h5-job-metrics-audit.ps1` 强制校验 schema、`zh-CN`、race 标记及全部阈值。 |
+| 可重复脚本与证据 | Pass | `scripts/h5-job-soak.ps1 -Iterations 100` 在 Windows PowerShell 下完成两组 race 测试和指标审计；`docs/refactor/current/evidence/h5-03/` 保存三份机器可读 JSON、中文 README 与英文摘要。 |
+| 质量门禁 | Pass | `go test ./...`、`go vet ./...`、医药任务/事件 100 次 race/soak、采集器 race、指标审计、CodeGraph 同步和 `git diff --check` 全部通过。 |
+| API/权限/审计/migration/seed | Pass | 本项未改变 HTTP/OpenAPI、权限键、菜单或数据库结构，未新增 migration/seed；继续复用提醒和报表既有审计动作，事件死信仅扩展内部内存重试记录状态。 |
+| 多语言与边界 | Pass | 脚本和 JSON 固定记录默认 locale `zh-CN`，证据说明中文优先并含英文摘要；未修改 `docs/refactor/old/`，未纳入用户已有文档、IDE、CodeGraph 目录或运行数据。 |
+| CodeGraph | Pass | 同步后索引为 713 files / 15,370 nodes / 47,181 edges，状态 up to date。 |
+
+### Verification Commands
+
+```powershell
+./scripts/h5-job-soak.ps1 -Iterations 100
+./scripts/h5-job-metrics-audit.ps1 -ReportPath @(
+  './docs/refactor/current/evidence/h5-03/pharma-job-soak.json',
+  './docs/refactor/current/evidence/h5-03/business-event-soak.json'
+)
+go test -race ./internal/testing/jobsoak -count=1
+go test ./...
+go vet ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首轮聚焦测试中，类型化 `nil *reportAuditFixture` 装入接口后仍被视为非空，报表执行审计时触发空指针。 | 使用显式审计夹具实例，重跑聚焦测试通过。 |
+| 2 | Failed -> Doing | 首次正式 race/soak 的业务测试均通过，但 Windows PowerShell 5 按默认代码页解析 UTF-8 中文脚本，指标审计脚本出现字符串终止符错误。 | 将脚本控制台与错误文案改为 ASCII，JSON 和文档继续保留中文默认内容。 |
+| 3 | Failed -> Doing | 第二次正式运行的 race 测试仍通过，但 PowerShell 默认代码页读取 UTF-8 JSON 后破坏中文场景名，`ConvertFrom-Json` 失败。 | 使用 `.NET ReadAllText(..., UTF8)` 强制解码两份报告，独立指标审计与完整脚本复验通过。 |
+| 4 | Failed -> Doing | 将报表 soak 从同步夹具增强为真实异步派发时，首轮编译引用了不存在的 `ReportExportStatus` 别名。 | 改用现有 `ReportExportJobStatus`，重跑聚焦测试及 100 次正式 race/soak，异步任务全部回收。 |
+
+### Next Step
+
+父任务 H5 保持 `Doing`。按正式 Work Item 顺序领取 `H5-04`，发布中文默认、含英文摘要的容量与性能基线。

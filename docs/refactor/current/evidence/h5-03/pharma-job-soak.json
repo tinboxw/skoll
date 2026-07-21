@@ -1,0 +1,89 @@
+{
+  "schemaVersion": "skoll.h5-job-soak.v1",
+  "locale": "zh-CN",
+  "generatedAt": "2026-07-21T13:45:44.4453675Z",
+  "goVersion": "go1.24.1",
+  "goos": "windows",
+  "goarch": "amd64",
+  "raceEnabled": true,
+  "scenarios": [
+    {
+      "name": "主数据导入导出与重复提交",
+      "iterations": 100,
+      "succeeded": 100,
+      "failures": 0,
+      "retries": 0,
+      "deadLetters": 0,
+      "duplicateSideEffects": 0,
+      "p50Milliseconds": 11.164,
+      "p95Milliseconds": 16.6587,
+      "p99Milliseconds": 19.9975,
+      "heapGrowthBytes": 78360,
+      "goroutineGrowth": 0,
+      "thresholds": {
+        "maxP95Milliseconds": 500,
+        "maxP99Milliseconds": 1500,
+        "maxHeapGrowthBytes": 67108864,
+        "maxGoroutineGrowth": 4,
+        "maxFailures": 0,
+        "maxDuplicateSideEffects": 0
+      },
+      "alerts": [],
+      "passed": true
+    },
+    {
+      "name": "逾期提醒失败重试与通知幂等",
+      "iterations": 100,
+      "succeeded": 100,
+      "failures": 0,
+      "retries": 100,
+      "deadLetters": 0,
+      "duplicateSideEffects": 0,
+      "p50Milliseconds": 10.5494,
+      "p95Milliseconds": 13.1011,
+      "p99Milliseconds": 13.7909,
+      "heapGrowthBytes": 38208,
+      "goroutineGrowth": 0,
+      "thresholds": {
+        "maxP95Milliseconds": 500,
+        "maxP99Milliseconds": 1500,
+        "maxHeapGrowthBytes": 67108864,
+        "maxGoroutineGrowth": 4,
+        "maxFailures": 0,
+        "maxDuplicateSideEffects": 0
+      },
+      "alerts": [],
+      "passed": true
+    },
+    {
+      "name": "报表导出失败重试与文件幂等",
+      "iterations": 100,
+      "succeeded": 100,
+      "failures": 0,
+      "retries": 100,
+      "deadLetters": 0,
+      "duplicateSideEffects": 0,
+      "p50Milliseconds": 13.1012,
+      "p95Milliseconds": 17.1745,
+      "p99Milliseconds": 27.0794,
+      "heapGrowthBytes": 31248,
+      "goroutineGrowth": 0,
+      "thresholds": {
+        "maxP95Milliseconds": 500,
+        "maxP99Milliseconds": 1500,
+        "maxHeapGrowthBytes": 67108864,
+        "maxGoroutineGrowth": 4,
+        "maxFailures": 0,
+        "maxDuplicateSideEffects": 0
+      },
+      "alerts": [],
+      "passed": true
+    }
+  ],
+  "metadata": {
+    "defaultLanguage": "zh-CN",
+    "scope": "imports, exports, reminders, reports",
+    "storage": "in-memory acceptance fixtures"
+  },
+  "passed": true
+}

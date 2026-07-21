@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "skoll.h5-job-soak.v1",
+  "locale": "zh-CN",
+  "generatedAt": "2026-07-21T13:45:58.7148006Z",
+  "goVersion": "go1.24.1",
+  "goos": "windows",
+  "goarch": "amd64",
+  "raceEnabled": true,
+  "scenarios": [
+    {
+      "name": "插件业务事件重试与副作用幂等",
+      "iterations": 100,
+      "succeeded": 100,
+      "failures": 0,
+      "retries": 100,
+      "deadLetters": 1,
+      "duplicateSideEffects": 0,
+      "p50Milliseconds": 0,
+      "p95Milliseconds": 0.6801,
+      "p99Milliseconds": 0.9548,
+      "heapGrowthBytes": 3520,
+      "goroutineGrowth": 0,
+      "thresholds": {
+        "maxP95Milliseconds": 25,
+        "maxP99Milliseconds": 75,
+        "maxHeapGrowthBytes": 16777216,
+        "maxGoroutineGrowth": 2,
+        "maxFailures": 0,
+        "maxDuplicateSideEffects": 0
+      },
+      "alerts": [],
+      "passed": true
+    }
+  ],
+  "metadata": {
+    "defaultLanguage": "zh-CN",
+    "scope": "business/plugin events"
+  },
+  "passed": true
+}

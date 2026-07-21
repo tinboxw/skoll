@@ -1,0 +1,126 @@
+﻿{
+    "schemaVersion":  "skoll.h5-job-soak-summary.v1",
+    "locale":  "zh-CN",
+    "generatedAt":  "2026-07-21T13:46:00.6294926Z",
+    "iterations":  100,
+    "raceEnabled":  true,
+    "passed":  true,
+    "reports":  [
+                    {
+                        "name":  "pharma jobs",
+                        "path":  "pharma-job-soak.json",
+                        "scenarios":  [
+                                          {
+                                              "name":  "主数据导入导出与重复提交",
+                                              "iterations":  100,
+                                              "succeeded":  100,
+                                              "failures":  0,
+                                              "retries":  0,
+                                              "deadLetters":  0,
+                                              "duplicateSideEffects":  0,
+                                              "p50Milliseconds":  11.164,
+                                              "p95Milliseconds":  16.6587,
+                                              "p99Milliseconds":  19.9975,
+                                              "heapGrowthBytes":  78360,
+                                              "goroutineGrowth":  0,
+                                              "thresholds":  {
+                                                                 "maxP95Milliseconds":  500,
+                                                                 "maxP99Milliseconds":  1500,
+                                                                 "maxHeapGrowthBytes":  67108864,
+                                                                 "maxGoroutineGrowth":  4,
+                                                                 "maxFailures":  0,
+                                                                 "maxDuplicateSideEffects":  0
+                                                             },
+                                              "alerts":  [
+
+                                                         ],
+                                              "passed":  true
+                                          },
+                                          {
+                                              "name":  "逾期提醒失败重试与通知幂等",
+                                              "iterations":  100,
+                                              "succeeded":  100,
+                                              "failures":  0,
+                                              "retries":  100,
+                                              "deadLetters":  0,
+                                              "duplicateSideEffects":  0,
+                                              "p50Milliseconds":  10.5494,
+                                              "p95Milliseconds":  13.1011,
+                                              "p99Milliseconds":  13.7909,
+                                              "heapGrowthBytes":  38208,
+                                              "goroutineGrowth":  0,
+                                              "thresholds":  {
+                                                                 "maxP95Milliseconds":  500,
+                                                                 "maxP99Milliseconds":  1500,
+                                                                 "maxHeapGrowthBytes":  67108864,
+                                                                 "maxGoroutineGrowth":  4,
+                                                                 "maxFailures":  0,
+                                                                 "maxDuplicateSideEffects":  0
+                                                             },
+                                              "alerts":  [
+
+                                                         ],
+                                              "passed":  true
+                                          },
+                                          {
+                                              "name":  "报表导出失败重试与文件幂等",
+                                              "iterations":  100,
+                                              "succeeded":  100,
+                                              "failures":  0,
+                                              "retries":  100,
+                                              "deadLetters":  0,
+                                              "duplicateSideEffects":  0,
+                                              "p50Milliseconds":  13.1012,
+                                              "p95Milliseconds":  17.1745,
+                                              "p99Milliseconds":  27.0794,
+                                              "heapGrowthBytes":  31248,
+                                              "goroutineGrowth":  0,
+                                              "thresholds":  {
+                                                                 "maxP95Milliseconds":  500,
+                                                                 "maxP99Milliseconds":  1500,
+                                                                 "maxHeapGrowthBytes":  67108864,
+                                                                 "maxGoroutineGrowth":  4,
+                                                                 "maxFailures":  0,
+                                                                 "maxDuplicateSideEffects":  0
+                                                             },
+                                              "alerts":  [
+
+                                                         ],
+                                              "passed":  true
+                                          }
+                                      ]
+                    },
+                    {
+                        "name":  "plugin business events",
+                        "path":  "business-event-soak.json",
+                        "scenarios":  [
+                                          {
+                                              "name":  "插件业务事件重试与副作用幂等",
+                                              "iterations":  100,
+                                              "succeeded":  100,
+                                              "failures":  0,
+                                              "retries":  100,
+                                              "deadLetters":  1,
+                                              "duplicateSideEffects":  0,
+                                              "p50Milliseconds":  0,
+                                              "p95Milliseconds":  0.6801,
+                                              "p99Milliseconds":  0.9548,
+                                              "heapGrowthBytes":  3520,
+                                              "goroutineGrowth":  0,
+                                              "thresholds":  {
+                                                                 "maxP95Milliseconds":  25,
+                                                                 "maxP99Milliseconds":  75,
+                                                                 "maxHeapGrowthBytes":  16777216,
+                                                                 "maxGoroutineGrowth":  2,
+                                                                 "maxFailures":  0,
+                                                                 "maxDuplicateSideEffects":  0
+                                                             },
+                                              "alerts":  [
+
+                                                         ],
+                                              "passed":  true
+                                          }
+                                      ]
+                    }
+                ]
+}

@@ -18,6 +18,7 @@ const (
 	BusinessRetryStatusFailed           = "failed"
 	BusinessRetryStatusRunning          = "running"
 	BusinessRetryStatusSucceeded        = "succeeded"
+	BusinessRetryStatusDeadLetter       = "dead_letter"
 	defaultBusinessEventRetryDelay      = time.Second
 	defaultBusinessEventMaxRetryAttempt = 3
 )
@@ -55,15 +56,16 @@ type BusinessSubscription struct {
 }
 
 type BusinessRetryRecord struct {
-	ID          string
-	Event       BusinessEvent
-	HandlerName string
-	Attempt     int
-	Status      string
-	Error       string
-	NextRunAt   time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID             string
+	Event          BusinessEvent
+	HandlerName    string
+	Attempt        int
+	Status         string
+	Error          string
+	NextRunAt      time.Time
+	DeadLetteredAt time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type BusinessRetryStore interface {
@@ -235,10 +237,16 @@ func (b *BusinessEventBus) RetryDue(ctx context.Context, now time.Time) (int, er
 	var failed int
 	for _, record := range due {
 		if b.maxAttempts > 0 && record.Attempt >= b.maxAttempts {
+			b.deadLetter(record, errors.New("business event retry attempts exhausted"))
+			processed++
+			failed++
 			continue
 		}
 		subscription, ok := b.findHandler(record.Event.EventName, record.HandlerName)
 		if !ok {
+			b.deadLetter(record, errors.New("business event retry handler is unavailable"))
+			processed++
+			failed++
 			continue
 		}
 		record.Attempt++
@@ -248,10 +256,14 @@ func (b *BusinessEventBus) RetryDue(ctx context.Context, now time.Time) (int, er
 		record, _ = b.retries.Save(record)
 		if err := subscription.Handler(ctx, cloneBusinessEvent(record.Event)); err != nil {
 			failed++
-			record.Status = BusinessRetryStatusFailed
-			record.Error = err.Error()
-			record.NextRunAt = b.now().Add(b.retryDelay)
-			_, _ = b.retries.Save(record)
+			if b.maxAttempts > 0 && record.Attempt >= b.maxAttempts {
+				b.deadLetter(record, err)
+			} else {
+				record.Status = BusinessRetryStatusFailed
+				record.Error = err.Error()
+				record.NextRunAt = b.now().Add(b.retryDelay)
+				_, _ = b.retries.Save(record)
+			}
 			processed++
 			continue
 		}
@@ -306,14 +318,30 @@ func (b *BusinessEventBus) recordFailure(evt BusinessEvent, handlerName string, 
 	if attempt <= 0 {
 		attempt = 1
 	}
-	_, _ = b.retries.Save(BusinessRetryRecord{
+	record := BusinessRetryRecord{
 		Event:       cloneBusinessEvent(evt),
 		HandlerName: handlerName,
 		Attempt:     attempt,
 		Status:      BusinessRetryStatusFailed,
 		Error:       err.Error(),
 		NextRunAt:   b.now().Add(b.retryDelay),
-	})
+	}
+	if b.maxAttempts > 0 && attempt >= b.maxAttempts {
+		record.Status = BusinessRetryStatusDeadLetter
+		record.NextRunAt = time.Time{}
+		record.DeadLetteredAt = b.now()
+	}
+	_, _ = b.retries.Save(record)
+}
+
+func (b *BusinessEventBus) deadLetter(record BusinessRetryRecord, cause error) {
+	record.Status = BusinessRetryStatusDeadLetter
+	if cause != nil {
+		record.Error = cause.Error()
+	}
+	record.NextRunAt = time.Time{}
+	record.DeadLetteredAt = b.now()
+	_, _ = b.retries.Save(record)
 }
 
 type AfterCommitQueue struct {
