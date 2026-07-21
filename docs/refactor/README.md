@@ -1,6 +1,6 @@
 # Skoll Refactor Docs
 
-> Status: M0-M7/FE/N0 foundation refactor is complete. The active direction is feature development, UI polish, and the pharma OA business-plugin roadmap.
+> Status: M0-M7/FE/N0, Pharma OA F6-F12, and the 2026-07-18 hardening batch are complete. New implementation requires a new official batch under `current/`.
 > Rule: do not design legacy API, legacy data, legacy plugin, or legacy page compatibility plans.
 
 ## How To Read This Directory
@@ -19,9 +19,10 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | Document | Purpose |
 | --- | --- |
 | [current/README.md](current/README.md) | Current task intake, progress update, acceptance, and commit rules |
-| [current/hardening_task_board_2026-07-18.md](current/hardening_task_board_2026-07-18.md) | Active hardening parent task board |
-| [current/hardening_work_items_2026-07-18.md](current/hardening_work_items_2026-07-18.md) | Active hardening Work Item table |
-| [current/hardening_acceptance_log_2026-07-18.md](current/hardening_acceptance_log_2026-07-18.md) | Active hardening acceptance evidence |
+| [current/hardening_task_board_2026-07-18.md](current/hardening_task_board_2026-07-18.md) | Latest closed hardening parent task board |
+| [current/hardening_work_items_2026-07-18.md](current/hardening_work_items_2026-07-18.md) | Latest closed hardening Work Item table |
+| [current/hardening_acceptance_log_2026-07-18.md](current/hardening_acceptance_log_2026-07-18.md) | Latest closed hardening acceptance evidence |
+| [current/hardening_closeout_2026-07-21.md](current/hardening_closeout_2026-07-21.md) | Final hardening gate, issue list, release snapshot, and next recommendations |
 | [current/pharma_oa_database_acceptance_2026-07-18.md](current/pharma_oa_database_acceptance_2026-07-18.md) | H2-05 database lifecycle acceptance evidence and environment blocker |
 | [current/pharma_oa_milestone_closeout_2026-07-17.md](current/pharma_oa_milestone_closeout_2026-07-17.md) | Closed Pharma OA batch evidence and hardening source |
 | [current/business_plugin_capability_plan_2026-07-04.md](current/business_plugin_capability_plan_2026-07-04.md) | Business-plugin capability gaps, pharma OA function blueprint, and framework infrastructure matrix |
@@ -30,12 +31,7 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | [current/feature_ui_milestone_plan_2026-07-04.md](current/feature_ui_milestone_plan_2026-07-04.md) | Feature development and UI optimization milestone plan |
 | [current/feature_ui_work_items_2026-07-04.md](current/feature_ui_work_items_2026-07-04.md) | Candidate work items for feature and UI improvements |
 
-Recommended next execution order:
-
-1. F6 business-plugin platform foundation.
-2. F7 workflow, dynamic forms, todo, and notification platform.
-3. F8 pharma master-data plugin.
-4. F9 pharma purchase/sales/inventory minimum closed loop.
+Recommended next action: use the hardening closeout recommendations to create a new official parent board, Work Item table, and acceptance log before implementation begins.
 
 ## Governance
 

@@ -1,7 +1,7 @@
 ﻿{
     "schemaVersion":  "skoll.h6-deployment-recovery.v1",
     "locale":  "zh-CN",
-    "generatedAt":  "2026-07-21T14:39:46.1589916Z",
+    "generatedAt":  "2026-07-21T15:10:44.8691049Z",
     "environment":  {
                         "mysqlHost":  "127.0.0.1",
                         "mysqlPort":  3306,
@@ -16,7 +16,7 @@
                         },
     "backupRestore":  {
                           "bytes":  91705,
-                          "sha256":  "0c2d7d1e6e2ddf5fd2eace9c64c0345aa5f3d533770b6bba9133c1a329775e72",
+                          "sha256":  "bedb65ae41493bdfb58328c2cac8f972f1d6ca44fc59d0c06c0350c4d4fce195",
                           "marker":  "clean-v1",
                           "passed":  true
                       },
@@ -53,6 +53,6 @@
                                   ],
                        "secretName":  "skoll-runtime"
                    },
-    "durationSeconds":  54.95,
+    "durationSeconds":  57.255,
     "passed":  true
 }

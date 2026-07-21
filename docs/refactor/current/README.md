@@ -1,18 +1,19 @@
 # Current Refactor Execution Rules
 
-> Scope: active hardening work after the closed Pharma OA sample batch.
+> Scope: closed hardening work after the Pharma OA sample batch; new implementation requires a new official batch.
 > Status: M0-M7/FE/N0 are complete and archived. Do not update archived task status for new work.
 > Pharma OA batch: F6-F12 closed on 2026-07-17. Its files remain closed evidence, not task intake.
-> Active batch: `skoll-hardening-2026-07-18`.
+> Latest closed batch: `skoll-hardening-2026-07-18` (closed 2026-07-21).
 
 ## Single Source Of Truth
 
 | Need | Read Or Update |
 | --- | --- |
 | Current task intake and progress rules | This file |
-| Active parent task board | `hardening_task_board_2026-07-18.md` |
-| Active Work Item table | `hardening_work_items_2026-07-18.md` |
-| Active acceptance log | `hardening_acceptance_log_2026-07-18.md` |
+| Latest closed parent task board | `hardening_task_board_2026-07-18.md` |
+| Latest closed Work Item table | `hardening_work_items_2026-07-18.md` |
+| Latest closed acceptance log | `hardening_acceptance_log_2026-07-18.md` |
+| Latest hardening closeout | `hardening_closeout_2026-07-21.md` |
 | Active performance baseline | `performance_capacity_baseline_2026-07-21.md` |
 | Active deployment and recovery rehearsal | `deployment_recovery_rehearsal_2026-07-21.md` |
 | Active H2-05 database acceptance report | `pharma_oa_database_acceptance_2026-07-18.md` |
@@ -33,12 +34,12 @@
 1. Start from `docs/refactor/README.md`.
 2. Read this file before taking any task.
 3. Read `pharma_oa_milestone_closeout_2026-07-17.md` for the active hardening batch source and boundaries.
-4. Take work only from `hardening_work_items_2026-07-18.md`.
+4. Confirm whether a newer official Work Item table exists before taking work; no `Todo` remains in `hardening_work_items_2026-07-18.md`.
 5. Do not take tasks from `../old/`; archived files are historical evidence only.
 
-## Official Next-Batch Task Files
+## Latest Closed Task Files
 
-The active batch uses these files under `docs/refactor/current/`:
+The closed hardening batch uses these files under `docs/refactor/current/`:
 
 ```text
 hardening_task_board_2026-07-18.md
@@ -46,7 +47,7 @@ hardening_work_items_2026-07-18.md
 hardening_acceptance_log_2026-07-18.md
 ```
 
-Because these files exist, take implementation work only from `hardening_work_items_2026-07-18.md`. The closed Pharma OA files and older plans are evidence or candidate references, not active progress ledgers.
+All Work Items in these files are complete. Do not reopen them to take new work. Before the next implementation task, create a new parent board, Work Item table, and acceptance log under `docs/refactor/current/`. The closed Pharma OA files and older plans remain evidence or candidate references, not active progress ledgers.
 
 ## Progress Update Rules
 

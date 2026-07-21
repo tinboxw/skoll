@@ -1085,3 +1085,67 @@ git diff --check
 ### Next Step
 
 父任务 H6 保持 `Doing`。按正式 Work Item 顺序领取 `H6-03`，执行最终强化发布门禁并关闭批次。
+
+## H6-03 最终强化发布门禁与批次结项
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 复验 H1-H6 全部代码、前端、多语言、插件、数据库、长任务、性能、部署恢复、文档和运行时证据；发布最终问题清单、发布检查快照与下一批建议；关闭 `skoll-hardening-2026-07-18`。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 批次一致性 | Pass | `h6-hardening-closeout-audit.ps1` 识别 25 个 Work Item、6 个父任务和 25 个独立验收条目；全部为 `Done`，归档目录无变更。 |
+| Go 与契约 | Pass | tracked Go 文件格式正确；`go test ./... -count=1`、`go vet ./...`、OpenAPI 同步和插件 manifest 定向测试通过。 |
+| 前端与多语言 | Pass | 1,365 个 locale keys、1,256 个引用、15 个医药 OA 视图、可访问性、大列表、typecheck 和 3,612 模块生产构建通过；默认 `zh-CN`。 |
+| 插件与业务闭环 | Pass | 中英文插件生命周期和医药 OA 端到端 smoke 通过；权限、菜单、审计、失败状态、分页与性能检查通过。 |
+| 数据库 | Pass | 隔离 `skoll_acceptance` 上 MySQL migration、seed、重启、备份恢复和仓储契约通过；SQLite 契约通过；本机 PostgreSQL 未配置并如实记录为发布前限制。 |
+| 长任务与容量 | Pass | H5-03 两份 soak 指标审计及 H5-04 容量文档审计通过，无重复副作用或静默失败证据。 |
+| 部署与恢复 | Pass | 随机隔离 MySQL 数据库完成 47 表干净部署、health/readiness、备份恢复、前向升级和恢复点回滚，临时资源自动清理。 |
+| 隔离运行时 | Pass | 随机 loopback 端口上的内存模式实例完成 health、readiness、公开 OpenAPI、登录/token/profile 和 `pharma_oa` 发现审查。 |
+| 文档与边界 | Pass | 中文默认结项报告含英文摘要；中英文发布边界、许可证、示例/监管、数据安全、密钥和支持限制审计通过。 |
+| 问题清单 | Pass | P0 为 0；现场 PostgreSQL、Docker daemon、真实 Kubernetes、tag/SBOM/signing 等发布时工作明确列为非虚构限制。 |
+| API/权限/审计/migration/seed | Pass | H6-03 不修改运行时 API、OpenAPI、权限、审计动作、migration 或 seed；只执行现有契约与运行时复验并新增结项脚本、报告和证据。 |
+| CodeGraph 与边界 | Pass | 最终同步后索引 up to date；`git diff --check` 通过；未修改 `docs/refactor/old/`，未纳入用户已有文档、IDE、CodeGraph 目录或运行数据。 |
+
+### Verification Commands
+
+```powershell
+go test ./... -count=1
+go vet ./...
+go test ./internal/handler/http -run TestOpenAPIContractFilesStayInSync -count=1
+go test ./internal/plugin -run TestValidatePluginManifestsUnderPluginsDir -count=1
+npm --prefix web run typecheck
+npm --prefix web run build
+./scripts/smoke-pharma-oa-plugin.ps1
+./scripts/smoke-pharma-oa-plugin.ps1 -Locale en-US
+./scripts/smoke-pharma-oa-e2e.ps1
+./scripts/smoke-pharma-oa-e2e.ps1 -Locale en-US
+./scripts/smoke-pharma-oa-performance-permission.ps1
+$env:SKOLL_TEST_MYSQL_DSN = 'root:<password>@tcp(127.0.0.1:3306)/skoll_acceptance?parseTime=true'
+./scripts/smoke-pharma-oa-database.ps1
+./scripts/h5-job-metrics-audit.ps1 -ReportPath @('./docs/refactor/current/evidence/h5-03/pharma-job-soak.json','./docs/refactor/current/evidence/h5-03/business-event-soak.json')
+./scripts/h5-performance-doc-audit.ps1
+./scripts/h6-release-boundary-audit.ps1
+$env:SKOLL_H6_MYSQL_PASSWORD = '<local-test-password>'
+./scripts/h6-deployment-recovery-smoke.ps1 -AllowDatabaseLifecycle
+./scripts/h6-runtime-review.ps1
+./scripts/h6-hardening-closeout-audit.ps1 -ExpectedWorkItemStatus Done -ExpectedParentStatus Done
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | Runtime review异常路径在子进程退出前读取锁定的 stderr。 | 先停止进程再读取诊断，重跑。 |
+| 2 | Failed -> Doing | Windows PowerShell 将 OpenAPI 响应内容作为 `byte[]`，误报缺少 `/ready`。 | 显式 UTF-8 解码响应，重跑。 |
+| 3 | Failed -> Doing | 前端构建与全部 smoke 的组合命令超过外层 124 秒限制，无法得到完整结论。 | 拆分构建和 smoke、分别设置时限，两组均重跑通过。 |
+| 4 | Failed -> Doing | 数据库验收拒绝重置普通 `skoll` 库。 | 改用受保护的 `skoll_acceptance` 隔离库，不触碰现有应用库，重跑通过。 |
+
+### Next Step
+
+父任务 H6 与强化批次全部完成。当前正式 Work Item 表没有剩余 `Todo`；后续实现必须先在 `docs/refactor/current/` 创建新的父任务表、Work Item 表和验收表。

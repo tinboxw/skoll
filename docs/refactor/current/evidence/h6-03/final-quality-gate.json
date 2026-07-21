@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "skoll.h6-final-quality-gate.v1",
+  "locale": "zh-CN",
+  "generatedAt": "2026-07-21T15:12:50.0903217Z",
+  "batch": "skoll-hardening-2026-07-18",
+  "baselineCommit": "b728952",
+  "environment": {
+    "os": "Windows 11 10.0.26200 amd64",
+    "go": "1.24.1",
+    "node": "22.14.0",
+    "npm": "11.1.0",
+    "mysqlServer": "5.7",
+    "mysqlClient": "8.0.31",
+    "defaultLocale": "zh-CN"
+  },
+  "summary": {
+    "workItems": 25,
+    "acceptedWorkItems": 25,
+    "p0Issues": 0,
+    "recordedRetries": 4
+  },
+  "gates": [
+    { "id": "go-format-test-vet", "passed": true },
+    { "id": "openapi-sync", "passed": true },
+    { "id": "plugin-manifest-lifecycle-bilingual", "passed": true },
+    { "id": "frontend-i18n-a11y-large-list-typecheck-build", "passed": true },
+    { "id": "pharma-oa-bilingual-e2e-permission-performance", "passed": true },
+    { "id": "sqlite-live-mysql-database-contracts", "passed": true },
+    { "id": "job-soak-performance-evidence", "passed": true },
+    { "id": "deployment-backup-restore-upgrade-rollback", "passed": true },
+    { "id": "isolated-runtime-review", "passed": true },
+    { "id": "bilingual-release-boundary", "passed": true },
+    { "id": "closeout-consistency", "passed": true }
+  ],
+  "evidence": {
+    "runtime": "runtime-review.json",
+    "deployment": "../h6-01/deployment-recovery-smoke.json",
+    "browser": "../h4-04/matrix.json",
+    "largeList": "../h5-02/browser-matrix.json",
+    "jobs": [
+      "../h5-03/pharma-job-soak.json",
+      "../h5-03/business-event-soak.json"
+    ],
+    "performance": "../h5-04/performance-baseline.json"
+  },
+  "limitations": [
+    "PostgreSQL was not available for a live rerun; existing H2 contract evidence was retained.",
+    "Docker Compose was configuration-validated because the Docker daemon was unavailable.",
+    "Kubernetes was client-rendered; no live cluster deployment is claimed.",
+    "Release tag, SBOM, signing, and artifact publication remain release-owner actions."
+  ],
+  "passed": true
+}
