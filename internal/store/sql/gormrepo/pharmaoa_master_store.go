@@ -64,6 +64,16 @@ func (s *PharmaEmployeeStore) List(ctx context.Context, filter pharmaoarepo.List
 	}
 	return convertPharmaRows(rows, func(row PharmaEmployeeModel) (*domainpharma.Employee, error) { return row.toDomain() })
 }
+func (s *PharmaEmployeeStore) ListPage(ctx context.Context, filter pharmaoarepo.ListFilter) (pharmaoarepo.ListPage[domainpharma.Employee], error) {
+	page, err := listPharmaModelPage[PharmaEmployeeModel](ctx, s.db, filter, pharmaListOptions{
+		keywordColumns: []string{"id", "code", "name", "department_id", "position_id"},
+	})
+	if err != nil {
+		return pharmaoarepo.ListPage[domainpharma.Employee]{}, err
+	}
+	items, err := convertPharmaRows(page.Items, func(row PharmaEmployeeModel) (*domainpharma.Employee, error) { return row.toDomain() })
+	return pharmaoarepo.ListPage[domainpharma.Employee]{Items: items, Total: page.Total}, err
+}
 
 func (s *PharmaProductStore) Create(ctx context.Context, item *domainpharma.Product) error {
 	if item == nil {
@@ -110,6 +120,16 @@ func (s *PharmaProductStore) List(ctx context.Context, filter pharmaoarepo.ListF
 	}
 	return convertPharmaRows(rows, func(row PharmaProductModel) (*domainpharma.Product, error) { return row.toDomain() })
 }
+func (s *PharmaProductStore) ListPage(ctx context.Context, filter pharmaoarepo.ListFilter) (pharmaoarepo.ListPage[domainpharma.Product], error) {
+	page, err := listPharmaModelPage[PharmaProductModel](ctx, s.db, filter, pharmaListOptions{
+		keywordColumns: []string{"id", "code", "name", "specification", "dosage_form", "manufacturer", "approval_number"},
+	})
+	if err != nil {
+		return pharmaoarepo.ListPage[domainpharma.Product]{}, err
+	}
+	items, err := convertPharmaRows(page.Items, func(row PharmaProductModel) (*domainpharma.Product, error) { return row.toDomain() })
+	return pharmaoarepo.ListPage[domainpharma.Product]{Items: items, Total: page.Total}, err
+}
 
 func (s *PharmaSupplierStore) Create(ctx context.Context, item *domainpharma.Supplier) error {
 	if item == nil {
@@ -146,6 +166,14 @@ func (s *PharmaSupplierStore) List(ctx context.Context, filter pharmaoarepo.List
 		return nil, err
 	}
 	return convertPharmaRows(rows, func(row PharmaSupplierModel) (*domainpharma.Supplier, error) { return row.toDomain() })
+}
+func (s *PharmaSupplierStore) ListPage(ctx context.Context, filter pharmaoarepo.ListFilter) (pharmaoarepo.ListPage[domainpharma.Supplier], error) {
+	page, err := listPharmaModelPage[PharmaSupplierModel](ctx, s.db, filter, pharmaListOptions{keywordColumns: []string{"id", "code", "name"}})
+	if err != nil {
+		return pharmaoarepo.ListPage[domainpharma.Supplier]{}, err
+	}
+	items, err := convertPharmaRows(page.Items, func(row PharmaSupplierModel) (*domainpharma.Supplier, error) { return row.toDomain() })
+	return pharmaoarepo.ListPage[domainpharma.Supplier]{Items: items, Total: page.Total}, err
 }
 
 func (s *PharmaCustomerStore) Create(ctx context.Context, item *domainpharma.Customer) error {
@@ -187,6 +215,17 @@ func (s *PharmaCustomerStore) List(ctx context.Context, filter pharmaoarepo.List
 	}
 	return convertPharmaRows(rows, func(row PharmaCustomerModel) (*domainpharma.Customer, error) { return row.toDomain() })
 }
+func (s *PharmaCustomerStore) ListPage(ctx context.Context, filter pharmaoarepo.ListFilter) (pharmaoarepo.ListPage[domainpharma.Customer], error) {
+	page, err := listPharmaModelPage[PharmaCustomerModel](ctx, s.db, filter, pharmaListOptions{
+		keywordColumns: []string{"id", "code", "name", "region", "owner_id", "organization_id"}, regionColumn: "region",
+		organizationColumn: "organization_id", ownerColumn: "owner_id",
+	})
+	if err != nil {
+		return pharmaoarepo.ListPage[domainpharma.Customer]{}, err
+	}
+	items, err := convertPharmaRows(page.Items, func(row PharmaCustomerModel) (*domainpharma.Customer, error) { return row.toDomain() })
+	return pharmaoarepo.ListPage[domainpharma.Customer]{Items: items, Total: page.Total}, err
+}
 
 func (s *PharmaWarehouseStore) Create(ctx context.Context, item *domainpharma.Warehouse) error {
 	if item == nil {
@@ -225,6 +264,16 @@ func (s *PharmaWarehouseStore) List(ctx context.Context, filter pharmaoarepo.Lis
 		return nil, err
 	}
 	return convertPharmaRows(rows, func(row PharmaWarehouseModel) (*domainpharma.Warehouse, error) { return row.toDomain() })
+}
+func (s *PharmaWarehouseStore) ListPage(ctx context.Context, filter pharmaoarepo.ListFilter) (pharmaoarepo.ListPage[domainpharma.Warehouse], error) {
+	page, err := listPharmaModelPage[PharmaWarehouseModel](ctx, s.db, filter, pharmaListOptions{
+		keywordColumns: []string{"id", "code", "name", "region", "areas_json"}, regionColumn: "region",
+	})
+	if err != nil {
+		return pharmaoarepo.ListPage[domainpharma.Warehouse]{}, err
+	}
+	items, err := convertPharmaRows(page.Items, func(row PharmaWarehouseModel) (*domainpharma.Warehouse, error) { return row.toDomain() })
+	return pharmaoarepo.ListPage[domainpharma.Warehouse]{Items: items, Total: page.Total}, err
 }
 
 type pharmaListOptions struct {
@@ -270,10 +319,34 @@ func getPharmaModel[M any](ctx context.Context, db *gorm.DB, where string, value
 }
 
 func listPharmaModels[M any](ctx context.Context, db *gorm.DB, filter pharmaoarepo.ListFilter, options pharmaListOptions) ([]M, error) {
+	page, err := listPharmaModelPage[M](ctx, db, filter, options)
+	return page.Items, err
+}
+
+func listPharmaModelPage[M any](ctx context.Context, db *gorm.DB, filter pharmaoarepo.ListFilter, options pharmaListOptions) (pharmaoarepo.ListPage[M], error) {
 	if db == nil {
-		return nil, fmt.Errorf("pharma OA database is required")
+		return pharmaoarepo.ListPage[M]{}, fmt.Errorf("pharma OA database is required")
 	}
-	query := db.WithContext(ctx).Model(new(M)).Order("code asc")
+	query := applyPharmaListFilter(db.WithContext(ctx).Model(new(M)), filter, options)
+	var total int64
+	if err := withDBRetry(func() error { return query.Session(&gorm.Session{}).Count(&total).Error }); err != nil {
+		return pharmaoarepo.ListPage[M]{}, err
+	}
+	query = query.Session(&gorm.Session{}).Order("code asc")
+	if filter.Offset > 0 {
+		query = query.Offset(filter.Offset)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+	var rows []M
+	if err := withDBRetry(func() error { return query.Find(&rows).Error }); err != nil {
+		return pharmaoarepo.ListPage[M]{}, err
+	}
+	return pharmaoarepo.ListPage[M]{Items: rows, Total: total}, nil
+}
+
+func applyPharmaListFilter(query *gorm.DB, filter pharmaoarepo.ListFilter, options pharmaListOptions) *gorm.DB {
 	keyword := strings.ToLower(strings.TrimSpace(filter.Keyword))
 	if keyword != "" && len(options.keywordColumns) > 0 {
 		conditions := make([]string, 0, len(options.keywordColumns))
@@ -312,17 +385,7 @@ func listPharmaModels[M any](ctx context.Context, db *gorm.DB, filter pharmaoare
 			query = query.Where(options.ownerColumn+" = ?", ownerID)
 		}
 	}
-	if filter.Offset > 0 {
-		query = query.Offset(filter.Offset)
-	}
-	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
-	}
-	var rows []M
-	if err := withDBRetry(func() error { return query.Find(&rows).Error }); err != nil {
-		return nil, err
-	}
-	return rows, nil
+	return query
 }
 
 func convertPharmaRows[M any, T any](rows []M, convert func(M) (*T, error)) ([]T, error) {

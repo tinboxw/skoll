@@ -66,6 +66,10 @@ func TestPharmaMasterRepositoriesPagingFiltersAndUniqueness(t *testing.T) {
 	if err != nil || len(page) != 1 || page[0].Code != "P-B" {
 		t.Fatalf("paged product list = %+v, err=%v", page, err)
 	}
+	pageWithTotal, err := products.ListPage(ctx, pharmaoarepo.ListFilter{Keyword: "product", Status: "active", Offset: 1, Limit: 1})
+	if err != nil || pageWithTotal.Total != 3 || len(pageWithTotal.Items) != 1 || pageWithTotal.Items[0].Code != "P-B" {
+		t.Fatalf("product page with total = %+v, err=%v", pageWithTotal, err)
+	}
 	if err := products.Upsert(ctx, &domainpharma.Product{
 		ID: "product-duplicate-code", Code: "P-A", Name: "Duplicate", Spec: "1mg", DosageForm: "tablet",
 		Manufacturer: "Skoll", ApprovalNumber: "APP-OTHER", Status: domainpharma.ProductStatusActive,
@@ -245,6 +249,10 @@ func assertPharmaMasterContract(t *testing.T, db *gorm.DB, fixtures pharmaMaster
 	employee, err := NewPharmaEmployeeStore(db).Get(ctx, fixtures.employee.ID)
 	if err != nil || employee == nil || employee.Phone != fixtures.employee.Phone || len(employee.Certificates) != 1 {
 		t.Fatalf("employee round trip = %+v, err=%v", employee, err)
+	}
+	employeePage, err := NewPharmaEmployeeStore(db).ListPage(ctx, pharmaoarepo.ListFilter{Keyword: fixtures.employee.Code, Limit: 1})
+	if err != nil || employeePage.Total != 1 || len(employeePage.Items) != 1 || employeePage.Items[0].ID != fixtures.employee.ID {
+		t.Fatalf("employee page contract = %+v, err=%v", employeePage, err)
 	}
 	product, err := NewPharmaProductStore(db).GetByCode(ctx, strings.ToLower(fixtures.product.Code))
 	if err != nil || product == nil || product.DisableReason != fixtures.product.DisableReason || !product.Temperature.Required {

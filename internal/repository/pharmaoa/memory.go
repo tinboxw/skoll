@@ -101,6 +101,11 @@ func (r *memoryAggregate[T]) getByCode(_ context.Context, code string) (*T, erro
 }
 
 func (r *memoryAggregate[T]) list(_ context.Context, filter ListFilter) ([]T, error) {
+	page, err := r.listPage(filter)
+	return page.Items, err
+}
+
+func (r *memoryAggregate[T]) listPage(filter ListFilter) (ListPage[T], error) {
 	keyword := strings.ToLower(strings.TrimSpace(filter.Keyword))
 	status := strings.ToLower(strings.TrimSpace(filter.Status))
 	region := strings.ToLower(strings.TrimSpace(filter.Region))
@@ -135,25 +140,26 @@ func (r *memoryAggregate[T]) list(_ context.Context, filter ListFilter) ([]T, er
 		copyItem, err := cloneJSON(item)
 		if err != nil {
 			r.mu.RUnlock()
-			return nil, err
+			return ListPage[T]{}, err
 		}
 		items = append(items, copyItem)
 	}
 	r.mu.RUnlock()
 
 	sort.SliceStable(items, func(i, j int) bool { return r.code(items[i]) < r.code(items[j]) })
+	total := int64(len(items))
 	offset := filter.Offset
 	if offset < 0 {
 		offset = 0
 	}
 	if offset >= len(items) {
-		return []T{}, nil
+		return ListPage[T]{Items: []T{}, Total: total}, nil
 	}
 	end := len(items)
 	if filter.Limit > 0 && offset+filter.Limit < end {
 		end = offset + filter.Limit
 	}
-	return items[offset:end], nil
+	return ListPage[T]{Items: items[offset:end], Total: total}, nil
 }
 
 func organizationValue[T any](repo *memoryAggregate[T], item T) string {
@@ -197,6 +203,9 @@ func (r *MemoryEmployeeRepository) GetByCode(ctx context.Context, code string) (
 }
 func (r *MemoryEmployeeRepository) List(ctx context.Context, filter ListFilter) ([]domainpharma.Employee, error) {
 	return r.list(ctx, filter)
+}
+func (r *MemoryEmployeeRepository) ListPage(_ context.Context, filter ListFilter) (ListPage[domainpharma.Employee], error) {
+	return r.listPage(filter)
 }
 
 type MemoryProductRepository struct {
@@ -247,6 +256,9 @@ func (r *MemoryProductRepository) GetByApprovalNumber(_ context.Context, approva
 func (r *MemoryProductRepository) List(ctx context.Context, filter ListFilter) ([]domainpharma.Product, error) {
 	return r.list(ctx, filter)
 }
+func (r *MemoryProductRepository) ListPage(_ context.Context, filter ListFilter) (ListPage[domainpharma.Product], error) {
+	return r.listPage(filter)
+}
 
 type MemorySupplierRepository struct {
 	*memoryAggregate[domainpharma.Supplier]
@@ -282,6 +294,9 @@ func (r *MemorySupplierRepository) GetByCode(ctx context.Context, code string) (
 }
 func (r *MemorySupplierRepository) List(ctx context.Context, filter ListFilter) ([]domainpharma.Supplier, error) {
 	return r.list(ctx, filter)
+}
+func (r *MemorySupplierRepository) ListPage(_ context.Context, filter ListFilter) (ListPage[domainpharma.Supplier], error) {
+	return r.listPage(filter)
 }
 
 type MemoryCustomerRepository struct {
@@ -323,6 +338,9 @@ func (r *MemoryCustomerRepository) GetByCode(ctx context.Context, code string) (
 func (r *MemoryCustomerRepository) List(ctx context.Context, filter ListFilter) ([]domainpharma.Customer, error) {
 	return r.list(ctx, filter)
 }
+func (r *MemoryCustomerRepository) ListPage(_ context.Context, filter ListFilter) (ListPage[domainpharma.Customer], error) {
+	return r.listPage(filter)
+}
 
 type MemoryWarehouseRepository struct {
 	*memoryAggregate[domainpharma.Warehouse]
@@ -360,6 +378,9 @@ func (r *MemoryWarehouseRepository) GetByCode(ctx context.Context, code string) 
 }
 func (r *MemoryWarehouseRepository) List(ctx context.Context, filter ListFilter) ([]domainpharma.Warehouse, error) {
 	return r.list(ctx, filter)
+}
+func (r *MemoryWarehouseRepository) ListPage(_ context.Context, filter ListFilter) (ListPage[domainpharma.Warehouse], error) {
+	return r.listPage(filter)
 }
 
 func cloneJSON[T any](item T) (T, error) {

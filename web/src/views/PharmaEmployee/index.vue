@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from "../../i18n";
 
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { BadgeAlert, Edit, Plus, RefreshCw, UserMinus } from "lucide-vue-next";
 import { ElMessage } from "element-plus";
 
@@ -29,17 +29,23 @@ type EmployeeRow = Record<string, unknown> & PharmaEmployee & {
 const buttonAccess = useButtonAccess();
 const userStore = useUserStore();
 const loading = ref(false);
+const hasLoaded = ref(false);
 const saving = ref(false);
 const error = ref("");
 const keyword = ref("");
 const statusFilter = ref("");
 const employees = ref<PharmaEmployee[]>([]);
 const reminders = ref<QualificationReminder[]>([]);
+const currentPage = ref(1);
+const pageSize = ref(50);
+const total = ref(0);
 const drawerOpen = ref(false);
 const editing = ref<PharmaEmployee | null>(null);
 const leaveTarget = ref<PharmaEmployee | null>(null);
 const leaveDialogOpen = ref(false);
 const leaveReason = ref("Resigned");
+let loadController: AbortController | null = null;
+let filterTimer: ReturnType<typeof setTimeout> | null = null;
 
 const form = reactive({
 	code: "",
@@ -64,21 +70,8 @@ const rows = computed<EmployeeRow[]>(() => employees.value.map((item) => ({
 	certificateSummary: item.certificates.length > 0 ? item.certificates.map((cert) => `${cert.name} ${formatDate(cert.expiresAt)}`).join(", ") : "-"
 })));
 
-const filteredRows = computed(() => {
-	const q = keyword.value.trim().toLowerCase();
-	return rows.value.filter((row) => {
-		if (statusFilter.value && row.status !== statusFilter.value) {
-			return false;
-		}
-		if (!q) {
-			return true;
-		}
-		return [row.code, row.name, row.departmentId, row.positionId, row.email].some((value) => String(value || "").toLowerCase().includes(q));
-	});
-});
-
 const summary = computed(() => ({
-	total: employees.value.length,
+	total: total.value,
 	active: employees.value.filter((item) => item.status === "active").length,
 	left: employees.value.filter((item) => item.status === "left").length,
 	reminders: reminders.value.length
@@ -94,27 +87,68 @@ const columns: DataTableColumn[] = [
 ];
 
 onMounted(() => {
-	void refresh();
+	void loadPage();
+	void refreshReminders();
+});
+
+onBeforeUnmount(() => {
+	loadController?.abort();
+	if (filterTimer) clearTimeout(filterTimer);
+});
+
+watch([keyword, statusFilter], () => {
+	currentPage.value = 1;
+	if (filterTimer) clearTimeout(filterTimer);
+	filterTimer = setTimeout(() => void loadPage(), 250);
 });
 
 async function refresh(): Promise<void> {
+	currentPage.value = 1;
+	await Promise.all([loadPage(true), refreshReminders()]);
+}
+
+async function loadPage(force = false): Promise<void> {
 	error.value = "";
 	if (!canRead.value) {
 		return;
 	}
+	loadController?.abort();
+	const controller = new AbortController();
+	loadController = controller;
 	loading.value = true;
 	try {
-		const [items, reminderItems] = await Promise.all([
-			listEmployees(),
-			listEmployeeQualificationReminders(30)
-		]);
-		employees.value = items;
-		reminders.value = reminderItems;
+		const page = await listEmployees({
+			keyword: keyword.value,
+			status: statusFilter.value,
+			offset: (currentPage.value - 1) * pageSize.value,
+			limit: pageSize.value,
+			signal: controller.signal,
+			force
+		});
+		if (loadController !== controller) return;
+		employees.value = page.items;
+		total.value = page.total;
+		hasLoaded.value = true;
 	} catch (e) {
+		if (e instanceof DOMException && e.name === "AbortError") return;
 		error.value = toErrorMessage(e);
 	} finally {
-		loading.value = false;
+		if (loadController === controller) {
+			loadController = null;
+			loading.value = false;
+		}
 	}
+}
+
+function changePage(page: number): void {
+	currentPage.value = page;
+	void loadPage();
+}
+
+function changePageSize(size: number): void {
+	pageSize.value = size;
+	currentPage.value = 1;
+	void loadPage();
 }
 
 function openCreate(): void {
@@ -178,10 +212,9 @@ async function saveEmployee(): Promise<void> {
 			certificates: buildCertificates(),
 			actorId: actorId.value
 		};
-		const saved = editing.value
-			? await updateEmployee(editing.value.id, body)
-			: await createEmployee(body);
-		upsert(saved);
+		if (editing.value) await updateEmployee(editing.value.id, body);
+		else await createEmployee(body);
+		await loadPage(true);
 		drawerOpen.value = false;
 		ElMessage.success(editing.value ? t("pharma.employee.employeeUpdated") : t("pharma.employee.employeeCreated"));
 		await refreshReminders();
@@ -204,8 +237,8 @@ async function leaveEmployee(): Promise<void> {
 	saving.value = true;
 	error.value = "";
 	try {
-		const saved = await markEmployeeLeft(target.id, leaveReason.value, actorId.value);
-		upsert(saved);
+		await markEmployeeLeft(target.id, leaveReason.value, actorId.value);
+		await loadPage(true);
 		leaveTarget.value = null;
 		leaveDialogOpen.value = false;
 		ElMessage.success(t("pharma.employee.employeeStatusUpdated"));
@@ -223,11 +256,6 @@ async function refreshReminders(): Promise<void> {
 	} catch {
 		reminders.value = [];
 	}
-}
-
-function upsert(item: PharmaEmployee): void {
-	employees.value = [item, ...employees.value.filter((employee) => employee.id !== item.id)]
-		.sort((a, b) => a.code.localeCompare(b.code));
 }
 
 function buildCertificates(): EmployeeCertificate[] {
@@ -283,7 +311,7 @@ function formatDate(value: string): string {
 	<PageShell
 		:title="t('pharma.employee.employeeManagement')"
 		:description="t('pharma.employee.maintainPharmaOaEmployeeRecordsDepartmentsPositionsCerti901bc254')"
-		:loading="loading"
+		:loading="loading && !hasLoaded"
 		:error="error"
 		:forbidden="!canRead"
 		:forbidden-title="t('pharma.employee.employeeManagementUnavailable')"
@@ -300,8 +328,8 @@ function formatDate(value: string): string {
 
 		<section class="summary-grid" :aria-label="t('pharma.employee.employeeSummary')">
 			<div class="summary-tile"><span>{{ t("pharma.employee.total") }}</span><strong>{{ summary.total }}</strong></div>
-			<div class="summary-tile"><span>{{ t("pharma.employee.active") }}</span><strong>{{ summary.active }}</strong></div>
-			<div class="summary-tile"><span>{{ t("pharma.employee.left") }}</span><strong>{{ summary.left }}</strong></div>
+			<div class="summary-tile"><span>{{ t("pharma.employee.pageActive") }}</span><strong>{{ summary.active }}</strong></div>
+			<div class="summary-tile"><span>{{ t("pharma.employee.pageLeft") }}</span><strong>{{ summary.left }}</strong></div>
 			<div class="summary-tile risk"><span>{{ t("pharma.employee.expiringCerts") }}</span><strong>{{ summary.reminders }}</strong></div>
 		</section>
 
@@ -322,11 +350,13 @@ function formatDate(value: string): string {
 		</section>
 
 		<DataTable
-			:rows="filteredRows"
+			:rows="rows"
 			:columns="columns"
 			row-key="id"
 			:loading="loading"
 			:error="error"
+			:height="520"
+			virtualized
 			:empty-text="t('pharma.employee.noEmployeesMatchTheCurrentFilters')"
 		>
 			<template #cell-status="{ value }">
@@ -339,6 +369,17 @@ function formatDate(value: string): string {
 				<el-tooltip :content="t('pharma.employee.markLeft')">
 					<el-button :icon="UserMinus" circle type="danger" :aria-label="t('pharma.employee.markLeft')" :disabled="!canLeave || row.status === 'left'" @click="openLeave(row)" />
 				</el-tooltip>
+			</template>
+			<template #pagination>
+				<el-pagination
+					:current-page="currentPage"
+					:page-size="pageSize"
+					:page-sizes="[25, 50, 100]"
+					:total="total"
+					layout="total, sizes, prev, pager, next"
+					@current-change="changePage"
+					@size-change="changePageSize"
+				/>
 			</template>
 		</DataTable>
 

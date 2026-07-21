@@ -20,6 +20,11 @@ type ListFilter struct {
 	Limit           int
 }
 
+type ListPage[T any] struct {
+	Items []T
+	Total int64
+}
+
 func (f ListFilter) NormalizedOrganizationIDs() []string {
 	seen := make(map[string]struct{}, len(f.OrganizationIDs)+1)
 	out := make([]string, 0, len(f.OrganizationIDs)+1)
@@ -45,29 +50,34 @@ type AggregateRepository[T any] interface {
 	List(ctx context.Context, filter ListFilter) ([]T, error)
 }
 
+type PagedAggregateRepository[T any] interface {
+	AggregateRepository[T]
+	ListPage(ctx context.Context, filter ListFilter) (ListPage[T], error)
+}
+
 type EmployeeRepository interface {
-	AggregateRepository[domainpharma.Employee]
+	PagedAggregateRepository[domainpharma.Employee]
 	GetByCode(ctx context.Context, code string) (*domainpharma.Employee, error)
 }
 
 type ProductRepository interface {
-	AggregateRepository[domainpharma.Product]
+	PagedAggregateRepository[domainpharma.Product]
 	GetByCode(ctx context.Context, code string) (*domainpharma.Product, error)
 	GetByApprovalNumber(ctx context.Context, approvalNumber string) (*domainpharma.Product, error)
 }
 
 type SupplierRepository interface {
-	AggregateRepository[domainpharma.Supplier]
+	PagedAggregateRepository[domainpharma.Supplier]
 	GetByCode(ctx context.Context, code string) (*domainpharma.Supplier, error)
 }
 
 type CustomerRepository interface {
-	AggregateRepository[domainpharma.Customer]
+	PagedAggregateRepository[domainpharma.Customer]
 	GetByCode(ctx context.Context, code string) (*domainpharma.Customer, error)
 }
 
 type WarehouseRepository interface {
-	AggregateRepository[domainpharma.Warehouse]
+	PagedAggregateRepository[domainpharma.Warehouse]
 	GetByCode(ctx context.Context, code string) (*domainpharma.Warehouse, error)
 }
 

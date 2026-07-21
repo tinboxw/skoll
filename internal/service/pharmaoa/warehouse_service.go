@@ -17,6 +17,7 @@ import (
 type WarehouseService interface {
 	Create(ctx context.Context, in WarehouseWriteInput) (*domainpharma.Warehouse, error)
 	List(ctx context.Context, in WarehouseListInput) ([]*domainpharma.Warehouse, error)
+	ListPage(ctx context.Context, in WarehouseListInput) (ListPage[*domainpharma.Warehouse], error)
 	Update(ctx context.Context, id string, in WarehouseWriteInput) (*domainpharma.Warehouse, error)
 	Disable(ctx context.Context, id string, in WarehouseDisableInput) (*domainpharma.Warehouse, error)
 	ValidateMovementLocation(ctx context.Context, in WarehouseMovementLocationInput) (WarehouseMovementLocationEligibility, error)
@@ -101,15 +102,20 @@ func (s *warehouseService) Create(ctx context.Context, in WarehouseWriteInput) (
 }
 
 func (s *warehouseService) List(ctx context.Context, in WarehouseListInput) ([]*domainpharma.Warehouse, error) {
-	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Region: in.Region, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	page, err := s.ListPage(ctx, in)
+	return page.Items, err
+}
+
+func (s *warehouseService) ListPage(ctx context.Context, in WarehouseListInput) (ListPage[*domainpharma.Warehouse], error) {
+	page, err := s.repo.ListPage(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Region: in.Region, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
 	if err != nil {
-		return nil, err
+		return ListPage[*domainpharma.Warehouse]{}, err
 	}
-	items := make([]*domainpharma.Warehouse, 0, len(rows))
-	for index := range rows {
-		items = append(items, cloneWarehouse(&rows[index]))
+	items := make([]*domainpharma.Warehouse, 0, len(page.Items))
+	for index := range page.Items {
+		items = append(items, cloneWarehouse(&page.Items[index]))
 	}
-	return items, nil
+	return ListPage[*domainpharma.Warehouse]{Items: items, Total: page.Total}, nil
 }
 
 func (s *warehouseService) Update(ctx context.Context, id string, in WarehouseWriteInput) (*domainpharma.Warehouse, error) {

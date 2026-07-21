@@ -1,5 +1,7 @@
 ﻿<script setup lang="ts">
 import { computed, watch } from "vue";
+import enUS from "element-plus/es/locale/lang/en";
+import zhCN from "element-plus/es/locale/lang/zh-cn";
 import { useRoute, useRouter } from "vue-router";
 import HeaderBar from "./components/Layout/Header.vue";
 import MainContent from "./components/Layout/MainContent.vue";
@@ -25,6 +27,7 @@ const { locale, setLocale, t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const ADMIN_BASE = "/skoll";
+const elementLocale = computed(() => locale.value === "en-US" ? enUS : zhCN);
 
 const pluginCount = computed(() => pluginStore.items.length);
 const isLoginRoute = computed(() => route.path === `${ADMIN_BASE}/login`);
@@ -203,10 +206,11 @@ watch(
 </script>
 
 <template>
-	<main v-if="isLoginRoute" class="login-shell">
-		<RouterView />
-	</main>
-	<main v-else class="app-shell">
+	<el-config-provider :locale="elementLocale">
+		<main v-if="isLoginRoute" class="login-shell">
+			<RouterView />
+		</main>
+		<main v-else class="app-shell">
 		<Sidebar :collapsed="appStore.sidebarCollapsed" :items="sidebarItems" />
 		<div class="content-area" :class="{ 'plugin-content-area': isPluginHostRoute }">
 			<HeaderBar
@@ -237,7 +241,8 @@ watch(
 				<RouterView />
 			</MainContent>
 		</div>
-	</main>
+		</main>
+	</el-config-provider>
 </template>
 
 <style scoped>

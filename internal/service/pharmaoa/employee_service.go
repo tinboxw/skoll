@@ -18,6 +18,7 @@ import (
 type EmployeeService interface {
 	Create(ctx context.Context, in EmployeeWriteInput) (*domainpharma.Employee, error)
 	List(ctx context.Context, in EmployeeListInput) ([]*domainpharma.Employee, error)
+	ListPage(ctx context.Context, in EmployeeListInput) (ListPage[*domainpharma.Employee], error)
 	Update(ctx context.Context, id string, in EmployeeWriteInput) (*domainpharma.Employee, error)
 	MarkLeft(ctx context.Context, id string, in EmployeeLeaveInput) (*domainpharma.Employee, error)
 	QualificationReminders(ctx context.Context, days int) ([]EmployeeQualificationReminder, error)
@@ -99,15 +100,20 @@ func (s *employeeService) Create(ctx context.Context, in EmployeeWriteInput) (*d
 }
 
 func (s *employeeService) List(ctx context.Context, in EmployeeListInput) ([]*domainpharma.Employee, error) {
-	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	page, err := s.ListPage(ctx, in)
+	return page.Items, err
+}
+
+func (s *employeeService) ListPage(ctx context.Context, in EmployeeListInput) (ListPage[*domainpharma.Employee], error) {
+	page, err := s.repo.ListPage(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
 	if err != nil {
-		return nil, err
+		return ListPage[*domainpharma.Employee]{}, err
 	}
-	items := make([]*domainpharma.Employee, 0, len(rows))
-	for index := range rows {
-		items = append(items, cloneEmployee(&rows[index]))
+	items := make([]*domainpharma.Employee, 0, len(page.Items))
+	for index := range page.Items {
+		items = append(items, cloneEmployee(&page.Items[index]))
 	}
-	return items, nil
+	return ListPage[*domainpharma.Employee]{Items: items, Total: page.Total}, nil
 }
 
 func (s *employeeService) Update(ctx context.Context, id string, in EmployeeWriteInput) (*domainpharma.Employee, error) {
@@ -248,7 +254,7 @@ func cloneEmployee(item *domainpharma.Employee) *domainpharma.Employee {
 		return nil
 	}
 	out := *item
-	out.Certificates = append([]domainpharma.EmployeeCertificate(nil), item.Certificates...)
+	out.Certificates = append(make([]domainpharma.EmployeeCertificate, 0, len(item.Certificates)), item.Certificates...)
 	return &out
 }
 

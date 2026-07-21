@@ -12,7 +12,7 @@
 		{"path": "src/views/PharmaCustomerFollowUp/index.vue", "namespace": "pharma.customerFollowUp", "status": "localized", "translationKeyCount": 48, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaDashboard/index.vue", "namespace": "pharma.dashboard", "status": "localized", "translationKeyCount": 43, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaDrugRecall/index.vue", "namespace": "pharma.drugRecall", "status": "localized", "translationKeyCount": 45, "hardcodedCopyCount": 0},
-		{"path": "src/views/PharmaEmployee/index.vue", "namespace": "pharma.employee", "status": "localized", "translationKeyCount": 43, "hardcodedCopyCount": 0},
+		{"path": "src/views/PharmaEmployee/index.vue", "namespace": "pharma.employee", "status": "localized", "translationKeyCount": 45, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaPaymentInvoice/index.vue", "namespace": "pharma.paymentInvoice", "status": "localized", "translationKeyCount": 79, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaPurchaseInbound/index.vue", "namespace": "pharma.purchaseInbound", "status": "localized", "translationKeyCount": 31, "hardcodedCopyCount": 0},
 		{"path": "src/views/PharmaQualification/index.vue", "namespace": "pharma.qualification", "status": "localized", "translationKeyCount": 33, "hardcodedCopyCount": 0},

@@ -847,3 +847,62 @@ git diff --check
 ### Next Step
 
 父任务 H5 进入 `Doing`。按正式 Work Item 顺序领取 `H5-02`，实现服务端分页与前端大列表性能基线。
+
+## H5-02 服务端分页与前端大列表 UX
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> (Failed -> Doing) x 12 -> Review -> Done`
+- Scope: 为 Pharma OA 员工、客户、产品、供应商和仓库主数据建立统一的 `total/cursor/offset/limit` 服务端分页契约；员工与客户页面改用可取消请求、短期页面缓存和虚拟表格，并在默认中文、英文、桌面与窄屏下完成真实浏览器验收。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| API 与存储分页 | Pass | 五个主数据列表统一返回 `items/offset/limit/total/hasMore/nextCursor/sort`；cursor 使用不透明 Base64 offset 且优先于显式 offset。GORM repository 使用同一过滤条件执行 `COUNT` 与有界 `ORDER BY code ASC LIMIT/OFFSET`，memory repository 保持相同 contract。 |
+| 契约与真实 MySQL | Pass | handler 覆盖分页元数据、非法 cursor 400、cursor 往返及空证书数组；公开与内嵌 OpenAPI 完全一致，167 个 path 可解析，五个端点均声明分页参数和响应 schema；`TestPharmaMasterRepositoriesMySQLContract` 在本地 `skoll_acceptance` 实库通过。 |
+| 前端大列表 | Pass | 员工与客户使用 250ms debounce、`AbortController`、10 秒页面缓存、25/50/100 页大小和 Element Plus 虚拟表格；写操作显式失效对应缓存，lookup 调用限制为最多 200 条，不再对完整结果集做浏览器内过滤。 |
+| 多语言与响应式 | Pass | `el-config-provider` 使 Element Plus 跟随框架 locale，默认 `zh-CN`；中文显示“共 125 条”，英文显示 “Total 125”。桌面 1440x1000 与移动 390x844 页面及分页控件横向溢出均为 0。 |
+| 浏览器矩阵 | Pass | `scripts/h5-large-list-browser.py` 使用真实 Chrome 完成 2 locales x 2 viewports x 2 pages，共 8/8 页面检查；每个 50 行页面仅挂载 24 个可见行，表格高度 520px，第二页稳定从 `0051` 开始，返回第一页命中缓存。中文桌面额外验证 `H5E0 -> H5E01` 取消旧请求，最终 26 条且无错误态。 |
+| 可重复夹具与证据 | Pass | `scripts/h5-large-list-fixtures.ps1` 默认中文、支持英文，仅写入 `h5-list-*` 员工/客户并在 seed 前及验收后清理；正式矩阵前后计数为 `125/125 -> 0/0`。`docs/refactor/current/evidence/h5-02/` 保存 README、机器可读 JSON 和 8 张截图。 |
+| 质量门禁与 bundle | Pass | `go test ./...`、`go vet ./...`、真实 MySQL 契约、OpenAPI 断言、Python 编译、locale/accessibility/large-list 门禁、`vue-tsc --noEmit`、Vite production build 和 `git diff --check` 全部通过。构建转换 3612 个模块；DataTable chunk 48.93 kB / gzip 16.24 kB，pagination chunk 11.80 kB / gzip 4.07 kB；仅保留既有 Sass 与 VueUse 上游警告。 |
+| API/权限/审计/migration/seed | Pass | 本项仅改变列表响应 contract 并同步两份 OpenAPI；继续复用既有读取权限与审计边界，未新增或变更权限键、审计动作、migration 或产品 seed。验收 SQL 是显式可清理的临时夹具，不属于正式 seed。 |
+| CodeGraph 与边界 | Pass | 同步后索引为 710 files / 15,319 nodes / 46,984 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有 `docs/README.md`、`docs/collaboration.md`、`.codegraph/`、`.vscode/`、`AGENTS.md` 或 `data/`。 |
+
+### Verification Commands
+
+```powershell
+go test ./...
+go vet ./...
+$env:SKOLL_TEST_MYSQL_DSN = 'root:root@tcp(127.0.0.1:3306)/skoll_acceptance?charset=utf8mb4&parseTime=True&loc=Local'
+go test ./internal/store/sql/gormrepo -run '^TestPharmaMasterRepositoriesMySQLContract$' -count=1 -v
+npm --prefix web run typecheck
+npm --prefix web run build
+python -m py_compile scripts/h5-large-list-browser.py
+$env:Path = 'D:\workspace\phpEnv\server\mysql\mysql-8.0\bin;' + $env:Path
+./scripts/h5-large-list-fixtures.ps1 -Action seed -Rows 125
+try { python -u ./scripts/h5-large-list-browser.py --base-url http://127.0.0.1:5176 } finally { ./scripts/h5-large-list-fixtures.ps1 -Action cleanup }
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 泛型 memory page 在错误分支返回 `nil`，无法编译。 | 返回类型化空 page，重跑 repository/service/handler 聚焦测试。 |
+| 2 | Failed -> Doing | 首版 paged interface 扩散到全部 workflow repository，造成非主数据实现不满足接口。 | 将分页能力收敛到五个主数据 repository，保持其他 aggregate contract 不变。 |
+| 3 | Failed -> Doing | 浏览器脚本拼接 base URL 时重复路径，无法进入目标页面。 | 将 base URL 与 `/skoll/...` 路径分离并加入显式参数。 |
+| 4 | Failed -> Doing | 真实员工列表返回 `certificates: null`，前端证书单元格读取长度时报错并停留 loading。 | 修复 employee clone 使空证书稳定序列化为 `[]`，新增 handler 回归断言。 |
+| 5 | Failed -> Doing | 分页按钮重绘导致 stale element，且仅等待总数会误把首屏相同总数当作筛选完成。 | 增加 idle/stale 重试和精确 keyword resource 请求等待。 |
+| 6 | Failed -> Doing | 二次筛选时全页 skeleton 卸载输入框，无法触发取消旧请求。 | 仅首次加载显示 PageShell skeleton，后续查询保持 toolbar 挂载并由表格呈现 loading。 |
+| 7 | Failed -> Doing | 取消场景预期总数误写为 25，且浏览器将已知 favicon 404 计为业务错误。 | 按 `H5E01` 实际集合修正为 26，仅忽略明确的 favicon 404，其他 severe 仍失败。 |
+| 8 | Failed -> Doing | 一次复验在夹具已清理时启动，空总数文本触发转换异常。 | 固化 seed/browser/finally-cleanup 生命周期，并让空文本返回等待哨兵值。 |
+| 9 | Failed -> Doing | 完整四组合矩阵超过首次 4 分钟外层上限，进程被验收 shell 中止。 | 单跑中文桌面确认功能后将外层上限调整为 10 分钟，完整矩阵 230.8 秒通过。 |
+| 10 | Failed -> Doing | 首次全库测试命令误用 1 秒外层窗口，被工具中止。 | 使用 5 分钟上限重跑，随后暴露并处理真实契约问题。 |
+| 11 | Failed -> Doing | `TestOpenAPIContractFilesStayInSync` 发现公开 OpenAPI 与运行时内嵌副本不一致。 | 将五端点分页参数和两个 schema 同步到内嵌文件，契约测试及全库测试通过。 |
+| 12 | Failed -> Doing | 首次 OpenAPI 自定义断言被 PowerShell 展开 `$ref`，第二次引号转义仍不正确。 | 改用 here-string 传入 Python，双文件 167 paths / 5 endpoints 断言通过。 |
+
+### Next Step
+
+父任务 H5 保持 `Doing`。按正式 Work Item 顺序领取 `H5-03`，验证长任务、重试、死信、资源稳定性和监控阈值。

@@ -46,7 +46,7 @@ async function refresh() {
 		const requests: Promise<unknown>[] = [];
 		if (canReadOrders.value) requests.push(listSalesOrders().then((items) => { orders.value = items; }));
 		if (canReadOutbounds.value) requests.push(listSalesOutbounds().then((items) => { outbounds.value = items; }));
-		if (canCreateOrder.value) requests.push(listCustomers({ status: "active" }).then((items) => { customers.value = items; }));
+		if (canCreateOrder.value) requests.push(listCustomers({ status: "active", limit: 200 }).then((page) => { customers.value = page.items; }));
 		await Promise.all(requests);
 	} catch (cause) {
 		error.value = toErrorMessage(cause);

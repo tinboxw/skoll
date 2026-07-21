@@ -2,6 +2,59 @@ import { ApiError, apiGet, apiPost, apiPut, type ApiResponse } from "../utils/ap
 import { API_BASE_PREFIX } from "../utils/api-base-prefix";
 import { getToken } from "../utils/auth";
 
+export type PharmaListPage<T> = {
+	items: T[];
+	offset: number;
+	limit: number;
+	total: number;
+	hasMore: boolean;
+	nextCursor: string;
+	sort: "code:asc";
+};
+
+export type PharmaListQuery = {
+	keyword?: string;
+	status?: string;
+	offset?: number;
+	limit?: number;
+	cursor?: string;
+	signal?: AbortSignal;
+	force?: boolean;
+};
+
+const listPageCache = new Map<string, { expiresAt: number; value: PharmaListPage<unknown> }>();
+const listPageCacheTTL = 10_000;
+
+async function loadListPage<T>(resource: string, path: string, params: URLSearchParams, query: Pick<PharmaListQuery, "signal" | "force">): Promise<PharmaListPage<T>> {
+	const suffix = params.toString() ? `?${params.toString()}` : "";
+	const key = `${resource}|${getToken()}|${suffix}`;
+	const cached = listPageCache.get(key);
+	if (!query.force && cached && cached.expiresAt > Date.now()) {
+		return cloneListPage(cached.value as PharmaListPage<T>);
+	}
+	const payload = await apiGet<ApiResponse<PharmaListPage<T>>>(`${path}${suffix}`, { signal: query.signal });
+	listPageCache.set(key, { expiresAt: Date.now() + listPageCacheTTL, value: cloneListPage(payload.data) as PharmaListPage<unknown> });
+	return cloneListPage(payload.data);
+}
+
+function cloneListPage<T>(page: PharmaListPage<T>): PharmaListPage<T> {
+	return { ...page, items: page.items.map((item) => ({ ...item })) };
+}
+
+function appendListPageParams(params: URLSearchParams, query: PharmaListQuery): void {
+	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
+	if (query.status?.trim()) params.set("status", query.status.trim());
+	if (query.cursor?.trim()) params.set("cursor", query.cursor.trim());
+	if (query.offset !== undefined) params.set("offset", String(Math.max(0, query.offset)));
+	if (query.limit !== undefined) params.set("limit", String(query.limit));
+}
+
+function invalidateListPageCache(resource: string): void {
+	for (const key of listPageCache.keys()) {
+		if (key.startsWith(`${resource}|`)) listPageCache.delete(key);
+	}
+}
+
 export type EmployeeStatus = "active" | "on_leave" | "left";
 
 export type EmployeeCertificate = {
@@ -44,12 +97,6 @@ export type QualificationReminder = {
 	expiresAt: string;
 };
 
-type EmployeeListPayload = {
-	items: PharmaEmployee[];
-	offset: number;
-	limit: number;
-};
-
 type EmployeeItemPayload = {
 	item: PharmaEmployee;
 };
@@ -58,31 +105,27 @@ type ReminderPayload = {
 	items: QualificationReminder[];
 };
 
-export async function listEmployees(query: { keyword?: string; status?: string } = {}): Promise<PharmaEmployee[]> {
+export async function listEmployees(query: PharmaListQuery = {}): Promise<PharmaListPage<PharmaEmployee>> {
 	const params = new URLSearchParams();
-	if (query.keyword?.trim()) {
-		params.set("keyword", query.keyword.trim());
-	}
-	if (query.status?.trim()) {
-		params.set("status", query.status.trim());
-	}
-	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<EmployeeListPayload>>(`/v1/pharma-oa/employees${suffix}`);
-	return payload.data.items;
+	appendListPageParams(params, query);
+	return loadListPage<PharmaEmployee>("employees", "/v1/pharma-oa/employees", params, query);
 }
 
 export async function createEmployee(body: EmployeeRequest): Promise<PharmaEmployee> {
 	const payload = await apiPost<ApiResponse<EmployeeItemPayload>>("/v1/pharma-oa/employees", body);
+	invalidateListPageCache("employees");
 	return payload.data.item;
 }
 
 export async function updateEmployee(id: string, body: EmployeeRequest): Promise<PharmaEmployee> {
 	const payload = await apiPut<ApiResponse<EmployeeItemPayload>>(`/v1/pharma-oa/employees/${encodeURIComponent(id)}`, body);
+	invalidateListPageCache("employees");
 	return payload.data.item;
 }
 
 export async function markEmployeeLeft(id: string, reason: string, actorId?: string): Promise<PharmaEmployee> {
 	const payload = await apiPost<ApiResponse<EmployeeItemPayload>>(`/v1/pharma-oa/employees/${encodeURIComponent(id)}/leave`, { reason, actorId });
+	invalidateListPageCache("employees");
 	return payload.data.item;
 }
 
@@ -156,12 +199,6 @@ export type CustomerSalesEligibility = {
 	reason?: string;
 };
 
-type CustomerListPayload = {
-	items: PharmaCustomer[];
-	offset: number;
-	limit: number;
-};
-
 type CustomerItemPayload = {
 	item: PharmaCustomer;
 };
@@ -174,34 +211,30 @@ type CustomerEligibilityPayload = {
 	item: CustomerSalesEligibility;
 };
 
-export async function listCustomers(query: { keyword?: string; status?: string; region?: string } = {}): Promise<PharmaCustomer[]> {
+export async function listCustomers(query: PharmaListQuery & { region?: string } = {}): Promise<PharmaListPage<PharmaCustomer>> {
 	const params = new URLSearchParams();
-	if (query.keyword?.trim()) {
-		params.set("keyword", query.keyword.trim());
-	}
-	if (query.status?.trim()) {
-		params.set("status", query.status.trim());
-	}
+	appendListPageParams(params, query);
 	if (query.region?.trim()) {
 		params.set("region", query.region.trim());
 	}
-	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<CustomerListPayload>>(`/v1/pharma-oa/customers${suffix}`);
-	return payload.data.items;
+	return loadListPage<PharmaCustomer>("customers", "/v1/pharma-oa/customers", params, query);
 }
 
 export async function createCustomer(body: CustomerRequest): Promise<PharmaCustomer> {
 	const payload = await apiPost<ApiResponse<CustomerItemPayload>>("/v1/pharma-oa/customers", body);
+	invalidateListPageCache("customers");
 	return payload.data.item;
 }
 
 export async function updateCustomer(id: string, body: CustomerRequest): Promise<PharmaCustomer> {
 	const payload = await apiPut<ApiResponse<CustomerItemPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}`, body);
+	invalidateListPageCache("customers");
 	return payload.data.item;
 }
 
 export async function disableCustomer(id: string, reason: string): Promise<PharmaCustomer> {
 	const payload = await apiPost<ApiResponse<CustomerItemPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/disable`, { reason });
+	invalidateListPageCache("customers");
 	return payload.data.item;
 }
 
@@ -476,18 +509,14 @@ export type PharmaContract = {
 };
 export type ContractExpiryReminder = { contractId: string; contractNumber: string; partyType: ContractPartyType; partyId: string; partyName: string; expiresAt: string; recipientId: string; notificationId: string; targetPath: string };
 export type ContractExpiryScanResult = { matchedCount: number; createdCount: number; reminders: ContractExpiryReminder[] };
-type SupplierListPayload = { items: PharmaSupplier[] };
 type ContractListPayload = { items: PharmaContract[] };
 type ContractItemPayload = { item: PharmaContract };
 type ContractExpiryPayload = { item: ContractExpiryScanResult };
 
-export async function listSuppliers(query: { keyword?: string; status?: string } = {}): Promise<PharmaSupplier[]> {
+export async function listSuppliers(query: PharmaListQuery = {}): Promise<PharmaListPage<PharmaSupplier>> {
 	const params = new URLSearchParams();
-	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
-	if (query.status?.trim()) params.set("status", query.status.trim());
-	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<SupplierListPayload>>(`/v1/pharma-oa/suppliers${suffix}`);
-	return payload.data.items;
+	appendListPageParams(params, query);
+	return loadListPage<PharmaSupplier>("suppliers", "/v1/pharma-oa/suppliers", params, query);
 }
 
 export async function listContracts(query: { keyword?: string; partyType?: ContractPartyType | ""; status?: ContractStatus | "" } = {}): Promise<PharmaContract[]> {
@@ -602,18 +631,14 @@ export type QualityComplaint = {
 	meta?: { createdAt: string; updatedAt: string };
 };
 
-type ProductListPayload = { items: PharmaProduct[] };
 type QualityComplaintListPayload = { items: QualityComplaint[] };
 type QualityComplaintItemPayload = { item: QualityComplaint };
 type QualityComplaintBatchListPayload = { items: QualityComplaintBatch[] };
 
-export async function listProducts(query: { keyword?: string; status?: string } = {}): Promise<PharmaProduct[]> {
+export async function listProducts(query: PharmaListQuery = {}): Promise<PharmaListPage<PharmaProduct>> {
 	const params = new URLSearchParams();
-	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
-	if (query.status?.trim()) params.set("status", query.status.trim());
-	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<ProductListPayload>>(`/v1/pharma-oa/products${suffix}`);
-	return payload.data.items;
+	appendListPageParams(params, query);
+	return loadListPage<PharmaProduct>("products", "/v1/pharma-oa/products", params, query);
 }
 
 export async function listQualityComplaints(query: { keyword?: string; status?: QualityComplaintStatus | "" } = {}): Promise<QualityComplaint[]> {

@@ -79,14 +79,14 @@ async function refresh(): Promise<void> {
 	loading.value = true;
 	error.value = "";
 	try {
-		const [complaints, customerItems, productItems] = await Promise.all([
+		const [complaints, customerPage, productPage] = await Promise.all([
 			listQualityComplaints({ keyword: keyword.value, status: statusFilter.value }),
-			listCustomers({ status: "active" }),
-			listProducts({ status: "active" })
+			listCustomers({ status: "active", limit: 200 }),
+			listProducts({ status: "active", limit: 200 })
 		]);
 		items.value = complaints;
-		customers.value = customerItems;
-		products.value = productItems;
+		customers.value = customerPage.items;
+		products.value = productPage.items;
 	} catch (cause) {
 		error.value = toErrorMessage(cause);
 	} finally {

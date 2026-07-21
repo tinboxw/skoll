@@ -83,22 +83,24 @@ func (h *CustomerHandler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, limit = normalizePagination(offset, limit)
-	items, err := h.service.List(r.Context(), pharmaoasvc.CustomerListInput{
+	pagination, err := parsePharmaListPagination(r)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	page, err := h.service.ListPage(r.Context(), pharmaoasvc.CustomerListInput{
 		Keyword: r.URL.Query().Get("keyword"),
 		Status:  r.URL.Query().Get("status"),
 		Region:  r.URL.Query().Get("region"),
-		Offset:  offset,
-		Limit:   limit,
+		Offset:  pagination.Offset,
+		Limit:   pagination.Limit,
 		Scope:   scope,
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "offset": offset, "limit": limit})
+	writePharmaListPage(w, page, pagination)
 }
 
 func (h *CustomerHandler) create(w http.ResponseWriter, r *http.Request) {

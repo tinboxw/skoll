@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { BadgeAlert, Edit, Plus, RefreshCw, ShieldOff } from "lucide-vue-next";
 import { ElMessage } from "element-plus";
 
@@ -32,6 +32,7 @@ const buttonAccess = useButtonAccess();
 const userStore = useUserStore();
 const { t } = useI18n();
 const loading = ref(false);
+const hasLoaded = ref(false);
 const saving = ref(false);
 const scopeLoading = ref(false);
 const writeScopeLoading = ref(false);
@@ -44,6 +45,9 @@ const statusFilter = ref("");
 const regionFilter = ref("");
 const customers = ref<PharmaCustomer[]>([]);
 const reminders = ref<CustomerQualificationReminder[]>([]);
+const currentPage = ref(1);
+const pageSize = ref(50);
+const total = ref(0);
 const drawerOpen = ref(false);
 const editing = ref<PharmaCustomer | null>(null);
 const disableTarget = ref<PharmaCustomer | null>(null);
@@ -52,6 +56,8 @@ const disableReason = ref("");
 const readScope = ref<AuthorizedDataScopeDecision | null>(null);
 const writeScope = ref<AuthorizedDataScopeDecision | null>(null);
 const writeScopeAction = ref<"create" | "update">("create");
+let loadController: AbortController | null = null;
+let filterTimer: ReturnType<typeof setTimeout> | null = null;
 
 const form = reactive({
 	code: "",
@@ -99,24 +105,8 @@ const rows = computed<CustomerRow[]>(() => customers.value.map((item) => ({
 	scopeSummary: `${item.organizationId} / ${item.ownerId}`
 })));
 
-const filteredRows = computed(() => {
-	const q = keyword.value.trim().toLowerCase();
-	return rows.value.filter((row) => {
-		if (statusFilter.value && row.status !== statusFilter.value) {
-			return false;
-		}
-		if (regionFilter.value && row.region !== regionFilter.value) {
-			return false;
-		}
-		if (!q) {
-			return true;
-		}
-		return [row.code, row.name, row.region, row.organizationId, row.ownerId, row.contactSummary].some((value) => String(value || "").toLowerCase().includes(q));
-	});
-});
-
 const summary = computed(() => ({
-	total: customers.value.length,
+	total: total.value,
 	active: customers.value.filter((item) => item.status === "active").length,
 	disabled: customers.value.filter((item) => item.status === "disabled").length,
 	reminders: reminders.value.length
@@ -135,33 +125,76 @@ onMounted(() => {
 	form.ownerId = actorId.value;
 	form.organizationId = profileOrganizationId.value;
 	disableReason.value = t("customer.disable.defaultReason");
-	void refresh();
+	void loadPage();
+	void refreshReminders();
+});
+
+onBeforeUnmount(() => {
+	loadController?.abort();
+	if (filterTimer) clearTimeout(filterTimer);
+});
+
+watch([keyword, statusFilter, regionFilter], () => {
+	currentPage.value = 1;
+	if (filterTimer) clearTimeout(filterTimer);
+	filterTimer = setTimeout(() => void loadPage(), 250);
 });
 
 async function refresh(): Promise<void> {
+	currentPage.value = 1;
+	readScope.value = null;
+	await Promise.all([loadPage(true), refreshReminders()]);
+}
+
+async function loadPage(force = false): Promise<void> {
 	error.value = "";
 	scopeError.value = "";
 	if (!canRead.value) {
 		return;
 	}
+	loadController?.abort();
+	const controller = new AbortController();
+	loadController = controller;
 	loading.value = true;
-	scopeLoading.value = true;
+	scopeLoading.value = readScope.value === null;
 	try {
-		const [decision, items, reminderItems] = await Promise.all([
-			resolveAuthorizedDataScope("pharma_oa.customer", "read"),
-			listCustomers(),
-			listCustomerQualificationReminders(30)
-		]);
+		const decision = readScope.value ?? await resolveAuthorizedDataScope("pharma_oa.customer", "read");
+		const page = await listCustomers({
+			keyword: keyword.value,
+			status: statusFilter.value,
+			region: regionFilter.value,
+			offset: (currentPage.value - 1) * pageSize.value,
+			limit: pageSize.value,
+			signal: controller.signal,
+			force
+		});
+		if (loadController !== controller) return;
 		readScope.value = decision;
-		customers.value = items;
-		reminders.value = reminderItems;
+		customers.value = page.items;
+		total.value = page.total;
+		hasLoaded.value = true;
 	} catch (e) {
+		if (e instanceof DOMException && e.name === "AbortError") return;
 		error.value = toErrorMessage(e);
 		scopeError.value = error.value;
 	} finally {
-		loading.value = false;
-		scopeLoading.value = false;
+		if (loadController === controller) {
+			loadController = null;
+			loading.value = false;
+			scopeLoading.value = false;
+		}
 	}
+}
+
+function changePage(page: number): void {
+	currentPage.value = page;
+	void loadPage();
+}
+
+function changePageSize(size: number): void {
+	pageSize.value = size;
+	currentPage.value = 1;
+	void loadPage();
 }
 
 function openCreate(): void {
@@ -241,10 +274,9 @@ async function saveCustomer(): Promise<void> {
 	error.value = "";
 	try {
 		const body = buildCustomerRequest();
-		const saved = editing.value
-			? await updateCustomer(editing.value.id, body)
-			: await createCustomer(body);
-		upsert(saved);
+		if (editing.value) await updateCustomer(editing.value.id, body);
+		else await createCustomer(body);
+		await loadPage(true);
 		drawerOpen.value = false;
 		await refreshReminders();
 		ElMessage.success(t("customer.saved"));
@@ -275,8 +307,8 @@ async function confirmDisable(): Promise<void> {
 	saving.value = true;
 	error.value = "";
 	try {
-		const updated = await disableCustomer(disableTarget.value.id, disableReason.value);
-		upsert(updated);
+		await disableCustomer(disableTarget.value.id, disableReason.value);
+		await loadPage(true);
 		disableDialogOpen.value = false;
 		await refreshReminders();
 		ElMessage.success(t("customer.disabled"));
@@ -336,15 +368,6 @@ function buildCustomerRequest() {
 	};
 }
 
-function upsert(item: PharmaCustomer): void {
-	const index = customers.value.findIndex((current) => current.id === item.id);
-	if (index >= 0) {
-		customers.value[index] = item;
-	} else {
-		customers.value.unshift(item);
-	}
-}
-
 function nextDate(days: number): string {
 	const date = new Date();
 	date.setDate(date.getDate() + days);
@@ -367,7 +390,7 @@ function formatInputDate(value: string): string {
 		<PageShell
 			:title="t('customer.title')"
 			:description="t('customer.description')"
-			:loading="loading"
+			:loading="loading && !hasLoaded"
 			:error="error"
 			:forbidden="!canRead"
 			:forbidden-title="t('customer.noPermissionTitle')"
@@ -385,8 +408,8 @@ function formatInputDate(value: string): string {
 
 			<section class="summary-grid">
 				<div class="summary-tile"><span>{{ t("customer.summary.total") }}</span><strong>{{ summary.total }}</strong></div>
-				<div class="summary-tile"><span>{{ t("customer.summary.active") }}</span><strong>{{ summary.active }}</strong></div>
-				<div class="summary-tile muted"><span>{{ t("customer.summary.disabled") }}</span><strong>{{ summary.disabled }}</strong></div>
+				<div class="summary-tile"><span>{{ t("customer.summary.pageActive") }}</span><strong>{{ summary.active }}</strong></div>
+				<div class="summary-tile muted"><span>{{ t("customer.summary.pageDisabled") }}</span><strong>{{ summary.disabled }}</strong></div>
 				<div class="summary-tile risk"><span>{{ t("customer.summary.expiring") }}</span><strong>{{ summary.reminders }}</strong></div>
 			</section>
 
@@ -412,11 +435,13 @@ function formatInputDate(value: string): string {
 		</section>
 
 		<DataTable
-			:rows="filteredRows"
+			:rows="rows"
 			:columns="columns"
 				row-key="id"
 				:loading="loading"
 				:error="error"
+				:height="520"
+				virtualized
 				:empty-text="keyword || statusFilter || regionFilter ? t('customer.empty.filtered') : t('customer.empty.title')"
 		>
 			<template #cell-status="{ row }">
@@ -426,6 +451,17 @@ function formatInputDate(value: string): string {
 					<el-tooltip :content="t('customer.edit')"><el-button link :icon="Edit" :disabled="!canUpdate" :aria-label="t('customer.edit')" @click="openEdit(row as CustomerRow)" /></el-tooltip>
 					<el-button link :loading="checking === row.id" :disabled="!canSales" :aria-label="t('customer.sales.check')" @click="checkSales(row as CustomerRow)">{{ t("customer.sales.short") }}</el-button>
 					<el-tooltip :content="t('customer.disable.title')"><el-button link type="danger" :icon="ShieldOff" :disabled="!canDisable || row.status === 'disabled'" :aria-label="t('customer.disable.title')" @click="openDisable(row as CustomerRow)" /></el-tooltip>
+				</template>
+				<template #pagination>
+					<el-pagination
+						:current-page="currentPage"
+						:page-size="pageSize"
+						:page-sizes="[25, 50, 100]"
+						:total="total"
+						layout="total, sizes, prev, pager, next"
+						@current-change="changePage"
+						@size-change="changePageSize"
+					/>
 				</template>
 			</DataTable>
 

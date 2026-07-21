@@ -40,8 +40,8 @@ async function refresh() {
 	if (!canRead.value) return;
 	loading.value = true; error.value = "";
 	try {
-		const [contracts, supplierItems, customerItems] = await Promise.all([listContracts({ keyword: keyword.value, partyType: partyFilter.value, status: statusFilter.value }), listSuppliers({ status: "active" }), listCustomers({ status: "active" })]);
-		items.value = contracts; suppliers.value = supplierItems; customers.value = customerItems;
+		const [contracts, supplierPage, customerPage] = await Promise.all([listContracts({ keyword: keyword.value, partyType: partyFilter.value, status: statusFilter.value }), listSuppliers({ status: "active", limit: 200 }), listCustomers({ status: "active", limit: 200 })]);
+		items.value = contracts; suppliers.value = supplierPage.items; customers.value = customerPage.items;
 		const target = new URLSearchParams(window.location.search).get("contractId");
 		if (target) { const item = contracts.find((entry) => entry.id === target); if (item) openDetail(item); }
 	} catch (cause) { error.value = toErrorMessage(cause); }

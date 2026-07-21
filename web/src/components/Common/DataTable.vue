@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, h, useSlots } from "vue";
 
 import { localizeKnownError, useI18n } from "../../i18n";
 import StateBlock from "./StateBlock.vue";
@@ -26,6 +26,7 @@ const props = withDefaults(defineProps<{
 	stripe?: boolean;
 	border?: boolean;
 	ariaLabel?: string;
+	virtualized?: boolean;
 }>(), {
 	rowKey: "id",
 	loading: false,
@@ -35,13 +36,44 @@ const props = withDefaults(defineProps<{
 	height: undefined,
 	stripe: true,
 	border: false,
-	ariaLabel: ""
+	ariaLabel: "",
+	virtualized: false
 });
 
 const hasRows = computed(() => props.rows.length > 0);
+const slots = useSlots();
 const { t } = useI18n();
 const localizedError = computed(() => localizeKnownError(props.error));
 const tableLabel = computed(() => props.ariaLabel || props.emptyText || t("state.noData"));
+const virtualHeight = computed(() => typeof props.height === "number" ? props.height : Number.parseInt(String(props.height || "520"), 10) || 520);
+const virtualColumns = computed(() => {
+	const columns = props.columns.map((column) => ({
+		key: column.key,
+		dataKey: column.key,
+		title: column.label,
+		width: numericColumnWidth(column),
+		align: column.align,
+		fixed: column.fixed,
+		cellRenderer: ({ rowData }: { rowData: Record<string, unknown> }) => {
+			const slot = slots[`cell-${column.key}`];
+			return slot
+				? h("div", { class: "data-table__virtual-cell" }, slot({ row: rowData, value: rowData[column.key] }))
+				: h("span", String(cellText(rowData, column)));
+		}
+	}));
+	if (slots.actions) {
+		columns.push({
+			key: "__actions",
+			dataKey: "__actions",
+			title: t("common.actions"),
+			width: 132,
+			align: "right",
+			fixed: "right",
+			cellRenderer: ({ rowData }: { rowData: Record<string, unknown> }) => h("div", { class: "data-table__actions" }, slots.actions?.({ row: rowData }))
+		});
+	}
+	return columns;
+});
 
 function cellText(row: Record<string, unknown>, column: DataTableColumn): string | number {
 	if (column.formatter) {
@@ -56,12 +88,34 @@ function cellText(row: Record<string, unknown>, column: DataTableColumn): string
 	}
 	return String(value);
 }
+
+function numericColumnWidth(column: DataTableColumn): number {
+	const value = column.width ?? column.minWidth ?? 160;
+	if (typeof value === "number") return value;
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) ? parsed : 160;
+}
 </script>
 
 <template>
 	<section class="data-table">
 		<StateBlock v-if="forbidden" type="forbidden" :title="t('state.noPermission')" :description="t('state.noDataPermission')" />
 		<StateBlock v-else-if="error" type="error" :title="t('state.requestFailed')" :description="localizedError" />
+		<div v-else-if="virtualized && hasRows" v-loading="loading" class="data-table__virtual" :style="{ height: `${virtualHeight}px` }">
+			<el-auto-resizer>
+				<template #default="{ height: availableHeight, width: availableWidth }">
+					<el-table-v2
+						:columns="virtualColumns"
+						:data="rows"
+						:width="availableWidth"
+						:height="availableHeight"
+						:row-key="rowKey"
+						fixed
+						:aria-label="tableLabel"
+					/>
+				</template>
+			</el-auto-resizer>
+		</div>
 		<el-table
 			v-else
 			:data="rows"
@@ -122,6 +176,19 @@ function cellText(row: Record<string, unknown>, column: DataTableColumn): string
 
 .data-table__el {
 	width: 100%;
+}
+
+.data-table__virtual {
+	width: 100%;
+	min-width: 0;
+}
+
+:deep(.data-table__virtual-cell) {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	height: 100%;
+	overflow: hidden;
 }
 
 .data-table__actions {

@@ -50,6 +50,27 @@ func TestEmployeeHandlerCreateListLeaveAndReminders(t *testing.T) {
 	if !bytes.Contains(listResp.Body.Bytes(), []byte("EMP001")) {
 		t.Fatalf("list response missing employee: %s", listResp.Body.String())
 	}
+	var listPayload struct {
+		Data struct {
+			Items      []map[string]any `json:"items"`
+			Total      int64            `json:"total"`
+			Limit      int              `json:"limit"`
+			HasMore    bool             `json:"hasMore"`
+			NextCursor string           `json:"nextCursor"`
+			Sort       string           `json:"sort"`
+		} `json:"data"`
+	}
+	pageResp := performRequest(mux, http.MethodGet, "/v1/pharma-oa/employees?limit=1", nil)
+	if err := json.Unmarshal(pageResp.Body.Bytes(), &listPayload); err != nil {
+		t.Fatalf("decode page response: %v", err)
+	}
+	if listPayload.Data.Total != 1 || listPayload.Data.Limit != 1 || listPayload.Data.HasMore || listPayload.Data.NextCursor != "" || listPayload.Data.Sort != pharmaListSort {
+		t.Fatalf("unexpected page metadata: %+v", listPayload.Data)
+	}
+	invalidCursor := performRequest(mux, http.MethodGet, "/v1/pharma-oa/employees?cursor=not-valid-*", nil)
+	if invalidCursor.Code != http.StatusBadRequest {
+		t.Fatalf("invalid cursor status=%d body=%s", invalidCursor.Code, invalidCursor.Body.String())
+	}
 
 	reminderResp := performRequest(mux, http.MethodGet, "/v1/pharma-oa/employees/qualification-reminders?days=60", nil)
 	if reminderResp.Code != http.StatusOK || !bytes.Contains(reminderResp.Body.Bytes(), []byte("GSP")) {
@@ -86,6 +107,28 @@ func TestNormalizePagination(t *testing.T) {
 		if offset != test.wantOffset || limit != test.wantLimit {
 			t.Errorf("normalizePagination(%d, %d)=(%d, %d), want (%d, %d)", test.offset, test.limit, offset, limit, test.wantOffset, test.wantLimit)
 		}
+	}
+}
+
+func TestPharmaListCursorRoundTrip(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/employees?cursor=NTA&limit=25", nil)
+	pagination, err := parsePharmaListPagination(req)
+	if err != nil || pagination.Offset != 50 || pagination.Limit != 25 {
+		t.Fatalf("pagination=%+v err=%v", pagination, err)
+	}
+}
+
+func TestEmployeeListSerializesEmptyCertificatesAsArray(t *testing.T) {
+	service := pharmaoasvc.NewEmployeeService(nil)
+	mux := http.NewServeMux()
+	RegisterEmployeeRoutes(mux, service)
+	created := performRequest(mux, http.MethodPost, "/v1/pharma-oa/employees", []byte(`{"code":"EMP-EMPTY","name":"Empty certificates","departmentId":"quality","positionId":"qa","certificates":[]}`))
+	if created.Code != http.StatusCreated {
+		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())
+	}
+	listed := performRequest(mux, http.MethodGet, "/v1/pharma-oa/employees?keyword=EMP-EMPTY", nil)
+	if listed.Code != http.StatusOK || !bytes.Contains(listed.Body.Bytes(), []byte(`"certificates":[]`)) {
+		t.Fatalf("empty certificates must serialize as []: status=%d body=%s", listed.Code, listed.Body.String())
 	}
 }
 

@@ -91,12 +91,19 @@ paths:
         - name: offset
           in: query
           schema: {type: integer, minimum: 0, default: 0}
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page. When present, it takes precedence over offset.
+          schema: {type: string}
         - name: limit
           in: query
           schema: {type: integer, minimum: 1, maximum: 200, default: 50}
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PharmaMasterListAPIResponse'}
         '403':
           description: Forbidden
     post:
@@ -185,9 +192,22 @@ paths:
           schema:
             type: string
             enum: [active, disabled]
+        - name: offset
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page. When present, it takes precedence over offset.
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PharmaMasterListAPIResponse'}
     post:
       summary: Create Pharma OA product
       requestBody:
@@ -276,9 +296,22 @@ paths:
           schema:
             type: string
             enum: [active, disabled]
+        - name: offset
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page. When present, it takes precedence over offset.
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PharmaMasterListAPIResponse'}
     post:
       summary: Create Pharma OA supplier
       requestBody:
@@ -376,12 +409,19 @@ paths:
         - name: offset
           in: query
           schema: {type: integer, minimum: 0, default: 0}
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page. When present, it takes precedence over offset.
+          schema: {type: string}
         - name: limit
           in: query
           schema: {type: integer, minimum: 1, maximum: 200, default: 50}
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PharmaMasterListAPIResponse'}
         '403':
           description: Forbidden
     post:
@@ -494,9 +534,22 @@ paths:
           in: query
           schema:
             type: string
+        - name: offset
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: cursor
+          in: query
+          description: Opaque cursor returned by the previous page. When present, it takes precedence over offset.
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PharmaMasterListAPIResponse'}
     post:
       summary: Create Pharma OA warehouse
       requestBody:
@@ -4481,6 +4534,33 @@ components:
       bearerFormat: JWT
       description: Skoll JWT access token. Aggregated plugin API operations require this scheme and declare x-skoll-permission.
   schemas:
+    PharmaMasterListData:
+      type: object
+      required: [items, offset, limit, total, hasMore, nextCursor, sort]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        offset: {type: integer, minimum: 0}
+        limit: {type: integer, minimum: 1, maximum: 200}
+        total: {type: integer, format: int64, minimum: 0}
+        hasMore: {type: boolean}
+        nextCursor:
+          type: string
+          description: Empty on the final page; otherwise pass this value as the next request cursor.
+        sort:
+          type: string
+          enum: ['code:asc']
+    PharmaMasterListAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/PharmaMasterListData'
     AuthLoginRequest:
       type: object
       required: [account, password]

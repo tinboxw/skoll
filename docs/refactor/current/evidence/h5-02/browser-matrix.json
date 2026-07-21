@@ -1,0 +1,132 @@
+{
+  "workItem": "H5-02",
+  "baseUrl": "http://127.0.0.1:5176",
+  "scenarios": [
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "pages": [
+        {
+          "resource": "employees",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "共 125 条",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        },
+        {
+          "resource": "customers",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "共 125 条",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        }
+      ],
+      "cancellation": {
+        "latestKeyword": "H5E01",
+        "latestTotal": 26,
+        "errorState": false
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "pages": [
+        {
+          "resource": "employees",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "共 125 条",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        },
+        {
+          "resource": "customers",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "共 125 条",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        }
+      ]
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "pages": [
+        {
+          "resource": "employees",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "Total 125",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        },
+        {
+          "resource": "customers",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "Total 125",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        }
+      ]
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "pages": [
+        {
+          "resource": "employees",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "Total 125",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        },
+        {
+          "resource": "customers",
+          "total": 125,
+          "pageSize": 50,
+          "virtualRows": 24,
+          "tableHeight": 520,
+          "totalText": "Total 125",
+          "cacheHit": true,
+          "pageOverflow": 0,
+          "paginationOverflow": 0
+        }
+      ]
+    }
+  ],
+  "passed": true
+}

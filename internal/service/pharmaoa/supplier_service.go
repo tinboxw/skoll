@@ -18,6 +18,7 @@ import (
 type SupplierService interface {
 	Create(ctx context.Context, in SupplierWriteInput) (*domainpharma.Supplier, error)
 	List(ctx context.Context, in SupplierListInput) ([]*domainpharma.Supplier, error)
+	ListPage(ctx context.Context, in SupplierListInput) (ListPage[*domainpharma.Supplier], error)
 	Update(ctx context.Context, id string, in SupplierWriteInput) (*domainpharma.Supplier, error)
 	Disable(ctx context.Context, id string, in SupplierDisableInput) (*domainpharma.Supplier, error)
 	QualificationReminders(ctx context.Context, days int) ([]SupplierQualificationReminder, error)
@@ -103,15 +104,20 @@ func (s *supplierService) Create(ctx context.Context, in SupplierWriteInput) (*d
 }
 
 func (s *supplierService) List(ctx context.Context, in SupplierListInput) ([]*domainpharma.Supplier, error) {
-	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	page, err := s.ListPage(ctx, in)
+	return page.Items, err
+}
+
+func (s *supplierService) ListPage(ctx context.Context, in SupplierListInput) (ListPage[*domainpharma.Supplier], error) {
+	page, err := s.repo.ListPage(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
 	if err != nil {
-		return nil, err
+		return ListPage[*domainpharma.Supplier]{}, err
 	}
-	items := make([]*domainpharma.Supplier, 0, len(rows))
-	for index := range rows {
-		items = append(items, cloneSupplier(&rows[index]))
+	items := make([]*domainpharma.Supplier, 0, len(page.Items))
+	for index := range page.Items {
+		items = append(items, cloneSupplier(&page.Items[index]))
 	}
-	return items, nil
+	return ListPage[*domainpharma.Supplier]{Items: items, Total: page.Total}, nil
 }
 
 func (s *supplierService) Update(ctx context.Context, id string, in SupplierWriteInput) (*domainpharma.Supplier, error) {

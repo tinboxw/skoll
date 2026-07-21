@@ -81,7 +81,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 			headers,
 			...init
 		});
-	} catch {
+	} catch (error) {
+		if (error instanceof DOMException && error.name === "AbortError") {
+			throw error;
+		}
 		throw new ApiError("network_error", 0, "network_error");
 	}
 
@@ -105,8 +108,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 	return (await resp.json()) as T;
 }
 
-export function apiGet<T>(url: string): Promise<T> {
-	return request<T>(url, { method: "GET" });
+export function apiGet<T>(url: string, init?: Omit<RequestInit, "method">): Promise<T> {
+	return request<T>(url, { ...init, method: "GET" });
 }
 
 export function apiPost<T>(url: string, body?: unknown): Promise<T> {

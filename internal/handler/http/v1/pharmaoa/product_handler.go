@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	domainpermission "github.com/tinboxw/skoll/internal/domain/permission"
 	domainpharma "github.com/tinboxw/skoll/internal/domain/pharmaoa"
@@ -59,19 +58,22 @@ func RegisterProductPermissions(service permissionsvc.Service) error {
 }
 
 func (h *ProductHandler) list(w http.ResponseWriter, r *http.Request) {
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	items, err := h.service.List(r.Context(), pharmaoasvc.ProductListInput{
+	pagination, err := parsePharmaListPagination(r)
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	page, err := h.service.ListPage(r.Context(), pharmaoasvc.ProductListInput{
 		Keyword: r.URL.Query().Get("keyword"),
 		Status:  r.URL.Query().Get("status"),
-		Offset:  offset,
-		Limit:   limit,
+		Offset:  pagination.Offset,
+		Limit:   pagination.Limit,
 	})
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"items": items, "offset": offset, "limit": limit})
+	writePharmaListPage(w, page, pagination)
 }
 
 func (h *ProductHandler) create(w http.ResponseWriter, r *http.Request) {

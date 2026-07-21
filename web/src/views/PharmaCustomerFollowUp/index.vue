@@ -62,12 +62,12 @@ async function refresh() {
 	loading.value = true;
 	error.value = "";
 	try {
-		const [followUps, customerItems] = await Promise.all([
+		const [followUps, customerPage] = await Promise.all([
 			listCustomerFollowUps({ keyword: keyword.value, status: statusFilter.value }),
-			listCustomers({ status: "active" })
+			listCustomers({ status: "active", limit: 200 })
 		]);
 		items.value = followUps;
-		customers.value = customerItems;
+		customers.value = customerPage.items;
 	} catch (cause) {
 		error.value = toErrorMessage(cause);
 	} finally {

@@ -19,6 +19,7 @@ import (
 type CustomerService interface {
 	Create(ctx context.Context, in CustomerWriteInput) (*domainpharma.Customer, error)
 	List(ctx context.Context, in CustomerListInput) ([]*domainpharma.Customer, error)
+	ListPage(ctx context.Context, in CustomerListInput) (ListPage[*domainpharma.Customer], error)
 	Update(ctx context.Context, id string, in CustomerWriteInput) (*domainpharma.Customer, error)
 	Disable(ctx context.Context, id string, in CustomerDisableInput) (*domainpharma.Customer, error)
 	QualificationReminders(ctx context.Context, in CustomerReminderInput) ([]CustomerQualificationReminder, error)
@@ -137,9 +138,14 @@ func (s *customerService) Create(ctx context.Context, in CustomerWriteInput) (*d
 }
 
 func (s *customerService) List(ctx context.Context, in CustomerListInput) ([]*domainpharma.Customer, error) {
+	page, err := s.ListPage(ctx, in)
+	return page.Items, err
+}
+
+func (s *customerService) ListPage(ctx context.Context, in CustomerListInput) (ListPage[*domainpharma.Customer], error) {
 	scope := normalizeCustomerAccessScope(in.Scope)
 	if !scope.IncludeAll && scope.OwnerID == "" && len(scope.OrganizationIDs) == 0 {
-		return []*domainpharma.Customer{}, nil
+		return ListPage[*domainpharma.Customer]{Items: []*domainpharma.Customer{}}, nil
 	}
 	filter := pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Region: in.Region, Offset: in.Offset, Limit: normalizeLimit(in.Limit)}
 	if !scope.IncludeAll {
@@ -147,15 +153,15 @@ func (s *customerService) List(ctx context.Context, in CustomerListInput) ([]*do
 		filter.OwnerID = shared.ID(scope.OwnerID)
 		filter.ScopeAny = true
 	}
-	rows, err := s.repo.List(ctx, filter)
+	page, err := s.repo.ListPage(ctx, filter)
 	if err != nil {
-		return nil, err
+		return ListPage[*domainpharma.Customer]{}, err
 	}
-	items := make([]*domainpharma.Customer, 0, len(rows))
-	for index := range rows {
-		items = append(items, cloneCustomer(&rows[index]))
+	items := make([]*domainpharma.Customer, 0, len(page.Items))
+	for index := range page.Items {
+		items = append(items, cloneCustomer(&page.Items[index]))
 	}
-	return items, nil
+	return ListPage[*domainpharma.Customer]{Items: items, Total: page.Total}, nil
 }
 
 func (s *customerService) Update(ctx context.Context, id string, in CustomerWriteInput) (*domainpharma.Customer, error) {

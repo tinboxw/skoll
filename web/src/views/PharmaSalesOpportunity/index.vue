@@ -58,14 +58,14 @@ async function refresh() {
 	loading.value = true;
 	error.value = "";
 	try {
-		const [opportunities, stats, customerItems, productItems] = await Promise.all([
+		const [opportunities, stats, customerPage, productPage] = await Promise.all([
 			listSalesOpportunities({ keyword: keyword.value, stage: stageFilter.value }), getSalesOpportunityStatistics(),
-			listCustomers({ status: "active" }), listProducts({ status: "active" })
+			listCustomers({ status: "active", limit: 200 }), listProducts({ status: "active", limit: 200 })
 		]);
 		items.value = opportunities;
 		statistics.value = stats;
-		customers.value = customerItems;
-		products.value = productItems;
+		customers.value = customerPage.items;
+		products.value = productPage.items;
 	} catch (cause) {
 		error.value = toErrorMessage(cause);
 	} finally {

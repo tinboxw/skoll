@@ -17,6 +17,7 @@ import (
 type ProductService interface {
 	Create(ctx context.Context, in ProductWriteInput) (*domainpharma.Product, error)
 	List(ctx context.Context, in ProductListInput) ([]*domainpharma.Product, error)
+	ListPage(ctx context.Context, in ProductListInput) (ListPage[*domainpharma.Product], error)
 	Update(ctx context.Context, id string, in ProductWriteInput) (*domainpharma.Product, error)
 	Disable(ctx context.Context, id string, in ProductDisableInput) (*domainpharma.Product, error)
 	Import(ctx context.Context, rows []ProductWriteInput) (ProductImportResult, error)
@@ -106,15 +107,20 @@ func (s *productService) Create(ctx context.Context, in ProductWriteInput) (*dom
 }
 
 func (s *productService) List(ctx context.Context, in ProductListInput) ([]*domainpharma.Product, error) {
-	rows, err := s.repo.List(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
+	page, err := s.ListPage(ctx, in)
+	return page.Items, err
+}
+
+func (s *productService) ListPage(ctx context.Context, in ProductListInput) (ListPage[*domainpharma.Product], error) {
+	page, err := s.repo.ListPage(ctx, pharmaoarepo.ListFilter{Keyword: in.Keyword, Status: in.Status, Offset: in.Offset, Limit: normalizeLimit(in.Limit)})
 	if err != nil {
-		return nil, err
+		return ListPage[*domainpharma.Product]{}, err
 	}
-	items := make([]*domainpharma.Product, 0, len(rows))
-	for index := range rows {
-		items = append(items, cloneProduct(&rows[index]))
+	items := make([]*domainpharma.Product, 0, len(page.Items))
+	for index := range page.Items {
+		items = append(items, cloneProduct(&page.Items[index]))
 	}
-	return items, nil
+	return ListPage[*domainpharma.Product]{Items: items, Total: page.Total}, nil
 }
 
 func (s *productService) Update(ctx context.Context, id string, in ProductWriteInput) (*domainpharma.Product, error) {
