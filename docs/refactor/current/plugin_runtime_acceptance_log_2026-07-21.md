@@ -1235,3 +1235,83 @@ Result: all acceptance gates passed after three documented retries. Generated mu
 ### Commit
 
 `PR3-02: generate secured HTTP contracts`
+
+## PR3-03 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused generator package compilation
+- Evidence: the generated plugin README raw-string template contained an unescaped nested backtick around the table placeholder, which ended the Go literal before the remaining template content.
+- Retry action: keep the table name in plain Markdown text inside the raw template, rerun formatting, and restart the focused metadata and generator tests.
+
+## PR3-03 Retry Record 2
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused generator package compilation
+- Evidence: after removing the table-name backticks, the same raw README template still contained newly added backticks around rollback and uninstall policy placeholders.
+- Retry action: remove the remaining nested backticks from the raw template and restart formatting plus the complete focused test set.
+
+## PR3-03 Retry Record 3
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: generated plugin lifecycle Loader validation
+- Evidence: text-level manifest assertions passed, but the current `FileLoader` rejected both generated retain-policy and drop-policy manifests as invalid.
+- Retry action: include the materialized manifest in failure evidence, identify the exact current-contract violation, fix the renderer, and restart the full focused metadata/generator/lifecycle matrix.
+
+## PR3-03 Retry Record 4
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: generator golden snapshot
+- Evidence: all metadata, Loader, migration lifecycle, and seed idempotency tests passed, while the strict snapshot still represented migrations without primary-key and audit timestamp declarations.
+- Retry action: replace only the expected hash with the complete deterministic hash emitted by the golden test and restart the full PR3-03 acceptance sequence.
+
+## PR3-03 Generate Current Migrations, Seed, And Lifecycle Metadata
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Generate executable current-format database migrations and plugin lifecycle metadata, enforce plugin-owned namespaces before rendering, and prove seed and migration lifecycle idempotency without compatibility output.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Metadata policies | Pass | Plugin specs normalize and validate explicit `retain/drop/archive` uninstall and `manual/automatic/none` rollback policies |
+| Data ownership | Pass after retry | Plugin tables, indexes, permissions, and menu keys must use the plugin data namespace before any file is rendered |
+| Core migrations | Pass | MySQL and PostgreSQL output creates tables idempotently with the declared primary key, required audit timestamps, field uniqueness, and indexes |
+| Executable SQL | Pass | Both dialect outputs execute against independent SQLite databases; schema inspection proves primary key, audit columns, and index, and down SQL removes the table |
+| Current manifest | Pass after retry | Generated plugin manifests pass the real `FileLoader` with namespaced table metadata and three-segment plugin audit actions |
+| Fresh install | Pass | The current `PluginMigrationHook` discovers the generated up/down pair, executes one fresh step, and records one ledger entry |
+| Repeated upgrade | Pass | Reapplying the generated current version executes no SQL and leaves one migration ledger entry |
+| Seed idempotency | Pass | Permission and menu services receive the generated catalog shape twice and retain exactly five permissions and one menu node |
+| Automatic rollback | Pass | The generated automatic policy executes the down migration and clears the ledger in reverse lifecycle flow |
+| Retain uninstall | Pass | The generated retain policy performs no destructive SQL and preserves the applied migration ledger |
+| Drop uninstall | Pass | A generated drop-policy manifest executes the down migration and removes its ledger entry |
+| Determinism | Pass after retry | The strict 25-file golden snapshot reflects the complete migration contract and remains idempotent across repeated dry runs |
+| Current-only architecture | Pass | Invalid unnamespaced plugin metadata is rejected; no legacy manifest key, migration parser, fallback policy, or dual output path was added |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/generator ./internal/service/generator -count=3
+go test -race ./internal/domain/generator ./internal/service/generator -count=1
+go test ./... -count=1
+go vet ./...
+codegraph sync .
+codegraph impact PluginSpec
+codegraph impact validatePluginDataOwnership
+codegraph impact renderMigration
+codegraph impact renderPluginManifest
+codegraph impact pluginAPIRoutes
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after four documented retries. Generated migrations now match generated persistence models, generated plugins are accepted by the current runtime contract, catalog seeds remain idempotent, and install/upgrade/rollback/uninstall policies execute as declared.
+
+### Commit
+
+`PR3-03: generate plugin lifecycle data contracts`

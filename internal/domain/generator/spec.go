@@ -170,6 +170,8 @@ type PluginSpec struct {
 	Description        string
 	DataNamespace      string
 	MigrationDirectory string
+	UninstallPolicy    string
+	RollbackPolicy     string
 	FrontendEntry      string
 	UIMode             string
 	EventSubscriptions []PluginEventSubscriptionSpec
@@ -358,6 +360,14 @@ func normalizePluginSpec(in PluginSpec, spec GeneratorSpecInput) PluginSpec {
 	if in.MigrationDirectory == "" {
 		in.MigrationDirectory = "migrations"
 	}
+	in.UninstallPolicy = strings.ToLower(strings.TrimSpace(in.UninstallPolicy))
+	if in.UninstallPolicy == "" {
+		in.UninstallPolicy = "retain"
+	}
+	in.RollbackPolicy = strings.ToLower(strings.TrimSpace(in.RollbackPolicy))
+	if in.RollbackPolicy == "" {
+		in.RollbackPolicy = "automatic"
+	}
 	in.FrontendEntry = strings.TrimSpace(in.FrontendEntry)
 	if in.FrontendEntry == "" && in.ID != "" {
 		in.FrontendEntry = "/skoll/plugins/" + in.ID
@@ -489,6 +499,9 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 		return err
 	}
 	if err := validatePluginSpec(in.Plugin); err != nil {
+		return err
+	}
+	if err := validatePluginDataOwnership(in.Plugin, in.Table, in.Indexes, in.Permissions, in.Menu); err != nil {
 		return err
 	}
 	if in.CreatedAt.IsZero() || in.UpdatedAt.IsZero() {
@@ -626,6 +639,16 @@ func validatePluginSpec(spec PluginSpec) error {
 	if !strings.HasPrefix(spec.FrontendEntry, "/") {
 		return fmt.Errorf("generator plugin frontend entry must start with /")
 	}
+	switch spec.UninstallPolicy {
+	case "retain", "drop", "archive":
+	default:
+		return fmt.Errorf("generator plugin uninstall policy is invalid: %s", spec.UninstallPolicy)
+	}
+	switch spec.RollbackPolicy {
+	case "manual", "automatic", "none":
+	default:
+		return fmt.Errorf("generator plugin rollback policy is invalid: %s", spec.RollbackPolicy)
+	}
 	switch spec.UIMode {
 	case "backend_only", "frontend_only", "monolith", "separated":
 	default:
@@ -649,6 +672,31 @@ func validatePluginSpec(spec PluginSpec) error {
 		default:
 			return fmt.Errorf("generator plugin retry policy is invalid: %s", subscription.RetryPolicy)
 		}
+	}
+	return nil
+}
+
+func validatePluginDataOwnership(plugin PluginSpec, table TableSpec, indexes []IndexSpec, permissions PermissionSpec, menu MenuSpec) error {
+	if !plugin.Enabled {
+		return nil
+	}
+	prefix := plugin.DataNamespace + "_"
+	if !strings.HasPrefix(table.Name, prefix) {
+		return fmt.Errorf("generator plugin table %s must use data namespace prefix %s", table.Name, prefix)
+	}
+	for _, index := range indexes {
+		if !strings.HasPrefix(index.Name, "idx_"+plugin.DataNamespace+"_") {
+			return fmt.Errorf("generator plugin index %s must use data namespace prefix idx_%s_", index.Name, plugin.DataNamespace)
+		}
+	}
+	permissionPrefix := plugin.DataNamespace + "."
+	for _, key := range []string{permissions.Resource, permissions.ReadKey, permissions.CreateKey, permissions.UpdateKey, permissions.DeleteKey, permissions.ManageKey} {
+		if !strings.HasPrefix(key, permissionPrefix) {
+			return fmt.Errorf("generator plugin permission %s must use data namespace prefix %s", key, permissionPrefix)
+		}
+	}
+	if !strings.HasPrefix(menu.Key, permissionPrefix) {
+		return fmt.Errorf("generator plugin menu %s must use data namespace prefix %s", menu.Key, permissionPrefix)
 	}
 	return nil
 }

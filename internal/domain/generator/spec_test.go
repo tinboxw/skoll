@@ -108,6 +108,9 @@ func TestNewGeneratorSpecDefinesBusinessPluginTarget(t *testing.T) {
 			{Name: "qualification-expiring", Handler: "onQualificationExpiring", RetryPolicy: "aggressive"},
 		},
 	}
+	in.Table.Name = "pharma_oa_products"
+	in.Indexes[0].Name = "idx_pharma_oa_products_name"
+	namespacePluginSpecInput(&in, "pharma_oa")
 	spec, err := NewGeneratorSpec(in)
 	if err != nil {
 		t.Fatalf("NewGeneratorSpec error: %v", err)
@@ -117,6 +120,9 @@ func TestNewGeneratorSpecDefinesBusinessPluginTarget(t *testing.T) {
 	}
 	if spec.Plugin.DataNamespace != "pharma_oa" || spec.Plugin.MigrationDirectory != "migrations" || spec.Plugin.FrontendEntry != "/skoll/plugins/pharma-oa" {
 		t.Fatalf("unexpected plugin target paths: %+v", spec.Plugin)
+	}
+	if spec.Plugin.UninstallPolicy != "retain" || spec.Plugin.RollbackPolicy != "automatic" {
+		t.Fatalf("unexpected plugin lifecycle policies: %+v", spec.Plugin)
 	}
 	if spec.Plugin.EventSubscriptions[0].RetryPolicy != "standard" || spec.Plugin.EventSubscriptions[1].RetryPolicy != "aggressive" {
 		t.Fatalf("unexpected plugin event defaults: %+v", spec.Plugin.EventSubscriptions)
@@ -241,8 +247,37 @@ func TestNewGeneratorSpecValidationRules(t *testing.T) {
 			name: "invalid plugin event",
 			mutate: func(in *GeneratorSpecInput) {
 				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", EventSubscriptions: []PluginEventSubscriptionSpec{{Name: "bad event", Handler: "onBadEvent"}}}
+				in.Table.Name = "pharma_oa_products"
+				in.Indexes[0].Name = "idx_pharma_oa_products_name"
+				namespacePluginSpecInput(in, "pharma_oa")
 			},
 			wantErr: "event name",
+		},
+		{
+			name: "plugin table outside namespace",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA"}
+			},
+			wantErr: "data namespace prefix",
+		},
+		{
+			name: "plugin index outside namespace",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA"}
+				in.Table.Name = "pharma_oa_products"
+				namespacePluginSpecInput(in, "pharma_oa")
+			},
+			wantErr: "index",
+		},
+		{
+			name: "invalid plugin uninstall policy",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", UninstallPolicy: "erase"}
+				in.Table.Name = "pharma_oa_products"
+				in.Indexes[0].Name = "idx_pharma_oa_products_name"
+				namespacePluginSpecInput(in, "pharma_oa")
+			},
+			wantErr: "uninstall policy",
 		},
 	}
 
@@ -259,6 +294,19 @@ func TestNewGeneratorSpecValidationRules(t *testing.T) {
 			}
 		})
 	}
+}
+
+func namespacePluginSpecInput(in *GeneratorSpecInput, namespace string) {
+	in.Permissions = PermissionSpec{
+		Resource:  namespace + ".product",
+		ReadKey:   namespace + ".product.read",
+		CreateKey: namespace + ".product.create",
+		UpdateKey: namespace + ".product.update",
+		DeleteKey: namespace + ".product.delete",
+		ManageKey: namespace + ".product.manage",
+	}
+	in.Menu.Key = namespace + ".product"
+	in.Menu.RequiredPermissions = []string{in.Permissions.ReadKey}
 }
 
 func validGeneratorSpecInput() GeneratorSpecInput {

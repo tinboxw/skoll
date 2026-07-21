@@ -123,11 +123,14 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 		}
 	}
 	mysql := findPlan(t, result.Files, "migrations/mysql/20260629_010203_create_products.sql")
-	if !strings.Contains(mysql.GeneratedContent, "CREATE TABLE products") || !strings.Contains(mysql.GeneratedContent, "CREATE INDEX idx_products_name") {
+	if !strings.Contains(mysql.GeneratedContent, "CREATE TABLE IF NOT EXISTS products") ||
+		!strings.Contains(mysql.GeneratedContent, "PRIMARY KEY (id)") ||
+		!strings.Contains(mysql.GeneratedContent, "created_at TIMESTAMP NOT NULL") ||
+		!strings.Contains(mysql.GeneratedContent, "CREATE INDEX idx_products_name") {
 		t.Fatalf("mysql migration content = %q", mysql.GeneratedContent)
 	}
 	postgres := findPlan(t, result.Files, "migrations/postgres/20260629_010203_create_products.sql")
-	if !strings.Contains(postgres.GeneratedContent, "CREATE TABLE products") || !strings.Contains(postgres.GeneratedContent, "name VARCHAR(255) NOT NULL") {
+	if !strings.Contains(postgres.GeneratedContent, "CREATE TABLE IF NOT EXISTS products") || !strings.Contains(postgres.GeneratedContent, "name VARCHAR(255) NOT NULL") {
 		t.Fatalf("postgres migration content = %q", postgres.GeneratedContent)
 	}
 	openapi := findPlan(t, result.Files, "docs/api/openapi.yaml")
@@ -263,8 +266,8 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		t.Fatalf("DryRun() error = %v", err)
 	}
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.yaml", FileStatusCreate)
-	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_products.up.sql", FileStatusCreate)
-	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_products.down.sql", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_pharma_oa_products.up.sql", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_pharma_oa_products.down.sql", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/stores/product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue", FileStatusCreate)
@@ -279,9 +282,12 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		"ui_menu:",
 		"data:",
 		"namespace: pharma_oa",
+		"name: pharma_oa_products",
+		"uninstall_policy: retain",
+		"rollback_policy: automatic",
 		"path: /v1/plugins/pharma-oa/api/products",
-		"permission: product.read",
-		"audit_action: product.create",
+		"permission: pharma_oa.product.read",
+		"audit_action: pharma_oa.product.create",
 		"name: approval-completed",
 	} {
 		if !strings.Contains(manifest, value) {
@@ -324,7 +330,7 @@ func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
 	if firstSnapshot != secondSnapshot {
 		t.Fatalf("dry-run is not idempotent\nfirst=%s\nsecond=%s", firstSnapshot, secondSnapshot)
 	}
-	const expectedSnapshotHash = "495b139f45deb6110ae18d8733a89378a603515cb142d5a97e7b0ef74b5970b6"
+	const expectedSnapshotHash = "4048e976a936b48ac7660c4b8df4ecec7f8abdb7ada4bc612f3aef3759f8db6a"
 	if got := sha256Hex(firstSnapshot); got != expectedSnapshotHash {
 		t.Fatalf("golden snapshot hash = %s, want %s\n%s", got, expectedSnapshotHash, firstSnapshot)
 	}
@@ -612,11 +618,27 @@ func mustPluginSpec(t *testing.T) *domaingenerator.GeneratorSpec {
 			{Name: "approval-completed", Handler: "onApprovalCompleted"},
 		},
 	}
+	in.Table.Name = "pharma_oa_products"
+	in.Indexes[0].Name = "idx_pharma_oa_products_name"
+	namespaceServicePluginInput(&in, "pharma_oa")
 	spec, err := domaingenerator.NewGeneratorSpec(in)
 	if err != nil {
 		t.Fatalf("NewGeneratorSpec() error = %v", err)
 	}
 	return spec
+}
+
+func namespaceServicePluginInput(in *domaingenerator.GeneratorSpecInput, namespace string) {
+	in.Permissions = domaingenerator.PermissionSpec{
+		Resource:  namespace + ".product",
+		ReadKey:   namespace + ".product.read",
+		CreateKey: namespace + ".product.create",
+		UpdateKey: namespace + ".product.update",
+		DeleteKey: namespace + ".product.delete",
+		ManageKey: namespace + ".product.manage",
+	}
+	in.Menu.Key = namespace + ".product"
+	in.Menu.RequiredPermissions = []string{in.Permissions.ReadKey}
 }
 
 func validServiceGeneratorSpecInput() domaingenerator.GeneratorSpecInput {

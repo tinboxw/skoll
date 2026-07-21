@@ -51,7 +51,13 @@ func TestDemoProductGenerationAcceptance(t *testing.T) {
 		}
 	}
 
-	assertGeneratedContains(t, result, "migrations/mysql/20260629_030000_create_demo_products.sql", "CREATE TABLE demo_products", "idx_demo_products_name")
+	assertGeneratedContains(t, result, "migrations/mysql/20260629_030000_create_demo_products.sql",
+		"CREATE TABLE IF NOT EXISTS demo_products",
+		"PRIMARY KEY (id)",
+		"created_at TIMESTAMP NOT NULL",
+		"updated_at TIMESTAMP NOT NULL",
+		"idx_demo_products_name",
+	)
 	assertGeneratedContains(t, result, "docs/api/openapi.yaml", "/demo-products:", "operationId: listDemoProduct", "DemoProduct:")
 	assertGeneratedContains(t, result, "web/src/api/demo_product.ts", "export type DemoProduct", "listDemoProduct", "createDemoProduct")
 	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts", "useDemoProductStore", "lastError", "async retry")

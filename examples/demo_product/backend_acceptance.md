@@ -12,6 +12,7 @@
 | Service flow | The test asserts generated service implementation calls repository create/update/list/delete paths. |
 | Store flow | The test asserts generated memory store contains create/update/get/list/delete methods. |
 | GORM mapping | Generated round-trip tests verify every field and audit timestamp crosses the persistence boundary without empty placeholder models. |
+| Migration | MySQL and PostgreSQL output declares an idempotent table create, the metadata primary key, audit timestamps, and declared indexes. |
 | Generated tests | Domain validation, memory CRUD, GORM mapping, and service CRUD tests are emitted with the backend slice. |
 | Compile acceptance | `TestGeneratedBackendCompilesAndPassesGeneratedTests` writes the current backend output to a clean temporary module and runs `go test ./...` without manual edits. |
 | Audit | The test asserts generated audit constants for `demo_product.create`, `demo_product.update`, and `demo_product.delete`. |

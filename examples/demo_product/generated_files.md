@@ -54,6 +54,14 @@ The generator dry-run should produce 25 file plans for `demo_product` with no co
 | Order | `60` |
 | Required permissions | `demo_product.read` |
 
+## Migration Contract
+
+- Both dialect outputs create the table idempotently and declare the metadata primary key.
+- `created_at` and `updated_at` are required because the generated GORM model persists domain audit metadata.
+- Declared indexes are emitted after table creation and are covered by executable migration tests.
+- Plugin targets require namespaced tables, indexes, permissions, and menus before rendering.
+- Plugin manifests declare one current migration directory plus explicit rollback and uninstall policies.
+
 ## Acceptance Commands
 
 ```powershell

@@ -376,14 +376,13 @@ func renderGORMStoreTest(spec domaingenerator.GeneratorSpec) string {
 
 func renderMigration(spec domaingenerator.GeneratorSpec, dialect string) string {
 	var b bytes.Buffer
-	fmt.Fprintf(&b, "CREATE TABLE %s (\n", spec.Table.Name)
-	for idx, field := range spec.Fields {
-		separator := ","
-		if idx == len(spec.Fields)-1 {
-			separator = ""
-		}
-		fmt.Fprintf(&b, "  %s %s%s%s\n", field.ColumnName, sqlFieldType(field, dialect), sqlNullability(field), separator)
+	fmt.Fprintf(&b, "CREATE TABLE IF NOT EXISTS %s (\n", spec.Table.Name)
+	for _, field := range spec.Fields {
+		fmt.Fprintf(&b, "  %s %s%s%s,\n", field.ColumnName, sqlFieldType(field, dialect), sqlNullability(field), sqlFieldConstraints(field))
 	}
+	fmt.Fprintf(&b, "  created_at TIMESTAMP NOT NULL,\n")
+	fmt.Fprintf(&b, "  updated_at TIMESTAMP NOT NULL,\n")
+	fmt.Fprintf(&b, "  PRIMARY KEY (%s)\n", primaryColumn(spec))
 	fmt.Fprintf(&b, ");\n")
 	for _, index := range spec.Indexes {
 		unique := ""
@@ -430,7 +429,7 @@ func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
 		fmt.Fprintf(&b, "    - %s\n", permission)
 	}
 	fmt.Fprintf(&b, "data:\n")
-	fmt.Fprintf(&b, "  namespace: %s\n  migration_version: %s\n  migration_directory: %s\n  uninstall_policy: retain\n  rollback_policy: manual\n", spec.Plugin.DataNamespace, spec.Plugin.Version, spec.Plugin.MigrationDirectory)
+	fmt.Fprintf(&b, "  namespace: %s\n  migration_version: %s\n  migration_directory: %s\n  uninstall_policy: %s\n  rollback_policy: %s\n", spec.Plugin.DataNamespace, spec.Plugin.Version, spec.Plugin.MigrationDirectory, spec.Plugin.UninstallPolicy, spec.Plugin.RollbackPolicy)
 	fmt.Fprintf(&b, "  tables:\n    - name: %s\n      description: %s\n      primary_key: %s\n      columns: %s\n", spec.Table.Name, spec.Table.Comment, primaryColumn(spec), strings.Join(fieldColumns(spec), ", "))
 	if len(spec.Indexes) > 0 {
 		fmt.Fprintf(&b, "      indexes: %s\n", pluginIndexList(spec))
@@ -458,12 +457,17 @@ type pluginRoute struct {
 
 func pluginAPIRoutes(spec domaingenerator.GeneratorSpec) []pluginRoute {
 	base := pluginAPIBasePath(spec)
+	auditResource := pluginAuditResource(spec)
 	return []pluginRoute{
-		{method: "GET", path: base, summary: "List " + spec.Table.CollectionName, permission: spec.Permissions.ReadKey, auditAction: spec.Audit.Resource + ".read"},
-		{method: "POST", path: base, summary: "Create " + spec.Table.DomainName, permission: spec.Permissions.CreateKey, auditAction: spec.Audit.Resource + ".create"},
-		{method: "PUT", path: base + "/{id}", summary: "Update " + spec.Table.DomainName, permission: spec.Permissions.UpdateKey, auditAction: spec.Audit.Resource + ".update"},
-		{method: "DELETE", path: base + "/{id}", summary: "Delete " + spec.Table.DomainName, permission: spec.Permissions.DeleteKey, auditAction: spec.Audit.Resource + ".delete"},
+		{method: "GET", path: base, summary: "List " + spec.Table.CollectionName, permission: spec.Permissions.ReadKey, auditAction: auditResource + ".read"},
+		{method: "POST", path: base, summary: "Create " + spec.Table.DomainName, permission: spec.Permissions.CreateKey, auditAction: auditResource + ".create"},
+		{method: "PUT", path: base + "/{id}", summary: "Update " + spec.Table.DomainName, permission: spec.Permissions.UpdateKey, auditAction: auditResource + ".update"},
+		{method: "DELETE", path: base + "/{id}", summary: "Delete " + spec.Table.DomainName, permission: spec.Permissions.DeleteKey, auditAction: auditResource + ".delete"},
 	}
+}
+
+func pluginAuditResource(spec domaingenerator.GeneratorSpec) string {
+	return spec.Plugin.DataNamespace + "." + strings.TrimPrefix(spec.Audit.Resource, spec.Plugin.DataNamespace+".")
 }
 
 func pluginAPIBasePath(spec domaingenerator.GeneratorSpec) string {
@@ -539,6 +543,10 @@ func TestGeneratedPluginManifestContract(t *testing.T) {
 	required := []string{
 		"id: %s",
 		"data:",
+		"namespace: %s",
+		"name: %s",
+		"uninstall_policy: %s",
+		"rollback_policy: %s",
 		"api:",
 		"ui_menu:",
 		"permission: %s",
@@ -552,7 +560,7 @@ func TestGeneratedPluginManifestContract(t *testing.T) {
 }
 
 const generatedManifest = %q
-`, pkg, spec.Plugin.ID, spec.Permissions.ReadKey, spec.Audit.Resource, renderPluginManifest(spec))
+`, pkg, spec.Plugin.ID, spec.Plugin.DataNamespace, spec.Table.Name, spec.Plugin.UninstallPolicy, spec.Plugin.RollbackPolicy, spec.Permissions.ReadKey, pluginAuditResource(spec), renderPluginManifest(spec))
 }
 
 func renderPluginREADME(spec domaingenerator.GeneratorSpec) string {
@@ -563,7 +571,8 @@ Generated business plugin for %s.
 ## Generated Surface
 
 - Manifest: permissions, menu, data manifest, API routes, audit actions, and event subscriptions.
-- Migration: creates and drops %s under the plugin migration directory.
+- Migration: creates and drops the namespaced %s table under the plugin migration directory.
+- Lifecycle: %s rollback and %s uninstall policies are declared in the current manifest.
 - UI: API client, Pinia store, responsive list/form page, loading/error/save states, and permission-gated actions.
 - Acceptance: plugin manifest contract test.
 
@@ -573,7 +582,7 @@ Generated business plugin for %s.
 go test ./internal/domain/generator/... ./internal/service/generator/...
 cd web; npm run build
 `+"```"+`
-`, spec.Plugin.Name, spec.Table.CollectionName, spec.Table.Name)
+`, spec.Plugin.Name, spec.Table.CollectionName, spec.Table.Name, spec.Plugin.RollbackPolicy, spec.Plugin.UninstallPolicy)
 }
 
 func renderService(spec domaingenerator.GeneratorSpec) string {
@@ -1327,6 +1336,13 @@ func sqlFieldType(field domaingenerator.FieldSpec, dialect string) string {
 func sqlNullability(field domaingenerator.FieldSpec) string {
 	if field.Required || field.PrimaryKey {
 		return " NOT NULL"
+	}
+	return ""
+}
+
+func sqlFieldConstraints(field domaingenerator.FieldSpec) string {
+	if field.Unique && !field.PrimaryKey {
+		return " UNIQUE"
 	}
 	return ""
 }
