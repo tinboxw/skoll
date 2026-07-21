@@ -19,6 +19,10 @@ node_modules
 package-lock.json
 web/dist
 
+# Python browser-test cache
+__pycache__/
+*.py[cod]
+
 # Local runtime artifacts
 log/
 tmp/

@@ -12,6 +12,7 @@ const AuditPage = () => import("../views/Audit/index.vue");
 const DictionaryPage = () => import("../views/Dictionary/index.vue");
 const FilePage = () => import("../views/File/index.vue");
 const FormBuilderPage = () => import("../views/FormBuilder/index.vue");
+const ForbiddenPage = () => import("../views/Forbidden/index.vue");
 const MenuPage = () => import("../views/Menu/index.vue");
 const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
@@ -44,6 +45,7 @@ const WorkflowPage = () => import("../views/Workflow/index.vue");
 
 const ADMIN_PREFIX = "/skoll";
 const ADMIN_LOGIN_PATH = `${ADMIN_PREFIX}/login`;
+const ADMIN_FORBIDDEN_PATH = `${ADMIN_PREFIX}/forbidden`;
 
 const routes: RouteRecordRaw[] = [
 	{
@@ -68,6 +70,12 @@ const routes: RouteRecordRaw[] = [
 		path: `${ADMIN_PREFIX}/dashboard`,
 		name: "dashboard",
 		component: DashboardPage
+	},
+	{
+		path: ADMIN_FORBIDDEN_PATH,
+		name: "forbidden",
+		component: ForbiddenPage,
+		meta: { requiresAuth: true }
 	},
 	{
 		path: `${ADMIN_PREFIX}/plugin`,
@@ -301,11 +309,6 @@ function resolveSafeDefaultHomePath(): string {
 	return fallback;
 }
 
-function resolveForbiddenFallback(currentPath: string): string {
-	const fallback = resolveSafeDefaultHomePath();
-	return fallback === currentPath ? getSystemDefaultHomePath() : fallback;
-}
-
 async function resolveSafeTargetPath(path: string): Promise<string> {
 	path = normalizePluginEntryPath(path);
 	if (!isPluginHomePath(path)) {
@@ -339,6 +342,7 @@ function normalizeRedirectPath(raw: string): string {
 	}
 	if (
 		withSlash === "/dashboard" || withSlash.startsWith("/dashboard/") ||
+		withSlash === "/forbidden" || withSlash.startsWith("/forbidden/") ||
 		withSlash === "/plugin" || withSlash.startsWith("/plugin/") ||
 		withSlash === "/user" || withSlash.startsWith("/user/") ||
 		withSlash === "/role" || withSlash.startsWith("/role/") ||
@@ -394,7 +398,10 @@ router.beforeEach(async (to) => {
 	}
 
 	if (!canAccessRoute(to, getStoredUserRole(), getStoredPermissions())) {
-		return resolveForbiddenFallback(to.path);
+		return {
+			path: ADMIN_FORBIDDEN_PATH,
+			query: { from: to.fullPath }
+		};
 	}
 
 	return true;

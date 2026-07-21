@@ -1,0 +1,324 @@
+{
+  "workItem": "H4-04",
+  "generatedAt": "2026-07-21T15:16:51+08:00",
+  "summary": {
+    "total": 28,
+    "passed": 28
+  },
+  "contactSheets": [
+    "zh-CN-desktop-matrix.png",
+    "zh-CN-mobile-matrix.png",
+    "en-US-desktop-matrix.png",
+    "en-US-mobile-matrix.png"
+  ],
+  "results": [
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "state": "responsive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/dashboard",
+      "screenshot": "zh-CN-desktop-responsive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Business dashboard renders at the target viewport."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "state": "loading",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-desktop-loading.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Page skeleton remains visible while API requests are delayed."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "state": "empty",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-desktop-empty.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A no-match customer filter renders the localized empty state."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "state": "error",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-desktop-error.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A blocked customer API request renders the localized error state."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "state": "destructive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "zh-CN-desktop-destructive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The guarded scan dialog exposes localized confirm and cancel actions."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "state": "saving",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "zh-CN-desktop-saving.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The scan action exposes a stable localized saving state while its request is delayed."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "desktop",
+      "state": "no_permission",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-desktop-no_permission.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A restricted user sees the localized denial page instead of a silent dashboard redirect."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "state": "responsive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/dashboard",
+      "screenshot": "zh-CN-mobile-responsive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Business dashboard renders at the target viewport."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "state": "loading",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-mobile-loading.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Page skeleton remains visible while API requests are delayed."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "state": "empty",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-mobile-empty.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A no-match customer filter renders the localized empty state."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "state": "error",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-mobile-error.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A blocked customer API request renders the localized error state."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "state": "destructive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "zh-CN-mobile-destructive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The guarded scan dialog exposes localized confirm and cancel actions."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "state": "saving",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "zh-CN-mobile-saving.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The scan action exposes a stable localized saving state while its request is delayed."
+    },
+    {
+      "locale": "zh-CN",
+      "viewport": "mobile",
+      "state": "no_permission",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "zh-CN-mobile-no_permission.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A restricted user sees the localized denial page instead of a silent dashboard redirect."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "state": "responsive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/dashboard",
+      "screenshot": "en-US-desktop-responsive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Business dashboard renders at the target viewport."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "state": "loading",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-desktop-loading.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Page skeleton remains visible while API requests are delayed."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "state": "empty",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-desktop-empty.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A no-match customer filter renders the localized empty state."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "state": "error",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-desktop-error.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A blocked customer API request renders the localized error state."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "state": "destructive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "en-US-desktop-destructive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The guarded scan dialog exposes localized confirm and cancel actions."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "state": "saving",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "en-US-desktop-saving.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The scan action exposes a stable localized saving state while its request is delayed."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "desktop",
+      "state": "no_permission",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-desktop-no_permission.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A restricted user sees the localized denial page instead of a silent dashboard redirect."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "state": "responsive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/dashboard",
+      "screenshot": "en-US-mobile-responsive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Business dashboard renders at the target viewport."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "state": "loading",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-mobile-loading.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "Page skeleton remains visible while API requests are delayed."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "state": "empty",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-mobile-empty.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A no-match customer filter renders the localized empty state."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "state": "error",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-mobile-error.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A blocked customer API request renders the localized error state."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "state": "destructive",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "en-US-mobile-destructive.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The guarded scan dialog exposes localized confirm and cancel actions."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "state": "saving",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/qualifications",
+      "screenshot": "en-US-mobile-saving.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "The scan action exposes a stable localized saving state while its request is delayed."
+    },
+    {
+      "locale": "en-US",
+      "viewport": "mobile",
+      "state": "no_permission",
+      "result": "Pass",
+      "route": "/skoll/pharma-oa/customers",
+      "screenshot": "en-US-mobile-no_permission.png",
+      "page_overflow": 0,
+      "text_overflows": 0,
+      "evidence": "A restricted user sees the localized denial page instead of a silent dashboard redirect."
+    }
+  ]
+}

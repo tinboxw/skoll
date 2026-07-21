@@ -750,3 +750,48 @@ git diff --check
 ### Next Step
 
 父任务 H4 保持 `Doing`。按正式 Work Item 顺序领取 `H4-04`，验证中英文 loading、empty、error、no-permission、saving、destructive 和 responsive 状态矩阵。
+
+## H4-04 Pharma OA 双语响应式浏览器矩阵
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 为 Pharma OA 建立可重复执行的 Selenium 真浏览器矩阵，覆盖中文默认、英文切换、1440x1000 桌面和 390x844 窄屏，以及 loading、empty、error、no-permission、saving、destructive、responsive 七类状态；补齐路由级可见拒绝页并固化截图证据。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 双语状态矩阵 | Pass | `scripts/h4-browser-matrix.py` 使用真实 Chrome、admin 与 dept_admin 会话执行 2 locales x 2 viewports x 7 states，共 28/28 场景通过；中文为默认 locale，英文使用同一业务流程复验。 |
+| Loading / empty / error | Pass | API 定向延迟显示页面骨架，无匹配客户筛选显示本地化空态，定向网络失败显示 assertive error；四组环境均保持页面横向溢出 0px、关键文本溢出 0。 |
+| No-permission | Pass | 新增认证后可访问的 `/skoll/forbidden` 双语拒绝页；受限账号访问客户路由会保留 `from` 查询并显示 polite status 与仪表盘动作，不再静默跳回首页。 |
+| Saving / destructive | Pass | 资质到期扫描在中英文桌面/窄屏均显示本地化确认与取消动作；仅延迟扫描 API 后，触发按钮呈现稳定 loading 状态，截图后取消未完成请求，未写入业务数据。 |
+| Responsive / visual review | Pass | 四份 contact sheet 覆盖中英文桌面和 390x844；工具栏在窄屏纵向排列，表格维持内部滚动边界，确认、错误与拒绝状态无文字遮挡或页面横向滚动。 |
+| 可重复证据 | Pass | `docs/refactor/current/evidence/h4-04/` 保存 4 张矩阵拼图、28 行 `matrix.json` 和中文默认复现说明；Selenium/Pillow 依赖固定在 `scripts/requirements-browser.txt`。 |
+| 质量门禁 | Pass | Python 语法、28 场景浏览器矩阵、locale/accessibility 门禁、`vue-tsc --noEmit`、Vite 生产构建、JSON 解析和 `git diff --check` 全部通过；构建仅保留既有上游提示。 |
+| API/权限/审计/migration/seed | Pass | 本项未修改 HTTP/OpenAPI、后端权限键、审计动作、migration 或 seed；仅调整前端权限守卫的拒绝呈现，继续使用既有路由权限元数据和会话权限。 |
+| CodeGraph 与边界 | Pass | 同步后索引为 705 files / 15,165 nodes / 46,483 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有文档、本地索引、IDE 或运行数据。 |
+
+### Verification Commands
+
+```powershell
+python -m pip install -r scripts/requirements-browser.txt
+python -m py_compile scripts/h4-browser-matrix.py
+python scripts/h4-browser-matrix.py --base-url http://127.0.0.1:5174
+npm --prefix web run typecheck
+npm --prefix web run build
+Get-Content docs/refactor/current/evidence/h4-04/matrix.json -Raw | ConvertFrom-Json
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | `dept_admin` 访问 Pharma OA 客户路由时被静默重定向到仪表盘，无法验收可见 no-permission 状态。 | 新增双语 `/skoll/forbidden` 页面，权限守卫保留来源路径并展示明确拒绝状态；真实受限账号桌面/窄屏复验通过。 |
+| 2 | Failed -> Doing | 首次完整矩阵用全局网络节流模拟 loading，同时延迟了 Vite 动态模块，客户页主体未挂载并最终超时。 | 改为页面启动时只定向延迟或拒绝目标 API，增加逐场景阶段输出；重跑 28 个状态全部通过并生成四份拼图。 |
+
+### Next Step
+
+父任务 H4 完成。按正式 Work Item 顺序领取 `H5-01`，建立数据库代表性数据集、查询计划、P95/P99 与慢查询预算。
