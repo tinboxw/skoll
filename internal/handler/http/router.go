@@ -1,9 +1,11 @@
 package http
 
 import (
+	"context"
 	_ "embed"
 	"net/http"
 	"strings"
+	"time"
 
 	audithttp "github.com/tinboxw/skoll/internal/handler/http/v1/audit"
 	filehttp "github.com/tinboxw/skoll/internal/handler/http/v1/file"
@@ -88,6 +90,10 @@ type pluginRouteExecutor interface {
 	HandlePluginRoute(pluginID, method, path string, w http.ResponseWriter, r *http.Request) bool
 }
 
+type pluginReadinessProvider interface {
+	PluginReadiness(ctx context.Context) plugin.ReadinessReport
+}
+
 func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	apiPrefix := normalizeAPIPrefix(deps.APIPrefix)
 	apiMux := http.NewServeMux()
@@ -95,8 +101,16 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	apiMux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		WriteMessage(w, http.StatusOK, "ok", "ok")
 	})
-	apiMux.HandleFunc("GET /ready", func(w http.ResponseWriter, _ *http.Request) {
-		WriteMessage(w, http.StatusOK, "ready", "ready")
+	apiMux.HandleFunc("GET /ready", func(w http.ResponseWriter, r *http.Request) {
+		report := plugin.ReadinessReport{Ready: true, CheckedAt: time.Now().UTC(), Plugins: []plugin.HealthReport{}}
+		if provider, ok := deps.PluginManager.(pluginReadinessProvider); ok {
+			report = provider.PluginReadiness(r.Context())
+		}
+		if !report.Ready {
+			WriteResponse(w, http.StatusServiceUnavailable, "not_ready", "插件运行时未就绪", report)
+			return
+		}
+		WriteResponse(w, http.StatusOK, "ready", "ready", report)
 	})
 	registerDocumentationRoutes(apiMux, apiPrefix, deps.PluginManager)
 

@@ -225,6 +225,9 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		routeHandlers:    handlers,
 		pluginsRepo:      pluginsRepo,
 		routePermissions: mustEmptyRoutePermissionRegistry(),
+		healthChecker:    plugin.NewHTTPHealthChecker(2 * time.Second),
+		healthCache:      make(map[string]plugin.HealthReport),
+		healthTTL:        5 * time.Second,
 	}
 
 	entries, err := os.ReadDir("plugins")
@@ -299,9 +302,14 @@ type pluginManagerWithExtensions struct {
 	routeHandlers    map[string]http.HandlerFunc
 	pluginsRepo      pluginrepo.PluginRepository
 	routePermissions *plugin.RoutePermissionRegistry
+	healthChecker    plugin.HealthChecker
+	healthMu         sync.RWMutex
+	healthCache      map[string]plugin.HealthReport
+	healthTTL        time.Duration
 }
 
 var _ plugin.RoutePermissionResolver = (*pluginManagerWithExtensions)(nil)
+var _ plugin.HealthProvider = (*pluginManagerWithExtensions)(nil)
 
 func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) error {
 	if m == nil {
@@ -374,6 +382,11 @@ func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path s
 		httpHandler.WriteMessage(w, http.StatusServiceUnavailable, "plugin_backend_not_configured", "插件后端未配置")
 		return true
 	}
+	health := m.checkPluginHealth(r.Context(), info, false)
+	if !health.Ready() {
+		httpHandler.WriteResponse(w, http.StatusServiceUnavailable, "plugin_unhealthy", "插件后端未就绪", health)
+		return true
+	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	director := proxy.Director
 	proxy.Director = func(req *http.Request) {
@@ -385,6 +398,107 @@ func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path s
 	}
 	proxy.ServeHTTP(w, r)
 	return true
+}
+
+func (m *pluginManagerWithExtensions) CheckPluginHealth(ctx context.Context, pluginID string) (plugin.HealthReport, error) {
+	if m == nil {
+		return plugin.HealthReport{}, plugin.ErrPluginNotFound
+	}
+	pluginID = strings.TrimSpace(pluginID)
+	if pluginID == "" {
+		return plugin.HealthReport{}, plugin.ErrPluginNotFound
+	}
+	if m.Manager != nil {
+		if info, err := m.Manager.Get(pluginID); err == nil {
+			return m.checkPluginHealth(ctx, info, true), nil
+		} else if !errors.Is(err, plugin.ErrPluginNotFound) {
+			return plugin.HealthReport{}, err
+		}
+	}
+	m.mu.RLock()
+	info, ok := m.builtinInfos[pluginID]
+	m.mu.RUnlock()
+	if !ok {
+		return plugin.HealthReport{}, plugin.ErrPluginNotFound
+	}
+	return m.checkPluginHealth(ctx, info, true), nil
+}
+
+func (m *pluginManagerWithExtensions) PluginReadiness(ctx context.Context) plugin.ReadinessReport {
+	checkedAt := time.Now().UTC()
+	if m == nil || m.Manager == nil {
+		return plugin.ReadinessReport{Ready: false, CheckedAt: checkedAt, Plugins: []plugin.HealthReport{}}
+	}
+	items := m.Manager.List()
+	servicePlugins := make([]plugin.Info, 0, len(items))
+	for _, item := range items {
+		if item.State != plugin.StateEnabled {
+			continue
+		}
+		if strings.TrimSpace(item.ServiceBaseURL) == "" && strings.TrimSpace(item.ServiceHealthURL) == "" {
+			continue
+		}
+		servicePlugins = append(servicePlugins, item)
+	}
+
+	reports := make([]plugin.HealthReport, len(servicePlugins))
+	var wg sync.WaitGroup
+	for i := range servicePlugins {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			reports[index] = m.checkPluginHealth(ctx, servicePlugins[index], true)
+		}(i)
+	}
+	wg.Wait()
+	sort.Slice(reports, func(i, j int) bool {
+		return reports[i].PluginID < reports[j].PluginID
+	})
+	ready := true
+	for _, report := range reports {
+		if !report.Ready() {
+			ready = false
+			break
+		}
+	}
+	return plugin.ReadinessReport{Ready: ready, CheckedAt: checkedAt, Plugins: reports}
+}
+
+func (m *pluginManagerWithExtensions) checkPluginHealth(ctx context.Context, info plugin.Info, force bool) plugin.HealthReport {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	pluginID := strings.TrimSpace(info.ID)
+	if !force && m != nil && m.healthTTL > 0 {
+		m.healthMu.RLock()
+		cached, ok := m.healthCache[pluginID]
+		m.healthMu.RUnlock()
+		age := time.Since(cached.CheckedAt)
+		if ok && age >= 0 && age <= m.healthTTL {
+			return cached
+		}
+	}
+
+	var report plugin.HealthReport
+	if m == nil || m.healthChecker == nil {
+		report = plugin.HealthReport{
+			PluginID:  pluginID,
+			Status:    plugin.HealthStatusUnhealthy,
+			Code:      "health_checker_unavailable",
+			CheckedAt: time.Now().UTC(),
+		}
+	} else {
+		report = m.healthChecker.Check(ctx, info)
+	}
+	if m != nil {
+		m.healthMu.Lock()
+		if m.healthCache == nil {
+			m.healthCache = make(map[string]plugin.HealthReport)
+		}
+		m.healthCache[pluginID] = report
+		m.healthMu.Unlock()
+	}
+	return report
 }
 
 func pluginRouteDeclared(info plugin.Info, method, path string) (bool, error) {

@@ -14,6 +14,7 @@
 id: pharma_oa
 version: 1.0.0
 service_base_url: http://127.0.0.1:18090
+service_health_url: http://127.0.0.1:18090/health
 api:
   routes:
     - method: GET
@@ -25,7 +26,7 @@ api:
 
 安装预检会校验 method、path、permission、audit action 和来源。无效声明不会进入路由权限注册表或聚合 OpenAPI。
 
-`service_base_url` 是插件后端的 HTTP(S) 基地址。Skoll 仅执行 `api.routes` 中明确声明的 method/path，并将声明路径追加到该基地址。例如，上述请求会发送到 `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`。如果基地址带路径前缀，该前缀会保留。
+`service_base_url` 是插件后端的 HTTP(S) 基地址，必须与 `service_health_url` 成对声明。Skoll 仅执行 `api.routes` 中明确声明的 method/path，并将声明路径追加到该基地址。例如，上述请求会发送到 `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`。如果基地址带路径前缀，该前缀会保留。
 
 ## 运行时行为
 
@@ -40,12 +41,15 @@ api:
 
 通过认证与授权后，Skoll 会把请求 method、声明路径、query、body 和普通请求头发送到插件后端，并把后端 status、响应头和 body 返回给调用方。后端不可达或缺少执行配置时不会返回占位成功。
 
+Skoll 使用无用户凭据的 GET 请求探测 `service_health_url`，2xx 表示健康，重定向、非 2xx、超时和连接错误均表示不健康。不健康插件不能接收业务流量。业务请求复用最长 5 秒的健康结果；`GET /ready` 与 `GET /v1/plugins/{pluginId}/health` 强制刷新探针。报告只包含插件 ID、稳定状态码、时间、延迟和 HTTP 状态，不包含 URL、token 或底层错误文本。
+
 | HTTP | Code | 含义 |
 | --- | --- | --- |
 | 502 | `plugin_route_unavailable` | 主机没有可用的插件路由执行器 |
 | 502 | `plugin_backend_unavailable` | 插件后端连接或执行失败 |
 | 503 | `plugin_backend_not_configured` | 已声明业务路由但未配置有效后端地址 |
 | 503 | `plugin_not_enabled` | 插件当前未启用 |
+| 503 | `plugin_unhealthy` | 插件健康探针未通过，业务流量已阻断 |
 
 ## 聚合元数据
 

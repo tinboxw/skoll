@@ -19,6 +19,10 @@ func WriteMessage(w http.ResponseWriter, status int, code, message string) {
 	write(w, status, Response{Code: code, Message: message})
 }
 
+func WriteResponse(w http.ResponseWriter, status int, code, message string, data any) {
+	write(w, status, Response{Code: code, Message: message, Data: data})
+}
+
 func WriteError(w http.ResponseWriter, status int, err error) {
 	msg := "internal server error"
 	if err != nil {

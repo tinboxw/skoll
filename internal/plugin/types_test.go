@@ -90,6 +90,18 @@ func TestInfoValidateManifestContractFields(t *testing.T) {
 		t.Fatalf("expected validation error for invalid service_base_url")
 	}
 
+	missingHealth := valid
+	missingHealth.ServiceHealthURL = ""
+	if err := missingHealth.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error when service_health_url is missing")
+	}
+
+	missingBase := valid
+	missingBase.ServiceBaseURL = ""
+	if err := missingBase.ValidateManifest(); err == nil {
+		t.Fatalf("expected validation error when service_base_url is missing")
+	}
+
 	badMigration := valid
 	badMigration.MigrationVersion = "v1"
 	if err := badMigration.ValidateManifest(); err == nil {

@@ -2,13 +2,17 @@ package bootstrap
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/plugin"
@@ -444,11 +448,12 @@ func newExternalRouteTestManager(serviceURL string, state plugin.State) *pluginM
 	return &pluginManagerWithExtensions{
 		Manager: &fakeManager{items: map[string]plugin.Info{
 			"reports": {
-				ID:             "reports",
-				Name:           "Reports",
-				Version:        "1.0.0",
-				State:          state,
-				ServiceBaseURL: serviceURL,
+				ID:               "reports",
+				Name:             "Reports",
+				Version:          "1.0.0",
+				State:            state,
+				ServiceBaseURL:   serviceURL,
+				ServiceHealthURL: serviceURL + "/health",
 				APIContract: &plugin.APIContract{Routes: []plugin.APIRoute{{
 					Method: http.MethodPost,
 					Path:   routePath,
@@ -458,5 +463,85 @@ func newExternalRouteTestManager(serviceURL string, state plugin.State) *pluginM
 		builtinInfos:  map[string]plugin.Info{},
 		extensions:    map[string]plugin.RegistrySnapshot{},
 		routeHandlers: map[string]http.HandlerFunc{},
+		healthChecker: fixedHealthChecker{status: plugin.HealthStatusHealthy, code: "health_ok"},
+		healthCache:   make(map[string]plugin.HealthReport),
+		healthTTL:     5 * time.Second,
+	}
+}
+
+type fixedHealthChecker struct {
+	status plugin.HealthStatus
+	code   string
+}
+
+func (c fixedHealthChecker) Check(_ context.Context, info plugin.Info) plugin.HealthReport {
+	return plugin.HealthReport{
+		PluginID:  info.ID,
+		Status:    c.status,
+		Code:      c.code,
+		CheckedAt: time.Now().UTC(),
+	}
+}
+
+func TestPluginManagerHealthBlocksTrafficAndDrivesReadiness(t *testing.T) {
+	const routePath = "/v1/plugins/reports/api/items"
+	var healthy atomic.Bool
+	var businessCalls atomic.Int32
+	var healthCalls atomic.Int32
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/health":
+			healthCalls.Add(1)
+			if healthy.Load() {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			w.WriteHeader(http.StatusServiceUnavailable)
+		case routePath:
+			businessCalls.Add(1)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"status":"executed"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer backend.Close()
+
+	manager := newExternalRouteTestManager(backend.URL, plugin.StateEnabled)
+	manager.healthChecker = plugin.NewHTTPHealthChecker(time.Second)
+	router := httpHandler.NewRouter(httpHandler.Dependencies{PluginManager: manager})
+
+	assertRequestStatus := func(method, path string, want int) string {
+		t.Helper()
+		req := httptest.NewRequest(method, path, nil)
+		resp := httptest.NewRecorder()
+		router.ServeHTTP(resp, req)
+		if resp.Code != want {
+			t.Fatalf("path=%s status=%d want=%d body=%s", path, resp.Code, want, resp.Body.String())
+		}
+		return resp.Body.String()
+	}
+
+	unhealthyBody := assertRequestStatus(http.MethodPost, "/skoll"+routePath, http.StatusServiceUnavailable)
+	if !strings.Contains(unhealthyBody, `"code":"plugin_unhealthy"`) || !strings.Contains(unhealthyBody, `"code":"health_http_status"`) {
+		t.Fatalf("unexpected unhealthy route response: %s", unhealthyBody)
+	}
+	if businessCalls.Load() != 0 {
+		t.Fatalf("unhealthy plugin received %d business calls", businessCalls.Load())
+	}
+	readyBody := assertRequestStatus(http.MethodGet, "/skoll/ready", http.StatusServiceUnavailable)
+	if strings.Contains(readyBody, backend.URL) || !strings.Contains(readyBody, `"ready":false`) {
+		t.Fatalf("readiness leaked endpoint or missed state: %s", readyBody)
+	}
+	assertRequestStatus(http.MethodGet, "/skoll/v1/plugins/reports/health", http.StatusServiceUnavailable)
+
+	healthy.Store(true)
+	assertRequestStatus(http.MethodGet, "/skoll/ready", http.StatusOK)
+	assertRequestStatus(http.MethodPost, "/skoll"+routePath, http.StatusOK)
+	if businessCalls.Load() != 1 {
+		t.Fatalf("healthy plugin business calls=%d want=1", businessCalls.Load())
+	}
+	if healthCalls.Load() != 4 {
+		t.Fatalf("health calls=%d want=4; business traffic should reuse the readiness cache", healthCalls.Load())
 	}
 }

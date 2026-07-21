@@ -275,10 +275,15 @@ func (i Info) ValidateManifest() error {
 	if cu := strings.TrimSpace(i.CompatibilitySkoll); cu == "" && strings.TrimSpace(i.APIVersion) != "" {
 		return ErrPluginManifestBroken
 	}
-	if base := strings.TrimSpace(i.ServiceBaseURL); base != "" && !isHTTPURL(base) {
+	base := strings.TrimSpace(i.ServiceBaseURL)
+	health := strings.TrimSpace(i.ServiceHealthURL)
+	if base != "" && !isHTTPURL(base) {
 		return ErrPluginManifestBroken
 	}
-	if health := strings.TrimSpace(i.ServiceHealthURL); health != "" && !isHTTPURL(health) {
+	if health != "" && !isHTTPURL(health) {
+		return ErrPluginManifestBroken
+	}
+	if (base == "") != (health == "") {
 		return ErrPluginManifestBroken
 	}
 

@@ -18,6 +18,14 @@ paths:
       responses:
         '200':
           description: Ready
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginReadinessAPIResponse'}
+        '503':
+          description: One or more enabled plugin backends are unhealthy
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginReadinessAPIResponse'}
   /v1/auth/login:
     post:
       summary: Login with account and password
@@ -1548,6 +1556,31 @@ paths:
       responses:
         '200':
           description: OK
+  /v1/plugins/{id}/health:
+    get:
+      summary: Check one plugin backend health
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plugin backend is healthy or does not require a backend probe
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginHealthAPIResponse'}
+        '404':
+          description: Plugin not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: Plugin backend is unhealthy or health checking is unavailable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginHealthAPIResponse'}
   /v1/plugins/dev/rollout:
     post:
       summary: Execute plugin rollout with task tracking
@@ -4540,6 +4573,39 @@ components:
       bearerFormat: JWT
       description: Skoll JWT access token. Aggregated plugin API operations require this scheme and declare x-skoll-permission.
   schemas:
+    PluginHealthReport:
+      type: object
+      required: [pluginId, status, code, checkedAt, latencyMillis]
+      properties:
+        pluginId: {type: string}
+        status: {type: string, enum: [healthy, unhealthy, not_applicable]}
+        code: {type: string}
+        checkedAt: {type: string, format: date-time}
+        latencyMillis: {type: integer, format: int64, minimum: 0}
+        httpStatus: {type: integer, minimum: 100, maximum: 599}
+    PluginReadinessReport:
+      type: object
+      required: [ready, checkedAt, plugins]
+      properties:
+        ready: {type: boolean}
+        checkedAt: {type: string, format: date-time}
+        plugins:
+          type: array
+          items: {$ref: '#/components/schemas/PluginHealthReport'}
+    PluginHealthAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginHealthReport'}
+    PluginReadinessAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginReadinessReport'}
     PharmaMasterListData:
       type: object
       required: [items, offset, limit, total, hasMore, nextCursor, sort]

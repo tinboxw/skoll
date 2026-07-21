@@ -64,6 +64,7 @@ type PluginRoleCatalogProvider interface {
 type PluginHandler struct {
 	manager            PluginManager
 	extensionProvider  PluginExtensionSnapshotProvider
+	healthProvider     plugin.HealthProvider
 	loader             plugin.MetadataLoader
 	logger             logging.Logger
 	auditSvc           auditsvc.Service
@@ -377,6 +378,9 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	if provider, ok := manager.(PluginExtensionSnapshotProvider); ok {
 		h.extensionProvider = provider
 	}
+	if provider, ok := manager.(plugin.HealthProvider); ok {
+		h.healthProvider = provider
+	}
 	if h.logLevel == "" {
 		h.logLevel = "info"
 	}
@@ -386,6 +390,7 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	mux.HandleFunc("GET /v1/plugins/marketplace/local", h.localMarketplace)
 	mux.HandleFunc("GET /v1/plugins", h.list)
 	mux.HandleFunc("GET /v1/plugins/{id}", h.get)
+	mux.HandleFunc("GET /v1/plugins/{id}/health", h.health)
 	mux.HandleFunc("POST /v1/plugins/preflight", h.preflight)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
 	mux.HandleFunc("POST /v1/plugins/link", h.createLink)
@@ -478,6 +483,32 @@ func (h *PluginHandler) get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	apiv1.WriteJSON(w, http.StatusOK, pluginRecordFromInfo(item))
+}
+
+func (h *PluginHandler) health(w http.ResponseWriter, r *http.Request) {
+	if h == nil || h.healthProvider == nil {
+		apiv1.WriteMessage(w, http.StatusServiceUnavailable, "plugin_health_unavailable", "插件健康检查不可用")
+		return
+	}
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_plugin_id", "插件 ID 不能为空")
+		return
+	}
+	report, err := h.healthProvider.CheckPluginHealth(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			apiv1.WriteMessage(w, http.StatusNotFound, "plugin_not_found", "插件不存在")
+			return
+		}
+		apiv1.WriteMessage(w, http.StatusServiceUnavailable, "plugin_health_unavailable", "插件健康检查不可用")
+		return
+	}
+	if !report.Ready() {
+		apiv1.WriteResponse(w, http.StatusServiceUnavailable, "plugin_unhealthy", "插件后端未就绪", report)
+		return
+	}
+	apiv1.WriteResponse(w, http.StatusOK, "plugin_healthy", "插件后端已就绪", report)
 }
 
 func (h *PluginHandler) localMarketplace(w http.ResponseWriter, r *http.Request) {

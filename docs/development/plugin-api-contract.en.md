@@ -14,6 +14,7 @@ Every business route must live under `/v1/plugins/{pluginId}/api/` and declare a
 id: pharma_oa
 version: 1.0.0
 service_base_url: http://127.0.0.1:18090
+service_health_url: http://127.0.0.1:18090/health
 api:
   routes:
     - method: GET
@@ -25,7 +26,7 @@ api:
 
 Install preflight validates the method, path, permission, audit action, and source. Invalid declarations do not enter the route-permission registry or aggregated OpenAPI document.
 
-`service_base_url` is the plugin backend HTTP(S) base URL. Skoll executes only method/path pairs declared in `api.routes` and appends the declared path to this base. For example, the request above is sent to `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`. A path prefix in the base URL is preserved.
+`service_base_url` is the plugin backend HTTP(S) base URL and must be declared together with `service_health_url`. Skoll executes only method/path pairs declared in `api.routes` and appends the declared path to this base. For example, the request above is sent to `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`. A path prefix in the base URL is preserved.
 
 ## Runtime Behavior
 
@@ -40,12 +41,15 @@ Plugin pages and static assets use a separate bounded public policy. `/v1/plugin
 
 After authentication and authorization, Skoll forwards the request method, declared path, query, body, and ordinary request headers to the plugin backend. The backend status, response headers, and body are returned to the caller. An unreachable backend or missing execution configuration never produces placeholder success.
 
+Skoll probes `service_health_url` with an unauthenticated GET request. A 2xx response is healthy; redirects, non-2xx responses, timeouts, and connection errors are unhealthy. Unhealthy plugins receive no business traffic. Business requests reuse health results for at most five seconds; `GET /ready` and `GET /v1/plugins/{pluginId}/health` force a fresh probe. Reports contain only plugin ID, stable status code, timestamp, latency, and HTTP status; they never expose URLs, tokens, or underlying error text.
+
 | HTTP | Code | Meaning |
 | --- | --- | --- |
 | 502 | `plugin_route_unavailable` | The host has no available plugin route executor |
 | 502 | `plugin_backend_unavailable` | The plugin backend connection or execution failed |
 | 503 | `plugin_backend_not_configured` | A business route is declared without a valid backend URL |
 | 503 | `plugin_not_enabled` | The plugin is not enabled |
+| 503 | `plugin_unhealthy` | The health probe failed and business traffic was blocked |
 
 ## Aggregated Metadata
 
