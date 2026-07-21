@@ -32,11 +32,11 @@ func RegisterProductRoutes(mux *http.ServeMux, service pharmaoasvc.ProductServic
 		return
 	}
 	h := &ProductHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/products", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/products", h.create)
-	mux.HandleFunc("PUT /v1/pharma-oa/products/{id}", h.update)
-	mux.HandleFunc("POST /v1/pharma-oa/products/{id}/disable", h.disable)
-	mux.HandleFunc("POST /v1/pharma-oa/products/import", h.importRows)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/products", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/products", h.create)
+	mux.HandleFunc("PUT /v1/plugins/pharma_oa/api/products/{id}", h.update)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/products/{id}/disable", h.disable)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/products/import", h.importRows)
 }
 
 func RegisterProductPermissions(service permissionsvc.Service) error {

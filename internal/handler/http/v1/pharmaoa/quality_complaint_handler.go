@@ -40,12 +40,12 @@ func RegisterQualityComplaintRoutes(mux *http.ServeMux, service pharmaoasvc.Qual
 		return
 	}
 	h := &QualityComplaintHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/quality-complaints", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/quality-complaints", h.create)
-	mux.HandleFunc("GET /v1/pharma-oa/quality-complaints/batches", h.listBatches)
-	mux.HandleFunc("GET /v1/pharma-oa/quality-complaints/{id}", h.get)
-	mux.HandleFunc("POST /v1/pharma-oa/quality-complaints/{id}/resolve", h.resolve)
-	mux.HandleFunc("POST /v1/pharma-oa/quality-complaints/{id}/reject", h.reject)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/quality-complaints", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/quality-complaints", h.create)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/quality-complaints/batches", h.listBatches)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/quality-complaints/{id}", h.get)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/quality-complaints/{id}/resolve", h.resolve)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/quality-complaints/{id}/reject", h.reject)
 }
 
 func RegisterQualityComplaintPermissions(service permissionsvc.Service) error {

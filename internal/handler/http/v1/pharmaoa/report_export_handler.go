@@ -40,11 +40,11 @@ func RegisterReportExportRoutes(mux *http.ServeMux, service pharmaoasvc.ReportEx
 		return
 	}
 	h := &ReportExportHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/report-export-jobs", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/report-export-jobs", h.queue)
-	mux.HandleFunc("GET /v1/pharma-oa/report-export-jobs/{id}", h.get)
-	mux.HandleFunc("POST /v1/pharma-oa/report-export-jobs/{id}/retry", h.retry)
-	mux.HandleFunc("GET /v1/pharma-oa/report-export-jobs/{id}/download", h.download)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/report-export-jobs", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/report-export-jobs", h.queue)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/report-export-jobs/{id}", h.get)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/report-export-jobs/{id}/retry", h.retry)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/report-export-jobs/{id}/download", h.download)
 }
 
 func RegisterReportExportPermissions(service permissionsvc.Service) error {

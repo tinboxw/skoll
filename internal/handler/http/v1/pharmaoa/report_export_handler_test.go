@@ -49,7 +49,7 @@ func TestReportExportHTTPQueuesWithJWTActorAndBoundedQuery(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterReportExportRoutes(mux, fixture)
 	body := []byte(`{"reportType":"sales_trend","from":"2026-07-01","to":"2026-07-07","bucket":"week","qualificationDays":45,"actorId":"spoofed"}`)
-	req := withReportClaims(httptest.NewRequest(http.MethodPost, "/v1/pharma-oa/report-export-jobs", bytes.NewReader(body)))
+	req := withReportClaims(httptest.NewRequest(http.MethodPost, "/v1/plugins/pharma_oa/api/report-export-jobs", bytes.NewReader(body)))
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, req)
 	if recorder.Code != http.StatusAccepted {
@@ -68,7 +68,7 @@ func TestReportExportHTTPDownloadsCSVAsAttachment(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterReportExportRoutes(mux, fixture)
 	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, withReportClaims(httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/report-export-jobs/job-1/download", nil)))
+	mux.ServeHTTP(recorder, withReportClaims(httptest.NewRequest(http.MethodGet, "/v1/plugins/pharma_oa/api/report-export-jobs/job-1/download", nil)))
 	if recorder.Code != http.StatusOK || recorder.Body.String() != "amount_cents\n3234\n" {
 		t.Fatalf("status=%d body=%q", recorder.Code, recorder.Body.String())
 	}
@@ -89,7 +89,7 @@ func TestReportExportHTTPMapsOwnershipAndReadinessErrors(t *testing.T) {
 		mux := http.NewServeMux()
 		RegisterReportExportRoutes(mux, fixture)
 		recorder := httptest.NewRecorder()
-		mux.ServeHTTP(recorder, withReportClaims(httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/report-export-jobs/job-1/download", nil)))
+		mux.ServeHTTP(recorder, withReportClaims(httptest.NewRequest(http.MethodGet, "/v1/plugins/pharma_oa/api/report-export-jobs/job-1/download", nil)))
 		if recorder.Code != item.want {
 			t.Fatalf("err=%v status=%d body=%s", item.err, recorder.Code, recorder.Body.String())
 		}

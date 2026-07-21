@@ -9,12 +9,14 @@ import { getToken } from "../utils/auth";
 import { API_BASE_PREFIX } from "../utils/api-base-prefix";
 import { builtinAuthPlugin } from "./builtin/auth";
 import { buildPluginHostBridgeScript } from "./host-sdk";
+import { createIntegratedPluginRoutes } from "./integrated-routes";
 import type { BackendPluginRecord, FrontendPlugin, FrontendPluginManifest } from "./types";
 
 type PluginStore = ReturnType<typeof usePluginStore>;
 
 const builtinPlugins: FrontendPlugin[] = [builtinAuthPlugin];
 let latestPluginSyncTask: Promise<void> = Promise.resolve();
+let backendPluginRouteDisposers: Array<() => void> = [];
 let markInitialBootstrapDone: (() => void) | null = null;
 const initialBootstrapTask = new Promise<void>((resolve) => {
 	markInitialBootstrapDone = resolve;
@@ -111,6 +113,7 @@ export async function syncBackendPlugins(
 		store.beginSync();
 		try {
 			const records = await syncPluginsFromBackend(fetcher);
+			clearBackendPluginRoutes();
 			const appIds = new Set<string>();
 			store.setBackendRecords(
 				records.map((record) => ({
@@ -136,7 +139,9 @@ export async function syncBackendPlugins(
 			);
 			for (const record of records) {
 				const hasFrontend = record.uiMode !== "backend_only";
-				if (record.level === "app") {
+				const enabled = record.enabled !== false;
+				const integratedRoutes = hasFrontend ? createIntegratedPluginRoutes(record.id) : [];
+				if (record.level === "app" && enabled && integratedRoutes.length === 0) {
 					const appId = (record.appId || "").trim();
 					if (appId !== "" && hasFrontend && record.uiOpenMode !== "standalone") {
 						appIds.add(appId);
@@ -165,7 +170,7 @@ export async function syncBackendPlugins(
 						configSchema: record.configSchema,
 						entryPath: typeof record.frontendEntry === "string" ? normalizePluginRoutePath(record.frontendEntry) : record.frontendEntry,
 						systemBuiltin: record.systemBuiltin,
-						route: hasFrontend && record.level !== "app" && record.uiOpenMode !== "standalone"
+						route: enabled && integratedRoutes.length === 0 && hasFrontend && record.level !== "app" && record.uiOpenMode !== "standalone"
 							? {
 								path: routePath,
 								name: `plugin-${record.id}`,
@@ -174,19 +179,26 @@ export async function syncBackendPlugins(
 							: undefined
 					},
 					router,
-					store
+					store,
+					true
 				);
+				if (enabled) {
+					for (const route of integratedRoutes) {
+						addRouteIfMissing(route, router, true);
+					}
+				}
 			}
 			for (const appId of appIds) {
 				addRouteIfMissing({
 					path: `/${appId}`,
 					name: `app-home-${appId}`,
 					component: createAppHomeView(appId, store)
-				}, router);
+				}, router, true);
 			}
 			store.finishSync(null, false);
 		} catch (error) {
 			const msg = normalizeSyncError(error);
+			clearBackendPluginRoutes();
 			store.setBackendRecords([]);
 			store.finishSync(msg, true);
 		}
@@ -212,10 +224,10 @@ function normalizeSyncError(error: unknown): string {
 	return "plugin sync failed";
 }
 
-function registerPlugin(manifest: FrontendPluginManifest, router: Router, store: PluginStore): void {
+function registerPlugin(manifest: FrontendPluginManifest, router: Router, store: PluginStore, backendRoute = false): void {
 	store.registerPlugin(manifest);
 	if (manifest.route) {
-		addRouteIfMissing(withPluginAccessMeta(manifest.route, manifest), router);
+		addRouteIfMissing(withPluginAccessMeta(manifest.route, manifest), router, backendRoute);
 	}
 }
 
@@ -238,11 +250,20 @@ function withPluginAccessMeta(route: RouteRecordRaw, manifest: FrontendPluginMan
 	});
 }
 
-function addRouteIfMissing(route: RouteRecordRaw, router: Router): void {
+function addRouteIfMissing(route: RouteRecordRaw, router: Router, backendRoute = false): void {
 	if (route.name && router.hasRoute(route.name)) {
 		return;
 	}
-	router.addRoute(route);
+	const removeRoute = router.addRoute(route);
+	if (backendRoute) {
+		backendPluginRouteDisposers.push(removeRoute);
+	}
+}
+
+function clearBackendPluginRoutes(): void {
+	for (const dispose of backendPluginRouteDisposers.splice(0)) {
+		dispose();
+	}
 }
 
 async function syncPluginsFromBackend(fetcher: typeof fetch): Promise<BackendPluginRecord[]> {

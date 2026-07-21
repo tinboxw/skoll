@@ -42,13 +42,13 @@ func RegisterPurchaseRoutes(mux *http.ServeMux, service pharmaoasvc.PurchaseServ
 		return
 	}
 	h := &PurchaseHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/purchase-requests", h.listRequests)
-	mux.HandleFunc("POST /v1/pharma-oa/purchase-requests", h.createRequest)
-	mux.HandleFunc("GET /v1/pharma-oa/purchase-requests/{id}", h.getRequest)
-	mux.HandleFunc("POST /v1/pharma-oa/purchase-requests/{id}/approve", h.approveRequest)
-	mux.HandleFunc("POST /v1/pharma-oa/purchase-requests/{id}/reject", h.rejectRequest)
-	mux.HandleFunc("GET /v1/pharma-oa/purchase-orders", h.listOrders)
-	mux.HandleFunc("GET /v1/pharma-oa/purchase-orders/{id}", h.getOrder)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/purchase-requests", h.listRequests)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/purchase-requests", h.createRequest)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/purchase-requests/{id}", h.getRequest)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/purchase-requests/{id}/approve", h.approveRequest)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/purchase-requests/{id}/reject", h.rejectRequest)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/purchase-orders", h.listOrders)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/purchase-orders/{id}", h.getOrder)
 }
 
 func RegisterPurchasePermissions(service permissionsvc.Service) error {

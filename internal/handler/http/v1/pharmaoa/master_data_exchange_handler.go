@@ -26,9 +26,9 @@ func RegisterMasterDataExchangeRoutes(mux *http.ServeMux, service pharmaoasvc.Ma
 		return
 	}
 	h := &MasterDataExchangeHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/master-data/template", h.template)
-	mux.HandleFunc("POST /v1/pharma-oa/master-data/import", h.importRows)
-	mux.HandleFunc("GET /v1/pharma-oa/master-data/export", h.export)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/master-data/template", h.template)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/master-data/import", h.importRows)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/master-data/export", h.export)
 }
 
 func RegisterMasterDataExchangePermissions(service permissionsvc.Service) error {

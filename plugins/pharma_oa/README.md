@@ -37,7 +37,7 @@ $login = Invoke-RestMethod -Method Post -Uri "$base/v1/auth/login" `
 $headers = @{ Authorization = "Bearer $($login.data.token)" }
 
 Invoke-RestMethod -Method Post `
-  -Uri "$base/v1/pharma-oa/demo-seed/apply" `
+  -Uri "$base/v1/plugins/pharma_oa/api/demo-seed/apply" `
   -Headers $headers
 ```
 
@@ -75,14 +75,14 @@ Invoke-RestMethod -Method Post `
 
 | 业务域 | 已实现能力 | 主要入口 |
 | --- | --- | --- |
-| 主数据 | 员工、药品、供应商、客户、仓库、资质、导入导出 | `/skoll/pharma-oa/employees`、`/customers` 及 `/v1/pharma-oa/*` |
+| 主数据 | 员工、药品、供应商、客户、仓库、资质、导入导出 | `/skoll/pharma-oa/employees`、`/customers` 及 `/v1/plugins/pharma_oa/api/*` |
 | 工作流与采购 | 采购申请、审批/驳回、采购订单、采购入库 | `/skoll/pharma-oa/purchase-inbounds` 及采购 API |
 | 销售与库存 | 销售订单、批次出库、盘点、调拨、库存流水、库存预警 | `/skoll/pharma-oa/sales` 及库存 API |
 | 协同与合规 | 公告、合同、统一资质、质量投诉、药品召回、冷链、合规看板 | `/skoll/pharma-oa/announcements`、`/contracts`、`/qualifications`、`/quality-complaints`、`/drug-recalls`、`/cold-chain`、`/compliance-dashboard` |
 | CRM 与财务协同 | 客户跟进、销售机会、回款计划、发票记录、逾期提醒 | `/skoll/pharma-oa/customer-follow-ups`、`/sales-opportunities`、`/payment-invoices` |
 | 分析与演示 | 经营指标、响应式看板、异步 CSV 报表、完整演示数据 | `/skoll/pharma-oa/dashboard`、演示数据及报表 API |
 
-完整 HTTP 契约以 [OpenAPI](../../docs/api/openapi.yaml) 为准。宿主前端使用 `/v1/pharma-oa/*`；`plugin.yaml` 中 `/v1/plugins/pharma_oa/api/*` 路由用于插件目录、权限和扩展注册，以上声明构成当前契约。
+完整 HTTP 契约以 [OpenAPI](../../docs/api/openapi.yaml) 为准。宿主前端使用 `/v1/plugins/pharma_oa/api/*`；`plugin.yaml` 中 `/v1/plugins/pharma_oa/api/*` 路由用于插件目录、权限和扩展注册，以上声明构成当前契约。
 
 ## 监管与数据边界
 
@@ -94,10 +94,10 @@ Invoke-RestMethod -Method Post `
 ## 运行边界
 
 - `plugin.yaml` 是安装、菜单、配置、权限、路由、审计动作和事件声明的唯一插件契约。
-- 当前业务服务由 Skoll 宿主在启动时装配，代码位于 `internal/domain/pharmaoa`、`internal/service/pharmaoa` 和 `internal/handler/http/v1/pharmaoa`。
-- 当前业务前端是宿主集成页面，路由位于 `web/src/router/index.ts`，类型化客户端位于 `web/src/pharma-oa/api.ts`。`static/` 只用于插件页面和生命周期能力验证，不是完整业务控制台。
+- 进程内插件后端位于 `internal/plugin/pharmaoa`，仅在插件已启用且首次收到请求时，才按需装配领域、服务、仓储和 HTTP handler。
+- 业务页面复用宿主 Vue 组件，但路由归属 `web/src/plugins/integrated-routes.ts`，仅在插件启用时挂载。类型化客户端位于 `web/src/pharma-oa/api.ts`；`static/` 只用于生命周期验证，不是完整业务控制台。
 - `mysql` / `postgres` 模式使用 SQL 仓储持久化医药 OA 业务数据，演示 seed 可在重启后识别并复用；`memory` 模式仍是进程内开发夹具，重启即丢失。报表文件使用现有私有对象存储。
-- 禁用插件会撤销插件目录中的菜单、权限和扩展注册，但不会热卸载已经由宿主启动的医药 OA 服务。不要据此声称具备进程级沙箱或热卸载能力。
+- 禁用插件会撤销菜单、权限、API/页面路由并释放进程内服务实例；持久化仓储和业务数据保留，重新启用后继续使用。该生命周期边界不等同于进程级安全沙箱。
 - 本样板只支持当前 API、数据结构、插件格式和页面路径契约。
 
 ## 多语言
@@ -113,7 +113,7 @@ Invoke-RestMethod -Method Post `
 1. 在 `internal/domain/pharmaoa` 定义领域对象和不变量，在 `internal/service/pharmaoa` 实现用例，避免把业务规则放进 HTTP handler。
 2. 在 `internal/handler/http/v1/pharmaoa` 增加 JWT 身份、权限、错误状态和审计覆盖，并同步两份 OpenAPI 契约。
 3. 在 `plugin.yaml` 同步声明权限、路由、审计动作、菜单或事件；权限键统一使用 `pharma_oa.<resource>.<action>`。
-4. 在 `web/src/pharma-oa/api.ts` 增加类型化客户端，在 `web/src/views/Pharma*` 增加宿主页，并在路由和菜单中接入。
+4. 在 `web/src/pharma-oa/api.ts` 增加类型化客户端，在 `web/src/views/Pharma*` 增加宿主组件，并在 `web/src/plugins/integrated-routes.ts` 注册插件路由。
 5. 中文和英文文案同时进入框架 i18n 字典，默认中文；页面必须覆盖 loading、empty、error、no-permission、saving/destructive 和 responsive 状态。
 6. 增加服务、HTTP、权限、审计、manifest、前端和端到端测试。若引入持久表，同一任务必须包含 migration/seed 影响和多数据库验证。
 
@@ -140,4 +140,4 @@ npm run build
 | API 返回 401/403 | 重新登录获取 JWT，并检查对应 `pharma_oa.*` 权限 |
 | 演示数据消失 | 确认是否使用了 `memory` 模式；持久模式检查 DSN、migration 和启动日志，恢复前先验证备份 |
 | 重复安装失败 | 启动扫描已经完成安装；改用列表、启用或禁用操作 |
-| 找不到业务 API | 使用 `/skoll/v1/pharma-oa/*` 宿主路径，并以 OpenAPI 为准 |
+| 找不到业务 API | 使用 `/skoll/v1/plugins/pharma_oa/api/*` 宿主路径，并以 OpenAPI 为准 |

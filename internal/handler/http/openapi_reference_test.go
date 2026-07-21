@@ -53,7 +53,7 @@ func TestEmbeddedOpenAPIReferencesResolve(t *testing.T) {
 		sort.Strings(items)
 		t.Fatalf("unresolved OpenAPI schema references: %s", strings.Join(items, ", "))
 	}
-	if _, ok := paths["/v1/pharma-oa/compliance-dashboard"]; !ok {
+	if _, ok := paths["/v1/plugins/pharma_oa/api/compliance-dashboard"]; !ok {
 		t.Fatal("compliance dashboard OpenAPI path is missing")
 	}
 	if _, ok := schemas["ComplianceDashboardAPIResponse"]; !ok {

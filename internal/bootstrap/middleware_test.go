@@ -281,39 +281,31 @@ func TestRequiredPermissionMapping(t *testing.T) {
 	_ = domainrbac.SubjectUser
 }
 
-func TestPharmaOACriticalPermissionMapping(t *testing.T) {
+func TestPharmaOAPermissionsAreNotOwnedByHostPolicy(t *testing.T) {
 	tests := []struct {
-		method   string
-		path     string
-		resource string
-		action   string
+		method string
+		path   string
 	}{
-		{http.MethodPost, "/skoll/v1/pharma-oa/purchase-requests/request-1/approve", "pharma_oa.purchase", "approve"},
-		{http.MethodPost, "/skoll/v1/pharma-oa/contracts/contract-1/reject", "pharma_oa.contract", "reject"},
-		{http.MethodPost, "/skoll/v1/pharma-oa/quality-complaints/complaint-1/resolve", "pharma_oa.quality_complaint", "resolve"},
-		{http.MethodPost, "/skoll/v1/pharma-oa/purchase-inbounds", "pharma_oa.inbound", "create"},
-		{http.MethodGet, "/skoll/v1/pharma-oa/sales-outbounds/outbound-1", "pharma_oa.sales.outbound", "read"},
-		{http.MethodPost, "/skoll/v1/pharma-oa/stocktakes/stocktake-1/approve", "pharma_oa.stocktake", "approve"},
-		{http.MethodPost, "/skoll/v1/pharma-oa/transfers", "pharma_oa.transfer", "create"},
-		{http.MethodGet, "/skoll/v1/pharma-oa/customers?includeAll=true", "pharma_oa.customer", "read"},
-		{http.MethodGet, "/skoll/v1/pharma-oa/customers/qualification-reminders", "pharma_oa.customer", "reminder"},
+		{http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-requests/request-1/approve"},
+		{http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-inbounds"},
+		{http.MethodGet, "/skoll/v1/plugins/pharma_oa/api/customers?includeAll=true"},
 	}
 	for _, test := range tests {
 		path := strings.SplitN(test.path, "?", 2)[0]
 		resource, action, guarded := requiredPermission(test.method, path, "/skoll")
-		if !guarded || resource != test.resource || action != test.action {
+		if guarded || resource != "" || action != "" {
 			t.Errorf("%s %s: guarded=%v resource=%s action=%s", test.method, test.path, guarded, resource, action)
 		}
 	}
 }
 
-func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
+func TestAuthGuardMiddlewareEnforcesPharmaOAManifestPermission(t *testing.T) {
 	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{}}
 	checker := &fakePermissionChecker{allowed: map[string]bool{
 		"user:approver:pharma_oa.purchase:approve": true,
 	}}
 	resolver, err := plugin.NewRoutePermissionRegistry([]plugin.RouteExtension{{
-		Method: http.MethodPost, Path: "/v1/plugins/pharma_oa/api/purchase-requests/approve", Permission: "pharma_oa.purchase.approve", Source: "plugin.pharma_oa",
+		Method: http.MethodPost, Path: "/v1/plugins/pharma_oa/api/purchase-requests/{id}/approve", Permission: "pharma_oa.purchase.approve", Source: "plugin.pharma_oa",
 	}})
 	if err != nil {
 		t.Fatalf("create route permission resolver: %v", err)
@@ -326,7 +318,7 @@ func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign allowed jwt: %v", err)
 	}
-	allowedReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/pharma-oa/purchase-requests/request-1/approve", nil)
+	allowedReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-requests/request-1/approve", nil)
 	allowedReq.Header.Set("Authorization", "Bearer "+allowedToken)
 	allowedResp := httptest.NewRecorder()
 	h.ServeHTTP(allowedResp, allowedReq)
@@ -337,7 +329,7 @@ func TestAuthGuardMiddlewareEnforcesPharmaOACriticalPermission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign denied jwt: %v", err)
 	}
-	deniedReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-requests/approve", nil)
+	deniedReq := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/pharma_oa/api/purchase-requests/request-2/approve", nil)
 	deniedReq.Header.Set("Authorization", "Bearer "+deniedToken)
 	deniedResp := httptest.NewRecorder()
 	h.ServeHTTP(deniedResp, deniedReq)

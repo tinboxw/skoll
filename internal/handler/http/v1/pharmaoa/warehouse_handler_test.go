@@ -16,7 +16,7 @@ func TestWarehouseHandlerMovementEligibilityAndDisable(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterWarehouseRoutes(mux, service)
 
-	createResp := performWarehouseRequest(mux, http.MethodPost, "/v1/pharma-oa/warehouses", map[string]any{
+	createResp := performWarehouseRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/warehouses", map[string]any{
 		"code":   "WH-API-001",
 		"name":   "East Cold Warehouse",
 		"region": "East",
@@ -57,24 +57,24 @@ func TestWarehouseHandlerMovementEligibilityAndDisable(t *testing.T) {
 		t.Fatalf("expected warehouse id in response: %s", createResp.Body.String())
 	}
 
-	listResp := performWarehouseRequest(mux, http.MethodGet, "/v1/pharma-oa/warehouses?region=East", nil)
+	listResp := performWarehouseRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/warehouses?region=East", nil)
 	if listResp.Code != http.StatusOK || !strings.Contains(listResp.Body.String(), "WH-API-001") {
 		t.Fatalf("expected list to include warehouse, status=%d body=%s", listResp.Code, listResp.Body.String())
 	}
 
-	eligible := performWarehouseRequest(mux, http.MethodGet, "/v1/pharma-oa/warehouses/"+id+"/movement-eligibility?areaId=area-cold&locationId=loc-001", nil)
+	eligible := performWarehouseRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/warehouses/"+id+"/movement-eligibility?areaId=area-cold&locationId=loc-001", nil)
 	if eligible.Code != http.StatusOK || !strings.Contains(eligible.Body.String(), `"allowed":true`) {
 		t.Fatalf("expected enabled location eligible, status=%d body=%s", eligible.Code, eligible.Body.String())
 	}
 
-	disable := performWarehouseRequest(mux, http.MethodPost, "/v1/pharma-oa/warehouses/"+id+"/disable", map[string]any{
+	disable := performWarehouseRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/warehouses/"+id+"/disable", map[string]any{
 		"reason":  "maintenance",
 		"actorId": "qa-admin",
 	})
 	if disable.Code != http.StatusOK {
 		t.Fatalf("disable status=%d body=%s", disable.Code, disable.Body.String())
 	}
-	blocked := performWarehouseRequest(mux, http.MethodGet, "/v1/pharma-oa/warehouses/"+id+"/movement-eligibility?areaId=area-cold&locationId=loc-001", nil)
+	blocked := performWarehouseRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/warehouses/"+id+"/movement-eligibility?areaId=area-cold&locationId=loc-001", nil)
 	if blocked.Code != http.StatusOK || !strings.Contains(blocked.Body.String(), `"allowed":false`) || !strings.Contains(blocked.Body.String(), "warehouse is disabled") {
 		t.Fatalf("expected disabled warehouse blocked, status=%d body=%s", blocked.Code, blocked.Body.String())
 	}
@@ -85,7 +85,7 @@ func TestWarehouseHandlerRejectsInvalidTemperature(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterWarehouseRoutes(mux, service)
 
-	resp := performWarehouseRequest(mux, http.MethodPost, "/v1/pharma-oa/warehouses", map[string]any{
+	resp := performWarehouseRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/warehouses", map[string]any{
 		"code":   "WH-API-002",
 		"name":   "Invalid Temp Warehouse",
 		"region": "East",

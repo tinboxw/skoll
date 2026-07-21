@@ -35,7 +35,7 @@ func TestComplianceDashboardHTTPFiltersJWTActorAndExport(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterComplianceDashboardRoutes(mux, service)
 
-	list := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/compliance-dashboard?risk=high&source=quality_complaint&keyword=QC-1&limit=25&actorId=spoofed", "", security.JWTClaims{Subject: "compliance-auditor", Role: "quality"})
+	list := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/compliance-dashboard?risk=high&source=quality_complaint&keyword=QC-1&limit=25&actorId=spoofed", "", security.JWTClaims{Subject: "compliance-auditor", Role: "quality"})
 	if list.Code != http.StatusOK || !bytes.Contains(list.Body.Bytes(), []byte(`"matchedCount":1`)) || !bytes.Contains(list.Body.Bytes(), []byte(`"sourceId":"complaint-1"`)) {
 		t.Fatalf("list status=%d body=%s", list.Code, list.Body.String())
 	}
@@ -43,12 +43,12 @@ func TestComplianceDashboardHTTPFiltersJWTActorAndExport(t *testing.T) {
 		t.Fatalf("unexpected list input: %+v", service.inputs)
 	}
 
-	export := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/compliance-dashboard/export?source=quality_complaint", "", security.JWTClaims{Subject: "compliance-auditor", Role: "quality"})
+	export := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/compliance-dashboard/export?source=quality_complaint", "", security.JWTClaims{Subject: "compliance-auditor", Role: "quality"})
 	if export.Code != http.StatusOK || export.Header().Get("Content-Type") != "text/csv; charset=utf-8" || !bytes.Contains(export.Body.Bytes(), []byte("high,quality_complaint")) || service.exports != 1 || service.inputs[1].ActorID != "compliance-auditor" {
 		t.Fatalf("export status=%d headers=%v body=%s inputs=%+v", export.Code, export.Header(), export.Body.String(), service.inputs)
 	}
 
-	invalid := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/compliance-dashboard?limit=501", "", security.JWTClaims{Subject: "compliance-auditor", Role: "quality"})
+	invalid := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/compliance-dashboard?limit=501", "", security.JWTClaims{Subject: "compliance-auditor", Role: "quality"})
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid status=%d body=%s", invalid.Code, invalid.Body.String())
 	}

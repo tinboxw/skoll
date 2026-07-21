@@ -23,6 +23,7 @@ import (
 	builtinAuth "github.com/tinboxw/skoll/internal/plugin/builtin/auth"
 	builtinDashboard "github.com/tinboxw/skoll/internal/plugin/builtin/dashboard"
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
+	pharmaoaplugin "github.com/tinboxw/skoll/internal/plugin/pharmaoa"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
@@ -33,7 +34,6 @@ import (
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
-	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
@@ -90,14 +90,6 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
-	pharmaEmployeeService := pharmaoasvc.NewEmployeeService(auditService, bundle.PharmaEmployees)
-	pharmaProductService := pharmaoasvc.NewProductService(auditService, bundle.PharmaProducts)
-	pharmaSupplierService := pharmaoasvc.NewSupplierService(auditService, bundle.PharmaSuppliers)
-	pharmaCustomerService := pharmaoasvc.NewCustomerService(auditService, bundle.PharmaCustomers)
-	pharmaCustomerFollowUpService := pharmaoasvc.NewCustomerFollowUpService(pharmaCustomerService, auditService, bundle.PharmaFollowUps)
-	pharmaSalesOpportunityService := pharmaoasvc.NewSalesOpportunityService(pharmaCustomerService, pharmaProductService, auditService, bundle.PharmaOpportunities)
-	pharmaWarehouseService := pharmaoasvc.NewWarehouseService(auditService, bundle.PharmaWarehouses)
-	pharmaMasterDataExchangeService := pharmaoasvc.NewMasterDataExchangeService(pharmaEmployeeService, pharmaProductService, pharmaSupplierService, pharmaCustomerService)
 	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
@@ -107,74 +99,44 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Permission: rbacService,
 		Audit:      auditEventService,
 	})
-	pharmaPurchaseService := pharmaoasvc.NewPurchaseService(pharmaSupplierService, workflowService, auditService, bundle.PharmaPurchases)
-	pharmaInventoryService := pharmaoasvc.NewInventoryService(auditService, bundle.PharmaInventory)
-	pharmaPurchaseInboundService := pharmaoasvc.NewPurchaseInboundService(pharmaPurchaseService, pharmaWarehouseService, pharmaInventoryService, auditService, bundle.PharmaInbounds)
-	pharmaSalesService := pharmaoasvc.NewSalesService(pharmaCustomerService, pharmaWarehouseService, pharmaInventoryService, auditService, bundle.PharmaSales)
-	pharmaInventoryOperationService := pharmaoasvc.NewInventoryOperationService(pharmaInventoryService, pharmaWarehouseService, workflowService, auditService, pharmaoasvc.InventoryOperationRepositories{Stocktakes: bundle.PharmaStocktakes, Transfers: bundle.PharmaTransfers})
 	notificationService := notificationsvc.NewService(nil, nil)
-	pharmaPaymentInvoiceService := pharmaoasvc.NewPaymentInvoiceService(pharmaSalesService, notificationService, auditService, pharmaoasvc.PaymentInvoiceRepositories{Plans: bundle.PharmaPaymentPlans, Invoices: bundle.PharmaInvoices, Jobs: bundle.PharmaPaymentReminderJobs})
-	pharmaInventoryAlertService := pharmaoasvc.NewInventoryAlertService(pharmaInventoryService, notificationService, auditService, bundle.PharmaInventoryAlerts)
-	pharmaAnnouncementService := pharmaoasvc.NewAnnouncementService(auditService)
-	pharmaContractService := pharmaoasvc.NewContractService(pharmaSupplierService, pharmaCustomerService, workflowService, fileService, notificationService, auditService, bundle.PharmaContracts)
-	pharmaQualificationService := pharmaoasvc.NewQualificationService(pharmaEmployeeService, pharmaSupplierService, pharmaCustomerService, notificationService, auditService)
-	pharmaQualityComplaintService := pharmaoasvc.NewQualityComplaintService(pharmaCustomerService, pharmaProductService, pharmaInventoryService, workflowService, fileService, auditService, bundle.PharmaComplaints)
-	pharmaDrugRecallService := pharmaoasvc.NewDrugRecallService(pharmaSalesService, pharmaInventoryService, pharmaProductService, pharmaCustomerService, pharmaQualityComplaintService, auditService, bundle.PharmaRecalls)
-	pharmaColdChainService := pharmaoasvc.NewColdChainService(pharmaInventoryService, pharmaWarehouseService, notificationService, auditService)
-	pharmaComplianceDashboardService := pharmaoasvc.NewComplianceDashboardService(pharmaQualificationService, pharmaQualityComplaintService, pharmaDrugRecallService, pharmaColdChainService, auditService)
-	pharmaBusinessMetricsService := pharmaoasvc.NewBusinessMetricsService(pharmaInventoryAlertService, pharmaQualificationService, pharmaPurchaseService, pharmaCustomerFollowUpService, pharmaSalesService, auditService)
-	pharmaReportExportService := pharmaoasvc.NewReportExportService(pharmaBusinessMetricsService, fileService, auditService, bundle.PharmaReportExports)
-	pharmaDemoSeedService := pharmaoasvc.NewDemoSeedService(pharmaoasvc.DemoSeedDependencies{
-		Employees: pharmaEmployeeService, Products: pharmaProductService, Suppliers: pharmaSupplierService, Customers: pharmaCustomerService,
-		Warehouses: pharmaWarehouseService, Purchases: pharmaPurchaseService, Inbounds: pharmaPurchaseInboundService, Sales: pharmaSalesService,
-		Inventory: pharmaInventoryService, FollowUps: pharmaCustomerFollowUpService, Audit: auditService,
-	})
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
+	pharmaBackendDeps := pharmaoaplugin.Dependencies{
+		Stores: bundle, Audit: auditService, RBAC: rbacService, Workflow: workflowService,
+		File: fileService, Notification: notificationService,
+	}
+	registrar, ok := pluginManager.(interface {
+		RegisterInProcessBackend(string, plugin.InProcessBackendFactory) error
+	})
+	if !ok {
+		return nil, fmt.Errorf("plugin manager does not support in-process backends")
+	}
+	if err := registrar.RegisterInProcessBackend(pharmaoaplugin.PluginID, func() (http.Handler, error) {
+		return pharmaoaplugin.NewBackend(pharmaBackendDeps)
+	}); err != nil {
+		return nil, fmt.Errorf("register Pharma OA plugin backend: %w", err)
+	}
 
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
-		UserService:                      userService,
-		RoleService:                      roleService,
-		RBACService:                      rbacService,
-		AuditService:                     auditService,
-		AuditEventService:                auditEventService,
-		FileService:                      fileService,
-		SystemService:                    systemService,
-		PermissionService:                permissionService,
-		PharmaEmployeeService:            pharmaEmployeeService,
-		PharmaProductService:             pharmaProductService,
-		PharmaSupplierService:            pharmaSupplierService,
-		PharmaCustomerService:            pharmaCustomerService,
-		PharmaCustomerFollowUpService:    pharmaCustomerFollowUpService,
-		PharmaSalesOpportunityService:    pharmaSalesOpportunityService,
-		PharmaWarehouseService:           pharmaWarehouseService,
-		PharmaMasterDataExchangeService:  pharmaMasterDataExchangeService,
-		PharmaPurchaseService:            pharmaPurchaseService,
-		PharmaPurchaseInboundService:     pharmaPurchaseInboundService,
-		PharmaSalesService:               pharmaSalesService,
-		PharmaPaymentInvoiceService:      pharmaPaymentInvoiceService,
-		PharmaInventoryOperationService:  pharmaInventoryOperationService,
-		PharmaInventoryAlertService:      pharmaInventoryAlertService,
-		PharmaAnnouncementService:        pharmaAnnouncementService,
-		PharmaContractService:            pharmaContractService,
-		PharmaQualificationService:       pharmaQualificationService,
-		PharmaQualityComplaintService:    pharmaQualityComplaintService,
-		PharmaDrugRecallService:          pharmaDrugRecallService,
-		PharmaColdChainService:           pharmaColdChainService,
-		PharmaComplianceDashboardService: pharmaComplianceDashboardService,
-		PharmaBusinessMetricsService:     pharmaBusinessMetricsService,
-		PharmaReportExportService:        pharmaReportExportService,
-		PharmaDemoSeedService:            pharmaDemoSeedService,
-		MenuService:                      menuService,
-		WorkflowService:                  workflowService,
-		PluginManager:                    pluginManager,
-		APIPrefix:                        cfg.AppConfig.Server.APIPrefix,
-		LogLevel:                         cfg.AppConfig.Log.Level,
-		LogDir:                           cfg.AppConfig.Log.Dir,
-		LogFile:                          cfg.AppConfig.Log.File,
-		LogPluginPerFile:                 cfg.AppConfig.Log.PluginPerFile,
-		DevPortalEnabled:                 cfg.AppConfig.Dev.PortalEnabled,
-		DevPortalRoot:                    cfg.AppConfig.Dev.PluginsRoot,
-		DevPortalRoots:                   append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
+		UserService:       userService,
+		RoleService:       roleService,
+		RBACService:       rbacService,
+		AuditService:      auditService,
+		AuditEventService: auditEventService,
+		FileService:       fileService,
+		SystemService:     systemService,
+		PermissionService: permissionService,
+		MenuService:       menuService,
+		WorkflowService:   workflowService,
+		PluginManager:     pluginManager,
+		APIPrefix:         cfg.AppConfig.Server.APIPrefix,
+		LogLevel:          cfg.AppConfig.Log.Level,
+		LogDir:            cfg.AppConfig.Log.Dir,
+		LogFile:           cfg.AppConfig.Log.File,
+		LogPluginPerFile:  cfg.AppConfig.Log.PluginPerFile,
+		DevPortalEnabled:  cfg.AppConfig.Dev.PortalEnabled,
+		DevPortalRoot:     cfg.AppConfig.Dev.PluginsRoot,
+		DevPortalRoots:    append([]string(nil), cfg.AppConfig.Dev.PluginsRoots...),
 	},
 		middleware.Logger(),
 		middleware.RateLimit(100, 100),
@@ -194,7 +156,11 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 
 	ensureBuiltinAuthData(context.Background(), logger, bundle.Users, bundle.Roles, bundle.RBAC)
 	if scopeMatrixFixturesEnabled() {
-		if err := ensureScopeMatrixFixtures(context.Background(), bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, pharmaCustomerService); err != nil {
+		customerService, err := pharmaoaplugin.NewCustomerService(pharmaBackendDeps)
+		if err != nil {
+			return nil, fmt.Errorf("build Pharma OA scope fixture service: %w", err)
+		}
+		if err := ensureScopeMatrixFixtures(context.Background(), bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, customerService); err != nil {
 			return nil, fmt.Errorf("seed organization scope matrix fixtures: %w", err)
 		}
 	}
@@ -236,6 +202,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		healthChecker:      healthChecker,
 		healthCache:        make(map[string]plugin.HealthReport),
 		healthTTL:          5 * time.Second,
+		inProcessBackends:  plugin.NewInProcessBackendRegistry(),
 		businessEvents:     businessEvents,
 		eventDelivery:      plugin.NewHTTPEventDeliveryClient(nil, 5*time.Second),
 		eventSubscriptions: make(map[string][]func()),
@@ -357,6 +324,7 @@ type pluginManagerWithExtensions struct {
 	healthMu           sync.RWMutex
 	healthCache        map[string]plugin.HealthReport
 	healthTTL          time.Duration
+	inProcessBackends  *plugin.InProcessBackendRegistry
 	serviceSupervisor  *plugin.ServiceSupervisor
 	migrationHook      *plugin.PluginMigrationHook
 	businessEvents     *event.BusinessEventBus
@@ -377,6 +345,11 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	}
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
+	if m.inProcessBackends != nil {
+		if err := m.inProcessBackends.Reset(pluginID); err != nil {
+			return err
+		}
+	}
 	current, currentErr := m.getCurrent(pluginID)
 	serviceWasRunning := currentErr == nil && current.State == plugin.StateEnabled && strings.TrimSpace(current.ServiceBaseURL) != "" && m.serviceSupervisor != nil
 	if serviceWasRunning {
@@ -492,6 +465,16 @@ func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path s
 	if info.State != plugin.StateEnabled {
 		httpHandler.WriteMessage(w, http.StatusServiceUnavailable, "plugin_not_enabled", "插件未启用")
 		return true
+	}
+
+	if m.inProcessBackends != nil {
+		handled, backendErr := m.inProcessBackends.ServeHTTP(pluginID, w, r)
+		if handled {
+			if backendErr != nil {
+				httpHandler.WriteMessage(w, http.StatusServiceUnavailable, "plugin_backend_start_failed", "plugin backend failed to start")
+			}
+			return true
+		}
 	}
 
 	target, err := parsePluginServiceURL(info.ServiceBaseURL)
@@ -626,7 +609,7 @@ func pluginRouteDeclared(info plugin.Info, method, path string) (bool, error) {
 	wantMethod := strings.ToUpper(strings.TrimSpace(method))
 	wantPath := plugin.NormalizeEntryPath(path)
 	for _, route := range routes {
-		if strings.ToUpper(strings.TrimSpace(route.Method)) == wantMethod && plugin.NormalizeEntryPath(route.Path) == wantPath {
+		if strings.ToUpper(strings.TrimSpace(route.Method)) == wantMethod && plugin.MatchRoutePath(route.Path, wantPath) {
 			return true, nil
 		}
 	}
@@ -845,7 +828,10 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 		}
 		m.clearHealthCache()
 		m.persistOne(context.Background(), pluginID)
-		return m.stopPluginService(pluginID)
+		if err := m.stopPluginService(pluginID); err != nil {
+			return err
+		}
+		return m.stopInProcessBackend(pluginID)
 	} else if !errors.Is(err, plugin.ErrPluginNotFound) {
 		return err
 	}
@@ -861,7 +847,10 @@ func (m *pluginManagerWithExtensions) Disable(pluginID string) error {
 			_ = m.pluginsRepo.Save(context.Background(), *stored)
 			m.removePluginEventSubscriptions(pluginID)
 			m.clearHealthCache()
-			return m.stopPluginService(pluginID)
+			if err := m.stopPluginService(pluginID); err != nil {
+				return err
+			}
+			return m.stopInProcessBackend(pluginID)
 		}
 	}
 
@@ -911,6 +900,9 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 		m.removePluginEventSubscriptions(pluginID)
 	}
 	if err := m.stopPluginService(pluginID); err != nil {
+		return err
+	}
+	if err := m.stopInProcessBackend(pluginID); err != nil {
 		return err
 	}
 	if err := m.runPluginMigrations(context.Background(), info, plugin.PluginMigrationUninstall); err != nil {
@@ -1162,6 +1154,13 @@ func (m *pluginManagerWithExtensions) stopPluginService(pluginID string) error {
 	return m.serviceSupervisor.Stop(context.Background(), pluginID)
 }
 
+func (m *pluginManagerWithExtensions) stopInProcessBackend(pluginID string) error {
+	if m == nil || m.inProcessBackends == nil {
+		return nil
+	}
+	return m.inProcessBackends.Reset(pluginID)
+}
+
 func (m *pluginManagerWithExtensions) Close() error {
 	if m == nil {
 		return nil
@@ -1171,12 +1170,24 @@ func (m *pluginManagerWithExtensions) Close() error {
 		m.removePluginEventSubscriptions(pluginID)
 	}
 	m.lifecycleMu.Unlock()
+	if m.inProcessBackends != nil {
+		if err := m.inProcessBackends.Close(); err != nil {
+			return err
+		}
+	}
 	if m.serviceSupervisor == nil {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return m.serviceSupervisor.Shutdown(ctx)
+}
+
+func (m *pluginManagerWithExtensions) RegisterInProcessBackend(pluginID string, factory plugin.InProcessBackendFactory) error {
+	if m == nil || m.inProcessBackends == nil {
+		return errors.New("in-process plugin backends are not configured")
+	}
+	return m.inProcessBackends.Register(pluginID, factory)
 }
 
 func (m *pluginManagerWithExtensions) persistAll(ctx context.Context) {

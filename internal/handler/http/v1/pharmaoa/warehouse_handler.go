@@ -30,11 +30,11 @@ func RegisterWarehouseRoutes(mux *http.ServeMux, service pharmaoasvc.WarehouseSe
 		return
 	}
 	h := &WarehouseHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/warehouses", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/warehouses", h.create)
-	mux.HandleFunc("PUT /v1/pharma-oa/warehouses/{id}", h.update)
-	mux.HandleFunc("POST /v1/pharma-oa/warehouses/{id}/disable", h.disable)
-	mux.HandleFunc("GET /v1/pharma-oa/warehouses/{id}/movement-eligibility", h.movementEligibility)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/warehouses", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/warehouses", h.create)
+	mux.HandleFunc("PUT /v1/plugins/pharma_oa/api/warehouses/{id}", h.update)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/warehouses/{id}/disable", h.disable)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/warehouses/{id}/movement-eligibility", h.movementEligibility)
 }
 
 func RegisterWarehousePermissions(service permissionsvc.Service) error {

@@ -25,13 +25,6 @@ type PermissionPolicy struct {
 	Resource   string
 }
 
-type RoutePermissionPolicy struct {
-	Method      string
-	PathPattern string
-	Resource    string
-	Action      string
-}
-
 type permissionChecker interface {
 	CheckPermission(ctx context.Context, in rbacsvc.CheckPermissionInput) (bool, error)
 }
@@ -265,76 +258,12 @@ func requiredPermission(method, path, apiPrefix string) (resource, action string
 		return "", "", false
 	}
 
-	for _, policy := range pharmaOACriticalPermissionPolicies(normalizedPrefix) {
-		if cleanMethod == policy.Method && routePatternMatches(cleanPath, policy.PathPattern) {
-			return policy.Resource, policy.Action, true
-		}
-	}
-
 	for _, policy := range defaultPermissionPolicies(normalizedPrefix) {
 		if strings.HasPrefix(cleanPath, policy.PathPrefix) {
 			return policy.Resource, mapAction(cleanMethod, cleanPath), true
 		}
 	}
 	return "", "", false
-}
-
-func pharmaOACriticalPermissionPolicies(apiPrefix string) []RoutePermissionPolicy {
-	path := func(value string) string { return apiPrefix + value }
-	return []RoutePermissionPolicy{
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/employees"), Resource: "pharma_oa.employee", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/employees"), Resource: "pharma_oa.employee", Action: "create"},
-		{Method: http.MethodPut, PathPattern: path("/v1/pharma-oa/employees/{id}"), Resource: "pharma_oa.employee", Action: "update"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/employees/{id}/leave"), Resource: "pharma_oa.employee", Action: "leave"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/employees/qualification-reminders"), Resource: "pharma_oa.employee", Action: "reminder"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/customers"), Resource: "pharma_oa.customer", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/customers"), Resource: "pharma_oa.customer", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/customers/qualification-reminders"), Resource: "pharma_oa.customer", Action: "reminder"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/customers/{id}"), Resource: "pharma_oa.customer", Action: "read"},
-		{Method: http.MethodPut, PathPattern: path("/v1/pharma-oa/customers/{id}"), Resource: "pharma_oa.customer", Action: "update"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/customers/{id}/sales-eligibility"), Resource: "pharma_oa.customer", Action: "sales"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/customers/{id}/disable"), Resource: "pharma_oa.customer", Action: "disable"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/purchase-requests/{id}/approve"), Resource: "pharma_oa.purchase", Action: "approve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/purchase-requests/{id}/reject"), Resource: "pharma_oa.purchase", Action: "reject"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/purchase-inbounds"), Resource: "pharma_oa.inbound", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/purchase-inbounds"), Resource: "pharma_oa.inbound", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/purchase-inbounds/{id}"), Resource: "pharma_oa.inbound", Action: "read"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/sales-outbounds"), Resource: "pharma_oa.sales.outbound", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/sales-outbounds"), Resource: "pharma_oa.sales.outbound", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/sales-outbounds/{id}"), Resource: "pharma_oa.sales.outbound", Action: "read"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/stocktakes"), Resource: "pharma_oa.stocktake", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/stocktakes"), Resource: "pharma_oa.stocktake", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/stocktakes/{id}"), Resource: "pharma_oa.stocktake", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/stocktakes/{id}/approve"), Resource: "pharma_oa.stocktake", Action: "approve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/stocktakes/{id}/reject"), Resource: "pharma_oa.stocktake", Action: "reject"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/transfers"), Resource: "pharma_oa.transfer", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/transfers"), Resource: "pharma_oa.transfer", Action: "create"},
-		{Method: http.MethodGet, PathPattern: path("/v1/pharma-oa/transfers/{id}"), Resource: "pharma_oa.transfer", Action: "read"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/contracts/{id}/approve"), Resource: "pharma_oa.contract", Action: "approve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/contracts/{id}/reject"), Resource: "pharma_oa.contract", Action: "reject"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/quality-complaints/{id}/resolve"), Resource: "pharma_oa.quality_complaint", Action: "resolve"},
-		{Method: http.MethodPost, PathPattern: path("/v1/pharma-oa/quality-complaints/{id}/reject"), Resource: "pharma_oa.quality_complaint", Action: "reject"},
-	}
-}
-
-func routePatternMatches(path, pattern string) bool {
-	pathSegments := strings.Split(strings.Trim(path, "/"), "/")
-	patternSegments := strings.Split(strings.Trim(pattern, "/"), "/")
-	if len(pathSegments) != len(patternSegments) {
-		return false
-	}
-	for i := range pathSegments {
-		if strings.HasPrefix(patternSegments[i], "{") && strings.HasSuffix(patternSegments[i], "}") {
-			if pathSegments[i] == "" {
-				return false
-			}
-			continue
-		}
-		if pathSegments[i] != patternSegments[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func defaultPermissionPolicies(apiPrefix string) []PermissionPolicy {

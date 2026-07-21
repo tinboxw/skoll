@@ -35,7 +35,7 @@ async function verifyIdentity(entry) {
 	const token = await login(entry.account);
 	const headers = { Authorization: `Bearer ${token}` };
 	const scopeResponse = await api("/v1/rbac/data-scope?resource=pharma_oa.customer&action=read", { headers });
-	const customerResponse = await api("/v1/pharma-oa/customers?includeAll=true&organizationId=scope-org-other&ownerId=scope-user-scope_all", { headers });
+	const customerResponse = await api("/v1/plugins/pharma_oa/api/customers?includeAll=true&organizationId=scope-org-other&ownerId=scope-user-scope_all", { headers });
 	if (entry.denied) {
 		if (scopeResponse.status !== 403 || customerResponse.status !== 403) {
 			throw new Error(`${entry.account} expected 403/403, got ${scopeResponse.status}/${customerResponse.status}`);

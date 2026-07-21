@@ -16,7 +16,7 @@ func TestAnnouncementHTTPPublishAudienceAndReadConfirmation(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterAnnouncementRoutes(mux, service)
 
-	create := announcementRequest(t, mux, http.MethodPost, "/v1/pharma-oa/announcements", `{"kind":"policy","title":"Quality policy","content":"Read before shift","audience":{"organizationIds":[],"roleIds":["quality"]},"documents":[{"fileId":"file-1","fileName":"policy.pdf"}],"actorId":"admin"}`, security.JWTClaims{Subject: "admin", Role: "admin"})
+	create := announcementRequest(t, mux, http.MethodPost, "/v1/plugins/pharma_oa/api/announcements", `{"kind":"policy","title":"Quality policy","content":"Read before shift","audience":{"organizationIds":[],"roleIds":["quality"]},"documents":[{"fileId":"file-1","fileName":"policy.pdf"}],"actorId":"admin"}`, security.JWTClaims{Subject: "admin", Role: "admin"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", create.Code, create.Body.String())
 	}
@@ -26,23 +26,23 @@ func TestAnnouncementHTTPPublishAudienceAndReadConfirmation(t *testing.T) {
 	}
 	id := items[0].ID.String()
 
-	publish := announcementRequest(t, mux, http.MethodPost, "/v1/pharma-oa/announcements/"+id+"/publish", `{"actorId":"admin"}`, security.JWTClaims{Subject: "admin", Role: "admin"})
+	publish := announcementRequest(t, mux, http.MethodPost, "/v1/plugins/pharma_oa/api/announcements/"+id+"/publish", `{"actorId":"admin"}`, security.JWTClaims{Subject: "admin", Role: "admin"})
 	if publish.Code != http.StatusOK {
 		t.Fatalf("publish status=%d body=%s", publish.Code, publish.Body.String())
 	}
-	visible := announcementRequest(t, mux, http.MethodGet, "/v1/pharma-oa/announcements", "", security.JWTClaims{Subject: "quality-user", Role: "quality"})
+	visible := announcementRequest(t, mux, http.MethodGet, "/v1/plugins/pharma_oa/api/announcements", "", security.JWTClaims{Subject: "quality-user", Role: "quality"})
 	if visible.Code != http.StatusOK || !bytes.Contains(visible.Body.Bytes(), []byte(id)) {
 		t.Fatalf("targeted list status=%d body=%s", visible.Code, visible.Body.String())
 	}
-	hidden := announcementRequest(t, mux, http.MethodGet, "/v1/pharma-oa/announcements", "", security.JWTClaims{Subject: "sales-user", Role: "sales"})
+	hidden := announcementRequest(t, mux, http.MethodGet, "/v1/plugins/pharma_oa/api/announcements", "", security.JWTClaims{Subject: "sales-user", Role: "sales"})
 	if hidden.Code != http.StatusOK || bytes.Contains(hidden.Body.Bytes(), []byte(id)) {
 		t.Fatalf("out-of-audience list status=%d body=%s", hidden.Code, hidden.Body.String())
 	}
-	read := announcementRequest(t, mux, http.MethodPost, "/v1/pharma-oa/announcements/"+id+"/read", "", security.JWTClaims{Subject: "quality-user", Role: "quality"})
+	read := announcementRequest(t, mux, http.MethodPost, "/v1/plugins/pharma_oa/api/announcements/"+id+"/read", "", security.JWTClaims{Subject: "quality-user", Role: "quality"})
 	if read.Code != http.StatusOK {
 		t.Fatalf("confirm read status=%d body=%s", read.Code, read.Body.String())
 	}
-	receipts := announcementRequest(t, mux, http.MethodGet, "/v1/pharma-oa/announcements/"+id+"/read-confirmations", "", security.JWTClaims{Subject: "admin", Role: "admin"})
+	receipts := announcementRequest(t, mux, http.MethodGet, "/v1/plugins/pharma_oa/api/announcements/"+id+"/read-confirmations", "", security.JWTClaims{Subject: "admin", Role: "admin"})
 	if receipts.Code != http.StatusOK || !bytes.Contains(receipts.Body.Bytes(), []byte("quality-user")) {
 		t.Fatalf("receipt list status=%d body=%s", receipts.Code, receipts.Body.String())
 	}

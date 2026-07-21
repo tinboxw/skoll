@@ -34,12 +34,12 @@ func RegisterDrugRecallRoutes(mux *http.ServeMux, service pharmaoasvc.DrugRecall
 		return
 	}
 	h := &DrugRecallHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/drug-recalls", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/drug-recalls", h.create)
-	mux.HandleFunc("GET /v1/pharma-oa/drug-recalls/batches", h.listBatches)
-	mux.HandleFunc("GET /v1/pharma-oa/drug-recalls/scope", h.previewScope)
-	mux.HandleFunc("GET /v1/pharma-oa/drug-recalls/{id}", h.get)
-	mux.HandleFunc("POST /v1/pharma-oa/drug-recalls/{id}/tasks/{taskId}/complete", h.completeTask)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/drug-recalls", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/drug-recalls", h.create)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/drug-recalls/batches", h.listBatches)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/drug-recalls/scope", h.previewScope)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/drug-recalls/{id}", h.get)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/drug-recalls/{id}/tasks/{taskId}/complete", h.completeTask)
 }
 
 func RegisterDrugRecallPermissions(service permissionsvc.Service) error {

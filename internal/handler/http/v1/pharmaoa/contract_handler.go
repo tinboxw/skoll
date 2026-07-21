@@ -48,12 +48,12 @@ func RegisterContractRoutes(mux *http.ServeMux, service pharmaoasvc.ContractServ
 		return
 	}
 	h := &ContractHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/contracts", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/contracts", h.create)
-	mux.HandleFunc("GET /v1/pharma-oa/contracts/{id}", h.get)
-	mux.HandleFunc("POST /v1/pharma-oa/contracts/{id}/approve", h.approve)
-	mux.HandleFunc("POST /v1/pharma-oa/contracts/{id}/reject", h.reject)
-	mux.HandleFunc("POST /v1/pharma-oa/contracts/expiry-scan", h.scanExpiry)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/contracts", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/contracts", h.create)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/contracts/{id}", h.get)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/contracts/{id}/approve", h.approve)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/contracts/{id}/reject", h.reject)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/contracts/expiry-scan", h.scanExpiry)
 }
 
 func RegisterContractPermissions(service permissionsvc.Service) error {

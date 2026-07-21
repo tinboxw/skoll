@@ -11,7 +11,6 @@ import (
 	filehttp "github.com/tinboxw/skoll/internal/handler/http/v1/file"
 	menuhttp "github.com/tinboxw/skoll/internal/handler/http/v1/menu"
 	permissionhttp "github.com/tinboxw/skoll/internal/handler/http/v1/permission"
-	pharmaoahttp "github.com/tinboxw/skoll/internal/handler/http/v1/pharmaoa"
 	pluginhttp "github.com/tinboxw/skoll/internal/handler/http/v1/plugin"
 	rbachttp "github.com/tinboxw/skoll/internal/handler/http/v1/rbac"
 	rolehttp "github.com/tinboxw/skoll/internal/handler/http/v1/role"
@@ -23,7 +22,6 @@ import (
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	"github.com/tinboxw/skoll/internal/service/menu"
 	"github.com/tinboxw/skoll/internal/service/permission"
-	pharmaoasvc "github.com/tinboxw/skoll/internal/service/pharmaoa"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
 	"github.com/tinboxw/skoll/internal/service/system"
@@ -35,49 +33,25 @@ import (
 const defaultAPIPrefix = config.DefaultAPIBasePrefix
 
 type Dependencies struct {
-	UserService                      user.Service
-	RoleService                      role.Service
-	RBACService                      rbac.Service
-	AuditService                     audit.Service
-	AuditEventService                audit.EventService
-	FileService                      filesvc.Service
-	SystemService                    system.Service
-	PermissionService                permission.Service
-	PharmaEmployeeService            pharmaoasvc.EmployeeService
-	PharmaProductService             pharmaoasvc.ProductService
-	PharmaSupplierService            pharmaoasvc.SupplierService
-	PharmaCustomerService            pharmaoasvc.CustomerService
-	PharmaCustomerFollowUpService    pharmaoasvc.CustomerFollowUpService
-	PharmaSalesOpportunityService    pharmaoasvc.SalesOpportunityService
-	PharmaWarehouseService           pharmaoasvc.WarehouseService
-	PharmaMasterDataExchangeService  pharmaoasvc.MasterDataExchangeService
-	PharmaPurchaseService            pharmaoasvc.PurchaseService
-	PharmaPurchaseInboundService     pharmaoasvc.PurchaseInboundService
-	PharmaSalesService               pharmaoasvc.SalesService
-	PharmaPaymentInvoiceService      pharmaoasvc.PaymentInvoiceService
-	PharmaInventoryOperationService  pharmaoasvc.InventoryOperationService
-	PharmaInventoryAlertService      pharmaoasvc.InventoryAlertService
-	PharmaAnnouncementService        pharmaoasvc.AnnouncementService
-	PharmaContractService            pharmaoasvc.ContractService
-	PharmaQualificationService       pharmaoasvc.QualificationService
-	PharmaQualityComplaintService    pharmaoasvc.QualityComplaintService
-	PharmaDrugRecallService          pharmaoasvc.DrugRecallService
-	PharmaColdChainService           pharmaoasvc.ColdChainService
-	PharmaComplianceDashboardService pharmaoasvc.ComplianceDashboardService
-	PharmaBusinessMetricsService     pharmaoasvc.BusinessMetricsService
-	PharmaReportExportService        pharmaoasvc.ReportExportService
-	PharmaDemoSeedService            pharmaoasvc.DemoSeedService
-	MenuService                      menu.Service
-	WorkflowService                  workflow.Service
-	PluginManager                    plugin.Manager
-	APIPrefix                        string
-	LogLevel                         string
-	LogDir                           string
-	LogFile                          string
-	LogPluginPerFile                 bool
-	DevPortalEnabled                 bool
-	DevPortalRoot                    string
-	DevPortalRoots                   []string
+	UserService       user.Service
+	RoleService       role.Service
+	RBACService       rbac.Service
+	AuditService      audit.Service
+	AuditEventService audit.EventService
+	FileService       filesvc.Service
+	SystemService     system.Service
+	PermissionService permission.Service
+	MenuService       menu.Service
+	WorkflowService   workflow.Service
+	PluginManager     plugin.Manager
+	APIPrefix         string
+	LogLevel          string
+	LogDir            string
+	LogFile           string
+	LogPluginPerFile  bool
+	DevPortalEnabled  bool
+	DevPortalRoot     string
+	DevPortalRoots    []string
 }
 
 type Middleware func(http.Handler) http.Handler
@@ -121,54 +95,6 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	filehttp.RegisterFileRoutes(apiMux, deps.FileService)
 	systemhttp.RegisterSystemRoutes(apiMux, deps.SystemService, deps.AuditService)
 	permissionhttp.RegisterPermissionRoutes(apiMux, deps.PermissionService)
-	pharmaoahttp.RegisterEmployeeRoutes(apiMux, deps.PharmaEmployeeService)
-	pharmaoahttp.RegisterProductRoutes(apiMux, deps.PharmaProductService)
-	pharmaoahttp.RegisterSupplierRoutes(apiMux, deps.PharmaSupplierService)
-	pharmaoahttp.RegisterCustomerRoutes(apiMux, deps.PharmaCustomerService, deps.RBACService)
-	pharmaoahttp.RegisterCustomerFollowUpRoutes(apiMux, deps.PharmaCustomerFollowUpService)
-	pharmaoahttp.RegisterSalesOpportunityRoutes(apiMux, deps.PharmaSalesOpportunityService)
-	pharmaoahttp.RegisterWarehouseRoutes(apiMux, deps.PharmaWarehouseService)
-	pharmaoahttp.RegisterMasterDataExchangeRoutes(apiMux, deps.PharmaMasterDataExchangeService)
-	pharmaoahttp.RegisterPurchaseRoutes(apiMux, deps.PharmaPurchaseService)
-	pharmaoahttp.RegisterPurchaseInboundRoutes(apiMux, deps.PharmaPurchaseInboundService)
-	pharmaoahttp.RegisterSalesRoutes(apiMux, deps.PharmaSalesService)
-	pharmaoahttp.RegisterPaymentInvoiceRoutes(apiMux, deps.PharmaPaymentInvoiceService)
-	pharmaoahttp.RegisterInventoryOperationRoutes(apiMux, deps.PharmaInventoryOperationService)
-	pharmaoahttp.RegisterInventoryAlertRoutes(apiMux, deps.PharmaInventoryAlertService)
-	pharmaoahttp.RegisterAnnouncementRoutes(apiMux, deps.PharmaAnnouncementService)
-	pharmaoahttp.RegisterContractRoutes(apiMux, deps.PharmaContractService)
-	pharmaoahttp.RegisterQualificationRoutes(apiMux, deps.PharmaQualificationService)
-	pharmaoahttp.RegisterQualityComplaintRoutes(apiMux, deps.PharmaQualityComplaintService)
-	pharmaoahttp.RegisterDrugRecallRoutes(apiMux, deps.PharmaDrugRecallService)
-	pharmaoahttp.RegisterColdChainRoutes(apiMux, deps.PharmaColdChainService)
-	pharmaoahttp.RegisterComplianceDashboardRoutes(apiMux, deps.PharmaComplianceDashboardService)
-	pharmaoahttp.RegisterBusinessMetricsRoutes(apiMux, deps.PharmaBusinessMetricsService)
-	pharmaoahttp.RegisterReportExportRoutes(apiMux, deps.PharmaReportExportService)
-	pharmaoahttp.RegisterDemoSeedRoutes(apiMux, deps.PharmaDemoSeedService)
-	_ = pharmaoahttp.RegisterEmployeePermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterProductPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterSupplierPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterCustomerPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterCustomerFollowUpPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterSalesOpportunityPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterWarehousePermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterMasterDataExchangePermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterPurchasePermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterPurchaseInboundPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterSalesPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterPaymentInvoicePermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterInventoryOperationPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterInventoryAlertPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterAnnouncementPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterContractPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterQualificationPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterQualityComplaintPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterDrugRecallPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterColdChainPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterComplianceDashboardPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterBusinessMetricsPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterReportExportPermissions(deps.PermissionService)
-	_ = pharmaoahttp.RegisterDemoSeedPermissions(deps.PermissionService)
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)

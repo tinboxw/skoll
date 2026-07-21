@@ -97,12 +97,14 @@ func (e *RoutePermissionError) messageEN() string {
 type RoutePermissionRegistry struct {
 	descriptors []RoutePermissionDescriptor
 	byRoute     map[string]RoutePermissionDescriptor
+	byShape     map[string]RoutePermissionDescriptor
 }
 
 func NewRoutePermissionRegistry(routes []RouteExtension) (*RoutePermissionRegistry, error) {
 	registry := &RoutePermissionRegistry{
 		descriptors: make([]RoutePermissionDescriptor, 0, len(routes)),
 		byRoute:     make(map[string]RoutePermissionDescriptor, len(routes)),
+		byShape:     make(map[string]RoutePermissionDescriptor, len(routes)),
 	}
 	for _, route := range routes {
 		descriptor, err := normalizeRoutePermissionDescriptor(route)
@@ -120,6 +122,17 @@ func NewRoutePermissionRegistry(routes []RouteExtension) (*RoutePermissionRegist
 			}
 		}
 		registry.byRoute[key] = descriptor
+		shapeKey := routePermissionKey(descriptor.Method, routePermissionShape(descriptor.Path))
+		if current, ok := registry.byShape[shapeKey]; ok {
+			return nil, &RoutePermissionError{
+				Code:           RoutePermissionRouteConflict,
+				Method:         descriptor.Method,
+				Path:           descriptor.Path,
+				Source:         descriptor.Source,
+				ConflictSource: current.Source,
+			}
+		}
+		registry.byShape[shapeKey] = descriptor
 		registry.descriptors = append(registry.descriptors, descriptor)
 	}
 	sort.Slice(registry.descriptors, func(i, j int) bool {
@@ -143,7 +156,15 @@ func (r *RoutePermissionRegistry) ResolveRoutePermission(method, path string) (R
 	method = strings.ToUpper(strings.TrimSpace(method))
 	path = normalizeRoutePermissionPath(path)
 	descriptor, ok := r.byRoute[routePermissionKey(method, path)]
-	return descriptor, ok
+	if ok {
+		return descriptor, true
+	}
+	for _, candidate := range r.descriptors {
+		if candidate.Method == method && MatchRoutePath(candidate.Path, path) {
+			return candidate, true
+		}
+	}
+	return RoutePermissionDescriptor{}, false
 }
 
 func (r *RoutePermissionRegistry) Descriptors() []RoutePermissionDescriptor {
@@ -189,9 +210,62 @@ func isValidRoutePermissionPath(path string) bool {
 	if path == "" || !strings.HasPrefix(path, "/") || strings.Contains(path, "..") || strings.ContainsAny(path, "?#") {
 		return false
 	}
-	return !strings.ContainsFunc(path, func(r rune) bool {
+	if strings.ContainsFunc(path, func(r rune) bool {
 		return unicode.IsSpace(r) || unicode.IsControl(r)
-	})
+	}) {
+		return false
+	}
+	for _, segment := range strings.Split(strings.Trim(path, "/"), "/") {
+		if strings.ContainsAny(segment, "{}") && !isRouteParameterSegment(segment) {
+			return false
+		}
+	}
+	return true
+}
+
+func MatchRoutePath(pattern, actual string) bool {
+	pattern = normalizeRoutePermissionPath(pattern)
+	actual = normalizeRoutePermissionPath(actual)
+	patternSegments := strings.Split(strings.Trim(pattern, "/"), "/")
+	actualSegments := strings.Split(strings.Trim(actual, "/"), "/")
+	if len(patternSegments) != len(actualSegments) {
+		return false
+	}
+	for i, segment := range patternSegments {
+		if isRouteParameterSegment(segment) {
+			if actualSegments[i] == "" {
+				return false
+			}
+			continue
+		}
+		if segment != actualSegments[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func isRouteParameterSegment(segment string) bool {
+	if len(segment) < 3 || segment[0] != '{' || segment[len(segment)-1] != '}' {
+		return false
+	}
+	name := segment[1 : len(segment)-1]
+	for i, r := range name {
+		if !(r == '_' || unicode.IsLetter(r) || (i > 0 && unicode.IsDigit(r))) {
+			return false
+		}
+	}
+	return true
+}
+
+func routePermissionShape(path string) string {
+	segments := strings.Split(strings.Trim(normalizeRoutePermissionPath(path), "/"), "/")
+	for i, segment := range segments {
+		if isRouteParameterSegment(segment) {
+			segments[i] = "{}"
+		}
+	}
+	return "/" + strings.Join(segments, "/")
 }
 
 func isSupportedPluginRouteMethod(method string) bool {

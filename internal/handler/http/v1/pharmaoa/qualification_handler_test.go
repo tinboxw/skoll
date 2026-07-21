@@ -27,19 +27,19 @@ func TestQualificationHTTPListAndExpiryScan(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterQualificationRoutes(mux, service)
 
-	list := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/qualifications?subjectType=employee&status=expiring&days=30", "", security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
+	list := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/qualifications?subjectType=employee&status=expiring&days=30", "", security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
 	if list.Code != http.StatusOK || !bytes.Contains(list.Body.Bytes(), []byte("Health certificate")) {
 		t.Fatalf("qualification list status=%d body=%s", list.Code, list.Body.String())
 	}
-	scan := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/qualifications/expiry-scan", `{"days":30,"actorId":"spoofed"}`, security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
+	scan := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/qualifications/expiry-scan", `{"days":30,"actorId":"spoofed"}`, security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
 	if scan.Code != http.StatusOK || !bytes.Contains(scan.Body.Bytes(), []byte(`"createdCount":1`)) {
 		t.Fatalf("qualification scan status=%d body=%s", scan.Code, scan.Body.String())
 	}
-	invalid := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/qualifications?days=999", "", security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
+	invalid := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/qualifications?days=999", "", security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid qualification days status=%d body=%s", invalid.Code, invalid.Body.String())
 	}
-	invalidScan := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/qualifications/expiry-scan", `{"days":999}`, security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
+	invalidScan := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/qualifications/expiry-scan", `{"days":999}`, security.JWTClaims{Subject: "compliance-1", Role: "compliance"})
 	if invalidScan.Code != http.StatusBadRequest {
 		t.Fatalf("invalid qualification scan days status=%d body=%s", invalidScan.Code, invalidScan.Body.String())
 	}

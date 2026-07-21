@@ -41,11 +41,11 @@ func RegisterAnnouncementRoutes(mux *http.ServeMux, service pharmaoasvc.Announce
 		return
 	}
 	h := &AnnouncementHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/announcements", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/announcements", h.create)
-	mux.HandleFunc("POST /v1/pharma-oa/announcements/{id}/publish", h.publish)
-	mux.HandleFunc("POST /v1/pharma-oa/announcements/{id}/read", h.confirmRead)
-	mux.HandleFunc("GET /v1/pharma-oa/announcements/{id}/read-confirmations", h.listReadConfirmations)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/announcements", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/announcements", h.create)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/announcements/{id}/publish", h.publish)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/announcements/{id}/read", h.confirmRead)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/announcements/{id}/read-confirmations", h.listReadConfirmations)
 }
 
 func RegisterAnnouncementPermissions(service permissionsvc.Service) error {

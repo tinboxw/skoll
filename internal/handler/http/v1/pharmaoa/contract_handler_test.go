@@ -40,23 +40,23 @@ func TestContractHTTPCreateApproveAndExpiryScan(t *testing.T) {
 	effectiveAt := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
 	expiresAt := time.Now().UTC().AddDate(0, 0, 10).Format("2006-01-02")
 	body := fmt.Sprintf(`{"number":"CTR-HTTP-1","title":"Supply agreement","partyType":"supplier","partyId":"pharma-supplier-1","ownerId":"owner-1","approverId":"approver-1","amount":8000,"currency":"CNY","effectiveAt":%q,"expiresAt":%q,"attachmentIds":["file-1"]}`, effectiveAt, expiresAt)
-	create := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/contracts", body, security.JWTClaims{Subject: "owner-1", Role: "legal"})
+	create := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/contracts", body, security.JWTClaims{Subject: "owner-1", Role: "legal"})
 	if create.Code != http.StatusCreated || !bytes.Contains(create.Body.Bytes(), []byte("contract-workflow-1")) {
 		t.Fatalf("create status=%d body=%s", create.Code, create.Body.String())
 	}
-	spoofedApprove := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/contracts/contract-1/approve", `{"actorId":"approver-1","comment":"spoofed"}`, security.JWTClaims{Subject: "intruder-1", Role: "manager"})
+	spoofedApprove := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/contracts/contract-1/approve", `{"actorId":"approver-1","comment":"spoofed"}`, security.JWTClaims{Subject: "intruder-1", Role: "manager"})
 	if spoofedApprove.Code != http.StatusBadRequest {
 		t.Fatalf("spoofed approve status=%d body=%s", spoofedApprove.Code, spoofedApprove.Body.String())
 	}
-	approve := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/contracts/contract-1/approve", `{"comment":"ok"}`, security.JWTClaims{Subject: "approver-1", Role: "manager"})
+	approve := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/contracts/contract-1/approve", `{"comment":"ok"}`, security.JWTClaims{Subject: "approver-1", Role: "manager"})
 	if approve.Code != http.StatusOK || !bytes.Contains(approve.Body.Bytes(), []byte(`"status":"active"`)) {
 		t.Fatalf("approve status=%d body=%s", approve.Code, approve.Body.String())
 	}
-	scan := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/contracts/expiry-scan", `{"days":30}`, security.JWTClaims{Subject: "scheduler", Role: "admin"})
+	scan := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/contracts/expiry-scan", `{"days":30}`, security.JWTClaims{Subject: "scheduler", Role: "admin"})
 	if scan.Code != http.StatusOK || !bytes.Contains(scan.Body.Bytes(), []byte(`"createdCount":1`)) {
 		t.Fatalf("scan status=%d body=%s", scan.Code, scan.Body.String())
 	}
-	detail := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/contracts/contract-1", "", security.JWTClaims{Subject: "owner-1", Role: "legal"})
+	detail := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/contracts/contract-1", "", security.JWTClaims{Subject: "owner-1", Role: "legal"})
 	if detail.Code != http.StatusOK || !bytes.Contains(detail.Body.Bytes(), []byte("contract-expiry-contract-1")) {
 		t.Fatalf("detail status=%d body=%s", detail.Code, detail.Body.String())
 	}

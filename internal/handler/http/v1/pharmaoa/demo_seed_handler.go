@@ -22,8 +22,8 @@ func RegisterDemoSeedRoutes(mux *http.ServeMux, service pharmaoasvc.DemoSeedServ
 		return
 	}
 	h := &DemoSeedHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/demo-seed/status", h.status)
-	mux.HandleFunc("POST /v1/pharma-oa/demo-seed/apply", h.apply)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/demo-seed/status", h.status)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/demo-seed/apply", h.apply)
 }
 
 func RegisterDemoSeedPermissions(service permissionsvc.Service) error {

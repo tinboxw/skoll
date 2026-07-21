@@ -34,10 +34,10 @@ func RegisterInventoryAlertRoutes(mux *http.ServeMux, service pharmaoasvc.Invent
 		return
 	}
 	h := &InventoryAlertHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/inventory-alerts", h.listAlerts)
-	mux.HandleFunc("GET /v1/pharma-oa/inventory-alert-jobs", h.listJobs)
-	mux.HandleFunc("POST /v1/pharma-oa/inventory-alert-jobs", h.run)
-	mux.HandleFunc("POST /v1/pharma-oa/inventory-alert-jobs/{id}/retry", h.retry)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/inventory-alerts", h.listAlerts)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/inventory-alert-jobs", h.listJobs)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/inventory-alert-jobs", h.run)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/inventory-alert-jobs/{id}/retry", h.retry)
 }
 
 func RegisterInventoryAlertPermissions(service permissionsvc.Service) error {

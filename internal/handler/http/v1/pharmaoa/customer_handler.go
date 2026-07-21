@@ -51,12 +51,12 @@ func RegisterCustomerRoutes(mux *http.ServeMux, service pharmaoasvc.CustomerServ
 		return
 	}
 	h := &CustomerHandler{service: service, scopeResolver: scopeResolver}
-	mux.HandleFunc("GET /v1/pharma-oa/customers", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/customers", h.create)
-	mux.HandleFunc("PUT /v1/pharma-oa/customers/{id}", h.update)
-	mux.HandleFunc("POST /v1/pharma-oa/customers/{id}/disable", h.disable)
-	mux.HandleFunc("GET /v1/pharma-oa/customers/{id}/sales-eligibility", h.salesEligibility)
-	mux.HandleFunc("GET /v1/pharma-oa/customers/qualification-reminders", h.qualificationReminders)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/customers", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/customers", h.create)
+	mux.HandleFunc("PUT /v1/plugins/pharma_oa/api/customers/{id}", h.update)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/customers/{id}/disable", h.disable)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/customers/{id}/sales-eligibility", h.salesEligibility)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/customers/qualification-reminders", h.qualificationReminders)
 }
 
 func RegisterCustomerPermissions(service permissionsvc.Service) error {

@@ -44,13 +44,13 @@ func RegisterColdChainRoutes(mux *http.ServeMux, service pharmaoasvc.ColdChainSe
 		return
 	}
 	h := &ColdChainHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/cold-chain-contexts", h.listContexts)
-	mux.HandleFunc("GET /v1/pharma-oa/cold-chain-records", h.listRecords)
-	mux.HandleFunc("POST /v1/pharma-oa/cold-chain-records", h.createRecord)
-	mux.HandleFunc("GET /v1/pharma-oa/cold-chain-anomalies", h.listAnomalies)
-	mux.HandleFunc("GET /v1/pharma-oa/cold-chain-jobs", h.listJobs)
-	mux.HandleFunc("POST /v1/pharma-oa/cold-chain-jobs", h.run)
-	mux.HandleFunc("POST /v1/pharma-oa/cold-chain-jobs/{id}/retry", h.retry)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/cold-chain-contexts", h.listContexts)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/cold-chain-records", h.listRecords)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/cold-chain-records", h.createRecord)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/cold-chain-anomalies", h.listAnomalies)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/cold-chain-jobs", h.listJobs)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/cold-chain-jobs", h.run)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/cold-chain-jobs/{id}/retry", h.retry)
 }
 
 func RegisterColdChainPermissions(service permissionsvc.Service) error {

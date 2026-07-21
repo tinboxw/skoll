@@ -26,16 +26,16 @@ func TestSalesOpportunityHTTPRejectsScopeAndActorSpoofing(t *testing.T) {
 	_, _ = service.Create(ctx, pharmaoasvc.SalesOpportunityCreateInput{Title: "Second deal", CustomerID: second.ID.String(), ProductIDs: []string{product.ID.String()}, ExpectedAmountCents: 2000, EstimatedCloseDate: closeDate, ActorID: "sales-2"})
 	mux := http.NewServeMux()
 	RegisterSalesOpportunityRoutes(mux, service)
-	list := salesOpportunityHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/sales-opportunities?includeAll=true&ownerId=sales-2", "", "sales-1")
+	list := salesOpportunityHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/sales-opportunities?includeAll=true&ownerId=sales-2", "", "sales-1")
 	if list.Code != http.StatusOK || !bytes.Contains(list.Body.Bytes(), []byte(`"ownerId":"sales-1"`)) || bytes.Contains(list.Body.Bytes(), []byte(`"ownerId":"sales-2"`)) {
 		t.Fatalf("spoofed list scope status=%d body=%s", list.Code, list.Body.String())
 	}
 	body := `{"title":"Spoofed","customerId":"` + second.ID.String() + `","productIds":["` + product.ID.String() + `"],"expectedAmountCents":5000,"estimatedCloseDate":"` + closeDate.Format(time.RFC3339) + `","actorId":"sales-2"}`
-	create := salesOpportunityHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/sales-opportunities", body, "sales-1")
+	create := salesOpportunityHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/sales-opportunities", body, "sales-1")
 	if create.Code != http.StatusBadRequest {
 		t.Fatalf("spoofed create status=%d body=%s", create.Code, create.Body.String())
 	}
-	statistics := salesOpportunityHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/sales-opportunities/statistics?includeAll=true", "", "sales-1")
+	statistics := salesOpportunityHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/sales-opportunities/statistics?includeAll=true", "", "sales-1")
 	if statistics.Code != http.StatusOK || !bytes.Contains(statistics.Body.Bytes(), []byte(`"totalCount":1`)) {
 		t.Fatalf("spoofed statistics status=%d body=%s", statistics.Code, statistics.Body.String())
 	}

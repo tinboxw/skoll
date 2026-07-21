@@ -1,7 +1,8 @@
-﻿import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
+import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
 import { canAccessRoute, isPublicRoute } from "../permissions/route";
 import { waitForPluginBootstrap } from "../plugins";
+import { isIntegratedPluginRoutePath } from "../plugins/integrated-routes";
 import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, resolveValidatedDefaultHomePath, usePluginStore } from "../stores/plugins";
 import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
@@ -16,21 +17,6 @@ const ForbiddenPage = () => import("../views/Forbidden/index.vue");
 const MenuPage = () => import("../views/Menu/index.vue");
 const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
-const PharmaCustomerPage = () => import("../views/PharmaCustomer/index.vue");
-const PharmaCustomerFollowUpPage = () => import("../views/PharmaCustomerFollowUp/index.vue");
-const PharmaSalesOpportunityPage = () => import("../views/PharmaSalesOpportunity/index.vue");
-const PharmaPaymentInvoicePage = () => import("../views/PharmaPaymentInvoice/index.vue");
-const PharmaAnnouncementPage = () => import("../views/PharmaAnnouncement/index.vue");
-const PharmaContractPage = () => import("../views/PharmaContract/index.vue");
-const PharmaQualificationPage = () => import("../views/PharmaQualification/index.vue");
-const PharmaQualityComplaintPage = () => import("../views/PharmaQualityComplaint/index.vue");
-const PharmaDrugRecallPage = () => import("../views/PharmaDrugRecall/index.vue");
-const PharmaColdChainPage = () => import("../views/PharmaColdChain/index.vue");
-const PharmaComplianceDashboardPage = () => import("../views/PharmaComplianceDashboard/index.vue");
-const PharmaDashboardPage = () => import("../views/PharmaDashboard/index.vue");
-const PharmaPurchaseInboundPage = () => import("../views/PharmaPurchaseInbound/index.vue");
-const PharmaSalesPage = () => import("../views/PharmaSales/index.vue");
-const PharmaEmployeePage = () => import("../views/PharmaEmployee/index.vue");
 const PluginPage = () => import("../views/Plugin/index.vue");
 const ProfilePage = () => import("../views/Profile/index.vue");
 const RoleEditPage = () => import("../views/Role/edit.vue");
@@ -175,96 +161,6 @@ const routes: RouteRecordRaw[] = [
 		component: FormBuilderPage
 	},
 	{
-		path: `${ADMIN_PREFIX}/pharma-oa/announcements`,
-		name: "pharma-oa-announcements",
-		component: PharmaAnnouncementPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.announcement.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/contracts`,
-		name: "pharma-oa-contracts",
-		component: PharmaContractPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.contract.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/qualifications`,
-		name: "pharma-oa-qualifications",
-		component: PharmaQualificationPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.qualification.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/quality-complaints`,
-		name: "pharma-oa-quality-complaints",
-		component: PharmaQualityComplaintPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.quality_complaint.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/drug-recalls`,
-		name: "pharma-oa-drug-recalls",
-		component: PharmaDrugRecallPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.drug_recall.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/cold-chain`,
-		name: "pharma-oa-cold-chain",
-		component: PharmaColdChainPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.cold_chain.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/compliance-dashboard`,
-		name: "pharma-oa-compliance-dashboard",
-		component: PharmaComplianceDashboardPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.compliance_dashboard.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/dashboard`,
-		name: "pharma-oa-dashboard",
-		component: PharmaDashboardPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.business_metrics.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/employees`,
-		name: "pharma-oa-employees",
-		component: PharmaEmployeePage,
-		meta: { permissions: ["pharma_oa.employee.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/customers`,
-		name: "pharma-oa-customers",
-		component: PharmaCustomerPage,
-		meta: { permissions: ["pharma_oa.customer.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/customer-follow-ups`,
-		name: "pharma-oa-customer-follow-ups",
-		component: PharmaCustomerFollowUpPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.customer_follow_up.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/sales-opportunities`,
-		name: "pharma-oa-sales-opportunities",
-		component: PharmaSalesOpportunityPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.sales_opportunity.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/payment-invoices`,
-		name: "pharma-oa-payment-invoices",
-		component: PharmaPaymentInvoicePage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.payment_invoice.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/purchase-inbounds`,
-		name: "pharma-oa-purchase-inbounds",
-		component: PharmaPurchaseInboundPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.inbound.read"] }
-	},
-	{
-		path: `${ADMIN_PREFIX}/pharma-oa/sales`,
-		name: "pharma-oa-sales",
-		component: PharmaSalesPage,
-		meta: { requiresAuth: true, permissions: ["pharma_oa.sales.order.read", "pharma_oa.sales.outbound.read"] }
-	},
-	{
 		path: `${ADMIN_PREFIX}/setting`,
 		name: "setting",
 		component: SettingPage,
@@ -282,6 +178,9 @@ function isKnownStaticPath(path: string): boolean {
 }
 
 function isPluginHomePath(path: string): boolean {
+	if (isIntegratedPluginRoutePath(path)) {
+		return true;
+	}
 	if (path.startsWith(`${ADMIN_PREFIX}/plugins/`)) {
 		return true;
 	}

@@ -29,11 +29,11 @@ func TestDemoSeedHTTPUsesJWTActor(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterDemoSeedRoutes(mux, service)
 
-	apply := demoSeedHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/demo-seed/apply", `{"actorId":"spoofed"}`)
+	apply := demoSeedHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/demo-seed/apply", `{"actorId":"spoofed"}`)
 	if apply.Code != http.StatusOK || !bytes.Contains(apply.Body.Bytes(), []byte(`"state":"applied"`)) {
 		t.Fatalf("apply status=%d body=%s", apply.Code, apply.Body.String())
 	}
-	status := demoSeedHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/demo-seed/status", "")
+	status := demoSeedHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/demo-seed/status", "")
 	if status.Code != http.StatusOK || !bytes.Contains(status.Body.Bytes(), []byte(`"state":"ready"`)) {
 		t.Fatalf("status=%d body=%s", status.Code, status.Body.String())
 	}

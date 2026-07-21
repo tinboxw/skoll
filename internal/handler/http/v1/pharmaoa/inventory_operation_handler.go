@@ -58,14 +58,14 @@ func RegisterInventoryOperationRoutes(mux *http.ServeMux, service pharmaoasvc.In
 		return
 	}
 	h := &InventoryOperationHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/stocktakes", h.listStocktakes)
-	mux.HandleFunc("POST /v1/pharma-oa/stocktakes", h.createStocktake)
-	mux.HandleFunc("GET /v1/pharma-oa/stocktakes/{id}", h.getStocktake)
-	mux.HandleFunc("POST /v1/pharma-oa/stocktakes/{id}/approve", h.approveStocktake)
-	mux.HandleFunc("POST /v1/pharma-oa/stocktakes/{id}/reject", h.rejectStocktake)
-	mux.HandleFunc("GET /v1/pharma-oa/transfers", h.listTransfers)
-	mux.HandleFunc("POST /v1/pharma-oa/transfers", h.createTransfer)
-	mux.HandleFunc("GET /v1/pharma-oa/transfers/{id}", h.getTransfer)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/stocktakes", h.listStocktakes)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/stocktakes", h.createStocktake)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/stocktakes/{id}", h.getStocktake)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/stocktakes/{id}/approve", h.approveStocktake)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/stocktakes/{id}/reject", h.rejectStocktake)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/transfers", h.listTransfers)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/transfers", h.createTransfer)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/transfers/{id}", h.getTransfer)
 }
 func RegisterInventoryOperationPermissions(service permissionsvc.Service) error {
 	if service == nil {

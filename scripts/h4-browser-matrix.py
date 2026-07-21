@@ -262,7 +262,7 @@ def capture_admin_states(
     announce(locale, viewport, "loading")
     open_page(driver, wait, args.base_url, CUSTOMER_PATH)
     wait_idle(driver, wait)
-    configure_fetch(driver, delay_pattern="/skoll/v1/pharma-oa/customers")
+    configure_fetch(driver, delay_pattern="/skoll/v1/plugins/pharma_oa/api/customers")
     driver.refresh()
     wait_visible(driver, wait, ".page-shell[aria-busy='true'] .page-shell__loading")
     results.append(capture(driver, args.output, locale, viewport, "loading", CUSTOMER_PATH, ".page-shell__loading", "Page skeleton remains visible while API requests are delayed."))
@@ -281,7 +281,7 @@ def capture_admin_states(
     results.append(capture(driver, args.output, locale, viewport, "empty", CUSTOMER_PATH, ".data-table .state-block--empty", "A no-match customer filter renders the localized empty state."))
 
     announce(locale, viewport, "error")
-    configure_fetch(driver, failure_pattern="/skoll/v1/pharma-oa/customers")
+    configure_fetch(driver, failure_pattern="/skoll/v1/plugins/pharma_oa/api/customers")
     driver.refresh()
     wait_visible(driver, wait, ".page-shell .state-block--error[role='alert']")
     results.append(capture(driver, args.output, locale, viewport, "error", CUSTOMER_PATH, ".page-shell .state-block--error[role='alert']", "A blocked customer API request renders the localized error state."))
@@ -306,7 +306,7 @@ def capture_admin_states(
     ]
     if len(confirm_buttons) != 1:
         raise AssertionError(f"saving: expected one confirmation button, got {len(confirm_buttons)}")
-    configure_fetch(driver, delay_pattern="/skoll/v1/pharma-oa/qualifications/expiry-scan")
+    configure_fetch(driver, delay_pattern="/skoll/v1/plugins/pharma_oa/api/qualifications/expiry-scan")
     confirm_buttons[0].click()
     wait_visible(driver, wait, ".page-shell__actions button.is-loading")
     results.append(capture(driver, args.output, locale, viewport, "saving", QUALIFICATION_PATH, ".page-shell__actions button.is-loading", "The scan action exposes a stable localized saving state while its request is delayed."))

@@ -20,12 +20,12 @@ func TestMasterDataExchangeHandlerTemplateImportExport(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterMasterDataExchangeRoutes(mux, service)
 
-	template := performMasterDataRequest(mux, http.MethodGet, "/v1/pharma-oa/master-data/template?resource=products", nil)
+	template := performMasterDataRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/master-data/template?resource=products", nil)
 	if template.Code != http.StatusOK || !strings.Contains(template.Body.String(), "approvalNumber") {
 		t.Fatalf("expected product template, status=%d body=%s", template.Code, template.Body.String())
 	}
 
-	importResp := performMasterDataRequest(mux, http.MethodPost, "/v1/pharma-oa/master-data/import", map[string]any{
+	importResp := performMasterDataRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/master-data/import", map[string]any{
 		"resource": "products",
 		"rows": []map[string]string{{
 			"code":                  "DRUG-API-001",
@@ -44,7 +44,7 @@ func TestMasterDataExchangeHandlerTemplateImportExport(t *testing.T) {
 		t.Fatalf("expected import success, status=%d body=%s", importResp.Code, importResp.Body.String())
 	}
 
-	exportResp := performMasterDataRequest(mux, http.MethodGet, "/v1/pharma-oa/master-data/export?resource=products", nil)
+	exportResp := performMasterDataRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/master-data/export?resource=products", nil)
 	if exportResp.Code != http.StatusOK || !strings.Contains(exportResp.Body.String(), "DRUG-API-001") || !strings.Contains(exportResp.Body.String(), `"status":"completed"`) {
 		t.Fatalf("expected export job with imported product, status=%d body=%s", exportResp.Code, exportResp.Body.String())
 	}
@@ -55,7 +55,7 @@ func TestMasterDataExchangeHandlerReportsInvalidRows(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterMasterDataExchangeRoutes(mux, service)
 
-	resp := performMasterDataRequest(mux, http.MethodPost, "/v1/pharma-oa/master-data/import", map[string]any{
+	resp := performMasterDataRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/master-data/import", map[string]any{
 		"resource": "employees",
 		"rows": []map[string]string{{
 			"code":         "EMP-API-BAD",

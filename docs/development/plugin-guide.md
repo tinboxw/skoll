@@ -136,7 +136,14 @@ permissions:
     name: "Export demo reports"
     risk: medium
     metadata:
-      routes: "POST /v1/plugins/demo/reports/export"
+      routes: "POST /v1/plugins/demo/api/reports/export"
+api:
+  routes:
+    - method: POST
+      path: /v1/plugins/demo/api/reports/export
+      summary: Export demo reports
+      permission: demo.report.export
+      audit_action: demo.report.export
 dependencies:               # 可选，声明依赖其他插件
   - id: auth
     version: ">=1.0.0"
@@ -154,6 +161,7 @@ dependencies:               # 可选，声明依赖其他插件
 - **config_schema 字段校验**：支持 `required`、`min`、`max`、`min_length`、`max_length`、`pattern`；前端会实时校验并阻止保存无效配置
 - **level=app** 时：必须提供 `app_id`，且 `app_id` 不能为 `skoll`
 - **level=system** 时：不能设置 `app_id`
+- **api.routes[].path**：必须位于 `/v1/plugins/{plugin_id}/api/` 命名空间，支持 `{name}` 路径参数；插件后端只能实现 manifest 已声明的 method/path
 
 ### 3.4 权限目录与菜单 Registry
 
@@ -192,29 +200,36 @@ POST /skoll/v1/plugins/dev/manifest/validate
 { "pluginsRoot": "plugins", "pluginId": "demo", "manifest": "<yaml_content>" }
 ```
 
-## 4. 扩展点注册
+## 4. 运行时扩展注册
 
-插件系统支持三种扩展点（`internal/plugin/registry.go` → `MemoryRegistry`）：
+插件的权限、菜单、API 和事件以 `plugin.yaml` 为唯一契约。主应用只提供统一入口和生命周期，不为业务插件注册专用主路由。
 
-### 4.1 路由扩展（Routes）
+### 4.1 后端 API
 
-插件注册自定义 HTTP 路由，由 `router.go` 的 `registerPluginExtensionRoutes` 动态挂载到 API Mux。
+所有插件 API 请求都进入 `/v1/plugins/{plugin_id}/api/{resource...}`，运行时先检查插件已安装、已启用且 method/path 存在于 `api.routes`，再分发到对应后端。不存在 `/v1/<business>/...` 形式的主应用业务路由或别名。
 
-```go
-// 路由示例（支持标准 HTTP 方法）
-route := plugin.Route{
-    Method: "GET",
-    Path:   "/demo-separated/overview",
-}
-```
+后端有两种执行方式：
 
-路由通过 `plugin.yaml` 的扩展信息声明，由 RuntimeManager 在 `Enable` 时注册。
+- **进程内后端**：仓库内置 Go 插件在启动装配阶段调用 `RegisterInProcessBackend` 注册工厂。工厂首次收到已启用插件的 API 请求时才创建 `http.Handler`；Disable、Uninstall、Reload 和运行时关闭都会释放当前实例。
+- **外部后端**：独立服务通过 manifest 的 `service_base_url` 和 service lifecycle 配置接入。运行时在代理请求前执行健康检查，并把请求转发到插件服务。
 
-### 4.2 中间件扩展（Middleware）
+进程内工厂只负责组装插件自身的 repository、service 和 handler，不能把业务依赖加入 `internal/handler/http.Dependencies`，也不能在主路由中注册业务 endpoint。参考实现：`internal/plugin/pharmaoa/backend.go`。
+
+### 4.2 集成式前端路由
+
+仓库内置 Vue 插件在 `web/src/plugins/integrated-routes.ts` 按插件 ID 提供路由工厂。`syncBackendPlugins` 只为后端返回且处于 enabled 状态的插件挂载这些路由；Disable、Uninstall 或同步失败后立即卸载。插件页面的 API client 必须调用同一 manifest 命名空间。
+
+新增内置集成页面时，同时完成以下工作：
+
+1. 在 `plugin.yaml` 声明 `ui_menu`、权限和 API routes。
+2. 在 `integrated-routes.ts` 注册插件页面，不在 `web/src/router/index.ts` 写业务插件静态路由。
+3. 验证启用后菜单与路由可访问，禁用后菜单、路由和 API 同时不可用。
+
+### 4.3 中间件扩展（Middleware）
 
 插件可注册自定义中间件，插入到中间件链中。
 
-### 4.3 事件扩展（Events）
+### 4.4 事件扩展（Events）
 
 插件可注册事件处理器，订阅事件总线消息（内存 / Redis）。
 

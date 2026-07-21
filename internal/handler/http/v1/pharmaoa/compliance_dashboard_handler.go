@@ -27,8 +27,8 @@ func RegisterComplianceDashboardRoutes(mux *http.ServeMux, service pharmaoasvc.C
 		return
 	}
 	h := &ComplianceDashboardHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/compliance-dashboard", h.get)
-	mux.HandleFunc("GET /v1/pharma-oa/compliance-dashboard/export", h.export)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/compliance-dashboard", h.get)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/compliance-dashboard/export", h.export)
 }
 
 func RegisterComplianceDashboardPermissions(service permissionsvc.Service) error {

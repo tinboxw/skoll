@@ -49,7 +49,7 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 		}},
 		"actorId": "sales-a",
 	}
-	createResp := performCustomerRequest(mux, http.MethodPost, "/v1/pharma-oa/customers", createBody)
+	createResp := performCustomerRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/customers", createBody)
 	if createResp.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", createResp.Code, createResp.Body.String())
 	}
@@ -71,11 +71,11 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 		t.Fatalf("seed other customer: %v", err)
 	}
 
-	listOwned := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers?ownerId=sales-a", nil)
+	listOwned := performCustomerRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/customers?ownerId=sales-a", nil)
 	if listOwned.Code != http.StatusOK || !strings.Contains(listOwned.Body.String(), "CUST-API-001") {
 		t.Fatalf("expected owner list to include customer, status=%d body=%s", listOwned.Code, listOwned.Body.String())
 	}
-	listOther := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers?ownerId=sales-b&organizationId=org-b&includeAll=true", nil)
+	listOther := performCustomerRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/customers?ownerId=sales-b&organizationId=org-b&includeAll=true", nil)
 	if listOther.Code != http.StatusOK || !strings.Contains(listOther.Body.String(), "CUST-API-001") || strings.Contains(listOther.Body.String(), "CUST-API-OTHER") {
 		t.Fatalf("forged query broadened trusted self scope, status=%d body=%s", listOther.Code, listOther.Body.String())
 	}
@@ -85,17 +85,17 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	updateBody["ownerId"] = "sales-b"
 	updateBody["organizationId"] = "org-b"
 	updateBody["scope"] = map[string]any{"ownerId": "sales-b", "organizationId": "org-b"}
-	denied := performCustomerRequest(mux, http.MethodPut, "/v1/pharma-oa/customers/"+id, updateBody)
+	denied := performCustomerRequest(mux, http.MethodPut, "/v1/plugins/pharma_oa/api/customers/"+id, updateBody)
 	if denied.Code != http.StatusForbidden || !strings.Contains(denied.Body.String(), "access denied") {
 		t.Fatalf("expected cross scope update denial, status=%d body=%s", denied.Code, denied.Body.String())
 	}
 
-	eligible := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers/"+id+"/sales-eligibility?ownerId=sales-a", nil)
+	eligible := performCustomerRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/customers/"+id+"/sales-eligibility?ownerId=sales-a", nil)
 	if eligible.Code != http.StatusOK || !strings.Contains(eligible.Body.String(), `"allowed":true`) {
 		t.Fatalf("expected eligible customer, status=%d body=%s", eligible.Code, eligible.Body.String())
 	}
 
-	disable := performCustomerRequest(mux, http.MethodPost, "/v1/pharma-oa/customers/"+id+"/disable", map[string]any{
+	disable := performCustomerRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/customers/"+id+"/disable", map[string]any{
 		"reason":  "blacklisted",
 		"actorId": "sales-a",
 		"scope":   map[string]any{"ownerId": "sales-a"},
@@ -103,7 +103,7 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 	if disable.Code != http.StatusOK {
 		t.Fatalf("disable status=%d body=%s", disable.Code, disable.Body.String())
 	}
-	blocked := performCustomerRequest(mux, http.MethodGet, "/v1/pharma-oa/customers/"+id+"/sales-eligibility?ownerId=sales-a", nil)
+	blocked := performCustomerRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/customers/"+id+"/sales-eligibility?ownerId=sales-a", nil)
 	if blocked.Code != http.StatusOK || !strings.Contains(blocked.Body.String(), `"allowed":false`) || !strings.Contains(blocked.Body.String(), "disabled") {
 		t.Fatalf("expected disabled customer blocked, status=%d body=%s", blocked.Code, blocked.Body.String())
 	}
@@ -111,7 +111,7 @@ func TestCustomerHandlerScopeSalesAndDisable(t *testing.T) {
 
 func TestCustomerHandlerMapsTrustedOrganizationTreeScope(t *testing.T) {
 	h := &CustomerHandler{scopeResolver: staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{DepartmentIDs: []string{"org-parent", "org-child"}}}}
-	req := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/customers?includeAll=true", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/plugins/pharma_oa/api/customers?includeAll=true", nil)
 	rec := httptest.NewRecorder()
 	scope, ok := h.resolveScope(rec, req, "read")
 	if !ok || scope.IncludeAll || strings.Join(scope.OrganizationIDs, ",") != "org-parent,org-child" {
@@ -124,7 +124,7 @@ func TestCustomerHandlerRejectsUnsafeAttachment(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterCustomerRoutes(mux, service, staticCustomerScopeResolver{decision: rbacsvc.DataScopeDecision{All: true}})
 
-	resp := performCustomerRequest(mux, http.MethodPost, "/v1/pharma-oa/customers", map[string]any{
+	resp := performCustomerRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/customers", map[string]any{
 		"code":           "CUST-API-002",
 		"name":           "Unsafe Hospital",
 		"region":         "North",

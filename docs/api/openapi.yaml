@@ -89,7 +89,7 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
-  /v1/pharma-oa/employees:
+  /v1/plugins/pharma_oa/api/employees:
     get:
       summary: List Pharma OA employees
       parameters:
@@ -151,7 +151,7 @@ paths:
           description: Created
         '403':
           description: Forbidden
-  /v1/pharma-oa/employees/{id}:
+  /v1/plugins/pharma_oa/api/employees/{id}:
     put:
       summary: Update Pharma OA employee
       parameters:
@@ -165,7 +165,7 @@ paths:
           description: OK
         '403':
           description: Forbidden
-  /v1/pharma-oa/employees/{id}/leave:
+  /v1/plugins/pharma_oa/api/employees/{id}/leave:
     post:
       summary: Mark Pharma OA employee left
       parameters:
@@ -179,7 +179,7 @@ paths:
           description: OK
         '403':
           description: Forbidden
-  /v1/pharma-oa/employees/qualification-reminders:
+  /v1/plugins/pharma_oa/api/employees/qualification-reminders:
     get:
       summary: List Pharma OA employee qualification reminders
       parameters:
@@ -193,7 +193,7 @@ paths:
           description: OK
         '403':
           description: Forbidden
-  /v1/pharma-oa/products:
+  /v1/plugins/pharma_oa/api/products:
     get:
       summary: List Pharma OA products
       parameters:
@@ -256,7 +256,7 @@ paths:
       responses:
         '201':
           description: Created
-  /v1/pharma-oa/products/{id}:
+  /v1/plugins/pharma_oa/api/products/{id}:
     put:
       summary: Update Pharma OA product
       parameters:
@@ -268,7 +268,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/products/{id}/disable:
+  /v1/plugins/pharma_oa/api/products/{id}/disable:
     post:
       summary: Disable Pharma OA product
       parameters:
@@ -280,7 +280,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/products/import:
+  /v1/plugins/pharma_oa/api/products/import:
     post:
       summary: Import Pharma OA products
       requestBody:
@@ -297,7 +297,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/suppliers:
+  /v1/plugins/pharma_oa/api/suppliers:
     get:
       summary: List Pharma OA suppliers
       parameters:
@@ -355,7 +355,7 @@ paths:
       responses:
         '201':
           description: Created
-  /v1/pharma-oa/suppliers/{id}:
+  /v1/plugins/pharma_oa/api/suppliers/{id}:
     put:
       summary: Update Pharma OA supplier
       parameters:
@@ -367,7 +367,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/suppliers/{id}/disable:
+  /v1/plugins/pharma_oa/api/suppliers/{id}/disable:
     post:
       summary: Disable Pharma OA supplier
       parameters:
@@ -379,7 +379,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/suppliers/{id}/purchase-eligibility:
+  /v1/plugins/pharma_oa/api/suppliers/{id}/purchase-eligibility:
     get:
       summary: Validate Pharma OA supplier purchase eligibility
       parameters:
@@ -391,7 +391,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/suppliers/qualification-reminders:
+  /v1/plugins/pharma_oa/api/suppliers/qualification-reminders:
     get:
       summary: List Pharma OA supplier qualification reminders
       parameters:
@@ -403,7 +403,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/customers:
+  /v1/plugins/pharma_oa/api/customers:
     get:
       summary: List Pharma OA customers
       parameters:
@@ -475,7 +475,7 @@ paths:
           description: Created
         '403':
           description: Forbidden
-  /v1/pharma-oa/customers/{id}:
+  /v1/plugins/pharma_oa/api/customers/{id}:
     put:
       summary: Update Pharma OA customer
       parameters:
@@ -489,7 +489,7 @@ paths:
           description: OK
         '403':
           description: Forbidden
-  /v1/pharma-oa/customers/{id}/disable:
+  /v1/plugins/pharma_oa/api/customers/{id}/disable:
     post:
       summary: Disable Pharma OA customer
       parameters:
@@ -503,7 +503,7 @@ paths:
           description: OK
         '403':
           description: Forbidden
-  /v1/pharma-oa/customers/{id}/sales-eligibility:
+  /v1/plugins/pharma_oa/api/customers/{id}/sales-eligibility:
     get:
       summary: Validate Pharma OA customer sales eligibility
       parameters:
@@ -517,7 +517,7 @@ paths:
           description: OK
         '403':
           description: Forbidden
-  /v1/pharma-oa/customers/qualification-reminders:
+  /v1/plugins/pharma_oa/api/customers/qualification-reminders:
     get:
       summary: List Pharma OA customer qualification reminders
       parameters:
@@ -531,7 +531,7 @@ paths:
           description: OK
         '403':
           description: Forbidden
-  /v1/pharma-oa/warehouses:
+  /v1/plugins/pharma_oa/api/warehouses:
     get:
       summary: List Pharma OA warehouses
       parameters:
@@ -589,7 +589,7 @@ paths:
       responses:
         '201':
           description: Created
-  /v1/pharma-oa/warehouses/{id}:
+  /v1/plugins/pharma_oa/api/warehouses/{id}:
     put:
       summary: Update Pharma OA warehouse
       parameters:
@@ -601,7 +601,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/warehouses/{id}/disable:
+  /v1/plugins/pharma_oa/api/warehouses/{id}/disable:
     post:
       summary: Disable Pharma OA warehouse
       parameters:
@@ -613,7 +613,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/warehouses/{id}/movement-eligibility:
+  /v1/plugins/pharma_oa/api/warehouses/{id}/movement-eligibility:
     get:
       summary: Validate Pharma OA warehouse movement location
       parameters:
@@ -635,7 +635,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/master-data/template:
+  /v1/plugins/pharma_oa/api/master-data/template:
     get:
       summary: Get Pharma OA master data import template
       parameters:
@@ -648,7 +648,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/master-data/import:
+  /v1/plugins/pharma_oa/api/master-data/import:
     post:
       summary: Import Pharma OA master data rows
       requestBody:
@@ -671,7 +671,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/master-data/export:
+  /v1/plugins/pharma_oa/api/master-data/export:
     get:
       summary: Export Pharma OA master data rows
       parameters:
@@ -684,7 +684,7 @@ paths:
       responses:
         '200':
           description: OK
-  /v1/pharma-oa/purchase-requests:
+  /v1/plugins/pharma_oa/api/purchase-requests:
     get:
       summary: List Pharma OA purchase requests
       responses:
@@ -711,7 +711,7 @@ paths:
                 $ref: '#/components/schemas/PurchaseRequestResponse'
         '400':
           description: Invalid request or supplier is not purchase eligible
-  /v1/pharma-oa/purchase-requests/{id}:
+  /v1/plugins/pharma_oa/api/purchase-requests/{id}:
     get:
       summary: Get a Pharma OA purchase request
       parameters:
@@ -729,7 +729,7 @@ paths:
                 $ref: '#/components/schemas/PurchaseRequestResponse'
         '404':
           description: Purchase request not found
-  /v1/pharma-oa/purchase-requests/{id}/approve:
+  /v1/plugins/pharma_oa/api/purchase-requests/{id}/approve:
     post:
       summary: Approve a purchase request and generate its purchase order
       parameters:
@@ -755,7 +755,7 @@ paths:
           description: Approval failed or supplier is not purchase eligible
         '403':
           description: Forbidden
-  /v1/pharma-oa/purchase-requests/{id}/reject:
+  /v1/plugins/pharma_oa/api/purchase-requests/{id}/reject:
     post:
       summary: Reject a purchase request
       parameters:
@@ -779,7 +779,7 @@ paths:
                 $ref: '#/components/schemas/PurchaseRequestResponse'
         '403':
           description: Forbidden
-  /v1/pharma-oa/purchase-orders:
+  /v1/plugins/pharma_oa/api/purchase-orders:
     get:
       summary: List Pharma OA purchase orders
       responses:
@@ -789,7 +789,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PurchaseOrderListResponse'
-  /v1/pharma-oa/purchase-orders/{id}:
+  /v1/plugins/pharma_oa/api/purchase-orders/{id}:
     get:
       summary: Get a Pharma OA purchase order
       parameters:
@@ -807,7 +807,7 @@ paths:
                 $ref: '#/components/schemas/PurchaseOrderResponse'
         '404':
           description: Purchase order not found
-  /v1/pharma-oa/purchase-inbounds:
+  /v1/plugins/pharma_oa/api/purchase-inbounds:
     get:
       summary: List Pharma OA purchase inbounds
       responses:
@@ -824,7 +824,7 @@ paths:
         '201': {description: Created}
         '400': {description: Invalid order, location, batch, expiry, attachment, or quantity}
         '403': {description: Forbidden}
-  /v1/pharma-oa/purchase-inbounds/{id}:
+  /v1/plugins/pharma_oa/api/purchase-inbounds/{id}:
     get:
       summary: Get Pharma OA purchase inbound
       parameters:
@@ -833,7 +833,7 @@ paths:
         '200': {description: OK}
         '403': {description: Forbidden}
         '404': {description: Purchase inbound not found}
-  /v1/pharma-oa/sales-orders:
+  /v1/plugins/pharma_oa/api/sales-orders:
     get:
       summary: List Pharma OA sales orders
       responses:
@@ -848,7 +848,7 @@ paths:
       responses:
         '201': {description: Created}
         '400': {description: Invalid order or ineligible customer}
-  /v1/pharma-oa/sales-orders/{id}:
+  /v1/plugins/pharma_oa/api/sales-orders/{id}:
     get:
       summary: Get Pharma OA sales order
       parameters:
@@ -856,7 +856,7 @@ paths:
       responses:
         '200': {description: OK}
         '404': {description: Sales order not found}
-  /v1/pharma-oa/sales-outbounds:
+  /v1/plugins/pharma_oa/api/sales-outbounds:
     get:
       summary: List Pharma OA sales outbounds
       responses:
@@ -873,7 +873,7 @@ paths:
         '201': {description: Created}
         '400': {description: Expired customer qualification, invalid location, order mismatch, or insufficient stock}
         '403': {description: Forbidden}
-  /v1/pharma-oa/sales-outbounds/{id}:
+  /v1/plugins/pharma_oa/api/sales-outbounds/{id}:
     get:
       summary: Get Pharma OA sales outbound
       parameters:
@@ -882,7 +882,7 @@ paths:
         '200': {description: OK}
         '403': {description: Forbidden}
         '404': {description: Sales outbound not found}
-  /v1/pharma-oa/stocktakes:
+  /v1/plugins/pharma_oa/api/stocktakes:
     get:
       summary: List Pharma OA stocktake orders
       responses:
@@ -907,7 +907,7 @@ paths:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
         '400': {description: Invalid stock position, quantity, or approver}
         '403': {description: Forbidden}
-  /v1/pharma-oa/stocktakes/{id}:
+  /v1/plugins/pharma_oa/api/stocktakes/{id}:
     get:
       summary: Get a Pharma OA stocktake order
       parameters:
@@ -920,7 +920,7 @@ paths:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
         '403': {description: Forbidden}
         '404': {description: Stocktake order not found}
-  /v1/pharma-oa/stocktakes/{id}/approve:
+  /v1/plugins/pharma_oa/api/stocktakes/{id}/approve:
     post:
       summary: Approve a stocktake difference and post its inventory ledger entry
       parameters:
@@ -938,7 +938,7 @@ paths:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
         '400': {description: Approval failed or inventory changed after the count}
         '403': {description: Forbidden}
-  /v1/pharma-oa/stocktakes/{id}/reject:
+  /v1/plugins/pharma_oa/api/stocktakes/{id}/reject:
     post:
       summary: Reject a stocktake difference without changing inventory
       parameters:
@@ -956,7 +956,7 @@ paths:
               schema: {$ref: '#/components/schemas/StocktakeOrderResponse'}
         '400': {description: Rejection failed}
         '403': {description: Forbidden}
-  /v1/pharma-oa/transfers:
+  /v1/plugins/pharma_oa/api/transfers:
     get:
       summary: List Pharma OA stock transfer orders
       responses:
@@ -981,7 +981,7 @@ paths:
               schema: {$ref: '#/components/schemas/TransferOrderResponse'}
         '400': {description: Invalid locations, quantity, batch, or insufficient stock}
         '403': {description: Forbidden}
-  /v1/pharma-oa/transfers/{id}:
+  /v1/plugins/pharma_oa/api/transfers/{id}:
     get:
       summary: Get a Pharma OA stock transfer order
       parameters:
@@ -994,7 +994,7 @@ paths:
               schema: {$ref: '#/components/schemas/TransferOrderResponse'}
         '403': {description: Forbidden}
         '404': {description: Transfer order not found}
-  /v1/pharma-oa/inventory-alerts:
+  /v1/plugins/pharma_oa/api/inventory-alerts:
     get:
       summary: List Pharma OA inventory alerts
       parameters:
@@ -1006,7 +1006,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/InventoryAlertListResponse'}
         '400': {description: Invalid activeOnly filter}
-  /v1/pharma-oa/inventory-alert-jobs:
+  /v1/plugins/pharma_oa/api/inventory-alert-jobs:
     get:
       summary: List Pharma OA inventory alert scan jobs
       responses:
@@ -1029,7 +1029,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/InventoryAlertJobResponse'}
         '400': {description: Invalid thresholds, recipient, or scan failure}
-  /v1/pharma-oa/inventory-alert-jobs/{id}/retry:
+  /v1/plugins/pharma_oa/api/inventory-alert-jobs/{id}/retry:
     post:
       summary: Retry a failed Pharma OA inventory alert scan job
       parameters:
@@ -3113,7 +3113,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /v1/pharma-oa/announcements:
+  /v1/plugins/pharma_oa/api/announcements:
     get:
       summary: List announcements visible to an organization or role
       parameters:
@@ -3160,7 +3160,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/announcements/{id}/publish:
+  /v1/plugins/pharma_oa/api/announcements/{id}/publish:
     post:
       summary: Publish an announcement to its configured audience
       parameters:
@@ -3191,7 +3191,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/announcements/{id}/read:
+  /v1/plugins/pharma_oa/api/announcements/{id}/read:
     post:
       summary: Confirm that the current audience member read an announcement
       parameters:
@@ -3221,7 +3221,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/announcements/{id}/read-confirmations:
+  /v1/plugins/pharma_oa/api/announcements/{id}/read-confirmations:
     get:
       summary: List read confirmations for an announcement
       parameters:
@@ -3245,7 +3245,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/customer-follow-ups:
+  /v1/plugins/pharma_oa/api/customer-follow-ups:
     get:
       summary: List customer follow-ups visible to the authenticated sales user
       description: Request-supplied owner or include-all values are ignored; the HTTP scope is derived from the authenticated actor.
@@ -3304,7 +3304,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/customer-follow-ups/{id}:
+  /v1/plugins/pharma_oa/api/customer-follow-ups/{id}:
     put:
       summary: Update a planned customer follow-up owned by the authenticated user
       parameters:
@@ -3328,7 +3328,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/customer-follow-ups/{id}/complete:
+  /v1/plugins/pharma_oa/api/customer-follow-ups/{id}/complete:
     post:
       summary: Complete a planned customer follow-up
       parameters:
@@ -3352,7 +3352,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/customer-follow-ups/{id}/cancel:
+  /v1/plugins/pharma_oa/api/customer-follow-ups/{id}/cancel:
     post:
       summary: Cancel a planned customer follow-up
       parameters:
@@ -3376,7 +3376,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/sales-opportunities:
+  /v1/plugins/pharma_oa/api/sales-opportunities:
     get:
       summary: List sales opportunities visible to the authenticated sales user
       description: Request-supplied owner or include-all values are ignored; HTTP scope is derived from the JWT subject.
@@ -3424,7 +3424,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/sales-opportunities/statistics:
+  /v1/plugins/pharma_oa/api/sales-opportunities/statistics:
     get:
       summary: Read exact cent-based funnel statistics visible to the authenticated sales user
       responses:
@@ -3443,7 +3443,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/sales-opportunities/{id}:
+  /v1/plugins/pharma_oa/api/sales-opportunities/{id}:
     put:
       summary: Update a non-terminal sales opportunity owned by the authenticated user
       parameters:
@@ -3467,7 +3467,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/sales-opportunities/{id}/advance:
+  /v1/plugins/pharma_oa/api/sales-opportunities/{id}/advance:
     post:
       summary: Advance a sales opportunity by one stage or close it as lost
       parameters:
@@ -3491,7 +3491,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/payment-plans:
+  /v1/plugins/pharma_oa/api/payment-plans:
     get:
       summary: List payment plans owned by the authenticated sales user
       description: Request-supplied owner or include-all values are ignored; HTTP scope is derived from the JWT subject.
@@ -3534,7 +3534,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/payment-plans/{id}/receive:
+  /v1/plugins/pharma_oa/api/payment-plans/{id}/receive:
     post:
       summary: Record a received payment against a plan
       parameters:
@@ -3558,7 +3558,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/invoice-records:
+  /v1/plugins/pharma_oa/api/invoice-records:
     get:
       summary: List invoice records owned by the authenticated sales user
       parameters:
@@ -3600,7 +3600,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/invoice-records/{id}/void:
+  /v1/plugins/pharma_oa/api/invoice-records/{id}/void:
     post:
       summary: Void an issued invoice record
       parameters:
@@ -3624,7 +3624,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/payment-reminder-jobs:
+  /v1/plugins/pharma_oa/api/payment-reminder-jobs:
     get:
       summary: List overdue-payment reminder jobs owned by the authenticated user
       responses:
@@ -3656,7 +3656,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/payment-reminder-jobs/{id}/retry:
+  /v1/plugins/pharma_oa/api/payment-reminder-jobs/{id}/retry:
     post:
       summary: Retry a failed overdue-payment reminder scan
       parameters:
@@ -3675,7 +3675,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/contracts:
+  /v1/plugins/pharma_oa/api/contracts:
     get:
       summary: List contract archive entries
       parameters:
@@ -3722,7 +3722,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/contracts/{id}:
+  /v1/plugins/pharma_oa/api/contracts/{id}:
     get:
       summary: Get a contract archive entry
       parameters:
@@ -3741,7 +3741,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/contracts/{id}/approve:
+  /v1/plugins/pharma_oa/api/contracts/{id}/approve:
     post:
       summary: Approve a contract workflow task
       parameters:
@@ -3766,7 +3766,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '403':
           description: Forbidden
-  /v1/pharma-oa/contracts/{id}/reject:
+  /v1/plugins/pharma_oa/api/contracts/{id}/reject:
     post:
       summary: Reject a contract workflow task
       parameters:
@@ -3791,7 +3791,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '403':
           description: Forbidden
-  /v1/pharma-oa/contracts/expiry-scan:
+  /v1/plugins/pharma_oa/api/contracts/expiry-scan:
     post:
       summary: Scan active contracts and create idempotent expiry reminders
       requestBody:
@@ -3809,7 +3809,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/qualifications:
+  /v1/plugins/pharma_oa/api/qualifications:
     get:
       summary: List employee, supplier, and customer qualification ledger entries
       parameters:
@@ -3841,7 +3841,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/qualifications/expiry-scan:
+  /v1/plugins/pharma_oa/api/qualifications/expiry-scan:
     post:
       summary: Scan qualifications and create idempotent expiry reminders
       requestBody:
@@ -3864,7 +3864,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/quality-complaints:
+  /v1/plugins/pharma_oa/api/quality-complaints:
     get:
       summary: List quality complaints
       parameters:
@@ -3913,7 +3913,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/quality-complaints/batches:
+  /v1/plugins/pharma_oa/api/quality-complaints/batches:
     get:
       summary: List stock batches available for quality complaint registration
       parameters:
@@ -3931,7 +3931,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/quality-complaints/{id}:
+  /v1/plugins/pharma_oa/api/quality-complaints/{id}:
     get:
       summary: Get a quality complaint
       parameters:
@@ -3950,7 +3950,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/quality-complaints/{id}/resolve:
+  /v1/plugins/pharma_oa/api/quality-complaints/{id}/resolve:
     post:
       summary: Resolve a quality complaint workflow task with a conclusion
       parameters:
@@ -3976,7 +3976,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '403':
           description: Forbidden
-  /v1/pharma-oa/quality-complaints/{id}/reject:
+  /v1/plugins/pharma_oa/api/quality-complaints/{id}/reject:
     post:
       summary: Reject a quality complaint workflow task with a conclusion
       parameters:
@@ -4002,7 +4002,7 @@ paths:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
         '403':
           description: Forbidden
-  /v1/pharma-oa/drug-recalls:
+  /v1/plugins/pharma_oa/api/drug-recalls:
     get:
       summary: List drug recall orders
       parameters:
@@ -4051,7 +4051,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/drug-recalls/batches:
+  /v1/plugins/pharma_oa/api/drug-recalls/batches:
     get:
       summary: List inventory batches available for recall tracing
       responses:
@@ -4065,7 +4065,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/drug-recalls/scope:
+  /v1/plugins/pharma_oa/api/drug-recalls/scope:
     get:
       summary: Preview affected outbound customers for a stock batch
       parameters:
@@ -4084,7 +4084,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/drug-recalls/{id}:
+  /v1/plugins/pharma_oa/api/drug-recalls/{id}:
     get:
       summary: Get a drug recall and processing trace
       parameters:
@@ -4103,7 +4103,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/drug-recalls/{id}/tasks/{taskId}/complete:
+  /v1/plugins/pharma_oa/api/drug-recalls/{id}/tasks/{taskId}/complete:
     post:
       summary: Complete one affected-customer recall task
       parameters:
@@ -4131,7 +4131,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/cold-chain-contexts:
+  /v1/plugins/pharma_oa/api/cold-chain-contexts:
     get:
       summary: List stock balances eligible for cold-chain recording
       responses:
@@ -4150,7 +4150,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/cold-chain-records:
+  /v1/plugins/pharma_oa/api/cold-chain-records:
     get:
       summary: List immutable cold-chain readings
       parameters:
@@ -4197,7 +4197,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/cold-chain-anomalies:
+  /v1/plugins/pharma_oa/api/cold-chain-anomalies:
     get:
       summary: List cold-chain risk-dashboard anomalies
       parameters:
@@ -4215,7 +4215,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/cold-chain-jobs:
+  /v1/plugins/pharma_oa/api/cold-chain-jobs:
     get:
       summary: List cold-chain anomaly scan jobs
       responses:
@@ -4247,7 +4247,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/cold-chain-jobs/{id}/retry:
+  /v1/plugins/pharma_oa/api/cold-chain-jobs/{id}/retry:
     post:
       summary: Retry a failed cold-chain anomaly scan
       parameters:
@@ -4276,7 +4276,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/compliance-dashboard:
+  /v1/plugins/pharma_oa/api/compliance-dashboard:
     get:
       summary: Read active compliance risks across qualification, complaint, recall, and cold-chain sources
       parameters:
@@ -4313,7 +4313,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/compliance-dashboard/export:
+  /v1/plugins/pharma_oa/api/compliance-dashboard/export:
     get:
       summary: Export filtered compliance risk evidence as UTF-8 CSV
       parameters:
@@ -4350,7 +4350,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/business-metrics:
+  /v1/plugins/pharma_oa/api/business-metrics:
     get:
       summary: Read bounded operational and sales metrics for the Pharma OA dashboard
       parameters:
@@ -4389,7 +4389,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/report-export-jobs:
+  /v1/plugins/pharma_oa/api/report-export-jobs:
     get:
       summary: List report export jobs owned by the authenticated actor
       responses:
@@ -4436,7 +4436,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/report-export-jobs/{id}:
+  /v1/plugins/pharma_oa/api/report-export-jobs/{id}:
     get:
       summary: Read an owned report export job
       parameters:
@@ -4460,7 +4460,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/report-export-jobs/{id}/retry:
+  /v1/plugins/pharma_oa/api/report-export-jobs/{id}/retry:
     post:
       summary: Retry an owned failed report export job
       parameters:
@@ -4489,7 +4489,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/report-export-jobs/{id}/download:
+  /v1/plugins/pharma_oa/api/report-export-jobs/{id}/download:
     get:
       summary: Download an owned completed report export
       parameters:
@@ -4521,7 +4521,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/demo-seed/status:
+  /v1/plugins/pharma_oa/api/demo-seed/status:
     get:
       summary: Read Pharma OA demo seed status
       responses:
@@ -4540,7 +4540,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
-  /v1/pharma-oa/demo-seed/apply:
+  /v1/plugins/pharma_oa/api/demo-seed/apply:
     post:
       summary: Initialize the complete Pharma OA demo scenario
       responses:

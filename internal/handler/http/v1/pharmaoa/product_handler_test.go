@@ -24,7 +24,7 @@ func TestProductHandlerCreateImportDisable(t *testing.T) {
 		"temperature":{"required":true,"minCelsius":2,"maxCelsius":8},
 		"actorId":"admin"
 	}`)
-	createResp := performRequest(mux, http.MethodPost, "/v1/pharma-oa/products", createBody)
+	createResp := performRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/products", createBody)
 	if createResp.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", createResp.Code, createResp.Body.String())
 	}
@@ -43,12 +43,12 @@ func TestProductHandlerCreateImportDisable(t *testing.T) {
 		t.Fatalf("unexpected create response: %+v", createPayload.Data.Item)
 	}
 
-	listResp := performRequest(mux, http.MethodGet, "/v1/pharma-oa/products?keyword=amoxicillin", nil)
+	listResp := performRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/products?keyword=amoxicillin", nil)
 	if listResp.Code != http.StatusOK || !bytes.Contains(listResp.Body.Bytes(), []byte("DRUG001")) {
 		t.Fatalf("list response invalid: status=%d body=%s", listResp.Code, listResp.Body.String())
 	}
 
-	importResp := performRequest(mux, http.MethodPost, "/v1/pharma-oa/products/import", []byte(`{"rows":[
+	importResp := performRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/products/import", []byte(`{"rows":[
 		{"code":"DRUG002","name":"Ibuprofen","spec":"0.2g*24","dosageForm":"tablet","manufacturer":"Skoll Pharma","approvalNumber":"NMPA-H20260002"},
 		{"code":"DRUG002","name":"Duplicate","spec":"0.2g*24","dosageForm":"tablet","manufacturer":"Skoll Pharma","approvalNumber":"NMPA-H20260002"}
 	]}`))
@@ -56,7 +56,7 @@ func TestProductHandlerCreateImportDisable(t *testing.T) {
 		t.Fatalf("import response invalid: status=%d body=%s", importResp.Code, importResp.Body.String())
 	}
 
-	disableResp := performRequest(mux, http.MethodPost, "/v1/pharma-oa/products/"+createPayload.Data.Item.ID+"/disable", []byte(`{"reason":"stopped","actorId":"admin"}`))
+	disableResp := performRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/products/"+createPayload.Data.Item.ID+"/disable", []byte(`{"reason":"stopped","actorId":"admin"}`))
 	if disableResp.Code != http.StatusOK || !bytes.Contains(disableResp.Body.Bytes(), []byte("disabled")) {
 		t.Fatalf("disable response invalid: status=%d body=%s", disableResp.Code, disableResp.Body.String())
 	}

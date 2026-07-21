@@ -38,33 +38,33 @@ func TestQualityComplaintHTTPCreateResolveAndReject(t *testing.T) {
 	RegisterQualityComplaintRoutes(mux, service)
 
 	body := `{"number":"QC-HTTP-1","title":"Damaged package","description":"Package was damaged","customerId":"pharma-customer-1","productId":"pharma-product-1","batchId":"pharma-stock-batch-1","reporterId":"spoofed-reporter","handlerId":"handler-1","attachmentIds":["quality-file-1"]}`
-	create := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/quality-complaints", body, security.JWTClaims{Subject: "reporter-1", Role: "quality"})
+	create := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/quality-complaints", body, security.JWTClaims{Subject: "reporter-1", Role: "quality"})
 	if create.Code != http.StatusCreated || !bytes.Contains(create.Body.Bytes(), []byte(`"reporterId":"reporter-1"`)) || !bytes.Contains(create.Body.Bytes(), []byte(`"workflowInstanceId":"quality-complaint-workflow-1"`)) {
 		t.Fatalf("create status=%d body=%s", create.Code, create.Body.String())
 	}
-	batches := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/quality-complaints/batches?productId=pharma-product-1", "", security.JWTClaims{Subject: "reporter-1", Role: "quality"})
+	batches := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/quality-complaints/batches?productId=pharma-product-1", "", security.JWTClaims{Subject: "reporter-1", Role: "quality"})
 	if batches.Code != http.StatusOK || !bytes.Contains(batches.Body.Bytes(), []byte(`"batchNo":"BATCH-QCH"`)) {
 		t.Fatalf("batches status=%d body=%s", batches.Code, batches.Body.String())
 	}
-	spoofed := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/quality-complaints/quality-complaint-1/resolve", `{"actorId":"handler-1","conclusion":"spoofed"}`, security.JWTClaims{Subject: "intruder-1", Role: "quality"})
+	spoofed := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/quality-complaints/quality-complaint-1/resolve", `{"actorId":"handler-1","conclusion":"spoofed"}`, security.JWTClaims{Subject: "intruder-1", Role: "quality"})
 	if spoofed.Code != http.StatusBadRequest {
 		t.Fatalf("spoofed resolve status=%d body=%s", spoofed.Code, spoofed.Body.String())
 	}
-	resolve := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/quality-complaints/quality-complaint-1/resolve", `{"conclusion":"Replacement shipped"}`, security.JWTClaims{Subject: "handler-1", Role: "quality"})
+	resolve := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/quality-complaints/quality-complaint-1/resolve", `{"conclusion":"Replacement shipped"}`, security.JWTClaims{Subject: "handler-1", Role: "quality"})
 	if resolve.Code != http.StatusOK || !bytes.Contains(resolve.Body.Bytes(), []byte(`"status":"resolved"`)) || !bytes.Contains(resolve.Body.Bytes(), []byte(`"conclusion":"Replacement shipped"`)) {
 		t.Fatalf("resolve status=%d body=%s", resolve.Code, resolve.Body.String())
 	}
 
 	body = `{"number":"QC-HTTP-2","title":"Unfounded complaint","description":"No quality deviation","customerId":"pharma-customer-1","productId":"pharma-product-1","batchId":"pharma-stock-batch-1","handlerId":"handler-1","attachmentIds":["quality-file-1"]}`
-	create = contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/quality-complaints", body, security.JWTClaims{Subject: "reporter-1", Role: "quality"})
+	create = contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/quality-complaints", body, security.JWTClaims{Subject: "reporter-1", Role: "quality"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create rejectable status=%d body=%s", create.Code, create.Body.String())
 	}
-	reject := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/quality-complaints/quality-complaint-2/reject", `{"conclusion":"No quality deviation found"}`, security.JWTClaims{Subject: "handler-1", Role: "quality"})
+	reject := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/quality-complaints/quality-complaint-2/reject", `{"conclusion":"No quality deviation found"}`, security.JWTClaims{Subject: "handler-1", Role: "quality"})
 	if reject.Code != http.StatusOK || !bytes.Contains(reject.Body.Bytes(), []byte(`"status":"rejected"`)) {
 		t.Fatalf("reject status=%d body=%s", reject.Code, reject.Body.String())
 	}
-	detail := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/quality-complaints/quality-complaint-2", "", security.JWTClaims{Subject: "reporter-1", Role: "quality"})
+	detail := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/quality-complaints/quality-complaint-2", "", security.JWTClaims{Subject: "reporter-1", Role: "quality"})
 	if detail.Code != http.StatusOK || !bytes.Contains(detail.Body.Bytes(), []byte(`"batchNo":"BATCH-QCH"`)) {
 		t.Fatalf("detail status=%d body=%s", detail.Code, detail.Body.String())
 	}

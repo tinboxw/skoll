@@ -28,8 +28,8 @@ func RegisterQualificationRoutes(mux *http.ServeMux, service pharmaoasvc.Qualifi
 		return
 	}
 	h := &QualificationHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/qualifications", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/qualifications/expiry-scan", h.scanExpiry)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/qualifications", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/qualifications/expiry-scan", h.scanExpiry)
 }
 
 func RegisterQualificationPermissions(service permissionsvc.Service) error {

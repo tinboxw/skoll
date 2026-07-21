@@ -41,12 +41,12 @@ func RegisterSupplierRoutes(mux *http.ServeMux, service pharmaoasvc.SupplierServ
 		return
 	}
 	h := &SupplierHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/suppliers", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/suppliers", h.create)
-	mux.HandleFunc("PUT /v1/pharma-oa/suppliers/{id}", h.update)
-	mux.HandleFunc("POST /v1/pharma-oa/suppliers/{id}/disable", h.disable)
-	mux.HandleFunc("GET /v1/pharma-oa/suppliers/{id}/purchase-eligibility", h.purchaseEligibility)
-	mux.HandleFunc("GET /v1/pharma-oa/suppliers/qualification-reminders", h.qualificationReminders)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/suppliers", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/suppliers", h.create)
+	mux.HandleFunc("PUT /v1/plugins/pharma_oa/api/suppliers/{id}", h.update)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/suppliers/{id}/disable", h.disable)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/suppliers/{id}/purchase-eligibility", h.purchaseEligibility)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/suppliers/qualification-reminders", h.qualificationReminders)
 }
 
 func RegisterSupplierPermissions(service permissionsvc.Service) error {

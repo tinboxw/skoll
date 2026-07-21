@@ -108,29 +108,29 @@ type ReminderPayload = {
 export async function listEmployees(query: PharmaListQuery = {}): Promise<PharmaListPage<PharmaEmployee>> {
 	const params = new URLSearchParams();
 	appendListPageParams(params, query);
-	return loadListPage<PharmaEmployee>("employees", "/v1/pharma-oa/employees", params, query);
+	return loadListPage<PharmaEmployee>("employees", "/v1/plugins/pharma_oa/api/employees", params, query);
 }
 
 export async function createEmployee(body: EmployeeRequest): Promise<PharmaEmployee> {
-	const payload = await apiPost<ApiResponse<EmployeeItemPayload>>("/v1/pharma-oa/employees", body);
+	const payload = await apiPost<ApiResponse<EmployeeItemPayload>>("/v1/plugins/pharma_oa/api/employees", body);
 	invalidateListPageCache("employees");
 	return payload.data.item;
 }
 
 export async function updateEmployee(id: string, body: EmployeeRequest): Promise<PharmaEmployee> {
-	const payload = await apiPut<ApiResponse<EmployeeItemPayload>>(`/v1/pharma-oa/employees/${encodeURIComponent(id)}`, body);
+	const payload = await apiPut<ApiResponse<EmployeeItemPayload>>(`/v1/plugins/pharma_oa/api/employees/${encodeURIComponent(id)}`, body);
 	invalidateListPageCache("employees");
 	return payload.data.item;
 }
 
 export async function markEmployeeLeft(id: string, reason: string, actorId?: string): Promise<PharmaEmployee> {
-	const payload = await apiPost<ApiResponse<EmployeeItemPayload>>(`/v1/pharma-oa/employees/${encodeURIComponent(id)}/leave`, { reason, actorId });
+	const payload = await apiPost<ApiResponse<EmployeeItemPayload>>(`/v1/plugins/pharma_oa/api/employees/${encodeURIComponent(id)}/leave`, { reason, actorId });
 	invalidateListPageCache("employees");
 	return payload.data.item;
 }
 
 export async function listEmployeeQualificationReminders(days = 30): Promise<QualificationReminder[]> {
-	const payload = await apiGet<ApiResponse<ReminderPayload>>(`/v1/pharma-oa/employees/qualification-reminders?days=${encodeURIComponent(String(days))}`);
+	const payload = await apiGet<ApiResponse<ReminderPayload>>(`/v1/plugins/pharma_oa/api/employees/qualification-reminders?days=${encodeURIComponent(String(days))}`);
 	return payload.data.items;
 }
 
@@ -217,35 +217,35 @@ export async function listCustomers(query: PharmaListQuery & { region?: string }
 	if (query.region?.trim()) {
 		params.set("region", query.region.trim());
 	}
-	return loadListPage<PharmaCustomer>("customers", "/v1/pharma-oa/customers", params, query);
+	return loadListPage<PharmaCustomer>("customers", "/v1/plugins/pharma_oa/api/customers", params, query);
 }
 
 export async function createCustomer(body: CustomerRequest): Promise<PharmaCustomer> {
-	const payload = await apiPost<ApiResponse<CustomerItemPayload>>("/v1/pharma-oa/customers", body);
+	const payload = await apiPost<ApiResponse<CustomerItemPayload>>("/v1/plugins/pharma_oa/api/customers", body);
 	invalidateListPageCache("customers");
 	return payload.data.item;
 }
 
 export async function updateCustomer(id: string, body: CustomerRequest): Promise<PharmaCustomer> {
-	const payload = await apiPut<ApiResponse<CustomerItemPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}`, body);
+	const payload = await apiPut<ApiResponse<CustomerItemPayload>>(`/v1/plugins/pharma_oa/api/customers/${encodeURIComponent(id)}`, body);
 	invalidateListPageCache("customers");
 	return payload.data.item;
 }
 
 export async function disableCustomer(id: string, reason: string): Promise<PharmaCustomer> {
-	const payload = await apiPost<ApiResponse<CustomerItemPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/disable`, { reason });
+	const payload = await apiPost<ApiResponse<CustomerItemPayload>>(`/v1/plugins/pharma_oa/api/customers/${encodeURIComponent(id)}/disable`, { reason });
 	invalidateListPageCache("customers");
 	return payload.data.item;
 }
 
 export async function listCustomerQualificationReminders(days = 30): Promise<CustomerQualificationReminder[]> {
 	const params = new URLSearchParams({ days: String(days) });
-	const payload = await apiGet<ApiResponse<CustomerReminderPayload>>(`/v1/pharma-oa/customers/qualification-reminders?${params.toString()}`);
+	const payload = await apiGet<ApiResponse<CustomerReminderPayload>>(`/v1/plugins/pharma_oa/api/customers/qualification-reminders?${params.toString()}`);
 	return payload.data.items;
 }
 
 export async function validateCustomerSalesEligibility(id: string): Promise<CustomerSalesEligibility> {
-	const payload = await apiGet<ApiResponse<CustomerEligibilityPayload>>(`/v1/pharma-oa/customers/${encodeURIComponent(id)}/sales-eligibility`);
+	const payload = await apiGet<ApiResponse<CustomerEligibilityPayload>>(`/v1/plugins/pharma_oa/api/customers/${encodeURIComponent(id)}/sales-eligibility`);
 	return payload.data.item;
 }
 
@@ -292,27 +292,27 @@ export async function listCustomerFollowUps(query: { keyword?: string; customerI
 	if (query.from) params.set("from", query.from);
 	if (query.to) params.set("to", query.to);
 	const suffix = params.size > 0 ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<CustomerFollowUpListPayload>>(`/v1/pharma-oa/customer-follow-ups${suffix}`);
+	const payload = await apiGet<ApiResponse<CustomerFollowUpListPayload>>(`/v1/plugins/pharma_oa/api/customer-follow-ups${suffix}`);
 	return payload.data.items;
 }
 
 export async function createCustomerFollowUp(body: CustomerFollowUpPlanRequest): Promise<CustomerFollowUp> {
-	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>("/v1/pharma-oa/customer-follow-ups", body);
+	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>("/v1/plugins/pharma_oa/api/customer-follow-ups", body);
 	return payload.data.item;
 }
 
 export async function updateCustomerFollowUp(id: string, body: CustomerFollowUpPlanRequest): Promise<CustomerFollowUp> {
-	const payload = await apiPut<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/pharma-oa/customer-follow-ups/${encodeURIComponent(id)}`, body);
+	const payload = await apiPut<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/plugins/pharma_oa/api/customer-follow-ups/${encodeURIComponent(id)}`, body);
 	return payload.data.item;
 }
 
 export async function completeCustomerFollowUp(id: string, body: { summary: string; nextAction?: string; attachments: CustomerFollowUpAttachment[] }): Promise<CustomerFollowUp> {
-	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/pharma-oa/customer-follow-ups/${encodeURIComponent(id)}/complete`, body);
+	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/plugins/pharma_oa/api/customer-follow-ups/${encodeURIComponent(id)}/complete`, body);
 	return payload.data.item;
 }
 
 export async function cancelCustomerFollowUp(id: string, reason: string): Promise<CustomerFollowUp> {
-	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/pharma-oa/customer-follow-ups/${encodeURIComponent(id)}/cancel`, { reason });
+	const payload = await apiPost<ApiResponse<CustomerFollowUpItemPayload>>(`/v1/plugins/pharma_oa/api/customer-follow-ups/${encodeURIComponent(id)}/cancel`, { reason });
 	return payload.data.item;
 }
 
@@ -348,27 +348,27 @@ export async function listSalesOpportunities(query: { keyword?: string; customer
 	if (query.customerId?.trim()) params.set("customerId", query.customerId.trim());
 	if (query.stage) params.set("stage", query.stage);
 	const suffix = params.size > 0 ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<SalesOpportunityListPayload>>(`/v1/pharma-oa/sales-opportunities${suffix}`);
+	const payload = await apiGet<ApiResponse<SalesOpportunityListPayload>>(`/v1/plugins/pharma_oa/api/sales-opportunities${suffix}`);
 	return payload.data.items;
 }
 
 export async function getSalesOpportunityStatistics(): Promise<SalesOpportunityStatistics> {
-	const payload = await apiGet<ApiResponse<SalesOpportunityStatisticsPayload>>("/v1/pharma-oa/sales-opportunities/statistics");
+	const payload = await apiGet<ApiResponse<SalesOpportunityStatisticsPayload>>("/v1/plugins/pharma_oa/api/sales-opportunities/statistics");
 	return payload.data.item;
 }
 
 export async function createSalesOpportunity(body: SalesOpportunityWriteRequest): Promise<SalesOpportunity> {
-	const payload = await apiPost<ApiResponse<SalesOpportunityItemPayload>>("/v1/pharma-oa/sales-opportunities", body);
+	const payload = await apiPost<ApiResponse<SalesOpportunityItemPayload>>("/v1/plugins/pharma_oa/api/sales-opportunities", body);
 	return payload.data.item;
 }
 
 export async function updateSalesOpportunity(id: string, body: SalesOpportunityWriteRequest): Promise<SalesOpportunity> {
-	const payload = await apiPut<ApiResponse<SalesOpportunityItemPayload>>(`/v1/pharma-oa/sales-opportunities/${encodeURIComponent(id)}`, body);
+	const payload = await apiPut<ApiResponse<SalesOpportunityItemPayload>>(`/v1/plugins/pharma_oa/api/sales-opportunities/${encodeURIComponent(id)}`, body);
 	return payload.data.item;
 }
 
 export async function advanceSalesOpportunity(id: string, stage: SalesOpportunityStage, note = ""): Promise<SalesOpportunity> {
-	const payload = await apiPost<ApiResponse<SalesOpportunityItemPayload>>(`/v1/pharma-oa/sales-opportunities/${encodeURIComponent(id)}/advance`, { stage, note });
+	const payload = await apiPost<ApiResponse<SalesOpportunityItemPayload>>(`/v1/plugins/pharma_oa/api/sales-opportunities/${encodeURIComponent(id)}/advance`, { stage, note });
 	return payload.data.item;
 }
 
@@ -382,17 +382,17 @@ type PurchaseInboundListPayload = { items: PurchaseInbound[] };
 type PurchaseInboundItemPayload = { item: PurchaseInbound };
 
 export async function listPurchaseOrders(): Promise<PurchaseOrder[]> {
-	const payload = await apiGet<ApiResponse<PurchaseOrderListPayload>>("/v1/pharma-oa/purchase-orders");
+	const payload = await apiGet<ApiResponse<PurchaseOrderListPayload>>("/v1/plugins/pharma_oa/api/purchase-orders");
 	return payload.data.items;
 }
 
 export async function listPurchaseInbounds(): Promise<PurchaseInbound[]> {
-	const payload = await apiGet<ApiResponse<PurchaseInboundListPayload>>("/v1/pharma-oa/purchase-inbounds");
+	const payload = await apiGet<ApiResponse<PurchaseInboundListPayload>>("/v1/plugins/pharma_oa/api/purchase-inbounds");
 	return payload.data.items;
 }
 
 export async function createPurchaseInbound(body: { number: string; purchaseOrderId: string; warehouseId: string; areaId: string; locationId: string; lines: PurchaseInboundLine[]; attachments: InboundAttachment[]; actorId: string }): Promise<PurchaseInbound> {
-	const payload = await apiPost<ApiResponse<PurchaseInboundItemPayload>>("/v1/pharma-oa/purchase-inbounds", body);
+	const payload = await apiPost<ApiResponse<PurchaseInboundItemPayload>>("/v1/plugins/pharma_oa/api/purchase-inbounds", body);
 	return payload.data.item;
 }
 
@@ -406,22 +406,22 @@ type SalesOutboundListPayload = { items: SalesOutbound[] };
 type SalesOutboundItemPayload = { item: SalesOutbound };
 
 export async function listSalesOrders(): Promise<SalesOrder[]> {
-	const payload = await apiGet<ApiResponse<SalesOrderListPayload>>("/v1/pharma-oa/sales-orders");
+	const payload = await apiGet<ApiResponse<SalesOrderListPayload>>("/v1/plugins/pharma_oa/api/sales-orders");
 	return payload.data.items;
 }
 
 export async function createSalesOrder(body: { number: string; customerId: string; lines: SalesLine[]; actorId: string }): Promise<SalesOrder> {
-	const payload = await apiPost<ApiResponse<SalesOrderItemPayload>>("/v1/pharma-oa/sales-orders", body);
+	const payload = await apiPost<ApiResponse<SalesOrderItemPayload>>("/v1/plugins/pharma_oa/api/sales-orders", body);
 	return payload.data.item;
 }
 
 export async function listSalesOutbounds(): Promise<SalesOutbound[]> {
-	const payload = await apiGet<ApiResponse<SalesOutboundListPayload>>("/v1/pharma-oa/sales-outbounds");
+	const payload = await apiGet<ApiResponse<SalesOutboundListPayload>>("/v1/plugins/pharma_oa/api/sales-outbounds");
 	return payload.data.items;
 }
 
 export async function createSalesOutbound(body: { number: string; salesOrderId: string; warehouseId: string; areaId: string; locationId: string; lines: SalesOutboundLine[]; actorId: string }): Promise<SalesOutbound> {
-	const payload = await apiPost<ApiResponse<SalesOutboundItemPayload>>("/v1/pharma-oa/sales-outbounds", body);
+	const payload = await apiPost<ApiResponse<SalesOutboundItemPayload>>("/v1/plugins/pharma_oa/api/sales-outbounds", body);
 	return payload.data.item;
 }
 
@@ -457,27 +457,27 @@ function announcementAudienceQuery(query: { organizationIds?: string[]; roleIds?
 }
 
 export async function listAnnouncements(query: { organizationIds?: string[]; roleIds?: string[]; includeDraft?: boolean } = {}): Promise<PharmaAnnouncement[]> {
-	const payload = await apiGet<ApiResponse<AnnouncementListPayload>>(`/v1/pharma-oa/announcements${announcementAudienceQuery(query)}`);
+	const payload = await apiGet<ApiResponse<AnnouncementListPayload>>(`/v1/plugins/pharma_oa/api/announcements${announcementAudienceQuery(query)}`);
 	return payload.data.items;
 }
 
 export async function createAnnouncement(body: { kind: AnnouncementKind; title: string; content: string; audience: AnnouncementAudience; documents: AnnouncementDocument[]; actorId: string }): Promise<PharmaAnnouncement> {
-	const payload = await apiPost<ApiResponse<AnnouncementItemPayload>>("/v1/pharma-oa/announcements", body);
+	const payload = await apiPost<ApiResponse<AnnouncementItemPayload>>("/v1/plugins/pharma_oa/api/announcements", body);
 	return payload.data.item;
 }
 
 export async function publishAnnouncement(id: string, actorId: string): Promise<PharmaAnnouncement> {
-	const payload = await apiPost<ApiResponse<AnnouncementItemPayload>>(`/v1/pharma-oa/announcements/${encodeURIComponent(id)}/publish`, { actorId });
+	const payload = await apiPost<ApiResponse<AnnouncementItemPayload>>(`/v1/plugins/pharma_oa/api/announcements/${encodeURIComponent(id)}/publish`, { actorId });
 	return payload.data.item;
 }
 
 export async function confirmAnnouncementRead(id: string, query: { organizationIds?: string[]; roleIds?: string[] } = {}): Promise<AnnouncementReadConfirmation> {
-	const payload = await apiPost<ApiResponse<AnnouncementReceiptPayload>>(`/v1/pharma-oa/announcements/${encodeURIComponent(id)}/read${announcementAudienceQuery(query)}`);
+	const payload = await apiPost<ApiResponse<AnnouncementReceiptPayload>>(`/v1/plugins/pharma_oa/api/announcements/${encodeURIComponent(id)}/read${announcementAudienceQuery(query)}`);
 	return payload.data.item;
 }
 
 export async function listAnnouncementReadConfirmations(id: string): Promise<AnnouncementReadConfirmation[]> {
-	const payload = await apiGet<ApiResponse<AnnouncementReceiptsPayload>>(`/v1/pharma-oa/announcements/${encodeURIComponent(id)}/read-confirmations`);
+	const payload = await apiGet<ApiResponse<AnnouncementReceiptsPayload>>(`/v1/plugins/pharma_oa/api/announcements/${encodeURIComponent(id)}/read-confirmations`);
 	return payload.data.items;
 }
 
@@ -516,7 +516,7 @@ type ContractExpiryPayload = { item: ContractExpiryScanResult };
 export async function listSuppliers(query: PharmaListQuery = {}): Promise<PharmaListPage<PharmaSupplier>> {
 	const params = new URLSearchParams();
 	appendListPageParams(params, query);
-	return loadListPage<PharmaSupplier>("suppliers", "/v1/pharma-oa/suppliers", params, query);
+	return loadListPage<PharmaSupplier>("suppliers", "/v1/plugins/pharma_oa/api/suppliers", params, query);
 }
 
 export async function listContracts(query: { keyword?: string; partyType?: ContractPartyType | ""; status?: ContractStatus | "" } = {}): Promise<PharmaContract[]> {
@@ -525,27 +525,27 @@ export async function listContracts(query: { keyword?: string; partyType?: Contr
 	if (query.partyType) params.set("partyType", query.partyType);
 	if (query.status) params.set("status", query.status);
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<ContractListPayload>>(`/v1/pharma-oa/contracts${suffix}`);
+	const payload = await apiGet<ApiResponse<ContractListPayload>>(`/v1/plugins/pharma_oa/api/contracts${suffix}`);
 	return payload.data.items;
 }
 
 export async function createContract(body: { number: string; title: string; partyType: ContractPartyType; partyId: string; ownerId: string; approverId: string; amount: number; currency: string; effectiveAt: string; expiresAt: string; attachmentIds: string[] }): Promise<PharmaContract> {
-	const payload = await apiPost<ApiResponse<ContractItemPayload>>("/v1/pharma-oa/contracts", body);
+	const payload = await apiPost<ApiResponse<ContractItemPayload>>("/v1/plugins/pharma_oa/api/contracts", body);
 	return payload.data.item;
 }
 
 export async function approveContract(id: string, actorId: string, comment: string): Promise<PharmaContract> {
-	const payload = await apiPost<ApiResponse<ContractItemPayload>>(`/v1/pharma-oa/contracts/${encodeURIComponent(id)}/approve`, { actorId, comment });
+	const payload = await apiPost<ApiResponse<ContractItemPayload>>(`/v1/plugins/pharma_oa/api/contracts/${encodeURIComponent(id)}/approve`, { actorId, comment });
 	return payload.data.item;
 }
 
 export async function rejectContract(id: string, actorId: string, comment: string): Promise<PharmaContract> {
-	const payload = await apiPost<ApiResponse<ContractItemPayload>>(`/v1/pharma-oa/contracts/${encodeURIComponent(id)}/reject`, { actorId, comment });
+	const payload = await apiPost<ApiResponse<ContractItemPayload>>(`/v1/plugins/pharma_oa/api/contracts/${encodeURIComponent(id)}/reject`, { actorId, comment });
 	return payload.data.item;
 }
 
 export async function scanContractExpiry(days: number, actorId: string): Promise<ContractExpiryScanResult> {
-	const payload = await apiPost<ApiResponse<ContractExpiryPayload>>("/v1/pharma-oa/contracts/expiry-scan", { days, actorId });
+	const payload = await apiPost<ApiResponse<ContractExpiryPayload>>("/v1/plugins/pharma_oa/api/contracts/expiry-scan", { days, actorId });
 	return payload.data.item;
 }
 
@@ -579,12 +579,12 @@ export async function listQualifications(query: { keyword?: string; subjectType?
 	if (query.status) params.set("status", query.status);
 	if (query.days) params.set("days", String(query.days));
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<QualificationListPayload>>(`/v1/pharma-oa/qualifications${suffix}`);
+	const payload = await apiGet<ApiResponse<QualificationListPayload>>(`/v1/plugins/pharma_oa/api/qualifications${suffix}`);
 	return payload.data.items;
 }
 
 export async function scanQualificationExpiry(days: number, actorId: string): Promise<QualificationScanResult> {
-	const payload = await apiPost<ApiResponse<QualificationScanPayload>>("/v1/pharma-oa/qualifications/expiry-scan", { days, actorId });
+	const payload = await apiPost<ApiResponse<QualificationScanPayload>>("/v1/plugins/pharma_oa/api/qualifications/expiry-scan", { days, actorId });
 	return payload.data.item;
 }
 
@@ -638,7 +638,7 @@ type QualityComplaintBatchListPayload = { items: QualityComplaintBatch[] };
 export async function listProducts(query: PharmaListQuery = {}): Promise<PharmaListPage<PharmaProduct>> {
 	const params = new URLSearchParams();
 	appendListPageParams(params, query);
-	return loadListPage<PharmaProduct>("products", "/v1/pharma-oa/products", params, query);
+	return loadListPage<PharmaProduct>("products", "/v1/plugins/pharma_oa/api/products", params, query);
 }
 
 export async function listQualityComplaints(query: { keyword?: string; status?: QualityComplaintStatus | "" } = {}): Promise<QualityComplaint[]> {
@@ -646,7 +646,7 @@ export async function listQualityComplaints(query: { keyword?: string; status?: 
 	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
 	if (query.status) params.set("status", query.status);
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<QualityComplaintListPayload>>(`/v1/pharma-oa/quality-complaints${suffix}`);
+	const payload = await apiGet<ApiResponse<QualityComplaintListPayload>>(`/v1/plugins/pharma_oa/api/quality-complaints${suffix}`);
 	return payload.data.items;
 }
 
@@ -654,22 +654,22 @@ export async function listQualityComplaintBatches(productId = ""): Promise<Quali
 	const params = new URLSearchParams();
 	if (productId.trim()) params.set("productId", productId.trim());
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<QualityComplaintBatchListPayload>>(`/v1/pharma-oa/quality-complaints/batches${suffix}`);
+	const payload = await apiGet<ApiResponse<QualityComplaintBatchListPayload>>(`/v1/plugins/pharma_oa/api/quality-complaints/batches${suffix}`);
 	return payload.data.items;
 }
 
 export async function createQualityComplaint(body: { number: string; title: string; description: string; customerId: string; productId: string; batchId: string; reporterId: string; handlerId: string; attachmentIds: string[] }): Promise<QualityComplaint> {
-	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>("/v1/pharma-oa/quality-complaints", body);
+	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>("/v1/plugins/pharma_oa/api/quality-complaints", body);
 	return payload.data.item;
 }
 
 export async function resolveQualityComplaint(id: string, conclusion: string, actorId: string): Promise<QualityComplaint> {
-	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>(`/v1/pharma-oa/quality-complaints/${encodeURIComponent(id)}/resolve`, { conclusion, actorId });
+	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>(`/v1/plugins/pharma_oa/api/quality-complaints/${encodeURIComponent(id)}/resolve`, { conclusion, actorId });
 	return payload.data.item;
 }
 
 export async function rejectQualityComplaint(id: string, conclusion: string, actorId: string): Promise<QualityComplaint> {
-	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>(`/v1/pharma-oa/quality-complaints/${encodeURIComponent(id)}/reject`, { conclusion, actorId });
+	const payload = await apiPost<ApiResponse<QualityComplaintItemPayload>>(`/v1/plugins/pharma_oa/api/quality-complaints/${encodeURIComponent(id)}/reject`, { conclusion, actorId });
 	return payload.data.item;
 }
 
@@ -706,28 +706,28 @@ export async function listDrugRecalls(query: { keyword?: string; status?: DrugRe
 	if (query.keyword?.trim()) params.set("keyword", query.keyword.trim());
 	if (query.status) params.set("status", query.status);
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<DrugRecallListPayload>>(`/v1/pharma-oa/drug-recalls${suffix}`);
+	const payload = await apiGet<ApiResponse<DrugRecallListPayload>>(`/v1/plugins/pharma_oa/api/drug-recalls${suffix}`);
 	return payload.data.items;
 }
 
 export async function listDrugRecallBatches(): Promise<DrugRecallBatch[]> {
-	const payload = await apiGet<ApiResponse<DrugRecallBatchListPayload>>("/v1/pharma-oa/drug-recalls/batches");
+	const payload = await apiGet<ApiResponse<DrugRecallBatchListPayload>>("/v1/plugins/pharma_oa/api/drug-recalls/batches");
 	return payload.data.items;
 }
 
 export async function previewDrugRecallScope(batchId: string): Promise<DrugRecallScope[]> {
 	const params = new URLSearchParams({ batchId: batchId.trim() });
-	const payload = await apiGet<ApiResponse<DrugRecallScopeListPayload>>(`/v1/pharma-oa/drug-recalls/scope?${params.toString()}`);
+	const payload = await apiGet<ApiResponse<DrugRecallScopeListPayload>>(`/v1/plugins/pharma_oa/api/drug-recalls/scope?${params.toString()}`);
 	return payload.data.items;
 }
 
 export async function createDrugRecall(body: { number: string; title: string; reason: string; batchId: string; sourceComplaintId?: string; actorId: string }): Promise<DrugRecall> {
-	const payload = await apiPost<ApiResponse<DrugRecallItemPayload>>("/v1/pharma-oa/drug-recalls", body);
+	const payload = await apiPost<ApiResponse<DrugRecallItemPayload>>("/v1/plugins/pharma_oa/api/drug-recalls", body);
 	return payload.data.item;
 }
 
 export async function completeDrugRecallTask(recallId: string, taskId: string, note: string, actorId: string): Promise<DrugRecall> {
-	const payload = await apiPost<ApiResponse<DrugRecallItemPayload>>(`/v1/pharma-oa/drug-recalls/${encodeURIComponent(recallId)}/tasks/${encodeURIComponent(taskId)}/complete`, { note, actorId });
+	const payload = await apiPost<ApiResponse<DrugRecallItemPayload>>(`/v1/plugins/pharma_oa/api/drug-recalls/${encodeURIComponent(recallId)}/tasks/${encodeURIComponent(taskId)}/complete`, { note, actorId });
 	return payload.data.item;
 }
 
@@ -795,7 +795,7 @@ type ColdChainRecordItemPayload = { item: ColdChainRecord };
 type ColdChainJobItemPayload = { item: ColdChainJob };
 
 export async function listColdChainContexts(): Promise<ColdChainContext[]> {
-	const payload = await apiGet<ApiResponse<ColdChainContextListPayload>>("/v1/pharma-oa/cold-chain-contexts");
+	const payload = await apiGet<ApiResponse<ColdChainContextListPayload>>("/v1/plugins/pharma_oa/api/cold-chain-contexts");
 	return payload.data.items;
 }
 
@@ -805,32 +805,32 @@ export async function listColdChainRecords(query: { batchId?: string; warehouseI
 	if (query.warehouseId?.trim()) params.set("warehouseId", query.warehouseId.trim());
 	if (query.limit) params.set("limit", String(query.limit));
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<ColdChainRecordListPayload>>(`/v1/pharma-oa/cold-chain-records${suffix}`);
+	const payload = await apiGet<ApiResponse<ColdChainRecordListPayload>>(`/v1/plugins/pharma_oa/api/cold-chain-records${suffix}`);
 	return payload.data.items;
 }
 
 export async function createColdChainRecord(body: { balanceId: string; temperatureCelsius: number; humidityPercent: number; source: string; recordedAt: string; actorId: string }): Promise<ColdChainRecord> {
-	const payload = await apiPost<ApiResponse<ColdChainRecordItemPayload>>("/v1/pharma-oa/cold-chain-records", body);
+	const payload = await apiPost<ApiResponse<ColdChainRecordItemPayload>>("/v1/plugins/pharma_oa/api/cold-chain-records", body);
 	return payload.data.item;
 }
 
 export async function listColdChainAnomalies(activeOnly = false): Promise<ColdChainAnomaly[]> {
-	const payload = await apiGet<ApiResponse<ColdChainAnomalyListPayload>>(`/v1/pharma-oa/cold-chain-anomalies?activeOnly=${String(activeOnly)}`);
+	const payload = await apiGet<ApiResponse<ColdChainAnomalyListPayload>>(`/v1/plugins/pharma_oa/api/cold-chain-anomalies?activeOnly=${String(activeOnly)}`);
 	return payload.data.items;
 }
 
 export async function listColdChainJobs(): Promise<ColdChainJob[]> {
-	const payload = await apiGet<ApiResponse<ColdChainJobListPayload>>("/v1/pharma-oa/cold-chain-jobs");
+	const payload = await apiGet<ApiResponse<ColdChainJobListPayload>>("/v1/plugins/pharma_oa/api/cold-chain-jobs");
 	return payload.data.items;
 }
 
 export async function runColdChainScan(body: { minHumidityPercent: number; maxHumidityPercent: number; recipientId: string; actorId: string }): Promise<ColdChainJob> {
-	const payload = await apiPost<ApiResponse<ColdChainJobItemPayload>>("/v1/pharma-oa/cold-chain-jobs", body);
+	const payload = await apiPost<ApiResponse<ColdChainJobItemPayload>>("/v1/plugins/pharma_oa/api/cold-chain-jobs", body);
 	return payload.data.item;
 }
 
 export async function retryColdChainScan(id: string, actorId: string): Promise<ColdChainJob> {
-	const payload = await apiPost<ApiResponse<ColdChainJobItemPayload>>(`/v1/pharma-oa/cold-chain-jobs/${encodeURIComponent(id)}/retry`, { actorId });
+	const payload = await apiPost<ApiResponse<ColdChainJobItemPayload>>(`/v1/plugins/pharma_oa/api/cold-chain-jobs/${encodeURIComponent(id)}/retry`, { actorId });
 	return payload.data.item;
 }
 
@@ -879,7 +879,7 @@ export type ComplianceDashboardQuery = {
 type ComplianceDashboardPayload = { item: ComplianceDashboardSnapshot };
 
 export async function getComplianceDashboard(query: ComplianceDashboardQuery = {}): Promise<ComplianceDashboardSnapshot> {
-	const payload = await apiGet<ApiResponse<ComplianceDashboardPayload>>(`/v1/pharma-oa/compliance-dashboard${complianceDashboardQuery(query)}`);
+	const payload = await apiGet<ApiResponse<ComplianceDashboardPayload>>(`/v1/plugins/pharma_oa/api/compliance-dashboard${complianceDashboardQuery(query)}`);
 	return payload.data.item;
 }
 
@@ -887,7 +887,7 @@ export async function exportComplianceDashboard(query: ComplianceDashboardQuery 
 	const headers = new Headers();
 	const token = getToken().trim();
 	if (token) headers.set("Authorization", token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`);
-	const response = await fetch(`${API_BASE_PREFIX}/v1/pharma-oa/compliance-dashboard/export${complianceDashboardQuery(query)}`, { method: "GET", headers });
+	const response = await fetch(`${API_BASE_PREFIX}/v1/plugins/pharma_oa/api/compliance-dashboard/export${complianceDashboardQuery(query)}`, { method: "GET", headers });
 	if (!response.ok) {
 		let message = `request failed: ${response.status}`;
 		let code = "";
@@ -945,17 +945,17 @@ export async function listPaymentPlans(query: { keyword?: string; salesOrderId?:
 	if (query.salesOrderId?.trim()) params.set("salesOrderId", query.salesOrderId.trim());
 	if (query.status) params.set("status", query.status);
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<PaymentPlanListPayload>>(`/v1/pharma-oa/payment-plans${suffix}`);
+	const payload = await apiGet<ApiResponse<PaymentPlanListPayload>>(`/v1/plugins/pharma_oa/api/payment-plans${suffix}`);
 	return payload.data.items;
 }
 
 export async function createPaymentPlan(body: { salesOrderId: string; amountCents: number; dueAt: string; note: string; attachments: FinancialAttachment[] }): Promise<PaymentPlan> {
-	const payload = await apiPost<ApiResponse<PaymentPlanItemPayload>>("/v1/pharma-oa/payment-plans", body);
+	const payload = await apiPost<ApiResponse<PaymentPlanItemPayload>>("/v1/plugins/pharma_oa/api/payment-plans", body);
 	return payload.data.item;
 }
 
 export async function recordPayment(id: string, body: { amountCents: number; paidAt: string; reference: string; attachments: FinancialAttachment[] }): Promise<PaymentPlan> {
-	const payload = await apiPost<ApiResponse<PaymentPlanItemPayload>>(`/v1/pharma-oa/payment-plans/${encodeURIComponent(id)}/receive`, body);
+	const payload = await apiPost<ApiResponse<PaymentPlanItemPayload>>(`/v1/plugins/pharma_oa/api/payment-plans/${encodeURIComponent(id)}/receive`, body);
 	return payload.data.item;
 }
 
@@ -965,32 +965,32 @@ export async function listInvoiceRecords(query: { keyword?: string; salesOrderId
 	if (query.salesOrderId?.trim()) params.set("salesOrderId", query.salesOrderId.trim());
 	if (query.status) params.set("status", query.status);
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<InvoiceRecordListPayload>>(`/v1/pharma-oa/invoice-records${suffix}`);
+	const payload = await apiGet<ApiResponse<InvoiceRecordListPayload>>(`/v1/plugins/pharma_oa/api/invoice-records${suffix}`);
 	return payload.data.items;
 }
 
 export async function createInvoiceRecord(body: { number: string; salesOrderId: string; amountCents: number; issuedAt: string; note: string; attachments: FinancialAttachment[] }): Promise<InvoiceRecord> {
-	const payload = await apiPost<ApiResponse<InvoiceRecordItemPayload>>("/v1/pharma-oa/invoice-records", body);
+	const payload = await apiPost<ApiResponse<InvoiceRecordItemPayload>>("/v1/plugins/pharma_oa/api/invoice-records", body);
 	return payload.data.item;
 }
 
 export async function voidInvoiceRecord(id: string, reason: string): Promise<InvoiceRecord> {
-	const payload = await apiPost<ApiResponse<InvoiceRecordItemPayload>>(`/v1/pharma-oa/invoice-records/${encodeURIComponent(id)}/void`, { reason });
+	const payload = await apiPost<ApiResponse<InvoiceRecordItemPayload>>(`/v1/plugins/pharma_oa/api/invoice-records/${encodeURIComponent(id)}/void`, { reason });
 	return payload.data.item;
 }
 
 export async function listPaymentReminderJobs(): Promise<PaymentReminderJob[]> {
-	const payload = await apiGet<ApiResponse<PaymentReminderJobListPayload>>("/v1/pharma-oa/payment-reminder-jobs");
+	const payload = await apiGet<ApiResponse<PaymentReminderJobListPayload>>("/v1/plugins/pharma_oa/api/payment-reminder-jobs");
 	return payload.data.items;
 }
 
 export async function runPaymentReminderScan(recipientId: string): Promise<PaymentReminderJob> {
-	const payload = await apiPost<ApiResponse<PaymentReminderJobItemPayload>>("/v1/pharma-oa/payment-reminder-jobs", { recipientId });
+	const payload = await apiPost<ApiResponse<PaymentReminderJobItemPayload>>("/v1/plugins/pharma_oa/api/payment-reminder-jobs", { recipientId });
 	return payload.data.item;
 }
 
 export async function retryPaymentReminderScan(id: string): Promise<PaymentReminderJob> {
-	const payload = await apiPost<ApiResponse<PaymentReminderJobItemPayload>>(`/v1/pharma-oa/payment-reminder-jobs/${encodeURIComponent(id)}/retry`, {});
+	const payload = await apiPost<ApiResponse<PaymentReminderJobItemPayload>>(`/v1/plugins/pharma_oa/api/payment-reminder-jobs/${encodeURIComponent(id)}/retry`, {});
 	return payload.data.item;
 }
 
@@ -1013,7 +1013,7 @@ export async function getBusinessMetrics(query: BusinessMetricsQuery = {}): Prom
 	if (query.bucket) params.set("bucket", query.bucket);
 	if (query.qualificationDays) params.set("qualificationDays", String(query.qualificationDays));
 	const suffix = params.toString() ? `?${params.toString()}` : "";
-	const payload = await apiGet<ApiResponse<{ item: BusinessMetricsSnapshot }>>(`/v1/pharma-oa/business-metrics${suffix}`);
+	const payload = await apiGet<ApiResponse<{ item: BusinessMetricsSnapshot }>>(`/v1/plugins/pharma_oa/api/business-metrics${suffix}`);
 	return payload.data.item;
 }
 
@@ -1040,22 +1040,22 @@ export type ReportExportJob = {
 export type ReportExportCreateBody = BusinessMetricsQuery & { reportType: ReportExportType };
 
 export async function queueReportExport(body: ReportExportCreateBody): Promise<ReportExportJob> {
-	const payload = await apiPost<ApiResponse<{ item: ReportExportJob }>>("/v1/pharma-oa/report-export-jobs", body);
+	const payload = await apiPost<ApiResponse<{ item: ReportExportJob }>>("/v1/plugins/pharma_oa/api/report-export-jobs", body);
 	return payload.data.item;
 }
 
 export async function listReportExportJobs(): Promise<ReportExportJob[]> {
-	const payload = await apiGet<ApiResponse<{ items: ReportExportJob[] }>>("/v1/pharma-oa/report-export-jobs");
+	const payload = await apiGet<ApiResponse<{ items: ReportExportJob[] }>>("/v1/plugins/pharma_oa/api/report-export-jobs");
 	return payload.data.items;
 }
 
 export async function getReportExportJob(id: string): Promise<ReportExportJob> {
-	const payload = await apiGet<ApiResponse<{ item: ReportExportJob }>>(`/v1/pharma-oa/report-export-jobs/${encodeURIComponent(id)}`);
+	const payload = await apiGet<ApiResponse<{ item: ReportExportJob }>>(`/v1/plugins/pharma_oa/api/report-export-jobs/${encodeURIComponent(id)}`);
 	return payload.data.item;
 }
 
 export async function retryReportExport(id: string): Promise<ReportExportJob> {
-	const payload = await apiPost<ApiResponse<{ item: ReportExportJob }>>(`/v1/pharma-oa/report-export-jobs/${encodeURIComponent(id)}/retry`, {});
+	const payload = await apiPost<ApiResponse<{ item: ReportExportJob }>>(`/v1/plugins/pharma_oa/api/report-export-jobs/${encodeURIComponent(id)}/retry`, {});
 	return payload.data.item;
 }
 
@@ -1063,7 +1063,7 @@ export async function downloadReportExport(id: string): Promise<Blob> {
 	const headers = new Headers();
 	const token = getToken().trim();
 	if (token) headers.set("Authorization", token.toLowerCase().startsWith("bearer ") ? token : `Bearer ${token}`);
-	const response = await fetch(`${API_BASE_PREFIX}/v1/pharma-oa/report-export-jobs/${encodeURIComponent(id)}/download`, { method: "GET", headers });
+	const response = await fetch(`${API_BASE_PREFIX}/v1/plugins/pharma_oa/api/report-export-jobs/${encodeURIComponent(id)}/download`, { method: "GET", headers });
 	if (!response.ok) {
 		let message = `request failed: ${response.status}`;
 		let code = "";
@@ -1107,11 +1107,11 @@ export type DemoSeedSnapshot = {
 };
 
 export async function getDemoSeedStatus(): Promise<DemoSeedSnapshot> {
-	const payload = await apiGet<ApiResponse<{ item: DemoSeedSnapshot }>>("/v1/pharma-oa/demo-seed/status");
+	const payload = await apiGet<ApiResponse<{ item: DemoSeedSnapshot }>>("/v1/plugins/pharma_oa/api/demo-seed/status");
 	return payload.data.item;
 }
 
 export async function applyDemoSeed(): Promise<DemoSeedSnapshot> {
-	const payload = await apiPost<ApiResponse<{ item: DemoSeedSnapshot }>>("/v1/pharma-oa/demo-seed/apply", {});
+	const payload = await apiPost<ApiResponse<{ item: DemoSeedSnapshot }>>("/v1/plugins/pharma_oa/api/demo-seed/apply", {});
 	return payload.data.item;
 }

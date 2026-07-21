@@ -27,7 +27,7 @@ func TestPurchaseHandlerApprovalCreatesOrder(t *testing.T) {
 	service := pharmaoasvc.NewPurchaseService(suppliers, workflowsvc.NewService(workflowsvc.NewMemoryRepository()), nil)
 	mux := http.NewServeMux()
 	RegisterPurchaseRoutes(mux, service)
-	created := performPurchaseRequest(mux, http.MethodPost, "/v1/pharma-oa/purchase-requests", map[string]any{
+	created := performPurchaseRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/purchase-requests", map[string]any{
 		"number": "PR-API-001", "supplierId": supplier.ID.String(), "requesterId": "buyer-1", "approverId": "manager-1",
 		"lines": []map[string]any{{"productId": "product-1", "quantity": 3, "unitPrice": 8}},
 	})
@@ -44,11 +44,11 @@ func TestPurchaseHandlerApprovalCreatesOrder(t *testing.T) {
 	if err := json.Unmarshal(created.Body.Bytes(), &payload); err != nil {
 		t.Fatal(err)
 	}
-	approved := performPurchaseRequest(mux, http.MethodPost, "/v1/pharma-oa/purchase-requests/"+payload.Data.Item.ID+"/approve", map[string]any{"actorId": "manager-1", "comment": "ok"})
+	approved := performPurchaseRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/purchase-requests/"+payload.Data.Item.ID+"/approve", map[string]any{"actorId": "manager-1", "comment": "ok"})
 	if approved.Code != http.StatusOK || !strings.Contains(approved.Body.String(), `"purchaseRequestId":"`+payload.Data.Item.ID+`"`) {
 		t.Fatalf("approve status=%d body=%s", approved.Code, approved.Body.String())
 	}
-	orders := performPurchaseRequest(mux, http.MethodGet, "/v1/pharma-oa/purchase-orders", nil)
+	orders := performPurchaseRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/purchase-orders", nil)
 	if orders.Code != http.StatusOK || !strings.Contains(orders.Body.String(), "PO-API-001") {
 		t.Fatalf("orders status=%d body=%s", orders.Code, orders.Body.String())
 	}

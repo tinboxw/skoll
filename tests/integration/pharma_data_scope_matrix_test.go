@@ -57,7 +57,7 @@ func TestPharmaCustomerOrganizationScopeMatrix(t *testing.T) {
 			}
 
 			scopeResponse := performScopeMatrixRequest(mux, identity.claims, http.MethodGet, "/v1/rbac/data-scope?resource=pharma_oa.customer&action=read", nil)
-			listResponse := performScopeMatrixRequest(mux, identity.claims, http.MethodGet, "/v1/pharma-oa/customers?includeAll=true&organizationId=org-other&ownerId=scope-all", nil)
+			listResponse := performScopeMatrixRequest(mux, identity.claims, http.MethodGet, "/v1/plugins/pharma_oa/api/customers?includeAll=true&organizationId=org-other&ownerId=scope-all", nil)
 			if identity.withoutGrant {
 				if scopeResponse.Code != http.StatusForbidden || listResponse.Code != http.StatusForbidden {
 					t.Fatalf("denied identity statuses scope=%d list=%d", scopeResponse.Code, listResponse.Code)
@@ -148,7 +148,7 @@ func scopeClaims(subject, organizationID, role string) security.JWTClaims {
 func assertScopeWritesAndDeniedAudit(t *testing.T, mux http.Handler, auditService auditsvc.Service, customers map[string]string) {
 	t.Helper()
 	selfClaims := scopeClaims("scope-self", "org-sales", "employee")
-	allowed := performScopeMatrixRequest(mux, selfClaims, http.MethodPost, "/v1/pharma-oa/customers", map[string]any{
+	allowed := performScopeMatrixRequest(mux, selfClaims, http.MethodPost, "/v1/plugins/pharma_oa/api/customers", map[string]any{
 		"code": "SCOPE-SELF-CREATE", "name": "Self Created", "region": "East", "organizationId": "org-other", "ownerId": "scope-self",
 	})
 	if allowed.Code != http.StatusCreated {
@@ -156,13 +156,13 @@ func assertScopeWritesAndDeniedAudit(t *testing.T, mux http.Handler, auditServic
 	}
 
 	treeClaims := scopeClaims("scope-tree", "org-sales", "employee")
-	deniedUpdate := performScopeMatrixRequest(mux, treeClaims, http.MethodPut, "/v1/pharma-oa/customers/"+customers["SCOPE-OTHER"], map[string]any{
+	deniedUpdate := performScopeMatrixRequest(mux, treeClaims, http.MethodPut, "/v1/plugins/pharma_oa/api/customers/"+customers["SCOPE-OTHER"], map[string]any{
 		"code": "SCOPE-OTHER", "name": "Forbidden Update", "region": "West", "organizationId": "org-other", "ownerId": "scope-all",
 	})
 	if deniedUpdate.Code != http.StatusForbidden {
 		t.Fatalf("cross-organization update status=%d body=%s", deniedUpdate.Code, deniedUpdate.Body.String())
 	}
-	deniedRead := performScopeMatrixRequest(mux, treeClaims, http.MethodGet, "/v1/pharma-oa/customers/"+customers["SCOPE-OTHER"]+"/sales-eligibility", nil)
+	deniedRead := performScopeMatrixRequest(mux, treeClaims, http.MethodGet, "/v1/plugins/pharma_oa/api/customers/"+customers["SCOPE-OTHER"]+"/sales-eligibility", nil)
 	if deniedRead.Code != http.StatusForbidden {
 		t.Fatalf("cross-organization sales read status=%d body=%s", deniedRead.Code, deniedRead.Body.String())
 	}

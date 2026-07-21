@@ -37,7 +37,7 @@ $login = Invoke-RestMethod -Method Post -Uri "$base/v1/auth/login" `
 $headers = @{ Authorization = "Bearer $($login.data.token)" }
 
 Invoke-RestMethod -Method Post `
-  -Uri "$base/v1/pharma-oa/demo-seed/apply" `
+  -Uri "$base/v1/plugins/pharma_oa/api/demo-seed/apply" `
   -Headers $headers
 ```
 
@@ -67,14 +67,14 @@ When the directory is added after startup, call `POST /skoll/v1/plugins/prefligh
 
 | Domain | Implemented capability | Main entry |
 | --- | --- | --- |
-| Master data | Employees, products, suppliers, customers, warehouses, qualifications, import/export | `/skoll/pharma-oa/employees`, `/customers`, and `/v1/pharma-oa/*` |
+| Master data | Employees, products, suppliers, customers, warehouses, qualifications, import/export | `/skoll/pharma-oa/employees`, `/customers`, and `/v1/plugins/pharma_oa/api/*` |
 | Workflow and purchase | Purchase requests, approve/reject, purchase orders, inbound | `/skoll/pharma-oa/purchase-inbounds` and purchase APIs |
 | Sales and inventory | Sales orders, batch outbound, stocktakes, transfers, ledger, alerts | `/skoll/pharma-oa/sales` and inventory APIs |
 | Collaboration and compliance | Announcements, contracts, qualifications, complaints, recalls, cold-chain, compliance dashboard | `/skoll/pharma-oa/announcements`, `/contracts`, `/qualifications`, `/quality-complaints`, `/drug-recalls`, `/cold-chain`, `/compliance-dashboard` |
 | CRM and finance collaboration | Follow-ups, opportunities, payment plans, invoices, overdue reminders | `/skoll/pharma-oa/customer-follow-ups`, `/sales-opportunities`, `/payment-invoices` |
 | Analytics and demo | Metrics, responsive dashboard, asynchronous CSV reports, full demo data | `/skoll/pharma-oa/dashboard`, demo-seed and report APIs |
 
-The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages call `/v1/pharma-oa/*`; the `/v1/plugins/pharma_oa/api/*` entries in `plugin.yaml` declare plugin catalog, permission, and extension routes. These declared routes are the current contract.
+The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages call `/v1/plugins/pharma_oa/api/*`; the `/v1/plugins/pharma_oa/api/*` entries in `plugin.yaml` declare plugin catalog, permission, and extension routes. These declared routes are the current contract.
 
 ## Regulatory And Data Boundary
 
@@ -86,10 +86,10 @@ The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages cal
 ## Runtime Boundaries
 
 - `plugin.yaml` is the single install contract for menus, config, permissions, routes, audit actions, and events.
-- The current business services are wired into the Skoll host from `internal/domain/pharmaoa`, `internal/service/pharmaoa`, and `internal/handler/http/v1/pharmaoa`.
-- Business pages are host-integrated. Routes live in `web/src/router/index.ts` and the typed client in `web/src/pharma-oa/api.ts`. `static/` is a plugin page/lifecycle fixture, not the full business console.
+- The in-process plugin backend at `internal/plugin/pharmaoa` lazily assembles the domain, service, repository, and HTTP packages after the plugin is enabled and receives its first request.
+- Business pages use host Vue components, but their routes are owned by `web/src/plugins/integrated-routes.ts` and mounted only for an enabled plugin. The typed client lives in `web/src/pharma-oa/api.ts`; `static/` is a lifecycle fixture, not the full business console.
 - `mysql` / `postgres` modes persist Pharma OA business records in SQL and rediscover the applied demo seed after restart. `memory` remains a process-local development fixture and loses data on restart. Report files use the existing private object store.
-- Disabling the plugin removes its catalog menu, permissions, and extensions, but does not hot-unload host services already wired at startup. It is not a process sandbox.
+- Disabling the plugin removes its menu, permissions, API/page routes, and in-process service instance. Persistent repositories and business data remain available for a later enable; this lifecycle boundary is not a process security sandbox.
 - Only the current API, data, plugin, and page-route contracts are supported.
 
 ## Localization
@@ -105,7 +105,7 @@ The [OpenAPI contract](../../docs/api/openapi.yaml) is canonical. Host pages cal
 1. Define domain objects and invariants in `internal/domain/pharmaoa`, then implement use cases in `internal/service/pharmaoa`.
 2. Add JWT identity, permissions, error states, and audit coverage in `internal/handler/http/v1/pharmaoa`, and update both OpenAPI copies.
 3. Declare matching permissions, routes, audit actions, menus, or events in `plugin.yaml`. Use `pharma_oa.<resource>.<action>` keys.
-4. Add a typed client in `web/src/pharma-oa/api.ts`, a host page under `web/src/views/Pharma*`, and wire its route/menu.
+4. Add a typed client in `web/src/pharma-oa/api.ts`, a host component under `web/src/views/Pharma*`, and register its plugin-owned route in `web/src/plugins/integrated-routes.ts`.
 5. Add Chinese and English i18n entries together, with Chinese as the default. Cover loading, empty, error, no-permission, saving/destructive, and responsive states.
 6. Add service, HTTP, permission, audit, manifest, frontend, and end-to-end tests. Any persistent table also requires migration/seed impact and multi-database validation in the same Work Item.
 
@@ -132,4 +132,4 @@ npm run build
 | API returns 401/403 | Refresh the JWT and verify the corresponding `pharma_oa.*` permission |
 | Demo data disappeared | Check whether `memory` mode is active; for persistent modes inspect the DSN, migrations, and startup logs, and verify a backup before recovery |
 | Duplicate install fails | Startup discovery already installed it; use list, enable, or disable instead |
-| Business API is not found | Use `/skoll/v1/pharma-oa/*` and check the OpenAPI contract |
+| Business API is not found | Use `/skoll/v1/plugins/pharma_oa/api/*` and check the OpenAPI contract |

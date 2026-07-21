@@ -24,7 +24,7 @@ func TestBusinessMetricsHTTPUsesJWTActorAndParsesBoundedQuery(t *testing.T) {
 	fixture := &businessMetricsHandlerFixture{}
 	mux := http.NewServeMux()
 	RegisterBusinessMetricsRoutes(mux, fixture)
-	req := httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/business-metrics?from=2026-07-01&to=2026-07-07&bucket=week&qualificationDays=45&actorId=spoofed", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/plugins/pharma_oa/api/business-metrics?from=2026-07-01&to=2026-07-07&bucket=week&qualificationDays=45&actorId=spoofed", nil)
 	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{Subject: "manager-1", Role: "manager"}))
 	recorder := httptest.NewRecorder()
 	mux.ServeHTTP(recorder, req)
@@ -44,7 +44,7 @@ func TestBusinessMetricsHTTPRejectsInvalidTime(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterBusinessMetricsRoutes(mux, fixture)
 	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/pharma-oa/business-metrics?from=bad", nil))
+	mux.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/plugins/pharma_oa/api/business-metrics?from=bad", nil))
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}

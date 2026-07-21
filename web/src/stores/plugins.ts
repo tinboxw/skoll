@@ -52,6 +52,10 @@ export const usePluginStore = defineStore("plugins", {
 			this.items.push(plugin);
 		},
 		setBackendRecords(records: FrontendPluginManifest[]): void {
+			const previousBackendIDs = new Set(this.backendRecords.map((item) => item.id));
+			if (previousBackendIDs.size > 0) {
+				this.items = this.items.filter((item) => !previousBackendIDs.has(item.id));
+			}
 			this.backendRecords = records;
 		},
 		beginSync(): void {

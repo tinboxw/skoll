@@ -31,27 +31,27 @@ func TestDrugRecallHTTPCreateScopeAndCompleteTask(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterDrugRecallRoutes(mux, service)
 
-	batches := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/drug-recalls/batches", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
+	batches := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/drug-recalls/batches", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
 	if batches.Code != http.StatusOK || !bytes.Contains(batches.Body.Bytes(), []byte(`"batchNo":"BATCH-DRH"`)) {
 		t.Fatalf("batches status=%d body=%s", batches.Code, batches.Body.String())
 	}
-	scope := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/drug-recalls/scope?batchId=pharma-stock-batch-1", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
+	scope := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/drug-recalls/scope?batchId=pharma-stock-batch-1", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
 	if scope.Code != http.StatusOK || !bytes.Contains(scope.Body.Bytes(), []byte(`"customerName":"Recall Hospital"`)) || !bytes.Contains(scope.Body.Bytes(), []byte(`"quantity":5`)) {
 		t.Fatalf("scope status=%d body=%s", scope.Code, scope.Body.String())
 	}
-	create := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/drug-recalls", `{"number":"DR-HTTP-1","title":"Recall batch","reason":"Quality deviation","batchId":"pharma-stock-batch-1","actorId":"spoofed"}`, security.JWTClaims{Subject: "quality-1", Role: "quality"})
+	create := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/drug-recalls", `{"number":"DR-HTTP-1","title":"Recall batch","reason":"Quality deviation","batchId":"pharma-stock-batch-1","actorId":"spoofed"}`, security.JWTClaims{Subject: "quality-1", Role: "quality"})
 	if create.Code != http.StatusCreated || !bytes.Contains(create.Body.Bytes(), []byte(`"initiatedBy":"quality-1"`)) || !bytes.Contains(create.Body.Bytes(), []byte(`"status":"active"`)) {
 		t.Fatalf("create status=%d body=%s", create.Code, create.Body.String())
 	}
-	complete := contractHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/drug-recalls/drug-recall-1/tasks/drug-recall-1-task-1/complete", `{"actorId":"spoofed","note":"Customer returned all units"}`, security.JWTClaims{Subject: "handler-1", Role: "quality"})
+	complete := contractHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/drug-recalls/drug-recall-1/tasks/drug-recall-1-task-1/complete", `{"actorId":"spoofed","note":"Customer returned all units"}`, security.JWTClaims{Subject: "handler-1", Role: "quality"})
 	if complete.Code != http.StatusOK || !bytes.Contains(complete.Body.Bytes(), []byte(`"status":"completed"`)) || !bytes.Contains(complete.Body.Bytes(), []byte(`"completedBy":"handler-1"`)) {
 		t.Fatalf("complete status=%d body=%s", complete.Code, complete.Body.String())
 	}
-	detail := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/drug-recalls/drug-recall-1", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
+	detail := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/drug-recalls/drug-recall-1", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
 	if detail.Code != http.StatusOK || !bytes.Contains(detail.Body.Bytes(), []byte(`"completionNote":"Customer returned all units"`)) {
 		t.Fatalf("detail status=%d body=%s", detail.Code, detail.Body.String())
 	}
-	invalid := contractHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/drug-recalls?status=unknown", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
+	invalid := contractHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/drug-recalls?status=unknown", "", security.JWTClaims{Subject: "quality-1", Role: "quality"})
 	if invalid.Code != http.StatusBadRequest {
 		t.Fatalf("invalid status=%d body=%s", invalid.Code, invalid.Body.String())
 	}

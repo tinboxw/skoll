@@ -75,7 +75,7 @@ def active_page(driver: webdriver.Chrome) -> str:
 
 
 def request_count(driver: webdriver.Chrome, resource: str, offset: int) -> int:
-    marker = f"/v1/pharma-oa/{resource}?"
+    marker = f"/v1/plugins/pharma_oa/api/{resource}?"
     expected = f"offset={offset}"
     return int(driver.execute_script(
         "return performance.getEntriesByType('resource').filter((entry) => entry.name.includes(arguments[0]) && entry.name.includes(arguments[1])).length;",
@@ -85,7 +85,7 @@ def request_count(driver: webdriver.Chrome, resource: str, offset: int) -> int:
 
 
 def keyword_request_count(driver: webdriver.Chrome, resource: str, keyword: str) -> int:
-    marker = f"/v1/pharma-oa/{resource}?"
+    marker = f"/v1/plugins/pharma_oa/api/{resource}?"
     expected = f"keyword={keyword}"
     return int(driver.execute_script(
         "return performance.getEntriesByType('resource').filter((entry) => entry.name.includes(arguments[0]) && entry.name.includes(arguments[1])).length;",

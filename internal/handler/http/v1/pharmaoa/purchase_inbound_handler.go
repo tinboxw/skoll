@@ -36,9 +36,9 @@ func RegisterPurchaseInboundRoutes(mux *http.ServeMux, service pharmaoasvc.Purch
 		return
 	}
 	h := &PurchaseInboundHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/purchase-inbounds", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/purchase-inbounds", h.create)
-	mux.HandleFunc("GET /v1/pharma-oa/purchase-inbounds/{id}", h.get)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/purchase-inbounds", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/purchase-inbounds", h.create)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/purchase-inbounds/{id}", h.get)
 }
 func RegisterPurchaseInboundPermissions(service permissionsvc.Service) error {
 	if service == nil {

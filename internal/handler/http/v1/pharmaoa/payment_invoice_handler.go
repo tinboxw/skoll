@@ -61,15 +61,15 @@ func RegisterPaymentInvoiceRoutes(mux *http.ServeMux, service pharmaoasvc.Paymen
 		return
 	}
 	h := &PaymentInvoiceHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/payment-plans", h.listPlans)
-	mux.HandleFunc("POST /v1/pharma-oa/payment-plans", h.createPlan)
-	mux.HandleFunc("POST /v1/pharma-oa/payment-plans/{id}/receive", h.receive)
-	mux.HandleFunc("GET /v1/pharma-oa/invoice-records", h.listInvoices)
-	mux.HandleFunc("POST /v1/pharma-oa/invoice-records", h.createInvoice)
-	mux.HandleFunc("POST /v1/pharma-oa/invoice-records/{id}/void", h.voidInvoice)
-	mux.HandleFunc("GET /v1/pharma-oa/payment-reminder-jobs", h.listJobs)
-	mux.HandleFunc("POST /v1/pharma-oa/payment-reminder-jobs", h.runScan)
-	mux.HandleFunc("POST /v1/pharma-oa/payment-reminder-jobs/{id}/retry", h.retryScan)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/payment-plans", h.listPlans)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/payment-plans", h.createPlan)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/payment-plans/{id}/receive", h.receive)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/invoice-records", h.listInvoices)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/invoice-records", h.createInvoice)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/invoice-records/{id}/void", h.voidInvoice)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/payment-reminder-jobs", h.listJobs)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/payment-reminder-jobs", h.runScan)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/payment-reminder-jobs/{id}/retry", h.retryScan)
 }
 
 func RegisterPaymentInvoicePermissions(service permissionsvc.Service) error {

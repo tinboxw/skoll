@@ -43,11 +43,11 @@ func RegisterEmployeeRoutes(mux *http.ServeMux, service pharmaoasvc.EmployeeServ
 		return
 	}
 	h := &EmployeeHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/employees", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/employees", h.create)
-	mux.HandleFunc("PUT /v1/pharma-oa/employees/{id}", h.update)
-	mux.HandleFunc("POST /v1/pharma-oa/employees/{id}/leave", h.leave)
-	mux.HandleFunc("GET /v1/pharma-oa/employees/qualification-reminders", h.qualificationReminders)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/employees", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/employees", h.create)
+	mux.HandleFunc("PUT /v1/plugins/pharma_oa/api/employees/{id}", h.update)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/employees/{id}/leave", h.leave)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/employees/qualification-reminders", h.qualificationReminders)
 }
 
 func RegisterEmployeePermissions(service permissionsvc.Service) error {

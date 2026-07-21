@@ -29,16 +29,16 @@ func TestPaymentInvoiceHTTPRejectsScopeAndActorSpoofing(t *testing.T) {
 	mux := http.NewServeMux()
 	RegisterPaymentInvoiceRoutes(mux, service)
 
-	list := paymentInvoiceHTTPRequest(mux, http.MethodGet, "/v1/pharma-oa/payment-plans?includeAll=true&ownerId=sales-2", "", "sales-1")
+	list := paymentInvoiceHTTPRequest(mux, http.MethodGet, "/v1/plugins/pharma_oa/api/payment-plans?includeAll=true&ownerId=sales-2", "", "sales-1")
 	if list.Code != http.StatusOK || !bytes.Contains(list.Body.Bytes(), []byte(`"salesOrderId":"order-1"`)) || bytes.Contains(list.Body.Bytes(), []byte(`"salesOrderId":"order-2"`)) {
 		t.Fatalf("spoofed list scope status=%d body=%s", list.Code, list.Body.String())
 	}
 	createBody := `{"salesOrderId":"order-2","amountCents":100,"dueAt":"` + now.Format(time.RFC3339) + `","actorId":"sales-2"}`
-	create := paymentInvoiceHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/payment-plans", createBody, "sales-1")
+	create := paymentInvoiceHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/payment-plans", createBody, "sales-1")
 	if create.Code != http.StatusBadRequest {
 		t.Fatalf("spoofed create status=%d body=%s", create.Code, create.Body.String())
 	}
-	run := paymentInvoiceHTTPRequest(mux, http.MethodPost, "/v1/pharma-oa/payment-reminder-jobs", `{"recipientId":"finance-1","actorId":"sales-2"}`, "sales-1")
+	run := paymentInvoiceHTTPRequest(mux, http.MethodPost, "/v1/plugins/pharma_oa/api/payment-reminder-jobs", `{"recipientId":"finance-1","actorId":"sales-2"}`, "sales-1")
 	if run.Code != http.StatusCreated || !bytes.Contains(run.Body.Bytes(), []byte(`"initiatedBy":"sales-1"`)) {
 		t.Fatalf("JWT actor was not retained status=%d body=%s", run.Code, run.Body.String())
 	}

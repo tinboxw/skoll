@@ -5,7 +5,7 @@ name_en_us: Pharma OA
 version: 0.1.0
 api_version: v1
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
-ui_mode: frontend_only
+ui_mode: monolith
 level: app
 app_id: pharma_oa
 mount_policy: mixed
@@ -553,12 +553,12 @@ api:
       permission: pharma_oa.employee.create
       audit_action: pharma_oa.employee.create
     - method: PUT
-      path: /v1/plugins/pharma_oa/api/employees
+      path: /v1/plugins/pharma_oa/api/employees/{id}
       summary: Update Pharma OA employee
       permission: pharma_oa.employee.update
       audit_action: pharma_oa.employee.update
     - method: POST
-      path: /v1/plugins/pharma_oa/api/employees/leave
+      path: /v1/plugins/pharma_oa/api/employees/{id}/leave
       summary: Mark Pharma OA employee left
       permission: pharma_oa.employee.leave
       audit_action: pharma_oa.employee.leave
@@ -578,12 +578,12 @@ api:
       permission: pharma_oa.product.create
       audit_action: pharma_oa.product.create
     - method: PUT
-      path: /v1/plugins/pharma_oa/api/products
+      path: /v1/plugins/pharma_oa/api/products/{id}
       summary: Update Pharma OA product
       permission: pharma_oa.product.update
       audit_action: pharma_oa.product.update
     - method: POST
-      path: /v1/plugins/pharma_oa/api/products/disable
+      path: /v1/plugins/pharma_oa/api/products/{id}/disable
       summary: Disable Pharma OA product
       permission: pharma_oa.product.disable
       audit_action: pharma_oa.product.disable
@@ -603,12 +603,12 @@ api:
       permission: pharma_oa.supplier.create
       audit_action: pharma_oa.supplier.create
     - method: PUT
-      path: /v1/plugins/pharma_oa/api/suppliers
+      path: /v1/plugins/pharma_oa/api/suppliers/{id}
       summary: Update Pharma OA supplier
       permission: pharma_oa.supplier.update
       audit_action: pharma_oa.supplier.update
     - method: POST
-      path: /v1/plugins/pharma_oa/api/suppliers/disable
+      path: /v1/plugins/pharma_oa/api/suppliers/{id}/disable
       summary: Disable Pharma OA supplier
       permission: pharma_oa.supplier.disable
       audit_action: pharma_oa.supplier.disable
@@ -618,7 +618,7 @@ api:
       permission: pharma_oa.supplier.reminder
       audit_action: pharma_oa.supplier.reminder
     - method: GET
-      path: /v1/plugins/pharma_oa/api/suppliers/purchase-eligibility
+      path: /v1/plugins/pharma_oa/api/suppliers/{id}/purchase-eligibility
       summary: Validate Pharma OA supplier for purchase
       permission: pharma_oa.supplier.purchase
       audit_action: pharma_oa.supplier.purchase
@@ -633,12 +633,12 @@ api:
       permission: pharma_oa.customer.create
       audit_action: pharma_oa.customer.create
     - method: PUT
-      path: /v1/plugins/pharma_oa/api/customers
+      path: /v1/plugins/pharma_oa/api/customers/{id}
       summary: Update Pharma OA customer
       permission: pharma_oa.customer.update
       audit_action: pharma_oa.customer.update
     - method: POST
-      path: /v1/plugins/pharma_oa/api/customers/disable
+      path: /v1/plugins/pharma_oa/api/customers/{id}/disable
       summary: Disable Pharma OA customer
       permission: pharma_oa.customer.disable
       audit_action: pharma_oa.customer.disable
@@ -648,7 +648,7 @@ api:
       permission: pharma_oa.customer.reminder
       audit_action: pharma_oa.customer.reminder
     - method: GET
-      path: /v1/plugins/pharma_oa/api/customers/sales-eligibility
+      path: /v1/plugins/pharma_oa/api/customers/{id}/sales-eligibility
       summary: Validate Pharma OA customer for sales
       permission: pharma_oa.customer.sales
       audit_action: pharma_oa.customer.sales
@@ -663,17 +663,17 @@ api:
       permission: pharma_oa.warehouse.create
       audit_action: pharma_oa.warehouse.create
     - method: PUT
-      path: /v1/plugins/pharma_oa/api/warehouses
+      path: /v1/plugins/pharma_oa/api/warehouses/{id}
       summary: Update Pharma OA warehouse
       permission: pharma_oa.warehouse.update
       audit_action: pharma_oa.warehouse.update
     - method: POST
-      path: /v1/plugins/pharma_oa/api/warehouses/disable
+      path: /v1/plugins/pharma_oa/api/warehouses/{id}/disable
       summary: Disable Pharma OA warehouse
       permission: pharma_oa.warehouse.disable
       audit_action: pharma_oa.warehouse.disable
     - method: GET
-      path: /v1/plugins/pharma_oa/api/warehouses/movement-eligibility
+      path: /v1/plugins/pharma_oa/api/warehouses/{id}/movement-eligibility
       summary: Validate Pharma OA warehouse movement location
       permission: pharma_oa.warehouse.movement
       audit_action: pharma_oa.warehouse.movement
@@ -703,17 +703,17 @@ api:
       permission: pharma_oa.purchase.create
       audit_action: pharma_oa.purchase.create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/purchase-requests/detail
+      path: /v1/plugins/pharma_oa/api/purchase-requests/{id}
       summary: Get Pharma OA purchase request
       permission: pharma_oa.purchase.read
       audit_action: pharma_oa.purchase.read
     - method: POST
-      path: /v1/plugins/pharma_oa/api/purchase-requests/approve
+      path: /v1/plugins/pharma_oa/api/purchase-requests/{id}/approve
       summary: Approve Pharma OA purchase request
       permission: pharma_oa.purchase.approve
       audit_action: pharma_oa.purchase.approve
     - method: POST
-      path: /v1/plugins/pharma_oa/api/purchase-requests/reject
+      path: /v1/plugins/pharma_oa/api/purchase-requests/{id}/reject
       summary: Reject Pharma OA purchase request
       permission: pharma_oa.purchase.reject
       audit_action: pharma_oa.purchase.reject
@@ -723,7 +723,7 @@ api:
       permission: pharma_oa.order.read
       audit_action: pharma_oa.order.read
     - method: GET
-      path: /v1/plugins/pharma_oa/api/purchase-orders/detail
+      path: /v1/plugins/pharma_oa/api/purchase-orders/{id}
       summary: Get Pharma OA purchase order
       permission: pharma_oa.order.read
       audit_action: pharma_oa.order.read
@@ -738,7 +738,7 @@ api:
       permission: pharma_oa.inbound.create
       audit_action: pharma_oa.inbound.create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/purchase-inbounds/detail
+      path: /v1/plugins/pharma_oa/api/purchase-inbounds/{id}
       summary: Get Pharma OA purchase inbound
       permission: pharma_oa.inbound.read
       audit_action: pharma_oa.inbound.read
@@ -753,7 +753,7 @@ api:
       permission: pharma_oa.sales.order.create
       audit_action: pharma_oa.sales.order_create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/sales-orders/detail
+      path: /v1/plugins/pharma_oa/api/sales-orders/{id}
       summary: Get Pharma OA sales order
       permission: pharma_oa.sales.order.read
       audit_action: pharma_oa.sales.order_read
@@ -768,7 +768,7 @@ api:
       permission: pharma_oa.sales.outbound.create
       audit_action: pharma_oa.sales.outbound_create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/sales-outbounds/detail
+      path: /v1/plugins/pharma_oa/api/sales-outbounds/{id}
       summary: Get Pharma OA sales outbound
       permission: pharma_oa.sales.outbound.read
       audit_action: pharma_oa.sales.outbound_read
@@ -783,17 +783,17 @@ api:
       permission: pharma_oa.stocktake.create
       audit_action: pharma_oa.stocktake.create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/stocktakes/detail
+      path: /v1/plugins/pharma_oa/api/stocktakes/{id}
       summary: Get Pharma OA stocktake
       permission: pharma_oa.stocktake.read
       audit_action: pharma_oa.stocktake.read
     - method: POST
-      path: /v1/plugins/pharma_oa/api/stocktakes/approve
+      path: /v1/plugins/pharma_oa/api/stocktakes/{id}/approve
       summary: Approve Pharma OA stocktake difference
       permission: pharma_oa.stocktake.approve
       audit_action: pharma_oa.stocktake.approve
     - method: POST
-      path: /v1/plugins/pharma_oa/api/stocktakes/reject
+      path: /v1/plugins/pharma_oa/api/stocktakes/{id}/reject
       summary: Reject Pharma OA stocktake difference
       permission: pharma_oa.stocktake.reject
       audit_action: pharma_oa.stocktake.reject
@@ -808,7 +808,7 @@ api:
       permission: pharma_oa.transfer.create
       audit_action: pharma_oa.transfer.create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/transfers/detail
+      path: /v1/plugins/pharma_oa/api/transfers/{id}
       summary: Get Pharma OA transfer
       permission: pharma_oa.transfer.read
       audit_action: pharma_oa.transfer.read
@@ -828,7 +828,7 @@ api:
       permission: pharma_oa.inventory_alert.run
       audit_action: pharma_oa.alert.run
     - method: POST
-      path: /v1/plugins/pharma_oa/api/inventory-alert-jobs/retry
+      path: /v1/plugins/pharma_oa/api/inventory-alert-jobs/{id}/retry
       summary: Retry Pharma OA inventory alert scan
       permission: pharma_oa.inventory_alert.run
       audit_action: pharma_oa.alert.run
@@ -843,17 +843,17 @@ api:
       permission: pharma_oa.announcement.create
       audit_action: pharma_oa.announcement.create
     - method: POST
-      path: /v1/plugins/pharma_oa/api/announcements/publish
+      path: /v1/plugins/pharma_oa/api/announcements/{id}/publish
       summary: Publish an announcement
       permission: pharma_oa.announcement.publish
       audit_action: pharma_oa.announcement.publish
     - method: POST
-      path: /v1/plugins/pharma_oa/api/announcements/read
+      path: /v1/plugins/pharma_oa/api/announcements/{id}/read
       summary: Confirm announcement read
       permission: pharma_oa.announcement.confirm
       audit_action: pharma_oa.announcement.read
     - method: GET
-      path: /v1/plugins/pharma_oa/api/announcements/read-confirmations
+      path: /v1/plugins/pharma_oa/api/announcements/{id}/read-confirmations
       summary: List announcement read confirmations
       permission: pharma_oa.announcement.receipt.read
       audit_action: pharma_oa.announcement.receipt_read
@@ -868,17 +868,17 @@ api:
       permission: pharma_oa.contract.create
       audit_action: pharma_oa.contract.create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/contracts/detail
+      path: /v1/plugins/pharma_oa/api/contracts/{id}
       summary: Read a contract archive entry
       permission: pharma_oa.contract.read
       audit_action: pharma_oa.contract.read
     - method: POST
-      path: /v1/plugins/pharma_oa/api/contracts/approve
+      path: /v1/plugins/pharma_oa/api/contracts/{id}/approve
       summary: Approve a contract
       permission: pharma_oa.contract.approve
       audit_action: pharma_oa.contract.approve
     - method: POST
-      path: /v1/plugins/pharma_oa/api/contracts/reject
+      path: /v1/plugins/pharma_oa/api/contracts/{id}/reject
       summary: Reject a contract
       permission: pharma_oa.contract.reject
       audit_action: pharma_oa.contract.reject
@@ -908,17 +908,17 @@ api:
       permission: pharma_oa.quality_complaint.create
       audit_action: pharma_oa.quality_complaint.create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/quality-complaints/detail
+      path: /v1/plugins/pharma_oa/api/quality-complaints/{id}
       summary: Read a quality complaint
       permission: pharma_oa.quality_complaint.read
       audit_action: pharma_oa.quality_complaint.read
     - method: POST
-      path: /v1/plugins/pharma_oa/api/quality-complaints/resolve
+      path: /v1/plugins/pharma_oa/api/quality-complaints/{id}/resolve
       summary: Resolve a quality complaint
       permission: pharma_oa.quality_complaint.resolve
       audit_action: pharma_oa.quality_complaint.resolve
     - method: POST
-      path: /v1/plugins/pharma_oa/api/quality-complaints/reject
+      path: /v1/plugins/pharma_oa/api/quality-complaints/{id}/reject
       summary: Reject a quality complaint
       permission: pharma_oa.quality_complaint.reject
       audit_action: pharma_oa.quality_complaint.reject
@@ -938,7 +938,7 @@ api:
       permission: pharma_oa.drug_recall.create
       audit_action: pharma_oa.drug_recall.create
     - method: GET
-      path: /v1/plugins/pharma_oa/api/drug-recalls/detail
+      path: /v1/plugins/pharma_oa/api/drug-recalls/{id}
       summary: Read a drug recall processing trace
       permission: pharma_oa.drug_recall.read
       audit_action: pharma_oa.drug_recall.read
@@ -953,7 +953,7 @@ api:
       permission: pharma_oa.drug_recall.read
       audit_action: pharma_oa.drug_recall.scope_read
     - method: POST
-      path: /v1/plugins/pharma_oa/api/drug-recalls/task-complete
+      path: /v1/plugins/pharma_oa/api/drug-recalls/{id}/tasks/{taskId}/complete
       summary: Complete an affected-customer recall task
       permission: pharma_oa.drug_recall.complete
       audit_action: pharma_oa.drug_recall.task_complete
@@ -988,7 +988,7 @@ api:
       permission: pharma_oa.cold_chain.run
       audit_action: pharma_oa.cold_chain.run
     - method: POST
-      path: /v1/plugins/pharma_oa/api/cold-chain-jobs/retry
+      path: /v1/plugins/pharma_oa/api/cold-chain-jobs/{id}/retry
       summary: Retry a failed cold-chain anomaly scan
       permission: pharma_oa.cold_chain.run
       audit_action: pharma_oa.cold_chain.retry
@@ -1013,17 +1013,17 @@ api:
       permission: pharma_oa.customer_follow_up.create
       audit_action: pharma_oa.customer_follow_up.create
     - method: PUT
-      path: /v1/plugins/pharma_oa/api/customer-follow-ups/detail
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups/{id}
       summary: Update a customer follow-up plan
       permission: pharma_oa.customer_follow_up.update
       audit_action: pharma_oa.customer_follow_up.update
     - method: POST
-      path: /v1/plugins/pharma_oa/api/customer-follow-ups/complete
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups/{id}/complete
       summary: Complete a customer follow-up
       permission: pharma_oa.customer_follow_up.complete
       audit_action: pharma_oa.customer_follow_up.complete
     - method: POST
-      path: /v1/plugins/pharma_oa/api/customer-follow-ups/cancel
+      path: /v1/plugins/pharma_oa/api/customer-follow-ups/{id}/cancel
       summary: Cancel a customer follow-up
       permission: pharma_oa.customer_follow_up.cancel
       audit_action: pharma_oa.customer_follow_up.cancel
@@ -1043,12 +1043,12 @@ api:
       permission: pharma_oa.sales_opportunity.read
       audit_action: pharma_oa.sales_opportunity.read_statistics
     - method: PUT
-      path: /v1/plugins/pharma_oa/api/sales-opportunities/detail
+      path: /v1/plugins/pharma_oa/api/sales-opportunities/{id}
       summary: Update a sales opportunity
       permission: pharma_oa.sales_opportunity.update
       audit_action: pharma_oa.sales_opportunity.update
     - method: POST
-      path: /v1/plugins/pharma_oa/api/sales-opportunities/advance
+      path: /v1/plugins/pharma_oa/api/sales-opportunities/{id}/advance
       summary: Advance or close a sales opportunity
       permission: pharma_oa.sales_opportunity.advance
       audit_action: pharma_oa.sales_opportunity.advance
@@ -1063,7 +1063,7 @@ api:
       permission: pharma_oa.payment_plan.create
       audit_action: pharma_oa.payment_plan.create
     - method: POST
-      path: /v1/plugins/pharma_oa/api/payment-plans/receive
+      path: /v1/plugins/pharma_oa/api/payment-plans/{id}/receive
       summary: Record a received payment
       permission: pharma_oa.payment_plan.receive
       audit_action: pharma_oa.payment_plan.receive
@@ -1078,7 +1078,7 @@ api:
       permission: pharma_oa.invoice_record.create
       audit_action: pharma_oa.invoice_record.create
     - method: POST
-      path: /v1/plugins/pharma_oa/api/invoice-records/void
+      path: /v1/plugins/pharma_oa/api/invoice-records/{id}/void
       summary: Void an issued invoice record
       permission: pharma_oa.invoice_record.void
       audit_action: pharma_oa.invoice_record.void
@@ -1093,7 +1093,7 @@ api:
       permission: pharma_oa.payment_reminder.run
       audit_action: pharma_oa.payment_reminder.run
     - method: POST
-      path: /v1/plugins/pharma_oa/api/payment-reminder-jobs/retry
+      path: /v1/plugins/pharma_oa/api/payment-reminder-jobs/{id}/retry
       summary: Retry a failed overdue payment reminder job
       permission: pharma_oa.payment_reminder.run
       audit_action: pharma_oa.payment_reminder.retry
@@ -1123,17 +1123,17 @@ api:
       permission: pharma_oa.report_export.create
       audit_action: pharma_oa.report_export.queue
     - method: GET
-      path: /v1/plugins/pharma_oa/api/report-export-jobs/detail
+      path: /v1/plugins/pharma_oa/api/report-export-jobs/{id}
       summary: Read report export job detail
       permission: pharma_oa.report_export.read
       audit_action: pharma_oa.report_export.read
     - method: POST
-      path: /v1/plugins/pharma_oa/api/report-export-jobs/retry
+      path: /v1/plugins/pharma_oa/api/report-export-jobs/{id}/retry
       summary: Retry a failed report export
       permission: pharma_oa.report_export.retry
       audit_action: pharma_oa.report_export.retry
     - method: GET
-      path: /v1/plugins/pharma_oa/api/report-export-jobs/download
+      path: /v1/plugins/pharma_oa/api/report-export-jobs/{id}/download
       summary: Download a completed report export
       permission: pharma_oa.report_export.download
       audit_action: pharma_oa.report_export.download

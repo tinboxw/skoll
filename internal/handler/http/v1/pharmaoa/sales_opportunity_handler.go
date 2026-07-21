@@ -34,11 +34,11 @@ func RegisterSalesOpportunityRoutes(mux *http.ServeMux, service pharmaoasvc.Sale
 		return
 	}
 	h := &SalesOpportunityHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/sales-opportunities", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/sales-opportunities", h.create)
-	mux.HandleFunc("GET /v1/pharma-oa/sales-opportunities/statistics", h.statistics)
-	mux.HandleFunc("PUT /v1/pharma-oa/sales-opportunities/{id}", h.update)
-	mux.HandleFunc("POST /v1/pharma-oa/sales-opportunities/{id}/advance", h.advance)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/sales-opportunities", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/sales-opportunities", h.create)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/sales-opportunities/statistics", h.statistics)
+	mux.HandleFunc("PUT /v1/plugins/pharma_oa/api/sales-opportunities/{id}", h.update)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/sales-opportunities/{id}/advance", h.advance)
 }
 
 func RegisterSalesOpportunityPermissions(service permissionsvc.Service) error {

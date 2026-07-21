@@ -41,12 +41,12 @@ func RegisterSalesRoutes(mux *http.ServeMux, service pharmaoasvc.SalesService) {
 		return
 	}
 	h := &SalesHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/sales-orders", h.listOrders)
-	mux.HandleFunc("POST /v1/pharma-oa/sales-orders", h.createOrder)
-	mux.HandleFunc("GET /v1/pharma-oa/sales-orders/{id}", h.getOrder)
-	mux.HandleFunc("GET /v1/pharma-oa/sales-outbounds", h.listOutbounds)
-	mux.HandleFunc("POST /v1/pharma-oa/sales-outbounds", h.createOutbound)
-	mux.HandleFunc("GET /v1/pharma-oa/sales-outbounds/{id}", h.getOutbound)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/sales-orders", h.listOrders)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/sales-orders", h.createOrder)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/sales-orders/{id}", h.getOrder)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/sales-outbounds", h.listOutbounds)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/sales-outbounds", h.createOutbound)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/sales-outbounds/{id}", h.getOutbound)
 }
 
 func RegisterSalesPermissions(service permissionsvc.Service) error {

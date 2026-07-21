@@ -35,11 +35,11 @@ func RegisterCustomerFollowUpRoutes(mux *http.ServeMux, service pharmaoasvc.Cust
 		return
 	}
 	h := &CustomerFollowUpHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/customer-follow-ups", h.list)
-	mux.HandleFunc("POST /v1/pharma-oa/customer-follow-ups", h.create)
-	mux.HandleFunc("PUT /v1/pharma-oa/customer-follow-ups/{id}", h.update)
-	mux.HandleFunc("POST /v1/pharma-oa/customer-follow-ups/{id}/complete", h.complete)
-	mux.HandleFunc("POST /v1/pharma-oa/customer-follow-ups/{id}/cancel", h.cancel)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/customer-follow-ups", h.list)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/customer-follow-ups", h.create)
+	mux.HandleFunc("PUT /v1/plugins/pharma_oa/api/customer-follow-ups/{id}", h.update)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/customer-follow-ups/{id}/complete", h.complete)
+	mux.HandleFunc("POST /v1/plugins/pharma_oa/api/customer-follow-ups/{id}/cancel", h.cancel)
 }
 
 func RegisterCustomerFollowUpPermissions(service permissionsvc.Service) error {

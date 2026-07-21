@@ -595,6 +595,61 @@ func TestPluginManagerWithExtensionsProxiesDeclaredExternalRoute(t *testing.T) {
 	}
 }
 
+func TestPluginManagerRunsInProcessBackendOnlyWhileEnabled(t *testing.T) {
+	const routePattern = "/v1/plugins/pharma_oa/api/employees/{id}"
+	const requestPath = "/v1/plugins/pharma_oa/api/employees/employee-1"
+	var builds atomic.Int32
+	registry := plugin.NewInProcessBackendRegistry()
+	if err := registry.Register("pharma_oa", func() (http.Handler, error) {
+		builds.Add(1)
+		mux := http.NewServeMux()
+		mux.HandleFunc("GET "+routePattern, func(w http.ResponseWriter, r *http.Request) {
+			if r.PathValue("id") != "employee-1" {
+				t.Errorf("path id=%q", r.PathValue("id"))
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
+		return mux, nil
+	}); err != nil {
+		t.Fatalf("register in-process backend: %v", err)
+	}
+	manager := &pluginManagerWithExtensions{
+		Manager: &fakeManager{items: map[string]plugin.Info{
+			"pharma_oa": {
+				ID: "pharma_oa", Name: "Pharma OA", Version: "1.0.0", State: plugin.StateEnabled,
+				APIContract: &plugin.APIContract{Routes: []plugin.APIRoute{{
+					Method: http.MethodGet, Path: routePattern, Permission: "pharma_oa.employee.read", AuditAction: "pharma_oa.employee.read",
+				}}},
+			},
+		}},
+		builtinInfos:      map[string]plugin.Info{},
+		extensions:        map[string]plugin.RegistrySnapshot{},
+		routeHandlers:     map[string]http.HandlerFunc{},
+		routePermissions:  mustEmptyRoutePermissionRegistry(),
+		inProcessBackends: registry,
+	}
+	request := func() *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		manager.HandlePluginRoute("pharma_oa", http.MethodGet, requestPath, recorder, httptest.NewRequest(http.MethodGet, requestPath, nil))
+		return recorder
+	}
+	if recorder := request(); recorder.Code != http.StatusNoContent || builds.Load() != 1 {
+		t.Fatalf("enabled request status=%d builds=%d body=%s", recorder.Code, builds.Load(), recorder.Body.String())
+	}
+	if err := manager.Disable("pharma_oa"); err != nil {
+		t.Fatalf("disable plugin: %v", err)
+	}
+	if recorder := request(); recorder.Code != http.StatusServiceUnavailable || builds.Load() != 1 {
+		t.Fatalf("disabled request status=%d builds=%d body=%s", recorder.Code, builds.Load(), recorder.Body.String())
+	}
+	if err := manager.Enable("pharma_oa"); err != nil {
+		t.Fatalf("enable plugin: %v", err)
+	}
+	if recorder := request(); recorder.Code != http.StatusNoContent || builds.Load() != 2 {
+		t.Fatalf("re-enabled request status=%d builds=%d body=%s", recorder.Code, builds.Load(), recorder.Body.String())
+	}
+}
+
 func TestPluginManagerWithExtensionsExternalRouteFailures(t *testing.T) {
 	const routePath = "/v1/plugins/reports/api/items"
 

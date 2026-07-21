@@ -25,7 +25,7 @@ func RegisterBusinessMetricsRoutes(mux *http.ServeMux, service pharmaoasvc.Busin
 		return
 	}
 	h := &BusinessMetricsHandler{service: service}
-	mux.HandleFunc("GET /v1/pharma-oa/business-metrics", h.get)
+	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/business-metrics", h.get)
 }
 
 func RegisterBusinessMetricsPermissions(service permissionsvc.Service) error {

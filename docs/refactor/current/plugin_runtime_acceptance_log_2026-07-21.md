@@ -504,3 +504,85 @@ Result: all acceptance gates passed after three recorded retries. The production
 ### Commit
 
 `PR1-07: remove plugin compatibility code`
+
+## PR1-08 Retry Record 1
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: plugin, bootstrap, and HTTP package compile gate
+- Evidence: the new Pharma OA backend factory declared `notification.Service` as a value, but five Pharma OA constructors require `*notification.Service` or notifier interfaces implemented by its pointer receiver.
+- Retry action: make the plugin factory dependency pointer-accurate, rerun the same compile gate, and continue only after it passes.
+
+## PR1-08 Retry Record 2
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: focused Pharma OA manifest and lifecycle tests
+- Evidence: the implementation correctly changed Pharma OA to a monolith plugin and parameterized API paths, while legacy test assertions still required `frontend_only` and flat update/action paths.
+- Retry action: replace fixed legacy route assertions with current monolith placement checks and an exhaustive manifest-to-handler route contract gate, then rerun the focused tests.
+
+## PR1-08 Retry Record 3
+
+- Date: 2026-07-22
+- Status: Failed -> Doing
+- Failed gate: bootstrap package tests
+- Evidence: the new in-process lifecycle fixture omitted its route permission, while two middleware tests still expected the deleted host-owned Pharma OA permission table and one resolver fixture declared a flat approval path.
+- Retry action: complete the fixture contract and assert the current boundary: host permission mapping ignores Pharma OA paths, and the manifest resolver authorizes parameterized plugin routes.
+
+## PR1-08 Move Pharma OA Behind The Public Plugin Boundary
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Move Pharma OA construction, HTTP execution, frontend routes, permissions, API clients, OpenAPI, and lifecycle ownership behind the current plugin manifest boundary.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Core ownership | Pass | Bootstrap and the host router no longer construct Pharma OA services, carry Pharma OA dependencies, register business routes, or own its permission table |
+| In-process runtime | Pass | A thread-safe lazy backend factory serves only enabled plugins and releases its handler on disable, uninstall, reload, and shutdown |
+| Repository ownership | Pass | Pharma OA repositories are exposed as one lazy plugin-owned aggregate; normal core startup does not construct them |
+| API namespace | Pass | All 119 Pharma OA handler routes, manifest routes, OpenAPI paths, clients, scripts, and integration fixtures use `/v1/plugins/pharma_oa/api/...` |
+| Contract consistency | Pass | Exhaustive tests prove exact manifest-to-handler equality and require every manifest method/path in both OpenAPI documents |
+| Route parameters | Pass | Manifest permission resolution supports named path segments and rejects conflicting parameterized route shapes |
+| Backend lifecycle | Pass | Enabled requests lazily create the real Pharma OA backend; disabled requests cannot execute it; re-enable creates a fresh handler instance |
+| Frontend lifecycle | Pass | Pharma OA pages are absent from the static router and mount only from an enabled backend plugin record; disable, uninstall, and sync failure remove routes and menu state |
+| Boundary smoke | Pass | The real backend serves the plugin namespace and returns 404 for the removed host business namespace |
+| Documentation | Pass | Plugin runtime and developer guides describe one manifest namespace, in-process/external execution, and dynamic integrated routes without a compatibility path |
+| Backend quality | Pass | Focused packages, all Go packages, `go vet`, lifecycle smoke, E2E smoke, and performance/permission smoke pass |
+| Frontend quality | Pass | i18n, accessibility, large-list checks, Vue typecheck, and production build pass |
+| Repository scan | Pass | The removed host API namespace appears only in explicit negative tests; no core Pharma OA service construction or static business route remains |
+| CodeGraph | Pass | The refreshed index resolves plugin requests through `HandlePluginRoute` and `RegisterInProcessBackend`; impact review covers bootstrap, router, runtime, store, manifest, clients, and frontend routing |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin ./internal/plugin/pharmaoa ./internal/bootstrap ./internal/store ./internal/handler/http ./internal/handler/http/v1/pharmaoa ./tests/integration -count=1
+go test ./... -count=1 -timeout 300s
+go vet ./...
+cd web; npm run typecheck; npm run build
+powershell -ExecutionPolicy Bypass -File scripts/smoke-pharma-oa-plugin.ps1 -Locale en-US
+powershell -ExecutionPolicy Bypass -File scripts/smoke-pharma-oa-e2e.ps1 -Locale en-US
+powershell -ExecutionPolicy Bypass -File scripts/smoke-pharma-oa-performance-permission.ps1 -Locale en-US
+rg -n "/v1/pharma-oa|/v1/pharma_oa|registerPharma|Pharma.*Service" internal web/src plugins/pharma_oa docs/development scripts tests --glob '!docs/refactor/old/**'
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after three recorded retries. The frontend build retained only existing third-party Rollup annotation and Sass legacy API warnings. The performance smoke measured the 600-row common query at 44.3532 ms and passed its pagination, scope, permission, and benchmark gates.
+
+### Impact Review
+
+- API/OpenAPI: Pharma OA has one current namespace, `/v1/plugins/pharma_oa/api/...`; the removed `/v1/pharma-oa/...` host namespace has no runtime alias.
+- Permission/audit: authorization resolves from the enabled plugin's manifest route, including parameterized paths; audit actions remain attached to the same manifest contract.
+- Plugin lifecycle: first API access creates the in-process backend; disable, uninstall, reload, and shutdown release the instance and prevent further execution.
+- Migration/data: migration execution remains plugin lifecycle owned; repositories are lazy and persistent data is retained across handler recreation.
+- Frontend/i18n: integrated routes and menu records follow backend plugin state; existing locale, accessibility, and large-list baselines pass.
+- Runtime/concurrency: factory creation and reset are serialized per plugin, while lifecycle locking prevents a disable operation from racing an admitted route execution.
+- Compatibility: none; no bridge, fallback, duplicate route, or static host registration remains.
+
+### Commit
+
+`PR1-08: move Pharma OA behind plugin boundary`

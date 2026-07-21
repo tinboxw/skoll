@@ -96,3 +96,27 @@ func TestNilRoutePermissionRegistryFailsClosed(t *testing.T) {
 		t.Fatalf("nil registry descriptors = %#v", got)
 	}
 }
+
+func TestRoutePermissionRegistryResolvesParameterizedPath(t *testing.T) {
+	registry, err := NewRoutePermissionRegistry([]RouteExtension{{
+		Method: "POST", Path: "/v1/plugins/pharma_oa/api/drug-recalls/{id}/tasks/{taskId}/complete",
+		Permission: "pharma_oa.drug_recall.complete", Source: "plugin.pharma_oa",
+	}})
+	if err != nil {
+		t.Fatalf("build registry: %v", err)
+	}
+	descriptor, ok := registry.ResolveRoutePermission("POST", "/v1/plugins/pharma_oa/api/drug-recalls/recall-1/tasks/task-1/complete")
+	if !ok || descriptor.Permission != "pharma_oa.drug_recall.complete" {
+		t.Fatalf("unexpected parameterized route resolution: ok=%v descriptor=%+v", ok, descriptor)
+	}
+}
+
+func TestRoutePermissionRegistryRejectsEquivalentParameterizedRoutes(t *testing.T) {
+	_, err := NewRoutePermissionRegistry([]RouteExtension{
+		{Method: "GET", Path: "/v1/plugins/reports/api/items/{id}", Permission: "reports.item.read", Source: "plugin.reports"},
+		{Method: "GET", Path: "/v1/plugins/reports/api/items/{itemId}", Permission: "reports.item.read", Source: "plugin.reports"},
+	})
+	if err == nil {
+		t.Fatal("expected equivalent parameterized routes to conflict")
+	}
+}
