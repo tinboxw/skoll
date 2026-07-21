@@ -86,31 +86,31 @@ func (s *serviceImpl) GetInstance(ctx context.Context, id shared.ID) (*domainwor
 }
 
 func (s *serviceImpl) Approve(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error) {
-	return s.updateInstance(ctx, in.InstanceID, func(instance *domainworkflow.Instance) error {
+	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionApprove, taskID: in.TaskID, actorID: in.Actor.ID}, func(instance *domainworkflow.Instance) error {
 		return instance.Approve(in.TaskID, in.Actor, in.Comment, in.Now)
 	})
 }
 
 func (s *serviceImpl) Reject(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error) {
-	return s.updateInstance(ctx, in.InstanceID, func(instance *domainworkflow.Instance) error {
+	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionReject, taskID: in.TaskID, actorID: in.Actor.ID}, func(instance *domainworkflow.Instance) error {
 		return instance.Reject(in.TaskID, in.Actor, in.Comment, in.Now)
 	})
 }
 
 func (s *serviceImpl) Withdraw(ctx context.Context, in InstanceActionInput) (*domainworkflow.Instance, error) {
-	return s.updateInstance(ctx, in.InstanceID, func(instance *domainworkflow.Instance) error {
+	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionWithdraw, actorID: in.Actor.ID}, func(instance *domainworkflow.Instance) error {
 		return instance.Withdraw(in.Actor, in.Comment, in.Now)
 	})
 }
 
 func (s *serviceImpl) Transfer(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error) {
-	return s.updateInstance(ctx, in.InstanceID, func(instance *domainworkflow.Instance) error {
+	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionTransfer, taskID: in.TaskID, actorID: in.Actor.ID, targetID: in.Target.ID}, func(instance *domainworkflow.Instance) error {
 		return instance.Transfer(in.TaskID, in.Actor, in.Target, in.Comment, in.Now)
 	})
 }
 
 func (s *serviceImpl) Copy(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error) {
-	return s.updateInstance(ctx, in.InstanceID, func(instance *domainworkflow.Instance) error {
+	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionCopy, taskID: in.TaskID, actorID: in.Actor.ID, targetID: in.Target.ID}, func(instance *domainworkflow.Instance) error {
 		return instance.Copy(in.TaskID, in.Actor, in.Target, in.Comment, in.Now)
 	})
 }
@@ -125,22 +125,39 @@ func (s *serviceImpl) definition(ctx context.Context, id shared.ID) (*domainwork
 	return s.repo.GetDefinition(ctx, id)
 }
 
-func (s *serviceImpl) updateInstance(ctx context.Context, id shared.ID, mutate func(*domainworkflow.Instance) error) (*domainworkflow.Instance, error) {
+func (s *serviceImpl) updateInstance(ctx context.Context, id shared.ID, identity instanceActionIdentity, mutate func(*domainworkflow.Instance) error) (*domainworkflow.Instance, error) {
 	if s == nil || s.repo == nil {
 		return nil, fmt.Errorf("workflow service repository is required")
 	}
 	if id.IsZero() {
 		return nil, fmt.Errorf("workflow instance id is required")
 	}
-	instance, err := s.repo.GetInstance(ctx, id)
-	if err != nil {
-		return nil, err
+	return s.repo.UpdateInstance(ctx, id, func(instance *domainworkflow.Instance) (bool, error) {
+		if identity.applied(instance) {
+			return false, nil
+		}
+		if err := mutate(instance); err != nil {
+			return false, err
+		}
+		return true, nil
+	})
+}
+
+type instanceActionIdentity struct {
+	actionType domainworkflow.ActionType
+	taskID     shared.ID
+	actorID    shared.ID
+	targetID   shared.ID
+}
+
+func (identity instanceActionIdentity) applied(instance *domainworkflow.Instance) bool {
+	if instance == nil {
+		return false
 	}
-	if err := mutate(instance); err != nil {
-		return nil, err
+	for _, action := range instance.Timeline {
+		if action.Type == identity.actionType && action.TaskID == identity.taskID && action.Actor.ID == identity.actorID && action.Target.ID == identity.targetID {
+			return true
+		}
 	}
-	if err := s.repo.SaveInstance(ctx, *instance); err != nil {
-		return nil, err
-	}
-	return instance, nil
+	return false
 }

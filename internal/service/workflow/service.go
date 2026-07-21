@@ -16,7 +16,12 @@ type DefinitionRepository interface {
 type InstanceRepository interface {
 	SaveInstance(ctx context.Context, instance domainworkflow.Instance) error
 	GetInstance(ctx context.Context, id shared.ID) (*domainworkflow.Instance, error)
+	UpdateInstance(ctx context.Context, id shared.ID, mutate InstanceMutation) (*domainworkflow.Instance, error)
 }
+
+// InstanceMutation runs inside the repository's atomic update boundary.
+// Implementations may retry it, so the callback must not perform external side effects.
+type InstanceMutation func(instance *domainworkflow.Instance) (changed bool, err error)
 
 type Repository interface {
 	DefinitionRepository

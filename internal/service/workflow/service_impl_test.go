@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -119,6 +120,67 @@ func TestWorkflowMemoryRepositoryReturnsClones(t *testing.T) {
 	}
 	if again.Nodes[1].Assignees[0] == "mutated" {
 		t.Fatal("repository returned mutable definition internals")
+	}
+}
+
+func TestWorkflowServiceDeduplicatesConcurrentDecision(t *testing.T) {
+	ctx := context.Background()
+	now := fixedServiceWorkflowTime()
+	svc := NewService(NewMemoryRepository())
+	definition := mustPublishedDefinition(t, ctx, svc, now)
+	instance := mustStartServiceInstance(t, ctx, svc, definition.ID, "wf-concurrent-approve", now)
+	taskID := instance.Tasks[0].ID
+
+	const workers = 32
+	start := make(chan struct{})
+	errs := make(chan error, workers)
+	var wg sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := svc.Approve(ctx, TaskActionInput{
+				InstanceID: instance.ID, TaskID: taskID,
+				Actor:   domainworkflow.Actor{ID: "manager-1", Name: "Manager One"},
+				Comment: "approved", Now: now.Add(time.Minute),
+			})
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("duplicate concurrent approval should be idempotent: %v", err)
+		}
+	}
+
+	persisted, err := svc.GetInstance(ctx, instance.ID)
+	if err != nil {
+		t.Fatalf("GetInstance error: %v", err)
+	}
+	if persisted.Status != domainworkflow.InstanceApproved || persisted.Tasks[0].Status != domainworkflow.TaskApproved {
+		t.Fatalf("unexpected final approval state: %+v", persisted)
+	}
+	approveActions := 0
+	for _, action := range persisted.Timeline {
+		if action.Type == domainworkflow.ActionApprove {
+			approveActions++
+		}
+	}
+	if approveActions != 1 {
+		t.Fatalf("expected exactly one approval effect, got %d actions: %+v", approveActions, persisted.Timeline)
+	}
+	originalCompletedAt := *persisted.Tasks[0].CompletedAt
+	*persisted.Tasks[0].CompletedAt = originalCompletedAt.Add(time.Hour)
+	again, err := svc.GetInstance(ctx, instance.ID)
+	if err != nil {
+		t.Fatalf("GetInstance after result mutation error: %v", err)
+	}
+	if again.Tasks[0].CompletedAt == nil || !again.Tasks[0].CompletedAt.Equal(originalCompletedAt) {
+		t.Fatalf("repository exposed mutable completion timestamp: %+v", again.Tasks[0])
 	}
 }
 

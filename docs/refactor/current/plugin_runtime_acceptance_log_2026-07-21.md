@@ -721,3 +721,51 @@ Result: all locally executable acceptance gates passed without retry. Live MySQL
 ### Commit
 
 `PR2-01: persist workflow aggregates in SQL`
+
+## PR2-02 Prove Workflow Concurrency, Idempotency, and Recovery
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Make workflow decisions atomic across repository implementations, deduplicate semantic retries, serialize competing transitions, and prove deterministic recovery after a committed response interruption.
+
+### Concurrency And Recovery Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Duplicate terminal decision | Pass | 32 concurrent approvals in memory mode all return success and persist one approval action; the test passes 50 repeated runs |
+| Duplicate non-terminal action | Pass | 12 concurrent SQL copy actions to the same target persist one copied task and one action |
+| Independent non-terminal actions | Pass | Concurrent copies to distinct targets at the same timestamp both persist with unique stable action IDs |
+| Competing terminal transitions | Pass | Concurrent SQL approve/reject calls serialize; exactly one commits, one receives a domain conflict, and no database lock error leaks |
+| Committed response interruption | Pass | A repository fixture commits approval and drops the response; after closing and reopening the database, retry returns the original comment, timestamp, task completion, and single action |
+| Failed candidate write | Pass | A duplicate-task constraint failure rolls back parent, tasks, and timeline; no candidate state becomes visible |
+| Transient database contention | Pass | SQLite lock, MySQL deadlock/lock wait, and PostgreSQL serialization signatures are retryable; constraint violations are not |
+| Race safety | Pass | Domain, service, SQL repository, and workflow HTTP handler pass the race detector |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/workflow -run TestWorkflowServiceDeduplicatesConcurrentDecision -count=50
+go test ./internal/store/sql/gormrepo -run "TestWorkflowStoreSerializesCompetingDecisions|TestWorkflowStoreDeduplicatesConcurrentNonTerminalActions|TestWorkflowDecisionRecoversAfterCommittedResponseInterruption|TestWorkflowStoreFailedAtomicUpdateLeavesCommittedState|TestRetryableDBErrorIncludesConcurrencyFailures" -count=20
+go test -race ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/handler/http/v1/workflow -count=1 -timeout 300s
+go test ./... -count=1 -timeout 300s
+go vet ./...
+codegraph impact UpdateInstance
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed without retry. The repeated concurrency suites remained deterministic, the race detector found no shared-memory violation, and the full repository test and vet gates passed.
+
+### Impact Review
+
+- Repository contract: all workflow decisions use `UpdateInstance`; memory mode locks the aggregate and SQL mode locks the parent row while reconstructing and replacing children in one transaction.
+- Idempotency: approval, rejection, withdrawal, transfer, and copy match persisted action type, task, actor, and target; a retry returns the first committed aggregate without changing its evidence.
+- Action identity: stable SHA-256-derived IDs distinguish independent actions even when timestamps are equal and reinforce the same semantic boundary used by the service.
+- Recovery: only database state is authoritative; a lost response does not require process memory to determine whether the decision committed.
+- API/schema: no wire contract or database column changed.
+- Compatibility: none; no old read path, dual transition path, fallback mutation, or migration bridge was added.
+
+### Commit
+
+`PR2-02: serialize workflow decisions`

@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"regexp"
 	"strings"
@@ -295,7 +296,7 @@ func (i *Instance) Withdraw(actor Actor, comment string, now time.Time) error {
 		}
 	}
 	i.Status = InstanceWithdrawn
-	i.appendAction(Action{ID: actionID(i.ID, ActionWithdraw, now), Type: ActionWithdraw, InstanceID: i.ID, NodeID: i.CurrentNode, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	i.appendAction(Action{ID: actionID(i.ID, ActionWithdraw, actor.ID.String()), Type: ActionWithdraw, InstanceID: i.ID, NodeID: i.CurrentNode, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
 }
@@ -322,7 +323,7 @@ func (i *Instance) Transfer(taskID shared.ID, actor Actor, target Actor, comment
 		Status:     TaskPending,
 		CreatedAt:  now,
 	})
-	i.appendAction(Action{ID: actionID(i.ID, ActionTransfer, now), Type: ActionTransfer, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Target: normalizeActor(target), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	i.appendAction(Action{ID: actionID(i.ID, ActionTransfer, taskID.String(), actor.ID.String(), target.ID.String()), Type: ActionTransfer, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Target: normalizeActor(target), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
 }
@@ -348,7 +349,7 @@ func (i *Instance) Copy(taskID shared.ID, actor Actor, target Actor, comment str
 		CreatedAt:   now,
 		CompletedAt: &now,
 	})
-	i.appendAction(Action{ID: actionID(i.ID, ActionCopy, now), Type: ActionCopy, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Target: normalizeActor(target), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	i.appendAction(Action{ID: actionID(i.ID, ActionCopy, taskID.String(), actor.ID.String(), target.ID.String()), Type: ActionCopy, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Target: normalizeActor(target), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
 }
@@ -365,7 +366,7 @@ func (i *Instance) completeTask(taskID shared.ID, actor Actor, comment string, n
 	task.Status = taskStatus
 	task.CompletedAt = &now
 	i.Status = instanceStatus
-	i.appendAction(Action{ID: actionID(i.ID, actionType, now), Type: actionType, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	i.appendAction(Action{ID: actionID(i.ID, actionType, taskID.String(), actor.ID.String()), Type: actionType, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
 }
@@ -490,6 +491,7 @@ func normalizeNow(now time.Time) time.Time {
 	return now.UTC()
 }
 
-func actionID(instanceID shared.ID, action ActionType, now time.Time) shared.ID {
-	return shared.ID(fmt.Sprintf("%s-%s-%d", instanceID, action, now.UnixNano()))
+func actionID(instanceID shared.ID, action ActionType, identity ...string) shared.ID {
+	digest := sha256.Sum256([]byte(strings.Join(identity, "\x00")))
+	return shared.ID(fmt.Sprintf("%s-%s-%x", instanceID, action, digest[:8]))
 }

@@ -9,8 +9,8 @@ import (
 )
 
 func withDBRetry(op func() error) error {
-	const attempts = 3
-	const retryDelay = 120 * time.Millisecond
+	const attempts = 5
+	const retryDelay = 40 * time.Millisecond
 
 	var lastErr error
 	for i := 0; i < attempts; i++ {
@@ -22,7 +22,7 @@ func withDBRetry(op func() error) error {
 		if !isRetryableDBError(err) || i == attempts-1 {
 			break
 		}
-		time.Sleep(retryDelay)
+		time.Sleep(time.Duration(i+1) * retryDelay)
 	}
 	return lastErr
 }
@@ -41,5 +41,12 @@ func isRetryableDBError(err error) bool {
 		strings.Contains(message, "connection reset") ||
 		strings.Contains(message, "connection refused") ||
 		strings.Contains(message, "wsarecv") ||
-		strings.Contains(message, "broken pipe")
+		strings.Contains(message, "broken pipe") ||
+		strings.Contains(message, "database is locked") ||
+		strings.Contains(message, "database table is locked") ||
+		strings.Contains(message, "deadlock found") ||
+		strings.Contains(message, "lock wait timeout") ||
+		strings.Contains(message, "could not serialize access") ||
+		strings.Contains(message, "serialization failure") ||
+		strings.Contains(message, "sqlstate 40001")
 }

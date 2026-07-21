@@ -70,6 +70,34 @@ func (r *MemoryRepository) GetInstance(_ context.Context, id shared.ID) (*domain
 	return &instance, nil
 }
 
+func (r *MemoryRepository) UpdateInstance(ctx context.Context, id shared.ID, mutate InstanceMutation) (*domainworkflow.Instance, error) {
+	if r == nil {
+		return nil, fmt.Errorf("workflow repository is required")
+	}
+	if mutate == nil {
+		return nil, fmt.Errorf("workflow instance mutation is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	stored, ok := r.instances[id]
+	if !ok {
+		return nil, fmt.Errorf("workflow instance not found")
+	}
+	instance := cloneInstance(stored)
+	changed, err := mutate(&instance)
+	if err != nil {
+		return nil, err
+	}
+	if changed {
+		r.instances[id] = cloneInstance(instance)
+	}
+	result := cloneInstance(instance)
+	return &result, nil
+}
+
 func cloneDefinition(definition domainworkflow.Definition) domainworkflow.Definition {
 	definition.Nodes = append([]domainworkflow.Node(nil), definition.Nodes...)
 	for idx := range definition.Nodes {
@@ -81,6 +109,12 @@ func cloneDefinition(definition domainworkflow.Definition) domainworkflow.Defini
 
 func cloneInstance(instance domainworkflow.Instance) domainworkflow.Instance {
 	instance.Tasks = append([]domainworkflow.Task(nil), instance.Tasks...)
+	for idx := range instance.Tasks {
+		if instance.Tasks[idx].CompletedAt != nil {
+			completedAt := *instance.Tasks[idx].CompletedAt
+			instance.Tasks[idx].CompletedAt = &completedAt
+		}
+	}
 	instance.Timeline = append([]domainworkflow.Action(nil), instance.Timeline...)
 	return instance
 }
