@@ -955,3 +955,48 @@ git diff --check
 ### Next Step
 
 父任务 H5 保持 `Doing`。按正式 Work Item 顺序领取 `H5-04`，发布中文默认、含英文摘要的容量与性能基线。
+
+## H5-04 容量与性能基线
+
+- Date: 2026-07-21
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: 将 H5-01 数据库查询、H5-02 服务端分页与前端大列表、H5-03 长任务稳定性汇总为中文默认、含英文摘要的正式基线；补充 allocation benchmark、关键 bundle 原始/gzip 大小、明确容量限制和自动回归阈值。
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| 环境与数据集 | Pass | 正式报告记录 Windows 10.0.26200、i5-13500H/16 logical processors、Go 1.24.1、Node 22.14.0、Vite 5.4.21、MySQL 5.7.26、本地 Chrome，以及 50,000 行数据库、125+125 浏览器、1,000 条内存 benchmark 和每场景 100 次 soak 数据规模。 |
+| 数据库 P50/P95/P99 | Pass | 汇总 6 个索引查询，P95 为 2.5645-20.2846 ms，均满足普通查询 25 ms、仪表盘 40 ms 预算；规定索引和 `ref` 访问类型纳入回归失败条件。 |
+| 分页与大列表 | Pass | 固化页面大小不超过 100、50 条页面挂载不超过 30 行、横向溢出为 0、缓存和取消请求必须通过；引用 H5-02 的 2 locales x 2 viewports x 2 pages 机器证据。 |
+| 长任务稳定性 | Pass | 汇总 4 类 100 次 race/soak 的 P50/P95/P99、堆与 goroutine 增长、重试、死信和重复副作用；全部成功、重复副作用为 0、goroutine 增长为 0，永久插件失败进入死信。 |
+| Allocation | Pass | `go test -benchmem` 每项 200 次、3 个样本：cache 最大 2,199 ns/238 B/3 allocs，员工内存分页最大 28,737,660 ns/1,605,958 B/20,070 allocs，客户范围最大 19,392,334 ns/1,158,208 B/14,620 allocs，均低于独立阈值。 |
+| Bundle | Pass | 重新构建 3,612 个模块；DataTable 为 48,925 B / gzip 16,223 B，Pagination 为 11,799 B / gzip 4,071 B，分别满足 64/20 KiB 和 16/6 KiB 阈值。仅保留既有 Sass 与 VueUse 上游警告。 |
+| 报告与限制 | Pass | `performance_capacity_baseline_2026-07-21.md` 中文优先并含英文摘要，明确单机、数据量、浏览器、内存夹具、外部服务、顺序任务、后台 worker、1,000 条进程内导出等限制，不将基线表述为生产并发承诺。 |
+| 可重复证据 | Pass | `scripts/h5-performance-baseline.ps1` 验证上游三项证据，运行 benchmark/build，计算 gzip 并生成 `evidence/h5-04/performance-baseline.json`；`h5-performance-doc-audit.ps1` 校验文档结构与证据 schema/locale/pass 状态。完整复现 115.4 秒通过。 |
+| 质量门禁 | Pass | 统一复现、文档审计、`go test ./...`、`go vet ./...`、前端 i18n/a11y/large-list/typecheck、production build、CodeGraph up to date 和 `git diff --check` 全部通过。 |
+| API/权限/审计/migration/seed | Pass | 本项仅新增报告、证据和验收脚本，不改变 HTTP/OpenAPI、权限、菜单、审计动作、migration 或 seed。 |
+| CodeGraph 与边界 | Pass | 索引保持 713 files / 15,370 nodes / 47,181 edges，状态 up to date；未修改 `docs/refactor/old/`，未纳入用户已有文档、IDE、CodeGraph 目录或运行数据。 |
+
+### Verification Commands
+
+```powershell
+./scripts/h5-performance-baseline.ps1 -BenchmarkCount 3 -BenchmarkIterations 200
+./scripts/h5-performance-doc-audit.ps1
+go test ./...
+go vet ./...
+npm --prefix web run typecheck
+npm --prefix web run build
+codegraph status .
+git diff --check
+```
+
+### Retry Log
+
+| Attempt | Status | Failure evidence | Retry action |
+| --- | --- | --- | --- |
+| 1 | Failed -> Doing | 首次文档审计中，Windows PowerShell 5 按默认代码页解析脚本里的 UTF-8 中文标题字面量，产生字符串终止符错误。 | 保持脚本源码纯 ASCII，改为按章节数量和 `zh-CN`、P50/P95/P99、B/op、allocs/op、Bundle、dead-letter、复现参数等稳定标记审计；JSON 继续强制 UTF-8 读取，重跑通过。 |
+
+### Next Step
+
+父任务 H5 完成。按正式 Work Item 顺序领取 `H6-01`，演练部署、备份、恢复、升级与回滚。

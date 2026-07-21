@@ -1,0 +1,198 @@
+﻿{
+    "schemaVersion":  "skoll.h5-performance-baseline.v1",
+    "locale":  "zh-CN",
+    "generatedAt":  "2026-07-21T13:58:07.6896196Z",
+    "environment":  {
+                        "os":  "Microsoft Windows NT 10.0.26200.0",
+                        "processorCount":  16,
+                        "go":  "go version go1.24.1 windows/amd64",
+                        "node":  "v22.14.0",
+                        "mysql":  "5.7.26"
+                    },
+    "sourceEvidence":  {
+                           "database":  "../h5-01/mysql-query-benchmark.json",
+                           "largeList":  "../h5-02/browser-matrix.json",
+                           "jobSoak":  "../h5-03/h5-03-soak-summary.json"
+                       },
+    "databaseQueries":  [
+                            {
+                                "name":  "customer_common_list",
+                                "category":  "common_list",
+                                "p50Millis":  1.7341,
+                                "p95Millis":  4.9154,
+                                "p99Millis":  5.479,
+                                "p95BudgetMillis":  25,
+                                "iterations":  100,
+                                "plan":  {
+                                             "accessType":  "ref",
+                                             "key":  "idx_pharma_customers_scope_status",
+                                             "rows":  100,
+                                             "extra":  "Using index condition; Using filesort"
+                                         },
+                                "requiredIndexes":  [
+                                                        "idx_pharma_customers_scope_status"
+                                                    ],
+                                "passed":  true
+                            },
+                            {
+                                "name":  "inventory_alert_dashboard",
+                                "category":  "dashboard",
+                                "p50Millis":  12.9429,
+                                "p95Millis":  20.2846,
+                                "p99Millis":  22.4239,
+                                "p95BudgetMillis":  40,
+                                "iterations":  100,
+                                "plan":  {
+                                             "accessType":  "ref",
+                                             "key":  "idx_pharma_inventory_alerts_status_type_seen",
+                                             "rows":  7482,
+                                             "extra":  "Using where; Using index"
+                                         },
+                                "requiredIndexes":  [
+                                                        "idx_pharma_inventory_alerts_status_type_seen"
+                                                    ],
+                                "passed":  true
+                            },
+                            {
+                                "name":  "stock_balance_position_list",
+                                "category":  "inventory",
+                                "p50Millis":  1.6334,
+                                "p95Millis":  5.0241,
+                                "p99Millis":  5.7937,
+                                "p95BudgetMillis":  25,
+                                "iterations":  100,
+                                "plan":  {
+                                             "accessType":  "ref",
+                                             "key":  "uk_pharma_balance_position",
+                                             "rows":  200,
+                                             "extra":  "Using index condition; Using filesort"
+                                         },
+                                "requiredIndexes":  [
+                                                        "uk_pharma_balance_position"
+                                                    ],
+                                "passed":  true
+                            },
+                            {
+                                "name":  "customer_organization_scope",
+                                "category":  "scope",
+                                "p50Millis":  1.1971,
+                                "p95Millis":  2.5645,
+                                "p99Millis":  3.1228,
+                                "p95BudgetMillis":  25,
+                                "iterations":  100,
+                                "plan":  {
+                                             "accessType":  "ref",
+                                             "key":  "idx_pharma_customers_org_status_code",
+                                             "rows":  1000,
+                                             "extra":  "Using index condition"
+                                         },
+                                "requiredIndexes":  [
+                                                        "idx_pharma_customers_org_status_code"
+                                                    ],
+                                "passed":  true
+                            },
+                            {
+                                "name":  "customer_owner_scope",
+                                "category":  "scope",
+                                "p50Millis":  1.206,
+                                "p95Millis":  2.6405,
+                                "p99Millis":  2.834,
+                                "p95BudgetMillis":  25,
+                                "iterations":  100,
+                                "plan":  {
+                                             "accessType":  "ref",
+                                             "key":  "idx_pharma_customers_owner_status_code",
+                                             "rows":  100,
+                                             "extra":  "Using index condition"
+                                         },
+                                "requiredIndexes":  [
+                                                        "idx_pharma_customers_owner_status_code"
+                                                    ],
+                                "passed":  true
+                            },
+                            {
+                                "name":  "report_export_owner_queue",
+                                "category":  "report",
+                                "p50Millis":  2.305,
+                                "p95Millis":  4.6185,
+                                "p99Millis":  5.4282,
+                                "p95BudgetMillis":  25,
+                                "iterations":  100,
+                                "plan":  {
+                                             "accessType":  "ref",
+                                             "key":  "idx_pharma_export_jobs_owner_status_created",
+                                             "rows":  24,
+                                             "extra":  "Using where"
+                                         },
+                                "requiredIndexes":  [
+                                                        "idx_pharma_export_jobs_owner_status_created"
+                                                    ],
+                                "passed":  true
+                            }
+                        ],
+    "allocationBenchmarks":  [
+                                 {
+                                     "name":  "BenchmarkLocalCacheSetGet",
+                                     "samples":  3,
+                                     "nsPerOpMedian":  1428,
+                                     "nsPerOpMax":  2199,
+                                     "bytesPerOpMax":  238,
+                                     "allocationsPerOpMax":  3,
+                                     "thresholds":  {
+                                                        "maxNsPerOp":  5000,
+                                                        "maxBytesPerOp":  512,
+                                                        "maxAllocationsPerOp":  8
+                                                    },
+                                     "passed":  true
+                                 },
+                                 {
+                                     "name":  "BenchmarkPharmaOAEmployeePagedQuery",
+                                     "samples":  3,
+                                     "nsPerOpMedian":  28385022,
+                                     "nsPerOpMax":  28737660,
+                                     "bytesPerOpMax":  1605958,
+                                     "allocationsPerOpMax":  20070,
+                                     "thresholds":  {
+                                                        "maxNsPerOp":  40000000,
+                                                        "maxBytesPerOp":  2097152,
+                                                        "maxAllocationsPerOp":  25000
+                                                    },
+                                     "passed":  true
+                                 },
+                                 {
+                                     "name":  "BenchmarkPharmaOACustomerScopedQuery",
+                                     "samples":  3,
+                                     "nsPerOpMedian":  18865398,
+                                     "nsPerOpMax":  19392334,
+                                     "bytesPerOpMax":  1158208,
+                                     "allocationsPerOpMax":  14620,
+                                     "thresholds":  {
+                                                        "maxNsPerOp":  30000000,
+                                                        "maxBytesPerOp":  1572864,
+                                                        "maxAllocationsPerOp":  18000
+                                                    },
+                                     "passed":  true
+                                 }
+                             ],
+    "bundles":  [
+                    {
+                        "name":  "DataTable-DYgsnTzm.js",
+                        "rawBytes":  48925,
+                        "gzipBytes":  16223,
+                        "maxRawBytes":  65536,
+                        "maxGzipBytes":  20480,
+                        "passed":  true
+                    },
+                    {
+                        "name":  "el-pagination-pSKIrJKT.js",
+                        "rawBytes":  11799,
+                        "gzipBytes":  4071,
+                        "maxRawBytes":  16384,
+                        "maxGzipBytes":  6144,
+                        "passed":  true
+                    }
+                ],
+    "largeListPassed":  true,
+    "jobSoakPassed":  true,
+    "passed":  true
+}
