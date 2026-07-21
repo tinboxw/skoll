@@ -293,6 +293,22 @@ M4 新增一等组织模型表，迁移脚本：
 | `sk_notification_reminder_rules` | 可跨重启执行的提醒规则 | 用户+到期时间 |
 | `sk_notification_delivery_attempts` | 不可变渠道投递结果和错误 | `UNIQUE(notification_id, channel, idempotency_key)`、渠道尝试顺序、状态 |
 
+### 2.13 持久化任务表（sk_jobs）
+
+迁移脚本：
+
+- `migrations/mysql/20260722_000026_create_job_persistence.sql`
+- `migrations/postgres/20260722_000026_create_job_persistence.sql`
+
+`sk_jobs` 是宿主和业务插件共享的当前任务模型。任务状态为 `scheduled`、`running`、`retry_wait`、`succeeded` 或 `dead_letter`；`lease_token` 和 `lease_expires_at` 组成执行所有权边界，防止多个 worker 同时提交同一任务。任务、尝试次数、下次执行时间、错误、结果和死信时间全部持久化，进程重启后以数据库状态继续执行。
+
+| 关键约束或索引 | 作用 |
+|------|------|
+| `UNIQUE(namespace, idempotency_key)` | 防止同一业务命名空间重复排程；空幂等键使用 `NULL`，允许独立任务并存 |
+| `idx_job_due(status, run_at)` | 扫描到期任务和等待重试任务 |
+| `idx_job_lease_expiry(lease_expires_at)` | 回收因 worker 中断而过期的租约 |
+| `idx_job_dead_lettered(dead_lettered_at)` | 查询和审核运行失败的死信任务 |
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：
@@ -318,6 +334,7 @@ M4 新增一等组织模型表，迁移脚本：
 | `domain/workflow.Instance` | `WorkflowInstanceModel`、`WorkflowTaskModel`、`WorkflowActionModel` | `workflow_model.go` / `workflow_store.go` |
 | `service/notification.Item` | `NotificationItemModel` | `notification_model.go` / `notification_store.go` |
 | `service/notification.DeliveryAttempt` | `NotificationDeliveryAttemptModel` | `notification_model.go` / `notification_store.go` |
+| `service/job.Job` | `JobModel` | `job_model.go` / `job_store.go` |
 
 **ID 转换**：Domain 使用 `shared.ID`（字符串类型）。用户、角色、系统设置等早期 GORM Model 使用 `uint64`，通过 `parseUintID` / `formatUintID` 辅助函数双向转换；审计事件、文件对象、字典类型与字典条目直接使用字符串 ID。
 

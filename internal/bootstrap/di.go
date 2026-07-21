@@ -31,6 +31,7 @@ import (
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
+	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
@@ -53,6 +54,7 @@ type dependencies struct {
 	eventBus         event.Bus
 	businessEventBus *event.BusinessEventBus
 	pluginRuntime    closeable
+	jobService       *jobsvc.Service
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
@@ -100,6 +102,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Audit:      auditEventService,
 	})
 	notificationService := notificationsvc.NewService(bundle.Notifications, nil, nil)
+	jobService := jobsvc.NewService(bundle.Jobs, nil)
 	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
 	pharmaBackendDeps := pharmaoaplugin.Dependencies{
 		Stores: bundle, Audit: auditService, RBAC: rbacService, Workflow: workflowService,
@@ -167,7 +170,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
 	pluginRuntime, _ := pluginManager.(closeable)
-	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime}, nil
+	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime, jobService: jobService}, nil
 }
 
 func buildEventBus(cfg config.EventConfig) (event.Bus, error) {

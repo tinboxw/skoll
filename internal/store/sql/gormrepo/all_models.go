@@ -31,6 +31,7 @@ func AllModels() []any {
 		&NotificationItemModel{},
 		&NotificationReminderRuleModel{},
 		&NotificationDeliveryAttemptModel{},
+		&JobModel{},
 		&PharmaEmployeeModel{},
 		&PharmaProductModel{},
 		&PharmaSupplierModel{},

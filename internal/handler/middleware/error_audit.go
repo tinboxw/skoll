@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -35,7 +34,7 @@ func ErrorAudit(sink AuditEventSink, opts ...ErrorAuditOption) func(http.Handler
 	cfg := errorAuditOptions{
 		nowFn: func() time.Time { return time.Now().UTC() },
 		idFn: func() shared.ID {
-			return shared.ID("audit-event-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+			return NewAuditID("audit-event", time.Now().UTC())
 		},
 	}
 	for _, opt := range opts {

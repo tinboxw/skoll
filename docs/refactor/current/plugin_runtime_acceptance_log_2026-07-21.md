@@ -827,3 +827,85 @@ Result: all locally executable acceptance gates passed after one documented migr
 ### Commit
 
 `PR2-03: persist notification delivery state`
+
+## PR2-04 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: full repository test suite
+- Evidence: `TestPluginRuntimeMilestoneEndToEnd` intermittently retained only three of four expected plugin audit events; 20 focused repetitions reproduced two failures, while all job persistence, restart, lease, retry, dead-letter, soak, and race tests passed.
+- Root cause: middleware audit IDs used only `UnixNano()`. On Windows, separate route and lifecycle events can receive the same timestamp ID, and the audit repository correctly treats the second write as the same identity, replacing evidence.
+- Retry action: use one middleware audit ID generator with a process-wide atomic sequence, cover fixed-timestamp concurrent uniqueness, rerun the milestone test repeatedly, and then rerun all PR2-04 and repository gates.
+
+## PR2-04 Retry Record 2
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused audit-ID regression build
+- Evidence: replacing the plugin lifecycle ID generator left an unused `shared` import in `internal/handler/http/v1/plugin/handler.go`; compilation stopped before behavioral tests.
+- Retry action: remove the obsolete import, format the affected packages, and rerun the exact focused regression command before broader gates.
+
+## PR2-04 Retry Record 3
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused audit-ID regression build
+- Evidence: the next package compilation found the same obsolete `shared` import in `internal/bootstrap/middleware.go`; no behavioral test executed.
+- Retry action: remove the bootstrap import, run a one-count compile/test gate first, and only then run the 30-count timing regression.
+
+## PR2-04 Persist Scheduled Jobs, Retries, And Dead Letters
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Add one durable host job model for scheduled work, atomic worker leases, bounded retries, terminal dead letters, restart recovery, and queryable execution evidence.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Scheduled job restart recovery | Pass | File-backed SQL reopen restores payload, schedule, attempts, status, and active lease ownership |
+| Atomic leasing | Pass | 16 SQL workers and 24 memory workers racing for one job produce exactly one lease |
+| Lease fencing | Pass | Only the current unexpired lease token can complete or fail a task; an expired worker cannot commit |
+| Worker interruption recovery | Pass | An expired lease is reclaimed with a new token and incremented attempt count after restart |
+| Retry scheduling | Pass | Non-terminal failures move to `retry_wait` with an explicit next-run time |
+| Retry exhaustion | Pass | Final failure or final-attempt lease expiry moves the job to `dead_letter` with error and timestamp evidence |
+| Idempotent scheduling | Pass | Namespace and idempotency key return the persisted job even when a retry supplies a new request ID; null keys allow independent jobs |
+| Successful completion | Pass | Result JSON and completion time persist, and the consumed lease cannot commit twice |
+| Repository/runtime wiring | Pass | Memory, MySQL, and PostgreSQL bundles expose the same repository; bootstrap constructs the host job service from the configured bundle |
+| Migration parity | Pass | MySQL and PostgreSQL `000026` migrations contain equivalent job, lease, retry, idempotency, and dead-letter columns and indexes |
+| Audit evidence uniqueness | Pass after retries | Route, lifecycle, request, error, and security audit producers share a timestamp-plus-atomic-sequence ID generator; fixed-time concurrent generation and 30 milestone repetitions pass |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/job ./internal/store/sql/gormrepo ./internal/store ./internal/bootstrap -run "TestService|TestMemoryRepositoryLeasesJobOnceConcurrently|TestJobStore|TestJobMigration|TestAllModels|TestNewBundle" -count=1 -v
+go test ./internal/store/sql/gormrepo -run "TestJobStorePersistsLeaseRetryAndDeadLetterAcrossRestart|TestJobStoreLeasesDueJobOnceConcurrently" -count=30 -timeout 300s
+go test ./internal/handler/middleware ./internal/bootstrap -run "TestNewAuditIDIsUniqueAtFixedTimestamp|TestPluginRuntimeMilestoneEndToEnd" -count=30 -timeout 300s
+go test -race ./internal/service/job ./internal/store/sql/gormrepo ./internal/store ./internal/handler/middleware ./internal/bootstrap -run "TestService|TestMemoryRepositoryLeasesJobOnceConcurrently|TestJobStore|TestAllModels|TestNewBundle|TestNewAuditID|TestPluginRuntimeMilestoneEndToEnd" -count=1 -timeout 300s
+go test ./... -count=1 -timeout 300s
+go vet ./...
+codegraph sync .
+codegraph status .
+codegraph impact JobStore
+codegraph query NewAuditID
+git diff --check
+```
+
+Result: all locally executable acceptance gates passed after three documented retries. The first full-suite failure exposed a real timestamp-ID collision in existing audit evidence; the next two focused builds exposed obsolete imports in that correction. After repair, 30 job soak rounds, 30 audit milestone rounds, race detection, the full repository suite, vet, CodeGraph synchronization, and diff validation all pass. Live MySQL and PostgreSQL DSNs were not available; dialect schemas are statically verified and restart/concurrency behavior executes against file-backed SQL.
+
+### Impact Review
+
+- Job contract: host and plugin work share one explicit lifecycle: `scheduled`, `running`, `retry_wait`, `succeeded`, and `dead_letter`.
+- Execution safety: atomic conditional updates issue opaque lease tokens; stale or expired workers cannot overwrite a newer execution.
+- Recovery: schedules, active leases, attempt counters, retry times, results, errors, and dead-letter timestamps use the configured repository as the only authority.
+- Observability: namespace, kind, status, error, result, completion, and dead-letter filters expose operational state without reconstructing logs.
+- Runtime: store bundles and SQL adapters expose one current job repository; bootstrap no longer needs a private scheduler state path.
+- Audit integrity: one process-wide sequence prevents same-timestamp audit events from replacing each other in repositories keyed by event ID.
+- Migrations: version `000026` adds the same current job model and operational indexes for MySQL and PostgreSQL.
+- API/frontend: no wire contract or user interface changed.
+- Compatibility: none; no legacy queue adapter, in-memory fallback, dual write, old-state reader, or migration bridge was added.
+
+### Commit
+
+`PR2-04: persist scheduled jobs and dead letters`

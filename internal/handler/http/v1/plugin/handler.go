@@ -17,12 +17,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/tinboxw/skoll/internal/adapter"
 	domainrole "github.com/tinboxw/skoll/internal/domain/role"
-	"github.com/tinboxw/skoll/internal/domain/shared"
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	auditmw "github.com/tinboxw/skoll/internal/handler/middleware"
 	"github.com/tinboxw/skoll/internal/plugin"
@@ -80,8 +78,6 @@ type PluginHandler struct {
 	devPortalRoots     []string
 	devMu              sync.Mutex
 }
-
-var pluginLifecycleAuditSequence atomic.Uint64
 
 type PluginRouteOption func(*PluginHandler)
 
@@ -823,7 +819,7 @@ func (h *PluginHandler) appendLifecycleAudit(r *http.Request, operation, pluginI
 	}
 	now := time.Now().UTC()
 	event, err := auditmw.NewPluginLifecycleAuditEvent(auditmw.PluginLifecycleAuditInput{
-		ID:         shared.ID("audit-event-" + strconv.FormatInt(now.UnixNano(), 10) + "-" + strconv.FormatUint(pluginLifecycleAuditSequence.Add(1), 10)),
+		ID:         auditmw.NewAuditID("audit-event", now),
 		ActorID:    actorID,
 		ActorName:  actorName,
 		Operation:  operation,

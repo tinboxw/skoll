@@ -18,6 +18,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	systemrepo "github.com/tinboxw/skoll/internal/repository/system"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
+	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store/clickhouse"
@@ -58,6 +59,7 @@ type Bundle struct {
 	Organization     organizationrepo.OrganizationRepository
 	Workflow         workflowsvc.Repository
 	Notifications    notificationsvc.Repository
+	Jobs             jobsvc.Repository
 	PharmaOA         func() *pharmaoarepo.Repositories
 }
 
@@ -80,6 +82,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Menus: menus, UnitOfWork: sql.NewUnitOfWork(), AuditEvents: auditEvents, Files: files, Organization: organization,
 			Workflow:      workflowsvc.NewMemoryRepository(),
 			Notifications: notificationsvc.NewMemoryRepository(),
+			Jobs:          jobsvc.NewMemoryRepository(),
 			PharmaOA:      lazyPharmaOARepositories(newMemoryPharmaOARepositories),
 		}, nil
 	case ModeMySQL:
@@ -105,6 +108,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Organization:     primary.OrganizationRepository(),
 			Workflow:         primary.WorkflowRepository(),
 			Notifications:    primary.NotificationRepository(),
+			Jobs:             primary.JobRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 		}, nil
 	case ModePostgres:
@@ -132,6 +136,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Organization:     primary.OrganizationRepository(),
 			Workflow:         primary.WorkflowRepository(),
 			Notifications:    primary.NotificationRepository(),
+			Jobs:             primary.JobRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 		}, nil
 	default:

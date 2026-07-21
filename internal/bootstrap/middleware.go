@@ -5,12 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	domainrbac "github.com/tinboxw/skoll/internal/domain/rbac"
-	"github.com/tinboxw/skoll/internal/domain/shared"
 	auditmw "github.com/tinboxw/skoll/internal/handler/middleware"
 	"github.com/tinboxw/skoll/internal/plugin"
 	rbacsvc "github.com/tinboxw/skoll/internal/service/rbac"
@@ -183,7 +181,7 @@ func appendPermissionDeniedAudit(r *http.Request, sink auditmw.AuditEventSink, a
 		return
 	}
 	event, err := auditmw.NewPermissionDeniedAuditEvent(auditmw.PermissionDeniedAuditInput{
-		ID:         shared.ID("audit-event-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10)),
+		ID:         auditmw.NewAuditID("audit-event", time.Now().UTC()),
 		ActorID:    actorID,
 		ActorName:  actorName,
 		Resource:   resource,
@@ -230,7 +228,7 @@ func appendPluginRouteAudit(r *http.Request, sink auditmw.AuditEventSink, actorI
 	}
 	now := time.Now().UTC()
 	event, err := auditmw.NewPluginRouteAuditEvent(auditmw.PluginRouteAuditInput{
-		ID:          shared.ID("audit-event-" + strconv.FormatInt(now.UnixNano(), 10)),
+		ID:          auditmw.NewAuditID("audit-event", now),
 		ActorID:     actorID,
 		ActorName:   actorName,
 		Source:      descriptor.Source,
@@ -339,8 +337,8 @@ func appendErrorAudit(r *http.Request, sink auditmw.AuditEventSink, rec any) {
 	}
 	now := time.Now().UTC()
 	event, err := auditmw.NewErrorAuditEvent(auditmw.ErrorAuditInput{
-		ID:         shared.ID("audit-event-" + strconv.FormatInt(now.UnixNano(), 10)),
-		LogID:      shared.ID("error-log-" + strconv.FormatInt(now.UnixNano(), 10)),
+		ID:         auditmw.NewAuditID("audit-event", now),
+		LogID:      auditmw.NewAuditID("error-log", now),
 		Request:    r,
 		StatusCode: http.StatusInternalServerError,
 		ErrorCode:  "panic",

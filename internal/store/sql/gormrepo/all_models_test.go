@@ -39,6 +39,9 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 			t.Fatalf("AllModels() should include %s", name)
 		}
 	}
+	if !containsModel[JobModel](models) {
+		t.Fatal("AllModels() should include JobModel")
+	}
 	for name, present := range map[string]bool{
 		"NotificationItemModel":            containsModel[NotificationItemModel](models),
 		"NotificationReminderRuleModel":    containsModel[NotificationReminderRuleModel](models),

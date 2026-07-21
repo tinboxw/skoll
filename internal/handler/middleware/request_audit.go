@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -33,7 +32,7 @@ func RequestAudit(sink AuditEventSink, opts ...RequestAuditOption) func(http.Han
 	cfg := requestAuditOptions{
 		nowFn: func() time.Time { return time.Now().UTC() },
 		idFn: func() shared.ID {
-			return shared.ID("audit-event-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
+			return NewAuditID("audit-event", time.Now().UTC())
 		},
 	}
 	for _, opt := range opts {
