@@ -4,6 +4,7 @@ import { Copy, Eye, FileText, Pencil, Plus, RefreshCw, Save, Trash2 } from "luci
 import { ElMessage } from "element-plus";
 
 import { ConfirmAction, DataTable, DetailDrawer, FilterBar, PageShell, PageToolbar, type DataTableColumn } from "../../components/Common";
+import { useI18n } from "../../i18n";
 import { useButtonAccess } from "../../permissions/button";
 import {
 	FORM_FIELD_TYPE_OPTIONS,
@@ -41,6 +42,7 @@ type FieldRow = Record<string, unknown> & {
 	index: number;
 };
 
+const { t } = useI18n();
 const buttonAccess = useButtonAccess();
 const loading = ref(false);
 const saving = ref(false);
@@ -65,7 +67,7 @@ const fieldForm = reactive({
 	acceptText: ".pdf, .jpg, .png",
 	minRows: 1,
 	maxRows: 20,
-	columnsText: "name:Name:string\nquantity:Quantity:number"
+	columnsText: t("formBuilder.columnsPlaceholder")
 });
 
 const canManage = computed(() => buttonAccess.can("form.schema.manage"));
@@ -78,21 +80,25 @@ const summary = computed(() => ({
 	required: draft.fields.filter((item) => item.required).length
 }));
 
-const schemaColumns: DataTableColumn[] = [
-	{ key: "name", label: "Name", minWidth: 180 },
-	{ key: "key", label: "Key", minWidth: 180 },
-	{ key: "version", label: "Version", width: 90 },
-	{ key: "businessType", label: "Business", minWidth: 150 },
-	{ key: "fields", label: "Fields", width: 90 },
-	{ key: "updatedAt", label: "Updated", minWidth: 160 }
-];
+const schemaColumns = computed<DataTableColumn[]>(() => [
+	{ key: "name", label: t("formBuilder.column.name"), minWidth: 180 },
+	{ key: "key", label: t("formBuilder.column.key"), minWidth: 180 },
+	{ key: "version", label: t("formBuilder.column.version"), width: 90 },
+	{ key: "businessType", label: t("formBuilder.column.business"), minWidth: 150 },
+	{ key: "fields", label: t("formBuilder.column.fields"), width: 90 },
+	{ key: "updatedAt", label: t("formBuilder.column.updated"), minWidth: 160 }
+]);
 
-const fieldColumns: DataTableColumn[] = [
-	{ key: "label", label: "Label", minWidth: 160 },
-	{ key: "key", label: "Key", minWidth: 140 },
-	{ key: "type", label: "Type", minWidth: 120 },
-	{ key: "required", label: "Required", width: 110 }
-];
+const fieldColumns = computed<DataTableColumn[]>(() => [
+	{ key: "label", label: t("formBuilder.column.label"), minWidth: 160 },
+	{ key: "key", label: t("formBuilder.column.key"), minWidth: 140 },
+	{ key: "type", label: t("formBuilder.column.type"), minWidth: 120 },
+	{ key: "required", label: t("formBuilder.column.required"), width: 110 }
+]);
+const fieldTypeOptions = computed(() => FORM_FIELD_TYPE_OPTIONS.map((item) => ({
+	...item,
+	label: t(`formBuilder.fieldType.${item.value}`)
+})));
 
 const schemaRows = computed<SchemaRow[]>(() => {
 	const q = keyword.value.trim().toLowerCase();
@@ -161,7 +167,7 @@ function duplicateVersion(): void {
 async function saveDraft(): Promise<void> {
 	error.value = "";
 	if (!canManage.value) {
-		error.value = "You do not have permission to manage form schemas.";
+		error.value = t("error.forbidden");
 		return;
 	}
 	if (validationErrors.value.length > 0) {
@@ -174,7 +180,7 @@ async function saveDraft(): Promise<void> {
 		const saved = upsertFormSchema(draft);
 		schemas.value = loadFormSchemas();
 		selectSchema(saved);
-		ElMessage.success("Form schema saved");
+		ElMessage.success(t("formBuilder.saved"));
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -193,7 +199,7 @@ function removeSelected(): void {
 	} else {
 		newSchema();
 	}
-	ElMessage.success("Form schema deleted");
+	ElMessage.success(t("formBuilder.deleted"));
 }
 
 function openFieldEditor(row?: FieldRow): void {
@@ -211,7 +217,7 @@ function openFieldEditor(row?: FieldRow): void {
 		fieldForm.acceptText = (field.attachment?.accept || [".pdf", ".jpg", ".png"]).join(", ");
 		fieldForm.minRows = field.detailTable?.minRows || 1;
 		fieldForm.maxRows = field.detailTable?.maxRows || 20;
-		fieldForm.columnsText = (field.detailTable?.columns || []).map((item) => `${item.key}:${item.label}:${item.type}`).join("\n") || "name:Name:string\nquantity:Quantity:number";
+		fieldForm.columnsText = (field.detailTable?.columns || []).map((item) => `${item.key}:${item.label}:${item.type}`).join("\n") || t("formBuilder.columnsPlaceholder");
 	} else {
 		editingFieldIndex.value = -1;
 		fieldForm.key = "";
@@ -225,7 +231,7 @@ function openFieldEditor(row?: FieldRow): void {
 		fieldForm.acceptText = ".pdf, .jpg, .png";
 		fieldForm.minRows = 1;
 		fieldForm.maxRows = 20;
-		fieldForm.columnsText = "name:Name:string\nquantity:Quantity:number";
+		fieldForm.columnsText = t("formBuilder.columnsPlaceholder");
 	}
 	fieldDrawerOpen.value = true;
 }
@@ -331,7 +337,7 @@ function toFieldRow(field: FormField, index: number): FieldRow {
 		key: field.key,
 		label: field.label,
 		type: field.type,
-		required: field.required ? "Yes" : "No",
+		required: field.required ? t("common.yes") : t("common.no"),
 		raw: field,
 		index
 	};
@@ -339,19 +345,19 @@ function toFieldRow(field: FormField, index: number): FieldRow {
 
 function fieldPlaceholder(field: FormField): string {
 	if (field.type === "attachment") {
-		return `Upload ${field.attachment?.accept?.join(", ") || "files"}; max ${field.attachment?.maxFiles || 1} file(s).`;
+		return t("formBuilder.preview.attachment", { accept: field.attachment?.accept?.join(", ") || "*", max: field.attachment?.maxFiles || 1 });
 	}
 	if (field.type === "detail_table") {
-		return `${field.detailTable?.columns.length || 0} columns, ${field.detailTable?.minRows || 0}-${field.detailTable?.maxRows || "n"} rows`;
+		return t("formBuilder.preview.detailTable", { columns: field.detailTable?.columns.length || 0, min: field.detailTable?.minRows || 0, max: field.detailTable?.maxRows || "n" });
 	}
 	if (field.type === "dictionary") {
 		return field.dictionary || "dictionary.code";
 	}
 	if (field.type === "user") {
-		return "Select user";
+		return t("formBuilder.preview.selectUser");
 	}
 	if (field.type === "department") {
-		return "Select department";
+		return t("formBuilder.preview.selectDepartment");
 	}
 	return field.type;
 }
@@ -368,63 +374,63 @@ function waitForSavingState(): Promise<void> {
 
 <template>
 	<PageShell
-		title="Form Builder"
-		description="Design workflow-ready form schemas, preview fields, and manage versions."
+		:title="t('formBuilder.title')"
+		:description="t('formBuilder.description')"
 		:loading="loading"
 		:error="error"
 		:forbidden="!canManage"
-		forbidden-title="Form builder unavailable"
-		forbidden-description="Ask an administrator for form.schema.manage permission."
+		:forbidden-title="t('formBuilder.unavailable')"
+		:forbidden-description="t('formBuilder.permissionRequired')"
 		data-testid="form-builder-page"
 	>
 		<template #actions>
-			<el-button :icon="RefreshCw" :loading="loading" @click="refreshSchemas">Refresh</el-button>
-			<el-button :icon="Plus" @click="newSchema">New</el-button>
-			<el-button :icon="FileText" @click="usePurchaseTemplate">Template</el-button>
-			<el-button :icon="Copy" :disabled="draft.fields.length === 0" @click="duplicateVersion">New version</el-button>
+			<el-button :icon="RefreshCw" :loading="loading" @click="refreshSchemas">{{ t("formBuilder.refresh") }}</el-button>
+			<el-button :icon="Plus" @click="newSchema">{{ t("formBuilder.new") }}</el-button>
+			<el-button :icon="FileText" @click="usePurchaseTemplate">{{ t("formBuilder.template") }}</el-button>
+			<el-button :icon="Copy" :disabled="draft.fields.length === 0" @click="duplicateVersion">{{ t("formBuilder.newVersion") }}</el-button>
 			<ConfirmAction
-				label="Delete"
-				message="Delete this form schema version?"
+				:label="t('formBuilder.delete')"
+				:message="t('formBuilder.deleteConfirm')"
 				:disabled="!selectedId"
 				@confirm="removeSelected"
 			/>
-			<el-button type="primary" :icon="Save" :loading="saving" @click="saveDraft">Save</el-button>
+			<el-button type="primary" :icon="Save" :loading="saving" @click="saveDraft">{{ t("formBuilder.save") }}</el-button>
 		</template>
 		<template #stateActions>
-			<el-button :icon="RefreshCw" @click="refreshSchemas">Retry</el-button>
+			<el-button :icon="RefreshCw" @click="refreshSchemas">{{ t("formBuilder.retry") }}</el-button>
 		</template>
 
-		<section class="form-summary" aria-label="Form builder summary">
+		<section class="form-summary" :aria-label="t('formBuilder.summary')">
 			<div class="summary-tile">
-				<span>Schemas</span>
+				<span>{{ t("formBuilder.summary.schemas") }}</span>
 				<strong>{{ summary.schemas }}</strong>
 			</div>
 			<div class="summary-tile">
-				<span>Current fields</span>
+				<span>{{ t("formBuilder.summary.currentFields") }}</span>
 				<strong>{{ summary.fields }}</strong>
 			</div>
 			<div class="summary-tile">
-				<span>Versions</span>
+				<span>{{ t("formBuilder.summary.versions") }}</span>
 				<strong>{{ summary.versions }}</strong>
 			</div>
 			<div class="summary-tile">
-				<span>Required</span>
+				<span>{{ t("formBuilder.summary.required") }}</span>
 				<strong>{{ summary.required }}</strong>
 			</div>
 		</section>
 
 		<div class="builder-layout">
-			<section class="schema-panel" aria-label="Form schemas">
+			<section class="schema-panel" :aria-label="t('formBuilder.schemas')">
 				<PageToolbar>
 					<FilterBar>
-						<el-input v-model="keyword" clearable placeholder="Search schema, key, or business type" />
+						<el-input v-model="keyword" clearable :placeholder="t('formBuilder.searchPlaceholder')" />
 					</FilterBar>
 				</PageToolbar>
 				<DataTable
 					:rows="schemaRows"
 					:columns="schemaColumns"
 					row-key="id"
-					empty-text="No form schemas"
+					:empty-text="t('formBuilder.emptySchemas')"
 					data-testid="form-schema-table"
 				>
 					<template #cell-name="{ row }">
@@ -434,78 +440,78 @@ function waitForSavingState(): Promise<void> {
 						</el-button>
 					</template>
 					<template #actions="{ row }">
-						<el-tooltip content="Edit schema">
-							<el-button :icon="Pencil" circle @click="selectSchema(row.raw)" />
+						<el-tooltip :content="t('formBuilder.editSchema')">
+							<el-button :icon="Pencil" circle :aria-label="t('formBuilder.editSchema')" @click="selectSchema(row.raw)" />
 						</el-tooltip>
 					</template>
 				</DataTable>
 			</section>
 
-			<section class="designer-panel" aria-label="Form designer">
+			<section class="designer-panel" :aria-label="t('formBuilder.designer')">
 				<el-tabs v-model="activePane">
-					<el-tab-pane label="Design" name="design">
+					<el-tab-pane :label="t('formBuilder.tab.design')" name="design">
 						<el-form class="schema-form" label-position="top">
-							<el-form-item label="Form name">
+							<el-form-item :label="t('formBuilder.formName')">
 								<el-input v-model="draft.name" />
 							</el-form-item>
-							<el-form-item label="Form key">
+							<el-form-item :label="t('formBuilder.formKey')">
 								<el-input v-model="draft.key" />
 							</el-form-item>
-							<el-form-item label="Version">
+							<el-form-item :label="t('formBuilder.version')">
 								<el-input-number v-model="draft.version" :min="1" :step="1" />
 							</el-form-item>
-							<el-form-item label="Business type">
+							<el-form-item :label="t('formBuilder.businessType')">
 								<el-input v-model="draft.businessType" />
 							</el-form-item>
-							<el-form-item class="wide" label="Description">
+							<el-form-item class="wide" :label="t('formBuilder.descriptionField')">
 								<el-input v-model="draft.description" type="textarea" :rows="2" />
 							</el-form-item>
 						</el-form>
 
 						<PageToolbar>
 							<template #left>
-								<strong>Fields</strong>
+								<strong>{{ t("formBuilder.fields") }}</strong>
 							</template>
-							<el-button type="primary" :icon="Plus" @click="openFieldEditor()">Add field</el-button>
+							<el-button type="primary" :icon="Plus" @click="openFieldEditor()">{{ t("formBuilder.addField") }}</el-button>
 						</PageToolbar>
 						<DataTable
 							:rows="fieldRows"
 							:columns="fieldColumns"
 							row-key="key"
-							empty-text="No fields in this form"
+							:empty-text="t('formBuilder.emptyFields')"
 							data-testid="form-field-table"
 						>
-							<template #cell-required="{ value }">
-								<el-tag :type="value === 'Yes' ? 'danger' : 'info'">{{ value }}</el-tag>
+							<template #cell-required="{ row, value }">
+								<el-tag :type="row.raw.required ? 'danger' : 'info'">{{ value }}</el-tag>
 							</template>
 							<template #actions="{ row }">
-								<el-tooltip content="Move up">
-									<el-button text :disabled="row.index === 0" @click="moveField(row, -1)">Up</el-button>
+								<el-tooltip :content="t('formBuilder.moveUp')">
+									<el-button text :disabled="row.index === 0" @click="moveField(row, -1)">{{ t("formBuilder.moveUp") }}</el-button>
 								</el-tooltip>
-								<el-tooltip content="Move down">
-									<el-button text :disabled="row.index === fieldRows.length - 1" @click="moveField(row, 1)">Down</el-button>
+								<el-tooltip :content="t('formBuilder.moveDown')">
+									<el-button text :disabled="row.index === fieldRows.length - 1" @click="moveField(row, 1)">{{ t("formBuilder.moveDown") }}</el-button>
 								</el-tooltip>
-								<el-tooltip content="Edit field">
-									<el-button :icon="Pencil" circle @click="openFieldEditor(row)" />
+								<el-tooltip :content="t('formBuilder.editField')">
+									<el-button :icon="Pencil" circle :aria-label="t('formBuilder.editField')" @click="openFieldEditor(row)" />
 								</el-tooltip>
-								<el-tooltip content="Delete field">
-									<el-button :icon="Trash2" circle type="danger" @click="removeField(row)" />
+								<el-tooltip :content="t('formBuilder.deleteField')">
+									<el-button :icon="Trash2" circle type="danger" :aria-label="t('formBuilder.deleteField')" @click="removeField(row)" />
 								</el-tooltip>
 							</template>
 						</DataTable>
 					</el-tab-pane>
 
-					<el-tab-pane label="Preview" name="preview">
+					<el-tab-pane :label="t('formBuilder.tab.preview')" name="preview">
 						<div class="preview-head">
 							<div>
-								<h3>{{ draft.name || "Untitled form" }}</h3>
-								<p>{{ draft.key }} / v{{ draft.version }} / {{ draft.businessType }}</p>
+								<h3>{{ draft.name || t("formBuilder.untitled") }}</h3>
+								<p>{{ t("formBuilder.previewMeta", { key: draft.key, version: draft.version, businessType: draft.businessType }) }}</p>
 							</div>
 							<el-tag :type="validationErrors.length === 0 ? 'success' : 'warning'">
-								{{ validationErrors.length === 0 ? "Ready" : "Needs review" }}
+								{{ validationErrors.length === 0 ? t("formBuilder.ready") : t("formBuilder.needsReview") }}
 							</el-tag>
 						</div>
-						<div v-if="draft.fields.length === 0" class="preview-empty">Add fields to preview the form.</div>
+						<div v-if="draft.fields.length === 0" class="preview-empty">{{ t("formBuilder.previewEmpty") }}</div>
 						<div v-else class="preview-grid" data-testid="form-preview">
 							<div v-for="field in draft.fields" :key="field.key" class="preview-field" :class="{ wide: field.type === 'textarea' || field.type === 'detail_table' || field.type === 'attachment' }">
 								<label>
@@ -530,17 +536,17 @@ function waitForSavingState(): Promise<void> {
 						/>
 					</el-tab-pane>
 
-					<el-tab-pane label="Versions" name="versions">
+					<el-tab-pane :label="t('formBuilder.tab.versions')" name="versions">
 						<DataTable
 							:rows="schemas.filter((item) => item.key === draft.key).map(toSchemaRow)"
 							:columns="schemaColumns"
 							row-key="id"
-							empty-text="Save this schema to create the first version"
+							:empty-text="t('formBuilder.emptyVersions')"
 							data-testid="form-version-table"
 						>
 							<template #actions="{ row }">
-								<el-tooltip content="Open version">
-									<el-button :icon="Eye" circle @click="selectSchema(row.raw)" />
+								<el-tooltip :content="t('formBuilder.openVersion')">
+									<el-button :icon="Eye" circle :aria-label="t('formBuilder.openVersion')" @click="selectSchema(row.raw)" />
 								</el-tooltip>
 							</template>
 						</DataTable>
@@ -549,54 +555,54 @@ function waitForSavingState(): Promise<void> {
 			</section>
 		</div>
 
-		<DetailDrawer v-model="fieldDrawerOpen" title="Field editor" size="46%">
+		<DetailDrawer v-model="fieldDrawerOpen" :title="t('formBuilder.fieldEditor')" size="46%">
 			<el-form class="field-form" label-position="top">
-				<el-form-item label="Label">
+				<el-form-item :label="t('formBuilder.label')">
 					<el-input v-model="fieldForm.label" />
 				</el-form-item>
-				<el-form-item label="Key">
+				<el-form-item :label="t('formBuilder.key')">
 					<el-input v-model="fieldForm.key" />
 				</el-form-item>
-				<el-form-item label="Type">
+				<el-form-item :label="t('formBuilder.type')">
 					<el-select v-model="fieldForm.type">
-						<el-option v-for="item in FORM_FIELD_TYPE_OPTIONS" :key="item.value" :label="item.label" :value="item.value" />
+						<el-option v-for="item in fieldTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
 					</el-select>
 				</el-form-item>
-				<el-form-item label="Required">
+				<el-form-item :label="t('formBuilder.required')">
 					<el-switch v-model="fieldForm.required" />
 				</el-form-item>
-				<el-form-item v-if="fieldForm.type === 'dictionary'" class="wide" label="Dictionary code">
-					<el-input v-model="fieldForm.dictionary" placeholder="pharma.product.status" />
+				<el-form-item v-if="fieldForm.type === 'dictionary'" class="wide" :label="t('formBuilder.dictionaryCode')">
+					<el-input v-model="fieldForm.dictionary" :placeholder="t('formBuilder.dictionaryPlaceholder')" />
 				</el-form-item>
-				<el-form-item v-if="fieldForm.type === 'select' || fieldForm.type === 'multi_select'" class="wide" label="Options">
-					<el-input v-model="fieldForm.optionsText" type="textarea" :rows="4" placeholder="Pending=pending&#10;Approved=approved" />
+				<el-form-item v-if="fieldForm.type === 'select' || fieldForm.type === 'multi_select'" class="wide" :label="t('formBuilder.options')">
+					<el-input v-model="fieldForm.optionsText" type="textarea" :rows="4" :placeholder="t('formBuilder.optionsPlaceholder')" />
 				</el-form-item>
 				<template v-if="fieldForm.type === 'attachment'">
-					<el-form-item label="Max files">
+					<el-form-item :label="t('formBuilder.maxFiles')">
 						<el-input-number v-model="fieldForm.maxFiles" :min="1" :max="20" />
 					</el-form-item>
-					<el-form-item label="Max size MB">
+					<el-form-item :label="t('formBuilder.maxSizeMB')">
 						<el-input-number v-model="fieldForm.maxSizeMB" :min="1" :max="200" />
 					</el-form-item>
-					<el-form-item class="wide" label="Accepted extensions">
+					<el-form-item class="wide" :label="t('formBuilder.acceptedExtensions')">
 						<el-input v-model="fieldForm.acceptText" />
 					</el-form-item>
 				</template>
 				<template v-if="fieldForm.type === 'detail_table'">
-					<el-form-item label="Min rows">
+					<el-form-item :label="t('formBuilder.minRows')">
 						<el-input-number v-model="fieldForm.minRows" :min="0" :max="50" />
 					</el-form-item>
-					<el-form-item label="Max rows">
+					<el-form-item :label="t('formBuilder.maxRows')">
 						<el-input-number v-model="fieldForm.maxRows" :min="1" :max="200" />
 					</el-form-item>
-					<el-form-item class="wide" label="Columns">
-						<el-input v-model="fieldForm.columnsText" type="textarea" :rows="5" placeholder="product:Product:string" />
+					<el-form-item class="wide" :label="t('formBuilder.columns')">
+						<el-input v-model="fieldForm.columnsText" type="textarea" :rows="5" :placeholder="t('formBuilder.columnsPlaceholder')" />
 					</el-form-item>
 				</template>
 			</el-form>
 			<template #footer>
-				<el-button @click="fieldDrawerOpen = false">Cancel</el-button>
-				<el-button type="primary" :icon="Save" @click="saveField">Save field</el-button>
+				<el-button @click="fieldDrawerOpen = false">{{ t("formBuilder.cancel") }}</el-button>
+				<el-button type="primary" :icon="Save" @click="saveField">{{ t("formBuilder.saveField") }}</el-button>
 			</template>
 		</DetailDrawer>
 	</PageShell>

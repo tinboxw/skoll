@@ -1,6 +1,7 @@
 import { computed, ref } from "vue";
 
 import pharmaMessages from "./pharma.json";
+import platformMessages from "./platform.json";
 
 export type Locale = "zh-CN" | "en-US";
 
@@ -13,6 +14,7 @@ export const DEFAULT_LOCALE: Locale = "zh-CN";
 const messages: Record<Locale, Dict> = {
 	"zh-CN": {
 		...pharmaMessages["zh-CN"],
+		...platformMessages["zh-CN"],
 		"app.title": "Skoll 管理控制台",
 		"app.subtitle": "插件化重构前端基线",
 		"menu.dashboard": "仪表盘",
@@ -675,6 +677,7 @@ const messages: Record<Locale, Dict> = {
 	},
 	"en-US": {
 		...pharmaMessages["en-US"],
+		...platformMessages["en-US"],
 		"app.title": "Skoll Admin Console",
 		"app.subtitle": "Frontend baseline for plugin refactor",
 		"menu.dashboard": "Dashboard",
@@ -1347,6 +1350,12 @@ function detectInitialLocale(): Locale {
 
 const locale = ref<Locale>(detectInitialLocale());
 
+function applyDocumentLocale(next: Locale): void {
+	document.documentElement.lang = next;
+}
+
+applyDocumentLocale(locale.value);
+
 const LOCALIZED_ERROR_KEYS = [
 	"error.network",
 	"error.requestFailed",
@@ -1366,11 +1375,13 @@ export function setLocale(next: Locale): void {
 	}
 	locale.value = next;
 	localStorage.setItem(LOCALE_KEY, next);
+	applyDocumentLocale(next);
 }
 
 export function useI18n() {
-	const t = (key: string): string => {
-		return messages[locale.value][key] ?? key;
+	const t = (key: string, params: Record<string, unknown> = {}): string => {
+		const message = messages[locale.value][key] ?? key;
+		return message.replace(/\{(\w+)\}/g, (match, name: string) => Object.prototype.hasOwnProperty.call(params, name) ? String(params[name] ?? "") : match);
 	};
 	const valueLabel = (value: unknown): string => {
 		const raw = String(value ?? "");

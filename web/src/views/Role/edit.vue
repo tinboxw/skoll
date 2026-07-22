@@ -105,7 +105,7 @@ const hasRoleAccess = computed(() => canUpdateRole.value || canManagePermissions
 
 async function loadRole(): Promise<void> {
 	if (!roleId.value) {
-		error.value = "missing role id";
+		error.value = t("error.missingRoleId");
 		return;
 	}
 	loading.value = true;

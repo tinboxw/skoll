@@ -166,6 +166,14 @@ const highRiskPermissionCount = computed(() => permissionCatalog.value.filter((i
 const matrixFilterActive = computed(() => matrixKeyword.value.trim() !== "" || matrixResourceFilter.value !== "" || matrixRiskFilter.value !== "");
 const riskOptions = computed(() => unique(permissionCatalog.value.map((item) => item.risk)));
 
+function effectLabel(effect: PolicyRule["effect"]): string {
+	return t(`permission.effect.${effect}`);
+}
+
+function scopeLabel(scope: PolicyRule["scope"]): string {
+	return t(`permission.scope.${scope}`);
+}
+
 watch(selectedRole, (role) => {
 	selectedMatrixPermissions.value = role ? resolveRolePermissions(role) : [];
 }, { immediate: true });
@@ -499,8 +507,8 @@ function unique(values: string[]): string[] {
 			</el-table>
 
 			<div class="matrix-footer">
-				<el-tag v-if="selectedMatrixPermissions.includes('*')" type="success" effect="plain">super permission *</el-tag>
-				<el-tag v-else effect="plain">{{ selectedMatrixPermissions.length }} permissions</el-tag>
+				<el-tag v-if="selectedMatrixPermissions.includes('*')" type="success" effect="plain">{{ t("permission.superPermission") }}</el-tag>
+				<el-tag v-else effect="plain">{{ t("permission.permissionCount", { count: selectedMatrixPermissions.length }) }}</el-tag>
 			</div>
 		</el-card>
 
@@ -541,8 +549,8 @@ function unique(values: string[]): string[] {
 					<div class="check-grid">
 						<el-form-item :label="t('permission.subjectType')">
 							<el-select v-model="checkSubjectType" :disabled="saving">
-								<el-option label="user" value="user" />
-								<el-option label="role" value="role" />
+								<el-option :label="t('permission.subject.user')" value="user" />
+								<el-option :label="t('permission.subject.role')" value="role" />
 							</el-select>
 						</el-form-item>
 						<el-form-item :label="t('permission.subjectId')">
@@ -582,31 +590,31 @@ function unique(values: string[]): string[] {
 				</div>
 			</template>
 			<el-table :data="rules" border stripe>
-				<el-table-column label="resource" min-width="150">
+				<el-table-column :label="t('permission.resource')" min-width="150">
 					<template #default="{ row }">
 						<el-select v-model="row.resource" :disabled="saving">
 							<el-option v-for="resource in resourceOptions" :key="resource" :label="resource" :value="resource" />
 						</el-select>
 					</template>
 				</el-table-column>
-				<el-table-column label="action" min-width="140">
+				<el-table-column :label="t('permission.action')" min-width="140">
 					<template #default="{ row }">
 						<el-select v-model="row.action" :disabled="saving">
 							<el-option v-for="action in actionOptions" :key="action" :label="action" :value="action" />
 						</el-select>
 					</template>
 				</el-table-column>
-				<el-table-column label="effect" min-width="140">
+				<el-table-column :label="t('permission.effect')" min-width="140">
 					<template #default="{ row }">
 						<el-select v-model="row.effect" :disabled="saving">
-							<el-option v-for="effect in effectOptions" :key="effect" :label="effect" :value="effect" />
+							<el-option v-for="effect in effectOptions" :key="effect" :label="effectLabel(effect)" :value="effect" />
 						</el-select>
 					</template>
 				</el-table-column>
-				<el-table-column label="scope" min-width="150">
+				<el-table-column :label="t('permission.scope')" min-width="150">
 					<template #default="{ row }">
 						<el-select v-model="row.scope" :disabled="saving">
-							<el-option v-for="scope in scopeOptions" :key="scope" :label="scope" :value="scope" />
+							<el-option v-for="scope in scopeOptions" :key="scope" :label="scopeLabel(scope)" :value="scope" />
 						</el-select>
 					</template>
 				</el-table-column>

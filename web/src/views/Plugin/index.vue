@@ -535,7 +535,7 @@ async function prepareMarketplaceInstall(item: LocalMarketplaceItem): Promise<vo
 	}
 	const path = marketplaceInstallPath(item);
 	if (!path) {
-		error.value = "当前市场条目缺少可安装路径。";
+		error.value = t("plugin.advanced.marketPathMissing");
 		return;
 	}
 	pluginPath.value = path;
@@ -545,7 +545,7 @@ async function prepareMarketplaceInstall(item: LocalMarketplaceItem): Promise<vo
 		await validatePluginPath();
 		return;
 	}
-	info.value = "已填入本地安装包路径，请等待安装预检支持包校验后继续。";
+	info.value = t("plugin.advanced.marketPackageSelected");
 }
 
 function pluginStatusType(pluginID: string): "success" | "info" {
@@ -637,21 +637,21 @@ function pluginRiskFactors(plugin: FrontendPluginManifest): string[] {
 
 function pluginRiskBlockers(plugin: FrontendPluginManifest): string {
 	if (pluginFailedTasks(plugin.id) > 0) {
-		return "存在失败发布/灰度任务";
+		return t("plugin.advanced.risk.failedTaskBlocker");
 	}
 	if (plugin.enabled === false) {
-		return "插件已停用";
+		return t("plugin.advanced.risk.disabledBlocker");
 	}
 	if (!canVisit(plugin.id)) {
-		return "入口或权限不可访问";
+		return t("plugin.advanced.risk.inaccessibleBlocker");
 	}
 	if (pluginStore.degradedMode) {
-		return "后端同步降级";
+		return t("plugin.advanced.risk.degradedBlocker");
 	}
 	if (pluginSignatureType(plugin) === "warning") {
-		return "签名未验证";
+		return t("plugin.advanced.risk.signatureBlocker");
 	}
-	return "无阻断";
+	return t("plugin.advanced.risk.noBlocker");
 }
 
 function pluginRiskAuditTrail(plugin: FrontendPluginManifest): string {
@@ -798,14 +798,14 @@ function pluginConfigFieldCount(plugin: FrontendPluginManifest): number {
 
 function pluginAssetRows(plugin: FrontendPluginManifest): Array<{ label: string; value: string }> {
 	return [
-		{ label: "entryPath", value: pluginEntryPath(plugin.id) || "-" },
-		{ label: "backendEndpoint", value: plugin.backendEndpoint || "-" },
-		{ label: "serviceHealthURL", value: plugin.serviceHealthURL || "-" },
-		{ label: "appId", value: plugin.appId || "-" },
-		{ label: "uiMode", value: plugin.uiMode || "frontend" },
-		{ label: "uiOpenMode", value: plugin.uiOpenMode || "-" },
-		{ label: "uiTabMode", value: plugin.uiTabMode || "-" },
-		{ label: "locales", value: plugin.i18nLocales?.join(", ") || "-" }
+		{ label: t("plugin.advanced.asset.entryPath"), value: pluginEntryPath(plugin.id) || "-" },
+		{ label: t("plugin.advanced.asset.backendEndpoint"), value: plugin.backendEndpoint || "-" },
+		{ label: t("plugin.advanced.asset.serviceHealthURL"), value: plugin.serviceHealthURL || "-" },
+		{ label: t("plugin.advanced.asset.appId"), value: plugin.appId || "-" },
+		{ label: t("plugin.advanced.asset.uiMode"), value: plugin.uiMode || "frontend" },
+		{ label: t("plugin.advanced.asset.uiOpenMode"), value: plugin.uiOpenMode || "-" },
+		{ label: t("plugin.advanced.asset.uiTabMode"), value: plugin.uiTabMode || "-" },
+		{ label: t("plugin.advanced.asset.locales"), value: plugin.i18nLocales?.join(", ") || "-" }
 	];
 }
 
@@ -1090,7 +1090,7 @@ async function installPluginPath(): Promise<void> {
 		return;
 	}
 	if (!installPreflightReady.value) {
-		error.value = "请先完成当前路径的安装预检。";
+		error.value = t("plugin.advanced.preflightRequired");
 		return;
 	}
 	operating.value = true;
@@ -1193,7 +1193,7 @@ async function runDevAction(action: "validate" | "package" | "pipeline" | "rollo
 		return;
 	}
 	if ((action === "package" || action === "pipeline" || action === "rollout" || action === "rollback") && !devSelectedPlugin.value) {
-		error.value = "请选择插件。";
+		error.value = t("plugin.advanced.selectPlugin");
 		return;
 	}
 	if (action !== "validate" && !(await confirmDevAction(action, devSelectedPlugin.value))) {
@@ -1238,7 +1238,7 @@ async function runDevAction(action: "validate" | "package" | "pipeline" | "rollo
 		devResultText.value = JSON.stringify(payload, null, 2);
 		captureDevArtifactPath(payload);
 		captureDevRollbackPlan(payload, action);
-		info.value = "DevPortal 操作已提交。";
+		info.value = t("plugin.advanced.devSubmitted");
 		await Promise.all([loadDevProjects(), loadDevReleaseOrders(), loadDevReleaseTasks(), loadDevRolloutTasks()]);
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -1251,14 +1251,14 @@ async function runDevAction(action: "validate" | "package" | "pipeline" | "rollo
 
 async function confirmDevAction(action: "package" | "pipeline" | "rollout" | "rollback", pluginID: string): Promise<boolean> {
 	const labelMap = {
-		package: "打包",
-		pipeline: "流水线",
-		rollout: "灰度",
-		rollback: "回滚"
+		package: t("plugin.advanced.action.package"),
+		pipeline: t("plugin.advanced.action.pipeline"),
+		rollout: t("plugin.advanced.action.rollout"),
+		rollback: t("plugin.advanced.action.rollback")
 	};
 	const target = action === "rollout" ? `${pluginID} / ${devTargetEnv.value.trim() || "production"}` : pluginID;
 	return confirmAction({
-		title: "DevPortal 操作确认",
+		title: t("plugin.advanced.devConfirmTitle"),
 		message: `${labelMap[action]}: ${target}`,
 		confirmText: labelMap[action],
 		cancelText: t("common.cancel"),
@@ -1272,7 +1272,7 @@ async function scaffoldDevPlugin(): Promise<void> {
 		return;
 	}
 	if (!devScaffoldPluginID.value.trim() || !devScaffoldPluginName.value.trim()) {
-		error.value = "请输入插件 ID 和插件名称。";
+		error.value = t("plugin.advanced.scaffoldRequired");
 		return;
 	}
 	devLoading.value = true;
@@ -1288,7 +1288,7 @@ async function scaffoldDevPlugin(): Promise<void> {
 		});
 		devResultText.value = JSON.stringify(payload, null, 2);
 		devSelectedPlugin.value = devScaffoldPluginID.value.trim();
-		info.value = "插件脚手架已创建。";
+		info.value = t("plugin.advanced.scaffoldCreated");
 		await loadDevProjects();
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -1303,7 +1303,7 @@ async function createDevReleaseOrder(): Promise<void> {
 		return;
 	}
 	if (!devSelectedPlugin.value) {
-		error.value = "请选择插件。";
+		error.value = t("plugin.advanced.selectPlugin");
 		return;
 	}
 	devLoading.value = true;
@@ -1317,7 +1317,7 @@ async function createDevReleaseOrder(): Promise<void> {
 			changelog: devChangelog.value.trim()
 		});
 		devResultText.value = JSON.stringify(payload, null, 2);
-		info.value = "发布单已创建。";
+		info.value = t("plugin.advanced.releaseOrderCreated");
 		await loadDevReleaseOrders();
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -1336,9 +1336,9 @@ async function reviewDevReleaseOrder(order: Record<string, unknown>, action: "ap
 	if (!orderID || !pluginID) {
 		return;
 	}
-	const actionText = action === "approve" ? "通过发布单" : "拒绝发布单";
+	const actionText = action === "approve" ? t("plugin.advanced.releaseApprove") : t("plugin.advanced.releaseReject");
 	if (!(await confirmAction({
-		title: "发布审批确认",
+		title: t("plugin.advanced.releaseReviewTitle"),
 		message: `${actionText}: ${orderID} / ${pluginID}`,
 		confirmText: actionText,
 		cancelText: t("common.cancel"),
@@ -1357,7 +1357,7 @@ async function reviewDevReleaseOrder(order: Record<string, unknown>, action: "ap
 			comment: devReviewComment.value.trim()
 		});
 		devResultText.value = JSON.stringify(payload, null, 2);
-		info.value = action === "approve" ? "发布单已审批通过。" : "发布单已拒绝。";
+		info.value = action === "approve" ? t("plugin.advanced.releaseApproved") : t("plugin.advanced.releaseRejected");
 		await loadDevReleaseOrders();
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -1374,13 +1374,13 @@ async function executeDevReleaseOrder(order: Record<string, unknown>): Promise<v
 	const orderID = String(order.orderId || "");
 	const pluginID = String(order.pluginId || devSelectedPlugin.value);
 	if (!orderID || !pluginID || !devArtifactPath.value.trim()) {
-		error.value = "执行发布需要发布单、插件和 artifactPath。";
+		error.value = t("plugin.advanced.releaseExecuteRequired");
 		return;
 	}
 	if (!(await confirmAction({
-		title: "发布执行确认",
+		title: t("plugin.advanced.releaseExecuteTitle"),
 		message: `${pluginID} -> ${devTargetEnv.value.trim() || "staging"} / ${devArtifactPath.value.trim()}`,
-		confirmText: "执行发布",
+		confirmText: t("plugin.advanced.releaseExecute"),
 		cancelText: t("common.cancel"),
 		type: "warning",
 		danger: true
@@ -1398,7 +1398,7 @@ async function executeDevReleaseOrder(order: Record<string, unknown>): Promise<v
 			artifactPath: devArtifactPath.value.trim()
 		});
 		devResultText.value = JSON.stringify(payload, null, 2);
-		info.value = "发布任务已提交。";
+		info.value = t("plugin.advanced.releaseTaskSubmitted");
 		await Promise.all([loadDevReleaseOrders(), loadDevReleaseTasks()]);
 	} catch (e) {
 		error.value = toErrorMessage(e);
@@ -1411,7 +1411,7 @@ async function executeDevReleaseOrder(order: Record<string, unknown>): Promise<v
 async function retryDevTask(kind: "release" | "rollout", row: Record<string, unknown>): Promise<void> {
 	const pluginID = String(row.pluginId || "").trim();
 	if (!pluginID) {
-		error.value = "任务缺少插件 ID，无法重试。";
+		error.value = t("plugin.advanced.retryPluginMissing");
 		return;
 	}
 	devSelectedPlugin.value = pluginID;
@@ -1481,7 +1481,7 @@ async function openDevTaskDrawer(kind: "release" | "rollout", task: Record<strin
 	devLoading.value = true;
 	error.value = null;
 	devTaskDrawerOpen.value = true;
-	devTaskDrawerTitle.value = `${kind === "release" ? "发布任务" : "灰度任务"} ${taskID}`;
+	devTaskDrawerTitle.value = `${t(kind === "release" ? "plugin.advanced.releaseTask" : "plugin.advanced.rolloutTask")} ${taskID}`;
 	devTaskDetail.value = null;
 	devTaskLogs.value = [];
 	try {
@@ -1767,70 +1767,70 @@ function resetDefaultHome(): void {
 						<p>{{ installPreflight.plugin.id }}@{{ installPreflight.plugin.version }} · {{ validatedPluginPath }}</p>
 					</div>
 					<div class="preflight-tags">
-						<el-tag :type="preflightStatusType(installPreflight.status)" effect="light">{{ installPreflight.status === "blocked" ? "阻断" : "可安装" }}</el-tag>
+						<el-tag :type="preflightStatusType(installPreflight.status)" effect="light">{{ installPreflight.status === "blocked" ? t("plugin.advanced.preflight.blocked") : t("plugin.advanced.preflight.installable") }}</el-tag>
 						<el-tag :type="preflightRiskType(installPreflight.risk.level)" effect="light">{{ installPreflight.risk.level }}</el-tag>
 						<el-tag :type="preflightSignatureType(installPreflight.signature.status)" effect="light">{{ installPreflight.signature.status }}</el-tag>
 					</div>
 				</div>
-				<el-alert v-if="installPreflight.blockers?.length" class="page-alert" type="error" title="安装被阻断" show-icon :closable="false">
+				<el-alert v-if="installPreflight.blockers?.length" class="page-alert" type="error" :title="t('plugin.advanced.preflight.blockedTitle')" show-icon :closable="false">
 					<ul class="preflight-list">
 						<li v-for="item in installPreflight.blockers" :key="item">{{ item }}</li>
 					</ul>
 				</el-alert>
-				<el-alert v-if="installPreflight.warnings?.length" class="page-alert" type="warning" title="需要复核" show-icon :closable="false">
+				<el-alert v-if="installPreflight.warnings?.length" class="page-alert" type="warning" :title="t('plugin.advanced.preflight.reviewTitle')" show-icon :closable="false">
 					<ul class="preflight-list">
 						<li v-for="item in installPreflight.warnings" :key="item">{{ item }}</li>
 					</ul>
 				</el-alert>
 				<el-descriptions :column="3" border>
-					<el-descriptions-item label="权限 diff">{{ preflightDiffCount(installPreflight.permissions) }}</el-descriptions-item>
-					<el-descriptions-item label="菜单 diff">{{ preflightDiffCount(installPreflight.menus) }}</el-descriptions-item>
-					<el-descriptions-item label="配置字段">{{ installPreflight.config.hasSchema ? installPreflight.config.fieldCount : "无 schema" }}</el-descriptions-item>
-					<el-descriptions-item label="依赖">{{ preflightDependencyText() }}</el-descriptions-item>
-					<el-descriptions-item label="迁移">{{ installPreflight.migration.error || `${preflightMigrationCount()} 项` }}</el-descriptions-item>
-					<el-descriptions-item label="资源">{{ installPreflight.resources.uiMode || "-" }} · {{ installPreflight.resources.frontendEntry || "-" }}</el-descriptions-item>
-					<el-descriptions-item label="签名">{{ installPreflight.signature.algorithm || "-" }} · {{ installPreflight.signature.vendorId || "-" }}</el-descriptions-item>
-					<el-descriptions-item label="风险摘要">{{ installPreflight.risk.summary?.join(", ") || "无额外风险" }}</el-descriptions-item>
-					<el-descriptions-item label="审计线索">plugin.install.preflight</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.permissionDiff')">{{ preflightDiffCount(installPreflight.permissions) }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.menuDiff')">{{ preflightDiffCount(installPreflight.menus) }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.configFields')">{{ installPreflight.config.hasSchema ? installPreflight.config.fieldCount : t("plugin.advanced.preflight.noSchema") }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.dependencies')">{{ preflightDependencyText() }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.migrations')">{{ installPreflight.migration.error || t("plugin.advanced.preflight.itemCount", { count: preflightMigrationCount() }) }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.resources')">{{ installPreflight.resources.uiMode || "-" }} · {{ installPreflight.resources.frontendEntry || "-" }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.signature')">{{ installPreflight.signature.algorithm || "-" }} · {{ installPreflight.signature.vendorId || "-" }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.riskSummary')">{{ installPreflight.risk.summary?.join(", ") || t("plugin.advanced.preflight.noAdditionalRisk") }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.auditTrail')">{{ t("plugin.advanced.detail.auditEvent") }}</el-descriptions-item>
 				</el-descriptions>
 				<div class="preflight-grid">
 					<section class="preflight-section">
-						<h4>权限影响</h4>
-						<el-table :data="[...(installPreflight.permissions.conflict ?? []), ...(installPreflight.permissions.add ?? []), ...(installPreflight.permissions.update ?? [])]" size="small" max-height="220" empty-text="无权限变更">
-							<el-table-column prop="key" label="Key" min-width="160" />
-							<el-table-column prop="type" label="类型" width="90" />
-							<el-table-column prop="risk" label="风险" width="90">
+						<h4>{{ t("plugin.advanced.preflight.permissionImpact") }}</h4>
+						<el-table :data="[...(installPreflight.permissions.conflict ?? []), ...(installPreflight.permissions.add ?? []), ...(installPreflight.permissions.update ?? [])]" size="small" max-height="220" :empty-text="t('plugin.advanced.preflight.noPermissionChanges')">
+							<el-table-column prop="key" :label="t('plugin.advanced.preflight.key')" min-width="160" />
+							<el-table-column prop="type" :label="t('plugin.advanced.preflight.type')" width="90" />
+							<el-table-column prop="risk" :label="t('plugin.advanced.preflight.risk')" width="90">
 								<template #default="{ row }">
 									<el-tag :type="marketplaceRiskType(row.risk || 'low')" size="small">{{ row.risk || "low" }}</el-tag>
 								</template>
 							</el-table-column>
-							<el-table-column prop="existing" label="已存在" min-width="140" />
+							<el-table-column prop="existing" :label="t('plugin.advanced.preflight.existing')" min-width="140" />
 						</el-table>
 					</section>
 					<section class="preflight-section">
-						<h4>菜单影响</h4>
-						<el-table :data="[...(installPreflight.menus.conflict ?? []), ...(installPreflight.menus.add ?? []), ...(installPreflight.menus.update ?? [])]" size="small" max-height="220" empty-text="无菜单变更">
-							<el-table-column prop="key" label="Key" min-width="150" />
-							<el-table-column prop="path" label="路径" min-width="180" />
-							<el-table-column prop="existing" label="已存在" min-width="140" />
+						<h4>{{ t("plugin.advanced.preflight.menuImpact") }}</h4>
+						<el-table :data="[...(installPreflight.menus.conflict ?? []), ...(installPreflight.menus.add ?? []), ...(installPreflight.menus.update ?? [])]" size="small" max-height="220" :empty-text="t('plugin.advanced.preflight.noMenuChanges')">
+							<el-table-column prop="key" :label="t('plugin.advanced.preflight.key')" min-width="150" />
+							<el-table-column prop="path" :label="t('plugin.advanced.preflight.path')" min-width="180" />
+							<el-table-column prop="existing" :label="t('plugin.advanced.preflight.existing')" min-width="140" />
 						</el-table>
 					</section>
 					<section class="preflight-section">
-						<h4>配置与资源</h4>
+						<h4>{{ t("plugin.advanced.preflight.configResources") }}</h4>
 						<dl>
-							<dt>必填字段</dt>
+							<dt>{{ t("plugin.advanced.preflight.requiredFields") }}</dt>
 							<dd>{{ installPreflight.config.requiredFields?.join(", ") || "-" }}</dd>
-							<dt>默认字段</dt>
+							<dt>{{ t("plugin.advanced.preflight.defaultFields") }}</dt>
 							<dd>{{ installPreflight.config.defaultFields?.join(", ") || "-" }}</dd>
-							<dt>网络</dt>
+							<dt>{{ t("plugin.advanced.preflight.network") }}</dt>
 							<dd>{{ installPreflight.resources.serviceBaseUrl || installPreflight.resources.serviceHealthUrl || "-" }}</dd>
 						</dl>
 					</section>
 					<section class="preflight-section">
-						<h4>迁移</h4>
-						<el-table :data="installPreflight.migration.pending ?? []" size="small" max-height="180" empty-text="无待执行迁移">
-							<el-table-column prop="version" label="版本" width="80" />
-							<el-table-column prop="name" label="名称" min-width="180" />
+						<h4>{{ t("plugin.advanced.preflight.migrations") }}</h4>
+						<el-table :data="installPreflight.migration.pending ?? []" size="small" max-height="180" :empty-text="t('plugin.advanced.preflight.noMigrations')">
+							<el-table-column prop="version" :label="t('plugin.advanced.preflight.version')" width="80" />
+							<el-table-column prop="name" :label="t('plugin.advanced.preflight.name')" min-width="180" />
 						</el-table>
 					</section>
 				</div>
@@ -1838,12 +1838,12 @@ function resetDefaultHome(): void {
 			<pre v-if="operationText" class="code-block">{{ operationText }}</pre>
 		</el-card>
 
-		<div class="heavy-panel-tabs" aria-label="插件重面板">
+		<div class="heavy-panel-tabs" :aria-label="t('plugin.advanced.panelLabel')">
 			<el-button-group>
-				<el-button :type="activeHeavyPanel === 'inventory' ? 'primary' : 'default'" @click="activeHeavyPanel = 'inventory'">插件列表</el-button>
-				<el-button :type="activeHeavyPanel === 'marketplace' ? 'primary' : 'default'" @click="activeHeavyPanel = 'marketplace'">本地市场</el-button>
-				<el-button :type="activeHeavyPanel === 'risk' ? 'primary' : 'default'" @click="activeHeavyPanel = 'risk'">风险报告</el-button>
-				<el-button :type="activeHeavyPanel === 'devportal' ? 'primary' : 'default'" :disabled="!canManagePlugins" @click="activeHeavyPanel = 'devportal'">DevPortal</el-button>
+				<el-button :type="activeHeavyPanel === 'inventory' ? 'primary' : 'default'" @click="activeHeavyPanel = 'inventory'">{{ t("plugin.advanced.panel.inventory") }}</el-button>
+				<el-button :type="activeHeavyPanel === 'marketplace' ? 'primary' : 'default'" @click="activeHeavyPanel = 'marketplace'">{{ t("plugin.advanced.panel.marketplace") }}</el-button>
+				<el-button :type="activeHeavyPanel === 'risk' ? 'primary' : 'default'" @click="activeHeavyPanel = 'risk'">{{ t("plugin.advanced.panel.risk") }}</el-button>
+				<el-button :type="activeHeavyPanel === 'devportal' ? 'primary' : 'default'" :disabled="!canManagePlugins" @click="activeHeavyPanel = 'devportal'">{{ t("plugin.advanced.dev.title") }}</el-button>
 			</el-button-group>
 		</div>
 
@@ -1851,52 +1851,45 @@ function resetDefaultHome(): void {
 			<template #header>
 				<div class="card-header">
 					<div>
-						<h3>本地插件市场</h3>
-						<p>{{ devPluginsRoot }} · {{ marketplaceItems.length }} 项 · 可安装 {{ marketplaceInstallableCount }} · 高风险 {{ marketplaceHighRiskCount }} · 未签名 {{ marketplaceUnsignedCount }}</p>
+						<h3>{{ t("plugin.advanced.market.title") }}</h3>
+						<p>{{ t("plugin.advanced.market.summary", { root: devPluginsRoot, total: marketplaceItems.length, installable: marketplaceInstallableCount, highRisk: marketplaceHighRiskCount, unsigned: marketplaceUnsignedCount }) }}</p>
 					</div>
-					<el-button type="primary" :icon="Refresh" :loading="marketplaceLoading" :disabled="!canReadPlugins" @click="loadMarketplace">刷新市场</el-button>
+					<el-button type="primary" :icon="Refresh" :loading="marketplaceLoading" :disabled="!canReadPlugins" @click="loadMarketplace">{{ t("plugin.advanced.market.refresh") }}</el-button>
 				</div>
 			</template>
 			<el-alert v-if="marketplaceError" class="page-alert" type="error" :title="marketplaceError" show-icon :closable="false" />
 			<el-form label-position="top" class="marketplace-filters" @submit.prevent>
-				<el-form-item label="关键词">
-					<el-input v-model="marketplaceKeyword" clearable placeholder="搜索 ID、名称、版本、路径、权限或摘要" />
+				<el-form-item :label="t('plugin.advanced.market.keyword')">
+					<el-input v-model="marketplaceKeyword" clearable :placeholder="t('plugin.advanced.market.searchPlaceholder')" />
 				</el-form-item>
-				<el-form-item label="风险">
-					<el-select v-model="marketplaceRiskFilter" clearable placeholder="全部风险">
-						<el-option label="low" value="low" />
-						<el-option label="medium" value="medium" />
-						<el-option label="high" value="high" />
-						<el-option label="critical" value="critical" />
-						<el-option label="unknown" value="unknown" />
+				<el-form-item :label="t('plugin.advanced.market.risk')">
+					<el-select v-model="marketplaceRiskFilter" clearable :placeholder="t('plugin.advanced.market.allRisks')">
+						<el-option v-for="level in ['low', 'medium', 'high', 'critical', 'unknown']" :key="level" :label="t(`plugin.advanced.level.${level}`)" :value="level" />
 					</el-select>
 				</el-form-item>
-				<el-form-item label="签名">
-					<el-select v-model="marketplaceSignatureFilter" clearable placeholder="全部签名">
-						<el-option label="signed" value="signed" />
-						<el-option label="unsigned" value="unsigned" />
-						<el-option label="incomplete" value="incomplete" />
-						<el-option label="unknown" value="unknown" />
+				<el-form-item :label="t('plugin.advanced.market.signature')">
+					<el-select v-model="marketplaceSignatureFilter" clearable :placeholder="t('plugin.advanced.market.allSignatures')">
+						<el-option v-for="status in ['signed', 'unsigned', 'incomplete', 'unknown']" :key="status" :label="t(`plugin.advanced.signature.${status}`)" :value="status" />
 					</el-select>
 				</el-form-item>
 				<el-form-item class="filter-actions">
 					<el-button :disabled="!hasMarketplaceFilters" @click="resetMarketplaceFilters">{{ t("common.reset") }}</el-button>
 				</el-form-item>
 			</el-form>
-			<StateBlock v-if="!marketplaceLoading && filteredMarketplaceItems.length === 0" type="empty" description="暂无本地市场条目。" />
+			<StateBlock v-if="!marketplaceLoading && filteredMarketplaceItems.length === 0" type="empty" :description="t('plugin.advanced.market.empty')" />
 			<el-table v-else v-loading="marketplaceLoading" :data="filteredMarketplaceItems" stripe border>
-				<el-table-column prop="id" label="插件" min-width="150" show-overflow-tooltip />
-				<el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
-				<el-table-column prop="version" label="版本" width="110" />
-				<el-table-column label="风险" min-width="190">
+				<el-table-column prop="id" :label="t('plugin.table.id')" min-width="150" show-overflow-tooltip />
+				<el-table-column prop="name" :label="t('plugin.table.name')" min-width="160" show-overflow-tooltip />
+				<el-table-column prop="version" :label="t('plugin.table.version')" width="110" />
+				<el-table-column :label="t('plugin.advanced.market.risk')" min-width="190">
 					<template #default="{ row }">
 						<div class="signal-stack">
 							<el-tag :type="marketplaceRiskType(row.risk.level)" effect="light">{{ row.risk.level }}</el-tag>
-							<span class="signal-meta">{{ marketplaceRiskItems(row).length }} 项</span>
+							<span class="signal-meta">{{ t("plugin.advanced.preflight.itemCount", { count: marketplaceRiskItems(row).length }) }}</span>
 						</div>
 					</template>
 				</el-table-column>
-				<el-table-column label="签名" min-width="190">
+				<el-table-column :label="t('plugin.advanced.market.signature')" min-width="190">
 					<template #default="{ row }">
 						<div class="signal-stack">
 							<el-tag :type="marketplaceSignatureType(row.signature.status)" effect="plain">{{ row.signature.status }}</el-tag>
@@ -1904,25 +1897,25 @@ function resetDefaultHome(): void {
 						</div>
 					</template>
 				</el-table-column>
-				<el-table-column label="安装包" min-width="260" show-overflow-tooltip>
+				<el-table-column :label="t('plugin.advanced.market.package')" min-width="260" show-overflow-tooltip>
 					<template #default="{ row }">
 						<div class="package-cell">
-							<strong>{{ row.installable ? "ready" : "source" }}</strong>
+							<strong>{{ row.installable ? t("plugin.advanced.package.ready") : t("plugin.advanced.package.source") }}</strong>
 							<span>{{ row.packageDigest || row.manifestPath || "-" }}</span>
 						</div>
 					</template>
 				</el-table-column>
-				<el-table-column label="路径" min-width="260" show-overflow-tooltip>
+				<el-table-column :label="t('plugin.advanced.preflight.path')" min-width="260" show-overflow-tooltip>
 					<template #default="{ row }">
 						{{ marketplaceInstallPath(row) || "-" }}
 					</template>
 				</el-table-column>
-				<el-table-column label="操作" width="170" fixed="right">
+				<el-table-column :label="t('common.actions')" width="170" fixed="right">
 					<template #default="{ row }">
 						<el-button v-if="canManagePlugins" size="small" type="primary" :icon="Upload" :disabled="!marketplaceInstallPath(row) || operating" @click="prepareMarketplaceInstall(row)">
-							安装入口
+							{{ t("plugin.advanced.market.installEntry") }}
 						</el-button>
-						<el-tag v-else type="info" effect="plain">只读</el-tag>
+						<el-tag v-else type="info" effect="plain">{{ t("plugin.advanced.market.readOnly") }}</el-tag>
 					</template>
 				</el-table-column>
 			</el-table>
@@ -1932,71 +1925,71 @@ function resetDefaultHome(): void {
 			<template #header>
 				<div class="card-header">
 					<div>
-						<h3>插件风险报告</h3>
-						<p>汇总安装前风险、权限影响、签名状态和安装后运行风险。</p>
+						<h3>{{ t("plugin.advanced.riskReport.title") }}</h3>
+						<p>{{ t("plugin.advanced.riskReport.description") }}</p>
 					</div>
 					<div class="risk-report-signals">
-						<el-tag :type="riskReportSummary.preInstall > 0 ? 'warning' : 'success'" effect="light">安装前 {{ riskReportSummary.preInstall }}</el-tag>
-						<el-tag :type="riskReportSummary.installed > 0 ? 'warning' : 'success'" effect="light">安装后 {{ riskReportSummary.installed }}</el-tag>
-						<el-tag type="info" effect="plain">权限 {{ riskReportSummary.permissions }}</el-tag>
+						<el-tag :type="riskReportSummary.preInstall > 0 ? 'warning' : 'success'" effect="light">{{ t("plugin.advanced.riskReport.preInstall") }} {{ riskReportSummary.preInstall }}</el-tag>
+						<el-tag :type="riskReportSummary.installed > 0 ? 'warning' : 'success'" effect="light">{{ t("plugin.advanced.riskReport.installed") }} {{ riskReportSummary.installed }}</el-tag>
+						<el-tag type="info" effect="plain">{{ t("plugin.advanced.riskReport.permissions") }} {{ riskReportSummary.permissions }}</el-tag>
 					</div>
 				</div>
 			</template>
 			<el-tabs>
-				<el-tab-pane label="安装前">
-					<StateBlock v-if="visiblePreInstallRiskRows.length === 0" type="empty" description="暂无安装前风险。" />
+				<el-tab-pane :label="t('plugin.advanced.riskReport.preInstall')">
+					<StateBlock v-if="visiblePreInstallRiskRows.length === 0" type="empty" :description="t('plugin.advanced.riskReport.emptyPreInstall')" />
 					<el-table v-else :data="visiblePreInstallRiskRows" stripe border>
-						<el-table-column prop="id" label="插件" min-width="150" show-overflow-tooltip />
-						<el-table-column prop="version" label="版本" width="100" />
-						<el-table-column label="风险" width="110">
+						<el-table-column prop="id" :label="t('plugin.table.id')" min-width="150" show-overflow-tooltip />
+						<el-table-column prop="version" :label="t('plugin.table.version')" width="100" />
+						<el-table-column :label="t('plugin.advanced.market.risk')" width="110">
 							<template #default="{ row }">
 								<el-tag :type="marketplaceRiskType(row.level)" effect="light">{{ row.level }}</el-tag>
 							</template>
 						</el-table-column>
-						<el-table-column label="签名" width="120">
+						<el-table-column :label="t('plugin.advanced.market.signature')" width="120">
 							<template #default="{ row }">
 								<el-tag :type="marketplaceSignatureType(row.signature)" effect="plain">{{ row.signature }}</el-tag>
 							</template>
 						</el-table-column>
-						<el-table-column label="权限影响" min-width="180">
+						<el-table-column :label="t('plugin.advanced.riskReport.permissionImpact')" min-width="180">
 							<template #default="{ row }">
 								<el-tag v-for="item in row.permissions" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
 								<span v-if="row.permissions.length === 0">-</span>
 							</template>
 						</el-table-column>
-						<el-table-column label="风险因子" min-width="220">
+						<el-table-column :label="t('plugin.advanced.riskReport.riskFactors')" min-width="220">
 							<template #default="{ row }">
 								<el-tag v-for="item in row.impacts" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
 								<span v-if="row.impacts.length === 0">-</span>
 							</template>
 						</el-table-column>
-						<el-table-column prop="audit" label="审计线索" min-width="180" show-overflow-tooltip />
+						<el-table-column prop="audit" :label="t('plugin.advanced.preflight.auditTrail')" min-width="180" show-overflow-tooltip />
 					</el-table>
 				</el-tab-pane>
-				<el-tab-pane label="安装后">
-					<StateBlock v-if="visibleRiskRows.length === 0" type="empty" description="暂无安装后风险。" />
+				<el-tab-pane :label="t('plugin.advanced.riskReport.installed')">
+					<StateBlock v-if="visibleRiskRows.length === 0" type="empty" :description="t('plugin.advanced.riskReport.emptyInstalled')" />
 					<el-table v-else :data="visibleRiskRows" stripe border>
-						<el-table-column prop="id" label="插件" min-width="170" show-overflow-tooltip />
-						<el-table-column label="风险等级" width="120">
+						<el-table-column prop="id" :label="t('plugin.table.id')" min-width="170" show-overflow-tooltip />
+						<el-table-column :label="t('plugin.advanced.market.risk')" width="120">
 							<template #default="{ row }">
 								<el-tag :type="pluginRiskLevelType(row.level)" effect="light">{{ row.level }}</el-tag>
 							</template>
 						</el-table-column>
-						<el-table-column label="权限影响" min-width="180">
+						<el-table-column :label="t('plugin.advanced.riskReport.permissionImpact')" min-width="180">
 							<template #default="{ row }">
 								<el-tag v-for="item in row.permissions" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
 								<span v-if="row.permissions.length === 0">-</span>
 							</template>
 						</el-table-column>
-						<el-table-column label="风险因子" min-width="220">
+						<el-table-column :label="t('plugin.advanced.riskReport.riskFactors')" min-width="220">
 							<template #default="{ row }">
 								<el-tag v-for="item in row.factors" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
 								<span v-if="row.factors.length === 0">-</span>
 							</template>
 						</el-table-column>
-						<el-table-column prop="blockers" label="阻断原因" min-width="180" show-overflow-tooltip />
-						<el-table-column prop="entryPath" label="入口" min-width="180" show-overflow-tooltip />
-						<el-table-column prop="audit" label="审计线索" min-width="200" show-overflow-tooltip />
+						<el-table-column prop="blockers" :label="t('plugin.advanced.riskReport.blockers')" min-width="180" show-overflow-tooltip />
+						<el-table-column prop="entryPath" :label="t('plugin.advanced.riskReport.entry')" min-width="180" show-overflow-tooltip />
+						<el-table-column prop="audit" :label="t('plugin.advanced.preflight.auditTrail')" min-width="200" show-overflow-tooltip />
 					</el-table>
 				</el-tab-pane>
 			</el-tabs>
@@ -2006,185 +1999,185 @@ function resetDefaultHome(): void {
 			<template #header>
 				<div class="card-header">
 					<div>
-						<h3>DevPortal 工作台</h3>
-						<p>面向插件开发、打包、发布和灰度回滚的操作入口。</p>
+						<h3>{{ t("plugin.advanced.dev.title") }}</h3>
+						<p>{{ t("plugin.advanced.dev.description") }}</p>
 					</div>
-					<el-button type="primary" :icon="Refresh" :loading="devLoading" @click="refreshDevPortal">刷新工作台</el-button>
+					<el-button type="primary" :icon="Refresh" :loading="devLoading" @click="refreshDevPortal">{{ t("plugin.advanced.dev.refresh") }}</el-button>
 				</div>
 			</template>
 			<div class="devportal-grid">
 				<section class="devportal-controls">
 					<el-form label-position="top">
-						<el-form-item label="插件根目录">
-							<el-input v-model="devPluginsRoot" placeholder="plugins" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.pluginsRoot')">
+							<el-input v-model="devPluginsRoot" :placeholder="t('plugin.advanced.dev.pluginsRoot')" clearable />
 						</el-form-item>
-						<el-divider content-position="left">脚手架</el-divider>
-						<el-form-item label="新插件 ID">
-							<el-input v-model="devScaffoldPluginID" placeholder="例如: report-center" clearable />
+						<el-divider content-position="left">{{ t("plugin.advanced.dev.scaffold") }}</el-divider>
+						<el-form-item :label="t('plugin.advanced.dev.newPluginId')">
+							<el-input v-model="devScaffoldPluginID" :placeholder="t('plugin.advanced.dev.newPluginIdPlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="新插件名称">
-							<el-input v-model="devScaffoldPluginName" placeholder="例如: Report Center" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.newPluginName')">
+							<el-input v-model="devScaffoldPluginName" :placeholder="t('plugin.advanced.dev.newPluginNamePlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="App ID / 模式">
+						<el-form-item :label="t('plugin.advanced.dev.appMode')">
 							<div class="inline-fields">
-								<el-input v-model="devScaffoldAppID" placeholder="可选 appId" clearable />
+								<el-input v-model="devScaffoldAppID" :placeholder="t('plugin.advanced.dev.optionalAppId')" clearable />
 								<el-select v-model="devScaffoldMode">
-									<el-option label="workspace" value="workspace" />
-									<el-option label="repository" value="repository" />
+									<el-option :label="t('plugin.advanced.dev.mode.workspace')" value="workspace" />
+									<el-option :label="t('plugin.advanced.dev.mode.repository')" value="repository" />
 								</el-select>
 							</div>
 						</el-form-item>
-						<el-button :icon="Upload" :loading="devLoading" @click="scaffoldDevPlugin">创建脚手架</el-button>
-						<el-divider content-position="left">构建与发布</el-divider>
-						<el-form-item label="插件">
-							<el-select v-model="devSelectedPlugin" filterable clearable placeholder="选择插件" @change="refreshDevPortal">
+						<el-button :icon="Upload" :loading="devLoading" @click="scaffoldDevPlugin">{{ t("plugin.advanced.dev.createScaffold") }}</el-button>
+						<el-divider content-position="left">{{ t("plugin.advanced.dev.buildRelease") }}</el-divider>
+						<el-form-item :label="t('plugin.advanced.dev.plugin')">
+							<el-select v-model="devSelectedPlugin" filterable clearable :placeholder="t('plugin.advanced.selectPlugin')" @change="refreshDevPortal">
 								<el-option v-for="id in devPluginOptions" :key="id" :label="id" :value="id" />
 							</el-select>
 						</el-form-item>
-						<el-form-item label="输出目录">
-							<el-input v-model="devOutputDir" placeholder="默认 plugins/_dist" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.outputDir')">
+							<el-input v-model="devOutputDir" :placeholder="t('plugin.advanced.dev.outputDirPlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="制品路径">
-							<el-input v-model="devArtifactPath" placeholder="打包或流水线成功后自动填充" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.artifactPath')">
+							<el-input v-model="devArtifactPath" :placeholder="t('plugin.advanced.dev.artifactPathPlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="发布版本">
-							<el-input v-model="devReleaseVersion" placeholder="留空则读取 manifest version" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.releaseVersion')">
+							<el-input v-model="devReleaseVersion" :placeholder="t('plugin.advanced.dev.releaseVersionPlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="变更说明">
-							<el-input v-model="devChangelog" type="textarea" :rows="3" resize="vertical" placeholder="发布说明 / 风险点 / 回滚说明" />
+						<el-form-item :label="t('plugin.advanced.dev.changelog')">
+							<el-input v-model="devChangelog" type="textarea" :rows="3" resize="vertical" :placeholder="t('plugin.advanced.dev.changelogPlaceholder')" />
 						</el-form-item>
-						<el-form-item label="审批意见">
-							<el-input v-model="devReviewComment" placeholder="审批或拒绝时写入" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.reviewComment')">
+							<el-input v-model="devReviewComment" :placeholder="t('plugin.advanced.dev.reviewCommentPlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="目标环境">
+						<el-form-item :label="t('plugin.advanced.dev.targetEnv')">
 							<el-segmented v-model="devTargetEnv" :options="['staging', 'production']" />
 						</el-form-item>
-						<el-button type="success" :icon="Document" :loading="devLoading" :disabled="!devSelectedPlugin" @click="createDevReleaseOrder">创建发布单</el-button>
-						<el-divider content-position="left">灰度与回滚</el-divider>
-						<el-form-item label="灰度策略">
+						<el-button type="success" :icon="Document" :loading="devLoading" :disabled="!devSelectedPlugin" @click="createDevReleaseOrder">{{ t("plugin.advanced.dev.createReleaseOrder") }}</el-button>
+						<el-divider content-position="left">{{ t("plugin.advanced.dev.rolloutRollback") }}</el-divider>
+						<el-form-item :label="t('plugin.advanced.dev.rolloutStrategy')">
 							<el-segmented v-model="devRolloutStrategy" :options="['percent', 'tag', 'canary']" />
 						</el-form-item>
-						<el-form-item label="灰度比例">
+						<el-form-item :label="t('plugin.advanced.dev.rolloutPercent')">
 							<el-slider v-model="devRolloutPercent" :disabled="devRolloutStrategy !== 'percent'" :min="0" :max="100" show-input />
 						</el-form-item>
-						<el-form-item label="标签（逗号分隔）">
-							<el-input v-model="devRolloutTags" :disabled="devRolloutStrategy !== 'tag'" placeholder="beta, internal, tenant-a" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.tags')">
+							<el-input v-model="devRolloutTags" :disabled="devRolloutStrategy !== 'tag'" :placeholder="t('plugin.advanced.dev.tagsPlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="金丝雀版本">
-							<el-input v-model="devCanaryVersion" :disabled="devRolloutStrategy !== 'canary'" placeholder="例如: 1.2.0-canary.1" clearable />
+						<el-form-item :label="t('plugin.advanced.dev.canaryVersion')">
+							<el-input v-model="devCanaryVersion" :disabled="devRolloutStrategy !== 'canary'" :placeholder="t('plugin.advanced.dev.canaryPlaceholder')" clearable />
 						</el-form-item>
-						<el-form-item label="回滚比例（可选）">
+						<el-form-item :label="t('plugin.advanced.dev.rollbackPercent')">
 							<el-input-number v-model="devRollbackPercent" :min="0" :max="100" controls-position="right" />
 						</el-form-item>
 					</el-form>
 					<div class="devportal-actions">
-						<el-button :icon="CircleCheck" :loading="devLoading" @click="runDevAction('validate')">全量校验</el-button>
-						<el-button :icon="Upload" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('package')">打包</el-button>
-						<el-button type="primary" :icon="Tools" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('pipeline')">流水线</el-button>
-						<el-button type="warning" :icon="WarningFilled" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('rollout')">灰度</el-button>
-						<el-button type="danger" :icon="Refresh" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('rollback')">回滚</el-button>
+						<el-button :icon="CircleCheck" :loading="devLoading" @click="runDevAction('validate')">{{ t("plugin.advanced.action.validate") }}</el-button>
+						<el-button :icon="Upload" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('package')">{{ t("plugin.advanced.action.package") }}</el-button>
+						<el-button type="primary" :icon="Tools" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('pipeline')">{{ t("plugin.advanced.action.pipeline") }}</el-button>
+						<el-button type="warning" :icon="WarningFilled" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('rollout')">{{ t("plugin.advanced.action.rollout") }}</el-button>
+						<el-button type="danger" :icon="Refresh" :loading="devLoading" :disabled="!devSelectedPlugin" @click="runDevAction('rollback')">{{ t("plugin.advanced.action.rollback") }}</el-button>
 					</div>
 					<el-descriptions v-if="devConfig" class="dev-config" :column="1" size="small" border>
-						<el-descriptions-item label="启用">{{ String(devConfig.enabled ?? "") }}</el-descriptions-item>
-						<el-descriptions-item label="默认根目录">{{ String(devConfig.defaultRoot ?? "") }}</el-descriptions-item>
-						<el-descriptions-item label="允许根目录">{{ JSON.stringify(devConfig.allowedRoots ?? []) }}</el-descriptions-item>
+						<el-descriptions-item :label="t('plugin.advanced.dev.enabled')">{{ String(devConfig.enabled ?? "") }}</el-descriptions-item>
+						<el-descriptions-item :label="t('plugin.advanced.dev.defaultRoot')">{{ String(devConfig.defaultRoot ?? "") }}</el-descriptions-item>
+						<el-descriptions-item :label="t('plugin.advanced.dev.allowedRoots')">{{ JSON.stringify(devConfig.allowedRoots ?? []) }}</el-descriptions-item>
 					</el-descriptions>
 				</section>
 
 				<section class="devportal-data">
 					<div class="dev-task-summary">
 						<article class="dev-task-card">
-							<span>任务总数</span>
+							<span>{{ t("plugin.advanced.dev.totalTasks") }}</span>
 							<strong>{{ devTaskSummary.total }}</strong>
 						</article>
 						<article class="dev-task-card">
-							<span>进行中</span>
+							<span>{{ t("plugin.advanced.dev.running") }}</span>
 							<strong>{{ devTaskSummary.running }}</strong>
 						</article>
 						<article class="dev-task-card" :class="{ 'is-danger': devTaskSummary.failed > 0 }">
-							<span>失败</span>
+							<span>{{ t("plugin.advanced.dev.failed") }}</span>
 							<strong>{{ devTaskSummary.failed }}</strong>
 						</article>
 						<article class="dev-task-card">
-							<span>回滚</span>
+							<span>{{ t("plugin.advanced.dev.rollbacks") }}</span>
 							<strong>{{ devTaskSummary.rollback }}</strong>
 						</article>
 					</div>
 					<el-tabs>
-						<el-tab-pane label="项目">
+						<el-tab-pane :label="t('plugin.advanced.dev.projects')">
 							<el-table :data="devProjects" stripe border max-height="260">
-								<el-table-column prop="pluginId" label="Plugin ID" min-width="160" show-overflow-tooltip />
-								<el-table-column prop="version" label="版本" width="100" />
-								<el-table-column prop="status" label="状态" width="100" />
-								<el-table-column prop="mode" label="模式" width="110" />
-								<el-table-column prop="path" label="路径" min-width="220" show-overflow-tooltip />
+								<el-table-column prop="pluginId" :label="t('plugin.table.id')" min-width="160" show-overflow-tooltip />
+								<el-table-column prop="version" :label="t('plugin.table.version')" width="100" />
+								<el-table-column prop="status" :label="t('plugin.advanced.dev.status')" width="100" />
+								<el-table-column prop="mode" :label="t('plugin.advanced.dev.mode')" width="110" />
+								<el-table-column prop="path" :label="t('plugin.advanced.preflight.path')" min-width="220" show-overflow-tooltip />
 							</el-table>
 						</el-tab-pane>
-						<el-tab-pane label="发布单">
+						<el-tab-pane :label="t('plugin.advanced.dev.releaseOrders')">
 							<el-table :data="devReleaseOrders" stripe border max-height="260">
-								<el-table-column prop="orderId" label="Order ID" min-width="180" show-overflow-tooltip />
-								<el-table-column prop="pluginId" label="插件" min-width="140" />
-								<el-table-column prop="releaseVersion" label="版本" width="110" />
-								<el-table-column prop="orderStatus" label="状态" width="110" />
-								<el-table-column prop="createdAt" label="创建时间" min-width="180" show-overflow-tooltip />
-								<el-table-column label="操作" min-width="220" fixed="right">
+								<el-table-column prop="orderId" :label="t('plugin.advanced.dev.orderId')" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="pluginId" :label="t('plugin.table.id')" min-width="140" />
+								<el-table-column prop="releaseVersion" :label="t('plugin.table.version')" width="110" />
+								<el-table-column prop="orderStatus" :label="t('plugin.advanced.dev.status')" width="110" />
+								<el-table-column prop="createdAt" :label="t('plugin.advanced.dev.createdAt')" min-width="180" show-overflow-tooltip />
+								<el-table-column :label="t('common.actions')" min-width="220" fixed="right">
 									<template #default="{ row }">
 										<div class="row-actions">
-											<el-button size="small" type="success" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'pending'" @click="reviewDevReleaseOrder(row, 'approve')">通过</el-button>
-											<el-button size="small" type="warning" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'pending'" @click="reviewDevReleaseOrder(row, 'reject')">拒绝</el-button>
-											<el-button size="small" type="primary" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'approved' || !devArtifactPath" @click="executeDevReleaseOrder(row)">执行</el-button>
+											<el-button size="small" type="success" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'pending'" @click="reviewDevReleaseOrder(row, 'approve')">{{ t("plugin.advanced.dev.approve") }}</el-button>
+											<el-button size="small" type="warning" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'pending'" @click="reviewDevReleaseOrder(row, 'reject')">{{ t("plugin.advanced.dev.reject") }}</el-button>
+											<el-button size="small" type="primary" :disabled="devLoading || !canManagePlugins || row.orderStatus !== 'approved' || !devArtifactPath" @click="executeDevReleaseOrder(row)">{{ t("plugin.advanced.dev.execute") }}</el-button>
 										</div>
 									</template>
 								</el-table-column>
 							</el-table>
 						</el-tab-pane>
-						<el-tab-pane label="发布任务">
+						<el-tab-pane :label="t('plugin.advanced.dev.releaseTasks')">
 							<el-table :data="devReleaseTasks" stripe border max-height="260">
-								<el-table-column prop="taskId" label="Task ID" min-width="180" show-overflow-tooltip />
-								<el-table-column prop="pluginId" label="插件" min-width="140" />
-								<el-table-column prop="targetEnv" label="环境" width="100" />
-								<el-table-column label="状态" width="120">
+								<el-table-column prop="taskId" :label="t('plugin.advanced.dev.taskId')" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="pluginId" :label="t('plugin.table.id')" min-width="140" />
+								<el-table-column prop="targetEnv" :label="t('plugin.advanced.dev.environment')" width="100" />
+								<el-table-column :label="t('plugin.advanced.dev.status')" width="120">
 									<template #default="{ row }">
 										<el-tag :type="devTaskStatusType(row.taskStatus)" effect="light">{{ row.taskStatus || "-" }}</el-tag>
 									</template>
 								</el-table-column>
-								<el-table-column prop="failureReason" label="失败原因" min-width="180" show-overflow-tooltip />
-								<el-table-column label="查看" min-width="210" fixed="right">
+								<el-table-column prop="failureReason" :label="t('plugin.advanced.dev.failureReason')" min-width="180" show-overflow-tooltip />
+								<el-table-column :label="t('plugin.advanced.dev.view')" min-width="210" fixed="right">
 									<template #default="{ row }">
 										<div class="row-actions">
-											<el-button size="small" @click="openDevTaskDrawer('release', row, 'detail')">详情</el-button>
-											<el-button size="small" @click="openDevTaskDrawer('release', row, 'logs')">日志</el-button>
-											<el-button size="small" type="warning" :disabled="devLoading || !canRetryDevTask(row)" @click="retryDevTask('release', row)">重试</el-button>
+											<el-button size="small" @click="openDevTaskDrawer('release', row, 'detail')">{{ t("plugin.advanced.dev.detail") }}</el-button>
+											<el-button size="small" @click="openDevTaskDrawer('release', row, 'logs')">{{ t("plugin.advanced.dev.logs") }}</el-button>
+											<el-button size="small" type="warning" :disabled="devLoading || !canRetryDevTask(row)" @click="retryDevTask('release', row)">{{ t("plugin.advanced.dev.retry") }}</el-button>
 										</div>
 									</template>
 								</el-table-column>
 							</el-table>
 						</el-tab-pane>
-						<el-tab-pane label="灰度任务">
+						<el-tab-pane :label="t('plugin.advanced.dev.rolloutTasks')">
 							<el-table :data="devRolloutTasks" stripe border max-height="260">
-								<el-table-column prop="taskId" label="Task ID" min-width="180" show-overflow-tooltip />
-								<el-table-column prop="pluginId" label="插件" min-width="140" />
-								<el-table-column prop="action" label="动作" width="100" />
-								<el-table-column prop="rolloutPercent" label="比例" width="100" />
-								<el-table-column label="状态" width="120">
+								<el-table-column prop="taskId" :label="t('plugin.advanced.dev.taskId')" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="pluginId" :label="t('plugin.table.id')" min-width="140" />
+								<el-table-column prop="action" :label="t('plugin.advanced.dev.action')" width="100" />
+								<el-table-column prop="rolloutPercent" :label="t('plugin.advanced.dev.percent')" width="100" />
+								<el-table-column :label="t('plugin.advanced.dev.status')" width="120">
 									<template #default="{ row }">
 										<el-tag :type="devTaskStatusType(row.taskStatus)" effect="light">{{ row.taskStatus || "-" }}</el-tag>
 									</template>
 								</el-table-column>
-								<el-table-column prop="failureReason" label="失败原因" min-width="180" show-overflow-tooltip />
-								<el-table-column label="查看" min-width="230" fixed="right">
+								<el-table-column prop="failureReason" :label="t('plugin.advanced.dev.failureReason')" min-width="180" show-overflow-tooltip />
+								<el-table-column :label="t('plugin.advanced.dev.view')" min-width="230" fixed="right">
 									<template #default="{ row }">
 										<div class="row-actions">
-											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'detail')">详情</el-button>
-											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'logs')">日志</el-button>
-											<el-button size="small" type="warning" :disabled="devLoading || !canRetryDevTask(row)" @click="retryDevTask('rollout', row)">重试</el-button>
-											<el-button size="small" type="danger" :disabled="devLoading || !row.pluginId" @click="retryDevTask('rollout', { ...row, action: 'rollback' })">回滚</el-button>
+											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'detail')">{{ t("plugin.advanced.dev.detail") }}</el-button>
+											<el-button size="small" @click="openDevTaskDrawer('rollout', row, 'logs')">{{ t("plugin.advanced.dev.logs") }}</el-button>
+											<el-button size="small" type="warning" :disabled="devLoading || !canRetryDevTask(row)" @click="retryDevTask('rollout', row)">{{ t("plugin.advanced.dev.retry") }}</el-button>
+											<el-button size="small" type="danger" :disabled="devLoading || !row.pluginId" @click="retryDevTask('rollout', { ...row, action: 'rollback' })">{{ t("plugin.advanced.action.rollback") }}</el-button>
 										</div>
 									</template>
 								</el-table-column>
 							</el-table>
 						</el-tab-pane>
-						<el-tab-pane label="响应">
+						<el-tab-pane :label="t('plugin.advanced.dev.response')">
 							<div v-if="devRollbackPlan" class="rollback-plan-panel">
 								<div class="rollback-plan-header">
 									<div>
@@ -2193,19 +2186,19 @@ function resetDefaultHome(): void {
 									</div>
 									<el-tag :type="rollbackCheckpointType(devRollbackPlan.status)" effect="light">{{ devRollbackPlan.status }}</el-tag>
 								</div>
-								<el-table :data="devRollbackCheckpoints" size="small" border max-height="220" empty-text="暂无回滚检查点">
-									<el-table-column prop="name" label="检查点" width="110" />
-									<el-table-column label="状态" width="100">
+								<el-table :data="devRollbackCheckpoints" size="small" border max-height="220" :empty-text="t('plugin.advanced.dev.noCheckpoints')">
+									<el-table-column prop="name" :label="t('plugin.advanced.dev.checkpoint')" width="110" />
+									<el-table-column :label="t('plugin.advanced.dev.status')" width="100">
 										<template #default="{ row }">
 											<el-tag :type="rollbackCheckpointType(row.status)" effect="light">{{ row.status || "-" }}</el-tag>
 										</template>
 									</el-table-column>
-									<el-table-column prop="before" label="回滚前" min-width="150" show-overflow-tooltip />
-									<el-table-column prop="after" label="回滚后" min-width="150" show-overflow-tooltip />
-									<el-table-column prop="message" label="说明" min-width="220" show-overflow-tooltip />
+									<el-table-column prop="before" :label="t('plugin.advanced.dev.beforeRollback')" min-width="150" show-overflow-tooltip />
+									<el-table-column prop="after" :label="t('plugin.advanced.dev.afterRollback')" min-width="150" show-overflow-tooltip />
+									<el-table-column prop="message" :label="t('plugin.advanced.dev.message')" min-width="220" show-overflow-tooltip />
 								</el-table>
 							</div>
-							<pre class="code-block">{{ devResultText || "暂无操作结果。" }}</pre>
+							<pre class="code-block">{{ devResultText || t("plugin.advanced.dev.noResult") }}</pre>
 						</el-tab-pane>
 					</el-tabs>
 				</section>
@@ -2214,10 +2207,10 @@ function resetDefaultHome(): void {
 
 		<el-drawer v-if="activeHeavyPanel === 'devportal'" v-model="devTaskDrawerOpen" :title="devTaskDrawerTitle" size="46%">
 			<el-tabs>
-				<el-tab-pane label="详情">
-					<pre class="code-block">{{ devTaskDetail ? JSON.stringify(devTaskDetail, null, 2) : "暂无详情。" }}</pre>
+				<el-tab-pane :label="t('plugin.advanced.dev.detail')">
+					<pre class="code-block">{{ devTaskDetail ? JSON.stringify(devTaskDetail, null, 2) : t("plugin.advanced.dev.noDetail") }}</pre>
 				</el-tab-pane>
-				<el-tab-pane label="步骤">
+				<el-tab-pane :label="t('plugin.advanced.dev.steps')">
 					<el-timeline v-if="Array.isArray(devTaskDetail?.steps) && devTaskDetail.steps.length > 0">
 						<el-timeline-item
 							v-for="(step, index) in devTaskDetail.steps"
@@ -2230,9 +2223,9 @@ function resetDefaultHome(): void {
 							<p v-if="step.message">{{ step.message }}</p>
 						</el-timeline-item>
 					</el-timeline>
-					<el-empty v-else description="暂无步骤。" />
+					<el-empty v-else :description="t('plugin.advanced.dev.noSteps')" />
 				</el-tab-pane>
-				<el-tab-pane label="日志">
+				<el-tab-pane :label="t('plugin.advanced.dev.logs')">
 					<el-timeline v-if="devTaskLogs.length > 0">
 						<el-timeline-item
 							v-for="(log, index) in devTaskLogs"
@@ -2244,12 +2237,12 @@ function resetDefaultHome(): void {
 							<p>{{ log.step ? `[${log.step}] ` : "" }}{{ log.message }}</p>
 						</el-timeline-item>
 					</el-timeline>
-					<el-empty v-else description="暂无日志。" />
+					<el-empty v-else :description="t('plugin.advanced.dev.noLogs')" />
 				</el-tab-pane>
 			</el-tabs>
 		</el-drawer>
 
-		<el-drawer v-model="detailDrawerOpen" :title="detailPlugin ? `${detailPlugin.name} / ${detailPlugin.id}` : 'Plugin detail'" size="58%" class="detail-drawer">
+		<el-drawer v-model="detailDrawerOpen" :title="detailPlugin ? `${detailPlugin.name} / ${detailPlugin.id}` : t('plugin.advanced.detail.title')" size="58%" class="detail-drawer">
 			<template v-if="detailPlugin">
 				<section class="detail-summary">
 					<el-tag :type="pluginStatusType(detailPlugin.id)" effect="light">{{ pluginStatusText(detailPlugin.id) }}</el-tag>
@@ -2258,80 +2251,80 @@ function resetDefaultHome(): void {
 					<el-tag :type="pluginSignatureType(detailPlugin)" effect="plain">{{ t("plugin.signal.signature") }}: {{ pluginSignatureText(detailPlugin) }}</el-tag>
 				</section>
 				<el-tabs class="detail-tabs">
-					<el-tab-pane label="权限" name="permissions">
+					<el-tab-pane :label="t('plugin.advanced.detail.permissions')" name="permissions">
 						<div class="detail-section plugin-detail-permissions">
 							<el-descriptions :column="2" border>
-								<el-descriptions-item label="访问状态">{{ canVisit(detailPlugin.id) ? t("plugin.access.ready") : t("plugin.access.blocked") }}</el-descriptions-item>
-								<el-descriptions-item label="管理权限">{{ canManagePlugins ? "plugin.manage" : "-" }}</el-descriptions-item>
-								<el-descriptions-item label="菜单权限">
+								<el-descriptions-item :label="t('plugin.advanced.detail.accessStatus')">{{ canVisit(detailPlugin.id) ? t("plugin.access.ready") : t("plugin.access.blocked") }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.managePermission')">{{ canManagePlugins ? t("plugin.advanced.detail.managePermissionValue") : "-" }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.menuPermission')">
 									<el-tag v-for="item in pluginRequiredPermissions(detailPlugin)" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
 									<span v-if="pluginRequiredPermissions(detailPlugin).length === 0">-</span>
 								</el-descriptions-item>
-								<el-descriptions-item label="角色要求">
+								<el-descriptions-item :label="t('plugin.advanced.detail.requiredRoles')">
 									<el-tag v-for="item in pluginRequiredRoles(detailPlugin)" :key="item" class="detail-tag" effect="plain">{{ item }}</el-tag>
 									<span v-if="pluginRequiredRoles(detailPlugin).length === 0">-</span>
 								</el-descriptions-item>
 							</el-descriptions>
 						</div>
 					</el-tab-pane>
-					<el-tab-pane label="菜单" name="menu">
+					<el-tab-pane :label="t('plugin.advanced.detail.menu')" name="menu">
 						<div class="detail-section plugin-detail-menu">
 							<el-descriptions :column="2" border>
-								<el-descriptions-item label="label">{{ detailPlugin.uiMenu?.label || detailPlugin.name }}</el-descriptions-item>
-								<el-descriptions-item label="path">{{ detailPlugin.uiMenu?.path || pluginEntryPath(detailPlugin.id) || "-" }}</el-descriptions-item>
-								<el-descriptions-item label="icon">{{ detailPlugin.uiMenu?.icon || "-" }}</el-descriptions-item>
-								<el-descriptions-item label="order">{{ detailPlugin.uiMenu?.order ?? "-" }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.label')">{{ detailPlugin.uiMenu?.label || detailPlugin.name }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.path')">{{ detailPlugin.uiMenu?.path || pluginEntryPath(detailPlugin.id) || "-" }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.icon')">{{ detailPlugin.uiMenu?.icon || "-" }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.order')">{{ detailPlugin.uiMenu?.order ?? "-" }}</el-descriptions-item>
 							</el-descriptions>
 						</div>
 					</el-tab-pane>
-					<el-tab-pane label="配置" name="config">
+					<el-tab-pane :label="t('plugin.advanced.detail.config')" name="config">
 						<div class="detail-section plugin-detail-config">
 							<el-descriptions :column="2" border>
-								<el-descriptions-item label="schema">{{ pluginConfigFieldCount(detailPlugin) }}</el-descriptions-item>
-								<el-descriptions-item label="selected">{{ selectedPlugin === detailPlugin.id ? activeInspectorPanel || "-" : "-" }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.schema')">{{ pluginConfigFieldCount(detailPlugin) }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.selected')">{{ selectedPlugin === detailPlugin.id ? activeInspectorPanel || "-" : "-" }}</el-descriptions-item>
 							</el-descriptions>
-							<el-empty v-if="pluginConfigFieldCount(detailPlugin) === 0" description="暂无配置 Schema。" />
+							<el-empty v-if="pluginConfigFieldCount(detailPlugin) === 0" :description="t('plugin.advanced.detail.noConfigSchema')" />
 							<el-table v-else :data="detailPlugin.configSchema?.fields ?? []" stripe border>
-								<el-table-column prop="key" label="Key" min-width="160" />
-								<el-table-column prop="type" label="Type" width="120" />
-								<el-table-column prop="required" label="Required" width="120" />
-								<el-table-column prop="help" label="Help" min-width="220" show-overflow-tooltip />
+								<el-table-column prop="key" :label="t('plugin.advanced.preflight.key')" min-width="160" />
+								<el-table-column prop="type" :label="t('plugin.advanced.preflight.type')" width="120" />
+								<el-table-column prop="required" :label="t('plugin.advanced.detail.required')" width="120" />
+								<el-table-column prop="help" :label="t('plugin.advanced.detail.help')" min-width="220" show-overflow-tooltip />
 							</el-table>
 						</div>
 					</el-tab-pane>
-					<el-tab-pane label="资产" name="assets">
+					<el-tab-pane :label="t('plugin.advanced.detail.assets')" name="assets">
 						<div class="detail-section plugin-detail-assets">
 							<el-table :data="pluginAssetRows(detailPlugin)" stripe border>
-								<el-table-column prop="label" label="Asset" width="180" />
-								<el-table-column prop="value" label="Value" min-width="260" show-overflow-tooltip />
+								<el-table-column prop="label" :label="t('plugin.advanced.detail.asset')" width="180" />
+								<el-table-column prop="value" :label="t('plugin.advanced.detail.value')" min-width="260" show-overflow-tooltip />
 							</el-table>
 						</div>
 					</el-tab-pane>
-					<el-tab-pane label="日志" name="logs">
+					<el-tab-pane :label="t('plugin.advanced.dev.logs')" name="logs">
 						<div class="detail-section plugin-detail-logs">
-							<el-empty v-if="selectedPlugin !== detailPlugin.id || activeInspectorPanel !== 'logs'" description="可从操作菜单加载该插件日志。" />
+							<el-empty v-if="selectedPlugin !== detailPlugin.id || activeInspectorPanel !== 'logs'" :description="t('plugin.advanced.detail.logsHint')" />
 							<pre v-else class="code-block">{{ logText || t("plugin.noLogs") }}</pre>
 						</div>
 					</el-tab-pane>
-					<el-tab-pane label="发布状态" name="release">
+					<el-tab-pane :label="t('plugin.advanced.detail.releaseStatus')" name="release">
 						<div class="detail-section plugin-detail-release">
 							<el-descriptions :column="3" border>
-								<el-descriptions-item label="发布单">{{ detailReleaseOrders.length }}</el-descriptions-item>
-								<el-descriptions-item label="发布任务">{{ detailReleaseTasks.length }}</el-descriptions-item>
-								<el-descriptions-item label="灰度/回滚">{{ detailRolloutTasks.length }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.dev.releaseOrders')">{{ detailReleaseOrders.length }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.dev.releaseTasks')">{{ detailReleaseTasks.length }}</el-descriptions-item>
+								<el-descriptions-item :label="t('plugin.advanced.detail.rolloutRollback')">{{ detailRolloutTasks.length }}</el-descriptions-item>
 							</el-descriptions>
 							<el-table :data="[...detailReleaseTasks, ...detailRolloutTasks]" stripe border>
-								<el-table-column prop="taskId" label="Task ID" min-width="180" show-overflow-tooltip />
-								<el-table-column prop="action" label="Action" width="110" />
-								<el-table-column prop="targetEnv" label="Env" width="110" />
-								<el-table-column prop="taskStatus" label="Status" width="120" />
-								<el-table-column prop="failureReason" label="Failure" min-width="220" show-overflow-tooltip />
+								<el-table-column prop="taskId" :label="t('plugin.advanced.dev.taskId')" min-width="180" show-overflow-tooltip />
+								<el-table-column prop="action" :label="t('plugin.advanced.dev.action')" width="110" />
+								<el-table-column prop="targetEnv" :label="t('plugin.advanced.detail.env')" width="110" />
+								<el-table-column prop="taskStatus" :label="t('plugin.advanced.dev.status')" width="120" />
+								<el-table-column prop="failureReason" :label="t('plugin.advanced.detail.failure')" min-width="220" show-overflow-tooltip />
 							</el-table>
 						</div>
 					</el-tab-pane>
 				</el-tabs>
 			</template>
-			<el-empty v-else description="请选择插件。" />
+			<el-empty v-else :description="t('plugin.advanced.selectPlugin')" />
 		</el-drawer>
 
 		<div v-if="activeHeavyPanel === 'inventory'" class="content-grid">
@@ -2382,7 +2375,7 @@ function resetDefaultHome(): void {
 										{{ t("plugin.action.visit") }}
 									</el-button>
 									<el-button size="small" :icon="Document" :disabled="operating" @click="openPluginDetail(row.id)">
-										详情
+										{{ t("plugin.advanced.dev.detail") }}
 									</el-button>
 									<el-button size="small" :icon="isPinned(row.id) ? StarFilled : Star" :disabled="operating || !canTogglePin(row.id)" @click="togglePinTab(row.id)">
 										{{ isPinned(row.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}
@@ -2469,7 +2462,7 @@ function resetDefaultHome(): void {
 									<template #default="{ row }">
 										<div class="row-actions">
 											<el-button size="small" :icon="Document" :disabled="operating" @click="openPluginDetail(row.id)">
-												详情
+												{{ t("plugin.advanced.dev.detail") }}
 											</el-button>
 											<el-button size="small" :icon="isPinned(row.id) ? StarFilled : Star" :disabled="operating || !canTogglePin(row.id)" @click="togglePinTab(row.id)">
 												{{ isPinned(row.id) ? t("plugin.action.unpinTab") : t("plugin.action.pinTab") }}
@@ -2525,7 +2518,7 @@ function resetDefaultHome(): void {
 								@update:valid="handleConfigFormValid"
 							/>
 							<el-collapse class="config-preview">
-								<el-collapse-item title="JSON" name="json">
+								<el-collapse-item :title="t('plugin.advanced.detail.json')" name="json">
 									<pre class="code-block">{{ configText }}</pre>
 								</el-collapse-item>
 							</el-collapse>

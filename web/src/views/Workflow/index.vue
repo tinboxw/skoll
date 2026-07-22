@@ -5,6 +5,7 @@ import { ElMessage } from "element-plus";
 
 import { ConfirmAction, DataTable, DetailDrawer, FilterBar, PageShell, PageToolbar, type DataTableColumn } from "../../components/Common";
 import { loadFormSchemas, type FormSchema } from "../../form-builder/types";
+import { useI18n } from "../../i18n";
 import { completeWorkflowNotifications, createWorkflowTodo, upsertNotification } from "../../notifications/types";
 import { useButtonAccess } from "../../permissions/button";
 import { useUserStore } from "../../stores/user";
@@ -41,6 +42,7 @@ type ViewMode = "pending" | "approved" | "initiated" | "copied";
 const DEMO_DEFINITION_ID = "pharma-oa-demo-approval";
 const STORAGE_KEY = "skoll.workflow.instanceIds";
 
+const { t } = useI18n();
 const userStore = useUserStore();
 const buttonAccess = useButtonAccess();
 const loading = ref(false);
@@ -59,7 +61,7 @@ const actionTask = ref<WorkflowTask | null>(null);
 const formSchemas = ref<FormSchema[]>([]);
 
 const launchForm = reactive({
-	title: "Purchase approval",
+	title: t("workflow.defaultTitle"),
 	businessType: "oa.purchase",
 	businessId: "purchase-demo-001",
 	formSchemaId: ""
@@ -68,7 +70,7 @@ const launchForm = reactive({
 const actionForm = reactive({
 	comment: "",
 	targetId: "approver-2",
-	targetName: "Approver 2"
+	targetName: t("workflow.defaultTargetName")
 });
 
 const canRead = computed(() => buttonAccess.can("workflow.instance.read"));
@@ -76,18 +78,18 @@ const canStart = computed(() => buttonAccess.can("workflow.instance.start"));
 const canAct = computed(() => buttonAccess.can("workflow.task.act"));
 const currentActor = computed<WorkflowActor>(() => ({
 	id: userStore.profile?.id?.trim() || "starter-1",
-	name: userStore.profile?.name?.trim() || "Current User"
+	name: userStore.profile?.name?.trim() || t("workflow.currentUser")
 }));
 const selectedLaunchSchema = computed(() => formSchemas.value.find((item) => item.id === launchForm.formSchemaId) || null);
 
-const columns: DataTableColumn[] = [
-	{ key: "title", label: "Title", minWidth: 190 },
-	{ key: "business", label: "Business", minWidth: 150 },
-	{ key: "status", label: "Status", width: 120 },
-	{ key: "starter", label: "Starter", minWidth: 130 },
-	{ key: "pendingAssignee", label: "Pending", minWidth: 130 },
-	{ key: "updatedAt", label: "Updated", minWidth: 160 }
-];
+const columns = computed<DataTableColumn[]>(() => [
+	{ key: "title", label: t("workflow.column.title"), minWidth: 190 },
+	{ key: "business", label: t("workflow.column.business"), minWidth: 150 },
+	{ key: "status", label: t("workflow.column.status"), width: 120 },
+	{ key: "starter", label: t("workflow.column.starter"), minWidth: 130 },
+	{ key: "pendingAssignee", label: t("workflow.column.pending"), minWidth: 130 },
+	{ key: "updatedAt", label: t("workflow.column.updated"), minWidth: 160 }
+]);
 
 const rows = computed<WorkflowRow[]>(() => instances.value.map(toRow));
 const filteredRows = computed<WorkflowRow[]>(() => {
@@ -127,7 +129,7 @@ async function refreshInstances(): Promise<void> {
 			.filter((item): item is PromiseFulfilledResult<WorkflowInstance> => item.status === "fulfilled")
 			.map((item) => item.value);
 		if (ids.length > 0 && fulfilled.length === 0) {
-			error.value = "Workflow instances failed to refresh.";
+			error.value = t("workflow.refreshFailed");
 			instances.value = [];
 			return;
 		}
@@ -142,11 +144,11 @@ async function refreshInstances(): Promise<void> {
 async function launchWorkflow(): Promise<void> {
 	error.value = "";
 	if (!canStart.value) {
-		error.value = "You do not have permission to start workflow instances.";
+		error.value = t("workflow.startForbidden");
 		return;
 	}
 	if (launchForm.title.trim() === "" || launchForm.businessType.trim() === "" || launchForm.businessId.trim() === "") {
-		error.value = "Title, business type, and business ID are required.";
+		error.value = t("workflow.requiredFields");
 		return;
 	}
 	saving.value = true;
@@ -163,13 +165,13 @@ async function launchWorkflow(): Promise<void> {
 		upsertInstance(instance);
 		createWorkflowTodo({
 			instanceId: instance.id,
-			title: `Approve ${instance.title}`,
+			title: t("workflow.approvalTitle", { title: instance.title }),
 			actorId: currentActor.value.id,
 			body: `${instance.businessType} / ${instance.businessId}`
 		});
 		launchOpen.value = false;
 		activeView.value = "initiated";
-		ElMessage.success("Workflow launched");
+		ElMessage.success(t("workflow.launched"));
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -184,7 +186,7 @@ async function submitAction(): Promise<void> {
 		return;
 	}
 	if (!canAct.value) {
-		error.value = "You do not have permission to act on workflow tasks.";
+		error.value = t("workflow.actForbidden");
 		return;
 	}
 	saving.value = true;
@@ -200,17 +202,17 @@ async function submitAction(): Promise<void> {
 			updated = await transferWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
 			createWorkflowTodo({
 				instanceId: updated.id,
-				title: `Transferred ${updated.title}`,
+				title: t("workflow.transferredTitle", { title: updated.title }),
 				actorId: actionForm.targetId.trim(),
-				body: actionForm.comment || "Workflow task transferred to you."
+				body: actionForm.comment || t("workflow.transferredBody")
 			});
 		} else {
 			updated = await copyWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
 			upsertNotification({
 				id: `message-workflow-${updated.id}-${actionForm.targetId.trim()}`,
 				category: "message",
-				title: `Copied: ${updated.title}`,
-				body: actionForm.comment || "Workflow task copied to you.",
+				title: t("workflow.copiedTitle", { title: updated.title }),
+				body: actionForm.comment || t("workflow.copiedBody"),
 				actorId: actionForm.targetId.trim(),
 				target: { type: "workflow", id: updated.id, path: `/skoll/workflow?instance=${encodeURIComponent(updated.id)}` }
 			});
@@ -221,7 +223,7 @@ async function submitAction(): Promise<void> {
 		upsertInstance(updated);
 		actionOpen.value = false;
 		selected.value = updated;
-		ElMessage.success("Workflow updated");
+		ElMessage.success(t("workflow.updated"));
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -231,14 +233,14 @@ async function submitAction(): Promise<void> {
 
 async function withdraw(row: WorkflowRow): Promise<void> {
 	if (!canAct.value) {
-		error.value = "You do not have permission to withdraw workflow instances.";
+		error.value = t("workflow.withdrawForbidden");
 		return;
 	}
 	saving.value = true;
 	try {
-		const updated = await withdrawWorkflowInstance(row.id, { actor: currentActor.value, comment: "Withdrawn from workflow console" });
+		const updated = await withdrawWorkflowInstance(row.id, { actor: currentActor.value, comment: t("workflow.withdrawComment") });
 		upsertInstance(updated);
-		ElMessage.success("Workflow withdrawn");
+		ElMessage.success(t("workflow.withdrawn"));
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -264,14 +266,14 @@ function applyLaunchSchema(): void {
 	if (!schema) {
 		return;
 	}
-	launchForm.title = `${schema.name} approval`;
+	launchForm.title = t("workflow.schemaApprovalTitle", { name: schema.name });
 	launchForm.businessType = schema.businessType;
 }
 
 function openAction(mode: "approve" | "reject" | "transfer" | "copy", row: WorkflowRow): void {
 	const task = row.raw.tasks.find((item) => item.status === "pending" && item.assignee.id === currentActor.value.id);
 	if (!task) {
-		error.value = "No pending task is assigned to you.";
+		error.value = t("workflow.noAssignedTask");
 		return;
 	}
 	actionMode.value = mode;
@@ -279,7 +281,7 @@ function openAction(mode: "approve" | "reject" | "transfer" | "copy", row: Workf
 	actionTask.value = task;
 	actionForm.comment = "";
 	actionForm.targetId = "approver-2";
-	actionForm.targetName = "Approver 2";
+	actionForm.targetName = t("workflow.defaultTargetName");
 	actionOpen.value = true;
 }
 
@@ -288,7 +290,7 @@ function toRow(instance: WorkflowInstance): WorkflowRow {
 	return {
 		id: instance.id,
 		title: instance.title,
-		status: instance.status,
+		status: t(`workflow.status.${instance.status}`),
 		business: `${instance.businessType} / ${instance.businessId}`,
 		starter: instance.starter.name || instance.starter.id,
 		pendingAssignee: pending || "-",
@@ -321,12 +323,12 @@ async function ensureDemoDefinition(): Promise<void> {
 	const definition: WorkflowDefinitionRequest = {
 		id: DEMO_DEFINITION_ID,
 		key: "pharma.oa.demo.approval",
-		name: "Pharma OA Demo Approval",
+		name: t("workflow.demoDefinition"),
 		version: 1,
 		nodes: [
-			{ id: "start", key: "start", name: "Start", type: "start" },
-			{ id: "approval", key: "approval", name: "Approval", type: "approval", assignees: [currentActor.value.id] },
-			{ id: "end", key: "end", name: "End", type: "end" }
+			{ id: "start", key: "start", name: t("workflow.node.start"), type: "start" },
+			{ id: "approval", key: "approval", name: t("workflow.node.approval"), type: "approval", assignees: [currentActor.value.id] },
+			{ id: "end", key: "end", name: t("workflow.node.end"), type: "end" }
 		],
 		transitions: [
 			{ from: "start", to: "approval" },
@@ -371,38 +373,38 @@ function formatDate(value: string): string {
 
 <template>
 	<PageShell
-		title="Workflow"
-		description="Pending approvals, launched instances, copied tasks, and completed approvals."
+		:title="t('workflow.title')"
+		:description="t('workflow.description')"
 		:loading="loading"
 		:error="error"
 		:forbidden="!canRead"
-		forbidden-title="Workflow unavailable"
-		forbidden-description="Ask an administrator for workflow.instance.read permission."
+		:forbidden-title="t('workflow.unavailable')"
+		:forbidden-description="t('workflow.permissionRequired')"
 		data-testid="workflow-page"
 	>
 		<template #actions>
-			<el-button :loading="loading" :icon="RefreshCw" @click="refreshInstances">Refresh</el-button>
-			<el-button type="primary" :icon="Plus" :disabled="!canStart" @click="launchOpen = true">Launch</el-button>
+			<el-button :loading="loading" :icon="RefreshCw" @click="refreshInstances">{{ t("common.refresh") }}</el-button>
+			<el-button type="primary" :icon="Plus" :disabled="!canStart" @click="launchOpen = true">{{ t("workflow.launch") }}</el-button>
 		</template>
 		<template #stateActions>
-			<el-button :icon="RefreshCw" @click="refreshInstances">Retry</el-button>
+			<el-button :icon="RefreshCw" @click="refreshInstances">{{ t("common.retry") }}</el-button>
 		</template>
 
 		<el-segmented
 			v-model="activeView"
 			class="workflow-summary"
-			aria-label="Workflow summary"
+			:aria-label="t('workflow.summary')"
 			:options="[
-				{ label: `Pending ${summary.pending}`, value: 'pending' },
-				{ label: `Approved ${summary.approved}`, value: 'approved' },
-				{ label: `Initiated ${summary.initiated}`, value: 'initiated' },
-				{ label: `Copied ${summary.copied}`, value: 'copied' }
+				{ label: t('workflow.tab.pending', { count: summary.pending }), value: 'pending' },
+				{ label: t('workflow.tab.approved', { count: summary.approved }), value: 'approved' },
+				{ label: t('workflow.tab.initiated', { count: summary.initiated }), value: 'initiated' },
+				{ label: t('workflow.tab.copied', { count: summary.copied }), value: 'copied' }
 			]"
 		/>
 
 		<PageToolbar>
 			<FilterBar>
-				<el-input v-model="keyword" clearable placeholder="Search title, business, starter, or assignee" />
+				<el-input v-model="keyword" clearable :placeholder="t('workflow.searchPlaceholder')" />
 			</FilterBar>
 		</PageToolbar>
 
@@ -412,7 +414,7 @@ function formatDate(value: string): string {
 			row-key="id"
 			:loading="loading"
 			:error="error"
-			empty-text="No workflow instances in this view"
+			:empty-text="t('workflow.empty')"
 			data-testid="workflow-table"
 		>
 			<template #cell-title="{ row }">
@@ -421,48 +423,48 @@ function formatDate(value: string): string {
 					<span>{{ row.title }}</span>
 				</div>
 			</template>
-			<template #cell-status="{ value }">
-				<el-tag :type="value === 'approved' ? 'success' : value === 'rejected' ? 'danger' : value === 'withdrawn' ? 'info' : 'warning'">
+			<template #cell-status="{ row, value }">
+				<el-tag :type="row.raw.status === 'approved' ? 'success' : row.raw.status === 'rejected' ? 'danger' : row.raw.status === 'withdrawn' ? 'info' : 'warning'">
 					{{ value }}
 				</el-tag>
 			</template>
 			<template #actions="{ row }">
-				<el-tooltip content="Timeline">
-					<el-button :icon="Eye" circle @click="openTimeline(row)" />
+				<el-tooltip :content="t('workflow.timeline')">
+					<el-button :icon="Eye" circle :aria-label="t('workflow.timeline')" @click="openTimeline(row)" />
 				</el-tooltip>
-				<el-tooltip content="Approve">
-					<el-button :icon="Check" circle type="success" :disabled="!canAct || row.raw.status !== 'running'" @click="openAction('approve', row)" />
+				<el-tooltip :content="t('workflow.approve')">
+					<el-button :icon="Check" circle type="success" :aria-label="t('workflow.approve')" :disabled="!canAct || row.raw.status !== 'running'" @click="openAction('approve', row)" />
 				</el-tooltip>
-				<el-tooltip content="Reject">
-					<el-button :icon="X" circle type="danger" :disabled="!canAct || row.raw.status !== 'running'" @click="openAction('reject', row)" />
+				<el-tooltip :content="t('workflow.reject')">
+					<el-button :icon="X" circle type="danger" :aria-label="t('workflow.reject')" :disabled="!canAct || row.raw.status !== 'running'" @click="openAction('reject', row)" />
 				</el-tooltip>
 			</template>
 		</DataTable>
 
-		<el-dialog v-model="launchOpen" title="Launch workflow" width="520px" class="workflow-dialog">
+		<el-dialog v-model="launchOpen" :title="t('workflow.launch')" width="520px" class="workflow-dialog">
 			<el-form label-position="top">
-				<el-form-item label="Form schema">
+				<el-form-item :label="t('workflow.formSchema')">
 					<el-select
 						v-model="launchForm.formSchemaId"
 						clearable
-						placeholder="Select saved form"
+						:placeholder="t('workflow.selectForm')"
 						@change="applyLaunchSchema"
 					>
 						<el-option
 							v-for="schema in formSchemas"
 							:key="schema.id"
-							:label="`${schema.name} / v${schema.version}`"
+							:label="t('workflow.formVersion', { name: schema.name, version: schema.version })"
 							:value="schema.id"
 						/>
 					</el-select>
 				</el-form-item>
-				<el-form-item label="Title">
+				<el-form-item :label="t('workflow.column.title')">
 					<el-input v-model="launchForm.title" />
 				</el-form-item>
-				<el-form-item label="Business type">
+				<el-form-item :label="t('formBuilder.businessType')">
 					<el-input v-model="launchForm.businessType" />
 				</el-form-item>
-				<el-form-item label="Business ID">
+				<el-form-item :label="t('workflow.businessId')">
 					<el-input v-model="launchForm.businessId" />
 				</el-form-item>
 			</el-form>
@@ -478,42 +480,42 @@ function formatDate(value: string): string {
 				</div>
 			</div>
 			<template #footer>
-				<el-button @click="launchOpen = false">Cancel</el-button>
-				<el-button type="primary" :loading="saving" :icon="Send" @click="launchWorkflow">Launch</el-button>
+				<el-button @click="launchOpen = false">{{ t("common.cancel") }}</el-button>
+				<el-button type="primary" :loading="saving" :icon="Send" @click="launchWorkflow">{{ t("workflow.launch") }}</el-button>
 			</template>
 		</el-dialog>
 
-		<el-dialog v-model="actionOpen" :title="`${actionMode} task`" width="520px" class="workflow-dialog">
+		<el-dialog v-model="actionOpen" :title="t(`workflow.actionTitle.${actionMode}`)" width="520px" class="workflow-dialog">
 			<el-form label-position="top">
-				<el-form-item v-if="actionMode === 'transfer' || actionMode === 'copy'" label="Target user ID">
+				<el-form-item v-if="actionMode === 'transfer' || actionMode === 'copy'" :label="t('workflow.targetUserId')">
 					<el-input v-model="actionForm.targetId" />
 				</el-form-item>
-				<el-form-item v-if="actionMode === 'transfer' || actionMode === 'copy'" label="Target name">
+				<el-form-item v-if="actionMode === 'transfer' || actionMode === 'copy'" :label="t('workflow.targetName')">
 					<el-input v-model="actionForm.targetName" />
 				</el-form-item>
-				<el-form-item label="Comment">
+				<el-form-item :label="t('workflow.comment')">
 					<el-input v-model="actionForm.comment" type="textarea" :rows="3" />
 				</el-form-item>
 			</el-form>
 			<template #footer>
-				<el-button @click="actionOpen = false">Cancel</el-button>
-				<el-button v-if="actionMode === 'approve'" type="success" :loading="saving" :icon="Check" @click="submitAction">Approve</el-button>
+				<el-button @click="actionOpen = false">{{ t("common.cancel") }}</el-button>
+				<el-button v-if="actionMode === 'approve'" type="success" :loading="saving" :icon="Check" @click="submitAction">{{ t("workflow.approve") }}</el-button>
 				<ConfirmAction
 					v-else-if="actionMode === 'reject'"
-					label="Reject"
-					message="Reject this workflow task?"
+					:label="t('workflow.reject')"
+					:message="t('workflow.rejectConfirm')"
 					:loading="saving"
 					@confirm="submitAction"
 				/>
-				<el-button v-else type="primary" :loading="saving" :icon="GitPullRequest" @click="submitAction">{{ actionMode }}</el-button>
+				<el-button v-else type="primary" :loading="saving" :icon="GitPullRequest" @click="submitAction">{{ t(`workflow.${actionMode}`) }}</el-button>
 			</template>
 		</el-dialog>
 
-		<DetailDrawer v-model="drawerOpen" title="Workflow timeline" size="52%">
+		<DetailDrawer v-model="drawerOpen" :title="t('workflow.timeline')" size="52%">
 			<template v-if="selected">
 				<div class="drawer-head">
 					<h3>{{ selected.title }}</h3>
-					<el-tag>{{ selected.status }}</el-tag>
+					<el-tag>{{ t(`workflow.status.${selected.status}`) }}</el-tag>
 				</div>
 				<el-timeline>
 					<el-timeline-item
@@ -522,17 +524,17 @@ function formatDate(value: string): string {
 						:timestamp="formatDate(item.createdAt)"
 						:type="item.type === 'reject' ? 'danger' : item.type === 'approve' ? 'success' : 'primary'"
 					>
-						<strong>{{ item.type }}</strong>
+						<strong>{{ t(`workflow.event.${item.type}`) }}</strong>
 						<p>{{ item.actor.name || item.actor.id }} <span v-if="item.target?.id">-> {{ item.target.name || item.target.id }}</span></p>
 						<p v-if="item.comment">{{ item.comment }}</p>
 					</el-timeline-item>
 				</el-timeline>
 				<div class="drawer-actions">
-					<el-button :icon="GitPullRequest" :disabled="!canAct || selected.status !== 'running'" @click="openAction('transfer', toRow(selected))">Transfer</el-button>
-					<el-button :icon="Send" :disabled="!canAct || selected.status !== 'running'" @click="openAction('copy', toRow(selected))">Copy</el-button>
+					<el-button :icon="GitPullRequest" :disabled="!canAct || selected.status !== 'running'" @click="openAction('transfer', toRow(selected))">{{ t("workflow.transfer") }}</el-button>
+					<el-button :icon="Send" :disabled="!canAct || selected.status !== 'running'" @click="openAction('copy', toRow(selected))">{{ t("workflow.copy") }}</el-button>
 					<ConfirmAction
-						label="Withdraw"
-						message="Withdraw this workflow instance?"
+						:label="t('workflow.withdraw')"
+						:message="t('workflow.withdrawConfirm')"
 						:disabled="!canAct || selected.status !== 'running'"
 						:loading="saving"
 						@confirm="withdraw(toRow(selected))"

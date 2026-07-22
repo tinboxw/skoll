@@ -130,7 +130,7 @@ const canAssignRole = computed(() => buttonAccess.can(BUTTON_ACCESS.roleManage))
 
 async function loadUser(): Promise<void> {
 	if (!userId.value) {
-		error.value = "missing user id";
+		error.value = t("error.missingUserId");
 		return;
 	}
 	loading.value = true;
@@ -324,8 +324,8 @@ onMounted(() => {
 				</el-form-item>
 				<el-form-item :label="t('table.status')">
 					<el-select v-model="status" :disabled="loading || saving || !canUpdateUser">
-						<el-option label="active" value="active" />
-						<el-option label="disabled" value="disabled" />
+						<el-option :label="t('user.status.active')" value="active" />
+						<el-option :label="t('user.status.disabled')" value="disabled" />
 					</el-select>
 				</el-form-item>
 				<el-form-item :label="t('table.email')" required>

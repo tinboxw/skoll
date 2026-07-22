@@ -522,6 +522,51 @@ func (m *fakePluginManager) RegisterExternalPlugin(info plugin.Info) error {
 	return nil
 }
 
+func TestRouterRegistersEnabledSystemBuiltinExtensionRoutes(t *testing.T) {
+	manager := &fakePluginManager{
+		items: []plugin.Info{
+			{ID: "builtin-auth", State: plugin.StateEnabled, SystemBuiltin: true},
+			{ID: "disabled-builtin", State: plugin.StateDisabled, SystemBuiltin: true},
+			{ID: "app-plugin", State: plugin.StateEnabled},
+		},
+		snapshots: map[string]plugin.RegistrySnapshot{
+			"builtin-auth": {
+				Routes: []plugin.RouteExtension{{Method: http.MethodPost, Path: "/v1/auth/login"}},
+			},
+			"disabled-builtin": {
+				Routes: []plugin.RouteExtension{{Method: http.MethodGet, Path: "/v1/disabled"}},
+			},
+			"app-plugin": {
+				Routes: []plugin.RouteExtension{{Method: http.MethodGet, Path: "/v1/app-direct"}},
+			},
+		},
+	}
+	manager.executor = func(pluginID, method, path string, w http.ResponseWriter, _ *http.Request) bool {
+		if pluginID != "builtin-auth" || method != http.MethodPost || path != "/v1/auth/login" {
+			t.Fatalf("unexpected direct plugin route: plugin=%s method=%s path=%s", pluginID, method, path)
+		}
+		WriteMessage(w, http.StatusOK, "ok", "login routed")
+		return true
+	}
+
+	router := NewRouter(Dependencies{PluginManager: manager})
+	loginRequest := httptest.NewRequest(http.MethodPost, "/skoll/v1/auth/login", strings.NewReader(`{"account":"admin"}`))
+	loginResponse := httptest.NewRecorder()
+	router.ServeHTTP(loginResponse, loginRequest)
+	if loginResponse.Code != http.StatusOK || !strings.Contains(loginResponse.Body.String(), "login routed") {
+		t.Fatalf("builtin route status=%d body=%s", loginResponse.Code, loginResponse.Body.String())
+	}
+
+	for _, path := range []string{"/skoll/v1/disabled", "/skoll/v1/app-direct"} {
+		request := httptest.NewRequest(http.MethodGet, path, nil)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("GET %s: status=%d body=%s", path, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestRouterFailsClosedWithoutPluginRouteExecutor(t *testing.T) {
 	manager := &fakePluginManager{
 		items: []plugin.Info{

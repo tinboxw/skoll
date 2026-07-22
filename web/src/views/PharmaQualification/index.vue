@@ -134,13 +134,13 @@ function statusType(status: QualificationStatus): "success" | "warning" | "dange
 		:forbidden-description="t('pharma.qualification.thisPageRequiresPharmaOaQualificationReadPermission')"
 	>
 		<template #actions>
-			<el-input v-model="keyword" clearable :placeholder="t('pharma.qualification.search')" class="filter-control" @keyup.enter="refresh" />
-			<el-select v-model="subjectFilter" clearable :placeholder="t('pharma.qualification.allSubjects')" class="filter-control" @change="refresh">
+			<el-input v-model="keyword" clearable :aria-label="t('pharma.qualification.search')" :placeholder="t('pharma.qualification.search')" class="filter-control" @keyup.enter="refresh" />
+			<el-select v-model="subjectFilter" clearable :aria-label="t('pharma.qualification.allSubjects')" :placeholder="t('pharma.qualification.allSubjects')" class="filter-control" @change="refresh">
 				<el-option :label="t('pharma.qualification.employees')" value="employee" />
 				<el-option :label="t('pharma.qualification.suppliers')" value="supplier" />
 				<el-option :label="t('pharma.qualification.customers')" value="customer" />
 			</el-select>
-			<el-select v-model="statusFilter" clearable :placeholder="t('pharma.qualification.allStatuses')" class="filter-control" @change="refresh">
+			<el-select v-model="statusFilter" clearable :aria-label="t('pharma.qualification.allStatuses')" :placeholder="t('pharma.qualification.allStatuses')" class="filter-control" @change="refresh">
 				<el-option :label="t('pharma.qualification.valid')" value="valid" />
 				<el-option :label="t('pharma.qualification.expiring')" value="expiring" />
 				<el-option :label="t('pharma.qualification.expired')" value="expired" />

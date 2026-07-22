@@ -8,16 +8,20 @@ import ts from "typescript";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(scriptDir, "..");
-const viewsRoot = path.join(webRoot, "src", "views");
 const failures = [];
 let iconButtonCount = 0;
 let confirmationCount = 0;
 
-const pharmaViews = fs.readdirSync(viewsRoot, { withFileTypes: true })
-	.filter((entry) => entry.isDirectory() && entry.name.startsWith("Pharma"))
-	.map((entry) => path.join(viewsRoot, entry.name, "index.vue"))
-	.filter((filePath) => fs.existsSync(filePath))
-	.sort();
+function walkVueFiles(root, output = []) {
+	for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+		const fullPath = path.join(root, entry.name);
+		if (entry.isDirectory()) walkVueFiles(fullPath, output);
+		else if (entry.name.endsWith(".vue") && !entry.name.endsWith(".spec.vue")) output.push(fullPath);
+	}
+	return output;
+}
+
+const uiFiles = walkVueFiles(path.join(webRoot, "src")).sort();
 
 function relative(filePath) {
 	return path.relative(webRoot, filePath).replaceAll("\\", "/");
@@ -64,6 +68,9 @@ function inspectTemplate(templateSource, filePath) {
 			if (node.tag === "img" && !hasTemplateProp(node, "alt")) {
 				failures.push(`${relative(filePath)}:${node.loc.start.line} image requires alt text`);
 			}
+			if (node.tag === "iframe" && !hasTemplateProp(node, "title")) {
+				failures.push(`${relative(filePath)}:${node.loc.start.line} iframe requires a localized title`);
+			}
 			const isNativeInteractive = ["a", "button", "input", "select", "textarea", "summary"].includes(node.tag);
 			const isComponent = /[-A-Z]/.test(node.tag);
 			if (hasDirective(node, "on") && !isNativeInteractive && !isComponent && !hasTemplateProp(node, "role")) {
@@ -107,7 +114,7 @@ function inspectMessageBoxes(scriptSource, filePath) {
 	visit(source);
 }
 
-for (const filePath of pharmaViews) {
+for (const filePath of uiFiles) {
 	const sourceText = fs.readFileSync(filePath, "utf8");
 	const { descriptor, errors } = parseSFC(sourceText, { filename: filePath });
 	if (errors.length > 0) {
@@ -141,4 +148,4 @@ if (failures.length > 0) {
 	process.exit(1);
 }
 
-console.log(`H4 accessibility check passed: ${pharmaViews.length} views, ${iconButtonCount} named icon buttons, ${confirmationCount} guarded confirmations.`);
+console.log(`H4 accessibility check passed: ${uiFiles.length} UI files, ${iconButtonCount} named icon buttons, ${confirmationCount} guarded confirmations.`);

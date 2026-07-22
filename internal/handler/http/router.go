@@ -143,6 +143,37 @@ func registerPluginExtensionRoutes(mux *http.ServeMux, manager plugin.Manager) {
 		return
 	}
 	mux.HandleFunc("/v1/plugins/{pluginID}/api/{resource...}", pluginRouteHandler(manager))
+
+	provider, hasSnapshots := manager.(pluginExtensionSnapshotProvider)
+	executor, canExecute := manager.(pluginRouteExecutor)
+	if !hasSnapshots || !canExecute {
+		return
+	}
+
+	for _, info := range manager.List() {
+		if !info.SystemBuiltin || info.State != plugin.StateEnabled {
+			continue
+		}
+		snapshot, ok := provider.GetExtensionSnapshot(info.ID)
+		if !ok {
+			continue
+		}
+		for _, route := range snapshot.Routes {
+			method := strings.ToUpper(strings.TrimSpace(route.Method))
+			path := strings.TrimSpace(route.Path)
+			if !isAllowedPluginRoute(method, path) {
+				continue
+			}
+			pluginID := info.ID
+			routePath := path
+			mux.HandleFunc(method+" "+routePath, func(w http.ResponseWriter, r *http.Request) {
+				if executor.HandlePluginRoute(pluginID, method, routePath, w, r) {
+					return
+				}
+				WriteMessage(w, http.StatusBadGateway, "plugin_route_unavailable", "插件路由不可用")
+			})
+		}
+	}
 }
 
 func pluginRouteHandler(manager plugin.Manager) func(http.ResponseWriter, *http.Request) {

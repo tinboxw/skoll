@@ -415,12 +415,12 @@ function formatInputDate(value: string): string {
 
 		<PageToolbar>
 			<FilterBar>
-					<el-input v-model="keyword" clearable :placeholder="t('customer.filter.keyword')" />
-					<el-select v-model="statusFilter" clearable :placeholder="t('customer.filter.allStatuses')">
+					<el-input v-model="keyword" clearable :aria-label="t('customer.filter.keyword')" :placeholder="t('customer.filter.keyword')" />
+					<el-select v-model="statusFilter" clearable :aria-label="t('customer.filter.allStatuses')" :placeholder="t('customer.filter.allStatuses')">
 						<el-option :label="t('customer.status.active')" value="active" />
 						<el-option :label="t('customer.status.disabled')" value="disabled" />
 					</el-select>
-					<el-select v-model="regionFilter" clearable :placeholder="t('customer.filter.allRegions')">
+					<el-select v-model="regionFilter" clearable :aria-label="t('customer.filter.allRegions')" :placeholder="t('customer.filter.allRegions')">
 						<el-option :label="t('customer.region.east')" value="East" />
 						<el-option :label="t('customer.region.south')" value="South" />
 						<el-option :label="t('customer.region.west')" value="West" />

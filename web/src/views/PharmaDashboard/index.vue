@@ -80,7 +80,7 @@ function open(path: string): void { void router.push(path); }
 		<template #stateActions><el-button :icon="RefreshCw" @click="refresh">{{ t("pharma.dashboard.retry") }}</el-button></template>
 
 		<section class="filters" :aria-label="t('pharma.dashboard.dashboardWindow')">
-			<el-date-picker v-model="dateRange" type="daterange" :range-separator="t('pharma.dashboard.toSeparator')" :start-placeholder="t('pharma.dashboard.from')" :end-placeholder="t('pharma.dashboard.to')" :clearable="false" :disabled="loading" />
+			<el-date-picker v-model="dateRange" type="daterange" :aria-label="t('pharma.dashboard.dashboardWindow')" :range-separator="t('pharma.dashboard.toSeparator')" :start-placeholder="t('pharma.dashboard.from')" :end-placeholder="t('pharma.dashboard.to')" :clearable="false" :disabled="loading" />
 			<el-segmented v-model="bucket" :options="[{ label: valueLabel('day'), value: 'day' }, { label: valueLabel('week'), value: 'week' }, { label: valueLabel('month'), value: 'month' }]" :disabled="loading" />
 			<label><span>{{ t("pharma.dashboard.qualificationHorizon") }}</span><el-input-number v-model="qualificationDays" :min="1" :max="365" :step="5" :disabled="loading" /></label>
 			<el-button type="primary" :icon="ChartNoAxesCombined" :loading="loading" @click="refresh">{{ t("pharma.dashboard.apply") }}</el-button>

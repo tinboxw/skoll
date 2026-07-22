@@ -12,6 +12,7 @@ const repoRoot = path.resolve(webRoot, "..");
 const baselinePath = path.join(webRoot, "i18n", "pharma-oa-baseline.json");
 const localeSourcePath = path.join(webRoot, "src", "i18n", "index.ts");
 const pharmaLocalePath = path.join(webRoot, "src", "i18n", "pharma.json");
+const platformLocalePath = path.join(webRoot, "src", "i18n", "platform.json");
 const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
 const failures = [];
 
@@ -80,10 +81,22 @@ function isHumanCopy(value) {
 function collectVisibleExpressionCopy(expression) {
 	const values = [];
 	const source = ts.createSourceFile("template-expression.ts", `const value = (${expression});`, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+	function isTranslationArgument(node) {
+		let current = node.parent;
+		while (current) {
+			if (ts.isCallExpression(current)) {
+				const callee = current.expression.getText(source);
+				if (callee === "t" || callee === "translate") return true;
+			}
+			if (ts.isVariableDeclaration(current) || ts.isSourceFile(current)) break;
+			current = current.parent;
+		}
+		return false;
+	}
 	function visit(node) {
 		if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
 			const parent = node.parent;
-			const isCallArgument = ts.isCallExpression(parent) && parent.arguments.includes(node);
+			const isCallArgument = isTranslationArgument(node) || (ts.isCallExpression(parent) && parent.arguments.includes(node));
 			const isComparisonOperand = ts.isBinaryExpression(parent);
 			if (!isCallArgument && !isComparisonOperand && isHumanCopy(node.text)) values.push(node.text.trim());
 		}
@@ -164,8 +177,13 @@ const localeMessages = extractMessages(localeSource);
 const actualLocales = [...localeMessages.keys()];
 compareLists("supported locale dictionaries", actualLocales, baseline.supportedLocales);
 const pharmaMessages = JSON.parse(fs.readFileSync(pharmaLocalePath, "utf8"));
+const platformMessages = JSON.parse(fs.readFileSync(platformLocalePath, "utf8"));
 for (const locale of baseline.supportedLocales) {
-	localeMessages.set(locale, [...(localeMessages.get(locale) || []), ...Object.keys(pharmaMessages[locale] || {})]);
+	localeMessages.set(locale, [
+		...(localeMessages.get(locale) || []),
+		...Object.keys(pharmaMessages[locale] || {}),
+		...Object.keys(platformMessages[locale] || {})
+	]);
 }
 if (!localeSource.includes(`export const DEFAULT_LOCALE: Locale = "${baseline.defaultLocale}";`) || !/return\s+DEFAULT_LOCALE\s*;/.test(localeSource)) {
 	failures.push(`default locale must be declared and returned as ${baseline.defaultLocale}`);
@@ -208,6 +226,19 @@ for (const expected of baseline.views) {
 	if (expected.status === "localized" && actual.hardcodedCopyCount !== 0) failures.push(`${expected.path} is marked localized but still has hard-coded copy`);
 }
 
+const uiFiles = walkFiles(path.join(webRoot, "src"), new Set([".vue"]))
+	.filter((filePath) => !filePath.endsWith(".spec.vue"))
+	.sort();
+let hardcodedCopyCount = 0;
+for (const filePath of uiFiles) {
+	const relativePath = path.relative(webRoot, filePath).replaceAll("\\", "/");
+	const actual = inspectView(relativePath);
+	hardcodedCopyCount += actual.hardcodedCopyCount;
+	if (actual.hardcodedCopyCount > 0) {
+		failures.push(`${relativePath} contains hard-coded visible copy: ${actual.hardcodedCopy.join(" | ")}`);
+	}
+}
+
 const manifestPath = path.join(repoRoot, baseline.pluginManifest);
 const manifest = fs.readFileSync(manifestPath, "utf8");
 for (const required of ["name_zh_cn:", "name_en_us:", "label_zh_cn:", "label_en_us:", "  - zh-CN", "  - en-US"]) {
@@ -219,4 +250,4 @@ if (failures.length > 0) {
 	process.exit(1);
 }
 
-console.log(`H4 locale baseline check passed: ${baselineKeys.size} keys, ${referencedKeys.size} references, ${baseline.views.length} Pharma OA views, default ${baseline.defaultLocale}.`);
+console.log(`H4 locale baseline check passed: ${baselineKeys.size} keys, ${referencedKeys.size} references, ${uiFiles.length} UI files, ${hardcodedCopyCount} hard-coded visible strings, default ${baseline.defaultLocale}.`);

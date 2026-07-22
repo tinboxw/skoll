@@ -1,6 +1,9 @@
 ﻿<script setup lang="ts">
 import { Bell, ClipboardList, FileText, FolderOpen, GitPullRequest, LayoutDashboard, ListTree, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
+import { useI18n } from "../../i18n";
 import type { SidebarItem } from "../../navigation/menu";
+
+const { t } = useI18n();
 
 withDefaults(defineProps<{
 	collapsed: boolean;
@@ -36,7 +39,7 @@ function resolveIconComponent(icon: string) {
 
 <template>
 	<aside class="sidebar" :class="{ collapsed, 'sidebar--mobile': mobile }">
-		<RouterLink to="/skoll/" class="brand" title="Home">Skoll</RouterLink>
+		<RouterLink to="/skoll/" class="brand" :title="t('sidebar.home')">{{ t("app.brand") }}</RouterLink>
 		<nav>
 			<RouterLink
 				v-for="item in items"

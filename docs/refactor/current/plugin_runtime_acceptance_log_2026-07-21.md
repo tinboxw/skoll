@@ -1709,3 +1709,65 @@ Result: PR4-03 passed without acceptance retries. Theme and density are now orth
 ### Commit
 
 `PR4-03: complete token-driven themes`
+
+## PR4-04 Complete Chinese/English Copy And Accessibility
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> (Review -> Failed -> Doing) x10 -> Review -> Done`
+- Scope: Move all production Vue UI copy into the current Chinese/English locale contract, synchronize document language, close keyboard/ARIA/focus gaps, and enforce the result with static, component, backend-route, and real-browser gates.
+
+### Retry Records
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Frontend typecheck | `Object.hasOwn` was outside the configured TypeScript library target | Use `Object.prototype.hasOwnProperty.call` for interpolation keys |
+| 2 | Browser login | Selenium `clear()` left the Element Plus model value and produced `adminadmin` | Select the full controlled value with Ctrl+A before entering credentials |
+| 3 | Browser login route | `/skoll/v1/auth/login` returned 404 because declared system-builtin routes were not mounted by the HTTP router | Register enabled system-builtin extension routes as canonical endpoints and add router integration coverage |
+| 4 | Locale semantics | Chinese copy rendered while `document.documentElement.lang` remained `en` | Apply the active locale to the root document on initialization and every locale change |
+| 5 | Runtime ARIA scan | An input wrapped by a native label was incorrectly reported unnamed | Resolve both explicit and wrapping labels in the browser accessibility probe |
+| 6 | Reduced-motion check | Chrome serialized `0.00001s` as `1e-05s` | Compare parsed duration seconds against the budget instead of string formatting |
+| 7 | Customer filters | Status and region combobox inputs had no explicit accessible names | Add localized ARIA labels to customer keyword and select controls |
+| 8 | Qualification filters | Subject and status combobox inputs had no explicit accessible names | Add localized ARIA labels to all qualification filters |
+| 9 | Mobile keyboard traversal | The first focusable dashboard date input had no stable accessible name | Add a localized dashboard-window ARIA label and richer focus diagnostics |
+| 10 | Final restricted login | Hidden retained SPA inputs inflated the login input count | Target only visible username and current-password inputs |
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Full production locale inventory | Pass | Static gate scans 53 production Vue files, resolves 1,645 references against 1,800 bilingual keys, and reports zero hard-coded visible strings |
+| Platform and workflow copy | Pass | Form Builder, Todo Center, Workflow, plugin operations, IAM pages, shared confirmations, sidebar, statuses, and errors use the current locale contract |
+| Locale behavior | Pass after retry | Locale switching updates copy, persisted state, interpolation, known errors, and the root `lang` attribute |
+| Notification demo contract | Pass | Callers must provide localized demo copy; no optional copy or fallback compatibility path remains |
+| Static accessibility | Pass | All 53 production UI files pass icon-name, image/iframe, click semantics, positive-tabindex, localized confirmation, focus, and reduced-motion checks |
+| Keyboard and focus | Pass after retry | First tab stops have accessible names and visible 3px outlines; destructive dialogs receive focus |
+| ARIA and page structure | Pass after retry | Page shells reference visible headings; tested inputs and comboboxes expose localized accessible names; no unnamed control remains |
+| Contrast and motion | Pass after retry | Browser matrix enforces body contrast >= 4.5:1 and transition/animation durations <= 0.00001s under reduced motion |
+| Error and permission states | Pass | Localized network errors and restricted-user denial states render as explicit status/alert surfaces |
+| Browser matrix | Pass after retries | 28 scenarios cover Chinese/English, 1440x1000/390x844, responsive/loading/empty/error/destructive/saving/no-permission states with no overflow |
+| Canonical auth route | Pass after retry | Enabled system-builtin extension routes execute directly; disabled builtins and app plugins are not directly mounted |
+| Automated tests | Pass | Six Vitest files and 13 tests cover i18n, notifications, theme, host SDK, metrics, and layout controls |
+| Full quality gates | Pass | `npm run typecheck`, `npm run build`, and `go test ./...` pass |
+| Current-only architecture | Pass | Locale, notification, route, and accessibility behavior have one current contract with no compatibility branch, fallback, or dual path |
+
+### Verification Commands
+
+```powershell
+cd web
+npm run test:components
+npm run typecheck
+npm run build
+cd ..
+go test ./...
+python scripts/h4-browser-matrix.py --base-url http://127.0.0.1:5174 --output "$env:TEMP/skoll-pr4-04-browser"
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: PR4-04 passed after ten documented retries. The complete production UI now uses one bilingual locale contract, document language and accessible names follow the active locale, and the 28-state real-browser matrix protects keyboard, focus, ARIA, contrast, reduced motion, error, and permission behavior.
+
+### Commit
+
+`PR4-04: complete frontend localization and accessibility`

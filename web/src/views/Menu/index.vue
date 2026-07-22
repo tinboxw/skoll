@@ -364,14 +364,14 @@ onMounted(() => {
 			<el-table-column :label="t('menu.editor.icon')" width="130">
 				<template #default="{ row }">
 					<el-select v-model="row.icon">
-						<el-option label="dashboard" value="dashboard" />
-						<el-option label="users" value="users" />
-						<el-option label="roles" value="roles" />
-						<el-option label="permissions" value="permissions" />
-						<el-option label="menus" value="menus" />
-						<el-option label="audit" value="audit" />
-						<el-option label="plugins" value="plugins" />
-						<el-option label="settings" value="settings" />
+						<el-option :label="t('menu.dashboard')" value="dashboard" />
+						<el-option :label="t('menu.users')" value="users" />
+						<el-option :label="t('menu.roles')" value="roles" />
+						<el-option :label="t('menu.permissions')" value="permissions" />
+						<el-option :label="t('menu.menus')" value="menus" />
+						<el-option :label="t('menu.audit')" value="audit" />
+						<el-option :label="t('menu.plugins')" value="plugins" />
+						<el-option :label="t('menu.settings')" value="settings" />
 					</el-select>
 				</template>
 			</el-table-column>
@@ -387,19 +387,19 @@ onMounted(() => {
 			</el-table-column>
 			<el-table-column :label="t('menu.editor.permissions')" min-width="220">
 				<template #default="{ row }">
-					<el-input v-model="row.permissionsText" placeholder="role.manage, audit.read" />
+					<el-input v-model="row.permissionsText" :placeholder="t('menu.editor.permissionsPlaceholder')" />
 				</template>
 			</el-table-column>
 			<el-table-column :label="t('menu.editor.roles')" min-width="160">
 				<template #default="{ row }">
-					<el-input v-model="row.rolesText" placeholder="admin" />
+					<el-input v-model="row.rolesText" :placeholder="t('menu.editor.rolesPlaceholder')" />
 				</template>
 			</el-table-column>
 			<el-table-column :label="t('menu.editor.reorder')" width="132" align="center">
 				<template #default="{ row }">
 					<el-button-group>
-						<el-button :icon="ArrowUp" :disabled="!canMove(row, -1)" :title="t('common.moveUp')" @click="moveMenu(row, -1)" />
-						<el-button :icon="ArrowDown" :disabled="!canMove(row, 1)" :title="t('common.moveDown')" @click="moveMenu(row, 1)" />
+						<el-button :icon="ArrowUp" :disabled="!canMove(row, -1)" :title="t('common.moveUp')" :aria-label="t('common.moveUp')" @click="moveMenu(row, -1)" />
+						<el-button :icon="ArrowDown" :disabled="!canMove(row, 1)" :title="t('common.moveDown')" :aria-label="t('common.moveDown')" @click="moveMenu(row, 1)" />
 					</el-button-group>
 				</template>
 			</el-table-column>

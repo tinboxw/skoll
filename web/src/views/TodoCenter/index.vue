@@ -5,6 +5,7 @@ import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 
 import { ConfirmAction, DataTable, FilterBar, PageShell, PageToolbar, type DataTableColumn } from "../../components/Common";
+import { useI18n } from "../../i18n";
 import {
 	loadNotifications,
 	markNotificationDone,
@@ -31,6 +32,7 @@ type NotificationRow = Record<string, unknown> & {
 type TabMode = "pending" | "done" | "message" | "reminder";
 
 const router = useRouter();
+const { t } = useI18n();
 const userStore = useUserStore();
 const buttonAccess = useButtonAccess();
 const loading = ref(false);
@@ -43,13 +45,13 @@ const currentActorId = computed(() => userStore.profile?.id?.trim() || "starter-
 const canRead = computed(() => buttonAccess.can("notification.read"));
 const canAct = computed(() => buttonAccess.can("notification.act"));
 
-const columns: DataTableColumn[] = [
-	{ key: "title", label: "Title", minWidth: 220 },
-	{ key: "category", label: "Type", width: 110 },
-	{ key: "status", label: "Status", width: 110 },
-	{ key: "target", label: "Target", minWidth: 180 },
-	{ key: "updatedAt", label: "Updated", minWidth: 160 }
-];
+const columns = computed<DataTableColumn[]>(() => [
+	{ key: "title", label: t("todo.column.title"), minWidth: 220 },
+	{ key: "category", label: t("todo.column.type"), width: 110 },
+	{ key: "status", label: t("todo.column.status"), width: 110 },
+	{ key: "target", label: t("todo.column.target"), minWidth: 180 },
+	{ key: "updatedAt", label: t("todo.column.updated"), minWidth: 160 }
+]);
 
 const rows = computed<NotificationRow[]>(() => items.value.map(toRow));
 const filteredRows = computed<NotificationRow[]>(() => {
@@ -92,36 +94,41 @@ function refreshItems(): void {
 }
 
 function seedDemo(): void {
-	seedNotificationDemo(currentActorId.value);
+	seedNotificationDemo(currentActorId.value, {
+		qualificationTitle: t("todo.demo.qualificationTitle"),
+		qualificationBody: t("todo.demo.qualificationBody"),
+		workflowTitle: t("todo.demo.workflowTitle"),
+		workflowBody: t("todo.demo.workflowBody")
+	});
 	refreshItems();
-	ElMessage.success("Demo notifications added");
+	ElMessage.success(t("todo.demoAdded"));
 }
 
 function clearItems(): void {
 	const remaining = loadNotifications().filter((item) => item.actorId !== currentActorId.value);
 	saveNotifications(remaining);
 	refreshItems();
-	ElMessage.success("Notifications cleared");
+	ElMessage.success(t("todo.cleared"));
 }
 
 function markDone(row: NotificationRow): void {
 	if (!canAct.value) {
-		error.value = "You do not have permission to update notifications.";
+		error.value = t("todo.updateForbidden");
 		return;
 	}
 	const updated = markNotificationDone(row.id, currentActorId.value);
 	if (!updated) {
-		error.value = "Notification item was not found.";
+		error.value = t("todo.notFound");
 		return;
 	}
 	refreshItems();
-	ElMessage.success(updated.category === "message" ? "Message read" : "Todo completed");
+	ElMessage.success(updated.category === "message" ? t("todo.messageRead") : t("todo.completed"));
 }
 
 async function jumpToTarget(row: NotificationRow): Promise<void> {
 	const path = row.raw.target.path.trim();
 	if (!path) {
-		error.value = "Notification target path is empty.";
+		error.value = t("todo.emptyTarget");
 		return;
 	}
 	await router.push(path);
@@ -141,8 +148,8 @@ function toRow(item: NotificationItem): NotificationRow {
 	return {
 		id: item.id,
 		title: item.title,
-		category: item.category,
-		status: item.status,
+		category: t(`todo.category.${item.category}`),
+		status: t(`todo.status.${item.status}`),
 		target: `${item.target.type || "target"} / ${item.target.id || "-"}`,
 		updatedAt: formatDate(item.updatedAt),
 		raw: item
@@ -171,39 +178,39 @@ function formatDate(value: string): string {
 
 <template>
 	<PageShell
-		title="Todo Center"
-		description="Approval todos, completed items, in-app messages, and business reminders."
+		:title="t('todo.title')"
+		:description="t('todo.description')"
 		:loading="loading"
 		:error="error"
 		:forbidden="!canRead"
-		forbidden-title="Todo center unavailable"
-		forbidden-description="Ask an administrator for notification.read permission."
+		:forbidden-title="t('todo.unavailable')"
+		:forbidden-description="t('todo.permissionRequired')"
 		data-testid="todo-center-page"
 	>
 		<template #actions>
-			<el-button :icon="RefreshCw" :loading="loading" @click="refreshItems">Refresh</el-button>
-			<el-button :icon="Bell" @click="seedDemo">Demo reminder</el-button>
-			<ConfirmAction label="Clear" message="Clear your notification center items?" @confirm="clearItems" />
+			<el-button :icon="RefreshCw" :loading="loading" @click="refreshItems">{{ t("common.refresh") }}</el-button>
+			<el-button :icon="Bell" @click="seedDemo">{{ t("todo.demoReminder") }}</el-button>
+			<ConfirmAction :label="t('todo.clear')" :message="t('todo.clearConfirm')" @confirm="clearItems" />
 		</template>
 		<template #stateActions>
-			<el-button :icon="RefreshCw" @click="refreshItems">Retry</el-button>
+			<el-button :icon="RefreshCw" @click="refreshItems">{{ t("common.retry") }}</el-button>
 		</template>
 
 		<el-segmented
 			v-model="activeTab"
 			class="todo-summary"
-			aria-label="Todo center summary"
+			:aria-label="t('todo.summary')"
 			:options="[
-				{ label: `Pending ${summary.pending}`, value: 'pending' },
-				{ label: `Done ${summary.done}`, value: 'done' },
-				{ label: `Messages ${summary.message}`, value: 'message' },
-				{ label: `Reminders ${summary.reminder}`, value: 'reminder' }
+				{ label: t('todo.tab.pending', { count: summary.pending }), value: 'pending' },
+				{ label: t('todo.tab.done', { count: summary.done }), value: 'done' },
+				{ label: t('todo.tab.message', { count: summary.message }), value: 'message' },
+				{ label: t('todo.tab.reminder', { count: summary.reminder }), value: 'reminder' }
 			]"
 		/>
 
 		<PageToolbar>
 			<FilterBar>
-				<el-input v-model="keyword" clearable placeholder="Search title, type, status, or target" />
+				<el-input v-model="keyword" clearable :placeholder="t('todo.searchPlaceholder')" />
 			</FilterBar>
 		</PageToolbar>
 
@@ -212,30 +219,30 @@ function formatDate(value: string): string {
 			:columns="columns"
 			row-key="id"
 			:loading="loading"
-			empty-text="No items in this view"
+			:empty-text="t('todo.empty')"
 			data-testid="todo-table"
 		>
 			<template #cell-title="{ row }">
 				<div class="todo-title">
-					<component :is="categoryIcon(row.category)" class="cell-icon" aria-hidden="true" />
+					<component :is="categoryIcon(row.raw.category)" class="cell-icon" aria-hidden="true" />
 					<div>
 						<strong>{{ row.title }}</strong>
 						<p>{{ row.raw.body }}</p>
 					</div>
 				</div>
 			</template>
-			<template #cell-status="{ value }">
-				<el-tag :type="statusType(value)">{{ value }}</el-tag>
+			<template #cell-status="{ row, value }">
+				<el-tag :type="statusType(row.raw.status)">{{ value }}</el-tag>
 			</template>
 			<template #cell-category="{ value }">
 				<el-tag>{{ value }}</el-tag>
 			</template>
 			<template #actions="{ row }">
-				<el-tooltip content="Open target">
-					<el-button :icon="ExternalLink" circle aria-label="Open target" @click="jumpToTarget(row)" />
+				<el-tooltip :content="t('todo.openTarget')">
+					<el-button :icon="ExternalLink" circle :aria-label="t('todo.openTarget')" @click="jumpToTarget(row)" />
 				</el-tooltip>
-				<el-tooltip content="Mark done">
-					<el-button :icon="Check" circle type="success" aria-label="Mark done" :disabled="!canAct || row.raw.status !== 'pending'" @click="markDone(row)" />
+				<el-tooltip :content="t('todo.markDone')">
+					<el-button :icon="Check" circle type="success" :aria-label="t('todo.markDone')" :disabled="!canAct || row.raw.status !== 'pending'" @click="markDone(row)" />
 				</el-tooltip>
 			</template>
 		</DataTable>

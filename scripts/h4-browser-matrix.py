@@ -14,11 +14,13 @@ from PIL import Image, ImageDraw
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUTPUT = ROOT / "docs" / "refactor" / "current" / "evidence" / "h4-04"
+DEFAULT_OUTPUT = ROOT / "docs" / "refactor" / "current" / "evidence" / "pr4-04"
 CUSTOMER_PATH = "/skoll/pharma-oa/customers"
 DASHBOARD_PATH = "/skoll/pharma-oa/dashboard"
 QUALIFICATION_PATH = "/skoll/pharma-oa/qualifications"
@@ -42,6 +44,7 @@ VIEWPORTS = {
 }
 
 STATE_ORDER = ["responsive", "loading", "empty", "error", "destructive", "saving", "no_permission"]
+CURRENT_STAGE = "startup"
 
 
 @dataclass
@@ -54,6 +57,9 @@ class MatrixResult:
     screenshot: str
     page_overflow: int
     text_overflows: int
+    contrast_ratio: float
+    unnamed_controls: int
+    reduced_motion: bool
     evidence: str
 
 
@@ -86,6 +92,10 @@ def new_driver(headed: bool) -> webdriver.Chrome:
     options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
     driver = webdriver.Chrome(options=options)
     driver.execute_cdp_cmd("Network.enable", {})
+    driver.execute_cdp_cmd(
+        "Emulation.setEmulatedMedia",
+        {"features": [{"name": "prefers-reduced-motion", "value": "reduce"}]},
+    )
     driver.execute_cdp_cmd(
         "Page.addScriptToEvaluateOnNewDocument",
         {
@@ -143,6 +153,8 @@ def clear_fetch_configuration(driver: webdriver.Chrome) -> None:
 
 
 def announce(locale: str, viewport: str, state: str) -> None:
+    global CURRENT_STAGE
+    CURRENT_STAGE = f"{locale}/{viewport}/{state}"
     print(f"[RUN] {locale}/{viewport}/{state}", flush=True)
 
 
@@ -154,11 +166,17 @@ def clear_session(driver: webdriver.Chrome, base_url: str, locale: str) -> None:
 
 def login(driver: webdriver.Chrome, wait: WebDriverWait, base_url: str, locale: str, account: str, password: str) -> None:
     clear_session(driver, base_url, locale)
-    inputs = wait.until(lambda current: current.find_elements(By.CSS_SELECTOR, "main input"))
+    inputs = wait.until(
+        lambda current: [
+            element
+            for element in current.find_elements(By.CSS_SELECTOR, "main input[autocomplete='username'], main input[autocomplete='current-password']")
+            if element.is_displayed()
+        ]
+    )
     if len(inputs) != 2:
         raise RuntimeError(f"expected two login inputs, got {len(inputs)}")
     for element, value in zip(inputs, (account, password), strict=True):
-        element.clear()
+        element.send_keys(Keys.CONTROL, "a")
         element.send_keys(value)
     buttons = driver.find_elements(By.CSS_SELECTOR, "main button")
     if len(buttons) != 1:
@@ -185,7 +203,7 @@ def wait_visible(driver: webdriver.Chrome, wait: WebDriverWait, selector: str) -
 
 def layout_metrics(driver: webdriver.Chrome) -> dict[str, object]:
     return driver.execute_script(
-        """
+        r"""
         const root = document.documentElement;
         const visible = (element) => {
           const style = getComputedStyle(element);
@@ -198,13 +216,71 @@ def layout_metrics(driver: webdriver.Chrome) -> dict[str, object]:
           .filter((element) => element.scrollWidth > element.clientWidth + 2 || element.scrollHeight > element.clientHeight + 2)
           .slice(0, 20)
           .map((element) => ({ tag: element.tagName, text: (element.textContent || '').trim().slice(0, 80) }));
+        const parseColor = (value) => {
+          const match = String(value || '').match(/[\d.]+/g);
+          return match && match.length >= 3 ? match.slice(0, 3).map(Number) : [0, 0, 0];
+        };
+        const luminance = (rgb) => {
+          const channels = rgb.map((value) => {
+            const normalized = value / 255;
+            return normalized <= 0.03928 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+          });
+          return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+        };
+        const bodyStyle = getComputedStyle(document.body);
+        const foreground = luminance(parseColor(bodyStyle.color));
+        const background = luminance(parseColor(bodyStyle.backgroundColor));
+        const contrastRatio = (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+        const controls = [...document.querySelectorAll('button,a[href],input,textarea,select,[role="button"]')].filter(visible);
+        const accessibleName = (element) => {
+          const id = element.getAttribute('id');
+          const label = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+          const wrappingLabel = element.closest('label');
+          return [element.getAttribute('aria-label'), element.getAttribute('title'), label?.textContent, wrappingLabel?.textContent, element.textContent, element.getAttribute('placeholder')]
+            .some((value) => String(value || '').trim().length > 0);
+        };
+        const unnamedControls = controls.filter((element) => !accessibleName(element)).map((element) => element.outerHTML.slice(0, 180));
+        const pageShell = document.querySelector('.page-shell');
+        const labelledBy = pageShell?.getAttribute('aria-labelledby') || '';
+        const labelledHeading = labelledBy ? document.getElementById(labelledBy) : null;
+        const motionProbe = document.querySelector('.el-button') || document.body;
+        const motionStyle = getComputedStyle(motionProbe);
         return {
           pageOverflow: Math.max(0, root.scrollWidth - root.clientWidth),
           textOverflows,
+          lang: root.lang,
+          labelledPage: Boolean(labelledHeading && String(labelledHeading.textContent || '').trim()),
+          unnamedControls,
+          contrastRatio,
+          reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
+          transitionDuration: motionStyle.transitionDuration,
+          animationDuration: motionStyle.animationDuration,
           viewport: { width: root.clientWidth, height: root.clientHeight }
         };
         """
     )
+
+
+def verify_keyboard_focus(driver: webdriver.Chrome) -> None:
+    driver.execute_script("if (document.activeElement instanceof HTMLElement) document.activeElement.blur();")
+    ActionChains(driver).send_keys(Keys.TAB).perform()
+    focus = driver.execute_script(
+        """
+        const element = document.activeElement;
+        const style = element ? getComputedStyle(element) : null;
+        return {
+          tag: element?.tagName || '',
+          name: String(element?.getAttribute('aria-label') || element?.getAttribute('title') || element?.getAttribute('placeholder') || element?.closest('label')?.textContent || element?.textContent || '').trim(),
+          outlineWidth: parseFloat(style?.outlineWidth || '0'),
+          outlineStyle: style?.outlineStyle || 'none',
+          element: element?.outerHTML?.slice(0, 320) || ''
+        };
+        """
+    )
+    if not focus["tag"] or not focus["name"]:
+        raise AssertionError(f"keyboard: first tab stop has no accessible name: {focus}")
+    if float(focus["outlineWidth"]) < 2 or focus["outlineStyle"] in {"none", "hidden"}:
+        raise AssertionError(f"keyboard: first tab stop has no visible focus outline: {focus}")
 
 
 def capture(
@@ -227,6 +303,21 @@ def capture(
         raise AssertionError(f"{state}: document horizontal overflow is {page_overflow}px")
     if text_overflows:
         raise AssertionError(f"{state}: text overflow detected: {text_overflows}")
+    if metrics["lang"] != locale:
+        raise AssertionError(f"{state}: document language is {metrics['lang']}, expected {locale}")
+    if not metrics["labelledPage"]:
+        raise AssertionError(f"{state}: page shell is not linked to a visible heading")
+    unnamed_controls = list(metrics["unnamedControls"])
+    if unnamed_controls:
+        raise AssertionError(f"{state}: unnamed interactive controls: {unnamed_controls}")
+    if float(metrics["contrastRatio"]) < 4.5:
+        raise AssertionError(f"{state}: body contrast is {metrics['contrastRatio']:.2f}:1")
+    if not metrics["reducedMotion"]:
+        raise AssertionError(f"{state}: reduced-motion media query is not active")
+    durations = [str(metrics["transitionDuration"]), str(metrics["animationDuration"])]
+    duration_seconds = [float(value.removesuffix("s") or "0") for value in durations]
+    if any(value > 0.00001 for value in duration_seconds):
+        raise AssertionError(f"{state}: motion duration is not reduced: {durations}")
     filename = f"{locale}-{viewport}-{state}.png"
     path = output / ".raw" / filename
     driver.save_screenshot(str(path))
@@ -239,6 +330,9 @@ def capture(
         screenshot=filename,
         page_overflow=page_overflow,
         text_overflows=0,
+        contrast_ratio=round(float(metrics["contrastRatio"]), 2),
+        unnamed_controls=0,
+        reduced_motion=bool(metrics["reducedMotion"]),
         evidence=evidence,
     )
 
@@ -257,6 +351,7 @@ def capture_admin_states(
     announce(locale, viewport, "responsive")
     open_page(driver, wait, args.base_url, DASHBOARD_PATH)
     wait_idle(driver, wait)
+    verify_keyboard_focus(driver)
     results.append(capture(driver, args.output, locale, viewport, "responsive", DASHBOARD_PATH, ".page-shell__body", "Business dashboard renders at the target viewport."))
 
     announce(locale, viewport, "loading")
@@ -296,6 +391,9 @@ def capture_admin_states(
         raise AssertionError(f"destructive: expected one scan button, got {len(scan_buttons)}")
     scan_buttons[0].click()
     wait_visible(driver, wait, ".el-message-box")
+    dialog_focus = driver.execute_script("return Boolean(document.activeElement && document.activeElement.closest('.el-message-box'));")
+    if not dialog_focus:
+        raise AssertionError("destructive: focus did not move into the confirmation dialog")
     results.append(capture(driver, args.output, locale, viewport, "destructive", QUALIFICATION_PATH, ".el-message-box", "The guarded scan dialog exposes localized confirm and cancel actions."))
 
     announce(locale, viewport, "saving")
@@ -364,7 +462,7 @@ def create_contact_sheet(raw_dir: Path, output: Path, locale: str, viewport: str
 
 def write_evidence(output: Path, results: list[MatrixResult], sheets: list[str]) -> None:
     payload = {
-        "workItem": "H4-04",
+        "workItem": "PR4-04",
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "summary": {"total": len(results), "passed": sum(item.result == "Pass" for item in results)},
         "contactSheets": sheets,
@@ -372,7 +470,7 @@ def write_evidence(output: Path, results: list[MatrixResult], sheets: list[str])
     }
     (output / "matrix.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     lines = [
-        "# H4-04 双语响应式浏览器矩阵",
+        "# PR4-04 双语响应式浏览器矩阵",
         "",
         "> 默认中文；覆盖中文/英文、桌面/390x844，以及 loading、empty、error、no-permission、saving、destructive、responsive 状态。",
         "",
@@ -426,12 +524,19 @@ def main() -> int:
             driver.save_screenshot(str(failure_path))
         except Exception:
             pass
-        print(f"H4 browser matrix failed: {error}", file=sys.stderr)
+        diagnostics: dict[str, object] = {"stage": CURRENT_STAGE, "errorType": type(error).__name__}
+        try:
+            diagnostics["url"] = driver.current_url
+            diagnostics["body"] = driver.find_element(By.TAG_NAME, "body").text[:1200]
+            diagnostics["console"] = driver.get_log("browser")[-10:]
+        except Exception as diagnostic_error:
+            diagnostics["diagnosticError"] = str(diagnostic_error)
+        print(f"PR4 browser matrix failed: {error}; diagnostics={json.dumps(diagnostics, ensure_ascii=False)}", file=sys.stderr)
         return 1
     finally:
         reset_network(driver)
         driver.quit()
-    print(f"H4 browser matrix passed: {len(results)} states across 2 locales and 2 viewports.")
+    print(f"PR4 browser matrix passed: {len(results)} states across 2 locales and 2 viewports.")
     return 0
 
 

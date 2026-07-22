@@ -20,6 +20,13 @@ export type NotificationItem = {
 	updatedAt: string;
 };
 
+export type NotificationDemoCopy = {
+	qualificationTitle: string;
+	qualificationBody: string;
+	workflowTitle: string;
+	workflowBody: string;
+};
+
 export const NOTIFICATION_STORAGE_KEY = "skoll.notification.items";
 
 export function loadNotifications(): NotificationItem[] {
@@ -120,13 +127,13 @@ export function createBusinessReminder(input: {
 	});
 }
 
-export function seedNotificationDemo(actorId: string): NotificationItem[] {
+export function seedNotificationDemo(actorId: string, copy: NotificationDemoCopy): NotificationItem[] {
 	const now = new Date().toISOString();
 	const items = [
 		createBusinessReminder({
 			id: `reminder-qualification-${actorId}`,
-			title: "Supplier qualification expires soon",
-			body: "Review supplier certificates before the next purchase order.",
+			title: copy.qualificationTitle,
+			body: copy.qualificationBody,
 			actorId,
 			target: { type: "supplier", id: "supplier-demo-001", path: "/skoll/pharma-oa/suppliers/supplier-demo-001" },
 			dueAt: now
@@ -134,8 +141,8 @@ export function seedNotificationDemo(actorId: string): NotificationItem[] {
 		upsertNotification({
 			id: `message-workflow-copied-${actorId}`,
 			category: "message",
-			title: "Workflow copied to you",
-			body: "A purchase approval was copied for awareness.",
+			title: copy.workflowTitle,
+			body: copy.workflowBody,
 			actorId,
 			target: { type: "workflow", id: "wf-copy-demo", path: "/skoll/workflow?instance=wf-copy-demo" }
 		})

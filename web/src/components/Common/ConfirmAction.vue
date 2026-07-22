@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ElMessageBox } from "element-plus";
+import { useI18n } from "../../i18n";
+
+const { t } = useI18n();
 
 const props = withDefaults(defineProps<{
 	label: string;
@@ -11,7 +14,6 @@ const props = withDefaults(defineProps<{
 	plain?: boolean;
 	size?: "small" | "default" | "large";
 }>(), {
-	title: "Confirm action",
 	type: "danger",
 	disabled: false,
 	loading: false,
@@ -24,10 +26,10 @@ const emit = defineEmits<{
 }>();
 
 async function confirmAction(): Promise<void> {
-	await ElMessageBox.confirm(props.message, props.title, {
+	await ElMessageBox.confirm(props.message, props.title || t("common.confirmAction"), {
 		type: props.type === "danger" ? "warning" : props.type,
 		confirmButtonText: props.label,
-		cancelButtonText: "Cancel",
+		cancelButtonText: t("common.cancel"),
 		distinguishCancelAndClose: true
 	});
 	emit("confirm");
