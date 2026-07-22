@@ -36,6 +36,7 @@ const (
 	InstanceApproved  InstanceStatus = "approved"
 	InstanceRejected  InstanceStatus = "rejected"
 	InstanceWithdrawn InstanceStatus = "withdrawn"
+	InstanceCanceled  InstanceStatus = "canceled"
 )
 
 type TaskStatus string
@@ -58,6 +59,7 @@ const (
 	ActionWithdraw ActionType = "withdraw"
 	ActionTransfer ActionType = "transfer"
 	ActionCopy     ActionType = "copy"
+	ActionCancel   ActionType = "cancel"
 )
 
 type Actor struct {
@@ -297,6 +299,26 @@ func (i *Instance) Withdraw(actor Actor, comment string, now time.Time) error {
 	}
 	i.Status = InstanceWithdrawn
 	i.appendAction(Action{ID: actionID(i.ID, ActionWithdraw, actor.ID.String()), Type: ActionWithdraw, InstanceID: i.ID, NodeID: i.CurrentNode, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	i.Meta.Touch(now)
+	return nil
+}
+
+func (i *Instance) Cancel(actor Actor, comment string, now time.Time) error {
+	if err := i.ensureRunning(); err != nil {
+		return err
+	}
+	if actor.ID.IsZero() {
+		return fmt.Errorf("workflow cancellation actor is required")
+	}
+	now = normalizeNow(now)
+	for idx := range i.Tasks {
+		if i.Tasks[idx].Status == TaskPending {
+			i.Tasks[idx].Status = TaskCanceled
+			i.Tasks[idx].CompletedAt = &now
+		}
+	}
+	i.Status = InstanceCanceled
+	i.appendAction(Action{ID: actionID(i.ID, ActionCancel, actor.ID.String()), Type: ActionCancel, InstanceID: i.ID, NodeID: i.CurrentNode, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
 }

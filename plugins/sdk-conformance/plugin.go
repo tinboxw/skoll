@@ -13,6 +13,7 @@ type Report struct {
 	Transaction bool
 	Scope       bool
 	DataStore   bool
+	Document    bool
 	File        bool
 	Audit       bool
 	Config      bool
@@ -120,6 +121,44 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 		return report, fmt.Errorf("workflow approve contract: %w", err)
 	}
 	report.Workflow = true
+	documentInput := pluginsdk.DocumentWorkflowSubmitInput{
+		TenantID: "tenant-conformance", Permission: pluginsdk.Permission{Resource: "sdk_conformance.approval_request", Action: "manage"},
+		Schema: pluginsdk.DocumentSchema{
+			Key: "approval_request", Name: "Approval Request", Version: 1, InitialState: "draft",
+			Header: []pluginsdk.DocumentFieldSchema{{Key: "subject", Label: "Subject", Type: pluginsdk.DocumentFieldString, Required: true}},
+			States: []pluginsdk.DocumentStateSchema{
+				{Key: "draft", Name: "Draft"}, {Key: "pending", Name: "Pending"}, {Key: "approved", Name: "Approved", Terminal: true},
+			},
+			Actions: []pluginsdk.DocumentActionSchema{
+				{Key: "submit", Name: "Submit", From: []string{"draft"}, To: "pending"},
+				{Key: "approve", Name: "Approve", From: []string{"pending"}, To: "approved"},
+			},
+		},
+		Draft: pluginsdk.DocumentDraft{
+			ID: "approval-document", Type: "approval_request", SchemaVersion: 1, Number: "OA-000001", Title: "SDK document approval",
+			Header: map[string]pluginsdk.DocumentValue{"subject": {Type: pluginsdk.DocumentFieldString, Value: "SDK conformance"}},
+			Lines:  map[string][]pluginsdk.DocumentLine{},
+		},
+		DefinitionID: definition.ID, InstanceID: "document-request", IdempotencyKey: "submit-approval-document",
+	}
+	var document pluginsdk.DocumentWorkflowResult
+	if err = host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
+		document, err = host.Documents.Submit(tx.Context(), documentInput)
+		return err
+	}); err != nil || len(document.Workflow.Tasks) != 1 {
+		return report, fmt.Errorf("document submit contract: %w", err)
+	}
+	if err = host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
+		document, err = host.Documents.Act(tx.Context(), pluginsdk.DocumentWorkflowActionInput{
+			TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+			Action: pluginsdk.DocumentWorkflowApprove, ExpectedVersion: document.Document.Version,
+			TaskID: document.Workflow.Tasks[0].ID, IdempotencyKey: "approve-approval-document",
+		})
+		return err
+	}); err != nil || document.Document.State != "approved" || document.Workflow.Status != pluginsdk.WorkflowInstanceApproved {
+		return report, fmt.Errorf("document approval contract: %w", err)
+	}
+	report.Document = true
 	job, err := host.Jobs.Schedule(ctx, pluginsdk.JobScheduleInput{
 		ID: "sync", Kind: "sync", IdempotencyKey: "sync-1", Payload: json.RawMessage(`{"mode":"full"}`), MaxAttempts: 1,
 	})

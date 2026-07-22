@@ -101,6 +101,14 @@ func (a *hostWorkflowAdapter) Withdraw(ctx context.Context, in workflowsvc.Insta
 	return domainWorkflowInstance(item), nil
 }
 
+func (a *hostWorkflowAdapter) Cancel(ctx context.Context, in workflowsvc.InstanceActionInput) (*domainworkflow.Instance, error) {
+	item, err := a.workflow.Cancel(ctx, pluginsdk.WorkflowInstanceActionInput{InstanceID: in.InstanceID.String(), Comment: in.Comment})
+	if err != nil {
+		return nil, err
+	}
+	return domainWorkflowInstance(item), nil
+}
+
 func (a *hostWorkflowAdapter) Transfer(ctx context.Context, in workflowsvc.TaskTargetActionInput) (*domainworkflow.Instance, error) {
 	item, err := a.workflow.Transfer(ctx, pluginsdk.WorkflowTargetActionInput{
 		InstanceID: in.InstanceID.String(), TaskID: in.TaskID.String(),

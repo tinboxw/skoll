@@ -38,6 +38,8 @@ The host verifies signature, expiry, subject, role, and organization claims agai
 | `Transactions` | Execute host calls in one bounded remote transaction; commit on success and roll back on error, timeout, or credential revocation |
 | `DataScopes` | Resolve trusted tenant, owner, and organization scope for the verified user |
 | `DataStore` | Query and mutate declared plugin-owned relational tables through typed, scoped contracts |
+| `DocumentNumbers` | Preview and atomically issue tenant-safe business identifiers |
+| `Documents` | Submit business documents and apply workflow-bound approval actions atomically |
 | `Files` | Store, list, get, download, and delete files in the plugin namespace |
 | `Audit` | Record redacted evidence bound to plugin and trusted caller identity |
 | `Config` | Read or replace Manifest-Schema-validated plugin configuration |
@@ -45,7 +47,7 @@ The host verifies signature, expiry, subject, role, and organization claims agai
 | `Workflows` | Create, publish, and execute namespaced approval workflows |
 | `Jobs` | Schedule, lease, complete, fail, and query namespaced durable jobs |
 
-The datastore gateway validates the public contract again, binds the credential to one plugin identity, injects trusted scope, and maps datastore failures to stable HTTP status and error fields. `pkg/pluginclient` validates requests and responses, restores public `DataStoreError` values, preserves typed records and cursors, and propagates transaction, cancellation, and deadline contexts. Plugin business code never uses private HTTP paths. Schema declaration, logical migration bindings, restart, upgrade, rollback, and uninstall rules are defined in [Plugin Datastore Schema And Lifecycle](plugin-datastore-schema.en.md).
+The gateway validates public contracts again, binds the credential to one plugin identity, injects trusted scope, and maps failures to stable HTTP status and error fields. `pkg/pluginclient` validates requests and responses, restores public typed errors, and propagates transaction, cancellation, and deadline contexts. Plugin business code never uses private HTTP paths. Schema declaration and lifecycle rules are defined in [Plugin Datastore Schema And Lifecycle](plugin-datastore-schema.en.md); document approval rules are defined in [Plugin Document Workflow](plugin-document-workflows.en.md).
 
 ## Transactions
 

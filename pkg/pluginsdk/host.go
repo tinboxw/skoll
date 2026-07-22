@@ -29,6 +29,7 @@ type HostServices struct {
 	DataScopes      DataScopeService
 	DataStore       DataStoreService
 	DocumentNumbers DocumentNumberService
+	Documents       DocumentWorkflowService
 	Files           FileService
 	Audit           AuditService
 	Config          ConfigService
@@ -52,6 +53,9 @@ func (s HostServices) Validate() error {
 	}
 	if s.DocumentNumbers == nil {
 		return fmt.Errorf("plugin host document number service is required")
+	}
+	if s.Documents == nil {
+		return fmt.Errorf("plugin host document workflow service is required")
 	}
 	if s.Files == nil {
 		return fmt.Errorf("plugin host file service is required")

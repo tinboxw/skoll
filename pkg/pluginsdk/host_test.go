@@ -37,6 +37,18 @@ type hostTestDocumentNumbers struct{}
 func (hostTestDocumentNumbers) Preview(context.Context, DocumentNumberInput) (DocumentNumberResult, error) {
 	return DocumentNumberResult{Number: "TEST-000001", Sequence: 1}, nil
 }
+
+type hostTestDocuments struct{}
+
+func (hostTestDocuments) Submit(context.Context, DocumentWorkflowSubmitInput) (DocumentWorkflowResult, error) {
+	return DocumentWorkflowResult{}, nil
+}
+func (hostTestDocuments) Act(context.Context, DocumentWorkflowActionInput) (DocumentWorkflowResult, error) {
+	return DocumentWorkflowResult{}, nil
+}
+func (hostTestDocuments) Get(context.Context, DocumentWorkflowGetInput) (DocumentWorkflowResult, error) {
+	return DocumentWorkflowResult{}, nil
+}
 func (hostTestDocumentNumbers) Issue(context.Context, DocumentNumberInput) (DocumentNumberResult, error) {
 	return DocumentNumberResult{Number: "TEST-000001", Sequence: 1}, nil
 }
@@ -95,6 +107,9 @@ func (hostTestWorkflows) Reject(context.Context, WorkflowTaskActionInput) (Workf
 func (hostTestWorkflows) Withdraw(context.Context, WorkflowInstanceActionInput) (WorkflowInstance, error) {
 	return WorkflowInstance{}, nil
 }
+func (hostTestWorkflows) Cancel(context.Context, WorkflowInstanceActionInput) (WorkflowInstance, error) {
+	return WorkflowInstance{}, nil
+}
 func (hostTestWorkflows) Transfer(context.Context, WorkflowTargetActionInput) (WorkflowInstance, error) {
 	return WorkflowInstance{}, nil
 }
@@ -114,7 +129,7 @@ func (hostTestJobs) List(context.Context, JobQuery) ([]Job, error)           { r
 func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 	valid := HostServices{
 		PluginID: "test", Transactions: hostTestTransactions{}, DataScopes: hostTestDataScopes{},
-		DataStore: hostTestDataStore{}, DocumentNumbers: hostTestDocumentNumbers{},
+		DataStore: hostTestDataStore{}, DocumentNumbers: hostTestDocumentNumbers{}, Documents: hostTestDocuments{},
 		Files: hostTestFiles{}, Audit: hostTestAudit{}, Config: hostTestConfig{}, Secrets: hostTestSecrets{},
 		Workflows: hostTestWorkflows{}, Jobs: hostTestJobs{},
 	}
@@ -130,6 +145,7 @@ func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 		{name: "data scopes", mutate: func(host *HostServices) { host.DataScopes = nil }},
 		{name: "datastore", mutate: func(host *HostServices) { host.DataStore = nil }},
 		{name: "document numbers", mutate: func(host *HostServices) { host.DocumentNumbers = nil }},
+		{name: "document workflows", mutate: func(host *HostServices) { host.Documents = nil }},
 		{name: "files", mutate: func(host *HostServices) { host.Files = nil }},
 		{name: "audit", mutate: func(host *HostServices) { host.Audit = nil }},
 		{name: "config", mutate: func(host *HostServices) { host.Config = nil }},

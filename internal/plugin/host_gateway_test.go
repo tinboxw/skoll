@@ -88,6 +88,30 @@ func (gatewayDocumentNumberFailure) Preview(context.Context, pluginsdk.DocumentN
 	return pluginsdk.DocumentNumberResult{}, pluginsdk.NewDocumentNumberError(pluginsdk.DocumentNumberErrorConflict, "rule", "numbering rule is frozen", false)
 }
 
+type gatewayDocuments struct{}
+
+func (gatewayDocuments) Submit(context.Context, pluginsdk.DocumentWorkflowSubmitInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, nil
+}
+
+type gatewayDocumentWorkflowFailure struct{}
+
+func (gatewayDocumentWorkflowFailure) Submit(context.Context, pluginsdk.DocumentWorkflowSubmitInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorTransactionRequired, "transaction", "transaction required", false)
+}
+func (gatewayDocumentWorkflowFailure) Act(context.Context, pluginsdk.DocumentWorkflowActionInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorConflict, "expectedVersion", "document state changed", false)
+}
+func (gatewayDocumentWorkflowFailure) Get(context.Context, pluginsdk.DocumentWorkflowGetInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorNotFound, "documentId", "document not found", false)
+}
+func (gatewayDocuments) Act(context.Context, pluginsdk.DocumentWorkflowActionInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, nil
+}
+func (gatewayDocuments) Get(context.Context, pluginsdk.DocumentWorkflowGetInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, nil
+}
+
 func (gatewayDocumentNumberFailure) Issue(context.Context, pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
 	return pluginsdk.DocumentNumberResult{}, pluginsdk.NewDocumentNumberError(pluginsdk.DocumentNumberErrorTransactionRequired, "transaction", "transaction required", false)
 }
@@ -166,6 +190,9 @@ func (gatewayWorkflows) Reject(context.Context, pluginsdk.WorkflowTaskActionInpu
 func (gatewayWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-1", Status: pluginsdk.WorkflowInstanceWithdrawn}, nil
 }
+func (gatewayWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{ID: "instance-1", Status: pluginsdk.WorkflowInstanceCanceled}, nil
+}
 func (gatewayWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-1"}, nil
 }
@@ -197,7 +224,7 @@ func (gatewayJobs) List(context.Context, pluginsdk.JobQuery) ([]pluginsdk.Job, e
 func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	transactions := &gatewayTransactions{}
 	secrets := &gatewaySecrets{}
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(id string) (pluginsdk.HostServices, error) {
 		if id != "equipment" {
 			return pluginsdk.HostServices{}, errors.New("wrong identity")
@@ -372,7 +399,7 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 }
 
 func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *testing.T) {
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -436,7 +463,7 @@ func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *te
 func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
 		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
-		DocumentNumbers: gatewayDocumentNumberFailure{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+		DocumentNumbers: gatewayDocumentNumberFailure{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
 	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
 	if err != nil {
@@ -479,10 +506,45 @@ func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
 	}
 }
 
+func TestHostGatewayPreservesDocumentWorkflowContractErrors(t *testing.T) {
+	host := pluginsdk.HostServices{
+		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocumentWorkflowFailure{}, Files: gatewayFiles{}, Audit: gatewayAudit{},
+		Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+	}
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gateway.Close()
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := pluginclient.New(pluginclient.Options{PluginID: "equipment", HostURL: credential.HostURL, HostToken: credential.Token})
+	if err != nil {
+		t.Fatal(err)
+	}
+	services, err := client.HostServices()
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := pluginsdk.DocumentWorkflowActionInput{
+		TenantID: "tenant-a", Permission: pluginsdk.Permission{Resource: "equipment.work_order", Action: "approve"},
+		DocumentID: "work-order-1", Action: pluginsdk.DocumentWorkflowApprove, ExpectedVersion: 1,
+		TaskID: "task-1", IdempotencyKey: "approve-work-order-1",
+	}
+	_, err = services.Documents.Act(context.Background(), input)
+	var documentErr *pluginsdk.DocumentWorkflowError
+	if !errors.As(err, &documentErr) || documentErr.Code != pluginsdk.DocumentWorkflowErrorConflict || documentErr.Field != "expectedVersion" {
+		t.Fatalf("document action error=%v", err)
+	}
+}
+
 func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
 		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
-		DocumentNumbers: gatewayDocumentNumbers{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
 	gateway, err := NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
 		if pluginID != "equipment" {

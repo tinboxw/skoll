@@ -14,6 +14,8 @@ func AllModels() []any {
 		&PluginDataMutationModel{},
 		&DocumentNumberSequenceModel{},
 		&DocumentNumberIssueModel{},
+		&DocumentWorkflowBindingModel{},
+		&DocumentWorkflowActionModel{},
 		&PermissionResourceModel{},
 		&MenuNodeModel{},
 		&FileObjectModel{},

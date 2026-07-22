@@ -69,8 +69,9 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 			return dataStore, nil
 		},
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditsvc.NewService(bundle.Audit),
-		DocumentNumbers: documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
-		ConfigStore:     configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
+		DocumentNumbers:   documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
+		DocumentWorkflows: gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB),
+		ConfigStore:       configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
 		Workflow: workflowsvc.NewService(bundle.Workflow), Jobs: jobsvc.NewService(bundle.Jobs, nil),
 	})
 	if err != nil {
@@ -81,7 +82,7 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SDK conformance error: %v", err)
 	}
-	if !report.Transaction || !report.Scope || !report.DataStore || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
+	if !report.Transaction || !report.Scope || !report.DataStore || !report.Document || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
 		t.Fatalf("incomplete SDK conformance report: %+v", report)
 	}
 }

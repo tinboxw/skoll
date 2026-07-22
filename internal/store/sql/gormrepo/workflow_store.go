@@ -9,6 +9,7 @@ import (
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
+	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -29,42 +30,40 @@ func (s *WorkflowStore) SaveDefinition(ctx context.Context, definition domainwor
 		return err
 	}
 	row := workflowDefinitionRow(definition)
-	return withDBRetry(func() error {
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Clauses(clause.OnConflict{
-				Columns: []clause.Column{{Name: "id"}},
-				DoUpdates: clause.AssignmentColumns([]string{
-					"definition_key", "name", "version", "status", "updated_at",
-				}),
-			}).Create(&row).Error; err != nil {
+	return withWorkflowTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"definition_key", "name", "version", "status", "updated_at",
+			}),
+		}).Create(&row).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("definition_id = ?", row.ID).Delete(&WorkflowNodeAssigneeModel{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("definition_id = ?", row.ID).Delete(&WorkflowTransitionModel{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("definition_id = ?", row.ID).Delete(&WorkflowNodeModel{}).Error; err != nil {
+			return err
+		}
+		nodes, assignees := workflowNodeRows(definition)
+		if len(nodes) > 0 {
+			if err := tx.Create(&nodes).Error; err != nil {
 				return err
 			}
-			if err := tx.Where("definition_id = ?", row.ID).Delete(&WorkflowNodeAssigneeModel{}).Error; err != nil {
+		}
+		if len(assignees) > 0 {
+			if err := tx.Create(&assignees).Error; err != nil {
 				return err
 			}
-			if err := tx.Where("definition_id = ?", row.ID).Delete(&WorkflowTransitionModel{}).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("definition_id = ?", row.ID).Delete(&WorkflowNodeModel{}).Error; err != nil {
-				return err
-			}
-			nodes, assignees := workflowNodeRows(definition)
-			if len(nodes) > 0 {
-				if err := tx.Create(&nodes).Error; err != nil {
-					return err
-				}
-			}
-			if len(assignees) > 0 {
-				if err := tx.Create(&assignees).Error; err != nil {
-					return err
-				}
-			}
-			transitions := workflowTransitionRows(definition)
-			if len(transitions) > 0 {
-				return tx.Create(&transitions).Error
-			}
-			return nil
-		})
+		}
+		transitions := workflowTransitionRows(definition)
+		if len(transitions) > 0 {
+			return tx.Create(&transitions).Error
+		}
+		return nil
 	})
 }
 
@@ -76,19 +75,17 @@ func (s *WorkflowStore) GetDefinition(ctx context.Context, id shared.ID) (*domai
 	var nodes []WorkflowNodeModel
 	var assignees []WorkflowNodeAssigneeModel
 	var transitions []WorkflowTransitionModel
-	if err := withDBRetry(func() error {
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ?", strings.TrimSpace(id.String())).First(&row).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("definition_id = ?", row.ID).Order("position ASC").Find(&nodes).Error; err != nil {
-				return err
-			}
-			if err := tx.Where("definition_id = ?", row.ID).Order("node_id ASC").Order("position ASC").Find(&assignees).Error; err != nil {
-				return err
-			}
-			return tx.Where("definition_id = ?", row.ID).Order("position ASC").Find(&transitions).Error
-		})
+	if err := withWorkflowTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "SHARE"}).Where("id = ?", strings.TrimSpace(id.String())).First(&row).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("definition_id = ?", row.ID).Order("position ASC").Find(&nodes).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("definition_id = ?", row.ID).Order("node_id ASC").Order("position ASC").Find(&assignees).Error; err != nil {
+			return err
+		}
+		return tx.Where("definition_id = ?", row.ID).Order("position ASC").Find(&transitions).Error
 	}); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("workflow definition not found")
@@ -110,10 +107,8 @@ func (s *WorkflowStore) SaveInstance(ctx context.Context, instance domainworkflo
 	if err := validateWorkflowInstanceForStorage(instance); err != nil {
 		return err
 	}
-	return withDBRetry(func() error {
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			return replaceWorkflowInstance(tx, instance)
-		})
+	return withWorkflowTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		return replaceWorkflowInstance(tx, instance)
 	})
 }
 
@@ -122,12 +117,10 @@ func (s *WorkflowStore) GetInstance(ctx context.Context, id shared.ID) (*domainw
 		return nil, fmt.Errorf("workflow repository is required")
 	}
 	var instance *domainworkflow.Instance
-	if err := withDBRetry(func() error {
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			var err error
-			instance, err = loadWorkflowInstance(tx, id, "SHARE")
-			return err
-		})
+	if err := withWorkflowTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		var err error
+		instance, err = loadWorkflowInstance(tx, id, "SHARE")
+		return err
 	}); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("workflow instance not found")
@@ -148,32 +141,27 @@ func (s *WorkflowStore) UpdateInstance(ctx context.Context, id shared.ID, mutate
 		return nil, fmt.Errorf("workflow instance mutation is required")
 	}
 	var result *domainworkflow.Instance
-	err := withDBRetry(func() error {
+	err := withWorkflowTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		var attempt *domainworkflow.Instance
-		err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			instance, err := loadWorkflowInstance(tx, id, "UPDATE")
-			if err != nil {
-				return err
-			}
-			changed, err := mutate(instance)
-			if err != nil {
-				return err
-			}
-			if err := validateWorkflowInstanceForStorage(*instance); err != nil {
-				return err
-			}
-			if changed {
-				if err := replaceWorkflowInstance(tx, *instance); err != nil {
-					return err
-				}
-			}
-			attempt = instance
-			return nil
-		})
-		if err == nil {
-			result = attempt
+		instance, err := loadWorkflowInstance(tx, id, "UPDATE")
+		if err != nil {
+			return err
 		}
-		return err
+		changed, err := mutate(instance)
+		if err != nil {
+			return err
+		}
+		if err := validateWorkflowInstanceForStorage(*instance); err != nil {
+			return err
+		}
+		if changed {
+			if err := replaceWorkflowInstance(tx, *instance); err != nil {
+				return err
+			}
+		}
+		attempt = instance
+		result = attempt
+		return nil
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -182,6 +170,17 @@ func (s *WorkflowStore) UpdateInstance(ctx context.Context, id shared.ID, mutate
 		return nil, err
 	}
 	return result, nil
+}
+
+func withWorkflowTransaction(ctx context.Context, db *gorm.DB, operation func(*gorm.DB) error) error {
+	resolved := storesql.ResolveDB(ctx, db)
+	if resolved == nil {
+		return fmt.Errorf("workflow repository is required")
+	}
+	if storesql.DBFromContext(ctx) != nil {
+		return operation(resolved)
+	}
+	return withDBRetry(func() error { return resolved.Transaction(operation) })
 }
 
 func loadWorkflowInstance(tx *gorm.DB, id shared.ID, lockStrength string) (*domainworkflow.Instance, error) {

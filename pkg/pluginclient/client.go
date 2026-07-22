@@ -84,6 +84,7 @@ func (c *Client) HostServices() (pluginsdk.HostServices, error) {
 		Transactions: transactionService{client: c}, DataScopes: dataScopeService{client: c},
 		DataStore:       dataStoreService{client: c},
 		DocumentNumbers: documentNumberService{client: c},
+		Documents:       documentWorkflowService{client: c},
 		Files:           fileService{client: c}, Audit: auditService{client: c}, Config: configService{client: c},
 		Secrets: secretService{client: c}, Workflows: workflowService{client: c}, Jobs: jobService{client: c},
 	}
@@ -148,6 +149,11 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 				return pluginsdk.NewDocumentNumberError(code, failure.Field, failure.Message, failure.Retryable)
 			}
 		}
+		if capability == "documents" {
+			if code, ok := parseDocumentWorkflowErrorCode(failure.Code); ok {
+				return pluginsdk.NewDocumentWorkflowError(code, failure.Field, failure.Message, failure.Retryable)
+			}
+		}
 		return &Error{StatusCode: response.StatusCode, Code: failure.Code, Message: failure.Message}
 	}
 	if output == nil || len(bytes.TrimSpace(raw)) == 0 {
@@ -157,6 +163,18 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 		return fmt.Errorf("decode plugin host response: %w", err)
 	}
 	return nil
+}
+
+func parseDocumentWorkflowErrorCode(value string) (pluginsdk.DocumentWorkflowErrorCode, bool) {
+	code := pluginsdk.DocumentWorkflowErrorCode(strings.TrimSpace(value))
+	switch code {
+	case pluginsdk.DocumentWorkflowErrorInvalidRequest, pluginsdk.DocumentWorkflowErrorForbidden,
+		pluginsdk.DocumentWorkflowErrorNotFound, pluginsdk.DocumentWorkflowErrorConflict,
+		pluginsdk.DocumentWorkflowErrorTransactionRequired, pluginsdk.DocumentWorkflowErrorUnavailable:
+		return code, true
+	default:
+		return "", false
+	}
 }
 
 func parseDocumentNumberErrorCode(value string) (pluginsdk.DocumentNumberErrorCode, bool) {

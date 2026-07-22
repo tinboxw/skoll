@@ -103,6 +103,12 @@ func (s *serviceImpl) Withdraw(ctx context.Context, in InstanceActionInput) (*do
 	})
 }
 
+func (s *serviceImpl) Cancel(ctx context.Context, in InstanceActionInput) (*domainworkflow.Instance, error) {
+	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionCancel, actorID: in.Actor.ID}, func(instance *domainworkflow.Instance) error {
+		return instance.Cancel(in.Actor, in.Comment, in.Now)
+	})
+}
+
 func (s *serviceImpl) Transfer(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error) {
 	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionTransfer, taskID: in.TaskID, actorID: in.Actor.ID, targetID: in.Target.ID}, func(instance *domainworkflow.Instance) error {
 		return instance.Transfer(in.TaskID, in.Actor, in.Target, in.Comment, in.Now)

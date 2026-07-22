@@ -28,6 +28,7 @@ const (
 	WorkflowInstanceApproved  WorkflowInstanceStatus = "approved"
 	WorkflowInstanceRejected  WorkflowInstanceStatus = "rejected"
 	WorkflowInstanceWithdrawn WorkflowInstanceStatus = "withdrawn"
+	WorkflowInstanceCanceled  WorkflowInstanceStatus = "canceled"
 
 	WorkflowTaskPending     WorkflowTaskStatus = "pending"
 	WorkflowTaskApproved    WorkflowTaskStatus = "approved"
@@ -42,6 +43,7 @@ const (
 	WorkflowActionWithdraw WorkflowActionType = "withdraw"
 	WorkflowActionTransfer WorkflowActionType = "transfer"
 	WorkflowActionCopy     WorkflowActionType = "copy"
+	WorkflowActionCancel   WorkflowActionType = "cancel"
 )
 
 type WorkflowActor struct {
@@ -156,6 +158,7 @@ type WorkflowService interface {
 	Approve(ctx context.Context, input WorkflowTaskActionInput) (WorkflowInstance, error)
 	Reject(ctx context.Context, input WorkflowTaskActionInput) (WorkflowInstance, error)
 	Withdraw(ctx context.Context, input WorkflowInstanceActionInput) (WorkflowInstance, error)
+	Cancel(ctx context.Context, input WorkflowInstanceActionInput) (WorkflowInstance, error)
 	Transfer(ctx context.Context, input WorkflowTargetActionInput) (WorkflowInstance, error)
 	Copy(ctx context.Context, input WorkflowTargetActionInput) (WorkflowInstance, error)
 }

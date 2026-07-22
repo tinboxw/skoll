@@ -37,6 +37,7 @@ type Service interface {
 	Approve(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error)
 	Reject(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error)
 	Withdraw(ctx context.Context, in InstanceActionInput) (*domainworkflow.Instance, error)
+	Cancel(ctx context.Context, in InstanceActionInput) (*domainworkflow.Instance, error)
 	Transfer(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error)
 	Copy(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error)
 }

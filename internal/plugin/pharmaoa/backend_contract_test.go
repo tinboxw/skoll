@@ -120,8 +120,9 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 			return backendContractDataStore{}, nil
 		},
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditService,
-		DocumentNumbers: documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
-		ConfigStore:     &backendContractConfigStore{info: pluginruntime.Info{ID: PluginID}}, System: systemsvc.NewService(bundle.System),
+		DocumentNumbers:   documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
+		DocumentWorkflows: gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB),
+		ConfigStore:       &backendContractConfigStore{info: pluginruntime.Info{ID: PluginID}}, System: systemsvc.NewService(bundle.System),
 		MasterSecret: "pharma-backend-contract-secret", Workflow: workflowsvc.NewService(workflowsvc.NewMemoryRepository()),
 		Jobs: jobsvc.NewService(jobsvc.NewMemoryRepository(), nil),
 	})

@@ -63,6 +63,24 @@ func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capabili
 			return nil, err
 		}
 		return host.DocumentNumbers.Issue(ctx, in)
+	case "documents.submit":
+		var in pluginsdk.DocumentWorkflowSubmitInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.Submit(ctx, in)
+	case "documents.act":
+		var in pluginsdk.DocumentWorkflowActionInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.Act(ctx, in)
+	case "documents.get":
+		var in pluginsdk.DocumentWorkflowGetInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.Get(ctx, in)
 	case "scopes.resolve":
 		var in pluginsdk.Permission
 		if err := decodeHostInput(decoder, &in); err != nil {
@@ -182,6 +200,12 @@ func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capabili
 			return nil, err
 		}
 		return host.Workflows.Withdraw(ctx, in)
+	case "workflows.cancel":
+		var in pluginsdk.WorkflowInstanceActionInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Workflows.Cancel(ctx, in)
 	case "workflows.transfer":
 		var in pluginsdk.WorkflowTargetActionInput
 		if err := decodeHostInput(decoder, &in); err != nil {

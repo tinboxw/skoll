@@ -435,27 +435,38 @@ func writeHostCallError(w http.ResponseWriter, err error) {
 		return
 	}
 	var numberErr *pluginsdk.DocumentNumberError
-	if !errors.As(err, &numberErr) {
-		writeHostError(w, http.StatusUnprocessableEntity, "host_call_failed")
+	if errors.As(err, &numberErr) {
+		status := http.StatusUnprocessableEntity
+		switch numberErr.Code {
+		case pluginsdk.DocumentNumberErrorInvalidRequest:
+			status = http.StatusBadRequest
+		case pluginsdk.DocumentNumberErrorForbidden:
+			status = http.StatusForbidden
+		case pluginsdk.DocumentNumberErrorConflict, pluginsdk.DocumentNumberErrorTransactionRequired:
+			status = http.StatusConflict
+		case pluginsdk.DocumentNumberErrorUnavailable:
+			status = http.StatusServiceUnavailable
+		}
+		writeHostJSON(w, status, pluginclient.ErrorResponse{Code: string(numberErr.Code), Field: numberErr.Field, Message: numberErr.Message, Retryable: numberErr.Retryable})
 		return
 	}
-	status := http.StatusUnprocessableEntity
-	switch numberErr.Code {
-	case pluginsdk.DocumentNumberErrorInvalidRequest:
-		status = http.StatusBadRequest
-	case pluginsdk.DocumentNumberErrorForbidden:
-		status = http.StatusForbidden
-	case pluginsdk.DocumentNumberErrorConflict:
-		status = http.StatusConflict
-	case pluginsdk.DocumentNumberErrorTransactionRequired:
-		status = http.StatusConflict
-	case pluginsdk.DocumentNumberErrorExhausted:
-		status = http.StatusUnprocessableEntity
-	case pluginsdk.DocumentNumberErrorUnavailable:
-		status = http.StatusServiceUnavailable
+	var documentErr *pluginsdk.DocumentWorkflowError
+	if errors.As(err, &documentErr) {
+		status := http.StatusUnprocessableEntity
+		switch documentErr.Code {
+		case pluginsdk.DocumentWorkflowErrorInvalidRequest:
+			status = http.StatusBadRequest
+		case pluginsdk.DocumentWorkflowErrorForbidden:
+			status = http.StatusForbidden
+		case pluginsdk.DocumentWorkflowErrorNotFound:
+			status = http.StatusNotFound
+		case pluginsdk.DocumentWorkflowErrorConflict, pluginsdk.DocumentWorkflowErrorTransactionRequired:
+			status = http.StatusConflict
+		case pluginsdk.DocumentWorkflowErrorUnavailable:
+			status = http.StatusServiceUnavailable
+		}
+		writeHostJSON(w, status, pluginclient.ErrorResponse{Code: string(documentErr.Code), Field: documentErr.Field, Message: documentErr.Message, Retryable: documentErr.Retryable})
+		return
 	}
-	writeHostJSON(w, status, pluginclient.ErrorResponse{
-		Code: string(numberErr.Code), Field: numberErr.Field,
-		Message: numberErr.Message, Retryable: numberErr.Retryable,
-	})
+	writeHostError(w, http.StatusUnprocessableEntity, "host_call_failed")
 }

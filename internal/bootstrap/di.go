@@ -110,6 +110,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	notificationService := notificationsvc.NewService(bundle.Notifications, nil, nil)
 	jobService := jobsvc.NewService(bundle.Jobs, nil)
 	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
+	documentWorkflowStore := gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB)
 	transactionService, err := hostservice.NewTransactionService(bundle.UnitOfWork)
 	if err != nil {
 		return nil, err
@@ -135,7 +136,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus, pluginDataLifecycle,
 		hostservice.HostServicesDependencies{
 			Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory, Files: fileService, Audit: auditService,
-			DocumentNumbers: documentNumberService, System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
+			DocumentNumbers: documentNumberService, DocumentWorkflows: documentWorkflowStore, System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
 		},
 	)
 	if err != nil {
@@ -148,7 +149,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pluginHost, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
 		PluginID: pharmaoaplugin.PluginID, Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory,
 		Files: fileService, Audit: auditService, ConfigStore: configStore, System: systemService, DocumentNumbers: documentNumberService,
-		MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
+		MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, DocumentWorkflows: documentWorkflowStore, Jobs: jobService,
 	})
 	if err != nil {
 		return nil, err

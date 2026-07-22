@@ -135,6 +135,9 @@ func (w *testWorkflows) Reject(context.Context, pluginsdk.WorkflowTaskActionInpu
 func (w *testWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, errors.New("not used")
 }
+func (w *testWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("not used")
+}
 func (w *testWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, errors.New("not used")
 }

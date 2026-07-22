@@ -166,19 +166,33 @@ func (s *workflowService) Reject(ctx context.Context, input pluginsdk.WorkflowTa
 }
 
 func (s *workflowService) Withdraw(ctx context.Context, input pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return s.instanceAction(ctx, "withdraw", input)
+}
+
+func (s *workflowService) Cancel(ctx context.Context, input pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return s.instanceAction(ctx, "cancel", input)
+}
+
+func (s *workflowService) instanceAction(ctx context.Context, action string, input pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	instanceID, err := s.boundID(input.InstanceID, "workflow instance")
 	if err != nil {
 		return pluginsdk.WorkflowInstance{}, err
 	}
 	actor := trustedHostActor(ctx, s.pluginID)
-	item, err := s.workflow.Withdraw(ctx, workflowsvc.InstanceActionInput{
+	serviceInput := workflowsvc.InstanceActionInput{
 		InstanceID: shared.ID(instanceID), Actor: domainworkflow.Actor{ID: shared.ID(actor.id), Name: actor.name},
 		Comment: strings.TrimSpace(input.Comment), Now: s.now(),
-	})
+	}
+	var item *domainworkflow.Instance
+	if action == "withdraw" {
+		item, err = s.workflow.Withdraw(ctx, serviceInput)
+	} else {
+		item, err = s.workflow.Cancel(ctx, serviceInput)
+	}
 	if err != nil {
 		return pluginsdk.WorkflowInstance{}, err
 	}
-	if err := s.record(ctx, "workflow.instance.withdraw", input.InstanceID, nil); err != nil {
+	if err := s.record(ctx, "workflow.instance."+action, input.InstanceID, nil); err != nil {
 		return pluginsdk.WorkflowInstance{}, err
 	}
 	return s.instance(*item)

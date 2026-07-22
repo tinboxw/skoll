@@ -82,7 +82,7 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 		}
 		return pluginsdk.HostServices{
 			PluginID: requestedPluginID, Transactions: transactions, DataScopes: scopes, DataStore: store,
-			DocumentNumbers: dataStoreE2EDocumentNumbers{}, Files: dataStoreE2EFiles{}, Audit: audit, Config: configService, Secrets: secretService,
+			DocumentNumbers: dataStoreE2EDocumentNumbers{}, Documents: dataStoreE2EDocuments{}, Files: dataStoreE2EFiles{}, Audit: audit, Config: configService, Secrets: secretService,
 			Workflows: dataStoreE2EWorkflows{}, Jobs: dataStoreE2EJobs{},
 		}, nil
 	}, jwtSecret, 5*time.Second)
@@ -183,6 +183,18 @@ type dataStoreE2EDocumentNumbers struct{}
 
 func (dataStoreE2EDocumentNumbers) Preview(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
 	return pluginsdk.DocumentNumberResult{Number: input.Rule.Prefix + "-000001", Sequence: 1}, nil
+}
+
+type dataStoreE2EDocuments struct{}
+
+func (dataStoreE2EDocuments) Submit(context.Context, pluginsdk.DocumentWorkflowSubmitInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, nil
+}
+func (dataStoreE2EDocuments) Act(context.Context, pluginsdk.DocumentWorkflowActionInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, nil
+}
+func (dataStoreE2EDocuments) Get(context.Context, pluginsdk.DocumentWorkflowGetInput) (pluginsdk.DocumentWorkflowResult, error) {
+	return pluginsdk.DocumentWorkflowResult{}, nil
 }
 
 func (dataStoreE2EDocumentNumbers) Issue(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
@@ -308,6 +320,9 @@ func (dataStoreE2EWorkflows) Reject(context.Context, pluginsdk.WorkflowTaskActio
 }
 func (dataStoreE2EWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-e2e", Status: pluginsdk.WorkflowInstanceWithdrawn}, nil
+}
+func (dataStoreE2EWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{ID: "instance-e2e", Status: pluginsdk.WorkflowInstanceCanceled}, nil
 }
 func (dataStoreE2EWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-e2e"}, nil
@@ -491,4 +506,5 @@ var _ pluginsdk.FileService = dataStoreE2EFiles{}
 var _ pluginsdk.ConfigService = (*dataStoreE2EConfig)(nil)
 var _ pluginsdk.SecretService = (*dataStoreE2ESecrets)(nil)
 var _ pluginsdk.WorkflowService = dataStoreE2EWorkflows{}
+var _ pluginsdk.DocumentWorkflowService = dataStoreE2EDocuments{}
 var _ pluginsdk.JobService = dataStoreE2EJobs{}

@@ -590,3 +590,58 @@ Result: BF2-02 passed. Independent plugins can now preview and atomically issue 
 ### Commit
 
 `BF2-02: implement tenant-safe document numbering`
+
+## BF2-03 Bind Documents To Workflow And Approval Actions
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Publish one tenant-scoped document workflow service that commits document state, workflow state, optimistic versions, and idempotency results through the current plugin transaction boundary.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public contract | Pass | `pkg/pluginsdk` defines submit, get, approve, reject, withdraw, delegate, cancel, result, validation, and typed-error contracts; `HostServices.Validate` requires the `Documents` port |
+| Trusted boundary | Pass | Host service binds plugin identity and actor from trusted context, constrains every request to exactly one authorized tenant, and rejects cross-tenant access before persistence |
+| Action validity | Pass | Document schema transitions are validated before workflow mutation; an integration test deliberately swallows an invalid-action error and proves neither state advances |
+| Action matrix | Pass | Real SQL-backed integration covers submit, approve, reject, withdraw, delegate, cancel, and delegated approval |
+| Idempotency | Pass | Repeating an identical approval returns the committed document/workflow result with `duplicate=true`; changed input returns conflict |
+| Optimistic concurrency | Pass | Decisions require the current positive document version; the repository locks the binding and rechecks idempotency after lock acquisition |
+| Atomicity | Pass | Workflow persistence reuses the ambient host transaction; submit rollback removes both records and action rollback restores both document and workflow state |
+| Process gateway | Pass | `pkg/pluginclient` exposes all document operations and preserves stable document workflow error code, field, message, and retryability through the loopback gateway |
+| Public conformance | Pass | `plugins/sdk-conformance` creates, submits, and approves a typed document using only public contracts |
+| Audit | Pass | First submit and decision record document audit actions; idempotent replay does not emit a duplicate document audit entry |
+| Persistence | Pass | GORM models and MySQL/PostgreSQL migration 28 create tenant/plugin bindings, schema/document snapshots, workflow uniqueness, and immutable idempotency actions |
+| Full quality gate | Pass | Focused tests/race, full Go tests/race, vet, CodeGraph impact review, migration review, and diff checks pass |
+| Current-only rule | Pass | No legacy document state, alternate workflow, compatibility adapter, dual write, local plugin transaction, or fallback exists |
+
+The first full race run failed in the pre-existing notification delivery uniqueness test. That exact test then passed 20 consecutive race runs, and two later full race runs passed. No notification code was changed. Final review additionally found and fixed workflow-first validation; the final complete gate was rerun after that correction.
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/service/documentworkflow ./internal/store/sql/gormrepo -run "DocumentWorkflow|HostServices|ThirdPartyPlugin" -count=1
+go test -race ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/service/documentworkflow ./internal/store/sql/gormrepo -run "DocumentWorkflow|HostServices|ThirdPartyPlugin" -count=1
+go test -race ./internal/store/sql/gormrepo -run TestNotificationStoreDeduplicatesConcurrentDeliveryKey -count=20
+go test ./... -count=1
+go test -race ./... -count=1
+go vet ./...
+git diff --check
+codegraph impact HostServices
+```
+
+Result: BF2-03 passed. Independent plugins can submit typed business documents and execute workflow-bound decisions with trusted identity, tenant isolation, stable errors, idempotent replay, and one atomic persistence boundary.
+
+### Impact Review
+
+- API/OpenAPI: no application HTTP route was added; managed plugin host capability `documents` now exposes `submit`, `act`, and `get` operations.
+- Permission/audit: every call carries a permission and tenant; actors come from the verified context; first writes emit namespaced document and workflow audit evidence.
+- Migration/seed: migration 28 creates two current-only tables for MySQL and PostgreSQL; memory mode migrates the same models; no seed data.
+- Frontend/i18n: no UI changed; the stable action, state, version, and typed-error model is ready for BF2-06 components.
+- Documentation: host capability reference, document workflow guide, migration notes, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts and current persistence only.
+
+### Commit
+
+`BF2-03: bind documents to workflow actions`

@@ -91,6 +91,47 @@ func (s documentNumberService) Issue(ctx context.Context, input pluginsdk.Docume
 	return
 }
 
+type documentWorkflowService struct{ client *Client }
+
+func (s documentWorkflowService) Submit(ctx context.Context, input pluginsdk.DocumentWorkflowSubmitInput) (out pluginsdk.DocumentWorkflowResult, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "submit", input, &out)
+	if err == nil {
+		if validateErr := out.Validate(); validateErr != nil {
+			err = pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorUnavailable, "response", "plugin host returned an invalid document workflow result", true)
+		}
+	}
+	return
+}
+
+func (s documentWorkflowService) Act(ctx context.Context, input pluginsdk.DocumentWorkflowActionInput) (out pluginsdk.DocumentWorkflowResult, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "act", input, &out)
+	if err == nil {
+		if validateErr := out.Validate(); validateErr != nil {
+			err = pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorUnavailable, "response", "plugin host returned an invalid document workflow result", true)
+		}
+	}
+	return
+}
+
+func (s documentWorkflowService) Get(ctx context.Context, input pluginsdk.DocumentWorkflowGetInput) (out pluginsdk.DocumentWorkflowResult, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "get", input, &out)
+	if err == nil {
+		if validateErr := out.Validate(); validateErr != nil {
+			err = pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorUnavailable, "response", "plugin host returned an invalid document workflow result", true)
+		}
+	}
+	return
+}
+
 func (s dataStoreService) Mutate(ctx context.Context, mutation pluginsdk.DataMutation) (out pluginsdk.DataMutationResult, err error) {
 	if err = mutation.Validate(); err != nil {
 		return out, err
@@ -238,6 +279,10 @@ func (s workflowService) Withdraw(ctx context.Context, in pluginsdk.WorkflowInst
 	err = s.client.call(ctx, "workflows", "withdraw", in, &out)
 	return
 }
+func (s workflowService) Cancel(ctx context.Context, in pluginsdk.WorkflowInstanceActionInput) (out pluginsdk.WorkflowInstance, err error) {
+	err = s.client.call(ctx, "workflows", "cancel", in, &out)
+	return
+}
 func (s workflowService) Transfer(ctx context.Context, in pluginsdk.WorkflowTargetActionInput) (out pluginsdk.WorkflowInstance, err error) {
 	err = s.client.call(ctx, "workflows", "transfer", in, &out)
 	return
@@ -292,6 +337,7 @@ var _ pluginsdk.TransactionService = transactionService{}
 var _ pluginsdk.DataScopeService = dataScopeService{}
 var _ pluginsdk.DataStoreService = dataStoreService{}
 var _ pluginsdk.DocumentNumberService = documentNumberService{}
+var _ pluginsdk.DocumentWorkflowService = documentWorkflowService{}
 var _ pluginsdk.FileService = fileService{}
 var _ pluginsdk.AuditService = auditService{}
 var _ pluginsdk.ConfigService = configService{}
