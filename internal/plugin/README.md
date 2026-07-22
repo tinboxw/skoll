@@ -23,7 +23,7 @@
 - 已实现 manifest API 权限解析、参数化路由匹配与统一插件 API 分发。
 - 已实现进程内后端惰性工厂、外部服务代理、健康检查和生命周期释放。
 - 已实现事务迁移、业务事件投递与服务监督。
-- 已发布进程内 Go 插件完整 Host SDK，开发者契约见 `docs/development/plugin-sdk-reference.md`，安全边界见 `docs/development/plugin-host-services.md`。
+- 已发布独立插件进程的完整 Host SDK；`pkg/pluginclient` 通过生命周期凭证提供八类 `pluginsdk.HostServices`，开发者契约见 `docs/development/plugin-host-services.md`。
 
 ## Data Manifest
 业务插件如果需要自有数据表，必须在 `plugin.yaml` 中声明 `data:` 段。表名必须位于插件 namespace 下，不能使用 `sk_` 系统前缀；安装预检会展示表、索引、migration 与卸载策略风险。

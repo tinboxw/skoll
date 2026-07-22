@@ -24,8 +24,10 @@ The child receives only the operating-system path, temporary-directory, and user
 - `SKOLL_PLUGIN_ID`: validated Manifest identity;
 - `SKOLL_PLUGIN_ADDRESS`: service listen address;
 - `SKOLL_PLUGIN_DIR`: installed plugin root.
+- `SKOLL_PLUGIN_HOST_URL`: loopback-only host-service v1 endpoint;
+- `SKOLL_PLUGIN_HOST_TOKEN`: credential valid only for this managed process lifecycle.
 
-Host credentials, JWT secrets, database credentials, and unrelated `SKOLL_*` values are not inherited. Host capabilities are consumed through the public plugin protocol.
+JWT secrets, database credentials, and unrelated `SKOLL_*` values are not inherited. Host capabilities are consumed through `pkg/pluginclient`; the lifecycle token is revoked on failed start, crash, disable, uninstall, or shutdown and is never reused.
 
 ## Lifecycle
 

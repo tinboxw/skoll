@@ -18,6 +18,7 @@ import (
 	"github.com/tinboxw/skoll/internal/event"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/logging"
 	"gorm.io/gorm"
@@ -64,10 +65,15 @@ func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	mgr, ok := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil).(*pluginManagerWithExtensions)
+	manager, err := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, hostservice.HostServicesDependencies{})
+	if err != nil {
+		t.Fatalf("build plugin manager: %v", err)
+	}
+	mgr, ok := manager.(*pluginManagerWithExtensions)
 	if !ok {
 		t.Fatalf("expected pluginManagerWithExtensions")
 	}
+	t.Cleanup(func() { _ = mgr.Close() })
 
 	item, err := mgr.Get("demo")
 	if err != nil {

@@ -114,7 +114,17 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	if err != nil {
 		return nil, err
 	}
-	pluginManager := newPluginManager(logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus)
+	pluginManager, err := newPluginManager(
+		logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization,
+		bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus,
+		hostservice.HostServicesDependencies{
+			Transactions: transactionService, DataScopes: dataScopeService, Files: fileService, Audit: auditService,
+			System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
 	configStore, ok := pluginManager.(hostservice.PluginConfigStore)
 	if !ok {
 		return nil, fmt.Errorf("plugin manager does not support host config services")
@@ -207,7 +217,7 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService, businessEvents *event.BusinessEventBus) plugin.Manager {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService, businessEvents *event.BusinessEventBus, hostDeps hostservice.HostServicesDependencies) (plugin.Manager, error) {
 	if businessEvents == nil {
 		businessEvents = event.NewBusinessEventBus(nil)
 	}
@@ -232,18 +242,26 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		eventDelivery:      plugin.NewHTTPEventDeliveryClient(nil, 5*time.Second),
 		eventSubscriptions: make(map[string][]func()),
 		migrationHook:      plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
-		serviceSupervisor: plugin.NewServiceSupervisor(
-			plugin.NewManagedProcessLauncher(healthChecker, 5*time.Second),
-			pluginServiceAuditSink{auditSvc: auditSvc},
-			5*time.Second,
-			5*time.Second,
-		),
 	}
+	hostGateway, err := plugin.NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
+		deps := hostDeps
+		deps.PluginID = pluginID
+		deps.ConfigStore = m
+		return hostservice.NewHostServices(deps)
+	}, jwtSecret, 30*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	m.hostGateway = hostGateway
+	m.serviceSupervisor = plugin.NewServiceSupervisor(
+		plugin.NewManagedProcessLauncher(healthChecker, 5*time.Second, hostGateway),
+		pluginServiceAuditSink{auditSvc: auditSvc}, 5*time.Second, 5*time.Second,
+	)
 
 	entries, err := os.ReadDir("plugins")
 	if err != nil {
 		logger.Warn("load plugins directory failed", "error", err)
-		return m
+		return m, nil
 	}
 
 	for _, entry := range entries {
@@ -274,7 +292,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 
 	m.persistAll(context.Background())
 
-	return m
+	return m, nil
 }
 
 type pluginCatalogAuditSink struct {
@@ -351,6 +369,7 @@ type pluginManagerWithExtensions struct {
 	healthTTL          time.Duration
 	inProcessBackends  *plugin.InProcessBackendRegistry
 	serviceSupervisor  *plugin.ServiceSupervisor
+	hostGateway        *plugin.HostGateway
 	migrationHook      *plugin.PluginMigrationHook
 	businessEvents     *event.BusinessEventBus
 	eventDelivery      plugin.EventDeliveryClient
@@ -1202,12 +1221,16 @@ func (m *pluginManagerWithExtensions) Close() error {
 			return err
 		}
 	}
-	if m.serviceSupervisor == nil {
-		return nil
+	var closeErr error
+	if m.serviceSupervisor != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		closeErr = errors.Join(closeErr, m.serviceSupervisor.Shutdown(ctx))
+		cancel()
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return m.serviceSupervisor.Shutdown(ctx)
+	if m.hostGateway != nil {
+		closeErr = errors.Join(closeErr, m.hostGateway.Close())
+	}
+	return closeErr
 }
 
 func (m *pluginManagerWithExtensions) RegisterInProcessBackend(pluginID string, factory plugin.InProcessBackendFactory) error {

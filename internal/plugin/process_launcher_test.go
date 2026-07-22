@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -22,7 +23,8 @@ func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
 	t.Setenv("SKOLL_TEST_SECRET", "must-not-leak")
 
 	checker := NewHTTPHealthChecker(200 * time.Millisecond)
-	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(checker, 20*time.Millisecond), nil, 5*time.Second, time.Second)
+	credentials := &testProcessCredentialIssuer{}
+	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(checker, 20*time.Millisecond, credentials), nil, 5*time.Second, time.Second)
 	t.Cleanup(func() { _ = supervisor.Shutdown(context.Background()) })
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatalf("start managed backend: %v", err)
@@ -44,11 +46,17 @@ func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
 	if runtimeInfo["secret"] != "" {
 		t.Fatalf("parent secret leaked into plugin process: %+v", runtimeInfo)
 	}
+	if runtimeInfo["hostUrl"] != "http://127.0.0.1:19091" || runtimeInfo["hostToken"] == "" {
+		t.Fatalf("plugin host credential was not injected: %+v", runtimeInfo)
+	}
 
 	if _, err := http.Post(info.ServiceBaseURL+"/unhealthy", "application/json", nil); err != nil {
 		t.Fatalf("mark backend unhealthy: %v", err)
 	}
 	waitForServiceState(t, supervisor, pluginID, ServiceStateFailed)
+	if credentials.revoked.Load() == 0 {
+		t.Fatal("plugin host credential was not revoked after health failure")
+	}
 
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatalf("restart managed backend: %v", err)
@@ -64,7 +72,7 @@ func TestManagedProcessLauncherReportsCrash(t *testing.T) {
 	const pluginID = "managed_crash"
 	address := reserveManagedProcessAddress(t)
 	info := managedTestInfo(pluginID, buildManagedTestBackend(t, pluginID), address)
-	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(NewHTTPHealthChecker(200*time.Millisecond), 20*time.Millisecond), nil, 5*time.Second, time.Second)
+	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(NewHTTPHealthChecker(200*time.Millisecond), 20*time.Millisecond, &testProcessCredentialIssuer{}), nil, 5*time.Second, time.Second)
 	t.Cleanup(func() { _ = supervisor.Shutdown(context.Background()) })
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatal(err)
@@ -78,7 +86,7 @@ func TestManagedProcessLauncherReportsCrash(t *testing.T) {
 }
 
 func TestManagedProcessLauncherRejectsMissingEntryAndRemoteService(t *testing.T) {
-	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), time.Millisecond)
+	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), time.Millisecond, &testProcessCredentialIssuer{})
 	missing := Info{
 		ID: "missing", Source: t.TempDir(),
 		ServiceBaseURL: "http://127.0.0.1:19090", ServiceHealthURL: "http://127.0.0.1:19090/health",
@@ -119,7 +127,7 @@ func main() {
   healthy.Store(true)
   mux := http.NewServeMux()
   mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) { if !healthy.Load() { http.Error(w, "unhealthy", http.StatusServiceUnavailable); return }; w.WriteHeader(http.StatusNoContent) })
-  mux.HandleFunc("GET /runtime", func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(map[string]string{"pluginId": os.Getenv("SKOLL_PLUGIN_ID"), "address": os.Getenv("SKOLL_PLUGIN_ADDRESS"), "pluginDir": os.Getenv("SKOLL_PLUGIN_DIR"), "secret": os.Getenv("SKOLL_TEST_SECRET")}) })
+  mux.HandleFunc("GET /runtime", func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(map[string]string{"pluginId": os.Getenv("SKOLL_PLUGIN_ID"), "address": os.Getenv("SKOLL_PLUGIN_ADDRESS"), "pluginDir": os.Getenv("SKOLL_PLUGIN_DIR"), "hostUrl": os.Getenv("SKOLL_PLUGIN_HOST_URL"), "hostToken": os.Getenv("SKOLL_PLUGIN_HOST_TOKEN"), "secret": os.Getenv("SKOLL_TEST_SECRET")}) })
   mux.HandleFunc("POST /unhealthy", func(w http.ResponseWriter, _ *http.Request) { healthy.Store(false); w.WriteHeader(http.StatusNoContent) })
   mux.HandleFunc("POST /crash", func(http.ResponseWriter, *http.Request) { os.Exit(23) })
   server := &http.Server{Addr: os.Getenv("SKOLL_PLUGIN_ADDRESS"), Handler: mux}
@@ -129,6 +137,7 @@ func main() {
   <-signals
   _ = server.Close()
 }
+
 `
 	if err := os.WriteFile(source, []byte(program), 0o600); err != nil {
 		t.Fatal(err)
@@ -140,6 +149,14 @@ func main() {
 	}
 	return dir
 }
+
+type testProcessCredentialIssuer struct{ revoked atomic.Int32 }
+
+func (i *testProcessCredentialIssuer) Issue(string) (ProcessCredential, error) {
+	return ProcessCredential{HostURL: "http://127.0.0.1:19091", Token: "lifecycle-token"}, nil
+}
+
+func (i *testProcessCredentialIssuer) Revoke(string) { i.revoked.Add(1) }
 
 func managedTestInfo(pluginID string, pluginDir string, address string) Info {
 	base := "http://" + address

@@ -22,26 +22,41 @@ const managedBackendDirectory = "backend/bin"
 type ManagedProcessLauncher struct {
 	checker      HealthChecker
 	pollInterval time.Duration
+	credentials  ProcessCredentialIssuer
 }
 
-func NewManagedProcessLauncher(checker HealthChecker, pollInterval time.Duration) *ManagedProcessLauncher {
+func NewManagedProcessLauncher(checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer) *ManagedProcessLauncher {
 	if pollInterval <= 0 {
 		pollInterval = 100 * time.Millisecond
 	}
-	return &ManagedProcessLauncher{checker: checker, pollInterval: pollInterval}
+	return &ManagedProcessLauncher{checker: checker, pollInterval: pollInterval, credentials: credentials}
 }
 
 func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceHandle, error) {
-	if l == nil || l.checker == nil {
-		return nil, errors.New("plugin health checker is not configured")
+	if l == nil || l.checker == nil || l.credentials == nil {
+		return nil, errors.New("plugin health checker and credential issuer are required")
 	}
 	entry, pluginDir, address, err := resolveManagedProcess(info)
 	if err != nil {
 		return nil, err
 	}
+	credential, err := l.credentials.Issue(info.ID)
+	if err != nil {
+		return nil, fmt.Errorf("issue plugin host credential: %w", err)
+	}
+	if strings.TrimSpace(credential.HostURL) == "" || strings.TrimSpace(credential.Token) == "" {
+		l.credentials.Revoke(credential.Token)
+		return nil, errors.New("plugin host credential is incomplete")
+	}
+	revokeCredential := true
+	defer func() {
+		if revokeCredential {
+			l.credentials.Revoke(credential.Token)
+		}
+	}()
 	command := exec.Command(entry)
 	command.Dir = pluginDir
-	command.Env = managedProcessEnvironment(info.ID, address, pluginDir)
+	command.Env = managedProcessEnvironment(info.ID, address, pluginDir, credential)
 	command.Stdin = nil
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
@@ -61,7 +76,8 @@ func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceH
 	probeInfo.State = StateEnabled
 	for {
 		if report := l.checker.Check(contextOrBackground(ctx), probeInfo); report.Ready() {
-			return newManagedProcessHandle(command.Process, wait, probeInfo, l.checker, l.pollInterval), nil
+			revokeCredential = false
+			return newManagedProcessHandle(command.Process, wait, probeInfo, l.checker, l.pollInterval, l.credentials, credential.Token), nil
 		}
 		select {
 		case processErr := <-wait:
@@ -148,9 +164,9 @@ func managedBackendRelativePath(pluginID string) string {
 	return filepath.ToSlash(filepath.Join(managedBackendDirectory, name))
 }
 
-func managedProcessEnvironment(pluginID string, address string, pluginDir string) []string {
+func managedProcessEnvironment(pluginID string, address string, pluginDir string, credential ProcessCredential) []string {
 	allowed := []string{"PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "HOME", "USERPROFILE"}
-	environment := make([]string, 0, len(allowed)+3)
+	environment := make([]string, 0, len(allowed)+5)
 	for _, key := range allowed {
 		if value, ok := os.LookupEnv(key); ok && strings.TrimSpace(value) != "" {
 			environment = append(environment, key+"="+value)
@@ -160,27 +176,33 @@ func managedProcessEnvironment(pluginID string, address string, pluginDir string
 		"SKOLL_PLUGIN_ID="+strings.TrimSpace(pluginID),
 		"SKOLL_PLUGIN_ADDRESS="+strings.TrimSpace(address),
 		"SKOLL_PLUGIN_DIR="+filepath.Clean(pluginDir),
+		"SKOLL_PLUGIN_HOST_URL="+strings.TrimSpace(credential.HostURL),
+		"SKOLL_PLUGIN_HOST_TOKEN="+strings.TrimSpace(credential.Token),
 	)
 	return environment
 }
 
 type managedProcessHandle struct {
-	process      *os.Process
-	wait         <-chan error
-	info         Info
-	checker      HealthChecker
-	pollInterval time.Duration
-	done         chan error
-	finishOnce   sync.Once
-	stopOnce     sync.Once
-	mu           sync.RWMutex
-	stopping     bool
+	process         *os.Process
+	wait            <-chan error
+	info            Info
+	checker         HealthChecker
+	pollInterval    time.Duration
+	done            chan error
+	finishOnce      sync.Once
+	stopOnce        sync.Once
+	mu              sync.RWMutex
+	stopping        bool
+	credentials     ProcessCredentialIssuer
+	credentialToken string
+	revokeOnce      sync.Once
 }
 
-func newManagedProcessHandle(process *os.Process, wait <-chan error, info Info, checker HealthChecker, pollInterval time.Duration) *managedProcessHandle {
+func newManagedProcessHandle(process *os.Process, wait <-chan error, info Info, checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer, credentialToken string) *managedProcessHandle {
 	handle := &managedProcessHandle{
 		process: process, wait: wait, info: info, checker: checker,
-		pollInterval: pollInterval, done: make(chan error, 1),
+		pollInterval: pollInterval, done: make(chan error, 1), credentials: credentials,
+		credentialToken: credentialToken,
 	}
 	go handle.monitor()
 	return handle
@@ -265,6 +287,11 @@ func (h *managedProcessHandle) isStopping() bool {
 
 func (h *managedProcessHandle) finish(err error) {
 	h.finishOnce.Do(func() {
+		h.revokeOnce.Do(func() {
+			if h.credentials != nil {
+				h.credentials.Revoke(h.credentialToken)
+			}
+		})
 		h.done <- err
 		close(h.done)
 	})

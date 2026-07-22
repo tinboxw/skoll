@@ -59,6 +59,10 @@ func NewScopePredicate(scope TrustedScope) (ScopePredicate, error) {
 	return predicate, nil
 }
 
+func NewDeniedScopePredicate(subjectID string) ScopePredicate {
+	return ScopePredicate{subjectID: strings.TrimSpace(subjectID), denied: true}
+}
+
 func (p ScopePredicate) SubjectID() string   { return p.subjectID }
 func (p ScopePredicate) TenantIDs() []string { return append([]string(nil), p.tenantIDs...) }
 func (p ScopePredicate) OwnerIDs() []string  { return append([]string(nil), p.ownerIDs...) }

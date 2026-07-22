@@ -1981,3 +1981,56 @@ Result: PR5-02 passed after three documented retries. Enabling a packaged extern
 ### Commit
 
 `PR5-02: manage packaged plugin backend processes`
+
+## PR5-03 Publish Host Services To Independent Plugin Processes
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> (Review -> Failed -> Doing) x5 -> Review -> Done`
+- Scope: Publish eight host capabilities through one loopback HTTP v1 contract, issue credentials per managed process lifecycle, provide public `pkg/pluginclient`, and preserve trusted user and transaction semantics across the process boundary.
+
+### Retry Records
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Compile gate | Changing `ManagedProcessLauncher` to require a credential issuer left process, generator E2E, and bootstrap test constructors on the old signature | Add explicit test credential issuers, update every constructor, and keep the product launcher strict rather than making credentials optional |
+| 2 | Package quality gate | Go linkers failed with `No space left on device` in the user TEMP directory after earlier full builds | Run the official Go cache cleanup, move `GOTMPDIR` and `GOCACHE` to the workspace drive, and rerun every incomplete gate |
+| 3 | Combined quality gate | Cold-cache `vet` plus tests exceeded the five-minute command budget without a code failure | Split `vet`, focused tests, race tests, and full repository tests into independently observable gates; all completed successfully |
+| 4 | Full repository gate | Existing SQLite notification delivery deduplication test surfaced one concurrent unique-key error | Re-execute the failed acceptance exactly ten times; all ten passed, then rerun the complete repository gate |
+| 5 | Full repository infrastructure | `GOTMPDIR` moved Go work files, but Windows linker output and `t.TempDir()` still exhausted the system `TEMP` directory | Move `TEMP`, `TMP`, `GOTMPDIR`, and `GOCACHE` together to the workspace drive; the final full repository run passed |
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Public client | Pass | `pkg/pluginclient` builds a complete validated `pluginsdk.HostServices` and has no dependency on `github.com/tinboxw/skoll/internal/` |
+| One current protocol | Pass | Independent processes use one loopback host-service HTTP v1 endpoint; unknown method, path, field, transaction, or source fails closed |
+| Lifecycle identity | Pass | A cryptographically random token is issued before process start, injected with the host URL, and revoked on failed start, crash, health failure, disable, uninstall, or shutdown |
+| Process isolation | Pass | Child processes still do not inherit host JWT/database secrets; only the lifecycle token and loopback URL are added to the bounded environment |
+| User identity | Pass | The plugin token identifies only the plugin; `WithUserToken` forwards an access token that the host revalidates before trusted data-scope resolution |
+| Data scope | Pass | The remote client reconstructs the public `ScopePredicate` from host-resolved tenant, owner, and organization values; request claims cannot expand it |
+| Transactions | Pass after final review | `Within` creates a credential-bound, 30-second remote session; host calls use one transaction context, nested sessions fail, and error, cancellation, timeout, revocation, or shutdown rolls back |
+| Files and audit | Pass | Store/list/get/download/delete and audit record dispatch through the plugin-scoped host adapters with stable failure envelopes |
+| Config and secrets | Pass | Get/replace config and get/set encrypted secrets dispatch through the existing schema, redaction, namespace, and audit controls |
+| Workflows and jobs | Pass | Every public workflow and durable-job operation is covered by the client/gateway operation matrix |
+| Resource bounds | Pass | Gateway binds `127.0.0.1` on a random port, accepts only POST, serializes calls within a transaction, and caps request/response bodies at 32 MiB |
+| Error confidentiality | Pass | HTTP failures expose stable codes and a generic message, not internal database, secret, URL, token, or infrastructure details |
+| Current-only rule | Pass | No remote database, old token, alternate host URL, compatibility constructor, optional credential path, or fallback mode was introduced |
+| Documentation | Pass | Chinese and English host-service contracts document initialization, identity, all eight services, transaction behavior, security, lifecycle, and verification |
+
+### Verification Commands
+
+```powershell
+go vet ./pkg/pluginclient ./internal/plugin ./internal/bootstrap
+go test ./pkg/pluginclient ./pkg/pluginsdk ./internal/plugin/... ./internal/bootstrap ./internal/service/generator -count=1
+go test -race ./internal/plugin -run 'Test(HostGateway|ManagedProcessLauncher)' -count=1
+go test ./... -count=1
+go list -deps ./pkg/pluginclient | Select-String 'github.com/tinboxw/skoll/internal/'
+git diff --check
+```
+
+Result: PR5-03 passed after five documented retries. A packaged independent plugin can now consume transactions, trusted scopes, files, audit, config, secrets, workflows, and jobs through a lifecycle-bound public client without importing host internals.
+
+### Commit
+
+`PR5-03: publish host services to plugin processes`

@@ -1,136 +1,94 @@
 # 插件宿主服务契约
 
-本文说明进程内 Go 业务插件如何使用 Skoll 提供的事务、可信数据范围、文件、审计、配置、密钥、工作流与持久任务能力。公开契约位于 `pkg/pluginsdk`，宿主适配器位于 `internal/plugin/hostservice`。
+> 默认语言：简体中文。English: [Plugin Host Services Contract](plugin-host-services.en.md)
 
-完整端口、工作流、持久任务和第三方一致性测试入口见 [插件 SDK 当前契约](plugin-sdk-reference.md)。
+独立插件进程只能通过 `github.com/tinboxw/skoll/pkg/pluginclient` 使用 Skoll 宿主能力。插件不得导入 `internal/`、读取宿主数据库凭证或自行构造宿主服务适配器。
 
-## 基本规则
+## 初始化
 
-1. 插件只依赖 `pkg/pluginsdk` 中的公开类型，不依赖 `internal/service`、`internal/repository` 或数据库适配器。
-2. 多步写操作必须通过 `HostServices.Transactions.Within` 建立事务边界。
-3. 数据访问范围必须通过 `HostServices.DataScopes.Resolve` 获取，不能使用请求参数中的用户、组织或租户信息作为授权依据。
-4. 缺少宿主服务、事务回调、可信身份或权限资源时直接失败，不提供兼容路径或降级执行。
-5. 请求筛选只能调用 `ScopePredicate.Constrain` 收窄可信范围，不能自行合并或扩大范围。
-6. 配置不得承载密钥；密码、令牌、凭据、Cookie、会话和授权头必须通过 `HostServices.Secrets` 存取。
-
-## 依赖注入
-
-插件依赖对象应显式接收并校验 `pluginsdk.HostServices`：
+宿主启动插件时注入当前生命周期的插件 ID、宿主网关地址和随机凭证。插件只需从环境创建客户端并校验完整服务集合：
 
 ```go
-type Dependencies struct {
-    Host pluginsdk.HostServices
+client, err := pluginclient.FromEnvironment()
+if err != nil {
+    return err
 }
-
-func NewBackend(deps Dependencies) (http.Handler, error) {
-    if err := deps.Host.Validate(); err != nil {
-        return nil, err
-    }
-    // Build plugin handlers and services.
-}
-```
-
-宿主负责把 Unit of Work、RBAC 服务和组织仓储适配成公开端口。插件不构造这些适配器。
-
-## 事务服务
-
-`Within` 将同一个事务上下文传给回调。插件仓储必须使用 `tx.Context()` 执行全部参与事务的数据库操作：
-
-```go
-err := host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
-    if err := orders.Create(tx.Context(), order); err != nil {
-        return err
-    }
-    return inventory.Reserve(tx.Context(), reservation)
-})
-```
-
-任一操作返回错误时，整个回调回滚。嵌套事务复用当前事务上下文，不启动独立提交。
-
-宿主 SQL 仓储从上下文解析事务连接；直接使用全局数据库连接会绕过事务，不能作为插件仓储实现。
-
-## 可信数据范围
-
-插件只传权限资源与动作，身份从宿主已经验证的请求上下文读取：
-
-```go
-scope, err := host.DataScopes.Resolve(ctx, pluginsdk.Permission{
-    Resource: "pharma_oa.customer",
-    Action:   "read",
-})
+host, err := client.HostServices()
 if err != nil {
     return err
 }
 ```
 
-`ScopePredicate` 同时约束租户、数据所有者和组织。三个维度按 AND 关系判断，任何一个维度不匹配都拒绝访问。
+环境变量只用于进程引导，不应写入日志、文件或业务响应：
 
-请求中的查询条件只能收窄范围：
+| 变量 | 含义 |
+| --- | --- |
+| `SKOLL_PLUGIN_ID` | 当前 Manifest 插件 ID |
+| `SKOLL_PLUGIN_HOST_URL` | 仅回环 HTTP 的宿主网关地址 |
+| `SKOLL_PLUGIN_HOST_TOKEN` | 仅本次进程生命周期有效的宿主凭证 |
 
-```go
-scope = scope.Constrain(pluginsdk.ScopeFilter{
-    OwnerIDs:        requestedOwnerIDs,
-    OrganizationIDs: requestedOrganizationIDs,
-})
-if scope.Denied() {
-    return errAccessDenied
-}
-```
+插件禁用、崩溃、卸载或宿主关闭时，凭证立即失效，活动事务回滚。重新启用会签发新凭证，旧凭证不会恢复。
 
-`self` 范围固定为已认证主体；普通用户的 `all` 范围仍受可信租户根及其组织树约束；只有 `super_admin` 可以获得跨租户全范围。
+## 用户身份与数据范围
 
-## 文件服务
-
-`HostServices.Files` 提供 `Store`、`List`、`Get`、`Download` 和 `Delete`。宿主固定以下边界，插件不能覆盖：
-
-- 对象键统一写入 `plugins/{pluginID}/` 命名空间。
-- 来源固定为当前插件，读取、下载和删除都会再次校验 `Source.PluginID`。
-- 所有者与审计主体来自可信 JWT；后台任务使用绑定的插件主体。
-- 宿主计算大小、MIME 与 SHA-256，不接受插件声明值。
-- 只允许 `private` 和 `plugin_asset` 可见性；可执行文件、路径穿越和超限内容直接拒绝。
+宿主凭证证明“哪个插件正在调用”，不能代表终端用户。处理业务 HTTP 请求时，插件必须把 Skoll 转发的用户 access token 放入调用上下文：
 
 ```go
-object, err := host.Files.Store(ctx, pluginsdk.FileWrite{
-    Key:        "reports/monthly.csv",
-    Name:       "monthly.csv",
-    Content:    content,
-    Visibility: pluginsdk.FileVisibilityPrivate,
+ctx := pluginclient.WithUserToken(r.Context(), userAccessToken)
+scope, err := host.DataScopes.Resolve(ctx, pluginsdk.Permission{
+    Resource: "equipment_maintenance.asset",
+    Action:   "read",
 })
 ```
 
-业务附件如果先通过宿主 HTTP 文件接口上传，必须声明当前插件的 `sourcePluginId`；否则插件无权读取该对象。
+宿主会重新校验 JWT 签名、有效期、用户和组织声明。缺少或无效的用户 token 时，数据范围解析失败。插件请求体中的用户、租户和组织字段不能作为授权依据。
 
-## 审计服务
+## 服务清单
 
-`HostServices.Audit.Record` 自动绑定可信主体，并把动作和资源分别限制在 `plugin.{pluginID}.` 与 `plugin:{pluginID}:` 命名空间。业务请求中的用户 ID 只能作为附加证据，不能替代宿主身份。
+| 服务 | 当前能力 |
+| --- | --- |
+| `Transactions` | 在一个有界远程事务会话中执行宿主调用；成功提交，错误、超时或凭证失效回滚 |
+| `DataScopes` | 根据已验证用户和权限解析租户、所有者、组织范围 |
+| `Files` | 在插件命名空间中存储、列出、读取、下载和删除文件 |
+| `Audit` | 以插件与可信调用者身份记录脱敏审计证据 |
+| `Config` | 读取或按当前 Manifest Schema 整体替换插件配置 |
+| `Secrets` | 在插件私有加密命名空间中读取或设置密钥 |
+| `Workflows` | 创建、发布和执行插件命名空间内的审批流程 |
+| `Jobs` | 调度、租用、完成、失败和查询插件命名空间内的持久任务 |
 
-审计详情限制为 64 KiB，并递归脱敏密码、密钥、令牌、凭据、授权头、Cookie 和会话字段。插件不得直接写宿主审计仓储，也不得清理审计历史。
+所有方法沿用 `pkg/pluginsdk` 的公共类型与校验规则。`pkg/pluginclient` 实现完整的 `pluginsdk.HostServices`，业务代码无需接触 HTTP 路径或私有协议字段。
 
-## 配置与密钥
+## 事务
 
-`HostServices.Config` 读取和整体替换当前插件配置。写入前必须通过当前 manifest 的 `configSchema` 校验；manifest 声明了来源但 Schema 无法加载时直接失败，不跳过校验。返回值始终执行递归脱敏。
-
-`HostServices.Secrets` 仅操作当前插件的私有设置命名空间。密钥名称经哈希隔离，值使用 AES-256-GCM 加密保存；审计记录只包含密钥名称，不包含明文。宿主从主密钥派生插件密钥，主密钥不足安全长度时插件宿主构造失败。
+`Within` 会启动一个绑定当前插件凭证、最长 30 秒的宿主事务会话。参与事务的宿主调用必须使用 `tx.Context()`：
 
 ```go
-if err := host.Secrets.Set(ctx, "erp.api_token", token); err != nil {
+err := host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
+    if _, err := host.Config.Replace(tx.Context(), values); err != nil {
+        return err
+    }
+    _, err := host.Audit.Record(tx.Context(), receipt)
     return err
-}
-token, err := host.Secrets.Get(ctx, "erp.api_token")
+})
 ```
 
-## 契约测试要求
+回调返回错误会回滚。事务不允许嵌套，同一事务内的调用串行执行；超时、失联、凭证撤销和宿主关闭都按失败处理。插件自己的独立数据事务由插件数据生命周期契约负责，不能把长事务会话当作进程数据库连接。
 
-每个业务插件至少覆盖以下场景：
+## 安全边界
 
-- 多表写入中途失败后不存在残留记录。
-- 请求伪造其他租户、所有者或组织时，`Constrain` 返回拒绝或只保留交集。
-- 缺少 JWT 可信身份时数据范围解析失败。
-- `self` 范围忽略服务决定或请求携带的其他用户 ID。
-- 插件不能读取、下载或删除其他插件的文件，文件键不能逃逸插件命名空间。
-- 审计主体来自可信上下文，详情中的嵌套密钥和授权数据均已脱敏。
-- 配置中的敏感键被拒绝，manifest Schema 不可用时不保存配置。
-- 密钥密文不等于明文，审计与配置读取结果不包含密钥值。
-- 插件构造时缺少任一 Host Service 均失败。
+- 宿主网关只监听随机回环地址，只接受 `POST` 和受支持的 v1 operation。
+- 每个请求同时校验插件生命周期凭证；数据范围调用还会校验用户 JWT。
+- 请求与响应上限为 32 MiB；未知字段、未知能力、无效事务和非回环来源直接失败。
+- 网关错误只返回稳定 code，不返回内部数据库、密钥或底层错误文本。
+- 插件凭证、用户 token 和 secret 明文不得进入日志、审计详情或业务响应。
+- 当前只有 host-service HTTP v1，不提供远程数据库、旧 token、备用 URL 或降级路径。
 
-参考测试：`internal/plugin/hostservice/*_test.go`、`internal/plugin/pharmaoa/host_adapters_test.go` 和 `pkg/pluginsdk/*_test.go`。
+## 验证
+
+```powershell
+go test ./internal/plugin -run "TestHostGateway|TestManagedProcessLauncher" -count=1
+go test -race ./internal/plugin -run "TestHostGateway|TestManagedProcessLauncher" -count=1
+go list -deps ./pkg/pluginclient
+```
+
+契约测试必须覆盖八类服务、有效与无效用户身份、事务提交与回滚、凭证撤销和非回环拒绝。

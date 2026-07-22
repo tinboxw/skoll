@@ -35,6 +35,8 @@
 | `SKOLL_PLUGIN_ID` | 已校验的 Manifest 插件 ID |
 | `SKOLL_PLUGIN_ADDRESS` | 插件服务监听地址 |
 | `SKOLL_PLUGIN_DIR` | 插件安装根目录 |
+| `SKOLL_PLUGIN_HOST_URL` | 仅回环访问的宿主服务 v1 地址 |
+| `SKOLL_PLUGIN_HOST_TOKEN` | 仅当前受管进程生命周期有效的宿主凭证 |
 
 数据库凭据、JWT 密钥、宿主密钥及其他 `SKOLL_*` 变量不会透传。独立插件需要的宿主能力由公开插件协议提供，不通过进程环境绕过。
 

@@ -140,7 +140,7 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 	if err := manager.Enable(info.ID); err != nil {
 		t.Fatalf("enable generated plugin: %v", err)
 	}
-	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewManagedProcessLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond), nil, 3*time.Second, time.Second)
+	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewManagedProcessLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond, generatedCredentialIssuer{}), nil, 3*time.Second, time.Second)
 	if err := supervisor.Start(context.Background(), mustGeneratedPluginInfo(t, manager, info.ID)); err != nil {
 		t.Fatalf("start and supervise generated backend: %v", err)
 	}
@@ -190,6 +190,14 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 		t.Fatalf("generated uninstall final=%+v migrations=%+v error=%v", final, migrationStore.records, err)
 	}
 }
+
+type generatedCredentialIssuer struct{}
+
+func (generatedCredentialIssuer) Issue(string) (pluginruntime.ProcessCredential, error) {
+	return pluginruntime.ProcessCredential{HostURL: "http://127.0.0.1:1", Token: "generated-e2e-token"}, nil
+}
+
+func (generatedCredentialIssuer) Revoke(string) {}
 
 type generatedHTTPResponse struct {
 	StatusCode int

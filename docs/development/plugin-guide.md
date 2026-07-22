@@ -1,5 +1,7 @@
 # 插件开发教程
 
+> 独立后端使用 [插件宿主服务契约](plugin-host-services.md) 中的 `pkg/pluginclient` 获取事务、数据范围、文件、审计、配置、密钥、工作流和任务能力；不导入宿主 `internal/` 包。
+
 > Go 插件宿主能力见 [插件 SDK 当前契约](plugin-sdk-reference.md)；独立后端启动规则见 [插件受管进程契约](plugin-process-contract.md)；业务 API、权限和聚合 OpenAPI 的当前格式见 [插件 API 与 OpenAPI 契约](plugin-api-contract.md)，英文版见 [Plugin API and OpenAPI Contract](plugin-api-contract.en.md)。
 
 ## 1. 概述
