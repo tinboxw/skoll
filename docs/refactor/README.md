@@ -1,6 +1,6 @@
 # Skoll Refactor Docs
 
-> Status: M0-M7/FE/N0, Pharma OA F6-F12, hardening, and the 35-item plugin-runtime/frontend-experience batch are complete.
+> Status: previous batches are complete. The business-plugin foundation and complete medical OA functionality/UI batch is active.
 > Rule: do not design legacy API, legacy data, legacy plugin, or legacy page compatibility plans.
 
 ## How To Read This Directory
@@ -19,6 +19,9 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | Document | Purpose |
 | --- | --- |
 | [current/README.md](current/README.md) | Current task intake, progress update, acceptance, and commit rules |
+| [current/business_plugin_task_board_2026-07-22.md](current/business_plugin_task_board_2026-07-22.md) | Active datastore, OA infrastructure, plugin UX, and medical OA milestone board |
+| [current/business_plugin_work_items_2026-07-22.md](current/business_plugin_work_items_2026-07-22.md) | Active 39-item atomic execution table |
+| [current/business_plugin_acceptance_log_2026-07-22.md](current/business_plugin_acceptance_log_2026-07-22.md) | Active acceptance, retry, impact, and commit evidence |
 | [current/plugin_runtime_task_board_2026-07-21.md](current/plugin_runtime_task_board_2026-07-21.md) | Closed plugin-runtime and frontend-experience milestone board |
 | [current/plugin_runtime_work_items_2026-07-21.md](current/plugin_runtime_work_items_2026-07-21.md) | Closed 35-item execution table |
 | [current/plugin_runtime_acceptance_log_2026-07-21.md](current/plugin_runtime_acceptance_log_2026-07-21.md) | Closed acceptance and retry evidence |
@@ -35,7 +38,7 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | [current/feature_ui_milestone_plan_2026-07-04.md](current/feature_ui_milestone_plan_2026-07-04.md) | Feature development and UI optimization milestone plan |
 | [current/feature_ui_work_items_2026-07-04.md](current/feature_ui_work_items_2026-07-04.md) | Candidate work items for feature and UI improvements |
 
-Recommended next action: create the next official functionality/UI batch from the closeout's highest-priority gap, the public plugin datastore and scoped query service. Do not reopen the closed plugin-runtime table.
+Recommended next action: take `BF1-01`, define the current public plugin datastore contract, and follow the active table in dependency order. Do not reopen the closed plugin-runtime table.
 
 ## Governance
 

@@ -1,16 +1,19 @@
 # Current Refactor Execution Rules
 
-> Scope: current execution entry after the closed plugin-runtime and frontend-experience implementation batch.
+> Scope: active business-plugin data, reusable OA infrastructure, plugin UX, and medical OA implementation after the closed plugin-runtime batch.
 > Status: M0-M7/FE/N0 are complete and archived. Do not update archived task status for new work.
 > Pharma OA batch: F6-F12 closed on 2026-07-17. Its files remain closed evidence, not task intake.
 > Latest closed batch: `skoll-plugin-runtime-2026-07-21` (closed 2026-07-22).
-> Active batch: none. Create a new functionality/UI task board before taking new work.
+> Active batch: `skoll-business-plugin-foundation-2026-07-22`.
 
 ## Single Source Of Truth
 
 | Need | Read Or Update |
 | --- | --- |
 | Current task intake and progress rules | This file |
+| Active parent task board | `business_plugin_task_board_2026-07-22.md` |
+| Active Work Item table | `business_plugin_work_items_2026-07-22.md` |
+| Active acceptance log | `business_plugin_acceptance_log_2026-07-22.md` |
 | Latest closed parent task board | `plugin_runtime_task_board_2026-07-21.md` |
 | Latest closed Work Item table | `plugin_runtime_work_items_2026-07-21.md` |
 | Latest closed acceptance log | `plugin_runtime_acceptance_log_2026-07-21.md` |
@@ -39,13 +42,21 @@
 
 1. Start from `docs/refactor/README.md`.
 2. Read this file before taking any task.
-3. Read `plugin_runtime_closeout_2026-07-22.md` for the latest accepted boundary and capability gaps.
-4. Do not take work from the closed plugin-runtime table; create or use the next official functionality/UI batch.
+3. Read `business_plugin_task_board_2026-07-22.md` for active milestone boundaries.
+4. Take only the first dependency-ready `Todo` from `business_plugin_work_items_2026-07-22.md`.
 5. Do not take tasks from `../old/`; archived files are historical evidence only.
 
-## Latest Closed Task Files
+## Active Task Files
 
-The latest closed batch uses these evidence files under `docs/refactor/current/`:
+The active batch uses these files under `docs/refactor/current/`:
+
+```text
+business_plugin_task_board_2026-07-22.md
+business_plugin_work_items_2026-07-22.md
+business_plugin_acceptance_log_2026-07-22.md
+```
+
+The latest closed plugin-runtime batch remains available as evidence:
 
 ```text
 plugin_runtime_task_board_2026-07-21.md
@@ -55,15 +66,15 @@ plugin_runtime_closeout_2026-07-22.md
 frontend_experience_target_2026-07-22.md
 ```
 
-The plugin-runtime, hardening, and Pharma OA files are closed evidence. Do not reopen them for new progress.
+The plugin-runtime, hardening, and earlier Pharma OA files are closed evidence. Do not reopen them for new progress.
 
 ## Progress Update Rules
 
-Developers update progress only in a new official batch. The closed plugin-runtime files below illustrate the required flow but must not receive new tasks:
+Developers update progress only in the official active business-plugin batch:
 
 | Action | Required Update |
 | --- | --- |
-| Take a task | Set the Work Item status to `Doing` in the new batch Work Item file |
+| Take a task | Set the Work Item status to `Doing` in `business_plugin_work_items_2026-07-22.md` |
 | Need review | Set status to `Review` and add verification results |
 | Acceptance passes | Set status to `Done`, append acceptance evidence, then commit once |
 | Acceptance fails | Set status to `Failed`, record reason and rerun the same Work Item |
