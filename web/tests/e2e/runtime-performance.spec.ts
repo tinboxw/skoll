@@ -37,7 +37,7 @@ test("critical routes stay inside runtime budgets", async ({ page, request }, te
 	const loginReadyMs = performance.now() - loginStarted;
 
 	const routes: Record<string, number> = {};
-	for (const route of ["/skoll/pharma-oa/dashboard", "/skoll/plugin", "/skoll/form-builder"]) {
+	for (const route of ["/skoll/pharma-oa/dashboard", "/skoll/plugin-center", "/skoll/form-builder"]) {
 		routes[route] = await measureRoute(page, route);
 	}
 

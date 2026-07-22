@@ -76,7 +76,7 @@ const quickLinks = computed<QuickLink[]>(() => [
 	},
 	{
 		label: t("menu.plugins"),
-		to: "/skoll/plugin",
+		to: "/skoll/plugin-center",
 		description: t("dashboard.quick.plugins"),
 		permission: "plugin.read"
 	},

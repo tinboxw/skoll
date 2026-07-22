@@ -1531,6 +1531,35 @@ paths:
           description: OK
         '404':
           description: Not Found
+  /v1/plugins/{id}/control:
+    get:
+      summary: Get the authoritative plugin control-center snapshot
+      description: Returns plugin identity, runtime observation freshness, health, routes, permissions, dependencies, extensions, and available host services in one inspectable snapshot. Health probe failures remain represented in the successful snapshot.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current plugin control snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginControlAPIResponse'
+        '404':
+          description: Plugin not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Plugin manager is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/plugins/{id}/config:
     get:
       summary: Get plugin config
@@ -4599,6 +4628,114 @@ components:
           required: [data]
           properties:
             data: {$ref: '#/components/schemas/PluginHealthReport'}
+    PluginControlPlugin:
+      type: object
+      required: [id, name, version, enabled, uiMode, level, mountPolicy, systemBuiltin]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        nameZhCN: {type: string}
+        nameEnUS: {type: string}
+        version: {type: string}
+        enabled: {type: boolean}
+        uiMode: {type: string}
+        level: {type: string}
+        appId: {type: string}
+        mountPolicy: {type: string}
+        uiNavPosition: {type: string}
+        uiOpenMode: {type: string}
+        uiTabMode: {type: string}
+        i18nLocales:
+          type: array
+          items: {type: string}
+        uiMenu:
+          type: object
+          additionalProperties: true
+        configSchema:
+          type: object
+          additionalProperties: true
+        frontendEntry: {type: string}
+        systemBuiltin: {type: boolean}
+    PluginControlRuntime:
+      type: object
+      required: [state, installedAt]
+      properties:
+        state: {type: string, enum: [installed, enabled, disabled, uninstalled]}
+        installedAt: {type: string, format: date-time}
+        enabledAt: {type: string, format: date-time}
+        serviceBaseUrl: {type: string, format: uri}
+        serviceHealthUrl: {type: string, format: uri}
+        health: {$ref: '#/components/schemas/PluginHealthReport'}
+    PluginControlPermission:
+      type: object
+      required: [key]
+      properties:
+        key: {type: string}
+        type: {type: string}
+        module: {type: string}
+        name: {type: string}
+        risk: {type: string}
+    PluginControlRoute:
+      type: object
+      required: [method, path, source]
+      properties:
+        method: {type: string}
+        path: {type: string}
+        summary: {type: string}
+        permission: {type: string}
+        auditAction: {type: string}
+        source: {type: string}
+    PluginControlDependency:
+      type: object
+      required: [id]
+      properties:
+        id: {type: string}
+        version: {type: string}
+    PluginControlExtensions:
+      type: object
+      required: [routes, middlewares, events, menus, widgets, settings]
+      properties:
+        routes: {type: integer, minimum: 0}
+        middlewares: {type: integer, minimum: 0}
+        events: {type: integer, minimum: 0}
+        menus: {type: integer, minimum: 0}
+        widgets: {type: integer, minimum: 0}
+        settings: {type: integer, minimum: 0}
+    PluginControlCapabilities:
+      type: object
+      required: [hostServices, permissions, routes, dependencies, extensions]
+      properties:
+        apiVersion: {type: string}
+        migrationVersion: {type: string}
+        hostServices:
+          type: array
+          items: {type: string}
+        permissions:
+          type: array
+          items: {$ref: '#/components/schemas/PluginControlPermission'}
+        routes:
+          type: array
+          items: {$ref: '#/components/schemas/PluginControlRoute'}
+        dependencies:
+          type: array
+          items: {$ref: '#/components/schemas/PluginControlDependency'}
+        extensions: {$ref: '#/components/schemas/PluginControlExtensions'}
+    PluginControlSnapshot:
+      type: object
+      required: [plugin, capturedAt, staleAfter, runtime, capabilities]
+      properties:
+        plugin: {$ref: '#/components/schemas/PluginControlPlugin'}
+        capturedAt: {type: string, format: date-time}
+        staleAfter: {type: string, format: date-time}
+        runtime: {$ref: '#/components/schemas/PluginControlRuntime'}
+        capabilities: {$ref: '#/components/schemas/PluginControlCapabilities'}
+    PluginControlAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginControlSnapshot'}
     PluginReadinessAPIResponse:
       allOf:
         - {$ref: '#/components/schemas/MessageResponse'}

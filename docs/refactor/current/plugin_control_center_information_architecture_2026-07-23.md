@@ -36,20 +36,20 @@ The developer portal becomes a separate product area. Plugin installation, lifec
 
 | Route | Surface | Primary owner | Required permission |
 | --- | --- | --- | --- |
-| `/skoll/plugins` | Installed plugin inventory and fleet attention queue | BF3-02 | `plugin.read` |
-| `/skoll/plugins/install` | Source/package validation, impact review, and install | BF3-02 | `plugin.manage` |
-| `/skoll/plugins/marketplace` | Discoverable packages, signature, risk, and install entry | BF3-02 | `plugin.read` |
-| `/skoll/plugins/:pluginId/overview` | Identity, install state, health summary, version, and next action | BF3-02 | `plugin.read` |
-| `/skoll/plugins/:pluginId/runtime` | Process, heartbeat, endpoints, routes, and runtime events | BF3-02 | `plugin.read` |
-| `/skoll/plugins/:pluginId/capabilities` | Host services, permissions, menus, routes, and declared resources | BF3-02 | `plugin.read` |
-| `/skoll/plugins/:pluginId/data` | Owned schemas, tables, size, scope, retention, and uninstall policy | BF3-03 | `plugin.read` |
-| `/skoll/plugins/:pluginId/migrations` | Current version, steps, history, plan, and allowed actions | BF3-03 | `plugin.read` |
-| `/skoll/plugins/:pluginId/jobs` | Scheduled, running, failed, completed, and dead-letter jobs | BF3-04 | `plugin.read` |
-| `/skoll/plugins/:pluginId/diagnostics` | Correlated logs, audit events, errors, and request/task identifiers | BF3-04 | `plugin.read` |
-| `/skoll/plugins/:pluginId/settings` | Schema-driven current configuration | BF3-02 | `plugin.read` |
+| `/skoll/plugin-center` | Installed plugin inventory and fleet attention queue | BF3-02 | `plugin.read` |
+| `/skoll/plugin-center/install` | Source/package validation, impact review, and install | BF3-02 | `plugin.manage` |
+| `/skoll/plugin-center/marketplace` | Discoverable packages, signature, risk, and install entry | BF3-02 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/overview` | Identity, install state, health summary, version, and next action | BF3-02 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/runtime` | Process, heartbeat, endpoints, routes, and runtime events | BF3-02 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/capabilities` | Host services, permissions, menus, routes, and declared resources | BF3-02 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/data` | Owned schemas, tables, size, scope, retention, and uninstall policy | BF3-03 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/migrations` | Current version, steps, history, plan, and allowed actions | BF3-03 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/jobs` | Scheduled, running, failed, completed, and dead-letter jobs | BF3-04 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/diagnostics` | Correlated logs, audit events, errors, and request/task identifiers | BF3-04 | `plugin.read` |
+| `/skoll/plugin-center/:pluginId/settings` | Schema-driven current configuration | BF3-02 | `plugin.read` |
 | `/skoll/plugin-development/*` | Scaffold, validate, package, release, rollout, and rollback | BF3-04 | `plugin.manage` |
 
-`/skoll/plugins/:pluginId` redirects directly to `overview`. There is no second detail drawer or alternate plugin-detail route.
+`/skoll/plugin-center/:pluginId` redirects directly to `overview`. The dedicated namespace cannot collide with business-plugin entry routes under `/skoll/plugins/<plugin-id>`. There is no second detail drawer or alternate plugin-detail route.
 
 ## Navigation Hierarchy
 

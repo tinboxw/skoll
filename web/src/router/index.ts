@@ -18,6 +18,13 @@ const MenuPage = () => import("../views/Menu/index.vue");
 const OrganizationPage = () => import("../views/Organization/index.vue");
 const PermissionPage = () => import("../views/Permission/index.vue");
 const PluginPage = () => import("../views/Plugin/index.vue");
+const PluginInstallPage = () => import("../views/Plugin/pages/Install.vue");
+const PluginMarketplacePage = () => import("../views/Plugin/pages/Marketplace.vue");
+const PluginWorkspaceShell = () => import("../views/Plugin/components/PluginWorkspaceShell.vue");
+const PluginOverviewPage = () => import("../views/Plugin/pages/Overview.vue");
+const PluginRuntimePage = () => import("../views/Plugin/pages/Runtime.vue");
+const PluginCapabilitiesPage = () => import("../views/Plugin/pages/Capabilities.vue");
+const PluginSettingsPage = () => import("../views/Plugin/pages/Settings.vue");
 const ProfilePage = () => import("../views/Profile/index.vue");
 const RoleEditPage = () => import("../views/Role/edit.vue");
 const RoleListPage = () => import("../views/Role/list.vue");
@@ -64,11 +71,35 @@ const routes: RouteRecordRaw[] = [
 		meta: { requiresAuth: true }
 	},
 	{
-		path: `${ADMIN_PREFIX}/plugin`,
-		name: "plugin",
-		component: PluginPage,
-		meta: { permissions: ["plugin.read"] }
-	},
+			path: `${ADMIN_PREFIX}/plugin-center`,
+			name: "plugin-center",
+			component: PluginPage,
+			meta: { permissions: ["plugin.read"] }
+		},
+		{
+			path: `${ADMIN_PREFIX}/plugin-center/install`,
+			name: "plugin-center-install",
+			component: PluginInstallPage,
+			meta: { permissions: ["plugin.manage"] }
+		},
+		{
+			path: `${ADMIN_PREFIX}/plugin-center/marketplace`,
+			name: "plugin-center-marketplace",
+			component: PluginMarketplacePage,
+			meta: { permissions: ["plugin.read"] }
+		},
+		{
+			path: `${ADMIN_PREFIX}/plugin-center/:pluginId`,
+			component: PluginWorkspaceShell,
+			meta: { permissions: ["plugin.read"] },
+			children: [
+				{ path: "", redirect: { name: "plugin-center-overview" } },
+				{ path: "overview", name: "plugin-center-overview", component: PluginOverviewPage },
+				{ path: "runtime", name: "plugin-center-runtime", component: PluginRuntimePage },
+				{ path: "capabilities", name: "plugin-center-capabilities", component: PluginCapabilitiesPage },
+				{ path: "settings", name: "plugin-center-settings", component: PluginSettingsPage }
+			]
+		},
 	{
 		path: `${ADMIN_PREFIX}/user`,
 		name: "user-list",
@@ -242,7 +273,7 @@ function normalizeRedirectPath(raw: string): string {
 	if (
 		withSlash === "/dashboard" || withSlash.startsWith("/dashboard/") ||
 		withSlash === "/forbidden" || withSlash.startsWith("/forbidden/") ||
-		withSlash === "/plugin" || withSlash.startsWith("/plugin/") ||
+			withSlash === "/plugin-center" || withSlash.startsWith("/plugin-center/") ||
 		withSlash === "/user" || withSlash.startsWith("/user/") ||
 		withSlash === "/role" || withSlash.startsWith("/role/") ||
 		withSlash === "/permission" || withSlash.startsWith("/permission/") ||

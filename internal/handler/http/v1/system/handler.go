@@ -896,7 +896,7 @@ func defaultSystemMenus() []MenuItem {
 		{ID: "dictionaries", Label: "Dictionaries", Path: "/skoll/dictionary", Icon: "settings", Order: 47, Visible: true, RequiredPermissions: []string{"dict.read"}},
 		{ID: "organization", Label: "Organization", Path: "/skoll/organization", Icon: "users", Order: 48, Visible: true, RequiredPermissions: []string{"org.read"}},
 		{ID: "audit", Label: "Audit", Path: "/skoll/audit", Icon: "audit", Order: 50, Visible: true, RequiredPermissions: []string{"audit.read"}},
-		{ID: "plugins", Label: "Plugins", Path: "/skoll/plugin", Icon: "plugins", Order: 60, Visible: true, RequiredPermissions: []string{"plugin.read"}},
+		{ID: "plugins", Label: "Plugins", Path: "/skoll/plugin-center", Icon: "plugins", Order: 60, Visible: true, RequiredPermissions: []string{"plugin.read"}},
 		{ID: "settings", Label: "Settings", Path: "/skoll/setting", Icon: "settings", Order: 70, Visible: true, RequiredPermissions: []string{"system.manage"}},
 	}
 }

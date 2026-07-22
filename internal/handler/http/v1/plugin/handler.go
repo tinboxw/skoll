@@ -192,6 +192,64 @@ type pluginDebugRecord struct {
 	Extensions   any                 `json:"extensions,omitempty"`
 }
 
+type pluginControlSnapshot struct {
+	Plugin       pluginRecord                    `json:"plugin"`
+	CapturedAt   time.Time                       `json:"capturedAt"`
+	StaleAfter   time.Time                       `json:"staleAfter"`
+	Runtime      pluginControlRuntimeRecord      `json:"runtime"`
+	Capabilities pluginControlCapabilitiesRecord `json:"capabilities"`
+}
+
+type pluginControlRuntimeRecord struct {
+	State            string               `json:"state"`
+	InstalledAt      time.Time            `json:"installedAt"`
+	EnabledAt        *time.Time           `json:"enabledAt,omitempty"`
+	ServiceBaseURL   string               `json:"serviceBaseUrl,omitempty"`
+	ServiceHealthURL string               `json:"serviceHealthUrl,omitempty"`
+	Health           *plugin.HealthReport `json:"health,omitempty"`
+}
+
+type pluginControlCapabilitiesRecord struct {
+	APIVersion       string                          `json:"apiVersion,omitempty"`
+	MigrationVersion string                          `json:"migrationVersion,omitempty"`
+	HostServices     []string                        `json:"hostServices"`
+	Permissions      []pluginControlPermissionRecord `json:"permissions"`
+	Routes           []pluginControlRouteRecord      `json:"routes"`
+	Dependencies     []pluginControlDependencyRecord `json:"dependencies"`
+	Extensions       pluginControlExtensionRecord    `json:"extensions"`
+}
+
+type pluginControlPermissionRecord struct {
+	Key    string `json:"key"`
+	Type   string `json:"type,omitempty"`
+	Module string `json:"module,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Risk   string `json:"risk,omitempty"`
+}
+
+type pluginControlRouteRecord struct {
+	Method      string `json:"method"`
+	Path        string `json:"path"`
+	Summary     string `json:"summary,omitempty"`
+	Permission  string `json:"permission,omitempty"`
+	AuditAction string `json:"auditAction,omitempty"`
+	Source      string `json:"source"`
+}
+
+type pluginControlDependencyRecord struct {
+	ID      string `json:"id"`
+	Version string `json:"version,omitempty"`
+}
+
+type pluginControlExtensionRecord struct {
+	Routes      int `json:"routes"`
+	Middlewares int `json:"middlewares"`
+	Events      int `json:"events"`
+	Menus       int `json:"menus"`
+	Widgets     int `json:"widgets"`
+	Settings    int `json:"settings"`
+}
+
 type pluginLogsRecord struct {
 	PluginID string `json:"pluginId"`
 	Content  string `json:"content"`
@@ -388,6 +446,7 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	mux.HandleFunc("GET /v1/plugins", h.list)
 	mux.HandleFunc("GET /v1/plugins/{id}", h.get)
 	mux.HandleFunc("GET /v1/plugins/{id}/health", h.health)
+	mux.HandleFunc("GET /v1/plugins/{id}/control", h.control)
 	mux.HandleFunc("POST /v1/plugins/preflight", h.preflight)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
 	mux.HandleFunc("POST /v1/plugins/link", h.createLink)
@@ -506,6 +565,133 @@ func (h *PluginHandler) health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apiv1.WriteResponse(w, http.StatusOK, "plugin_healthy", "插件后端已就绪", report)
+}
+
+func (h *PluginHandler) control(w http.ResponseWriter, r *http.Request) {
+	if h == nil || h.manager == nil {
+		apiv1.WriteError(w, http.StatusServiceUnavailable, errors.New("plugin manager not configured"))
+		return
+	}
+	id := strings.TrimSpace(r.PathValue("id"))
+	if id == "" {
+		apiv1.WriteMessage(w, http.StatusBadRequest, "invalid_plugin_id", "plugin ID is required")
+		return
+	}
+	item, err := h.manager.Get(id)
+	if err != nil {
+		if errors.Is(err, plugin.ErrPluginNotFound) {
+			apiv1.WriteMessage(w, http.StatusNotFound, "plugin_not_found", "plugin not found")
+			return
+		}
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	capturedAt := time.Now().UTC()
+	runtimeRecord := pluginControlRuntimeRecord{
+		State:            string(item.State),
+		InstalledAt:      item.InstalledAt,
+		EnabledAt:        item.EnabledAt,
+		ServiceBaseURL:   strings.TrimSpace(item.ServiceBaseURL),
+		ServiceHealthURL: strings.TrimSpace(item.ServiceHealthURL),
+	}
+	if h.healthProvider != nil {
+		report, healthErr := h.healthProvider.CheckPluginHealth(r.Context(), id)
+		if healthErr == nil {
+			runtimeRecord.Health = &report
+		} else {
+			runtimeRecord.Health = &plugin.HealthReport{
+				PluginID:  id,
+				Status:    plugin.HealthStatusUnhealthy,
+				Code:      "health_unavailable",
+				CheckedAt: capturedAt,
+			}
+		}
+	}
+
+	apiv1.WriteJSON(w, http.StatusOK, pluginControlSnapshot{
+		Plugin:       pluginRecordFromInfo(item),
+		CapturedAt:   capturedAt,
+		StaleAfter:   capturedAt.Add(30 * time.Second),
+		Runtime:      runtimeRecord,
+		Capabilities: h.controlCapabilities(item),
+	})
+}
+
+func (h *PluginHandler) controlCapabilities(item plugin.Info) pluginControlCapabilitiesRecord {
+	permissions := make([]pluginControlPermissionRecord, 0, len(item.Permissions)+len(item.PermissionResources))
+	declared := make(map[string]struct{}, len(item.PermissionResources))
+	for _, permission := range item.PermissionResources {
+		key := strings.TrimSpace(permission.Key)
+		if key == "" {
+			continue
+		}
+		declared[key] = struct{}{}
+		permissions = append(permissions, pluginControlPermissionRecord{
+			Key: key, Type: permission.Type, Module: permission.Module, Name: permission.Name, Risk: permission.Risk,
+		})
+	}
+	for _, key := range item.Permissions {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, exists := declared[key]; exists {
+			continue
+		}
+		permissions = append(permissions, pluginControlPermissionRecord{Key: key})
+	}
+	sort.Slice(permissions, func(i, j int) bool { return permissions[i].Key < permissions[j].Key })
+
+	routes := make([]pluginControlRouteRecord, 0)
+	if item.APIContract != nil {
+		for _, route := range item.APIContract.Routes {
+			routes = append(routes, pluginControlRouteRecord{
+				Method: route.Method, Path: route.Path, Summary: route.Summary,
+				Permission: route.Permission, AuditAction: route.AuditAction, Source: "manifest",
+			})
+		}
+	}
+	extensions := plugin.RegistrySnapshot{}
+	if h != nil && h.extensionProvider != nil {
+		if snapshot, exists := h.extensionProvider.GetExtensionSnapshot(item.ID); exists {
+			extensions = snapshot
+			for _, route := range snapshot.Routes {
+				routes = append(routes, pluginControlRouteRecord{
+					Method: route.Method, Path: route.Path, Summary: route.Summary,
+					Permission: route.Permission, AuditAction: route.AuditAction, Source: route.Source,
+				})
+			}
+		}
+	}
+	sort.Slice(routes, func(i, j int) bool {
+		if routes[i].Path == routes[j].Path {
+			return routes[i].Method < routes[j].Method
+		}
+		return routes[i].Path < routes[j].Path
+	})
+
+	dependencies := make([]pluginControlDependencyRecord, 0, len(item.Dependencies))
+	for _, dependency := range item.Dependencies {
+		dependencies = append(dependencies, pluginControlDependencyRecord{ID: dependency.ID, Version: dependency.Version})
+	}
+	sort.Slice(dependencies, func(i, j int) bool { return dependencies[i].ID < dependencies[j].ID })
+
+	return pluginControlCapabilitiesRecord{
+		APIVersion:       item.APIVersion,
+		MigrationVersion: item.MigrationVersion,
+		HostServices: []string{
+			"transactions", "data-scopes", "datastore", "document-numbers", "documents",
+			"files", "audit", "config", "secrets", "workflows", "jobs",
+		},
+		Permissions:  permissions,
+		Routes:       routes,
+		Dependencies: dependencies,
+		Extensions: pluginControlExtensionRecord{
+			Routes: len(extensions.Routes), Middlewares: len(extensions.Middlewares), Events: len(extensions.Events),
+			Menus: len(extensions.Menus), Widgets: len(extensions.Widgets), Settings: len(extensions.Settings),
+		},
+	}
 }
 
 func (h *PluginHandler) localMarketplace(w http.ResponseWriter, r *http.Request) {

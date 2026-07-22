@@ -47,7 +47,7 @@ for (const locale of Object.keys(LOCALES) as Locale[]) {
 
 		await test.step("primary responsive surfaces", async () => {
 			const surfaces = [
-				{ name: "plugin-workspace", path: "/skoll/plugin", selector: ".page-shell", pageShell: true },
+				{ name: "plugin-workspace", path: "/skoll/plugin-center", selector: ".page-shell", pageShell: true },
 				{ name: "form-builder", path: "/skoll/form-builder", selector: ".page-shell", pageShell: true },
 				{ name: "developer-portal", path: "/skoll/plugins/developer-portal", selector: ".remote-plugin-fullpage iframe", pageShell: false }
 			];

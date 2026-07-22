@@ -933,3 +933,69 @@ Result: BF3-01 passed. BF3-02 through BF3-06 now have one implementation boundar
 ### Commit
 
 `BF3-01: define plugin control center architecture`
+
+## BF3-02 Build Runtime Health And Capability Views
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing` across six repair cycles, then `Review -> Done`
+- Scope: Replace the plugin-console monolith with an operational fleet, routed plugin workspace, authoritative runtime snapshot, capability inventory, lifecycle commands, schema settings, and responsive browser coverage.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Authoritative API | Pass | `GET /v1/plugins/{id}/control` returns identity, capture/stale timestamps, lifecycle state, health, service URLs, host services, routes, permissions, dependencies, and extension counts in one response |
+| Failure inspectability | Pass | Health-provider failures remain a successful inspectable snapshot with `health_unavailable`; manager absence, invalid IDs, and missing plugins retain explicit HTTP outcomes |
+| Runtime state model | Pass | Loading, ready, degraded, crashed, disabled, and stale are derived and component-tested; route authorization produces the distinct global forbidden state |
+| Lifecycle truth | Pass | Enable, disable, and uninstall commands are selected from the current backend state and protected for system plugins; the browser proves enabled-plugin actions without mutating the fixture |
+| Routed ownership | Pass | Fleet, install, marketplace, overview, runtime, capabilities, and settings use `/skoll/plugin-center`; business plugins retain the separate `/skoll/plugins/<id>` namespace |
+| Workspace ownership | Pass | One provider fetches and owns the control snapshot; lazy child routes consume it without duplicate runtime fetches |
+| Fleet usability | Pass | Search/state filtering, row navigation, explicit control and business-entry commands, empty/error/loading states, and current lifecycle labels are present |
+| Configuration and install | Pass | Schema-driven settings and validate-review-install flow were retained as focused routes; marketplace selection enters the install flow |
+| Permission behavior | Pass | `admin` reaches every control route; `dept_admin` is redirected to the explicit forbidden surface on desktop and mobile |
+| Responsive browser matrix | Pass | Playwright passes fleet plus overview/runtime/capabilities/settings at 1440x1000 and 390x844 with zero document overflow; screenshots were visually inspected |
+| i18n and accessibility | Pass | 1,853 locale keys, 1,441 references, zero hard-coded visible strings, 65 named icon buttons, and 15 guarded confirmations pass automated gates |
+| Component coverage | Pass | Host frontend passes 8 files/15 tests, including state derivation and fleet navigation; public document UI passes 2 files/5 tests |
+| Production performance | Pass | Vite transforms 3,639 modules; control-center route chunks remain about 1.05-2.08 KB gzip and all bundle budgets pass |
+| API and module docs | Pass | OpenAPI defines the complete control snapshot and response envelope; the module README documents routes, owners, authoritative data, and verification commands |
+| Current-only rule | Pass | The 2,994-line page and old route are replaced directly; no compatibility route, alternate payload, dual workspace, or fallback data source exists |
+
+The first backend run exposed an incomplete test fixture. Frontend checks then found a missing locale key, one hard-coded label, unnamed icon buttons, and an Element Plus fixed-column test assumption. Those were corrected before the full gate. The first browser run failed because the new test referenced the Overview CSS class instead of its existing `data-testid`; the selector was corrected and all four browser cases were rerun. The final strict typecheck then found an implicit row parameter type; navigation was moved to a typed handler and the complete backend, type, component, build, browser, and bundle gates passed again. Repository-wide Redocly lint still reports the pre-existing OpenAPI baseline errors outside this contract; all nine new `PluginControl*` references resolve to declared schemas.
+
+### Verification Commands
+
+```powershell
+go test ./internal/handler/http/v1/plugin ./internal/handler/http/v1/system -count=1
+
+cd web
+npm run typecheck
+npm run test:components
+$env:SKOLL_E2E_BASE_URL = "http://127.0.0.1:5173"
+npm run test:plugin-center
+npm run build
+npm run check:bundle
+
+cd ..
+codegraph sync .
+codegraph status .
+codegraph impact control
+codegraph impact deriveRuntimeState
+git diff --check
+```
+
+Result: BF3-02 passed after six repair cycles. Operators now have one current, permission-aware, responsive control center for plugin inventory, health, capabilities, lifecycle, installation, and configuration.
+
+### Impact Review
+
+- API/OpenAPI: one authenticated control snapshot endpoint and matching OpenAPI/TypeScript contracts were added; existing lifecycle and configuration payloads are unchanged.
+- Permission/audit: all control routes require `plugin.read`; install requires `plugin.manage`; lifecycle handlers retain their existing audit boundary.
+- Migration/data: none.
+- Frontend/i18n: the monolithic plugin page is replaced by a fleet and lazy routed workspace with complete zh-CN/en-US copy.
+- Performance: control routes are independent async chunks and pass current entry, initial, async, total JavaScript, CSS, and chunk-count budgets.
+- Documentation: information architecture, OpenAPI, module README, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; only the current route namespace and current snapshot contract exist.
+
+### Commit
+
+`BF3-02: build plugin runtime control center`
