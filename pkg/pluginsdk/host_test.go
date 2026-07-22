@@ -23,6 +23,15 @@ func (hostTestDataScopes) Resolve(_ context.Context, _ Permission) (ScopePredica
 	})
 }
 
+type hostTestDataStore struct{}
+
+func (hostTestDataStore) Query(context.Context, DataQuery) (DataPage, error) {
+	return DataPage{}, nil
+}
+func (hostTestDataStore) Mutate(context.Context, DataMutation) (DataMutationResult, error) {
+	return DataMutationResult{}, nil
+}
+
 type hostTestFiles struct{}
 
 func (hostTestFiles) Store(context.Context, FileWrite) (FileObject, error)  { return FileObject{}, nil }
@@ -96,7 +105,8 @@ func (hostTestJobs) List(context.Context, JobQuery) ([]Job, error)           { r
 func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 	valid := HostServices{
 		PluginID: "test", Transactions: hostTestTransactions{}, DataScopes: hostTestDataScopes{},
-		Files: hostTestFiles{}, Audit: hostTestAudit{}, Config: hostTestConfig{}, Secrets: hostTestSecrets{},
+		DataStore: hostTestDataStore{},
+		Files:     hostTestFiles{}, Audit: hostTestAudit{}, Config: hostTestConfig{}, Secrets: hostTestSecrets{},
 		Workflows: hostTestWorkflows{}, Jobs: hostTestJobs{},
 	}
 	if err := valid.Validate(); err != nil {
@@ -109,6 +119,7 @@ func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 		{name: "plugin identity", mutate: func(host *HostServices) { host.PluginID = "" }},
 		{name: "transactions", mutate: func(host *HostServices) { host.Transactions = nil }},
 		{name: "data scopes", mutate: func(host *HostServices) { host.DataScopes = nil }},
+		{name: "datastore", mutate: func(host *HostServices) { host.DataStore = nil }},
 		{name: "files", mutate: func(host *HostServices) { host.Files = nil }},
 		{name: "audit", mutate: func(host *HostServices) { host.Audit = nil }},
 		{name: "config", mutate: func(host *HostServices) { host.Config = nil }},

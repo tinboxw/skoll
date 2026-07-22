@@ -1,6 +1,7 @@
 package pharmaoa
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +22,7 @@ import (
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
 	objectstore "github.com/tinboxw/skoll/internal/store/object"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -112,6 +114,9 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 	auditService := auditsvc.NewService(bundle.Audit)
 	host, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
 		PluginID: PluginID, Transactions: transactions, DataScopes: dataScopes,
+		DataStore: func(string, pluginsdk.DataScopeService, pluginsdk.AuditService) (pluginsdk.DataStoreService, error) {
+			return backendContractDataStore{}, nil
+		},
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditService,
 		ConfigStore: &backendContractConfigStore{info: pluginruntime.Info{ID: PluginID}}, System: systemsvc.NewService(bundle.System),
 		MasterSecret: "pharma-backend-contract-secret", Workflow: workflowsvc.NewService(workflowsvc.NewMemoryRepository()),
@@ -140,6 +145,15 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 	if legacy.Code != http.StatusNotFound {
 		t.Fatalf("host namespace status=%d want=%d", legacy.Code, http.StatusNotFound)
 	}
+}
+
+type backendContractDataStore struct{}
+
+func (backendContractDataStore) Query(context.Context, pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
+	return pluginsdk.DataPage{}, nil
+}
+func (backendContractDataStore) Mutate(context.Context, pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
+	return pluginsdk.DataMutationResult{}, nil
 }
 
 func registeredHandlerRoutes(t *testing.T, dir string) map[string]struct{} {

@@ -286,3 +286,52 @@ Result: BF1-04 passed after one acceptance retry. The datastore now has a transa
 ### Commit
 
 `BF1-04: implement transactional datastore mutations`
+
+## BF1-05 Publish Datastore Through The Host Gateway
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Execute typed datastore queries, bind the datastore to a plugin host identity, and publish query/mutation operations through the lifecycle-authenticated loopback gateway.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Host service contract | Pass | `HostServices` now requires `DataStore`; construction fails when its factory or service is absent |
+| Query execution | Pass | The host executes planner-produced bound SQL, converts database values to typed records, returns stable keyset cursors, and honors transaction-bound connections |
+| Mutation publication | Pass | `datastore.mutate` delegates to the scoped transactional executor without exposing SQL, GORM, database credentials, or physical table names |
+| Plugin identity isolation | Pass | Each issued credential stores a host service bound to exactly one normalized plugin ID; schema resolution still requires that plugin's registered namespace |
+| Lifecycle credentials | Pass | Disabled plugins cannot receive a credential from the host factory; revoked credentials immediately receive `401` and active transactions are rolled back |
+| Request validation | Pass | Gateway accepts only loopback JSON `POST` v1 operations, rejects unknown/trailing JSON, validates query/mutation contracts again, and enforces the 32 MiB request limit |
+| Structured errors | Pass | Datastore failures map to deterministic HTTP status plus `code`, `field`, `message`, and `retryable`; internal database errors remain redacted |
+| Runtime assembly | Pass | Memory, MySQL, and PostgreSQL bundles expose one datastore database/dialect and bootstrap constructs the same current host port for in-process and managed plugins |
+| Transaction visibility | Pass | A query can read a mutation inside the active host transaction and the record disappears after rollback |
+| Race safety | Pass | Datastore, gateway, SDK, and client packages pass the Go race detector |
+| Current-only rule | Pass | No raw SQL endpoint, legacy datastore API, alternate route, dual wire format, remote database credential, or fallback service was added |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/datastore ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin/hostservice ./internal/plugin/pharmaoa ./internal/plugin -count=1
+go test ./internal/store ./internal/bootstrap -count=1
+go test -race ./internal/plugin/datastore ./internal/plugin ./pkg/pluginsdk ./pkg/pluginclient -count=1
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF1-05 passed without acceptance retries. The host now publishes one authenticated, bounded, typed datastore gateway; BF1-06 will complete external-client error reconstruction, cancellation/deadline, transaction propagation, and conformance evidence.
+
+### Impact Review
+
+- API/OpenAPI: adds process-host operations `POST /v1/datastore/query` and `POST /v1/datastore/mutate`; these are loopback credential APIs, not browser OpenAPI routes.
+- Permission/audit: trusted scope and plugin ownership remain mandatory; mutations retain automatic transactional audit.
+- Migration/seed: the memory runtime now initializes the existing idempotency model; plugin-owned schema lifecycle remains BF1-07. No seed is added.
+- Frontend/i18n: none.
+- Documentation: host-service contract, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF1-05: publish datastore through host gateway`

@@ -27,6 +27,7 @@ type HostServices struct {
 	PluginID     string
 	Transactions TransactionService
 	DataScopes   DataScopeService
+	DataStore    DataStoreService
 	Files        FileService
 	Audit        AuditService
 	Config       ConfigService
@@ -44,6 +45,9 @@ func (s HostServices) Validate() error {
 	}
 	if s.DataScopes == nil {
 		return fmt.Errorf("plugin host data-scope service is required")
+	}
+	if s.DataStore == nil {
+		return fmt.Errorf("plugin host datastore service is required")
 	}
 	if s.Files == nil {
 		return fmt.Errorf("plugin host file service is required")

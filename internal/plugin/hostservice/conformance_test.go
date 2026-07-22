@@ -19,9 +19,19 @@ import (
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
 	objectstore "github.com/tinboxw/skoll/internal/store/object"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"github.com/tinboxw/skoll/pkg/security"
 	sdkconformance "github.com/tinboxw/skoll/plugins/sdk-conformance"
 )
+
+type conformanceDataStore struct{}
+
+func (conformanceDataStore) Query(context.Context, pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
+	return pluginsdk.DataPage{}, nil
+}
+func (conformanceDataStore) Mutate(context.Context, pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
+	return pluginsdk.DataMutationResult{}, nil
+}
 
 func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})
@@ -43,6 +53,9 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	configStore := &hostConfigStore{info: pluginruntime.Info{ID: "sdk_conformance"}}
 	host, err := NewHostServices(HostServicesDependencies{
 		PluginID: "sdk_conformance", Transactions: transactions, DataScopes: scopes,
+		DataStore: func(string, pluginsdk.DataScopeService, pluginsdk.AuditService) (pluginsdk.DataStoreService, error) {
+			return conformanceDataStore{}, nil
+		},
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditsvc.NewService(bundle.Audit),
 		ConfigStore: configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
 		Workflow: workflowsvc.NewService(bundle.Workflow), Jobs: jobsvc.NewService(bundle.Jobs, nil),

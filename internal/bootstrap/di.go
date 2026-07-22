@@ -23,6 +23,7 @@ import (
 	builtinAuth "github.com/tinboxw/skoll/internal/plugin/builtin/auth"
 	builtinDashboard "github.com/tinboxw/skoll/internal/plugin/builtin/dashboard"
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
+	"github.com/tinboxw/skoll/internal/plugin/datastore"
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	pharmaoaplugin "github.com/tinboxw/skoll/internal/plugin/pharmaoa"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
@@ -114,11 +115,19 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	if err != nil {
 		return nil, err
 	}
+	pluginDataDialect, err := datastore.ParseSQLDialect(bundle.PluginDataDialect)
+	if err != nil {
+		return nil, err
+	}
+	pluginDataRegistry := datastore.NewSchemaRegistry()
+	dataStoreFactory := func(pluginID string, scopes pluginsdk.DataScopeService, audit pluginsdk.AuditService) (pluginsdk.DataStoreService, error) {
+		return datastore.NewService(bundle.PluginDataDB, bundle.UnitOfWork, pluginDataRegistry, scopes, audit, pluginDataDialect, pluginID)
+	}
 	pluginManager, err := newPluginManager(
 		logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization,
 		bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus,
 		hostservice.HostServicesDependencies{
-			Transactions: transactionService, DataScopes: dataScopeService, Files: fileService, Audit: auditService,
+			Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory, Files: fileService, Audit: auditService,
 			System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
 		},
 	)
@@ -130,7 +139,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		return nil, fmt.Errorf("plugin manager does not support host config services")
 	}
 	pluginHost, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
-		PluginID: pharmaoaplugin.PluginID, Transactions: transactionService, DataScopes: dataScopeService,
+		PluginID: pharmaoaplugin.PluginID, Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory,
 		Files: fileService, Audit: auditService, ConfigStore: configStore, System: systemService,
 		MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
 	})

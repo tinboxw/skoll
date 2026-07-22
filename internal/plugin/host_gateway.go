@@ -221,7 +221,7 @@ func (g *HostGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := dispatchHostCall(ctx, credential.host, parts[1], parts[2], json.NewDecoder(r.Body))
 	if err != nil {
-		writeHostError(w, http.StatusUnprocessableEntity, "host_call_failed")
+		writeHostCallError(w, err)
 		return
 	}
 	writeHostJSON(w, http.StatusOK, result)
@@ -403,4 +403,36 @@ func writeHostJSON(w http.ResponseWriter, status int, value any) {
 }
 func writeHostError(w http.ResponseWriter, status int, code string) {
 	writeHostJSON(w, status, pluginclient.ErrorResponse{Code: code, Message: "plugin host request failed"})
+}
+
+func writeHostCallError(w http.ResponseWriter, err error) {
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		writeHostError(w, http.StatusRequestEntityTooLarge, "host_request_too_large")
+		return
+	}
+	var datastoreErr *pluginsdk.DataStoreError
+	if !errors.As(err, &datastoreErr) {
+		writeHostError(w, http.StatusUnprocessableEntity, "host_call_failed")
+		return
+	}
+	status := http.StatusUnprocessableEntity
+	switch datastoreErr.Code {
+	case pluginsdk.DataStoreErrorInvalidRequest:
+		status = http.StatusBadRequest
+	case pluginsdk.DataStoreErrorForbidden:
+		status = http.StatusForbidden
+	case pluginsdk.DataStoreErrorNotFound:
+		status = http.StatusNotFound
+	case pluginsdk.DataStoreErrorConflict:
+		status = http.StatusConflict
+	case pluginsdk.DataStoreErrorLimitExceeded:
+		status = http.StatusUnprocessableEntity
+	case pluginsdk.DataStoreErrorUnavailable:
+		status = http.StatusServiceUnavailable
+	}
+	writeHostJSON(w, status, pluginclient.ErrorResponse{
+		Code: string(datastoreErr.Code), Field: datastoreErr.Field,
+		Message: datastoreErr.Message, Retryable: datastoreErr.Retryable,
+	})
 }

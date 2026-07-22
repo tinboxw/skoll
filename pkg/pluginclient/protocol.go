@@ -32,6 +32,8 @@ type TransactionFinishRequest struct {
 }
 
 type ErrorResponse struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code      string `json:"code"`
+	Field     string `json:"field,omitempty"`
+	Message   string `json:"message"`
+	Retryable bool   `json:"retryable,omitempty"`
 }

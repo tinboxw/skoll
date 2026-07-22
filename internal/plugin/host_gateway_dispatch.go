@@ -27,6 +27,24 @@ type hostValueResponse struct {
 
 func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capability, operation string, decoder *json.Decoder) (any, error) {
 	switch capability + "." + operation {
+	case "datastore.query":
+		var in pluginsdk.DataQuery
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		if err := in.Validate(); err != nil {
+			return nil, err
+		}
+		return host.DataStore.Query(ctx, in)
+	case "datastore.mutate":
+		var in pluginsdk.DataMutation
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		if err := in.Validate(); err != nil {
+			return nil, err
+		}
+		return host.DataStore.Mutate(ctx, in)
 	case "scopes.resolve":
 		var in pluginsdk.Permission
 		if err := decodeHostInput(decoder, &in); err != nil {

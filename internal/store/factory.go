@@ -27,6 +27,9 @@ import (
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/internal/store/sql/mysql"
 	"github.com/tinboxw/skoll/internal/store/sql/postgres"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type Mode string
@@ -44,28 +47,34 @@ type Options struct {
 }
 
 type Bundle struct {
-	Users            userrepo.UserRepository
-	Roles            rolerepo.RoleRepository
-	RBAC             rbacrepo.RBACRepository
-	Audit            auditrepo.AuditRepository
-	System           systemrepo.SystemRepository
-	Plugins          pluginrepo.PluginRepository
-	PluginMigrations pluginruntime.MigrationStore
-	Permissions      permissionrepo.PermissionRepository
-	Menus            menurepo.MenuRepository
-	UnitOfWork       repository.UnitOfWork
-	AuditEvents      auditrepo.EventRepository
-	Files            filerepo.FileRepository
-	Organization     organizationrepo.OrganizationRepository
-	Workflow         workflowsvc.Repository
-	Notifications    notificationsvc.Repository
-	Jobs             jobsvc.Repository
-	PharmaOA         func() *pharmaoarepo.Repositories
+	Users             userrepo.UserRepository
+	Roles             rolerepo.RoleRepository
+	RBAC              rbacrepo.RBACRepository
+	Audit             auditrepo.AuditRepository
+	System            systemrepo.SystemRepository
+	Plugins           pluginrepo.PluginRepository
+	PluginMigrations  pluginruntime.MigrationStore
+	Permissions       permissionrepo.PermissionRepository
+	Menus             menurepo.MenuRepository
+	UnitOfWork        repository.UnitOfWork
+	AuditEvents       auditrepo.EventRepository
+	Files             filerepo.FileRepository
+	Organization      organizationrepo.OrganizationRepository
+	Workflow          workflowsvc.Repository
+	Notifications     notificationsvc.Repository
+	Jobs              jobsvc.Repository
+	PharmaOA          func() *pharmaoarepo.Repositories
+	PluginDataDB      *gorm.DB
+	PluginDataDialect string
 }
 
 func NewBundle(opts Options) (*Bundle, error) {
 	switch Mode(strings.ToLower(strings.TrimSpace(string(opts.Mode)))) {
 	case ModeMemory:
+		pluginDataDB, err := openMemoryPluginDataDB()
+		if err != nil {
+			return nil, err
+		}
 		users := memory.NewUserStore()
 		roles := memory.NewRoleStore()
 		rbac := memory.NewRBACStore()
@@ -79,11 +88,12 @@ func NewBundle(opts Options) (*Bundle, error) {
 		organization := memory.NewOrganizationStore()
 		return &Bundle{
 			Users: users, Roles: roles, RBAC: rbac, Audit: audit, System: system, Plugins: plugins, Permissions: permissions,
-			Menus: menus, UnitOfWork: sql.NewUnitOfWork(), AuditEvents: auditEvents, Files: files, Organization: organization,
+			Menus: menus, UnitOfWork: sql.NewUnitOfWorkWithDB(pluginDataDB), AuditEvents: auditEvents, Files: files, Organization: organization,
 			Workflow:      workflowsvc.NewMemoryRepository(),
 			Notifications: notificationsvc.NewMemoryRepository(),
 			Jobs:          jobsvc.NewMemoryRepository(),
 			PharmaOA:      lazyPharmaOARepositories(newMemoryPharmaOARepositories),
+			PluginDataDB:  pluginDataDB, PluginDataDialect: "sqlite",
 		}, nil
 	case ModeMySQL:
 		primary, err := mysql.NewAdapter(opts.PrimaryDSN)
@@ -110,6 +120,7 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Notifications:    primary.NotificationRepository(),
 			Jobs:             primary.JobRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
+			PluginDataDB:     primary.DB(), PluginDataDialect: "mysql",
 		}, nil
 	case ModePostgres:
 		primary, err := postgres.NewAdapter(opts.PrimaryDSN)
@@ -138,10 +149,28 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Notifications:    primary.NotificationRepository(),
 			Jobs:             primary.JobRepository(),
 			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
+			PluginDataDB:     primary.DB(), PluginDataDialect: "postgresql",
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported store mode: %q", opts.Mode)
 	}
+}
+
+func openMemoryPluginDataDB() (*gorm.DB, error) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent), TranslateError: true})
+	if err != nil {
+		return nil, fmt.Errorf("open memory plugin datastore: %w", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("resolve memory plugin datastore: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+	if err = db.AutoMigrate(&gormrepo.PluginDataMutationModel{}); err != nil {
+		return nil, fmt.Errorf("migrate memory plugin datastore: %w", err)
+	}
+	return db, nil
 }
 
 type pharmaOARepositoryProvider interface {

@@ -52,6 +52,18 @@ func (s dataScopeService) Resolve(ctx context.Context, permission pluginsdk.Perm
 	})
 }
 
+type dataStoreService struct{ client *Client }
+
+func (s dataStoreService) Query(ctx context.Context, query pluginsdk.DataQuery) (out pluginsdk.DataPage, err error) {
+	err = s.client.call(ctx, "datastore", "query", query, &out)
+	return
+}
+
+func (s dataStoreService) Mutate(ctx context.Context, mutation pluginsdk.DataMutation) (out pluginsdk.DataMutationResult, err error) {
+	err = s.client.call(ctx, "datastore", "mutate", mutation, &out)
+	return
+}
+
 type fileService struct{ client *Client }
 
 func (s fileService) Store(ctx context.Context, in pluginsdk.FileWrite) (out pluginsdk.FileObject, err error) {
@@ -189,6 +201,7 @@ type valueResponse struct {
 
 var _ pluginsdk.TransactionService = transactionService{}
 var _ pluginsdk.DataScopeService = dataScopeService{}
+var _ pluginsdk.DataStoreService = dataStoreService{}
 var _ pluginsdk.FileService = fileService{}
 var _ pluginsdk.AuditService = auditService{}
 var _ pluginsdk.ConfigService = configService{}

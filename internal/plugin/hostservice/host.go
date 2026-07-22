@@ -11,10 +11,13 @@ import (
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
+type DataStoreFactory func(string, pluginsdk.DataScopeService, pluginsdk.AuditService) (pluginsdk.DataStoreService, error)
+
 type HostServicesDependencies struct {
 	PluginID     string
 	Transactions pluginsdk.TransactionService
 	DataScopes   pluginsdk.DataScopeService
+	DataStore    DataStoreFactory
 	Files        fileBackend
 	Audit        auditsvc.Service
 	ConfigStore  PluginConfigStore
@@ -34,6 +37,13 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 	if err != nil {
 		return pluginsdk.HostServices{}, err
 	}
+	if deps.DataStore == nil {
+		return pluginsdk.HostServices{}, fmt.Errorf("plugin host datastore factory is required")
+	}
+	dataStore, err := deps.DataStore(pluginID, deps.DataScopes, audit)
+	if err != nil {
+		return pluginsdk.HostServices{}, fmt.Errorf("build plugin datastore service: %w", err)
+	}
 	config, err := NewConfigService(pluginID, deps.ConfigStore, deps.System, audit)
 	if err != nil {
 		return pluginsdk.HostServices{}, err
@@ -52,7 +62,7 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 	}
 	host := pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: deps.Transactions, DataScopes: deps.DataScopes,
-		Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
+		DataStore: dataStore, Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
 	}
 	if err := host.Validate(); err != nil {
 		return pluginsdk.HostServices{}, fmt.Errorf("build plugin host services: %w", err)

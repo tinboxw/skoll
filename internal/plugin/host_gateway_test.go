@@ -50,6 +50,24 @@ func (gatewayScopes) Resolve(ctx context.Context, _ pluginsdk.Permission) (plugi
 	return pluginsdk.NewScopePredicate(pluginsdk.TrustedScope{SubjectID: claims.Subject, AllTenants: true, AllOwners: true, AllOrganizations: true})
 }
 
+type gatewayDataStore struct{}
+
+func (gatewayDataStore) Query(_ context.Context, query pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
+	if query.Table != "assets" {
+		return pluginsdk.DataPage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, "table", "table is not declared by the plugin", false)
+	}
+	return pluginsdk.DataPage{Records: []pluginsdk.DataRecord{{Values: map[string]pluginsdk.DataValue{
+		"id": {Type: pluginsdk.DataValueString, Value: "asset-1"},
+	}, Version: 1}}}, nil
+}
+
+func (gatewayDataStore) Mutate(_ context.Context, mutation pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
+	if mutation.Table != "assets" {
+		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorForbidden, "table", "plugin does not own the requested table", false)
+	}
+	return pluginsdk.DataMutationResult{RowsAffected: 1}, nil
+}
+
 type gatewayFiles struct{}
 
 func (gatewayFiles) Store(context.Context, pluginsdk.FileWrite) (pluginsdk.FileObject, error) {
@@ -155,7 +173,7 @@ func (gatewayJobs) List(context.Context, pluginsdk.JobQuery) ([]pluginsdk.Job, e
 func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	transactions := &gatewayTransactions{}
 	secrets := &gatewaySecrets{}
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(id string) (pluginsdk.HostServices, error) {
 		if id != "equipment" {
 			return pluginsdk.HostServices{}, errors.New("wrong identity")
@@ -298,7 +316,7 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 }
 
 func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *testing.T) {
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -356,5 +374,106 @@ func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *te
 	gateway.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("unknown field status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T) {
+	host := pluginsdk.HostServices{
+		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+	}
+	gateway, err := NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
+		if pluginID != "equipment" {
+			return pluginsdk.HostServices{}, errors.New("plugin is disabled")
+		}
+		return host, nil
+	}, "gateway-jwt-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gateway.Close()
+	if _, err = gateway.Issue("disabled_plugin"); err == nil {
+		t.Fatal("disabled plugin received a host credential")
+	}
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	query := pluginsdk.DataQuery{
+		Table: "assets", Fields: []string{"id"},
+		Scope: pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "equipment.asset", Action: "read"}},
+		Sort:  []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 20},
+	}
+	response := callGatewayJSON(t, gateway, credential.Token, "/v1/datastore/query", query)
+	if response.Code != http.StatusOK {
+		t.Fatalf("query status=%d body=%s", response.Code, response.Body.String())
+	}
+	var page pluginsdk.DataPage
+	if err = json.Unmarshal(response.Body.Bytes(), &page); err != nil || len(page.Records) != 1 || page.Records[0].Values["id"].Value != "asset-1" {
+		t.Fatalf("page=%+v err=%v", page, err)
+	}
+
+	mutation := pluginsdk.DataMutation{
+		Table: "foreign_assets", Operation: pluginsdk.DataMutationDelete,
+		Scope: pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "equipment.asset", Action: "delete"}},
+		Key:   map[string]pluginsdk.DataValue{"id": {Type: pluginsdk.DataValueString, Value: "asset-1"}}, IdempotencyKey: "delete-asset-1",
+	}
+	response = callGatewayJSON(t, gateway, credential.Token, "/v1/datastore/mutate", mutation)
+	assertGatewayError(t, response, http.StatusForbidden, "forbidden", "table")
+
+	query.Fields = nil
+	response = callGatewayJSON(t, gateway, credential.Token, "/v1/datastore/query", query)
+	assertGatewayError(t, response, http.StatusBadRequest, "invalid_request", "fields")
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/datastore/query", strings.NewReader(`{}`))
+	request.RemoteAddr = "127.0.0.1:1234"
+	request.Header.Set("Authorization", "Bearer "+credential.Token)
+	request.Header.Set("Content-Type", "application/json")
+	request.ContentLength = maxHostRequestBytes + 1
+	response = httptest.NewRecorder()
+	gateway.ServeHTTP(response, request)
+	assertGatewayError(t, response, http.StatusRequestEntityTooLarge, "host_request_too_large", "")
+
+	gateway.Revoke(credential.Token)
+	response = callGatewayJSON(t, gateway, credential.Token, "/v1/datastore/query", basicGatewayQuery())
+	assertGatewayError(t, response, http.StatusUnauthorized, "plugin_identity_invalid", "")
+	response = callGatewayJSON(t, gateway, "", "/v1/datastore/query", basicGatewayQuery())
+	assertGatewayError(t, response, http.StatusUnauthorized, "plugin_identity_invalid", "")
+}
+
+func basicGatewayQuery() pluginsdk.DataQuery {
+	return pluginsdk.DataQuery{
+		Table: "assets", Fields: []string{"id"},
+		Scope: pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "equipment.asset", Action: "read"}},
+		Sort:  []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 20},
+	}
+}
+
+func callGatewayJSON(t *testing.T, gateway *HostGateway, token, path string, value any) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(string(raw)))
+	request.RemoteAddr = "127.0.0.1:1234"
+	if token != "" {
+		request.Header.Set("Authorization", "Bearer "+token)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	gateway.ServeHTTP(response, request)
+	return response
+}
+
+func assertGatewayError(t *testing.T, response *httptest.ResponseRecorder, status int, code, field string) {
+	t.Helper()
+	if response.Code != status {
+		t.Fatalf("status=%d want=%d body=%s", response.Code, status, response.Body.String())
+	}
+	var failure pluginclient.ErrorResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &failure); err != nil || failure.Code != code || failure.Field != field {
+		t.Fatalf("failure=%+v err=%v", failure, err)
 	}
 }

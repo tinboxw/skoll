@@ -82,7 +82,8 @@ func (c *Client) HostServices() (pluginsdk.HostServices, error) {
 	host := pluginsdk.HostServices{
 		PluginID:     c.pluginID,
 		Transactions: transactionService{client: c}, DataScopes: dataScopeService{client: c},
-		Files: fileService{client: c}, Audit: auditService{client: c}, Config: configService{client: c},
+		DataStore: dataStoreService{client: c},
+		Files:     fileService{client: c}, Audit: auditService{client: c}, Config: configService{client: c},
 		Secrets: secretService{client: c}, Workflows: workflowService{client: c}, Jobs: jobService{client: c},
 	}
 	if err := host.Validate(); err != nil {

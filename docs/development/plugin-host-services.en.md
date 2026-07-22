@@ -37,6 +37,7 @@ The host verifies signature, expiry, subject, role, and organization claims agai
 | --- | --- |
 | `Transactions` | Execute host calls in one bounded remote transaction; commit on success and roll back on error, timeout, or credential revocation |
 | `DataScopes` | Resolve trusted tenant, owner, and organization scope for the verified user |
+| `DataStore` | Query and mutate declared plugin-owned relational tables through typed, scoped contracts |
 | `Files` | Store, list, get, download, and delete files in the plugin namespace |
 | `Audit` | Record redacted evidence bound to plugin and trusted caller identity |
 | `Config` | Read or replace Manifest-Schema-validated plugin configuration |
@@ -44,7 +45,7 @@ The host verifies signature, expiry, subject, role, and organization claims agai
 | `Workflows` | Create, publish, and execute namespaced approval workflows |
 | `Jobs` | Schedule, lease, complete, fail, and query namespaced durable jobs |
 
-`pkg/pluginclient` implements the complete `pluginsdk.HostServices`; plugin business code does not use private HTTP paths.
+The datastore gateway validates the public contract again, binds the credential to one plugin identity, injects trusted scope, and maps datastore failures to stable HTTP status and error fields. Client-side datastore error reconstruction and conformance coverage are completed by BF1-06; plugin business code never uses private HTTP paths.
 
 ## Transactions
 
@@ -55,7 +56,7 @@ The host verifies signature, expiry, subject, role, and organization claims agai
 - The gateway binds a random loopback address and accepts only declared v1 `POST` operations.
 - Every request authenticates the lifecycle credential; data scope also verifies the user JWT.
 - Requests and responses are limited to 32 MiB. Unknown fields, operations, transactions, and non-loopback sources fail closed.
-- Errors expose stable codes, not database, secret, or infrastructure details.
+- Datastore failures expose only stable `code`, `field`, `message`, and `retryable` fields, never database, secret, or infrastructure details.
 - There is one current host-service HTTP v1 path, with no remote database, old token, alternate URL, or fallback mode.
 
 ## Verification
