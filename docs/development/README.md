@@ -9,6 +9,7 @@
 | [getting-started.md](getting-started.md) | 本地开发快速入门 |
 | [plugin-guide.md](plugin-guide.md) | 插件开发教程 |
 | [plugin-business-document-ui.en.md](plugin-business-document-ui.en.md) | Public schema-driven business document UI package and plugin composition contract (English) |
+| [generating-business-document-plugins.en.md](generating-business-document-plugins.en.md) | Generate and accept a zero-edit business-document plugin using public contracts (English) |
 | [plugin-api-contract.md](plugin-api-contract.md) | 插件 API、权限与聚合 OpenAPI 契约（默认中文） |
 | [plugin-api-contract.en.md](plugin-api-contract.en.md) | Plugin API, permission, and aggregated OpenAPI contract (English) |
 | [plugin-event-contract.md](plugin-event-contract.md) | 插件业务事件投递、幂等、重试与生命周期契约（默认中文） |

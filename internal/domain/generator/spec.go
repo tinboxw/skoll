@@ -51,6 +51,7 @@ type GeneratorSpecInput struct {
 	Page        PageSpec
 	Audit       AuditSpec
 	Plugin      PluginSpec
+	Document    *DocumentSpec
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -66,6 +67,7 @@ type GeneratorSpec struct {
 	Page        PageSpec
 	Audit       AuditSpec
 	Plugin      PluginSpec
+	Document    *DocumentSpec `json:"document,omitempty"`
 	Meta        shared.AuditMeta
 }
 
@@ -186,6 +188,15 @@ type PluginEventSubscriptionSpec struct {
 	RetryPolicy string
 }
 
+type DocumentSpec struct {
+	Enabled      bool
+	SchemaKey    string
+	SchemaName   string
+	DefinitionID string
+	NumberPrefix string
+	TitleField   string
+}
+
 func NewGeneratorSpec(in GeneratorSpecInput) (*GeneratorSpec, error) {
 	in = normalizeGeneratorSpecInput(in)
 	if err := validateGeneratorSpecInput(in); err != nil {
@@ -202,6 +213,7 @@ func NewGeneratorSpec(in GeneratorSpecInput) (*GeneratorSpec, error) {
 		Page:        in.Page,
 		Audit:       in.Audit,
 		Plugin:      in.Plugin,
+		Document:    cloneDocumentSpec(in.Document),
 		Meta: shared.AuditMeta{
 			CreatedAt: in.CreatedAt,
 			UpdatedAt: in.UpdatedAt,
@@ -237,10 +249,44 @@ func normalizeGeneratorSpecInput(in GeneratorSpecInput) GeneratorSpecInput {
 	in.Page = normalizePageSpec(in.Page)
 	in.Audit = normalizeAuditSpec(in.Audit)
 	in.Plugin = normalizePluginSpec(in.Plugin, in)
+	in.Document = normalizeDocumentSpec(in.Document, in)
 	if in.UpdatedAt.IsZero() {
 		in.UpdatedAt = in.CreatedAt
 	}
 	return in
+}
+
+func normalizeDocumentSpec(in *DocumentSpec, spec GeneratorSpecInput) *DocumentSpec {
+	if in == nil || !in.Enabled {
+		return nil
+	}
+	out := *in
+	out.SchemaKey = normalizeName(out.SchemaKey)
+	if out.SchemaKey == "" {
+		out.SchemaKey = spec.Module.Name
+	}
+	out.SchemaName = strings.TrimSpace(out.SchemaName)
+	if out.SchemaName == "" {
+		out.SchemaName = spec.Module.DisplayName
+	}
+	out.DefinitionID = strings.TrimSpace(out.DefinitionID)
+	if out.DefinitionID == "" {
+		out.DefinitionID = out.SchemaKey + "-approval"
+	}
+	out.NumberPrefix = strings.ToUpper(strings.TrimSpace(out.NumberPrefix))
+	if out.NumberPrefix == "" {
+		out.NumberPrefix = strings.ToUpper(strings.ReplaceAll(out.SchemaKey, "_", "-"))
+	}
+	out.TitleField = normalizeName(out.TitleField)
+	return &out
+}
+
+func cloneDocumentSpec(in *DocumentSpec) *DocumentSpec {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	return &out
 }
 
 func normalizeModuleSpec(in ModuleSpec) ModuleSpec {
@@ -509,11 +555,39 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 	if err := validatePluginDataOwnership(in.Plugin, in.Table, in.Indexes, in.Permissions, in.Menu); err != nil {
 		return err
 	}
+	if err := validateDocumentSpec(in.Document, in.Plugin, fieldNames); err != nil {
+		return err
+	}
 	if in.CreatedAt.IsZero() || in.UpdatedAt.IsZero() {
 		return fmt.Errorf("generator spec timestamps are required")
 	}
 	if in.UpdatedAt.Before(in.CreatedAt) {
 		return fmt.Errorf("generator spec updated time must not be before created time")
+	}
+	return nil
+}
+
+func validateDocumentSpec(spec *DocumentSpec, plugin PluginSpec, fields map[string]struct{}) error {
+	if spec == nil {
+		return nil
+	}
+	if !plugin.Enabled {
+		return fmt.Errorf("generator document target requires a plugin")
+	}
+	if !generatorNamePattern.MatchString(spec.SchemaKey) {
+		return fmt.Errorf("generator document schema key must match %s", generatorNamePattern.String())
+	}
+	if spec.SchemaName == "" || !generatorKeyPattern.MatchString(spec.DefinitionID) {
+		return fmt.Errorf("generator document schema name and definition id are required")
+	}
+	if spec.TitleField == "" {
+		return fmt.Errorf("generator document title field is required")
+	}
+	if _, ok := fields[spec.TitleField]; !ok {
+		return fmt.Errorf("generator document title field is unknown: %s", spec.TitleField)
+	}
+	if spec.NumberPrefix == "" || len(spec.NumberPrefix) > 24 || strings.ContainsAny(spec.NumberPrefix, " \t\r\n") {
+		return fmt.Errorf("generator document number prefix is invalid")
 	}
 	return nil
 }

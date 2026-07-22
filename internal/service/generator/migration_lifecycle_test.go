@@ -227,7 +227,8 @@ func mustPluginLifecycleSpec(t *testing.T, uninstallPolicy string) *domaingenera
 
 func materializeGeneratedPlugin(t *testing.T, result *DryRunResult, pluginID string) string {
 	t.Helper()
-	root := t.TempDir()
+	workspace := t.TempDir()
+	root := filepath.Join(workspace, "examples", "plugins", pluginID)
 	prefix := filepath.ToSlash(filepath.Join("examples", "plugins", pluginID)) + "/"
 	for _, file := range result.Files {
 		path := filepath.ToSlash(file.Path)

@@ -151,6 +151,12 @@ export type DocumentRecord = DocumentDraft & {
 	metadata: DocumentMetadata;
 };
 
+export type DocumentWorkflowResult = {
+	document: DocumentRecord;
+	workflow: WorkflowInstance;
+	duplicate: boolean;
+};
+
 export type DocumentSummary = {
 	id: string;
 	type: string;

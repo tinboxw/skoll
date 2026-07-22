@@ -129,6 +129,33 @@ func TestNewGeneratorSpecDefinesBusinessPluginTarget(t *testing.T) {
 	}
 }
 
+func TestNewGeneratorSpecDefinesDocumentPluginTarget(t *testing.T) {
+	in := validGeneratorSpecInput()
+	in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA"}
+	in.Document = &DocumentSpec{Enabled: true, TitleField: "name"}
+	in.Table.Name = "pharma_oa_products"
+	in.Indexes[0].Name = "idx_pharma_oa_products_name"
+	namespacePluginSpecInput(&in, "pharma_oa")
+	spec, err := NewGeneratorSpec(in)
+	if err != nil {
+		t.Fatalf("NewGeneratorSpec() error = %v", err)
+	}
+	if spec.Document == nil || spec.Document.SchemaKey != "product" || spec.Document.SchemaName != "Product" || spec.Document.DefinitionID != "product-approval" || spec.Document.NumberPrefix != "PRODUCT" {
+		t.Fatalf("document defaults = %+v", spec.Document)
+	}
+
+	in.Document = &DocumentSpec{Enabled: true, TitleField: "missing"}
+	if _, err := NewGeneratorSpec(in); err == nil || !strings.Contains(err.Error(), "title field is unknown") {
+		t.Fatalf("expected unknown title field error, got %v", err)
+	}
+
+	in.Plugin = PluginSpec{}
+	in.Document = &DocumentSpec{Enabled: true, TitleField: "name"}
+	if _, err := NewGeneratorSpec(in); err == nil || !strings.Contains(err.Error(), "requires a plugin") {
+		t.Fatalf("expected plugin requirement error, got %v", err)
+	}
+}
+
 func TestNewGeneratorSpecRejectsIncompleteSections(t *testing.T) {
 	now := time.Now().UTC()
 	_, err := NewGeneratorSpec(GeneratorSpecInput{

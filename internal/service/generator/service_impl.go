@@ -237,6 +237,12 @@ func buildCandidates(spec domaingenerator.GeneratorSpec, migrationTimestamp stri
 			candidate("plugin.command.shell", pluginRoot+"/plugin.sh", spec),
 			candidate("plugin.readme", pluginRoot+"/README.md", spec),
 		)
+		if spec.Document != nil {
+			candidates = append(candidates,
+				candidate("plugin.document.schema", pluginRoot+"/document-schema.json", spec),
+				candidate("plugin.frontend.document-schema", pluginRoot+"/web/src/document-schema.ts", spec),
+			)
+		}
 	}
 	return candidates
 }

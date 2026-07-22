@@ -820,3 +820,74 @@ Result: BF2-06 passed after two acceptance retries. Independent plugins now have
 ### Commit
 
 `BF2-06: add schema-driven document UI kit`
+
+## BF2-07 Generate And Prove A Zero-Edit Business-Document Plugin
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Add an explicit document generator target and prove an independently packaged plugin through the public Go SDK, public Vue document package, and complete plugin lifecycle.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Generator model | Pass | `DocumentSpec` explicitly declares schema key/name, approval definition, number prefix, and title field; invalid plugin or field bindings are rejected |
+| Public backend boundary | Pass | Generated backend imports only `pkg/pluginclient` and `pkg/pluginsdk`, forwards the request bearer token through the public client, and imports no host `internal/` package, handler, service, repository, or source path |
+| Public frontend boundary | Pass | Generated Vue source depends on `@skoll/document-ui`, requires the injected Host SDK bridge, emits a typed schema module, and composes document list, form, detail, approval, and export surfaces without direct-fetch fallback |
+| Document contract | Pass | Generated JSON schema validates and declares `draft -> submitted -> approved/rejected` states and actions using current public contract types |
+| Workflow and transaction | Pass | Generated startup ensures the approval definition through the public workflow service; submit and approve run through the public transaction and document services |
+| Manifest and permissions | Pass | Search, detail, create, submit, approve, and export routes carry plugin-owned permission and audit declarations |
+| Zero-edit build | Pass | Generated Go tests, Vue typecheck, and Vue production build run from emitted source without editing a generated file |
+| Package integrity | Pass | PowerShell package flow builds backend/frontend, creates SHA-256 evidence, verifies the archive, installs it, and preserves all generated source hashes |
+| Runtime lifecycle | Pass | Installed plugin enables, starts under the managed supervisor, creates a draft, submits, searches, reads detail, approves, schedules export, disables execution, rolls back owned migration data, and uninstalls |
+| Generator contract tests | Pass | Generated Go parses, schema validates, SDK/UI dependency boundaries and manifest routes are asserted deterministically |
+| Backend quality gate | Pass | Generator domain/service, public SDK/client, and plugin runtime packages pass their full test suites |
+| Frontend quality gate | Pass | Public UI typecheck/tests/build and host typecheck/component tests/build/bundle budgets pass |
+| Generated UI size | Pass | Element Plus component registration reduced generated JavaScript from 1,049.05 KB raw/342.32 KB gzip to 562.57 KB raw/187.88 KB gzip |
+| Current-only rule | Pass | No legacy route, alternate payload, compatibility adapter, host-source import, dual implementation, or runtime fallback was added |
+
+The first lifecycle run failed because the backend template referenced a non-existent document sort constant. The template was corrected and the complete lifecycle restarted. The second run passed Go and Vue builds but failed when an incorrect repository-relative Go replacement leaked into the package tool; the generated module path and isolated test workspace were corrected, then the complete lifecycle passed twice, including after frontend bundle optimization.
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/generator ./internal/service/generator ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin -count=1
+go test ./internal/service/generator -run TestDocumentPluginTargetUsesOnlyPublicContracts -count=1
+$env:SKOLL_GENERATOR_PLUGIN_E2E = "1"
+go test ./internal/service/generator -run TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits -count=1 -v
+
+cd packages/skoll-document-ui
+npm run typecheck
+npm test -- --run
+npm run build
+
+cd ../../web
+npm run typecheck
+npm run test:components
+npm run build
+npm run check:bundle
+
+cd ..
+codegraph sync .
+codegraph status .
+codegraph impact DocumentSpec
+codegraph impact renderDocumentPluginBackendServer
+git diff --check
+```
+
+Result: BF2-07 passed after two acceptance retries. A generated business-document plugin now crosses the public SDK and UI boundaries and completes the required package/runtime/business lifecycle without hand edits.
+
+### Impact Review
+
+- API/OpenAPI: generated plugin manifests declare current document routes; no host application route was added.
+- Permission/audit: every generated operation carries an explicit plugin-owned permission and manifest audit action; host services remain the enforcement boundary.
+- Migration/data: generated plugin tables and migrations remain plugin-owned; uninstall follows the one declared current policy.
+- Frontend/i18n: generated UI uses the public document kit and Element Plus component registration; host application pages are unchanged.
+- Generator: CRUD and business-document targets are explicit generator products; document output adds schema artifacts and public SDK/UI dependencies.
+- Documentation: generation guide, development index, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; only current contracts and generated outputs exist.
+
+### Commit
+
+`BF2-07: generate zero-edit document plugins`

@@ -64,6 +64,9 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 	case "plugin.go.mod":
 		return renderPluginGoMod(spec)
 	case "plugin.backend.server":
+		if spec.Document != nil {
+			return formatGoTemplate(renderDocumentPluginBackendServer(spec))
+		}
 		return formatGoTemplate(renderPluginBackendServer(spec))
 	case "plugin.migration.up":
 		return renderMigration(spec, "postgres")
@@ -72,6 +75,9 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 	case "plugin.frontend.api":
 		return renderPluginFrontendAPI(spec)
 	case "plugin.frontend.store":
+		if spec.Document != nil {
+			return renderDocumentPluginFrontendStore(spec)
+		}
 		return renderFrontendStore(spec)
 	case "plugin.frontend.locale":
 		return renderFrontendLocale(spec)
@@ -82,9 +88,9 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 	case "plugin.frontend.package":
 		return renderPluginFrontendPackage(spec)
 	case "plugin.frontend.tsconfig":
-		return renderPluginFrontendTSConfig()
+		return renderPluginFrontendTSConfig(spec)
 	case "plugin.frontend.vite":
-		return renderPluginFrontendVite()
+		return renderPluginFrontendVite(spec)
 	case "plugin.frontend.index":
 		return renderPluginFrontendIndex(spec)
 	case "plugin.frontend.main":
@@ -92,7 +98,7 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 	case "plugin.frontend.styles":
 		return renderPluginFrontendStyles()
 	case "plugin.frontend.api-support":
-		return renderPluginFrontendAPISupport()
+		return renderPluginFrontendAPISupport(spec)
 	case "plugin.frontend.common-support":
 		return renderPluginFrontendCommonSupport()
 	case "plugin.frontend.i18n-support":
@@ -101,6 +107,10 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderPluginFrontendPermissionSupport()
 	case "plugin.frontend.ui-support":
 		return renderPluginFrontendUISupport()
+	case "plugin.document.schema":
+		return renderDocumentSchemaJSON(spec)
+	case "plugin.frontend.document-schema":
+		return renderDocumentFrontendSchema(spec)
 	case "plugin.acceptance.test":
 		return formatGoTemplate(renderPluginAcceptanceTest(spec))
 	case "plugin.command.powershell":
@@ -500,6 +510,16 @@ type pluginRoute struct {
 func pluginAPIRoutes(spec domaingenerator.GeneratorSpec) []pluginRoute {
 	base := pluginAPIBasePath(spec)
 	auditResource := pluginAuditResource(spec)
+	if spec.Document != nil {
+		return []pluginRoute{
+			{method: "GET", path: base, summary: "Search " + spec.Table.CollectionName, permission: spec.Permissions.ReadKey, auditAction: auditResource + ".read"},
+			{method: "GET", path: base + "/{id}", summary: "Get " + spec.Table.DomainName, permission: spec.Permissions.ReadKey, auditAction: auditResource + ".read"},
+			{method: "POST", path: base, summary: "Create " + spec.Table.DomainName + " draft", permission: spec.Permissions.CreateKey, auditAction: auditResource + ".create"},
+			{method: "POST", path: base + "/{id}/submit", summary: "Submit " + spec.Table.DomainName, permission: spec.Permissions.UpdateKey, auditAction: auditResource + ".submit"},
+			{method: "POST", path: base + "/{id}/approve", summary: "Approve " + spec.Table.DomainName, permission: spec.Permissions.ManageKey, auditAction: auditResource + ".approve"},
+			{method: "GET", path: base + "/export", summary: "Export " + spec.Table.CollectionName, permission: spec.Permissions.ManageKey, auditAction: auditResource + ".export"},
+		}
+	}
 	return []pluginRoute{
 		{method: "GET", path: base, summary: "List " + spec.Table.CollectionName, permission: spec.Permissions.ReadKey, auditAction: auditResource + ".read"},
 		{method: "GET", path: base + "/{id}", summary: "Get " + spec.Table.DomainName, permission: spec.Permissions.ReadKey, auditAction: auditResource + ".read"},
@@ -561,11 +581,17 @@ func pluginIndexList(spec domaingenerator.GeneratorSpec) string {
 }
 
 func renderPluginFrontendAPI(spec domaingenerator.GeneratorSpec) string {
+	if spec.Document != nil {
+		return renderDocumentPluginFrontendAPI(spec)
+	}
 	content := renderFrontendAPI(spec)
 	return strings.Replace(content, fmt.Sprintf("const basePath = %q;", spec.Menu.Path), fmt.Sprintf("const basePath = %q;", pluginAPIBasePath(spec)), 1)
 }
 
 func renderPluginFrontendView(spec domaingenerator.GeneratorSpec) string {
+	if spec.Document != nil {
+		return renderDocumentPluginFrontendView(spec)
+	}
 	content := renderFrontendView(spec)
 	content = strings.ReplaceAll(content, "generated-page", "plugin-generated-page")
 	content = strings.ReplaceAll(content, "generated-toolbar", "plugin-generated-toolbar")

@@ -10,6 +10,9 @@ import (
 )
 
 func renderPluginGoMod(spec domaingenerator.GeneratorSpec) string {
+	if spec.Document != nil {
+		return fmt.Sprintf("module example.com/skoll-plugins/%s\n\ngo 1.24\n\nrequire github.com/tinboxw/skoll v0.0.0\n\nreplace github.com/tinboxw/skoll => ../../..\n", spec.Plugin.ID)
+	}
 	return fmt.Sprintf("module example.com/skoll-plugins/%s\n\ngo 1.24\n", spec.Plugin.ID)
 }
 
@@ -147,21 +150,41 @@ func pluginServiceAddress(raw string) string {
 }
 
 func renderPluginFrontendPackage(spec domaingenerator.GeneratorSpec) string {
+	dependencies := map[string]string{"element-plus": "^2.14.1", "lucide-vue-next": "^1.0.0", "pinia": "^2.1.7", "vue": "^3.4.38", "vue-router": "^4.4.3"}
+	if spec.Document != nil {
+		dependencies["@skoll/document-ui"] = "file:../../../../packages/skoll-document-ui"
+	}
 	payload := map[string]any{
 		"name": "@skoll-plugins/" + spec.Plugin.ID, "private": true, "version": spec.Plugin.Version, "type": "module",
 		"scripts":         map[string]string{"build": "vue-tsc --noEmit && vite build", "dev": "vite"},
-		"dependencies":    map[string]string{"element-plus": "^2.14.1", "lucide-vue-next": "^1.0.0", "pinia": "^2.1.7", "vue": "^3.4.38", "vue-router": "^4.4.3"},
+		"dependencies":    dependencies,
 		"devDependencies": map[string]string{"@vitejs/plugin-vue": "^5.2.4", "typescript": "^5.9.3", "vite": "^5.4.21", "vue-tsc": "^3.3.4"},
 	}
 	raw, _ := json.MarshalIndent(payload, "", "  ")
 	return string(raw) + "\n"
 }
 
-func renderPluginFrontendTSConfig() string {
+func renderPluginFrontendTSConfig(spec domaingenerator.GeneratorSpec) string {
+	if spec.Document != nil {
+		return `{"compilerOptions":{"target":"ES2020","module":"ESNext","moduleResolution":"Bundler","strict":true,"skipLibCheck":true,"types":["vite/client"],"lib":["ES2020","DOM","DOM.Iterable"],"baseUrl":".","paths":{"@skoll/document-ui":["../../../../packages/skoll-document-ui/src/index.ts"]}},"include":["src/**/*.ts","src/**/*.vue"]}` + "\n"
+	}
 	return `{"compilerOptions":{"target":"ES2020","module":"ESNext","moduleResolution":"Bundler","strict":true,"skipLibCheck":true,"types":["vite/client"],"lib":["ES2020","DOM","DOM.Iterable"]},"include":["src/**/*.ts","src/**/*.vue"]}` + "\n"
 }
 
-func renderPluginFrontendVite() string {
+func renderPluginFrontendVite(spec domaingenerator.GeneratorSpec) string {
+	if spec.Document != nil {
+		return `import { fileURLToPath, URL } from "node:url";
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+
+export default defineConfig({
+  base: "./",
+  plugins: [vue()],
+  resolve: { alias: { "@skoll/document-ui": fileURLToPath(new URL("../../../../packages/skoll-document-ui/src/index.ts", import.meta.url)) } },
+  build: { outDir: "dist", emptyOutDir: true }
+});
+`
+	}
 	return `import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
@@ -174,6 +197,9 @@ func renderPluginFrontendIndex(spec domaingenerator.GeneratorSpec) string {
 }
 
 func renderPluginFrontendMain(spec domaingenerator.GeneratorSpec) string {
+	if spec.Document != nil {
+		return renderDocumentPluginFrontendMain(spec)
+	}
 	return fmt.Sprintf(`import { createApp } from "vue";
 import { createPinia } from "pinia";
 import ElementPlus from "element-plus";
@@ -200,7 +226,10 @@ button, input, textarea { font: inherit; }
 `
 }
 
-func renderPluginFrontendAPISupport() string {
+func renderPluginFrontendAPISupport(spec domaingenerator.GeneratorSpec) string {
+	if spec.Document != nil {
+		return renderDocumentPluginFrontendAPISupport(spec)
+	}
 	return `export type ApiResponse<T> = { code: string; message: string; data: T };
 const prefix = (import.meta.env.VITE_SKOLL_API_PREFIX || "/skoll").replace(/\/$/, "");
 async function request<T>(path: string, init: RequestInit): Promise<T> { const response = await fetch(prefix + path, { ...init, headers: { "Content-Type": "application/json", ...(init.headers || {}) } }); const payload = await response.json(); if (!response.ok) throw new Error(payload?.message || "request_failed"); return payload as T; }
