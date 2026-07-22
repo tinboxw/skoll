@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	documentworkflowsvc "github.com/tinboxw/skoll/internal/service/documentworkflow"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
@@ -20,6 +21,8 @@ type documentWorkflowBackend interface {
 	AddComment(context.Context, string, pluginsdk.WorkflowActor, pluginsdk.DocumentCommentAddInput) (pluginsdk.DocumentCommentResult, error)
 	ListComments(context.Context, string, pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentComment, error)
 	Timeline(context.Context, string, pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error)
+	Search(context.Context, string, pluginsdk.DocumentSearchInput) (pluginsdk.DocumentSearchPage, error)
+	Print(context.Context, string, pluginsdk.DocumentPrintInput) (pluginsdk.DocumentPrintPayload, error)
 }
 
 type documentWorkflowService struct {
@@ -28,14 +31,89 @@ type documentWorkflowService struct {
 	scopes   pluginsdk.DataScopeService
 	audit    pluginsdk.AuditService
 	files    pluginsdk.FileService
+	jobs     pluginsdk.JobService
 }
 
-func NewDocumentWorkflowService(pluginID string, backend documentWorkflowBackend, scopes pluginsdk.DataScopeService, files pluginsdk.FileService, audit pluginsdk.AuditService) (pluginsdk.DocumentService, error) {
+func NewDocumentWorkflowService(pluginID string, backend documentWorkflowBackend, scopes pluginsdk.DataScopeService, files pluginsdk.FileService, jobs pluginsdk.JobService, audit pluginsdk.AuditService) (pluginsdk.DocumentService, error) {
 	pluginID = strings.ToLower(strings.TrimSpace(pluginID))
-	if pluginID == "" || backend == nil || scopes == nil || files == nil || audit == nil {
+	if pluginID == "" || backend == nil || scopes == nil || files == nil || jobs == nil || audit == nil {
 		return nil, fmt.Errorf("document workflow host dependencies are required")
 	}
-	return &documentWorkflowService{pluginID: pluginID, backend: backend, scopes: scopes, files: files, audit: audit}, nil
+	return &documentWorkflowService{pluginID: pluginID, backend: backend, scopes: scopes, files: files, jobs: jobs, audit: audit}, nil
+}
+
+func (s *documentWorkflowService) Search(ctx context.Context, input pluginsdk.DocumentSearchInput) (pluginsdk.DocumentSearchPage, error) {
+	if err := input.Validate(); err != nil {
+		return pluginsdk.DocumentSearchPage{}, documentWorkflowHostError(err)
+	}
+	if err := s.authorizeTenant(ctx, input.TenantID, input.Permission); err != nil {
+		return pluginsdk.DocumentSearchPage{}, err
+	}
+	page, err := s.backend.Search(ctx, s.pluginID, input)
+	return page, documentWorkflowHostError(err)
+}
+
+func (s *documentWorkflowService) Print(ctx context.Context, input pluginsdk.DocumentPrintInput) (pluginsdk.DocumentPrintPayload, error) {
+	if err := input.Validate(); err != nil {
+		return pluginsdk.DocumentPrintPayload{}, documentWorkflowHostError(err)
+	}
+	if err := s.authorizeTenant(ctx, input.TenantID, input.Permission); err != nil {
+		return pluginsdk.DocumentPrintPayload{}, err
+	}
+	if input.IncludeSensitive {
+		if err := s.authorizeTenant(ctx, input.TenantID, input.SensitivePermission); err != nil {
+			return pluginsdk.DocumentPrintPayload{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "sensitivePermission", "sensitive document fields are outside the trusted scope", false)
+		}
+	}
+	payload, err := s.backend.Print(ctx, s.pluginID, input)
+	if err != nil {
+		return pluginsdk.DocumentPrintPayload{}, documentWorkflowHostError(err)
+	}
+	if _, err = s.audit.Record(ctx, pluginsdk.AuditEntry{
+		Action: "document.print", Resource: payload.Document.Type, ResourceID: payload.Document.ID, Risk: pluginsdk.AuditRiskMedium,
+		Detail: map[string]any{"includeSensitive": input.IncludeSensitive, "redactedFieldCount": len(payload.RedactedFields)},
+	}); err != nil {
+		return pluginsdk.DocumentPrintPayload{}, documentWorkflowHostError(err)
+	}
+	return payload, nil
+}
+
+func (s *documentWorkflowService) Export(ctx context.Context, input pluginsdk.DocumentExportInput) (pluginsdk.Job, error) {
+	if err := input.Validate(); err != nil {
+		return pluginsdk.Job{}, documentWorkflowHostError(err)
+	}
+	if err := s.authorizeTenant(ctx, input.Search.TenantID, input.Search.Permission); err != nil {
+		return pluginsdk.Job{}, err
+	}
+	if input.IncludeSensitive {
+		if err := s.authorizeTenant(ctx, input.Search.TenantID, input.SensitivePermission); err != nil {
+			return pluginsdk.Job{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "sensitivePermission", "sensitive document fields are outside the trusted scope", false)
+		}
+	}
+	search := input.Search
+	search.Cursor, search.Limit = "", pluginsdk.MaxDocumentSearchPage
+	plan := pluginsdk.DocumentExportPlan{
+		Version: 1, Search: search, Format: input.Format, MaxRows: input.MaxRows,
+		SensitiveAuthorized: input.IncludeSensitive, Actor: s.actor(ctx),
+	}
+	payload, err := plan.JSON()
+	if err != nil {
+		return pluginsdk.Job{}, documentWorkflowHostError(err)
+	}
+	job, err := s.jobs.Schedule(ctx, pluginsdk.JobScheduleInput{
+		ID: input.JobID, Kind: pluginsdk.DocumentExportJobKind, IdempotencyKey: input.IdempotencyKey,
+		Payload: payload, RunAt: time.Unix(0, 0).UTC(), MaxAttempts: 3,
+	})
+	if err != nil {
+		return pluginsdk.Job{}, documentWorkflowHostError(err)
+	}
+	if _, err = s.audit.Record(ctx, pluginsdk.AuditEntry{
+		Action: "document.export.schedule", Resource: "document_export", ResourceID: input.JobID, Risk: pluginsdk.AuditRiskMedium,
+		Detail: map[string]any{"tenantId": input.Search.TenantID, "maxRows": input.MaxRows, "includeSensitive": input.IncludeSensitive},
+	}); err != nil {
+		return pluginsdk.Job{}, documentWorkflowHostError(err)
+	}
+	return job, nil
 }
 
 func (s *documentWorkflowService) AddAttachment(ctx context.Context, input pluginsdk.DocumentAttachmentAddInput) (pluginsdk.DocumentAttachmentResult, error) {

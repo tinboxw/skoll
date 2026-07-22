@@ -10,9 +10,10 @@ import (
 func TestDocumentWorkflowMigrationsMatchCurrentModels(t *testing.T) {
 	required := []string{
 		"sk_document_workflow_bindings", "sk_document_workflow_actions",
-		"plugin_id", "tenant_id", "document_id", "workflow_instance_id",
+		"plugin_id", "tenant_id", "document_id", "workflow_instance_id", "number", "title", "created_by", "updated_by",
 		"schema_json", "document_json", "idempotency_key", "request_hash", "result_json",
-		"idx_document_workflow_instance", "fk_document_workflow_actions_binding", "foreign key",
+		"idx_document_workflow_instance", "idx_document_search_updated", "idx_document_search_created",
+		"idx_document_search_number", "idx_document_search_type_state", "fk_document_workflow_actions_binding", "foreign key",
 	}
 	root := filepath.Join("..", "..", "..", "..", "migrations")
 	for _, dialect := range []string{"mysql", "postgres"} {

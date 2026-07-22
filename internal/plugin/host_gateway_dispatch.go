@@ -117,6 +117,24 @@ func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capabili
 			return nil, err
 		}
 		return host.Documents.Timeline(ctx, in)
+	case "documents.search":
+		var in pluginsdk.DocumentSearchInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.Search(ctx, in)
+	case "documents.print":
+		var in pluginsdk.DocumentPrintInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.Print(ctx, in)
+	case "documents.export":
+		var in pluginsdk.DocumentExportInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.Export(ctx, in)
 	case "scopes.resolve":
 		var in pluginsdk.Permission
 		if err := decodeHostInput(decoder, &in); err != nil {

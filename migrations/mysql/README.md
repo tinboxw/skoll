@@ -168,6 +168,7 @@ MySQL 迁移脚本目录。
 - 表名：`sk_document_workflow_bindings`、`sk_document_workflow_actions`。
 - 用途：在同一宿主事务内持久化业务单据、审批实例绑定和动作幂等结果。
 - 隔离：单据主键包含 `plugin_id` 与 `tenant_id`；审批实例在插件命名空间内唯一。
+- 查询：保存单号、标题和创建/更新人投影，并提供更新时间、创建时间、单号、类型与状态的稳定游标索引。
 - 一致性：动作记录通过复合外键绑定单据，删除绑定时级联删除幂等历史。
 
 ### 20260722_000029_create_document_collaboration_persistence.sql

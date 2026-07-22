@@ -67,6 +67,15 @@ func (hostTestDocuments) ListComments(context.Context, DocumentCollaborationQuer
 func (hostTestDocuments) Timeline(context.Context, DocumentTimelineQueryInput) (DocumentTimelinePage, error) {
 	return DocumentTimelinePage{}, nil
 }
+func (hostTestDocuments) Search(context.Context, DocumentSearchInput) (DocumentSearchPage, error) {
+	return DocumentSearchPage{}, nil
+}
+func (hostTestDocuments) Print(context.Context, DocumentPrintInput) (DocumentPrintPayload, error) {
+	return DocumentPrintPayload{}, nil
+}
+func (hostTestDocuments) Export(context.Context, DocumentExportInput) (Job, error) {
+	return Job{}, nil
+}
 func (hostTestDocumentNumbers) Issue(context.Context, DocumentNumberInput) (DocumentNumberResult, error) {
 	return DocumentNumberResult{Number: "TEST-000001", Sequence: 1}, nil
 }

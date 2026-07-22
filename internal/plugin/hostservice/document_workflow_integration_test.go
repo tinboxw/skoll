@@ -2,6 +2,7 @@ package hostservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	documentworkflowsvc "github.com/tinboxw/skoll/internal/service/documentworkflow"
+	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
@@ -24,6 +26,22 @@ type documentWorkflowFixture struct {
 	workflows pluginsdk.WorkflowService
 	tx        pluginsdk.TransactionService
 	audit     *documentWorkflowAudit
+	jobs      pluginsdk.JobService
+	db        *gorm.DB
+}
+
+type documentWorkflowScopes struct {
+	tenantID     string
+	denyResource string
+}
+
+func (s documentWorkflowScopes) Resolve(_ context.Context, permission pluginsdk.Permission) (pluginsdk.ScopePredicate, error) {
+	if permission.Resource == s.denyResource {
+		return pluginsdk.ScopePredicate{}, errors.New("permission denied")
+	}
+	return pluginsdk.NewScopePredicate(pluginsdk.TrustedScope{
+		SubjectID: "user-1", TenantIDs: []string{s.tenantID}, AllOwners: true, AllOrganizations: true,
+	})
 }
 
 type documentWorkflowFiles struct{}
@@ -262,6 +280,118 @@ func TestDocumentCollaborationWritesRequireTransaction(t *testing.T) {
 	}
 }
 
+func TestDocumentSearchUsesScopedStableCursorPaging(t *testing.T) {
+	fixture := newDocumentWorkflowFixture(t)
+	ctx := documentWorkflowUserContext("user-1")
+	for _, number := range []string{"001", "003", "005"} {
+		input := documentWorkflowSubmitInput("search-"+number, "instance-search-"+number)
+		input.Draft.Number = "OA-" + number
+		input.Draft.Title = "Approval " + number
+		submitDocumentInput(t, fixture, ctx, input)
+	}
+	search := pluginsdk.DocumentSearchInput{
+		TenantID: "tenant-a", Permission: documentWorkflowPermission(), Types: []string{"approval_request"}, States: []string{"pending"},
+		Text: "Approval", SortField: pluginsdk.DocumentSearchSortNumber, Direction: pluginsdk.DocumentSearchAscending, Limit: 2,
+	}
+	first, err := fixture.documents.Search(ctx, search)
+	if err != nil || !first.HasMore || first.NextCursor == "" || len(first.Items) != 2 || first.Items[0].Number != "OA-001" || first.Items[1].Number != "OA-003" {
+		t.Fatalf("first document search page=%+v err=%v", first, err)
+	}
+	inserted := documentWorkflowSubmitInput("search-002", "instance-search-002")
+	inserted.Draft.Number, inserted.Draft.Title = "OA-002", "Approval 002"
+	submitDocumentInput(t, fixture, ctx, inserted)
+	search.Cursor = first.NextCursor
+	second, err := fixture.documents.Search(ctx, search)
+	if err != nil || second.HasMore || second.NextCursor != "" || len(second.Items) != 1 || second.Items[0].Number != "OA-005" {
+		t.Fatalf("second document search page drifted: %+v err=%v", second, err)
+	}
+
+	mismatch := search
+	mismatch.States = []string{"approved"}
+	_, err = fixture.documents.Search(ctx, mismatch)
+	assertDocumentCollaborationError(t, err, pluginsdk.DocumentWorkflowErrorInvalidRequest, "cursor")
+	foreign := search
+	foreign.Cursor, foreign.TenantID = "", "tenant-b"
+	_, err = fixture.documents.Search(ctx, foreign)
+	assertDocumentCollaborationError(t, err, pluginsdk.DocumentWorkflowErrorForbidden, "tenantId")
+
+	literal := documentWorkflowSubmitInput("search-percent", "instance-search-percent")
+	literal.Draft.Number, literal.Draft.Title = "OA-%-006", "Literal percent"
+	submitDocumentInput(t, fixture, ctx, literal)
+	percent, err := fixture.documents.Search(ctx, pluginsdk.DocumentSearchInput{
+		TenantID: "tenant-a", Permission: documentWorkflowPermission(), Text: "%", SortField: pluginsdk.DocumentSearchSortNumber, Direction: pluginsdk.DocumentSearchAscending,
+	})
+	if err != nil || len(percent.Items) != 1 || percent.Items[0].ID != literal.Draft.ID {
+		t.Fatalf("literal wildcard search=%+v err=%v", percent, err)
+	}
+}
+
+func TestDocumentPrintRedactsSensitiveFieldsByPermission(t *testing.T) {
+	fixture := newDocumentWorkflowFixture(t)
+	ctx := documentWorkflowUserContext("user-1")
+	input := sensitiveDocumentSubmitInput("print-document", "instance-print")
+	submitDocumentInput(t, fixture, ctx, input)
+
+	base := pluginsdk.DocumentPrintInput{TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: input.Draft.ID}
+	redacted, err := fixture.documents.Print(ctx, base)
+	if err != nil || len(redacted.RedactedFields) != 1 || redacted.RedactedFields[0] != "header.subject" {
+		t.Fatalf("redacted print payload=%+v err=%v", redacted, err)
+	}
+	if _, visible := redacted.Document.Header["subject"]; visible || redacted.Document.Header["department"].Value != "Quality" {
+		t.Fatalf("print redaction removed or exposed the wrong fields: %+v", redacted.Document.Header)
+	}
+	base.IncludeSensitive = true
+	base.SensitivePermission = sensitiveDocumentPermission()
+	visible, err := fixture.documents.Print(ctx, base)
+	if err != nil || len(visible.RedactedFields) != 0 || visible.Document.Header["subject"].Value != "Supplier qualification" {
+		t.Fatalf("authorized print payload=%+v err=%v", visible, err)
+	}
+
+	deniedFixture := newDocumentWorkflowFixtureWithScopes(t, documentWorkflowScopes{tenantID: "tenant-a", denyResource: sensitiveDocumentPermission().Resource})
+	submitDocumentInput(t, deniedFixture, ctx, sensitiveDocumentSubmitInput("denied-print", "instance-denied-print"))
+	base.DocumentID = "denied-print"
+	_, err = deniedFixture.documents.Print(ctx, base)
+	assertDocumentCollaborationError(t, err, pluginsdk.DocumentWorkflowErrorForbidden, "sensitivePermission")
+}
+
+func TestDocumentExportSchedulesBoundedDurableJob(t *testing.T) {
+	fixture := newDocumentWorkflowFixture(t)
+	ctx := documentWorkflowUserContext("user-1")
+	input := pluginsdk.DocumentExportInput{
+		JobID: "document-export-1", IdempotencyKey: "document-export-1", Format: pluginsdk.DocumentExportCSV, MaxRows: 1000,
+		Search: pluginsdk.DocumentSearchInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), Types: []string{"approval_request"},
+			SortField: pluginsdk.DocumentSearchSortUpdatedAt, Direction: pluginsdk.DocumentSearchDescending,
+		},
+	}
+	job, err := fixture.documents.Export(ctx, input)
+	if err != nil || job.ID != input.JobID || job.Kind != pluginsdk.DocumentExportJobKind || job.Status != pluginsdk.JobStatusScheduled || job.MaxAttempts != 3 {
+		t.Fatalf("document export job=%+v err=%v", job, err)
+	}
+	var plan pluginsdk.DocumentExportPlan
+	if err = json.Unmarshal(job.Payload, &plan); err != nil || plan.Validate() != nil || plan.MaxRows != input.MaxRows || plan.Search.Limit != pluginsdk.MaxDocumentSearchPage || plan.Actor.ID != "user-1" || plan.SensitiveAuthorized {
+		t.Fatalf("document export plan=%+v err=%v", plan, err)
+	}
+	duplicate, err := fixture.documents.Export(ctx, input)
+	if err != nil || duplicate.ID != job.ID || !duplicate.CreatedAt.Equal(job.CreatedAt) {
+		t.Fatalf("idempotent document export=%+v err=%v", duplicate, err)
+	}
+	freshJobs, err := NewJobService("medical_oa", jobsvc.NewService(gormrepo.NewJobStore(fixture.db), nil), fixture.audit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	persisted, err := freshJobs.Get(ctx, input.JobID)
+	if err != nil || persisted.ID != job.ID || string(persisted.Payload) != string(job.Payload) {
+		t.Fatalf("persisted document export=%+v err=%v", persisted, err)
+	}
+
+	deniedFixture := newDocumentWorkflowFixtureWithScopes(t, documentWorkflowScopes{tenantID: "tenant-a", denyResource: sensitiveDocumentPermission().Resource})
+	input.JobID, input.IdempotencyKey = "sensitive-export", "sensitive-export"
+	input.IncludeSensitive, input.SensitivePermission = true, sensitiveDocumentPermission()
+	_, err = deniedFixture.documents.Export(ctx, input)
+	assertDocumentCollaborationError(t, err, pluginsdk.DocumentWorkflowErrorForbidden, "sensitivePermission")
+}
+
 func TestDocumentWorkflowActionsAndIdempotentDecision(t *testing.T) {
 	fixture := newDocumentWorkflowFixture(t)
 	user1 := documentWorkflowUserContext("user-1")
@@ -433,6 +563,10 @@ func TestDocumentWorkflowInvalidDocumentActionCannotAdvanceWorkflow(t *testing.T
 }
 
 func newDocumentWorkflowFixture(t *testing.T) documentWorkflowFixture {
+	return newDocumentWorkflowFixtureWithScopes(t, documentWorkflowScopes{tenantID: "tenant-a"})
+}
+
+func newDocumentWorkflowFixtureWithScopes(t *testing.T, scopes pluginsdk.DataScopeService) documentWorkflowFixture {
 	t.Helper()
 	dsn := filepath.Join(t.TempDir(), "document-workflow.db") + "?_busy_timeout=5000&_journal_mode=WAL"
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent), TranslateError: true})
@@ -450,6 +584,7 @@ func newDocumentWorkflowFixture(t *testing.T) documentWorkflowFixture {
 		&gormrepo.WorkflowInstanceModel{}, &gormrepo.WorkflowTaskModel{}, &gormrepo.WorkflowActionModel{},
 		&gormrepo.DocumentWorkflowBindingModel{}, &gormrepo.DocumentWorkflowActionModel{},
 		&gormrepo.DocumentAttachmentModel{}, &gormrepo.DocumentCommentModel{}, &gormrepo.DocumentTimelineEventModel{},
+		&gormrepo.JobModel{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -458,9 +593,13 @@ func newDocumentWorkflowFixture(t *testing.T) documentWorkflowFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
+	jobs, err := NewJobService("medical_oa", jobsvc.NewService(gormrepo.NewJobStore(db), nil), audit)
+	if err != nil {
+		t.Fatal(err)
+	}
 	documents, err := NewDocumentWorkflowService(
 		"medical_oa", documentworkflowsvc.NewService(gormrepo.NewDocumentWorkflowStore(db), workflow),
-		documentNumberTestScopes{tenantID: "tenant-a"}, documentWorkflowFiles{}, audit,
+		scopes, documentWorkflowFiles{}, jobs, audit,
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -485,18 +624,22 @@ func newDocumentWorkflowFixture(t *testing.T) documentWorkflowFixture {
 	if _, err = workflow.PublishDefinition(ctx, definition.ID); err != nil {
 		t.Fatal(err)
 	}
-	return documentWorkflowFixture{documents: documents, workflows: workflow, tx: tx, audit: audit}
+	return documentWorkflowFixture{documents: documents, workflows: workflow, tx: tx, audit: audit, jobs: jobs, db: db}
 }
 
 func submitDocument(t *testing.T, fixture documentWorkflowFixture, ctx context.Context, documentID, instanceID string) pluginsdk.DocumentWorkflowResult {
+	return submitDocumentInput(t, fixture, ctx, documentWorkflowSubmitInput(documentID, instanceID))
+}
+
+func submitDocumentInput(t *testing.T, fixture documentWorkflowFixture, ctx context.Context, input pluginsdk.DocumentWorkflowSubmitInput) pluginsdk.DocumentWorkflowResult {
 	t.Helper()
 	var result pluginsdk.DocumentWorkflowResult
 	if err := fixture.tx.Within(ctx, func(tx pluginsdk.Transaction) error {
 		var err error
-		result, err = fixture.documents.Submit(tx.Context(), documentWorkflowSubmitInput(documentID, instanceID))
+		result, err = fixture.documents.Submit(tx.Context(), input)
 		return err
 	}); err != nil {
-		t.Fatalf("submit %s: %v", documentID, err)
+		t.Fatalf("submit %s: %v", input.Draft.ID, err)
 	}
 	return result
 }
@@ -563,6 +706,23 @@ func documentWorkflowSchema() pluginsdk.DocumentSchema {
 
 func documentWorkflowPermission() pluginsdk.Permission {
 	return pluginsdk.Permission{Resource: "medical_oa.approval_request", Action: "manage"}
+}
+
+func sensitiveDocumentPermission() pluginsdk.Permission {
+	return pluginsdk.Permission{Resource: "medical_oa.approval_request_sensitive", Action: "read"}
+}
+
+func sensitiveDocumentSubmitInput(documentID, instanceID string) pluginsdk.DocumentWorkflowSubmitInput {
+	input := documentWorkflowSubmitInput(documentID, instanceID)
+	input.Schema.Header = []pluginsdk.DocumentFieldSchema{
+		{Key: "subject", Label: "Subject", Type: pluginsdk.DocumentFieldString, Required: true, Sensitive: true},
+		{Key: "department", Label: "Department", Type: pluginsdk.DocumentFieldString, Required: true},
+	}
+	input.Draft.Header = map[string]pluginsdk.DocumentValue{
+		"subject":    {Type: pluginsdk.DocumentFieldString, Value: "Supplier qualification"},
+		"department": {Type: pluginsdk.DocumentFieldString, Value: "Quality"},
+	}
+	return input
 }
 
 func documentWorkflowUserContext(subject string) context.Context {

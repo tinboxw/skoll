@@ -15,6 +15,7 @@ type Report struct {
 	DataStore     bool
 	Document      bool
 	Collaboration bool
+	DocumentQuery bool
 	File          bool
 	Audit         bool
 	Config        bool
@@ -126,7 +127,7 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 		TenantID: "tenant-conformance", Permission: pluginsdk.Permission{Resource: "sdk_conformance.approval_request", Action: "manage"},
 		Schema: pluginsdk.DocumentSchema{
 			Key: "approval_request", Name: "Approval Request", Version: 1, InitialState: "draft",
-			Header: []pluginsdk.DocumentFieldSchema{{Key: "subject", Label: "Subject", Type: pluginsdk.DocumentFieldString, Required: true}},
+			Header: []pluginsdk.DocumentFieldSchema{{Key: "subject", Label: "Subject", Type: pluginsdk.DocumentFieldString, Required: true, Sensitive: true}},
 			States: []pluginsdk.DocumentStateSchema{
 				{Key: "draft", Name: "Draft"}, {Key: "pending", Name: "Pending"}, {Key: "approved", Name: "Approved", Terminal: true},
 			},
@@ -194,6 +195,42 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 	}
 	report.Collaboration = true
 	report.Document = true
+	search := pluginsdk.DocumentSearchInput{
+		TenantID: "tenant-conformance", Permission: documentInput.Permission, Types: []string{"approval_request"}, States: []string{"approved"},
+		Text: "SDK", SortField: pluginsdk.DocumentSearchSortNumber, Direction: pluginsdk.DocumentSearchAscending,
+	}
+	documentPage, err := host.Documents.Search(ctx, search)
+	if err != nil || len(documentPage.Items) != 1 || documentPage.Items[0].ID != document.Document.ID {
+		return report, fmt.Errorf("document search contract: %w", err)
+	}
+	printed, err := host.Documents.Print(ctx, pluginsdk.DocumentPrintInput{
+		TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+	})
+	if err != nil || len(printed.RedactedFields) != 1 || printed.RedactedFields[0] != "header.subject" {
+		return report, fmt.Errorf("document redacted print contract: %w", err)
+	}
+	sensitivePermission := pluginsdk.Permission{Resource: "sdk_conformance.approval_request_sensitive", Action: "read"}
+	printed, err = host.Documents.Print(ctx, pluginsdk.DocumentPrintInput{
+		TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+		IncludeSensitive: true, SensitivePermission: sensitivePermission,
+	})
+	if err != nil || printed.Document.Header["subject"].Value != "SDK conformance" || len(printed.RedactedFields) != 0 {
+		return report, fmt.Errorf("document sensitive print contract: %w", err)
+	}
+	exportJob, err := host.Documents.Export(ctx, pluginsdk.DocumentExportInput{
+		JobID: "document-export", IdempotencyKey: "document-export-1", Search: search, Format: pluginsdk.DocumentExportCSV, MaxRows: 1000,
+	})
+	if err != nil || exportJob.Kind != pluginsdk.DocumentExportJobKind {
+		return report, fmt.Errorf("document export schedule contract: %w", err)
+	}
+	leasedExport, err := host.Jobs.LeaseDue(ctx, pluginsdk.JobLeaseInput{WorkerID: "document-export-worker", Limit: 1, LeaseDuration: time.Minute})
+	if err != nil || len(leasedExport) != 1 || leasedExport[0].ID != exportJob.ID {
+		return report, fmt.Errorf("document export lease contract: %w", err)
+	}
+	if _, err = host.Jobs.Complete(ctx, pluginsdk.JobCompleteInput{JobID: exportJob.ID, LeaseToken: leasedExport[0].LeaseToken, Result: json.RawMessage(`{"rows":1}`)}); err != nil {
+		return report, fmt.Errorf("document export complete contract: %w", err)
+	}
+	report.DocumentQuery = true
 	job, err := host.Jobs.Schedule(ctx, pluginsdk.JobScheduleInput{
 		ID: "sync", Kind: "sync", IdempotencyKey: "sync-1", Payload: json.RawMessage(`{"mode":"full"}`), MaxAttempts: 1,
 	})

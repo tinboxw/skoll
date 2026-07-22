@@ -219,6 +219,84 @@ func (s documentWorkflowService) Timeline(ctx context.Context, input pluginsdk.D
 	return
 }
 
+func (s documentWorkflowService) Search(ctx context.Context, input pluginsdk.DocumentSearchInput) (out pluginsdk.DocumentSearchPage, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "search", input, &out)
+	if err == nil {
+		if validateErr := validateDocumentSearchResponse(input, out); validateErr != nil {
+			err = invalidDocumentQueryResponse()
+		}
+	}
+	return
+}
+
+func (s documentWorkflowService) Print(ctx context.Context, input pluginsdk.DocumentPrintInput) (out pluginsdk.DocumentPrintPayload, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "print", input, &out)
+	if err == nil {
+		if validateErr := out.Validate(); validateErr != nil || out.Document.ID != input.DocumentID || input.IncludeSensitive && len(out.RedactedFields) > 0 {
+			err = invalidDocumentQueryResponse()
+		}
+	}
+	return
+}
+
+func (s documentWorkflowService) Export(ctx context.Context, input pluginsdk.DocumentExportInput) (out pluginsdk.Job, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "export", input, &out)
+	if err == nil && (out.ID != input.JobID || out.Kind != pluginsdk.DocumentExportJobKind || out.MaxAttempts != 3 || len(out.Payload) == 0) {
+		err = invalidDocumentQueryResponse()
+	}
+	return
+}
+
+func documentSearchLimit(value int) int {
+	if value == 0 {
+		return 50
+	}
+	return value
+}
+
+func validateDocumentSearchResponse(input pluginsdk.DocumentSearchInput, page pluginsdk.DocumentSearchPage) error {
+	if err := page.Validate(); err != nil || len(page.Items) > documentSearchLimit(input.Limit) {
+		return errors.New("document search page is invalid")
+	}
+	for _, item := range page.Items {
+		if !documentSummaryMatchesSearch(item, input) {
+			return errors.New("document summary does not match the search")
+		}
+	}
+	return nil
+}
+
+func documentSummaryMatchesSearch(item pluginsdk.DocumentSummary, input pluginsdk.DocumentSearchInput) bool {
+	if (len(input.Types) > 0 && !containsDocumentQueryTerm(input.Types, item.Type)) ||
+		(len(input.States) > 0 && !containsDocumentQueryTerm(input.States, item.State)) ||
+		(len(input.CreatedBy) > 0 && !containsDocumentQueryTerm(input.CreatedBy, item.CreatedBy)) {
+		return false
+	}
+	return (input.CreatedFrom == nil || !item.CreatedAt.Before(*input.CreatedFrom)) && (input.CreatedTo == nil || !item.CreatedAt.After(*input.CreatedTo))
+}
+
+func containsDocumentQueryTerm(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func invalidDocumentQueryResponse() error {
+	return pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorUnavailable, "response", "plugin host returned an invalid document query result", true)
+}
+
 func validateDocumentAttachmentResponse(documentID, attachmentID, fileID string, out pluginsdk.DocumentAttachmentResult) error {
 	if err := out.Validate(); err != nil || out.Attachment.DocumentID != documentID || out.Attachment.ID != attachmentID {
 		return invalidDocumentCollaborationResponse()

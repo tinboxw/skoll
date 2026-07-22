@@ -698,3 +698,57 @@ Result: BF2-04 passed. Independent plugins can collaborate on approval-backed bu
 ### Commit
 
 `BF2-04: add document collaboration timeline`
+
+## BF2-05 Add Document Search, Cursor Paging, Print, And Export
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Publish tenant-scoped document discovery, stable keyset paging, permission-aware print snapshots, and bounded durable export plans through the current plugin Host boundary.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public contract | Pass | `DocumentService` exposes validated search, print, and export types with explicit sort, cursor, format, row, sensitive-field, and typed-error bounds |
+| Tenant isolation | Pass | Host authorization constrains every search, print, and export request to exactly one declared tenant before repository or job access; cross-tenant tests fail closed |
+| Search filtering | Pass | SQL search supports bounded type, state, creator, created-time, number/title text, and plugin/tenant filters; `%`, `_`, and `!` are escaped as literal input |
+| Stable cursor | Pass | Keyset paging orders by an allowlisted field plus document ID; the cursor binds the normalized query hash and last key; filter changes invalidate it |
+| Concurrent insertion | Pass | Acceptance inserts a document before the first-page cursor and proves the next page neither repeats nor drifts into the new preceding row |
+| Query projection | Pass | Migration 28 and GORM models persist number, title, creator, and updater projections with scoped updated-time, created-time, number, and type/state indexes |
+| Print policy | Pass | Print deep-copies the document and removes schema fields marked `sensitive` by default; only a separately authorized sensitive permission reveals them |
+| Durable export | Pass | Export freezes the authorized query, actor, format, row bound, and sensitive decision in a `document_export` job capped at 50,000 rows; no synchronous large export path exists |
+| Export idempotency | Pass | Identical job ID/key/input replays the persisted job; a fresh SQL Job service reconstructs the same plan; changed or unauthorized sensitive input fails |
+| Process gateway | Pass | Search, print, and export round-trip through the managed gateway; malformed, mismatched, oversized, or cross-filter responses are rejected as retryable `unavailable` response errors |
+| Public conformance | Pass | `plugins/sdk-conformance` searches, prints redacted and sensitive snapshots, schedules, leases, and completes an export using only public SDK services |
+| Full quality gate | Pass | Focused tests/race, full Go tests/race, vet, CodeGraph impact review, migration review, and diff checks pass |
+| Current-only rule | Pass | No offset compatibility mode, legacy search, alternate export path, dual projection, schema backfill, or fallback exists |
+
+The first gateway conformance run correctly rejected an invalid print fixture whose schema omitted required header fields. The fixture was repaired and the failed suite was rerun. Final review also removed client-side reimplementation of database text collation and number ordering; stability remains proven at the SQL service boundary without introducing MySQL/PostgreSQL false rejections.
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "Document(Query|Search|Print|Export|Workflow|Collaboration)|HostGatewayClientConformance|ThirdPartyPlugin" -count=1
+go test -race ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "Document(Query|Search|Print|Export|Workflow|Collaboration)|HostGatewayClientConformance|ThirdPartyPlugin" -count=1
+go test ./... -count=1
+go test -race ./... -count=1
+go vet ./...
+git diff --check
+codegraph impact DocumentQueryService
+```
+
+Result: BF2-05 passed. Independent plugins can discover approval-backed documents with stable scoped cursors, produce permission-aware print snapshots, and schedule bounded durable exports without owning host tables or bypassing trusted scope.
+
+### Impact Review
+
+- API/OpenAPI: no application HTTP route was added; the managed `documents` capability now exposes `search`, `print`, and `export` through the public client.
+- Permission/audit: every query carries a tenant permission; sensitive fields require a second explicit permission; print and export scheduling emit audit evidence under the verified actor.
+- Migration/seed: the current migration 28 directly defines query projections and indexes for MySQL/PostgreSQL; memory mode migrates the same model; no compatibility migration or seed data exists.
+- Frontend/i18n: no UI changed; BF2-06 can consume stable summaries, cursors, print snapshots, redaction paths, and export job IDs.
+- Documentation: plugin document workflow guide, migration notes, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts, current projections, and current durable jobs only.
+
+### Commit
+
+`BF2-05: add document query and export`

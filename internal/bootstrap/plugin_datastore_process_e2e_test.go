@@ -214,6 +214,15 @@ func (dataStoreE2EDocuments) ListComments(context.Context, pluginsdk.DocumentCol
 func (dataStoreE2EDocuments) Timeline(context.Context, pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
 	return pluginsdk.DocumentTimelinePage{}, nil
 }
+func (dataStoreE2EDocuments) Search(context.Context, pluginsdk.DocumentSearchInput) (pluginsdk.DocumentSearchPage, error) {
+	return pluginsdk.DocumentSearchPage{}, nil
+}
+func (dataStoreE2EDocuments) Print(context.Context, pluginsdk.DocumentPrintInput) (pluginsdk.DocumentPrintPayload, error) {
+	return pluginsdk.DocumentPrintPayload{}, nil
+}
+func (dataStoreE2EDocuments) Export(context.Context, pluginsdk.DocumentExportInput) (pluginsdk.Job, error) {
+	return pluginsdk.Job{}, nil
+}
 
 func (dataStoreE2EDocumentNumbers) Issue(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
 	return pluginsdk.DocumentNumberResult{Number: input.Rule.Prefix + "-000001", Sequence: 1}, nil

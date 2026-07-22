@@ -67,11 +67,11 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 	if deps.DocumentWorkflows == nil {
 		return pluginsdk.HostServices{}, fmt.Errorf("plugin host document workflow repository is required")
 	}
-	documents, err := NewDocumentWorkflowService(pluginID, documentworkflowsvc.NewService(deps.DocumentWorkflows, workflows), deps.DataScopes, files, audit)
+	jobs, err := NewJobService(pluginID, deps.Jobs, audit)
 	if err != nil {
 		return pluginsdk.HostServices{}, err
 	}
-	jobs, err := NewJobService(pluginID, deps.Jobs, audit)
+	documents, err := NewDocumentWorkflowService(pluginID, documentworkflowsvc.NewService(deps.DocumentWorkflows, workflows), deps.DataScopes, files, jobs, audit)
 	if err != nil {
 		return pluginsdk.HostServices{}, err
 	}

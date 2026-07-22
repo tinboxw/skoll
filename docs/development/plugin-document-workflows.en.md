@@ -15,7 +15,7 @@ err := host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
 })
 ```
 
-`Get`, `ListAttachments`, `ListComments`, and `Timeline` are read-only and do not require a transaction. Every operation carries a tenant and permission. The host constrains that tenant against the verified user scope before reading or writing.
+`Get`, `Search`, `Print`, `ListAttachments`, `ListComments`, and `Timeline` are read-only and do not require a transaction. Every operation carries a tenant and permission. The host constrains that tenant against the verified user scope before reading or writing.
 
 ## State And Workflow Binding
 
@@ -48,19 +48,40 @@ err = host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
 
 Document submit and workflow actions carry an idempotency key. Reusing the key with identical actor and input returns the committed result with `duplicate=true`; changing any input returns `conflict`. Decisions also require `expectedVersion`. Collaboration writes use caller-assigned immutable resource IDs and reject duplicate IDs. The repository locks the current binding so document actions and collaboration events receive a serialized timeline position.
 
+## Search, Print, And Export
+
+- `Search` filters only within the authorized plugin and tenant namespace. Type, state, creator, created-time, and literal number/title text filters are bounded. `%` and `_` are ordinary search characters rather than SQL wildcard input.
+- Search orders by `updatedAt`, `createdAt`, or `number`, with document ID as the deterministic tie breaker. The opaque cursor contains the last key and a hash of the normalized query; changing filters or sort invalidates it.
+- `Print` returns one schema, document, workflow snapshot, generation time, and the paths removed by field policy. Fields marked `sensitive` are omitted unless the caller requests them and the host authorizes the separate sensitive permission.
+- `Export` never renders a large result synchronously. It freezes the authorized query, actor, format, row bound, and sensitive-data decision into a durable plugin job of kind `document_export`. A plugin worker leases that job and generates the artifact from the frozen plan.
+
+```go
+page, err := host.Documents.Search(ctx, pluginsdk.DocumentSearchInput{
+    TenantID: tenantID,
+    Permission: pluginsdk.Permission{Resource: "medical_oa.purchase_order", Action: "read"},
+    Types: []string{"purchase_order"},
+    States: []string{"approved"},
+    SortField: pluginsdk.DocumentSearchSortUpdatedAt,
+    Direction: pluginsdk.DocumentSearchDescending,
+    Limit: 50,
+})
+```
+
+Search pages are capped at 200 records and exports at 50,000 records. Export idempotency is enforced by the durable job store, so replaying the same job ID and key returns the same job while changing its plan conflicts.
+
 ## Errors
 
 `DocumentWorkflowError` exposes only current stable codes: `invalid_request`, `forbidden`, `not_found`, `conflict`, `transaction_required`, and `unavailable`. Both in-process and managed-process clients receive the same code, field, message, and retryability contract.
 
 ## Persistence
 
-Migration 28 creates `sk_document_workflow_bindings` and `sk_document_workflow_actions` for MySQL and PostgreSQL. Migration 29 adds attributed attachment links, immutable comments, and append-only timeline events. Timeline rows have no update or delete lifecycle columns and enforce a unique document sequence. Memory mode migrates the same GORM models.
+Migration 28 creates `sk_document_workflow_bindings` and `sk_document_workflow_actions` for MySQL and PostgreSQL. Its binding projection and compound indexes support tenant-scoped keyset search without scanning document JSON. Migration 29 adds attributed attachment links, immutable comments, and append-only timeline events. Timeline rows have no update or delete lifecycle columns and enforce a unique document sequence. Memory mode migrates the same GORM models.
 
 There is one current implementation. No legacy document state path, dual write, compatibility adapter, local plugin workflow, or fallback transaction exists.
 
 ## Verification
 
 ```powershell
-go test ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "DocumentWorkflow|DocumentCollaboration|HostServices|ThirdPartyPlugin" -count=1
-go test -race ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "DocumentWorkflow|DocumentCollaboration|HostServices|ThirdPartyPlugin" -count=1
+go test ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "Document(Query|Search|Print|Export|Workflow|Collaboration)|HostServices|ThirdPartyPlugin" -count=1
+go test -race ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "Document(Query|Search|Print|Export|Workflow|Collaboration)|HostServices|ThirdPartyPlugin" -count=1
 ```

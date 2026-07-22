@@ -75,6 +75,7 @@ type DocumentFieldSchema struct {
 	Label         string                   `json:"label"`
 	Type          DocumentFieldType        `json:"type"`
 	Required      bool                     `json:"required"`
+	Sensitive     bool                     `json:"sensitive,omitempty"`
 	ReferenceType string                   `json:"referenceType,omitempty"`
 	Rules         []DocumentValidationRule `json:"rules,omitempty"`
 }

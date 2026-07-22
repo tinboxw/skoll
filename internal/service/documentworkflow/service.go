@@ -55,6 +55,7 @@ type Repository interface {
 	AddComment(ctx context.Context, key Key, comment pluginsdk.DocumentComment, event pluginsdk.DocumentTimelineEvent) (pluginsdk.DocumentCommentResult, error)
 	ListComments(ctx context.Context, key Key, offset, limit int) ([]pluginsdk.DocumentComment, error)
 	Timeline(ctx context.Context, key Key, afterSequence int64, limit int) (pluginsdk.DocumentTimelinePage, error)
+	Search(ctx context.Context, query SearchQuery) ([]Binding, error)
 }
 
 type Service struct {

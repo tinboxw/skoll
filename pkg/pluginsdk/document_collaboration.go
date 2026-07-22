@@ -16,6 +16,7 @@ const (
 
 type DocumentService interface {
 	DocumentWorkflowService
+	DocumentQueryService
 	AddAttachment(context.Context, DocumentAttachmentAddInput) (DocumentAttachmentResult, error)
 	RemoveAttachment(context.Context, DocumentAttachmentRemoveInput) (DocumentAttachmentResult, error)
 	ListAttachments(context.Context, DocumentCollaborationQueryInput) ([]DocumentAttachment, error)

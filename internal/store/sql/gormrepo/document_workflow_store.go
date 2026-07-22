@@ -94,7 +94,7 @@ func (s *DocumentWorkflowStore) Update(ctx context.Context, binding documentwork
 		return err
 	}
 	result := db.Model(&DocumentWorkflowBindingModel{}).Where(documentWorkflowKey(binding.Key)).Where("version = ?", previousVersion).Updates(map[string]any{
-		"state": row.State, "version": row.Version, "document_json": row.DocumentJSON, "updated_at": row.UpdatedAt,
+		"state": row.State, "version": row.Version, "document_json": row.DocumentJSON, "updated_by": row.UpdatedBy, "updated_at": row.UpdatedAt,
 	})
 	if result.Error != nil {
 		return result.Error
@@ -270,6 +270,56 @@ func (s *DocumentWorkflowStore) Timeline(ctx context.Context, key documentworkfl
 	return pluginsdk.DocumentTimelinePage{Events: events, NextSequence: next, HasMore: hasMore}, nil
 }
 
+func (s *DocumentWorkflowStore) Search(ctx context.Context, query documentworkflowsvc.SearchQuery) ([]documentworkflowsvc.Binding, error) {
+	db := storesql.ResolveDB(ctx, s.db).Where("plugin_id = ? AND tenant_id = ?", query.Key.PluginID, query.Key.TenantID)
+	if len(query.Types) > 0 {
+		db = db.Where("document_type IN ?", query.Types)
+	}
+	if len(query.States) > 0 {
+		db = db.Where("state IN ?", query.States)
+	}
+	if len(query.CreatedBy) > 0 {
+		db = db.Where("created_by IN ?", query.CreatedBy)
+	}
+	if query.Text != "" {
+		term := "%" + escapeDocumentSearchLike(strings.ToLower(query.Text)) + "%"
+		db = db.Where("(LOWER(number) LIKE ? ESCAPE '!' OR LOWER(title) LIKE ? ESCAPE '!')", term, term)
+	}
+	if query.CreatedFrom != nil {
+		db = db.Where("created_at >= ?", *query.CreatedFrom)
+	}
+	if query.CreatedTo != nil {
+		db = db.Where("created_at <= ?", *query.CreatedTo)
+	}
+	column := documentSearchColumn(query.SortField)
+	direction := "ASC"
+	comparator := ">"
+	if query.Direction == pluginsdk.DocumentSearchDescending {
+		direction, comparator = "DESC", "<"
+	}
+	if query.CursorValue != "" {
+		cursor, err := documentSearchCursorValue(query.SortField, query.CursorValue)
+		if err != nil {
+			return nil, err
+		}
+		clauseSQL := fmt.Sprintf("(%s %s ? OR (%s = ? AND document_id > ?))", column, comparator, column)
+		db = db.Where(clauseSQL, cursor, cursor, query.CursorDocumentID)
+	}
+	var rows []DocumentWorkflowBindingModel
+	if err := db.Order(column + " " + direction).Order("document_id ASC").Limit(query.Limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]documentworkflowsvc.Binding, 0, len(rows))
+	for _, row := range rows {
+		binding, err := documentWorkflowBinding(row)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, binding)
+	}
+	return out, nil
+}
+
 func documentWorkflowBindingRow(binding documentworkflowsvc.Binding) (DocumentWorkflowBindingModel, error) {
 	schemaJSON, err := json.Marshal(binding.Schema)
 	if err != nil {
@@ -281,8 +331,10 @@ func documentWorkflowBindingRow(binding documentworkflowsvc.Binding) (DocumentWo
 	}
 	return DocumentWorkflowBindingModel{
 		PluginID: binding.Key.PluginID, TenantID: binding.Key.TenantID, DocumentID: binding.Key.DocumentID,
-		DocumentType: binding.Document.Type, DefinitionID: binding.DefinitionID, WorkflowInstanceID: binding.WorkflowInstanceID,
+		DocumentType: binding.Document.Type, Number: binding.Document.Number, Title: binding.Document.Title,
+		DefinitionID: binding.DefinitionID, WorkflowInstanceID: binding.WorkflowInstanceID,
 		State: binding.Document.State, Version: binding.Document.Version, SchemaJSON: string(schemaJSON), DocumentJSON: string(documentJSON),
+		CreatedBy: binding.Document.Metadata.CreatedBy, UpdatedBy: binding.Document.Metadata.UpdatedBy,
 		CreatedAt: binding.CreatedAt, UpdatedAt: binding.UpdatedAt,
 	}, nil
 }
@@ -299,7 +351,7 @@ func documentWorkflowBinding(row DocumentWorkflowBindingModel) (documentworkflow
 	if err := schema.ValidateRecord(document); err != nil {
 		return documentworkflowsvc.Binding{}, err
 	}
-	if row.DocumentType != document.Type || row.State != document.State || row.Version != document.Version {
+	if row.DocumentType != document.Type || row.Number != document.Number || row.Title != document.Title || row.State != document.State || row.Version != document.Version || row.CreatedBy != document.Metadata.CreatedBy || row.UpdatedBy != document.Metadata.UpdatedBy {
 		return documentworkflowsvc.Binding{}, errors.New("document workflow binding columns do not match the stored document")
 	}
 	return documentworkflowsvc.Binding{
@@ -406,6 +458,34 @@ func isDocumentWorkflowDuplicate(err error) bool {
 
 func documentWorkflowKey(key documentworkflowsvc.Key) map[string]any {
 	return map[string]any{"plugin_id": key.PluginID, "tenant_id": key.TenantID, "document_id": key.DocumentID}
+}
+
+func documentSearchColumn(field pluginsdk.DocumentSearchSortField) string {
+	switch field {
+	case pluginsdk.DocumentSearchSortCreatedAt:
+		return "created_at"
+	case pluginsdk.DocumentSearchSortNumber:
+		return "number"
+	default:
+		return "updated_at"
+	}
+}
+
+func documentSearchCursorValue(field pluginsdk.DocumentSearchSortField, value string) (any, error) {
+	if field == pluginsdk.DocumentSearchSortNumber {
+		return value, nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return nil, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorInvalidRequest, "cursor", "document search cursor timestamp is invalid", false)
+	}
+	return parsed, nil
+}
+
+func escapeDocumentSearchLike(value string) string {
+	value = strings.ReplaceAll(value, "!", "!!")
+	value = strings.ReplaceAll(value, "%", "!%")
+	return strings.ReplaceAll(value, "_", "!_")
 }
 
 var _ documentworkflowsvc.Repository = (*DocumentWorkflowStore)(nil)

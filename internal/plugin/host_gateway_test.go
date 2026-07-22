@@ -145,6 +145,31 @@ func (gatewayDocuments) ListComments(_ context.Context, input pluginsdk.Document
 func (gatewayDocuments) Timeline(_ context.Context, input pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
 	return pluginsdk.DocumentTimelinePage{Events: []pluginsdk.DocumentTimelineEvent{{ID: "event-1", Sequence: 1, DocumentID: input.DocumentID, Kind: pluginsdk.DocumentTimelineAction, Action: "submit", Actor: gatewayDocumentActor(), OccurredAt: gatewayDocumentTime()}}, NextSequence: 1}, nil
 }
+func (gatewayDocuments) Search(_ context.Context, _ pluginsdk.DocumentSearchInput) (pluginsdk.DocumentSearchPage, error) {
+	return pluginsdk.DocumentSearchPage{Items: []pluginsdk.DocumentSummary{{
+		ID: "work-order-1", Type: "work_order", Number: "WO-000001", Title: "Gateway work order", State: "pending", Version: 1,
+		CreatedAt: gatewayDocumentTime(), UpdatedAt: gatewayDocumentTime(), CreatedBy: "user-7", UpdatedBy: "user-7",
+	}}}, nil
+}
+func (gatewayDocuments) Print(_ context.Context, input pluginsdk.DocumentPrintInput) (pluginsdk.DocumentPrintPayload, error) {
+	return pluginsdk.DocumentPrintPayload{
+		Schema:   gatewayDocumentSchema(),
+		Document: pluginsdk.DocumentRecord{ID: input.DocumentID, Type: "work_order", SchemaVersion: 1},
+		Workflow: pluginsdk.WorkflowInstance{ID: "instance-1", BusinessID: input.DocumentID}, GeneratedAt: gatewayDocumentTime(),
+	}, nil
+}
+func (gatewayDocuments) Export(_ context.Context, input pluginsdk.DocumentExportInput) (pluginsdk.Job, error) {
+	return pluginsdk.Job{ID: input.JobID, Kind: pluginsdk.DocumentExportJobKind, Payload: []byte(`{}`), MaxAttempts: 3}, nil
+}
+
+func gatewayDocumentSchema() pluginsdk.DocumentSchema {
+	return pluginsdk.DocumentSchema{
+		Key: "work_order", Name: "Work Order", Version: 1, InitialState: "draft",
+		Header:  []pluginsdk.DocumentFieldSchema{{Key: "subject", Label: "Subject", Type: pluginsdk.DocumentFieldString, Required: true}},
+		States:  []pluginsdk.DocumentStateSchema{{Key: "draft", Name: "Draft"}, {Key: "pending", Name: "Pending"}, {Key: "approved", Name: "Approved", Terminal: true}},
+		Actions: []pluginsdk.DocumentActionSchema{{Key: "submit", Name: "Submit", From: []string{"draft"}, To: "pending"}, {Key: "approve", Name: "Approve", From: []string{"pending"}, To: "approved"}},
+	}
+}
 func (gatewayDocumentWorkflowFailure) AddAttachment(context.Context, pluginsdk.DocumentAttachmentAddInput) (pluginsdk.DocumentAttachmentResult, error) {
 	return pluginsdk.DocumentAttachmentResult{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "fileId", "file access denied", false)
 }
@@ -162,6 +187,15 @@ func (gatewayDocumentWorkflowFailure) ListComments(context.Context, pluginsdk.Do
 }
 func (gatewayDocumentWorkflowFailure) Timeline(context.Context, pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
 	return pluginsdk.DocumentTimelinePage{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorNotFound, "documentId", "document not found", false)
+}
+func (gatewayDocumentWorkflowFailure) Search(context.Context, pluginsdk.DocumentSearchInput) (pluginsdk.DocumentSearchPage, error) {
+	return pluginsdk.DocumentSearchPage{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "tenantId", "tenant access denied", false)
+}
+func (gatewayDocumentWorkflowFailure) Print(context.Context, pluginsdk.DocumentPrintInput) (pluginsdk.DocumentPrintPayload, error) {
+	return pluginsdk.DocumentPrintPayload{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "sensitivePermission", "sensitive fields denied", false)
+}
+func (gatewayDocumentWorkflowFailure) Export(context.Context, pluginsdk.DocumentExportInput) (pluginsdk.Job, error) {
+	return pluginsdk.Job{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorConflict, "jobId", "export job conflict", false)
 }
 
 func (gatewayDocumentNumberFailure) Issue(context.Context, pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
@@ -352,6 +386,20 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	}
 	if removed, removeErr := services.Documents.RemoveAttachment(ctx, pluginsdk.DocumentAttachmentRemoveInput{TenantID: "tenant-a", Permission: documentPermission, DocumentID: "work-order-1", AttachmentID: "attachment-1"}); removeErr != nil || removed.Event.Sequence != 4 {
 		t.Fatalf("document attachment removal=%+v err=%v", removed, removeErr)
+	}
+	searchInput := pluginsdk.DocumentSearchInput{
+		TenantID: "tenant-a", Permission: documentPermission, Types: []string{"work_order"}, States: []string{"pending"}, Text: "Gateway",
+		SortField: pluginsdk.DocumentSearchSortNumber, Direction: pluginsdk.DocumentSearchAscending,
+	}
+	if page, searchErr := services.Documents.Search(ctx, searchInput); searchErr != nil || len(page.Items) != 1 || page.Items[0].ID != "work-order-1" {
+		t.Fatalf("document search=%+v err=%v", page, searchErr)
+	}
+	if payload, printErr := services.Documents.Print(ctx, pluginsdk.DocumentPrintInput{TenantID: "tenant-a", Permission: documentPermission, DocumentID: "work-order-1"}); printErr != nil || payload.Document.ID != "work-order-1" {
+		t.Fatalf("document print=%+v err=%v", payload, printErr)
+	}
+	exportInput := pluginsdk.DocumentExportInput{JobID: "export-1", IdempotencyKey: "export-1", Search: searchInput, Format: pluginsdk.DocumentExportCSV, MaxRows: 1000}
+	if job, exportErr := services.Documents.Export(ctx, exportInput); exportErr != nil || job.ID != exportInput.JobID || job.Kind != pluginsdk.DocumentExportJobKind {
+		t.Fatalf("document export=%+v err=%v", job, exportErr)
 	}
 	if result, mutateErr := services.DataStore.Mutate(ctx, pluginsdk.DataMutation{
 		Table: "assets", Operation: pluginsdk.DataMutationDelete,

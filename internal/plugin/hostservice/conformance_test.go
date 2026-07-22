@@ -82,7 +82,7 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SDK conformance error: %v", err)
 	}
-	if !report.Transaction || !report.Scope || !report.DataStore || !report.Document || !report.Collaboration || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
+	if !report.Transaction || !report.Scope || !report.DataStore || !report.Document || !report.Collaboration || !report.DocumentQuery || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
 		t.Fatalf("incomplete SDK conformance report: %+v", report)
 	}
 }
