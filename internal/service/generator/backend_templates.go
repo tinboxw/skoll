@@ -77,6 +77,10 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderPluginFrontendView(spec)
 	case "plugin.acceptance.test":
 		return formatGoTemplate(renderPluginAcceptanceTest(spec))
+	case "plugin.command.powershell":
+		return renderPluginPowerShellCommand(spec)
+	case "plugin.command.shell":
+		return renderPluginShellCommand(spec)
 	case "plugin.readme":
 		return renderPluginREADME(spec)
 	default:
@@ -588,14 +592,69 @@ Generated business plugin for %s.
 - Lifecycle: %s rollback and %s uninstall policies are declared in the current manifest.
 - UI: API client, Pinia store, responsive list/form page, loading/error/save states, and permission-gated actions.
 - Acceptance: plugin manifest contract test.
+- Tooling: deterministic package, SHA-256 verification, package installation, and local development commands.
 
-## Verification
+## Commands
 
 `+"```powershell"+`
-go test ./internal/domain/generator/... ./internal/service/generator/...
-cd web; npm run build
+./plugin.ps1 package
+./plugin.ps1 verify
+./plugin.ps1 dev
 `+"```"+`
+
+`+"```bash"+`
+sh ./plugin.sh package
+sh ./plugin.sh verify
+sh ./plugin.sh dev
+`+"```"+`
+
+Both `+"`dev`"+` and `+"`install`"+` verify and extract the same current package before the runtime loader installs it.
 `, spec.Plugin.Name, spec.Table.CollectionName, spec.Table.Name, spec.Plugin.RollbackPolicy, spec.Plugin.UninstallPolicy)
+}
+
+func renderPluginPowerShellCommand(spec domaingenerator.GeneratorSpec) string {
+	return fmt.Sprintf(`param(
+    [ValidateSet("package", "verify", "install", "dev")]
+    [string]$Action = "package",
+    [string]$DistDir = (Join-Path $PSScriptRoot "dist"),
+    [string]$PluginsRoot = (Join-Path $PSScriptRoot ".skoll-dev")
+)
+
+$ErrorActionPreference = "Stop"
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
+$Tool = Join-Path $RepoRoot "cmd/skoll-plugin"
+$Artifact = Join-Path $DistDir "%s-%s.zip"
+$Checksum = "$Artifact.sha256"
+
+switch ($Action) {
+    "package" { go run $Tool package $PSScriptRoot $DistDir }
+    "verify" { go run $Tool verify-package $Artifact $Checksum }
+    "install" { go run $Tool install-package $Artifact $Checksum $PluginsRoot }
+    "dev" { go run $Tool dev $PSScriptRoot $DistDir $PluginsRoot }
+}
+`, spec.Plugin.ID, spec.Plugin.Version)
+}
+
+func renderPluginShellCommand(spec domaingenerator.GeneratorSpec) string {
+	return fmt.Sprintf(`#!/usr/bin/env sh
+set -eu
+
+action="${1:-package}"
+plugin_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+repo_root=$(CDPATH= cd -- "$plugin_dir/../../.." && pwd)
+dist_dir="${SKOLL_PLUGIN_DIST:-$plugin_dir/dist}"
+plugins_root="${SKOLL_DEV_PLUGINS_ROOT:-$plugin_dir/.skoll-dev}"
+artifact="$dist_dir/%s-%s.zip"
+checksum="$artifact.sha256"
+
+case "$action" in
+  package) go run "$repo_root/cmd/skoll-plugin" package "$plugin_dir" "$dist_dir" ;;
+  verify) go run "$repo_root/cmd/skoll-plugin" verify-package "$artifact" "$checksum" ;;
+  install) go run "$repo_root/cmd/skoll-plugin" install-package "$artifact" "$checksum" "$plugins_root" ;;
+  dev) go run "$repo_root/cmd/skoll-plugin" dev "$plugin_dir" "$dist_dir" "$plugins_root" ;;
+  *) echo "usage: $0 {package|verify|install|dev}" >&2; exit 2 ;;
+esac
+`, spec.Plugin.ID, spec.Plugin.Version)
 }
 
 func renderService(spec domaingenerator.GeneratorSpec) string {

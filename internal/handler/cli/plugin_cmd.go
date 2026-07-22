@@ -81,6 +81,26 @@ func (c *PluginCommand) Handle(_ context.Context, args []string) (string, error)
 			appID = args[4]
 		}
 		return c.handleScaffold(args[1], args[2], args[3], appID)
+	case "package":
+		if len(args) != 3 {
+			return "", fmt.Errorf("usage: package <pluginDir> <outputDir>")
+		}
+		return c.handlePackage(args[1], args[2])
+	case "verify-package":
+		if len(args) != 3 {
+			return "", fmt.Errorf("usage: verify-package <artifactPath> <checksumPath>")
+		}
+		return c.handleVerifyPackage(args[1], args[2])
+	case "install-package":
+		if len(args) != 4 {
+			return "", fmt.Errorf("usage: install-package <artifactPath> <checksumPath> <pluginsRoot>")
+		}
+		return c.handleInstallPackage(args[1], args[2], args[3])
+	case "dev":
+		if len(args) != 4 {
+			return "", fmt.Errorf("usage: dev <pluginDir> <outputDir> <pluginsRoot>")
+		}
+		return c.handleDev(args[1], args[2], args[3])
 	case "migrate":
 		if len(args) < 3 {
 			return "", fmt.Errorf("usage: migrate <pluginDir> <plan|apply|rollback> [steps]")
@@ -97,6 +117,53 @@ func (c *PluginCommand) Handle(_ context.Context, args []string) (string, error)
 	default:
 		return "", fmt.Errorf("unsupported plugin subcommand: %s", args[0])
 	}
+}
+
+func (c *PluginCommand) handlePackage(pluginDir, outputDir string) (string, error) {
+	result, err := plugin.BuildPackage(pluginDir, outputDir, c.loader)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("packaged id=%s version=%s artifact=%s checksum=%s sha256=%s", result.PluginID, result.Version, result.ArtifactPath, result.ChecksumPath, result.SHA256), nil
+}
+
+func (c *PluginCommand) handleVerifyPackage(artifactPath, checksumPath string) (string, error) {
+	digest, err := plugin.VerifyPackage(artifactPath, checksumPath)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("verified artifact=%s sha256=%s", artifactPath, digest), nil
+}
+
+func (c *PluginCommand) handleInstallPackage(artifactPath, checksumPath, pluginsRoot string) (string, error) {
+	if c == nil || c.manager == nil {
+		return "", fmt.Errorf("plugin manager not configured")
+	}
+	installedDir, extracted, err := plugin.InstallPackage(artifactPath, checksumPath, pluginsRoot, c.loader)
+	if err != nil {
+		return "", err
+	}
+	installed, err := c.manager.Install(installedDir)
+	if err != nil {
+		_ = os.RemoveAll(installedDir)
+		return "", err
+	}
+	if installed.ID == "" {
+		installed = extracted
+	}
+	return fmt.Sprintf("installed id=%s version=%s path=%s", installed.ID, installed.Version, installedDir), nil
+}
+
+func (c *PluginCommand) handleDev(pluginDir, outputDir, pluginsRoot string) (string, error) {
+	result, err := plugin.BuildPackage(pluginDir, outputDir, c.loader)
+	if err != nil {
+		return "", err
+	}
+	installed, err := c.handleInstallPackage(result.ArtifactPath, result.ChecksumPath, pluginsRoot)
+	if err != nil {
+		return "", err
+	}
+	return "dev " + installed + " artifact=" + result.ArtifactPath, nil
 }
 
 func (c *PluginCommand) handleList() string {

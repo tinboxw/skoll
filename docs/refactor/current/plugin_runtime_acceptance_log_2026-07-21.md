@@ -1416,3 +1416,76 @@ Result: all acceptance gates passed after five documented retries. Generated fro
 ### Commit
 
 `PR3-04: generate Element Plus frontend workflows`
+
+## PR3-05 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: manual package/install smoke command
+- Evidence: the acceptance command hard-coded demo version `1.0.0`, while the current manifest generated `demo-0.2.0.zip`; packaging succeeded and checksum verification correctly rejected the nonexistent path.
+- Retry action: resolve the current artifact from the isolated output directory and restart the complete package, verify, install, and dev sequence.
+
+## PR3-05 Retry Record 2
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: manual package/install smoke command
+- Evidence: Windows PowerShell rejected the unsupported `Select-Object -Single` parameter before checksum verification.
+- Retry action: use `Select-Object -First 1` for the isolated single-artifact directory and restart the complete sequence.
+
+## PR3-05 Generate Packaging And Local Development Commands
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Generate executable PowerShell and Unix plugin commands backed by one deterministic, checksummed, path-safe package contract shared by CLI, developer portal, formal installation, and local development.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Generated commands | Pass | Each generated plugin gains `plugin.ps1` and `plugin.sh` commands for package, verify, install, and dev operations |
+| Deterministic package | Pass | Sorted files, fixed ZIP metadata, stable modes, and repeated builds produce the same SHA-256 digest |
+| Current manifest validation | Pass | Source, extracted staging directory, and published install directory are all accepted by the current `plugin.yaml` loader |
+| Checksum contract | Pass | Every ZIP has a strict `<artifact>.sha256` sidecar; missing, malformed, renamed, and tampered artifacts fail verification |
+| Safe extraction | Pass | Absolute paths, traversal, backslashes, symlinks, duplicate targets, oversized files, and oversized packages fail closed |
+| Runtime assets | Pass | Built frontend `dist` assets are packaged while `.git`, `node_modules`, and in-source package output are excluded |
+| Formal install | Pass | `install-package` verifies, stages, validates, atomically publishes, and passes the resulting directory to `RuntimeManager.Install` |
+| Development install | Pass after retry | `dev` invokes the same build, checksum, extraction, loader, and manager chain as formal installation |
+| Developer portal | Pass | Dev package and pipeline endpoints use `BuildPackage`, return checksum evidence, and no longer retain a direct ZIP implementation |
+| CLI smoke | Pass after retry | The demo plugin packages, verifies, installs, and dev-installs in isolated roots; both installed manifests exist |
+| Regression | Pass | Focused race suites, full `go test ./...`, and `go vet ./...` pass |
+| Current-only architecture | Pass | One package shape and one install chain remain; no legacy archive parser, direct-source dev install, compatibility flag, or fallback path was added |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin ./internal/handler/cli ./internal/service/generator ./internal/handler/http/v1/plugin ./cmd/skoll-plugin
+go test -race ./internal/plugin ./internal/handler/cli ./internal/service/generator ./internal/handler/http/v1/plugin -count=1
+go run ./cmd/skoll-plugin package plugins/demo <isolated-dist>
+go run ./cmd/skoll-plugin verify-package <artifact> <artifact.sha256>
+go run ./cmd/skoll-plugin install-package <artifact> <artifact.sha256> <isolated-plugins-root>
+go run ./cmd/skoll-plugin dev plugins/demo <isolated-dev-dist> <isolated-dev-plugins-root>
+go test ./... -count=1
+go vet ./...
+codegraph sync .
+codegraph impact BuildPackage
+codegraph impact InstallPackage
+codegraph impact buildCandidates
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after two documented command retries. Generated plugins now expose reproducible package workflows, all package entry points emit and enforce the same checksum contract, and local development installs the exact artifact shape consumed by the runtime instead of using a separate source-directory path.
+
+### Impact Review
+
+- Package core: deterministic archive construction and guarded extraction are centralized in `internal/plugin/package.go`.
+- Runtime CLI: `cmd/skoll-plugin` and plugin CLI handlers expose package, verify, install, and dev commands without starting the host server.
+- Developer portal: package and pipeline endpoints now return the artifact path, checksum path, and SHA-256 digest from the centralized builder.
+- Generator: plugin candidates include cross-platform command files and README instructions that state the shared installed/dev contract.
+- Testing: package determinism, tamper rejection, traversal rejection, CLI parity, HTTP checksum evidence, generator output, and full regressions are covered.
+
+### Commit
+
+`PR3-05: generate plugin packaging commands`

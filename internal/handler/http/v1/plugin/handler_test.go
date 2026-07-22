@@ -774,6 +774,12 @@ func TestPluginHandlerDevPortalConfigProjectsRemoveAndPackage(t *testing.T) {
 	if _, err := os.Stat(packageBody.Data.ArtifactPath); err != nil {
 		t.Fatalf("expected artifact file, got err=%v", err)
 	}
+	if _, err := os.Stat(packageBody.Data.ChecksumPath); err != nil || len(packageBody.Data.SHA256) != 64 {
+		t.Fatalf("expected checksum sidecar and digest, response=%+v error=%v", packageBody.Data, err)
+	}
+	if digest, err := plugin.VerifyPackage(packageBody.Data.ArtifactPath, packageBody.Data.ChecksumPath); err != nil || digest != packageBody.Data.SHA256 {
+		t.Fatalf("package response is not verifiable: digest=%s error=%v", digest, err)
+	}
 
 	removePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"dev-work","removeFiles":true}`)
 	removeReq := httptest.NewRequest(http.MethodPost, "/v1/plugins/dev/remove", bytes.NewReader(removePayload))
@@ -1127,8 +1133,8 @@ func TestPluginHandlerDevPortalReleaseOrderFlow(t *testing.T) {
 	if err := json.Unmarshal(packageResp.Body.Bytes(), &packageBody); err != nil {
 		t.Fatalf("decode package response: %v", err)
 	}
-	if strings.TrimSpace(packageBody.Data.ArtifactPath) == "" {
-		t.Fatalf("expected artifact path in package response")
+	if strings.TrimSpace(packageBody.Data.ArtifactPath) == "" || strings.TrimSpace(packageBody.Data.ChecksumPath) == "" || len(packageBody.Data.SHA256) != 64 {
+		t.Fatalf("expected artifact and checksum in package response: %+v", packageBody.Data)
 	}
 
 	executePayload := []byte(`{"pluginsRoot":"` + filepath.ToSlash(pluginsRoot) + `","pluginId":"release-demo","targetEnv":"staging","artifactPath":"` + filepath.ToSlash(packageBody.Data.ArtifactPath) + `"}`)

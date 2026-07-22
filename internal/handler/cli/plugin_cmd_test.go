@@ -240,6 +240,51 @@ func TestPluginCommandScaffold(t *testing.T) {
 	}
 }
 
+func TestPluginCommandPackageInstallAndDevUseSameContract(t *testing.T) {
+	writePlugin := func(root, id string) string {
+		dir := filepath.Join(root, id)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		manifest := "id: " + id + "\nname: " + id + "\nversion: 1.0.0\n"
+		if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return dir
+	}
+	loader := plugin.NewFileLoader()
+	manager := plugin.NewRuntimeManager(loader, plugin.NewTopologicalResolver())
+	cmd := NewPluginCommand(manager, loader, "")
+
+	packageSource := writePlugin(t.TempDir(), "packaged")
+	dist := filepath.Join(t.TempDir(), "dist")
+	packageOut, err := cmd.Handle(context.Background(), []string{"package", packageSource, dist})
+	if err != nil || !strings.Contains(packageOut, "packaged id=packaged") || !strings.Contains(packageOut, "sha256=") {
+		t.Fatalf("package output=%q error=%v", packageOut, err)
+	}
+	artifact := filepath.Join(dist, "packaged-1.0.0.zip")
+	checksum := artifact + ".sha256"
+	verifyOut, err := cmd.Handle(context.Background(), []string{"verify-package", artifact, checksum})
+	if err != nil || !strings.Contains(verifyOut, "verified artifact=") {
+		t.Fatalf("verify output=%q error=%v", verifyOut, err)
+	}
+	installRoot := filepath.Join(t.TempDir(), "plugins")
+	installOut, err := cmd.Handle(context.Background(), []string{"install-package", artifact, checksum, installRoot})
+	if err != nil || !strings.Contains(installOut, "installed id=packaged") {
+		t.Fatalf("install output=%q error=%v", installOut, err)
+	}
+
+	devSource := writePlugin(t.TempDir(), "development")
+	devOut, err := cmd.Handle(context.Background(), []string{"dev", devSource, filepath.Join(t.TempDir(), "dist"), filepath.Join(t.TempDir(), "plugins")})
+	if err != nil || !strings.Contains(devOut, "dev installed id=development") || !strings.Contains(devOut, "artifact=") {
+		t.Fatalf("dev output=%q error=%v", devOut, err)
+	}
+	devInfo, err := manager.Get("development")
+	if err != nil || devInfo.Source == devSource || !strings.Contains(filepath.ToSlash(devInfo.Source), "/plugins/development") {
+		t.Fatalf("dev must install the packaged contract: info=%+v error=%v", devInfo, err)
+	}
+}
+
 func TestPluginCommandMigrateLifecycle(t *testing.T) {
 	tmp := t.TempDir()
 	pluginDir := filepath.Join(tmp, "oa")
@@ -301,6 +346,12 @@ func TestPluginCommandUsageErrors(t *testing.T) {
 	_, err = cmd.Handle(context.Background(), []string{"scaffold", "plugins"})
 	if err == nil || !strings.Contains(err.Error(), "usage: scaffold") {
 		t.Fatalf("expected scaffold usage error, got: %v", err)
+	}
+
+	for _, args := range [][]string{{"package"}, {"verify-package"}, {"install-package"}, {"dev"}} {
+		if _, err = cmd.Handle(context.Background(), args); err == nil || !strings.Contains(err.Error(), "usage:") {
+			t.Fatalf("expected usage error for %v, got: %v", args, err)
+		}
 	}
 
 	_, err = cmd.Handle(context.Background(), []string{"migrate", "plugins"})

@@ -220,6 +220,8 @@ func buildCandidates(spec domaingenerator.GeneratorSpec, migrationTimestamp stri
 			candidate("plugin.frontend.route", fmt.Sprintf("%s/web/src/router/generated_%s.ts", pluginRoot, module), spec),
 			candidate("plugin.frontend.view", fmt.Sprintf("%s/web/src/views/%s/index.vue", pluginRoot, domainName), spec),
 			candidate("plugin.acceptance.test", pluginRoot+"/plugin_acceptance_test.go", spec),
+			candidate("plugin.command.powershell", pluginRoot+"/plugin.ps1", spec),
+			candidate("plugin.command.shell", pluginRoot+"/plugin.sh", spec),
 			candidate("plugin.readme", pluginRoot+"/README.md", spec),
 		)
 	}

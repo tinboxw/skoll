@@ -1,7 +1,6 @@
 package plugin
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -283,6 +282,8 @@ type devPackageProjectResponse struct {
 	PluginID     string `json:"pluginId"`
 	PluginDir    string `json:"pluginDir"`
 	ArtifactPath string `json:"artifactPath"`
+	ChecksumPath string `json:"checksumPath"`
+	SHA256       string `json:"sha256"`
 }
 
 type devManifestResponse struct {
@@ -1513,12 +1514,12 @@ func (h *PluginHandler) devPipeline(w http.ResponseWriter, r *http.Request) {
 
 		if pipeStatus == "ok" {
 			stepStart = time.Now()
-			artifactPath := filepath.Join(artifactDir, fmt.Sprintf("%s-%s.zip", info.ID, strings.TrimSpace(info.Version)))
-			if err := zipDirectory(pluginDir, artifactPath); err != nil {
+			packageResult, err := plugin.BuildPackage(pluginDir, artifactDir, h.loader)
+			if err != nil {
 				steps = append(steps, devPipelineStep{Name: "package", Status: "failed", Message: err.Error(), DurationMs: time.Since(stepStart).Milliseconds()})
 				pipeStatus = "failed"
 			} else {
-				steps = append(steps, devPipelineStep{Name: "package", Status: "ok", Artifact: artifactPath, DurationMs: time.Since(stepStart).Milliseconds()})
+				steps = append(steps, devPipelineStep{Name: "package", Status: "ok", Artifact: packageResult.ArtifactPath, Message: packageResult.ChecksumPath, DurationMs: time.Since(stepStart).Milliseconds()})
 			}
 		}
 	}
@@ -1711,20 +1712,22 @@ func (h *PluginHandler) devPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	artifactPath := filepath.Join(outputDir, fmt.Sprintf("%s-%s.zip", info.ID, strings.TrimSpace(info.Version)))
-	if err := zipDirectory(pluginDir, artifactPath); err != nil {
+	packageResult, err := plugin.BuildPackage(pluginDir, outputDir, h.loader)
+	if err != nil {
 		apiv1.WriteError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	h.appendAudit(r, "dev_package", "plugin", info.ID, map[string]any{"pluginsRoot": pluginsRoot, "artifactPath": artifactPath})
+	h.appendAudit(r, "dev_package", "plugin", info.ID, map[string]any{"pluginsRoot": pluginsRoot, "artifactPath": packageResult.ArtifactPath, "sha256": packageResult.SHA256})
 	apiv1.WriteJSON(w, http.StatusOK, devPackageProjectResponse{
 		Operation:    "package",
 		Status:       "ok",
 		PluginsRoot:  pluginsRoot,
 		PluginID:     info.ID,
 		PluginDir:    pluginDir,
-		ArtifactPath: artifactPath,
+		ArtifactPath: packageResult.ArtifactPath,
+		ChecksumPath: packageResult.ChecksumPath,
+		SHA256:       packageResult.SHA256,
 	})
 }
 
@@ -2007,57 +2010,6 @@ func fileExists(path string) bool {
 		return !stat.IsDir()
 	}
 	return false
-}
-
-func zipDirectory(sourceDir, zipPath string) error {
-	file, err := os.Create(zipPath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := zip.NewWriter(file)
-	defer writer.Close()
-
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		rel, err := filepath.Rel(sourceDir, path)
-		if err != nil {
-			return err
-		}
-		if rel == "." {
-			return nil
-		}
-		name := info.Name()
-		if info.IsDir() {
-			if name == ".git" || name == "node_modules" || name == "dist" || name == "build" {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-
-		rel = filepath.ToSlash(rel)
-		header, err := zip.FileInfoHeader(info)
-		if err != nil {
-			return err
-		}
-		header.Name = rel
-		header.Method = zip.Deflate
-		entryWriter, err := writer.CreateHeader(header)
-		if err != nil {
-			return err
-		}
-
-		src, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer src.Close()
-		_, err = io.Copy(entryWriter, src)
-		return err
-	})
 }
 
 func renderScaffoldManifest(info plugin.Info) string {

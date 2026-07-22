@@ -283,6 +283,8 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/i18n/generated_product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/router/generated_product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.ps1", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.sh", FileStatusCreate)
 	testPlan := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin_acceptance_test.go")
 	if _, err := parser.ParseFile(token.NewFileSet(), testPlan.Path, testPlan.GeneratedContent, parser.AllErrors); err != nil {
 		t.Fatalf("generated plugin acceptance test is invalid: %v\n%s", err, testPlan.GeneratedContent)
@@ -321,6 +323,16 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 	view := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue").GeneratedContent
 	if !strings.Contains(view, "plugin-generated-page") || !strings.Contains(view, "v-permission=\"createPermission\"") {
 		t.Fatalf("plugin frontend view content = %q", view)
+	}
+	powerShell := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin.ps1").GeneratedContent
+	for _, marker := range []string{"verify-package", "install-package", "cmd/skoll-plugin", "pharma-oa-1.0.0.zip"} {
+		if !strings.Contains(filepath.ToSlash(powerShell), marker) {
+			t.Fatalf("plugin PowerShell command missing %q\n%s", marker, powerShell)
+		}
+	}
+	shell := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin.sh").GeneratedContent
+	if !strings.Contains(shell, `dev) go run "$repo_root/cmd/skoll-plugin" dev`) {
+		t.Fatalf("plugin shell command does not use package-backed dev flow\n%s", shell)
 	}
 }
 
