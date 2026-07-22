@@ -27,14 +27,36 @@ function normalizeWebBasePath(raw: string): string {
 	return normalized === "" ? "/" : normalized;
 }
 
-export default defineConfig(({ mode, command }) => {
+export default defineConfig(({ mode, command, isPreview }) => {
 	const env = loadEnv(mode, process.cwd(), "SKOLL_");
 	const proxyTarget = (env.SKOLL_API_PROXY_TARGET || "http://127.0.0.1:8080").trim();
 	const proxyTimeout = Number.parseInt(env.SKOLL_API_PROXY_TIMEOUT_MS || "10000", 10);
 	const apiBasePrefix = normalizeAPIPrefix(env.SKOLL_API_BASE_PREFIX || "/skoll");
 	const webBasePath = normalizeWebBasePath(env.SKOLL_WEB_BASE_PATH || "/skoll");
 	const viteBase = webBasePath === "/" ? "/" : `${webBasePath}/`;
-	const effectiveBase = command === "build" ? viteBase : "/";
+	const effectiveBase = command === "build" || isPreview ? viteBase : "/";
+	const proxy = {
+		[`${apiBasePrefix}/v1`]: {
+			target: proxyTarget,
+			changeOrigin: true,
+			timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
+		},
+		[`${apiBasePrefix}/health`]: {
+			target: proxyTarget,
+			changeOrigin: true,
+			timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
+		},
+		[`${apiBasePrefix}/ready`]: {
+			target: proxyTarget,
+			changeOrigin: true,
+			timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
+		},
+		[`${apiBasePrefix}/docs`]: {
+			target: proxyTarget,
+			changeOrigin: true,
+			timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
+		}
+	};
 
 	return {
 		base: effectiveBase,
@@ -56,30 +78,15 @@ export default defineConfig(({ mode, command }) => {
 		server: {
 			host: "0.0.0.0",
 			port: 5173,
-			proxy: {
-				[`${apiBasePrefix}/v1`]: {
-					target: proxyTarget,
-					changeOrigin: true,
-					timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
-				},
-				[`${apiBasePrefix}/health`]: {
-					target: proxyTarget,
-					changeOrigin: true,
-					timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
-				},
-				[`${apiBasePrefix}/ready`]: {
-					target: proxyTarget,
-					changeOrigin: true,
-					timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
-				},
-				[`${apiBasePrefix}/docs`]: {
-					target: proxyTarget,
-					changeOrigin: true,
-					timeout: Number.isFinite(proxyTimeout) ? proxyTimeout : 10000
-				}
-			}
+			proxy
+		},
+		preview: {
+			host: "0.0.0.0",
+			port: 4173,
+			proxy
 		},
 		build: {
+			manifest: true,
 			rollupOptions: {
 				output: {
 					manualChunks: {

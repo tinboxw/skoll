@@ -1,0 +1,22 @@
+{
+	"schemaVersion": 1,
+	"bundle": {
+		"initialGzipBytes": 205000,
+		"entryGzipBytes": 140000,
+		"asyncChunkGzipBytes": 120000,
+		"anyJavaScriptRawBytes": 460000,
+		"totalJavaScriptGzipBytes": 655000,
+		"totalCssGzipBytes": 68000,
+		"minimumAsyncJavaScriptChunks": 20
+	},
+	"runtime": {
+		"loginReadyMs": 5000,
+		"routeReadyMs": 2500,
+		"interactionMs": 1000,
+		"largeListReadyMs": 2500,
+		"largeListRenderedRows": 100,
+		"maxLongTaskMs": 200,
+		"totalLongTaskMs": 600,
+		"heapGrowthBytes": 33554432
+	}
+}

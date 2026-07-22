@@ -82,6 +82,95 @@ jobs:
         working-directory: web
         run: npm run build
 
+      - name: Enforce frontend bundle budgets
+        if: steps.frontend.outputs.has_frontend == 'true'
+        working-directory: web
+        run: npm run check:bundle
+
+      - name: Upload frontend bundle report
+        if: steps.frontend.outputs.has_frontend == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-bundle-budget
+          path: web/test-results/pr4-quality/bundle.json
+          if-no-files-found: error
+
+  frontend-visual-performance:
+    name: Frontend Visual And Performance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Start acceptance services
+        shell: bash
+        env:
+          SKOLL_STORE_MODE: memory
+          SKOLL_CACHE_MODE: memory
+          SKOLL_EVENT_MODE: memory
+          SKOLL_DEV_ADMIN_PASSWORD: Admin@123456
+        run: |
+          mkdir -p artifacts
+          go run ./cmd/skoll > artifacts/frontend-backend.log 2>&1 &
+          (cd web && npm run preview -- --host 127.0.0.1 --port 5174 > ../artifacts/frontend-preview.log 2>&1) &
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:5174/skoll/health >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat artifacts/frontend-backend.log
+          cat artifacts/frontend-preview.log
+          exit 1
+
+      - name: Run visual regression gate
+        working-directory: web
+        env:
+          SKOLL_E2E_BROWSER_CHANNEL: chromium
+        run: npm run test:visual
+
+      - name: Run runtime performance gate
+        working-directory: web
+        env:
+          SKOLL_E2E_BROWSER_CHANNEL: chromium
+        run: npm run test:performance
+
+      - name: Upload frontend quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-visual-performance
+          path: |
+            web/test-results/pr4-quality
+            artifacts/frontend-backend.log
+            artifacts/frontend-preview.log
+          if-no-files-found: warn
+
   frontend-browser-smoke:
     name: Frontend Browser Smoke Minimum
     runs-on: ubuntu-latest

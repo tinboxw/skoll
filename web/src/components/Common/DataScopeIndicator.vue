@@ -51,9 +51,10 @@ const targetIDs = computed(() => props.decision?.scope === "self" ? props.decisi
 	gap: 12px;
 	min-height: 72px;
 	padding: 12px 14px;
-	border: 1px solid var(--el-color-success-light-5);
+	border: 1px solid var(--color-success-border);
 	border-radius: 8px;
-	background: var(--el-color-success-light-9);
+	background: var(--color-success-soft);
+	color: var(--color-success-text);
 }
 
 .scope-copy {
@@ -63,7 +64,7 @@ const targetIDs = computed(() => props.decision?.scope === "self" ? props.decisi
 
 .scope-copy span,
 .scope-copy small {
-	color: var(--color-text-secondary);
+	color: var(--color-success-text);
 	overflow-wrap: anywhere;
 }
 
