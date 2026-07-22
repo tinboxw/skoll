@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -63,6 +64,56 @@ func TestVerifyPackageRejectsTampering(t *testing.T) {
 	_ = file.Close()
 	if _, err := VerifyPackage(result.ArtifactPath, result.ChecksumPath); err == nil || !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("VerifyPackage() error = %v, want checksum mismatch", err)
+	}
+}
+
+func TestBuildPackageRequiresManagedBackendAndPreservesExecutableMode(t *testing.T) {
+	source := writePackageTestPlugin(t)
+	manifest := "id: package-demo\nname: Package Demo\nversion: 1.2.3\nui_mode: separated\nservice_base_url: http://127.0.0.1:19090\nservice_health_url: http://127.0.0.1:19090/health\n"
+	if err := os.WriteFile(filepath.Join(source, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildPackage(source, t.TempDir(), NewFileLoader()); err == nil || !strings.Contains(err.Error(), "backend entry") {
+		t.Fatalf("missing managed backend error = %v", err)
+	}
+
+	entry := filepath.Join(source, filepath.FromSlash(managedBackendRelativePath("package-demo")))
+	if err := os.MkdirAll(filepath.Dir(entry), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(entry, []byte("managed backend"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dist := t.TempDir()
+	result, err := BuildPackage(source, dist, NewFileLoader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := zip.OpenReader(result.ArtifactPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantEntry := managedBackendRelativePath("package-demo")
+	archiveExecutable := false
+	for _, entry := range reader.File {
+		if entry.Name == wantEntry {
+			archiveExecutable = entry.Mode().Perm()&0o111 != 0
+		}
+	}
+	_ = reader.Close()
+	if !archiveExecutable {
+		t.Fatalf("managed backend %s is not executable in package", wantEntry)
+	}
+	installed, _, err := InstallPackage(result.ArtifactPath, result.ChecksumPath, t.TempDir(), NewFileLoader())
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(installed, filepath.FromSlash(managedBackendRelativePath("package-demo"))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0o111 == 0 {
+		t.Fatalf("installed managed backend mode = %v", info.Mode())
 	}
 }
 

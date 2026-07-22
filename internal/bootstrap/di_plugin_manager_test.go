@@ -949,7 +949,7 @@ api:
 		t.Fatalf("write plugin manifest: %v", err)
 	}
 	health := fixedHealthChecker{status: plugin.HealthStatusHealthy, code: "health_ok"}
-	supervisor := plugin.NewServiceSupervisor(plugin.NewExternalServiceLauncher(health, time.Hour), nil, time.Second, time.Second)
+	supervisor := plugin.NewServiceSupervisor(&readyTestServiceLauncher{}, nil, time.Second, time.Second)
 	manager := &pluginManagerWithExtensions{
 		Manager:           plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:      map[string]plugin.Info{},

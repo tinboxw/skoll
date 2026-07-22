@@ -26,7 +26,7 @@ api:
 
 Install preflight validates the method, path, permission, audit action, and source. Invalid declarations do not enter the route-permission registry or aggregated OpenAPI document.
 
-`service_base_url` is the plugin backend HTTP(S) base URL and must be declared together with `service_health_url`. Skoll executes only method/path pairs declared in `api.routes` and appends the declared path to this base. For example, the request above is sent to `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`. A path prefix in the base URL is preserved.
+`service_base_url` is the managed backend loopback-HTTP base URL and must be declared together with a same-origin `service_health_url`. Skoll executes only method/path pairs declared in `api.routes` and appends the declared path to this base. For example, the request above is sent to `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`. A path prefix in the base URL is preserved. See the [Managed Plugin Process Contract](plugin-process-contract.en.md) for entry, address, and environment rules.
 
 ## Runtime Behavior
 

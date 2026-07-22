@@ -12,8 +12,8 @@ func TestFileLoaderLoad(t *testing.T) {
 name: "Sample Plugin"
 version: "1.0.0"
 api_version: "v1"
-service_base_url: "https://oa.example.com"
-service_health_url: "https://oa.example.com/health"
+service_base_url: "http://127.0.0.1:18090"
+service_health_url: "http://127.0.0.1:18090/health"
 migration_version: "v1.2.0"
 description: "plugin for tests"
 level: "app"
@@ -113,10 +113,10 @@ frontend_entry: "/plugins/sample-plugin"
 	if info.APIVersion != "v1" {
 		t.Fatalf("unexpected api version: %s", info.APIVersion)
 	}
-	if info.ServiceBaseURL != "https://oa.example.com" {
+	if info.ServiceBaseURL != "http://127.0.0.1:18090" {
 		t.Fatalf("unexpected service base url: %s", info.ServiceBaseURL)
 	}
-	if info.ServiceHealthURL != "https://oa.example.com/health" {
+	if info.ServiceHealthURL != "http://127.0.0.1:18090/health" {
 		t.Fatalf("unexpected service health url: %s", info.ServiceHealthURL)
 	}
 	if info.MigrationVersion != "v1.2.0" {

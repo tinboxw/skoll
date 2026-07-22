@@ -168,8 +168,8 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 		manifest += "migration_version: " + fixture.migration + "\n"
 	}
 	if fixture.withNetwork {
-		manifest += "service_base_url: https://reports.example.com\n" +
-			"service_health_url: https://reports.example.com/health\n"
+		manifest += "service_base_url: http://127.0.0.1:18091\n" +
+			"service_health_url: http://127.0.0.1:18091/health\n"
 	}
 	if fixture.withMenu {
 		manifest += "ui_menu:\n" +

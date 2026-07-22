@@ -26,7 +26,7 @@ api:
 
 安装预检会校验 method、path、permission、audit action 和来源。无效声明不会进入路由权限注册表或聚合 OpenAPI。
 
-`service_base_url` 是插件后端的 HTTP(S) 基地址，必须与 `service_health_url` 成对声明。Skoll 仅执行 `api.routes` 中明确声明的 method/path，并将声明路径追加到该基地址。例如，上述请求会发送到 `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`。如果基地址带路径前缀，该前缀会保留。
+`service_base_url` 是受管插件后端的回环 HTTP 基地址，必须与同源的 `service_health_url` 成对声明。Skoll 仅执行 `api.routes` 中明确声明的 method/path，并将声明路径追加到该基地址。例如，上述请求会发送到 `http://127.0.0.1:18090/v1/plugins/pharma_oa/api/employees`。如果基地址带路径前缀，该前缀会保留。进程入口、地址和环境约束见 [插件受管进程契约](plugin-process-contract.md)。
 
 ## 运行时行为
 

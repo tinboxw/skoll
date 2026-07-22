@@ -233,7 +233,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		eventSubscriptions: make(map[string][]func()),
 		migrationHook:      plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
 		serviceSupervisor: plugin.NewServiceSupervisor(
-			plugin.NewExternalServiceLauncher(healthChecker, 5*time.Second),
+			plugin.NewManagedProcessLauncher(healthChecker, 5*time.Second),
 			pluginServiceAuditSink{auditSvc: auditSvc},
 			5*time.Second,
 			5*time.Second,

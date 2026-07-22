@@ -72,7 +72,7 @@ func TestPluginRuntimeMilestoneEndToEnd(t *testing.T) {
 	pluginDir := writeRuntimeMilestonePlugin(t, pluginID, pluginServer.URL)
 	healthChecker := plugin.NewHTTPHealthChecker(time.Second)
 	supervisor := plugin.NewServiceSupervisor(
-		plugin.NewExternalServiceLauncher(healthChecker, time.Hour),
+		&readyTestServiceLauncher{},
 		nil,
 		time.Second,
 		time.Second,

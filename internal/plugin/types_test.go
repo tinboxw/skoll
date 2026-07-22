@@ -63,8 +63,8 @@ func TestInfoValidateManifestContractFields(t *testing.T) {
 		Name:             "OA Plugin",
 		Version:          "1.0.0",
 		APIVersion:       "v1",
-		ServiceBaseURL:   "https://oa.example.com",
-		ServiceHealthURL: "https://oa.example.com/health",
+		ServiceBaseURL:   "http://127.0.0.1:18090",
+		ServiceHealthURL: "http://127.0.0.1:18090/health",
 		MigrationVersion: "v1.2.3",
 	}
 	if err := valid.ValidateManifest(); err != nil {

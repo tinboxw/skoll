@@ -63,7 +63,12 @@ func BuildPackage(sourceDir, outputDir string, loader MetadataLoader) (PackageRe
 	if err != nil {
 		return PackageResult{}, err
 	}
-	if err := writePackageArchive(sourceDir, artifactPath, files); err != nil {
+	if strings.TrimSpace(info.ServiceBaseURL) != "" {
+		if _, err := resolveManagedBackendEntry(sourceDir, info.ID); err != nil {
+			return PackageResult{}, err
+		}
+	}
+	if err := writePackageArchive(sourceDir, artifactPath, files, info.ID); err != nil {
 		return PackageResult{}, err
 	}
 	digest, err := filePackageSHA256(artifactPath)
@@ -143,6 +148,11 @@ func InstallPackage(artifactPath, checksumPath, pluginsRoot string, loader Metad
 	if err != nil {
 		return "", Info{}, fmt.Errorf("validate extracted plugin: %w", err)
 	}
+	if strings.TrimSpace(info.ServiceBaseURL) != "" {
+		if _, err := resolveManagedBackendEntry(tempDir, info.ID); err != nil {
+			return "", Info{}, fmt.Errorf("validate managed backend entry: %w", err)
+		}
+	}
 	targetDir := filepath.Join(pluginsRoot, info.ID)
 	if _, err := os.Stat(targetDir); err == nil {
 		return "", Info{}, fmt.Errorf("plugin install target already exists: %s", targetDir)
@@ -210,7 +220,7 @@ func packageFiles(sourceDir, outputDir string) ([]string, error) {
 	return files, nil
 }
 
-func writePackageArchive(sourceDir, artifactPath string, files []string) error {
+func writePackageArchive(sourceDir, artifactPath string, files []string, pluginID string) error {
 	temp, err := os.CreateTemp(filepath.Dir(artifactPath), ".skoll-package-*.zip")
 	if err != nil {
 		return fmt.Errorf("create plugin package: %w", err)
@@ -227,7 +237,11 @@ func writePackageArchive(sourceDir, artifactPath string, files []string) error {
 	for _, rel := range files {
 		header := &zip.FileHeader{Name: rel, Method: zip.Deflate}
 		header.SetModTime(stablePackageTime)
-		header.SetMode(0o644)
+		mode := os.FileMode(0o644)
+		if rel == managedBackendRelativePath(pluginID) {
+			mode = 0o755
+		}
+		header.SetMode(mode)
 		entry, err := zw.CreateHeader(header)
 		if err != nil {
 			return fmt.Errorf("create package entry %s: %w", rel, err)
@@ -304,7 +318,11 @@ func extractPackageArchive(artifactPath, targetDir string) error {
 		if err != nil {
 			return fmt.Errorf("open plugin package entry %s: %w", name, err)
 		}
-		file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		mode := os.FileMode(0o644)
+		if entry.Mode().Perm()&0o111 != 0 {
+			mode = 0o755
+		}
+		file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
 		if err != nil {
 			_ = rc.Close()
 			return fmt.Errorf("create plugin package entry %s: %w", name, err)

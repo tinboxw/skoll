@@ -3,7 +3,6 @@ package plugin
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -273,14 +272,13 @@ func (i Info) ValidateManifest() error {
 	}
 	base := strings.TrimSpace(i.ServiceBaseURL)
 	health := strings.TrimSpace(i.ServiceHealthURL)
-	if base != "" && !isHTTPURL(base) {
-		return ErrPluginManifestBroken
-	}
-	if health != "" && !isHTTPURL(health) {
-		return ErrPluginManifestBroken
-	}
 	if (base == "") != (health == "") {
 		return ErrPluginManifestBroken
+	}
+	if base != "" {
+		if _, _, err := validateManagedServiceURLs(base, health); err != nil {
+			return ErrPluginManifestBroken
+		}
 	}
 
 	for _, dep := range i.Dependencies {
@@ -659,14 +657,6 @@ func validatePermissionDeclarations(keys []string, declarations []PermissionDecl
 		seen[normalized] = struct{}{}
 	}
 	return nil
-}
-
-func isHTTPURL(raw string) bool {
-	u, err := url.ParseRequestURI(strings.TrimSpace(raw))
-	if err != nil {
-		return false
-	}
-	return u.Scheme == "http" || u.Scheme == "https"
 }
 
 func NormalizeEntryPath(path string) string {

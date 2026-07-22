@@ -1930,3 +1930,54 @@ Result: PR5-01 passed after one documented retry. The proof plugin now has an ex
 ### Commit
 
 `PR5-01: define equipment maintenance proof plugin`
+
+## PR5-02 Run Packaged Plugin Backends As Managed Processes
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> (Review -> Failed -> Doing) x3 -> Review -> Done`
+- Scope: Replace health-only supervision of pre-started services with one package-owned process entry, bounded child environment, readiness/crash monitoring, deterministic stop, and package/install enforcement.
+
+### Retry Records
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Compile gate | Removing `ExternalServiceLauncher` left four test/E2E callers on the deleted health-only runtime | Move production wiring to `ManagedProcessLauncher`, use an explicit test-only lifecycle handle for already-running HTTP fixtures, and move generated E2E to the managed launcher |
+| 2 | Real-process and package gates | Health checks timed out because direct launcher tests passed an Installed-state `Info`; Windows reported no Unix execute bits after extraction | Build an Enabled-state probe context inside the launcher; assert ZIP execute metadata on every platform and installed execute bits only on Unix |
+| 3 | Contract consistency gate | Manifest validation and API docs still accepted remote HTTPS services; after tightening them, one loader assertion retained the old URL | Apply the loopback-HTTP rule in Manifest validation and JSON Schema, align Chinese/English API docs and tests, then rerun all plugin, bootstrap, and generator suites |
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| One package entry | Pass | The only backend entry is `backend/bin/<plugin-id>-server[.exe]`; packages with `service_base_url` cannot build or install without it |
+| Path integrity | Pass | Entry resolution is confined to the installed plugin root and rejects missing files, directories, symlinks, and non-executable Unix files |
+| Network boundary | Pass | Managed service and health URLs require one plain-HTTP loopback origin with no credentials, query, or fragment |
+| Manifest preflight | Pass after retry | The same network rule is enforced before install by `Info.ValidateManifest` and documented in the JSON Schema; runtime and metadata validation cannot disagree |
+| Environment isolation | Pass | Real child-process test receives only required OS variables plus plugin ID, address, and directory; an unrelated parent `SKOLL_TEST_SECRET` is absent |
+| Start and readiness | Pass after retry | Host starts a compiled test backend and the generated plugin backend, polling until declared health returns `2xx` inside the lifecycle budget |
+| Crash and health failure | Pass | Unexpected process exit and post-ready unhealthy state terminate service capability and transition supervisor state to Failed |
+| Disable and shutdown | Pass | Stop closes the real child process and endpoint; supervisor shutdown owns all remaining managed handles |
+| Package portability | Pass after retry | ZIP records the backend as executable; install restores that bit on Unix while Windows uses its native executable semantics |
+| Generated plugin lifecycle | Pass | Generator E2E builds frontend/backend, packages, verifies, installs, starts through `ManagedProcessLauncher`, executes CRUD, disables, stops, and uninstalls without source edits |
+| Current-only runtime | Pass | Product code contains no `ExternalServiceLauncher` or pre-started remote-service path; test fixtures use a test-only `ServiceLauncher` implementation |
+| Documentation | Pass | Chinese and English process contracts define package entry, loopback, environment, lifecycle, failure, and verification rules; plugin guide points to the one runtime |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin -run "Test(Managed|BuildPackage|InstallPackage|ServiceSupervisor)" -count=1
+go test -race ./internal/plugin -run "TestManagedProcessLauncher|TestServiceSupervisor" -count=1
+go test ./internal/bootstrap -run "TestPlugin(ManagerSupervisesExternalServiceLifecycle|RuntimeMilestoneEndToEnd)" -count=1
+$env:SKOLL_GENERATOR_PLUGIN_E2E='1'
+go test ./internal/service/generator -run TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits -count=1 -v
+rg -n "NewExternalServiceLauncher|ExternalServiceLauncher" -g "*.go"
+go test ./...
+git diff --check
+```
+
+Result: PR5-02 passed after three documented retries. Enabling a packaged external backend now starts and owns the package executable; pre-started services and remote service URLs are no longer a product runtime.
+
+### Commit
+
+`PR5-02: manage packaged plugin backend processes`

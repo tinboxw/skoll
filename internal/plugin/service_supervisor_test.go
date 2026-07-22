@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -62,28 +61,6 @@ func TestServiceSupervisorStopShutdownAndTimeout(t *testing.T) {
 		t.Fatal("expected start timeout")
 	}
 	assertServiceState(t, startTimeoutSupervisor, "slow-start", ServiceStateFailed, "service_start_timeout")
-}
-
-func TestExternalServiceLauncherReadinessMonitoringAndStop(t *testing.T) {
-	checker := &switchingHealthChecker{}
-	checker.healthy.Store(true)
-	launcher := NewExternalServiceLauncher(checker, 5*time.Millisecond)
-	supervisor := NewServiceSupervisor(launcher, nil, time.Second, time.Second)
-	info := Info{ID: "reports", ServiceBaseURL: "http://service", ServiceHealthURL: "http://service/health"}
-	if err := supervisor.Start(context.Background(), info); err != nil {
-		t.Fatalf("start external service: %v", err)
-	}
-	checker.healthy.Store(false)
-	waitForServiceState(t, supervisor, "reports", ServiceStateFailed)
-
-	checker.healthy.Store(true)
-	if err := supervisor.Start(context.Background(), info); err != nil {
-		t.Fatalf("restart external service: %v", err)
-	}
-	if err := supervisor.Stop(context.Background(), "reports"); err != nil {
-		t.Fatalf("stop external service: %v", err)
-	}
-	assertServiceState(t, supervisor, "reports", ServiceStateStopped, "service_stopped")
 }
 
 type fakeServiceLauncher struct {
@@ -159,17 +136,6 @@ func (a *recordingServiceAudit) codes() []string {
 		out = append(out, event.Code)
 	}
 	return out
-}
-
-type switchingHealthChecker struct {
-	healthy atomic.Bool
-}
-
-func (c *switchingHealthChecker) Check(_ context.Context, info Info) HealthReport {
-	if c.healthy.Load() {
-		return HealthReport{PluginID: info.ID, Status: HealthStatusHealthy, Code: "health_ok", CheckedAt: time.Now().UTC()}
-	}
-	return HealthReport{PluginID: info.ID, Status: HealthStatusUnhealthy, Code: "health_http_status", CheckedAt: time.Now().UTC()}
 }
 
 func assertServiceState(t *testing.T, supervisor *ServiceSupervisor, pluginID string, state ServiceState, code string) {

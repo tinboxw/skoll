@@ -80,7 +80,7 @@ func TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits(t *testing.T) {
 			t.Errorf("installed package missing %s: %v", required, err)
 		}
 	}
-	runGeneratedPluginLifecycle(t, installedDir, address, spec)
+	runGeneratedPluginLifecycle(t, installedDir, spec)
 }
 
 func generatedPluginE2ESpec(t *testing.T, baseURL string) *domaingenerator.GeneratorSpec {
@@ -121,26 +121,8 @@ func runGeneratedGoTests(t *testing.T, pluginDir string) {
 	}
 }
 
-func runGeneratedPluginLifecycle(t *testing.T, pluginDir, address string, spec *domaingenerator.GeneratorSpec) {
+func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingenerator.GeneratorSpec) {
 	t.Helper()
-	binary := filepath.Join(pluginDir, filepath.FromSlash(generatedBackendBinaryPath(spec.Plugin.ID)))
-	service := exec.Command(binary)
-	service.Dir = pluginDir
-	service.Env = append(os.Environ(), "SKOLL_PLUGIN_ADDRESS="+address)
-	var serviceOutput bytes.Buffer
-	service.Stdout = &serviceOutput
-	service.Stderr = &serviceOutput
-	if err := service.Start(); err != nil {
-		t.Fatalf("start generated backend: %v", err)
-	}
-	t.Cleanup(func() {
-		if service.Process != nil {
-			_ = service.Process.Kill()
-		}
-		_ = service.Wait()
-	})
-	waitGeneratedHealth(t, spec.Plugin.ServiceHealthURL, &serviceOutput)
-
 	loader := pluginruntime.NewFileLoader()
 	manager := pluginruntime.NewRuntimeManager(loader, pluginruntime.NewTopologicalResolver())
 	info, err := manager.Install(pluginDir)
@@ -158,9 +140,9 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir, address string, spec *
 	if err := manager.Enable(info.ID); err != nil {
 		t.Fatalf("enable generated plugin: %v", err)
 	}
-	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewExternalServiceLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond), nil, 3*time.Second, time.Second)
+	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewManagedProcessLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond), nil, 3*time.Second, time.Second)
 	if err := supervisor.Start(context.Background(), mustGeneratedPluginInfo(t, manager, info.ID)); err != nil {
-		t.Fatalf("supervise generated backend: %v\n%s", err, serviceOutput.String())
+		t.Fatalf("start and supervise generated backend: %v", err)
 	}
 
 	create := generatedRuntimeRequest(t, manager, info.ID, http.MethodPost, spec.Plugin.ServiceBaseURL+pluginAPIBasePath(*spec), []byte(`{"name":"Aspirin"}`))
@@ -242,22 +224,6 @@ func mustGeneratedPluginInfo(t *testing.T, manager *pluginruntime.RuntimeManager
 		t.Fatalf("get generated plugin: %v", err)
 	}
 	return info
-}
-
-func waitGeneratedHealth(t *testing.T, healthURL string, output *bytes.Buffer) {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		response, err := http.Get(healthURL)
-		if err == nil {
-			_ = response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				return
-			}
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	t.Fatalf("generated backend health timeout\n%s", output.String())
 }
 
 func findGeneratedPackageFiles(root string) []string {

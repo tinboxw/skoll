@@ -1,6 +1,6 @@
 # 插件开发教程
 
-> Go 插件宿主能力见 [插件 SDK 当前契约](plugin-sdk-reference.md)；业务 API、权限和聚合 OpenAPI 的当前格式见 [插件 API 与 OpenAPI 契约](plugin-api-contract.md)，英文版见 [Plugin API and OpenAPI Contract](plugin-api-contract.en.md)。
+> Go 插件宿主能力见 [插件 SDK 当前契约](plugin-sdk-reference.md)；独立后端启动规则见 [插件受管进程契约](plugin-process-contract.md)；业务 API、权限和聚合 OpenAPI 的当前格式见 [插件 API 与 OpenAPI 契约](plugin-api-contract.md)，英文版见 [Plugin API and OpenAPI Contract](plugin-api-contract.en.md)。
 
 ## 1. 概述
 
@@ -212,7 +212,7 @@ POST /skoll/v1/plugins/dev/manifest/validate
 后端有两种执行方式：
 
 - **进程内后端**：仓库内置 Go 插件在启动装配阶段调用 `RegisterInProcessBackend` 注册工厂。工厂首次收到已启用插件的 API 请求时才创建 `http.Handler`；Disable、Uninstall、Reload 和运行时关闭都会释放当前实例。
-- **外部后端**：独立服务通过 manifest 的 `service_base_url` 和 service lifecycle 配置接入。运行时在代理请求前执行健康检查，并把请求转发到插件服务。
+- **受管外部后端**：安装包必须包含 `backend/bin/<plugin-id>-server[.exe]`。Enable 由宿主启动该进程并等待 `service_health_url` 就绪，Disable、Uninstall 和宿主关闭负责停止；仅允许与 `service_base_url` 同源的回环 HTTP 服务。完整约束见 [插件受管进程契约](plugin-process-contract.md)。
 
 进程内工厂只负责组装插件自身的 repository、service 和 handler，不能把业务依赖加入 `internal/handler/http.Dependencies`，也不能在主路由中注册业务 endpoint。参考实现：`internal/plugin/pharmaoa/backend.go`。
 

@@ -60,7 +60,7 @@ api:
       audit_action: pharma_oa.products.read
 ```
 
-运行时只接受 manifest 已声明的 method/path。仓库内置 Go 插件通过 `RegisterInProcessBackend` 注册惰性 `http.Handler` 工厂；外部插件通过 `service_base_url` 接入。Disable、Uninstall、Reload 和运行时关闭会释放进程内实例，禁用状态不会继续提供 API。业务插件不能在主应用 router 或依赖容器中注册专用业务路由。
+运行时只接受 manifest 已声明的 method/path。仓库内置 Go 插件通过 `RegisterInProcessBackend` 注册惰性 `http.Handler` 工厂；独立插件必须在安装包提供 `backend/bin/<plugin-id>-server[.exe]`，由宿主启动并监听 `service_base_url` 声明的回环地址。Disable、Uninstall、Reload 和运行时关闭会释放对应实例或进程，禁用状态不会继续提供 API。业务插件不能在主应用 router 或依赖容器中注册专用业务路由。
 
 仓库内置 Vue 插件的集成路由集中定义在 `web/src/plugins/integrated-routes.ts`，并由后端插件同步结果动态挂载。插件禁用、卸载或同步失败时会删除对应菜单状态和路由。
 
