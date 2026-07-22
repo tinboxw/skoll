@@ -17,6 +17,9 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 	if !containsModel[PluginMigrationModel](models) {
 		t.Fatal("AllModels() should include PluginMigrationModel")
 	}
+	if !containsModel[PluginDataMutationModel](models) {
+		t.Fatal("AllModels() should include PluginDataMutationModel")
+	}
 	if !containsModel[FileObjectModel](models) {
 		t.Fatal("AllModels() should include FileObjectModel")
 	}

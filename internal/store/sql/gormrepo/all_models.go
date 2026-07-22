@@ -11,6 +11,7 @@ func AllModels() []any {
 		&PluginMigrationModel{},
 		&PluginRouteModel{},
 		&PluginReleaseModel{},
+		&PluginDataMutationModel{},
 		&PermissionResourceModel{},
 		&MenuNodeModel{},
 		&FileObjectModel{},

@@ -233,3 +233,56 @@ Result: BF1-03 passed without acceptance retries. The generated plans are ready 
 ### Commit
 
 `BF1-03: implement trusted datastore query planning`
+
+## BF1-04 Implement Transactional Datastore Mutations
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Execute scoped insert, update, upsert, and delete operations with optimistic concurrency, durable idempotency, automatic audit, and shared transaction rollback.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Schema enforcement | Pass | Mutation keys must equal the declared primary key; values must be plugin-managed, mutable, and type-correct; returning fields must be declared |
+| Exact write scope | Pass | Every mutation resolves one trusted tenant, organization, and owner; ambiguous all/multi scope requires explicit narrowing and outside scope is forbidden |
+| Host fields | Pass | Insert injects trusted scope, version 1, and timestamps; plugins cannot write host-managed fields |
+| Optimistic concurrency | Pass | Update, existing upsert, and delete bind the loaded version into the write condition; stale expected or concurrent versions return `conflict` |
+| Upsert | Pass | Missing records insert, existing records update and increment version, and expected-version upsert cannot silently create a missing record |
+| Durable idempotency | Pass | `sk_plugin_data_mutations` reserves plugin/key, stores canonical request hash and committed result, replays identical requests, and rejects changed requests |
+| Idempotency privacy | Pass | Scope-set order is canonicalized and audit stores only a short idempotency hash, not the submitted key or business values |
+| Atomic audit | Pass | SQL audit append now resolves the transaction-bound database; mutation, idempotency result, and audit share one commit boundary |
+| Rollback | Pass | Audit failure and explicit outer `UnitOfWork` failure leave no business row, idempotency row, or audit row |
+| Returned records | Pass | Insert, update, upsert, and delete map requested database fields to typed `DataRecord` values with the correct version |
+| Race safety | Pass | Datastore and GORM repository suites pass the Go race detector |
+| Production migration list | Pass | The host idempotency model is included in `gormrepo.AllModels` used by MySQL and PostgreSQL adapters |
+| Current-only rule | Pass | No non-transaction batch API, partial commit, legacy idempotency record, direct database handle, or mutation fallback exists |
+
+The first focused run completed all mutation assertions but failed test cleanup because Windows still held SQLite files, and the audit transaction test referenced an unavailable helper. The fixtures now close SQL connections explicitly and use the repository's current `TestDB`; all gates passed on retry.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/datastore ./internal/store/sql/gormrepo ./internal/plugin/hostservice -count=1
+go test -race ./internal/plugin/datastore ./internal/store/sql/gormrepo -count=1
+go vet ./internal/plugin/datastore ./internal/store/sql/gormrepo ./internal/plugin/hostservice
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF1-04 passed after one acceptance retry. The datastore now has a transaction-safe mutation core ready to publish through the BF1-05 host gateway.
+
+### Impact Review
+
+- API/OpenAPI: no route changed; BF1-05 publishes the existing `DataMutation` contract.
+- Permission/audit: plugin-owned permission, exact trusted scope, success audit, hashed identifiers, and transactional audit persistence are enforced.
+- Migration/seed: `PluginDataMutationModel` is added to the production AutoMigrate model list; no seed data is required.
+- Frontend/i18n: none.
+- Documentation: datastore mutation rules, database schema, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF1-04: implement transactional datastore mutations`

@@ -7,6 +7,7 @@ import (
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	auditrepo "github.com/tinboxw/skoll/internal/repository/audit"
+	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -24,7 +25,7 @@ func (s *AuditStore) Append(ctx context.Context, record *domainaudit.Record) err
 		return nil
 	}
 	row := AuditRecordModelFromDomain(record)
-	return s.db.WithContext(ctx).Clauses(clause.OnConflict{UpdateAll: true}).Create(&row).Error
+	return storesql.ResolveDB(ctx, s.db).Clauses(clause.OnConflict{UpdateAll: true}).Create(&row).Error
 }
 
 func (s *AuditStore) GetByID(ctx context.Context, id shared.ID) (*domainaudit.Record, error) {

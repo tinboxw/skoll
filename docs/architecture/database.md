@@ -309,6 +309,21 @@ M4 新增一等组织模型表，迁移脚本：
 | `idx_job_lease_expiry(lease_expires_at)` | 回收因 worker 中断而过期的租约 |
 | `idx_job_dead_lettered(dead_lettered_at)` | 查询和审核运行失败的死信任务 |
 
+### 2.14 插件数据变更幂等表（sk_plugin_data_mutations）
+
+Model 定义：`internal/store/sql/gormrepo/plugin_datastore_model.go`。
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| `plugin_id` | VARCHAR(64) | 复合主键 | 插件身份 |
+| `idempotency_key` | VARCHAR(128) | 复合主键 | 插件提交的幂等键 |
+| `request_hash` | VARCHAR(64) | NOT NULL | 规范化变更请求的 SHA-256 |
+| `result_json` | TEXT | NOT NULL | 已提交的 `DataMutationResult`；事务执行期间为空 |
+| `created_at` | TIMESTAMP | INDEX | 首次执行时间 |
+| `updated_at` | TIMESTAMP | NOT NULL | 结果提交时间 |
+
+该表由宿主所有，不属于任何插件物理命名空间。预约行、插件业务数据和审计写入共享同一事务；失败事务不会留下空结果。插件卸载时按 `plugin_id` 的清理策略由 BF1-07 生命周期任务统一处理。
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：
