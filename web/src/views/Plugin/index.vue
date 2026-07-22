@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { PackagePlus, RefreshCw, Store } from "lucide-vue-next";
 import { useRouter } from "vue-router";
 
@@ -17,6 +17,8 @@ const store = usePluginStore();
 const { t } = useI18n();
 const keyword = ref("");
 const state = ref("");
+const currentPage = ref(1);
+const pageSize = 20;
 const error = ref("");
 const filtered = computed(() => {
 	const value = keyword.value.trim().toLowerCase();
@@ -25,6 +27,16 @@ const filtered = computed(() => {
 		const matchesState = !state.value || (state.value === "enabled" ? plugin.enabled !== false : plugin.enabled === false);
 		return matchesKeyword && matchesState;
 	});
+});
+const paged = computed(() => {
+	const start = (currentPage.value - 1) * pageSize;
+	return filtered.value.slice(start, start + pageSize);
+});
+
+watch([keyword, state], () => { currentPage.value = 1; });
+watch(() => filtered.value.length, (total) => {
+	const lastPage = Math.max(1, Math.ceil(total / pageSize));
+	if (currentPage.value > lastPage) currentPage.value = lastPage;
 });
 
 async function refresh(): Promise<void> {
@@ -61,11 +73,22 @@ onMounted(() => { if (!store.syncedFromServer) void refresh(); });
 			</el-select>
 		</div>
 		<StateBlock v-if="filtered.length === 0" type="empty" :description="t('plugin.filter.empty')" />
-		<PluginFleetTable v-else :items="filtered" :operating="store.isSyncing" @open="(id) => router.push(`/skoll/plugin-center/${id}/overview`)" @visit="visit" />
+		<template v-else>
+			<PluginFleetTable :items="paged" :operating="store.isSyncing" @open="(id) => router.push(`/skoll/plugin-center/${id}/overview`)" @visit="visit" />
+			<el-pagination
+				v-if="filtered.length > pageSize"
+				v-model:current-page="currentPage"
+				class="fleet-pagination"
+				:page-size="pageSize"
+				:total="filtered.length"
+				layout="total, prev, pager, next"
+			/>
+		</template>
 	</PageShell>
 </template>
 
 <style scoped>
 .fleet-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(160px, 240px); gap: 8px; }
+.fleet-pagination { justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
 @media (max-width: 620px) { .fleet-toolbar { grid-template-columns: 1fr; } }
 </style>

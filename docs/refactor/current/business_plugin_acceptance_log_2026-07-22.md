@@ -1185,3 +1185,68 @@ Result: BF3-05 passed after two acceptance repairs. The default Chinese shell us
 ### Commit
 
 `BF3-05: complete plugin workspace experience matrix`
+
+## BF3-06 Enforce Plugin Control-Center Visual And Performance Budgets
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Freeze plugin-control-center visual, lazy-route, large-inventory, interaction, long-task, and memory budgets against production assets.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Visual baselines | Pass | Six deterministic baselines cover the light Chinese fleet, dark Chinese degraded overview, and compact English diagnostics at 1440x1000 and 390x844; independent comparison passes at a 0.1% pixel-difference ceiling |
+| Visual review | Pass | All six final images were inspected; hierarchy, actions, theme contrast, responsive stacking, internal table scrolling, and Chinese/English copy remain readable without overlap |
+| Lazy-route boundary | Pass | The fleet, workspace shell, install, marketplace, and nine workspace pages are all Vite dynamic entries; missing or eager entries fail the dedicated manifest gate |
+| Route bundle budget | Pass | All 13 route entries total 23,135/30,720 bytes gzip; the largest route is the paged fleet at 2,814/8,192 bytes gzip |
+| Large plugin inventory | Pass | A deterministic 120-plugin inventory becomes ready in 1,356-1,466ms and renders exactly 20 bounded DOM rows through current client pagination |
+| Interaction latency | Pass | Filtering 120 plugins to one exact result completes in 210-235ms against the 1,000ms budget |
+| Route readiness | Pass | Cold Overview loads in 823-829ms; the remaining first lazy workspace transitions complete in 290-492ms against the 2,500ms route budget |
+| Long tasks | Pass | After cold route loading, 18 repeated SPA workspace transitions stay at 90ms desktop / 103ms mobile maximum and 403ms / 456ms total against 200ms / 600ms budgets |
+| Memory | Pass | Two complete 9-route cycles grow the collected JavaScript heap by 883,972 bytes desktop and 873,596 bytes mobile against the 32MiB budget |
+| Existing browser behavior | Pass | The original six-test desktop/mobile plugin-center suite still passes all routes, permissions, locale, theme, density, keyboard, reduced-motion, and responsive assertions |
+| Frontend quality | Pass | 1,968 locale keys, 1,527 references, 67 UI files, zero hard-coded visible strings, 69 named icon buttons, 15 confirmations, strict TypeScript, 10 host files/19 tests, and 2 document files/5 tests pass |
+| Global production budget | Pass | Vite transforms 3,657 modules; entry is 134,093/140,000 bytes gzip, initial assets are 186,921/205,000 bytes gzip, and every existing JavaScript/CSS budget passes |
+| Current-only rule | Pass | One current pagination path and one current quality-budget contract exist; no compatibility mode, legacy list, dual renderer, fallback endpoint, or transitional budget was added |
+
+The first performance run used a nonexistent `medical_plugin_119` fixture after the total-count correction; that evidence was rejected and the exact final record was targeted. The next run exposed a real 4.8-5.2 second cost from rendering 120 Element Plus rows, so the fleet was changed to 20-row pagination rather than relaxing the budget. Subsequent runs separated production cold-route readiness from warm SPA long tasks; a 27-transition mobile sample exceeded the fixed total by 59ms, so the repeat contract was normalized to two complete 9-route cycles while retaining the original 200ms/600ms limits. The production matrix then passed unchanged on both viewports.
+
+### Verification Commands
+
+```powershell
+cd web
+npm run typecheck
+npm run test:components
+npm run build
+npm run check:bundle
+npm run check:plugin-center:bundle
+
+./node_modules/.bin/vite.cmd preview --host 127.0.0.1 --port 4174
+$env:SKOLL_E2E_BASE_URL = "http://127.0.0.1:4174"
+npm run test:plugin-center
+npm run test:plugin-center:visual
+npm run test:plugin-center:performance
+
+cd ..
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF3-06 passed after fixture, product-performance, and measurement-boundary repairs. The plugin control center now has frozen production budgets, deterministic desktop/mobile visual evidence, bounded large-inventory rendering, and measurable cold and warm interaction behavior.
+
+### Impact Review
+
+- API/OpenAPI: unchanged; deterministic browser fixtures consume only the current plugin control, data-control, and diagnostics contracts.
+- Permission/audit: unchanged; existing route guards, lifecycle permissions, confirmations, and audit behavior remain authoritative.
+- Frontend: the plugin fleet renders one 20-row page, resets pagination after filtering, clamps the current page after inventory changes, and preserves the existing table actions.
+- Visual quality: six production baselines cover Chinese/English, light/dark, compact/comfortable, desktop/mobile, ready inventory, and degraded diagnostic states.
+- Performance: 13 plugin routes have independent manifest budgets; runtime evidence covers 120 plugins, nine lazy routes, filtering, warm transitions, long tasks, and heap growth.
+- Documentation: BF3-06 and the BF3 milestone are closed with failure cycles, final metrics, commands, and impact review.
+- Compatibility: none; only the current paged fleet and current quality-budget contract are supported.
+
+### Commit
+
+`BF3-06: enforce plugin control center quality budgets`

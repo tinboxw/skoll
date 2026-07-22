@@ -13,7 +13,7 @@
 | BF0 | Establish the official business-plugin batch | Board, atomic Work Items, acceptance log, indexes, skills, and execution rules resolve | Closed plugin-runtime batch | Done |
 | BF1 | Provide a safe relational datastore to independent plugins | Public scoped data contracts, host SQL adapter, external client, lifecycle policy, and real E2E pass | BF0 | Done |
 | BF2 | Provide reusable business-document and approval primitives | Numbering, forms, documents, workflow, attachments, comments, timeline, search, and export are reusable by plugins | BF1 | Done |
-| BF3 | Deliver a complete plugin control-center experience | Runtime, capabilities, data, migrations, jobs, audit, errors, and lifecycle actions are understandable and responsive | BF1 | Doing |
+| BF3 | Deliver a complete plugin control-center experience | Runtime, capabilities, data, migrations, jobs, audit, errors, and lifecycle actions are understandable and responsive | BF1 | Done |
 | BF4 | Deliver medical OA master-data plugins | Employees, organization extensions, customers, suppliers, products, manufacturers, qualifications, and validity alerts pass | BF1, BF2 | Todo |
 | BF5 | Deliver medical OA transaction and quality workflows | Approval, CRM, purchasing, sales, inventory, batches, quality, contracts, finance coordination, and dashboards pass E2E | BF2, BF3, BF4 | Todo |
 

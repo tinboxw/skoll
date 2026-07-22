@@ -18,5 +18,36 @@
 		"maxLongTaskMs": 200,
 		"totalLongTaskMs": 600,
 		"heapGrowthBytes": 33554432
+	},
+	"pluginControlCenter": {
+		"bundle": {
+			"routeSources": [
+				"src/views/Plugin/index.vue",
+				"src/views/Plugin/components/PluginWorkspaceShell.vue",
+				"src/views/Plugin/pages/Install.vue",
+				"src/views/Plugin/pages/Marketplace.vue",
+				"src/views/Plugin/pages/Overview.vue",
+				"src/views/Plugin/pages/Runtime.vue",
+				"src/views/Plugin/pages/Capabilities.vue",
+				"src/views/Plugin/pages/Data.vue",
+				"src/views/Plugin/pages/Migrations.vue",
+				"src/views/Plugin/pages/Jobs.vue",
+				"src/views/Plugin/pages/Audit.vue",
+				"src/views/Plugin/pages/Diagnostics.vue",
+				"src/views/Plugin/pages/Settings.vue"
+			],
+			"maxRouteGzipBytes": 8192,
+			"totalRouteGzipBytes": 30720
+		},
+		"runtime": {
+			"routeReadyMs": 2500,
+			"pluginListItems": 120,
+			"pluginListReadyMs": 2500,
+			"pluginListRenderedRows": 20,
+			"interactionMs": 1000,
+			"maxLongTaskMs": 200,
+			"totalLongTaskMs": 600,
+			"heapGrowthBytes": 33554432
+		}
 	}
 }
