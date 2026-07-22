@@ -120,12 +120,16 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		return nil, err
 	}
 	pluginDataRegistry := datastore.NewSchemaRegistry()
+	pluginDataLifecycle, err := datastore.NewLifecycle(bundle.PluginDataDB, pluginDataRegistry)
+	if err != nil {
+		return nil, err
+	}
 	dataStoreFactory := func(pluginID string, scopes pluginsdk.DataScopeService, audit pluginsdk.AuditService) (pluginsdk.DataStoreService, error) {
 		return datastore.NewService(bundle.PluginDataDB, bundle.UnitOfWork, pluginDataRegistry, scopes, audit, pluginDataDialect, pluginID)
 	}
 	pluginManager, err := newPluginManager(
 		logger, cfg.AppConfig.Security.JWTSecret, bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization,
-		bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus,
+		bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus, pluginDataLifecycle,
 		hostservice.HostServicesDependencies{
 			Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory, Files: fileService, Audit: auditService,
 			System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
@@ -226,7 +230,7 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService, businessEvents *event.BusinessEventBus, hostDeps hostservice.HostServicesDependencies) (plugin.Manager, error) {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService, businessEvents *event.BusinessEventBus, dataLifecycle *datastore.Lifecycle, hostDeps hostservice.HostServicesDependencies) (plugin.Manager, error) {
 	if businessEvents == nil {
 		businessEvents = event.NewBusinessEventBus(nil)
 	}
@@ -251,6 +255,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		eventDelivery:      plugin.NewHTTPEventDeliveryClient(nil, 5*time.Second),
 		eventSubscriptions: make(map[string][]func()),
 		migrationHook:      plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
+		dataLifecycle:      dataLifecycle,
 	}
 	dataDirectories, err := plugin.NewPluginDataDirectories(filepath.Join("data", "plugins"))
 	if err != nil {
@@ -385,6 +390,7 @@ type pluginManagerWithExtensions struct {
 	serviceSupervisor  *plugin.ServiceSupervisor
 	hostGateway        *plugin.HostGateway
 	migrationHook      *plugin.PluginMigrationHook
+	dataLifecycle      *datastore.Lifecycle
 	dataDirectories    *plugin.PluginDataDirectories
 	businessEvents     *event.BusinessEventBus
 	eventDelivery      plugin.EventDeliveryClient
@@ -436,7 +442,7 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 	if err != nil {
 		return err
 	}
-	if err := m.runPluginMigrations(context.Background(), next, plugin.PluginMigrationUpgrade); err != nil {
+	if err := m.runPluginDataLifecycle(context.Background(), next, plugin.PluginMigrationUpgrade); err != nil {
 		if current.State == plugin.StateEnabled {
 			_ = m.Manager.Disable(pluginID)
 			m.removePluginEventSubscriptions(pluginID)
@@ -485,6 +491,10 @@ func (m *pluginManagerWithExtensions) ReloadPluginMetadata(pluginID string) erro
 func (m *pluginManagerWithExtensions) Install(path string) (plugin.Info, error) {
 	info, err := m.Manager.Install(path)
 	if err != nil {
+		return plugin.Info{}, err
+	}
+	if _, err = m.preparePluginDataStore(info); err != nil {
+		_ = m.Manager.Uninstall(info.ID)
 		return plugin.Info{}, err
 	}
 	m.persistOne(context.Background(), info.ID)
@@ -966,8 +976,21 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	if err := m.stopInProcessBackend(pluginID); err != nil {
 		return err
 	}
-	if err := m.runPluginMigrations(context.Background(), info, plugin.PluginMigrationUninstall); err != nil {
+	candidate, err := m.preparePluginDataStore(info)
+	if err != nil {
 		return err
+	}
+	transformSQL, err := m.pluginMigrationTransformer(candidate)
+	if err != nil {
+		return err
+	}
+	if err := m.runPluginMigrationsTransformed(context.Background(), info, plugin.PluginMigrationUninstall, transformSQL); err != nil {
+		return err
+	}
+	if m.dataLifecycle != nil && info.DataManifest != nil {
+		if err := m.dataLifecycle.Uninstall(context.Background(), pluginID, info.DataManifest.UninstallPolicy); err != nil {
+			return err
+		}
 	}
 	if info.DataManifest != nil {
 		if m.dataDirectories == nil {
@@ -1133,7 +1156,7 @@ func (m *pluginManagerWithExtensions) runEnableMigrations(ctx context.Context, p
 		if err != nil {
 			return err
 		}
-		return m.runPluginMigrations(ctx, item, plugin.PluginMigrationInstall)
+		return m.runPluginDataLifecycle(ctx, item, plugin.PluginMigrationInstall)
 	}
 	order, err := plugin.NewTopologicalResolver().ResolveEnableOrder(pluginID, byID)
 	if err != nil {
@@ -1148,7 +1171,7 @@ func (m *pluginManagerWithExtensions) runEnableMigrations(ctx context.Context, p
 		if item.State == plugin.StateInstalled {
 			action = plugin.PluginMigrationInstall
 		}
-		if err := m.runPluginMigrations(ctx, item, action); err != nil {
+		if err := m.runPluginDataLifecycle(ctx, item, action); err != nil {
 			return err
 		}
 	}
@@ -1156,6 +1179,10 @@ func (m *pluginManagerWithExtensions) runEnableMigrations(ctx context.Context, p
 }
 
 func (m *pluginManagerWithExtensions) runPluginMigrations(ctx context.Context, info plugin.Info, action plugin.PluginMigrationAction) error {
+	return m.runPluginMigrationsTransformed(ctx, info, action, nil)
+}
+
+func (m *pluginManagerWithExtensions) runPluginMigrationsTransformed(ctx context.Context, info plugin.Info, action plugin.PluginMigrationAction, transformSQL func(string) (string, error)) error {
 	if info.DataManifest == nil || strings.TrimSpace(info.DataManifest.MigrationVersion) == "" {
 		return nil
 	}
@@ -1170,8 +1197,97 @@ func (m *pluginManagerWithExtensions) runPluginMigrations(ctx context.Context, i
 		ToVersion:          info.DataManifest.MigrationVersion,
 		UninstallPolicy:    info.DataManifest.UninstallPolicy,
 		RollbackPolicy:     info.DataManifest.RollbackPolicy,
+		TransformSQL:       transformSQL,
 	})
 	return err
+}
+
+func (m *pluginManagerWithExtensions) preparePluginDataStore(info plugin.Info) (datastore.SchemaCandidate, error) {
+	if m == nil || m.dataLifecycle == nil {
+		return datastore.SchemaCandidate{}, nil
+	}
+	candidate, err := m.dataLifecycle.Prepare(info.ID, info.Source)
+	if err != nil {
+		return datastore.SchemaCandidate{}, fmt.Errorf("prepare plugin datastore schema: %w", err)
+	}
+	if candidate.Present && (info.DataManifest == nil || strings.TrimSpace(info.DataManifest.MigrationVersion) == "") {
+		return datastore.SchemaCandidate{}, fmt.Errorf("plugin %s datastore schema requires migration metadata", info.ID)
+	}
+	return candidate, nil
+}
+
+func (m *pluginManagerWithExtensions) runPluginDataLifecycle(ctx context.Context, info plugin.Info, action plugin.PluginMigrationAction) error {
+	candidate, err := m.preparePluginDataStore(info)
+	if err != nil {
+		return err
+	}
+	transformSQL, err := m.pluginMigrationTransformer(candidate)
+	if err != nil {
+		return err
+	}
+	if err = m.runPluginMigrationsTransformed(ctx, info, action, transformSQL); err != nil {
+		return err
+	}
+	if m.dataLifecycle == nil {
+		return nil
+	}
+	if err = m.dataLifecycle.ValidateStorage(ctx, candidate); err != nil {
+		return fmt.Errorf("validate plugin datastore storage: %w", err)
+	}
+	if err = m.dataLifecycle.Activate(candidate); err != nil {
+		return fmt.Errorf("activate plugin datastore schema: %w", err)
+	}
+	return nil
+}
+
+func (m *pluginManagerWithExtensions) pluginMigrationTransformer(candidate datastore.SchemaCandidate) (func(string) (string, error), error) {
+	if m == nil || m.dataLifecycle == nil {
+		return nil, nil
+	}
+	transformer, err := m.dataLifecycle.MigrationTransformer(candidate)
+	if err != nil {
+		return nil, fmt.Errorf("prepare plugin datastore migration bindings: %w", err)
+	}
+	return transformer, nil
+}
+
+func (m *pluginManagerWithExtensions) RollbackPluginData(pluginID string, limit int) error {
+	if m == nil || m.migrationHook == nil || limit <= 0 {
+		return errors.New("plugin datastore rollback requires a positive migration limit")
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+	info, err := m.getCurrent(strings.TrimSpace(pluginID))
+	if err != nil {
+		return err
+	}
+	if info.State == plugin.StateEnabled {
+		return errors.New("plugin must be disabled before datastore rollback")
+	}
+	if info.DataManifest == nil || strings.TrimSpace(info.DataManifest.MigrationVersion) == "" {
+		return errors.New("plugin does not declare datastore migrations")
+	}
+	candidate, err := m.preparePluginDataStore(info)
+	if err != nil {
+		return err
+	}
+	transformSQL, err := m.pluginMigrationTransformer(candidate)
+	if err != nil {
+		return err
+	}
+	_, err = m.migrationHook.Run(context.Background(), plugin.PluginMigrationHookInput{
+		PluginID: info.ID, PluginDir: info.Source, MigrationDirectory: info.DataManifest.MigrationDirectory,
+		Action: plugin.PluginMigrationDowngrade, FromVersion: info.DataManifest.MigrationVersion,
+		RollbackPolicy: info.DataManifest.RollbackPolicy, Limit: limit,
+		TransformSQL: transformSQL,
+	})
+	if err != nil {
+		return err
+	}
+	if m.dataLifecycle != nil {
+		return m.dataLifecycle.Uninstall(context.Background(), info.ID, plugin.DataUninstallRetain)
+	}
+	return nil
 }
 
 func (m *pluginManagerWithExtensions) refreshRoutePermissions() error {

@@ -47,6 +47,7 @@ type PluginMigrationHookInput struct {
 	UninstallPolicy    DataUninstallPolicy
 	RollbackPolicy     DataRollbackPolicy
 	Limit              int
+	TransformSQL       func(string) (string, error)
 }
 
 type PluginMigrationRecorder interface {
@@ -153,7 +154,7 @@ func (h *PluginMigrationHook) record(in PluginMigrationHookInput, status PluginM
 }
 
 func (h *PluginMigrationHook) run(ctx context.Context, in PluginMigrationHookInput) ([]MigrationStep, error) {
-	migrator := NewMigrator(in.PluginID, in.PluginDir, in.MigrationDirectory, h.store)
+	migrator := NewMigratorWithTransformer(in.PluginID, in.PluginDir, in.MigrationDirectory, h.store, in.TransformSQL)
 	switch in.Action {
 	case PluginMigrationInstall, PluginMigrationUpgrade:
 		return migrator.Apply(ctx, in.Limit)

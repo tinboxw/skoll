@@ -122,6 +122,29 @@ func (r *SchemaRegistry) Register(schema PluginSchema) (RegisteredSchema, error)
 	return cloneRegisteredSchema(registered), nil
 }
 
+// Replace validates a complete plugin schema before atomically publishing it.
+func (r *SchemaRegistry) Replace(schema PluginSchema) (RegisteredSchema, error) {
+	if r == nil {
+		return RegisteredSchema{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "registry", "schema registry is unavailable", true)
+	}
+	registered, err := buildRegisteredSchema(schema)
+	if err != nil {
+		return RegisteredSchema{}, err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if owner, exists := r.namespaces[registered.Namespace]; exists && owner != registered.PluginID {
+		return RegisteredSchema{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "namespace", "plugin namespace collision", false)
+	}
+	if previous, exists := r.plugins[registered.PluginID]; exists {
+		delete(r.namespaces, previous.Namespace)
+	}
+	r.plugins[registered.PluginID] = cloneRegisteredSchema(registered)
+	r.namespaces[registered.Namespace] = registered.PluginID
+	return cloneRegisteredSchema(registered), nil
+}
+
 func (r *SchemaRegistry) Resolve(pluginID, table string) (ResolvedTable, error) {
 	if r == nil {
 		return ResolvedTable{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "registry", "schema registry is unavailable", true)

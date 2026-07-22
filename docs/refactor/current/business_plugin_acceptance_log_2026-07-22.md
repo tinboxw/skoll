@@ -386,3 +386,54 @@ Result: BF1-06 passed after two acceptance retries. External plugins now consume
 ### Commit
 
 `BF1-06: publish external datastore client`
+
+## BF1-07 Bind Datastore Schema And Records To Plugin Lifecycle
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Add one strict typed schema manifest, logical migration table bindings, atomic schema activation, restart and upgrade recovery, explicit rollback, and complete drop-uninstall cleanup.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Current schema contract | Pass | Optional root `datastore.yaml` version 1 is the only declaration; strict YAML rejects unknown fields, extra documents, invalid types, identifiers, keys, indexes, and limits |
+| Hidden physical namespace | Pass | Migration SQL uses validated `{{table:logical_name}}` bindings; the host expands quoted opaque names per dialect and rejects unknown or malformed bindings |
+| Install validation | Pass | A declared datastore schema requires plugin migration metadata and is fully validated before installed metadata becomes usable |
+| Atomic activation | Pass | Candidate schema is prepared before migration and replaces the registry only after migrations and physical table/column inspection succeed |
+| Restart durability | Pass | A fresh manager rebuilds the registry from the plugin package against the same database and preserves the existing business record |
+| Upgrade durability | Pass | A successful migration adds the declared field while retaining records and atomically publishes the new schema |
+| Failed migration | Pass | A multi-step SQLite upgrade failure rolls back the leaked column and leaves the prior schema registration active |
+| Explicit rollback | Pass | Enabled-plugin rollback is rejected; disabled rollback requires a positive limit, runs down migrations, and revokes stale schema access until re-enable |
+| Drop uninstall | Pass | Down migrations run with logical bindings, registered tables are dropped and verified absent, plugin idempotency rows are deleted, and the namespace is unregistered |
+| Retain/archive | Pass | Non-drop policies revoke runtime schema access without deleting relational records |
+| Full quality gate | Pass | Focused lifecycle tests, targeted race tests, full Go tests, full vet, and diff checks pass |
+| Current-only rule | Pass | No inferred field type, legacy schema file, raw physical name contract, alternate registration API, direct database handle, or fallback storage path exists |
+
+During final architecture review, migration fixtures were changed from precomputed physical names to logical table bindings so plugin packages never depend on host-internal namespace mapping. All acceptance gates passed without retry.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin ./internal/plugin/datastore ./internal/bootstrap -run "TestPluginMigration|TestLoadSchemaManifest|TestPluginDataStore" -count=1
+go test -race ./internal/plugin/datastore ./internal/bootstrap -run "TestSchemaRegistry|TestLoadSchemaManifest|TestPluginDataStore" -count=1
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF1-07 passed. Datastore schemas and records now follow plugin install, enable, restart, upgrade, explicit rollback, and uninstall lifecycles without exposing physical storage internals.
+
+### Impact Review
+
+- API/OpenAPI: no browser HTTP route change; explicit rollback is an internal manager capability for the later operator API/UI task.
+- Permission/audit: runtime DataStore access remains credential and scope bound; migration audit events retain lifecycle status and step counts.
+- Migration/seed: introduces strict logical table binding expansion and validates the migrated physical shape before schema publication.
+- Frontend/i18n: none.
+- Documentation: lifecycle schema reference, HostServices reference, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF1-07: bind datastore to plugin lifecycle`

@@ -18,6 +18,7 @@ import (
 	"github.com/tinboxw/skoll/internal/event"
 	httpHandler "github.com/tinboxw/skoll/internal/handler/http"
 	"github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/internal/plugin/datastore"
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/logging"
@@ -65,7 +66,7 @@ func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	manager, err := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, hostservice.HostServicesDependencies{})
+	manager, err := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, hostservice.HostServicesDependencies{})
 	if err != nil {
 		t.Fatalf("build plugin manager: %v", err)
 	}
@@ -290,6 +291,10 @@ func newMigrationTestPluginManager(t *testing.T, db *gorm.DB) *pluginManagerWith
 	if err != nil {
 		t.Fatal(err)
 	}
+	dataLifecycle, err := datastore.NewLifecycle(db, datastore.NewSchemaRegistry())
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &pluginManagerWithExtensions{
 		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:     map[string]plugin.Info{},
@@ -297,6 +302,7 @@ func newMigrationTestPluginManager(t *testing.T, db *gorm.DB) *pluginManagerWith
 		routeHandlers:    map[string]http.HandlerFunc{},
 		routePermissions: mustEmptyRoutePermissionRegistry(),
 		migrationHook:    plugin.NewPluginMigrationHook(gormrepo.NewPluginMigrationStore(db), nil),
+		dataLifecycle:    dataLifecycle,
 		dataDirectories:  dataDirectories,
 	}
 }

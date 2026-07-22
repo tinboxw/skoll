@@ -53,6 +53,7 @@ type MigrationStore interface {
 type MigrationPlanner struct {
 	pluginDir          string
 	migrationDirectory string
+	transformSQL       func(string) (string, error)
 }
 
 type Migrator struct {
@@ -74,9 +75,15 @@ func NewMigrationPlanner(pluginDir, migrationDirectory string) *MigrationPlanner
 }
 
 func NewMigrator(pluginID, pluginDir, migrationDirectory string, store MigrationStore) *Migrator {
+	return NewMigratorWithTransformer(pluginID, pluginDir, migrationDirectory, store, nil)
+}
+
+func NewMigratorWithTransformer(pluginID, pluginDir, migrationDirectory string, store MigrationStore, transformSQL func(string) (string, error)) *Migrator {
+	planner := NewMigrationPlanner(pluginDir, migrationDirectory)
+	planner.transformSQL = transformSQL
 	return &Migrator{
 		pluginID: strings.TrimSpace(pluginID),
-		planner:  NewMigrationPlanner(pluginDir, migrationDirectory),
+		planner:  planner,
 		store:    store,
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -152,14 +159,14 @@ func (m *Migrator) Apply(ctx context.Context, limit int) ([]MigrationStep, error
 		limit = len(plan.Pending)
 	}
 	toApply := append([]MigrationStep(nil), plan.Pending[:limit]...)
-	scripts, err := readMigrationScripts(toApply, true)
+	scripts, err := m.planner.readScripts(toApply, true)
 	if err != nil {
 		return nil, err
 	}
 
 	downScripts := []string(nil)
 	if m.store.RequiresApplyCompensation() {
-		downScripts, err = readMigrationScripts(toApply, false)
+		downScripts, err = m.planner.readScripts(toApply, false)
 		if err != nil {
 			return nil, err
 		}
@@ -234,7 +241,7 @@ func (m *Migrator) Rollback(ctx context.Context, limit int) ([]MigrationStep, er
 	for i := len(plan.Applied) - 1; i >= 0 && len(toRollback) < limit; i-- {
 		toRollback = append(toRollback, plan.Applied[i])
 	}
-	scripts, err := readMigrationScripts(toRollback, false)
+	scripts, err := m.planner.readScripts(toRollback, false)
 	if err != nil {
 		return nil, err
 	}
@@ -325,27 +332,31 @@ func (p *MigrationPlanner) loadSteps() ([]MigrationStep, error) {
 
 	steps := make([]MigrationStep, 0, len(versions))
 	for _, version := range versions {
-		p := pairs[version]
-		if strings.TrimSpace(p.up) == "" || strings.TrimSpace(p.down) == "" {
+		pair := pairs[version]
+		if strings.TrimSpace(pair.up) == "" || strings.TrimSpace(pair.down) == "" {
 			return nil, fmt.Errorf("migration %03d requires both up and down sql files", version)
 		}
-		upSQL, err := readMigrationSQL(p.up)
+		upSQL, err := readMigrationSQL(pair.up)
+		if err != nil {
+			return nil, err
+		}
+		upSQL, err = p.transform(upSQL, version)
 		if err != nil {
 			return nil, err
 		}
 		digest := sha256.Sum256([]byte(upSQL))
 		steps = append(steps, MigrationStep{
 			Version:  version,
-			Name:     p.name,
+			Name:     pair.name,
 			Checksum: hex.EncodeToString(digest[:]),
-			UpPath:   p.up,
-			DownPath: p.down,
+			UpPath:   pair.up,
+			DownPath: pair.down,
 		})
 	}
 	return steps, nil
 }
 
-func readMigrationScripts(steps []MigrationStep, up bool) ([]string, error) {
+func (p *MigrationPlanner) readScripts(steps []MigrationStep, up bool) ([]string, error) {
 	scripts := make([]string, 0, len(steps))
 	for _, step := range steps {
 		path := step.DownPath
@@ -356,9 +367,26 @@ func readMigrationScripts(steps []MigrationStep, up bool) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+		if p != nil && p.transformSQL != nil {
+			sql, err = p.transformSQL(sql)
+			if err != nil {
+				return nil, fmt.Errorf("expand migration %03d table bindings: %w", step.Version, err)
+			}
+		}
 		scripts = append(scripts, sql)
 	}
 	return scripts, nil
+}
+
+func (p *MigrationPlanner) transform(sql string, version int) (string, error) {
+	if p == nil || p.transformSQL == nil {
+		return sql, nil
+	}
+	transformed, err := p.transformSQL(sql)
+	if err != nil {
+		return "", fmt.Errorf("expand migration %03d table bindings: %w", version, err)
+	}
+	return transformed, nil
 }
 
 func readMigrationSQL(path string) (string, error) {
