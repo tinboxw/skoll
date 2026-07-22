@@ -55,13 +55,78 @@ func (s dataScopeService) Resolve(ctx context.Context, permission pluginsdk.Perm
 type dataStoreService struct{ client *Client }
 
 func (s dataStoreService) Query(ctx context.Context, query pluginsdk.DataQuery) (out pluginsdk.DataPage, err error) {
+	if err = query.Validate(); err != nil {
+		return out, err
+	}
 	err = s.client.call(ctx, "datastore", "query", query, &out)
+	if err == nil {
+		if validateErr := validateDataPageResponse(query, out); validateErr != nil {
+			err = pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "response", "plugin host returned an invalid data page", true)
+		}
+	}
 	return
 }
 
 func (s dataStoreService) Mutate(ctx context.Context, mutation pluginsdk.DataMutation) (out pluginsdk.DataMutationResult, err error) {
+	if err = mutation.Validate(); err != nil {
+		return out, err
+	}
 	err = s.client.call(ctx, "datastore", "mutate", mutation, &out)
+	if err == nil {
+		if validateErr := validateMutationResponse(mutation, out); validateErr != nil {
+			err = pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "response", "plugin host returned an invalid mutation result", true)
+		}
+	}
 	return
+}
+
+func validateDataPageResponse(query pluginsdk.DataQuery, page pluginsdk.DataPage) error {
+	if err := page.Validate(); err != nil {
+		return err
+	}
+	expected := identifierSet(query.Fields)
+	for _, record := range page.Records {
+		if !sameIdentifiers(expected, record.Values) {
+			return errors.New("data page record fields do not match the query")
+		}
+	}
+	return nil
+}
+
+func validateMutationResponse(mutation pluginsdk.DataMutation, result pluginsdk.DataMutationResult) error {
+	if err := result.Validate(); err != nil {
+		return err
+	}
+	if len(mutation.Returning) == 0 {
+		if result.Record != nil {
+			return errors.New("mutation returned an undeclared record")
+		}
+		return nil
+	}
+	if result.RowsAffected == 1 && (result.Record == nil || !sameIdentifiers(identifierSet(mutation.Returning), result.Record.Values)) {
+		return errors.New("mutation record fields do not match returning")
+	}
+	return nil
+}
+
+func identifierSet(fields []string) map[string]struct{} {
+	set := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		set[field] = struct{}{}
+	}
+	return set
+}
+
+func sameIdentifiers(expected map[string]struct{}, values map[string]pluginsdk.DataValue) bool {
+	if len(expected) != len(values) {
+		return false
+	}
+	for field := range values {
+		if _, exists := expected[field]; !exists {
+			return false
+		}
+	}
+	return true
 }
 
 type fileService struct{ client *Client }

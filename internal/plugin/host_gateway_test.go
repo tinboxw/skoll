@@ -52,12 +52,16 @@ func (gatewayScopes) Resolve(ctx context.Context, _ pluginsdk.Permission) (plugi
 
 type gatewayDataStore struct{}
 
-func (gatewayDataStore) Query(_ context.Context, query pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
+func (gatewayDataStore) Query(ctx context.Context, query pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
 	if query.Table != "assets" {
 		return pluginsdk.DataPage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, "table", "table is not declared by the plugin", false)
 	}
+	id := "asset-1"
+	if ctx.Value(gatewayTxMarker{}) == true {
+		id = "asset-transaction"
+	}
 	return pluginsdk.DataPage{Records: []pluginsdk.DataRecord{{Values: map[string]pluginsdk.DataValue{
-		"id": {Type: pluginsdk.DataValueString, Value: "asset-1"},
+		"id": {Type: pluginsdk.DataValueString, Value: id},
 	}, Version: 1}}}, nil
 }
 
@@ -206,6 +210,17 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	if err != nil || scope.SubjectID() != "user-7" {
 		t.Fatalf("scope=%+v err=%v", scope, err)
 	}
+	page, err := services.DataStore.Query(ctx, basicGatewayQuery())
+	if err != nil || len(page.Records) != 1 || page.Records[0].Values["id"].Value != "asset-1" {
+		t.Fatalf("datastore page=%+v err=%v", page, err)
+	}
+	if result, mutateErr := services.DataStore.Mutate(ctx, pluginsdk.DataMutation{
+		Table: "assets", Operation: pluginsdk.DataMutationDelete,
+		Scope: pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "equipment.asset", Action: "delete"}},
+		Key:   map[string]pluginsdk.DataValue{"id": {Type: pluginsdk.DataValueString, Value: "asset-1"}}, IdempotencyKey: "delete-asset-1",
+	}); mutateErr != nil || result.RowsAffected != 1 {
+		t.Fatalf("datastore mutation=%+v err=%v", result, mutateErr)
+	}
 	if _, err := services.Files.Store(ctx, pluginsdk.FileWrite{Name: "proof.txt"}); err != nil {
 		t.Fatal(err)
 	}
@@ -289,6 +304,13 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 		}
 		if values["transaction"] != true {
 			return errors.New("transaction context missing")
+		}
+		page, err := services.DataStore.Query(tx.Context(), basicGatewayQuery())
+		if err != nil {
+			return err
+		}
+		if len(page.Records) != 1 || page.Records[0].Values["id"].Value != "asset-transaction" {
+			return errors.New("datastore transaction context missing")
 		}
 		return nil
 	}); err != nil {

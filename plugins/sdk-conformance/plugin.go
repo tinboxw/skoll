@@ -12,6 +12,7 @@ import (
 type Report struct {
 	Transaction bool
 	Scope       bool
+	DataStore   bool
 	File        bool
 	Audit       bool
 	Config      bool
@@ -39,6 +40,32 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 		return report, fmt.Errorf("scope contract: %w", err)
 	}
 	report.Scope = true
+	mutation := pluginsdk.DataMutation{
+		Table: "records", Operation: pluginsdk.DataMutationInsert,
+		Scope:     pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "sdk_conformance.record", Action: "write"}},
+		Key:       map[string]pluginsdk.DataValue{"id": {Type: pluginsdk.DataValueString, Value: "record-1"}},
+		Values:    map[string]pluginsdk.DataValue{"name": {Type: pluginsdk.DataValueString, Value: "SDK record"}},
+		Returning: []string{"id", "name"}, IdempotencyKey: "create-record-1",
+	}
+	mutated, err := host.DataStore.Mutate(ctx, mutation)
+	if err != nil {
+		return report, fmt.Errorf("datastore mutation contract: %w", err)
+	}
+	if mutated.RowsAffected != 1 || mutated.Record == nil || mutated.Record.Version != 1 {
+		return report, fmt.Errorf("datastore mutation contract returned an invalid result")
+	}
+	page, err := host.DataStore.Query(ctx, pluginsdk.DataQuery{
+		Table: "records", Fields: []string{"id", "name"},
+		Scope: pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "sdk_conformance.record", Action: "read"}},
+		Sort:  []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 10},
+	})
+	if err != nil {
+		return report, fmt.Errorf("datastore query contract: %w", err)
+	}
+	if len(page.Records) != 1 || page.Records[0].Values["name"].Value != "SDK record" {
+		return report, fmt.Errorf("datastore query contract returned an invalid page")
+	}
+	report.DataStore = true
 	file, err := host.Files.Store(ctx, pluginsdk.FileWrite{Key: "evidence/contract.txt", Name: "contract.txt", Content: []byte("sdk-conformance")})
 	if err != nil {
 		return report, fmt.Errorf("file store contract: %w", err)

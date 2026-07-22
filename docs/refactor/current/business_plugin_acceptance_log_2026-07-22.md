@@ -335,3 +335,54 @@ Result: BF1-05 passed without acceptance retries. The host now publishes one aut
 ### Commit
 
 `BF1-05: publish datastore through host gateway`
+
+## BF1-06 Publish The External-Process Datastore Client
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Complete the public external-process datastore client with strict wire validation, typed error reconstruction, transaction propagation, cancellation/deadline behavior, and public SDK conformance.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public service | Pass | `Client.HostServices()` exposes `DataStoreService.Query` and `Mutate` through public `pkg/pluginsdk` types only |
+| Request validation | Pass | Query and mutation contracts are validated locally before transport; the host still validates independently |
+| Typed values | Pass | String, decimal, JSON, keys, values, versions, returning records, scope filters, and structured predicates survive JSON round trips without number coercion |
+| Page metadata | Pass | Records, versions, `hasMore`, and `nextCursor` round trip unchanged; returned record fields must exactly match the requested field set |
+| Mutation response | Pass | Result shape is validated and returned record fields must exactly match `returning`; undeclared records fail closed |
+| Stable errors | Pass | Valid datastore error responses reconstruct public `DataStoreError` code, field, message, and retryable; malformed or unknown host failures remain typed client transport errors |
+| Transaction propagation | Pass | `TransactionService.Within` places the issued transaction ID on datastore requests and finish calls; the real host gateway observes the transaction-bound context |
+| Cancellation and deadline | Pass | HTTP calls retain caller context and return errors matching `context.Canceled` and `context.DeadlineExceeded` |
+| Strict response decoding | Pass | Unknown fields, trailing JSON, oversized responses, invalid page/result shape, and mismatched record fields are rejected |
+| Public conformance | Pass | `plugins/sdk-conformance` mutates and queries a typed record through `HostServices.DataStore` while importing only public contracts |
+| Race safety | Pass | Client, host-service, and plugin gateway suites pass the Go race detector |
+| Current-only rule | Pass | No old client, alternate datastore transport, permissive decoder, legacy error shape, dual protocol, or fallback implementation exists |
+
+The first focused run failed to compile because the test used `DataOperatorGreaterOrEqual` instead of the current public constant `DataOperatorGreaterOrEq`. After correction, the combined retry timed out because the deadline test waited indefinitely for a server-side request context cancellation on Windows. A 30-second diagnostic run identified the blocked `httptest.Server` connection; the fixture now emits a delayed valid response so the client deadline is tested without platform-dependent server cancellation. Focused, race, full test, and vet gates then passed.
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginclient ./internal/plugin/hostservice ./internal/plugin -count=1
+go test -race ./pkg/pluginclient ./internal/plugin/hostservice ./internal/plugin -count=1
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF1-06 passed after two acceptance retries. External plugins now consume the current typed datastore contract with deterministic transport, transaction, error, cancellation, and response-validation semantics.
+
+### Impact Review
+
+- API/OpenAPI: no new route; this completes the client for BF1-05 loopback host operations.
+- Permission/audit: user token, permission, scope intent, and transaction context are preserved; host authorization and audit remain authoritative.
+- Migration/seed: none.
+- Frontend/i18n: none.
+- Documentation: host-service contract, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF1-06: publish external datastore client`

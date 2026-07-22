@@ -24,13 +24,22 @@ import (
 	sdkconformance "github.com/tinboxw/skoll/plugins/sdk-conformance"
 )
 
-type conformanceDataStore struct{}
-
-func (conformanceDataStore) Query(context.Context, pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
-	return pluginsdk.DataPage{}, nil
+type conformanceDataStore struct {
+	record *pluginsdk.DataRecord
 }
-func (conformanceDataStore) Mutate(context.Context, pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
-	return pluginsdk.DataMutationResult{}, nil
+
+func (s *conformanceDataStore) Query(context.Context, pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
+	if s.record == nil {
+		return pluginsdk.DataPage{}, nil
+	}
+	return pluginsdk.DataPage{Records: []pluginsdk.DataRecord{*s.record}}, nil
+}
+func (s *conformanceDataStore) Mutate(_ context.Context, mutation pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
+	record := pluginsdk.DataRecord{Values: map[string]pluginsdk.DataValue{
+		"id": mutation.Key["id"], "name": mutation.Values["name"],
+	}, Version: 1}
+	s.record = &record
+	return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
 }
 
 func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
@@ -51,10 +60,11 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 		t.Fatalf("NewLocalStore error: %v", err)
 	}
 	configStore := &hostConfigStore{info: pluginruntime.Info{ID: "sdk_conformance"}}
+	dataStore := &conformanceDataStore{}
 	host, err := NewHostServices(HostServicesDependencies{
 		PluginID: "sdk_conformance", Transactions: transactions, DataScopes: scopes,
 		DataStore: func(string, pluginsdk.DataScopeService, pluginsdk.AuditService) (pluginsdk.DataStoreService, error) {
-			return conformanceDataStore{}, nil
+			return dataStore, nil
 		},
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditsvc.NewService(bundle.Audit),
 		ConfigStore: configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
@@ -68,7 +78,7 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SDK conformance error: %v", err)
 	}
-	if !report.Transaction || !report.Scope || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
+	if !report.Transaction || !report.Scope || !report.DataStore || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
 		t.Fatalf("incomplete SDK conformance report: %+v", report)
 	}
 }

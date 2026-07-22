@@ -134,16 +134,51 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		var failure ErrorResponse
-		_ = json.Unmarshal(raw, &failure)
+		if err := decodeResponseJSON(raw, &failure); err != nil || strings.TrimSpace(failure.Code) == "" || strings.TrimSpace(failure.Message) == "" {
+			return &Error{StatusCode: response.StatusCode, Code: "host_response_invalid", Message: "plugin host returned an invalid error response"}
+		}
+		if capability == "datastore" {
+			if code, ok := parseDataStoreErrorCode(failure.Code); ok {
+				return pluginsdk.NewDataStoreError(code, failure.Field, failure.Message, failure.Retryable)
+			}
+		}
 		return &Error{StatusCode: response.StatusCode, Code: failure.Code, Message: failure.Message}
 	}
 	if output == nil || len(bytes.TrimSpace(raw)) == 0 {
 		return nil
 	}
-	if err := json.Unmarshal(raw, output); err != nil {
+	if err := decodeResponseJSON(raw, output); err != nil {
 		return fmt.Errorf("decode plugin host response: %w", err)
 	}
 	return nil
+}
+
+func decodeResponseJSON(raw []byte, output any) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(output); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("plugin host response contains trailing JSON")
+		}
+		return err
+	}
+	return nil
+}
+
+func parseDataStoreErrorCode(value string) (pluginsdk.DataStoreErrorCode, bool) {
+	code := pluginsdk.DataStoreErrorCode(strings.TrimSpace(value))
+	switch code {
+	case pluginsdk.DataStoreErrorInvalidRequest, pluginsdk.DataStoreErrorForbidden,
+		pluginsdk.DataStoreErrorNotFound, pluginsdk.DataStoreErrorConflict,
+		pluginsdk.DataStoreErrorLimitExceeded, pluginsdk.DataStoreErrorUnsupported,
+		pluginsdk.DataStoreErrorUnavailable:
+		return code, true
+	default:
+		return "", false
+	}
 }
 
 func contextOrBackground(ctx context.Context) context.Context {
