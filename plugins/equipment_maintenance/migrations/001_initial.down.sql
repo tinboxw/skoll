@@ -1,0 +1,6 @@
+DROP TABLE equipment_maintenance_spare_movements;
+DROP TABLE equipment_maintenance_spare_parts;
+DROP TABLE equipment_maintenance_inspections;
+DROP TABLE equipment_maintenance_plans;
+DROP TABLE equipment_maintenance_work_orders;
+DROP TABLE equipment_maintenance_assets;

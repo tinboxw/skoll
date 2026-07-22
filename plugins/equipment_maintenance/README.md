@@ -29,15 +29,40 @@
 
 `maintenance.due_scan` 与 `spare.low_stock_scan` 使用宿主持久任务，分别生成保养到期工作项和备件低库存告警。调度成功不等于业务完成，插件必须处理租约、重试和死信状态。
 
-## 当前依赖
+## 实现结构
 
-本目录先冻结业务与验收契约。完整实现开始前，平台必须依次完成：
+| 目录 | 内容 |
+| --- | --- |
+| `backend/` | 独立 Go 服务、文件事务存储、宿主服务客户端和端到端测试 |
+| `web/` | Vue 3、TypeScript、Element Plus 双语工作台和宿主协议测试 |
+| `migrations/` | 六张插件自有表的可逆初始迁移 |
+| `contract/` | 业务域、公共服务和验收场景的机器可读映射 |
 
-1. 从安装包启动、监督和停止外部插件进程，并注入最小运行上下文。
-2. 为独立进程提供插件身份绑定、失败关闭的宿主服务 HTTP 协议和公开客户端。
-3. 证明插件数据目录、迁移、升级与卸载策略由生命周期统一控制。
+运行数据只写入宿主提供的 `SKOLL_PLUGIN_DATA_DIR`。后端入口只从安装包的 `backend/bin/equipment_maintenance-server[.exe]` 启动；前端只通过 `window.__SKOLL_HOST__` 使用当前宿主协议。
 
-这些能力属于平台基础设施，不允许由证明插件通过核心代码特判获得。
+## 构建与测试
+
+```powershell
+go test ./plugins/equipment_maintenance/... -count=1
+cd plugins/equipment_maintenance/web
+npm install
+npm run test
+cd ..
+./plugin.ps1 package
+./plugin.ps1 verify
+```
+
+```bash
+go test ./plugins/equipment_maintenance/... -count=1
+cd plugins/equipment_maintenance/web
+npm install
+npm run test
+cd ..
+sh ./plugin.sh package
+sh ./plugin.sh verify
+```
+
+`package` 先构建受管后端和前端，再生成确定性 ZIP 与 SHA-256 sidecar。`install` 和 `dev` 使用同一个安装包，不存在源码直连或第二运行路径。
 
 ## 验收来源
 

@@ -1,0 +1,5 @@
+/backend/bin/
+/dist/
+/.skoll-dev/
+/web/dist/
+/web/node_modules/

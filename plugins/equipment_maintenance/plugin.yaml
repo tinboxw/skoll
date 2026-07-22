@@ -202,7 +202,7 @@ data:
     - name: equipment_maintenance_inspections
       description: Inspection execution evidence and findings.
       primary_key: id
-      columns: id, tenant_id, organization_id, owner_id, plan_id, asset_id, work_order_id, result, finding, attachment_ids, inspected_at, created_at, updated_at
+      columns: id, tenant_id, organization_id, owner_id, plan_id, asset_id, work_order_id, status, result, finding, attachment_ids, inspected_at, created_at, updated_at
       indexes: idx_equipment_inspections_scope(tenant_id,organization_id,inspected_at); idx_equipment_inspections_asset(asset_id,inspected_at)
     - name: equipment_maintenance_spare_parts
       description: Spare-part catalog and current balance.

@@ -2,12 +2,16 @@ package equipmentmaintenance
 
 import (
 	"encoding/json"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 type proofManifest struct {
@@ -26,8 +30,11 @@ type proofManifest struct {
 		Key string `yaml:"key"`
 	} `yaml:"permissions"`
 	Data struct {
-		Namespace string `yaml:"namespace"`
-		Tables    []struct {
+		Namespace          string `yaml:"namespace"`
+		MigrationDirectory string `yaml:"migration_directory"`
+		UninstallPolicy    string `yaml:"uninstall_policy"`
+		RollbackPolicy     string `yaml:"rollback_policy"`
+		Tables             []struct {
 			Name    string `yaml:"name"`
 			Columns string `yaml:"columns"`
 		} `yaml:"tables"`
@@ -99,6 +106,9 @@ func TestProofPluginContractIsCompleteAndPublic(t *testing.T) {
 	}
 	if contract.PublicContract.BackendClient != "github.com/tinboxw/skoll/pkg/pluginclient" {
 		t.Fatalf("unexpected public backend client: %q", contract.PublicContract.BackendClient)
+	}
+	if manifest.Data.Namespace != manifest.ID || manifest.Data.MigrationDirectory != "migrations" || manifest.Data.UninstallPolicy != "drop" || manifest.Data.RollbackPolicy != "automatic" {
+		t.Fatalf("plugin data lifecycle is incomplete: %+v", manifest.Data)
 	}
 
 	permissions := make(map[string]struct{}, len(manifest.Permissions))
@@ -193,6 +203,71 @@ func TestProofPluginContractIsCompleteAndPublic(t *testing.T) {
 	}
 	if len(contract.AcceptanceScenarios) < 6 {
 		t.Fatalf("acceptance scenario count = %d, want at least 6", len(contract.AcceptanceScenarios))
+	}
+}
+
+func TestProofPluginPackageSurfaceAndDependencyBoundary(t *testing.T) {
+	required := []string{
+		"backend/main.go", "plugin.ps1", "plugin.sh", "web/package.json", "web/src/App.vue",
+		"migrations/001_initial.up.sql", "migrations/001_initial.down.sql",
+	}
+	for _, path := range required {
+		if info, err := os.Stat(filepath.FromSlash(path)); err != nil || info.IsDir() {
+			t.Fatalf("required package file %q is unavailable: %v", path, err)
+		}
+	}
+	err := filepath.WalkDir("backend", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || filepath.Ext(path) != ".go" {
+			return err
+		}
+		raw, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		privatePrefix := strings.Join([]string{"github.com/tinboxw/skoll", "internal"}, "/") + "/"
+		if strings.Contains(string(raw), privatePrefix) {
+			t.Fatalf("backend imports private core source: %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProofPluginMigrationIsExecutableAndReversible(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "migration.db")), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	up, err := os.ReadFile("migrations/001_initial.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(string(up)).Error; err != nil {
+		t.Fatalf("apply equipment maintenance migration: %v", err)
+	}
+	for _, table := range loadManifest(t).Data.Tables {
+		if !db.Migrator().HasTable(table.Name) {
+			t.Fatalf("migration did not create %s", table.Name)
+		}
+	}
+	down, err := os.ReadFile("migrations/001_initial.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(string(down)).Error; err != nil {
+		t.Fatalf("rollback equipment maintenance migration: %v", err)
+	}
+	for _, table := range loadManifest(t).Data.Tables {
+		if db.Migrator().HasTable(table.Name) {
+			t.Fatalf("rollback retained %s", table.Name)
+		}
 	}
 }
 
