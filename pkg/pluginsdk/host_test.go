@@ -32,6 +32,15 @@ func (hostTestDataStore) Mutate(context.Context, DataMutation) (DataMutationResu
 	return DataMutationResult{}, nil
 }
 
+type hostTestDocumentNumbers struct{}
+
+func (hostTestDocumentNumbers) Preview(context.Context, DocumentNumberInput) (DocumentNumberResult, error) {
+	return DocumentNumberResult{Number: "TEST-000001", Sequence: 1}, nil
+}
+func (hostTestDocumentNumbers) Issue(context.Context, DocumentNumberInput) (DocumentNumberResult, error) {
+	return DocumentNumberResult{Number: "TEST-000001", Sequence: 1}, nil
+}
+
 type hostTestFiles struct{}
 
 func (hostTestFiles) Store(context.Context, FileWrite) (FileObject, error)  { return FileObject{}, nil }
@@ -105,8 +114,8 @@ func (hostTestJobs) List(context.Context, JobQuery) ([]Job, error)           { r
 func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 	valid := HostServices{
 		PluginID: "test", Transactions: hostTestTransactions{}, DataScopes: hostTestDataScopes{},
-		DataStore: hostTestDataStore{},
-		Files:     hostTestFiles{}, Audit: hostTestAudit{}, Config: hostTestConfig{}, Secrets: hostTestSecrets{},
+		DataStore: hostTestDataStore{}, DocumentNumbers: hostTestDocumentNumbers{},
+		Files: hostTestFiles{}, Audit: hostTestAudit{}, Config: hostTestConfig{}, Secrets: hostTestSecrets{},
 		Workflows: hostTestWorkflows{}, Jobs: hostTestJobs{},
 	}
 	if err := valid.Validate(); err != nil {
@@ -120,6 +129,7 @@ func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 		{name: "transactions", mutate: func(host *HostServices) { host.Transactions = nil }},
 		{name: "data scopes", mutate: func(host *HostServices) { host.DataScopes = nil }},
 		{name: "datastore", mutate: func(host *HostServices) { host.DataStore = nil }},
+		{name: "document numbers", mutate: func(host *HostServices) { host.DocumentNumbers = nil }},
 		{name: "files", mutate: func(host *HostServices) { host.Files = nil }},
 		{name: "audit", mutate: func(host *HostServices) { host.Audit = nil }},
 		{name: "config", mutate: func(host *HostServices) { host.Config = nil }},

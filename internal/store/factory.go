@@ -167,7 +167,7 @@ func openMemoryPluginDataDB() (*gorm.DB, error) {
 	}
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
-	if err = db.AutoMigrate(&gormrepo.PluginDataMutationModel{}); err != nil {
+	if err = db.AutoMigrate(&gormrepo.PluginDataMutationModel{}, &gormrepo.DocumentNumberSequenceModel{}, &gormrepo.DocumentNumberIssueModel{}); err != nil {
 		return nil, fmt.Errorf("migrate memory plugin datastore: %w", err)
 	}
 	return db, nil

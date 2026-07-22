@@ -45,6 +45,24 @@ func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capabili
 			return nil, err
 		}
 		return host.DataStore.Mutate(ctx, in)
+	case "document-numbers.preview":
+		var in pluginsdk.DocumentNumberInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		if err := in.Validate(false); err != nil {
+			return nil, err
+		}
+		return host.DocumentNumbers.Preview(ctx, in)
+	case "document-numbers.issue":
+		var in pluginsdk.DocumentNumberInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		if err := in.Validate(true); err != nil {
+			return nil, err
+		}
+		return host.DocumentNumbers.Issue(ctx, in)
 	case "scopes.resolve":
 		var in pluginsdk.Permission
 		if err := decodeHostInput(decoder, &in); err != nil {

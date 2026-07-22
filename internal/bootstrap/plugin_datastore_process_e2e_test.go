@@ -82,7 +82,7 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 		}
 		return pluginsdk.HostServices{
 			PluginID: requestedPluginID, Transactions: transactions, DataScopes: scopes, DataStore: store,
-			Files: dataStoreE2EFiles{}, Audit: audit, Config: configService, Secrets: secretService,
+			DocumentNumbers: dataStoreE2EDocumentNumbers{}, Files: dataStoreE2EFiles{}, Audit: audit, Config: configService, Secrets: secretService,
 			Workflows: dataStoreE2EWorkflows{}, Jobs: dataStoreE2EJobs{},
 		}, nil
 	}, jwtSecret, 5*time.Second)
@@ -177,6 +177,16 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 	if !audit.hasAction("datastore.insert") {
 		t.Fatalf("datastore mutation was not audited: %+v", audit.actions())
 	}
+}
+
+type dataStoreE2EDocumentNumbers struct{}
+
+func (dataStoreE2EDocumentNumbers) Preview(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	return pluginsdk.DocumentNumberResult{Number: input.Rule.Prefix + "-000001", Sequence: 1}, nil
+}
+
+func (dataStoreE2EDocumentNumbers) Issue(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	return pluginsdk.DocumentNumberResult{Number: input.Rule.Prefix + "-000001", Sequence: 1}, nil
 }
 
 type dataStoreE2EScopes struct{}

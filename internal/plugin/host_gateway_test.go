@@ -72,6 +72,26 @@ func (gatewayDataStore) Mutate(_ context.Context, mutation pluginsdk.DataMutatio
 	return pluginsdk.DataMutationResult{RowsAffected: 1}, nil
 }
 
+type gatewayDocumentNumbers struct{}
+
+func (gatewayDocumentNumbers) Preview(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	return pluginsdk.DocumentNumberResult{Number: input.Rule.Prefix + "-000001", Sequence: 1}, nil
+}
+
+func (gatewayDocumentNumbers) Issue(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	return pluginsdk.DocumentNumberResult{Number: input.Rule.Prefix + "-000001", Sequence: 1}, nil
+}
+
+type gatewayDocumentNumberFailure struct{}
+
+func (gatewayDocumentNumberFailure) Preview(context.Context, pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	return pluginsdk.DocumentNumberResult{}, pluginsdk.NewDocumentNumberError(pluginsdk.DocumentNumberErrorConflict, "rule", "numbering rule is frozen", false)
+}
+
+func (gatewayDocumentNumberFailure) Issue(context.Context, pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	return pluginsdk.DocumentNumberResult{}, pluginsdk.NewDocumentNumberError(pluginsdk.DocumentNumberErrorTransactionRequired, "transaction", "transaction required", false)
+}
+
 type gatewayFiles struct{}
 
 func (gatewayFiles) Store(context.Context, pluginsdk.FileWrite) (pluginsdk.FileObject, error) {
@@ -177,7 +197,7 @@ func (gatewayJobs) List(context.Context, pluginsdk.JobQuery) ([]pluginsdk.Job, e
 func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	transactions := &gatewayTransactions{}
 	secrets := &gatewaySecrets{}
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(id string) (pluginsdk.HostServices, error) {
 		if id != "equipment" {
 			return pluginsdk.HostServices{}, errors.New("wrong identity")
@@ -213,6 +233,20 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	page, err := services.DataStore.Query(ctx, basicGatewayQuery())
 	if err != nil || len(page.Records) != 1 || page.Records[0].Values["id"].Value != "asset-1" {
 		t.Fatalf("datastore page=%+v err=%v", page, err)
+	}
+	numberInput := pluginsdk.DocumentNumberInput{
+		Rule: pluginsdk.DocumentNumberRule{
+			DocumentType: "work_order", Prefix: "WO", Separator: "-", Period: pluginsdk.DocumentNumberPeriodNone,
+			Width: 6, Start: 1, GapPolicy: pluginsdk.DocumentNumberGapTransactional,
+		},
+		TenantID: "tenant-a", Permission: pluginsdk.Permission{Resource: "equipment.work_order", Action: "issue"},
+		OccurredAt: time.Date(2026, 7, 22, 0, 0, 0, 0, time.UTC), IdempotencyKey: "work-order-1",
+	}
+	if preview, previewErr := services.DocumentNumbers.Preview(ctx, numberInput); previewErr != nil || preview.Number != "WO-000001" {
+		t.Fatalf("document number preview=%+v err=%v", preview, previewErr)
+	}
+	if issued, issueErr := services.DocumentNumbers.Issue(ctx, numberInput); issueErr != nil || issued.Number != "WO-000001" {
+		t.Fatalf("document number issue=%+v err=%v", issued, issueErr)
 	}
 	if result, mutateErr := services.DataStore.Mutate(ctx, pluginsdk.DataMutation{
 		Table: "assets", Operation: pluginsdk.DataMutationDelete,
@@ -338,7 +372,7 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 }
 
 func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *testing.T) {
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -399,10 +433,56 @@ func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *te
 	}
 }
 
+func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
+	host := pluginsdk.HostServices{
+		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		DocumentNumbers: gatewayDocumentNumberFailure{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+	}
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gateway.Close()
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := pluginclient.New(pluginclient.Options{PluginID: "equipment", HostURL: credential.HostURL, HostToken: credential.Token})
+	if err != nil {
+		t.Fatal(err)
+	}
+	services, err := client.HostServices()
+	if err != nil {
+		t.Fatal(err)
+	}
+	userToken, err := security.SignJWT("gateway-jwt-secret", security.JWTIdentity{Subject: "user-7", Role: "admin", Roles: []string{"admin"}}, time.Minute, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := pluginclient.WithUserToken(context.Background(), userToken)
+	input := pluginsdk.DocumentNumberInput{
+		Rule: pluginsdk.DocumentNumberRule{
+			DocumentType: "work_order", Prefix: "WO", Separator: "-", Period: pluginsdk.DocumentNumberPeriodNone,
+			Width: 6, Start: 1, GapPolicy: pluginsdk.DocumentNumberGapTransactional,
+		},
+		TenantID: "tenant-a", Permission: pluginsdk.Permission{Resource: "equipment.work_order", Action: "issue"},
+		OccurredAt: time.Date(2026, 7, 22, 0, 0, 0, 0, time.UTC), IdempotencyKey: "work-order-1",
+	}
+	_, err = services.DocumentNumbers.Preview(ctx, input)
+	var numberErr *pluginsdk.DocumentNumberError
+	if !errors.As(err, &numberErr) || numberErr.Code != pluginsdk.DocumentNumberErrorConflict || numberErr.Field != "rule" {
+		t.Fatalf("preview error=%v", err)
+	}
+	_, err = services.DocumentNumbers.Issue(ctx, input)
+	if !errors.As(err, &numberErr) || numberErr.Code != pluginsdk.DocumentNumberErrorTransactionRequired || numberErr.Field != "transaction" {
+		t.Fatalf("issue error=%v", err)
+	}
+}
+
 func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
 		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
-		Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+		DocumentNumbers: gatewayDocumentNumbers{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
 	gateway, err := NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
 		if pluginID != "equipment" {

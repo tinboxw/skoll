@@ -538,3 +538,55 @@ Result: BF2-01 passed. Independent plugins can now describe and deterministicall
 ### Commit
 
 `BF2-01: define business document contracts`
+
+## BF2-02 Implement Tenant-Safe Document Numbering
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Publish one host-owned numbering service for tenant-safe preview and transactional issuance across in-process and independent plugins.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public boundary | Pass | `pkg/pluginsdk` exposes strict rule, input, result, service, and typed-error contracts; `pkg/pluginclient` preserves them across the managed process boundary |
+| Namespace isolation | Pass | Sequences are keyed by plugin, tenant, document type, and UTC period; tenant/type/period matrix tests each begin independently at one |
+| Concurrent uniqueness | Pass | 32 concurrent issue attempts produce 32 unique, continuous sequence values; SQL row locking, optimistic update checks, and a unique value index protect issuance |
+| Transactional gap policy | Pass | Formal issue requires a host transaction; rollback removes sequence and idempotency writes and the rolled-back number is reused |
+| Idempotency | Pass | Same key and input returns the committed number with `duplicate=true`; changed input returns a stable conflict and does not advance the sequence |
+| Rule stability | Pass | The first issue persists a rule hash; preview and issue reject rule changes within the active tenant/type/period namespace |
+| Restart continuity | Pass | A newly constructed service over the same database previews the next committed number |
+| Authorization | Pass | Host service resolves the declared permission, constrains trusted scope to exactly one requested tenant, and rejects cross-tenant access before the backend |
+| Audit | Pass | First committed issuance writes `document_number.issue`; idempotent replay does not create a duplicate audit entry |
+| Process gateway | Pass | Public client preview and issue succeed through the loopback gateway; conflict and transaction-required errors retain code and field |
+| Persistence | Pass | GORM models and MySQL/PostgreSQL migration 27 create sequence and issue tables with matching keys, rule hash, timestamps, and unique constraints |
+| Full quality gate | Pass | Focused tests, focused race tests, full Go tests, full vet, CodeGraph review, migration review, and diff checks pass |
+| Current-only rule | Pass | No legacy counter, alternate gap policy, local plugin counter, compatibility adapter, dual write, or fallback path exists |
+
+The first host-service acceptance run exposed an incomplete test scope fixture and failed. The fixture was corrected to model one trusted tenant with unrestricted owner and organization dimensions, and the failed acceptance suite plus the full quality gate were re-executed successfully.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/hostservice ./internal/plugin -run DocumentNumber -count=1 -v
+go test ./... -count=1
+go test -race ./pkg/pluginsdk ./pkg/pluginclient ./internal/store/sql/gormrepo ./internal/plugin/hostservice ./internal/plugin -run DocumentNumber -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF2-02 passed. Independent plugins can now preview and atomically issue tenant-safe business-document numbers with explicit rollback, idempotency, authorization, audit, restart, and rule-freezing semantics.
+
+### Impact Review
+
+- API/OpenAPI: no public application HTTP route was added; managed plugin host capability `document-numbers` now exposes `preview` and `issue` operations.
+- Permission/audit: every call carries a permission and tenant; first issuance is audited under the authenticated host context.
+- Migration/seed: migration 27 creates two current-only tables for MySQL and PostgreSQL; memory mode migrates the same GORM models; no seed data.
+- Frontend/i18n: no UI changed; typed field errors and preview output are ready for BF2-06 schema-driven forms.
+- Documentation: plugin numbering guide, migration notes, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; host-owned numbering is the only supported implementation.
+
+### Commit
+
+`BF2-02: implement tenant-safe document numbering`

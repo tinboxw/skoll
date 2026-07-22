@@ -24,6 +24,8 @@ MySQL 迁移脚本目录。
 - 20260722_000023_create_plugin_migration_ledger.sql
 - 20260722_000024_create_workflow_persistence.sql
 - 20260722_000025_create_notification_persistence.sql
+- 20260722_000026_create_job_persistence.sql
+- 20260722_000027_create_document_number_persistence.sql
 
 ## 执行顺序
 
@@ -109,6 +111,15 @@ MySQL 迁移脚本目录。
 - 并发：领取任务时原子写入 worker、租约令牌和到期时间；只有当前令牌可提交结果。
 - 恢复：进程重启不丢任务，过期租约可重新领取；达到最大尝试次数后进入 `dead_letter`。
 - 幂等：`namespace + idempotency_key` 唯一，未提供幂等键的任务不受空值冲突影响。
+
+## 业务单据编号持久化
+
+### 20260722_000027_create_document_number_persistence.sql
+
+- 表名：`sk_document_number_sequences`、`sk_document_number_issues`。
+- 隔离：序列按插件、租户、单据类型和周期独立；同一命名空间内的序号唯一。
+- 幂等：发号记录按插件、租户、单据类型和幂等键唯一。
+- 规则：序列表保存规则指纹，周期内规则不可变；序列增量和发号记录在业务事务中原子提交。
 
 ## 医药 OA 主数据表
 

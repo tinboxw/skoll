@@ -72,7 +72,7 @@ func TestEquipmentMaintenancePackagedLifecycleE2E(t *testing.T) {
 	audit := &equipmentGatewayAudit{}
 	host := pluginsdk.HostServices{
 		PluginID: "equipment_maintenance", Transactions: transactions, DataScopes: gatewayScopes{}, Files: gatewayFiles{},
-		DataStore: gatewayDataStore{}, Audit: audit, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+		DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Audit: audit, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
 	gateway, err := NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
 		if pluginID != host.PluginID {

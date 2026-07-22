@@ -67,6 +67,30 @@ func (s dataStoreService) Query(ctx context.Context, query pluginsdk.DataQuery) 
 	return
 }
 
+type documentNumberService struct{ client *Client }
+
+func (s documentNumberService) Preview(ctx context.Context, input pluginsdk.DocumentNumberInput) (out pluginsdk.DocumentNumberResult, err error) {
+	if err = input.Validate(false); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "document-numbers", "preview", input, &out)
+	if err == nil {
+		err = out.Validate()
+	}
+	return
+}
+
+func (s documentNumberService) Issue(ctx context.Context, input pluginsdk.DocumentNumberInput) (out pluginsdk.DocumentNumberResult, err error) {
+	if err = input.Validate(true); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "document-numbers", "issue", input, &out)
+	if err == nil {
+		err = out.Validate()
+	}
+	return
+}
+
 func (s dataStoreService) Mutate(ctx context.Context, mutation pluginsdk.DataMutation) (out pluginsdk.DataMutationResult, err error) {
 	if err = mutation.Validate(); err != nil {
 		return out, err
@@ -267,6 +291,7 @@ type valueResponse struct {
 var _ pluginsdk.TransactionService = transactionService{}
 var _ pluginsdk.DataScopeService = dataScopeService{}
 var _ pluginsdk.DataStoreService = dataStoreService{}
+var _ pluginsdk.DocumentNumberService = documentNumberService{}
 var _ pluginsdk.FileService = fileService{}
 var _ pluginsdk.AuditService = auditService{}
 var _ pluginsdk.ConfigService = configService{}

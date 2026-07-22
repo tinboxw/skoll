@@ -32,6 +32,7 @@ import (
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
 	userrepo "github.com/tinboxw/skoll/internal/repository/user"
 	"github.com/tinboxw/skoll/internal/service/audit"
+	documentnumbersvc "github.com/tinboxw/skoll/internal/service/documentnumber"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
@@ -44,6 +45,7 @@ import (
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
 	objectstore "github.com/tinboxw/skoll/internal/store/object"
+	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/config"
 	"github.com/tinboxw/skoll/pkg/logging"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
@@ -107,6 +109,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	})
 	notificationService := notificationsvc.NewService(bundle.Notifications, nil, nil)
 	jobService := jobsvc.NewService(bundle.Jobs, nil)
+	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
 	transactionService, err := hostservice.NewTransactionService(bundle.UnitOfWork)
 	if err != nil {
 		return nil, err
@@ -132,7 +135,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		bundle.Plugins, bundle.PluginMigrations, auditService, auditEventService, businessEventBus, pluginDataLifecycle,
 		hostservice.HostServicesDependencies{
 			Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory, Files: fileService, Audit: auditService,
-			System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
+			DocumentNumbers: documentNumberService, System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
 		},
 	)
 	if err != nil {
@@ -144,7 +147,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 	pluginHost, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
 		PluginID: pharmaoaplugin.PluginID, Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory,
-		Files: fileService, Audit: auditService, ConfigStore: configStore, System: systemService,
+		Files: fileService, Audit: auditService, ConfigStore: configStore, System: systemService, DocumentNumbers: documentNumberService,
 		MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
 	})
 	if err != nil {

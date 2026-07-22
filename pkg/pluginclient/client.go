@@ -82,8 +82,9 @@ func (c *Client) HostServices() (pluginsdk.HostServices, error) {
 	host := pluginsdk.HostServices{
 		PluginID:     c.pluginID,
 		Transactions: transactionService{client: c}, DataScopes: dataScopeService{client: c},
-		DataStore: dataStoreService{client: c},
-		Files:     fileService{client: c}, Audit: auditService{client: c}, Config: configService{client: c},
+		DataStore:       dataStoreService{client: c},
+		DocumentNumbers: documentNumberService{client: c},
+		Files:           fileService{client: c}, Audit: auditService{client: c}, Config: configService{client: c},
 		Secrets: secretService{client: c}, Workflows: workflowService{client: c}, Jobs: jobService{client: c},
 	}
 	if err := host.Validate(); err != nil {
@@ -142,6 +143,11 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 				return pluginsdk.NewDataStoreError(code, failure.Field, failure.Message, failure.Retryable)
 			}
 		}
+		if capability == "document-numbers" {
+			if code, ok := parseDocumentNumberErrorCode(failure.Code); ok {
+				return pluginsdk.NewDocumentNumberError(code, failure.Field, failure.Message, failure.Retryable)
+			}
+		}
 		return &Error{StatusCode: response.StatusCode, Code: failure.Code, Message: failure.Message}
 	}
 	if output == nil || len(bytes.TrimSpace(raw)) == 0 {
@@ -151,6 +157,18 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 		return fmt.Errorf("decode plugin host response: %w", err)
 	}
 	return nil
+}
+
+func parseDocumentNumberErrorCode(value string) (pluginsdk.DocumentNumberErrorCode, bool) {
+	code := pluginsdk.DocumentNumberErrorCode(strings.TrimSpace(value))
+	switch code {
+	case pluginsdk.DocumentNumberErrorInvalidRequest, pluginsdk.DocumentNumberErrorForbidden,
+		pluginsdk.DocumentNumberErrorConflict, pluginsdk.DocumentNumberErrorTransactionRequired,
+		pluginsdk.DocumentNumberErrorExhausted, pluginsdk.DocumentNumberErrorUnavailable:
+		return code, true
+	default:
+		return "", false
+	}
 }
 
 func decodeResponseJSON(raw []byte, output any) error {

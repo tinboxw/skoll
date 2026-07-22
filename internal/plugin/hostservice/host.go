@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
+	documentnumbersvc "github.com/tinboxw/skoll/internal/service/documentnumber"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	systemsvc "github.com/tinboxw/skoll/internal/service/system"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
@@ -14,17 +15,18 @@ import (
 type DataStoreFactory func(string, pluginsdk.DataScopeService, pluginsdk.AuditService) (pluginsdk.DataStoreService, error)
 
 type HostServicesDependencies struct {
-	PluginID     string
-	Transactions pluginsdk.TransactionService
-	DataScopes   pluginsdk.DataScopeService
-	DataStore    DataStoreFactory
-	Files        fileBackend
-	Audit        auditsvc.Service
-	ConfigStore  PluginConfigStore
-	System       systemsvc.Service
-	MasterSecret string
-	Workflow     workflowsvc.Service
-	Jobs         *jobsvc.Service
+	PluginID        string
+	Transactions    pluginsdk.TransactionService
+	DataScopes      pluginsdk.DataScopeService
+	DataStore       DataStoreFactory
+	DocumentNumbers *documentnumbersvc.Service
+	Files           fileBackend
+	Audit           auditsvc.Service
+	ConfigStore     PluginConfigStore
+	System          systemsvc.Service
+	MasterSecret    string
+	Workflow        workflowsvc.Service
+	Jobs            *jobsvc.Service
 }
 
 func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, error) {
@@ -44,6 +46,10 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 	if err != nil {
 		return pluginsdk.HostServices{}, fmt.Errorf("build plugin datastore service: %w", err)
 	}
+	documentNumbers, err := NewDocumentNumberService(pluginID, deps.DocumentNumbers, deps.DataScopes, audit)
+	if err != nil {
+		return pluginsdk.HostServices{}, err
+	}
 	config, err := NewConfigService(pluginID, deps.ConfigStore, deps.System, audit)
 	if err != nil {
 		return pluginsdk.HostServices{}, err
@@ -62,7 +68,7 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 	}
 	host := pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: deps.Transactions, DataScopes: deps.DataScopes,
-		DataStore: dataStore, Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
+		DataStore: dataStore, DocumentNumbers: documentNumbers, Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
 	}
 	if err := host.Validate(); err != nil {
 		return pluginsdk.HostServices{}, fmt.Errorf("build plugin host services: %w", err)

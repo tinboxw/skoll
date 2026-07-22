@@ -12,6 +12,7 @@ import (
 
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
+	documentnumbersvc "github.com/tinboxw/skoll/internal/service/documentnumber"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	"github.com/tinboxw/skoll/internal/service/rbac"
@@ -19,6 +20,7 @@ import (
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
 	objectstore "github.com/tinboxw/skoll/internal/store/object"
+	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"github.com/tinboxw/skoll/pkg/security"
 	sdkconformance "github.com/tinboxw/skoll/plugins/sdk-conformance"
@@ -67,7 +69,8 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 			return dataStore, nil
 		},
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditsvc.NewService(bundle.Audit),
-		ConfigStore: configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
+		DocumentNumbers: documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
+		ConfigStore:     configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
 		Workflow: workflowsvc.NewService(bundle.Workflow), Jobs: jobsvc.NewService(bundle.Jobs, nil),
 	})
 	if err != nil {

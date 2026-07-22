@@ -14,6 +14,7 @@ import (
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
+	documentnumbersvc "github.com/tinboxw/skoll/internal/service/documentnumber"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
@@ -22,6 +23,7 @@ import (
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
 	objectstore "github.com/tinboxw/skoll/internal/store/object"
+	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"gopkg.in/yaml.v3"
 )
@@ -118,7 +120,8 @@ func TestBackendServesOnlyPluginNamespace(t *testing.T) {
 			return backendContractDataStore{}, nil
 		},
 		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditService,
-		ConfigStore: &backendContractConfigStore{info: pluginruntime.Info{ID: PluginID}}, System: systemsvc.NewService(bundle.System),
+		DocumentNumbers: documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
+		ConfigStore:     &backendContractConfigStore{info: pluginruntime.Info{ID: PluginID}}, System: systemsvc.NewService(bundle.System),
 		MasterSecret: "pharma-backend-contract-secret", Workflow: workflowsvc.NewService(workflowsvc.NewMemoryRepository()),
 		Jobs: jobsvc.NewService(jobsvc.NewMemoryRepository(), nil),
 	})

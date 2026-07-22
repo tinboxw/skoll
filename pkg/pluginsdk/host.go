@@ -24,16 +24,17 @@ type DataScopeService interface {
 }
 
 type HostServices struct {
-	PluginID     string
-	Transactions TransactionService
-	DataScopes   DataScopeService
-	DataStore    DataStoreService
-	Files        FileService
-	Audit        AuditService
-	Config       ConfigService
-	Secrets      SecretService
-	Workflows    WorkflowService
-	Jobs         JobService
+	PluginID        string
+	Transactions    TransactionService
+	DataScopes      DataScopeService
+	DataStore       DataStoreService
+	DocumentNumbers DocumentNumberService
+	Files           FileService
+	Audit           AuditService
+	Config          ConfigService
+	Secrets         SecretService
+	Workflows       WorkflowService
+	Jobs            JobService
 }
 
 func (s HostServices) Validate() error {
@@ -48,6 +49,9 @@ func (s HostServices) Validate() error {
 	}
 	if s.DataStore == nil {
 		return fmt.Errorf("plugin host datastore service is required")
+	}
+	if s.DocumentNumbers == nil {
+		return fmt.Errorf("plugin host document number service is required")
 	}
 	if s.Files == nil {
 		return fmt.Errorf("plugin host file service is required")

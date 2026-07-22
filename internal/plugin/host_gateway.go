@@ -412,27 +412,50 @@ func writeHostCallError(w http.ResponseWriter, err error) {
 		return
 	}
 	var datastoreErr *pluginsdk.DataStoreError
-	if !errors.As(err, &datastoreErr) {
+	if errors.As(err, &datastoreErr) {
+		status := http.StatusUnprocessableEntity
+		switch datastoreErr.Code {
+		case pluginsdk.DataStoreErrorInvalidRequest:
+			status = http.StatusBadRequest
+		case pluginsdk.DataStoreErrorForbidden:
+			status = http.StatusForbidden
+		case pluginsdk.DataStoreErrorNotFound:
+			status = http.StatusNotFound
+		case pluginsdk.DataStoreErrorConflict:
+			status = http.StatusConflict
+		case pluginsdk.DataStoreErrorLimitExceeded:
+			status = http.StatusUnprocessableEntity
+		case pluginsdk.DataStoreErrorUnavailable:
+			status = http.StatusServiceUnavailable
+		}
+		writeHostJSON(w, status, pluginclient.ErrorResponse{
+			Code: string(datastoreErr.Code), Field: datastoreErr.Field,
+			Message: datastoreErr.Message, Retryable: datastoreErr.Retryable,
+		})
+		return
+	}
+	var numberErr *pluginsdk.DocumentNumberError
+	if !errors.As(err, &numberErr) {
 		writeHostError(w, http.StatusUnprocessableEntity, "host_call_failed")
 		return
 	}
 	status := http.StatusUnprocessableEntity
-	switch datastoreErr.Code {
-	case pluginsdk.DataStoreErrorInvalidRequest:
+	switch numberErr.Code {
+	case pluginsdk.DocumentNumberErrorInvalidRequest:
 		status = http.StatusBadRequest
-	case pluginsdk.DataStoreErrorForbidden:
+	case pluginsdk.DocumentNumberErrorForbidden:
 		status = http.StatusForbidden
-	case pluginsdk.DataStoreErrorNotFound:
-		status = http.StatusNotFound
-	case pluginsdk.DataStoreErrorConflict:
+	case pluginsdk.DocumentNumberErrorConflict:
 		status = http.StatusConflict
-	case pluginsdk.DataStoreErrorLimitExceeded:
+	case pluginsdk.DocumentNumberErrorTransactionRequired:
+		status = http.StatusConflict
+	case pluginsdk.DocumentNumberErrorExhausted:
 		status = http.StatusUnprocessableEntity
-	case pluginsdk.DataStoreErrorUnavailable:
+	case pluginsdk.DocumentNumberErrorUnavailable:
 		status = http.StatusServiceUnavailable
 	}
 	writeHostJSON(w, status, pluginclient.ErrorResponse{
-		Code: string(datastoreErr.Code), Field: datastoreErr.Field,
-		Message: datastoreErr.Message, Retryable: datastoreErr.Retryable,
+		Code: string(numberErr.Code), Field: numberErr.Field,
+		Message: numberErr.Message, Retryable: numberErr.Retryable,
 	})
 }

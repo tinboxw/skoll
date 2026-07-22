@@ -12,6 +12,8 @@ func AllModels() []any {
 		&PluginRouteModel{},
 		&PluginReleaseModel{},
 		&PluginDataMutationModel{},
+		&DocumentNumberSequenceModel{},
+		&DocumentNumberIssueModel{},
 		&PermissionResourceModel{},
 		&MenuNodeModel{},
 		&FileObjectModel{},
