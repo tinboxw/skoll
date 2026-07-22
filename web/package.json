@@ -11,6 +11,7 @@
 		"check:large-list": "node scripts/h5-large-list-check.mjs",
 		"check:theme": "node scripts/pr4-theme-token-check.mjs",
 		"test:components": "vitest run",
+		"test:states": "playwright test --config playwright.config.ts",
 		"typecheck": "npm run check:i18n && npm run check:a11y && npm run check:large-list && npm run check:theme && vue-tsc --noEmit",
 		"preview": "vite preview",
 		"smoke:health": "node scripts/health-smoke.mjs",
@@ -31,6 +32,7 @@
 		"xlsx": "^0.18.5"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.61.1",
 		"@vitejs/plugin-vue": "^5.2.4",
 		"@vue/test-utils": "^2.4.6",
 		"jsdom": "^25.0.1",

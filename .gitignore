@@ -18,6 +18,8 @@
 node_modules
 package-lock.json
 web/dist
+web/test-results/
+web/playwright-report/
 
 # Python browser-test cache
 __pycache__/

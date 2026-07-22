@@ -1771,3 +1771,58 @@ Result: PR4-04 passed after ten documented retries. The complete production UI n
 ### Commit
 
 `PR4-04: complete frontend localization and accessibility`
+
+## PR4-05 Complete Responsive Layouts And UI State Coverage
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> (Review -> Failed -> Doing) x2 -> Review -> Done`
+- Scope: Establish a real Playwright matrix for the current business UI, verify primary platform work surfaces, and enforce responsive state geometry for Chinese/English at desktop and 390px mobile widths.
+
+### Retry Records
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Playwright state matrix | Customer list and qualification reminders issued concurrent matching requests, but the test retained only one release callback; error refresh was also located outside the page action boundary | Give every matching request the same bounded delay and scope refresh actions to `PageShell` |
+| 2 | Primary-surface matrix | Login completed before backend plugin synchronization, so immediate navigation entered a dynamic-route rebuild window and rendered an empty workspace | Treat the localized `Synced` header state as part of login readiness before visiting plugin routes |
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Playwright foundation | Pass | `@playwright/test` 1.61.1, a current Chrome-channel configuration, deterministic one-worker execution, JSON results, retained failure traces, and failure screenshots are wired through `npm run test:states` |
+| Locale and viewport matrix | Pass | Chinese and English each pass at 1440x1000 desktop and 390x844 mobile widths |
+| Primary work surfaces | Pass after retry | Plugin workspace, Form Builder, and Developer Portal render after explicit plugin synchronization in all four locale/viewport projects |
+| Responsive | Pass | Pharma dashboard body renders with no horizontal overflow, clipped visible text, control escape, header/content overlap, or post-stabilization movement |
+| Loading | Pass after retry | Delayed customer APIs expose a stable PageShell skeleton without geometry failure |
+| Empty | Pass | A no-match customer filter exposes the localized table empty state without overflow or overlap |
+| Error | Pass after retry | Aborted customer requests expose the localized alert state and recover through the scoped retry action |
+| Offline | Pass | Browser-level offline mode exposes the localized network error, remains stable, and recovers after connectivity is restored |
+| Destructive | Pass | Qualification expiry scan opens the localized guarded dialog without viewport or text violations |
+| Saving | Pass | A delayed real scan request keeps the action loading state stable at desktop and mobile widths |
+| Success | Pass | The completed real scan exposes a visible success message and stable geometry |
+| No permission | Pass | `dept_admin` is redirected to the explicit forbidden state in both locales and viewports |
+| Layout stability | Pass | Every captured state compares page-shell, header, body, state, loading, dialog, and success landmarks over 180ms with <=1px movement |
+| Layout containment | Pass | Every captured state enforces <=1px document overflow, zero selected text overflows, zero control viewport escapes, and no header/content overlap |
+| Frontend quality gates | Pass | Six Vitest files / 13 tests, i18n/a11y/large-list/theme scans, `vue-tsc`, and Vite production build pass |
+| Current-only architecture | Pass | Tests exercise the current routes and real APIs; no demo route, fallback fixture page, compatibility path, or duplicate UI implementation was added |
+
+### Verification Commands
+
+```powershell
+cd web
+npm run test:states
+npm run test:components
+npm run typecheck
+npm run build
+cd ..
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: PR4-05 passed after two documented retries. The current platform and Pharma OA work surfaces now have an executable Chinese/English desktop/mobile Playwright matrix covering responsive, loading, empty, error, offline, destructive, saving, success, and no-permission states with measurable containment and stability gates.
+
+### Commit
+
+`PR4-05: enforce responsive UI state matrix`
