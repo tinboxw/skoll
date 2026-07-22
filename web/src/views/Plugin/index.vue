@@ -21,6 +21,8 @@ import {
 
 import SchemaForm from "../../components/Common/SchemaForm.vue";
 import StateBlock from "../../components/Common/StateBlock.vue";
+import MetricStrip, { type MetricStripItem } from "../../components/Common/MetricStrip.vue";
+import PageShell from "../../components/Common/PageShell.vue";
 import { confirmAction } from "../../composables/useConfirmAction";
 import { useI18n } from "../../i18n";
 import { BUTTON_ACCESS, useButtonAccess } from "../../permissions/button";
@@ -275,6 +277,40 @@ const failedDevTaskCount = computed(() => [
 	...devRolloutTasks.value
 ].filter((item) => String(item.taskStatus || "").toLowerCase() === "failed").length);
 const riskPluginCount = computed(() => disabledPluginCount.value + inaccessiblePluginCount.value + failedDevTaskCount.value + (pluginStore.degradedMode ? 1 : 0));
+const summaryItems = computed<MetricStripItem[]>(() => [
+	{
+		label: t("header.plugins"),
+		value: pluginStore.items.length,
+		note: `${syncStatusText.value} · ${t("plugin.sync.attempts")} ${pluginStore.syncAttempts}`
+	},
+	{
+		label: t("plugin.status.enabled"),
+		value: enabledPluginCount.value,
+		note: `${t("plugin.status.disabled")} ${disabledPluginCount.value}`
+	},
+	{
+		label: t("plugin.appLevel"),
+		value: appCount.value,
+		note: `${t("plugin.systemLevel")} ${systemPlugins.value.length}`
+	},
+	{
+		label: t("plugin.summary.risk"),
+		value: riskPluginCount.value,
+		note: `${t("plugin.summary.inaccessible")} ${inaccessiblePluginCount.value} · ${t("plugin.summary.failedTasks")} ${failedDevTaskCount.value}`,
+		tone: riskPluginCount.value > 0 ? "warning" : "default"
+	},
+	{
+		label: t("plugin.summary.configurable"),
+		value: configSchemaCount.value,
+		note: `${t("plugin.summary.filtered")} ${filteredPluginCount.value}`
+	},
+	{
+		label: t("plugin.currentDefaultHome"),
+		value: activeDefaultHome.value,
+		note: t("plugin.defaultHomeHint"),
+		wide: true
+	}
+]);
 const hasActivePluginFilters = computed(() => showOnlyEnabled.value || pluginKeyword.value.trim() !== "" || pluginStatusFilter.value !== "");
 const hasMarketplaceFilters = computed(() => marketplaceKeyword.value.trim() !== "" || marketplaceRiskFilter.value !== "" || marketplaceSignatureFilter.value !== "");
 const filteredMarketplaceItems = computed(() => {
@@ -1650,12 +1686,8 @@ function resetDefaultHome(): void {
 </script>
 
 <template>
-	<section class="plugin-page">
-		<header class="page-header">
-			<div class="title-block">
-				<h2>{{ t("plugin.title") }}</h2>
-				<p>{{ t("plugin.desc") }}</p>
-			</div>
+	<PageShell :title="t('plugin.title')" :description="t('plugin.desc')">
+		<template #actions>
 			<div class="header-actions">
 				<el-switch v-model="showOnlyEnabled" :active-text="t('plugin.onlyEnabled')" />
 				<el-button
@@ -1675,7 +1707,7 @@ function resetDefaultHome(): void {
 					{{ loading ? t("plugin.refreshing") : t("plugin.refresh") }}
 				</el-button>
 			</div>
-		</header>
+		</template>
 
 		<el-alert v-if="error" class="page-alert" type="error" :title="error" show-icon :closable="false" />
 		<el-alert v-if="info" class="page-alert" type="success" :title="info" show-icon :closable="false" />
@@ -1690,38 +1722,7 @@ function resetDefaultHome(): void {
 		<StateBlock v-if="!canReadPlugins" type="forbidden" :title="t('plugin.noPermissionTitle')" :description="t('error.forbidden')" />
 
 		<template v-else>
-			<section class="summary-grid">
-				<el-card shadow="never" class="summary-card">
-					<div class="summary-label">{{ t("header.plugins") }}</div>
-					<div class="summary-value">{{ pluginStore.items.length }}</div>
-					<div class="summary-note">{{ syncStatusText }} · {{ t("plugin.sync.attempts") }} {{ pluginStore.syncAttempts }}</div>
-				</el-card>
-				<el-card shadow="never" class="summary-card">
-					<div class="summary-label">{{ t("plugin.status.enabled") }}</div>
-					<div class="summary-value">{{ enabledPluginCount }}</div>
-					<div class="summary-note">{{ t("plugin.status.disabled") }} {{ disabledPluginCount }}</div>
-				</el-card>
-				<el-card shadow="never" class="summary-card">
-					<div class="summary-label">{{ t("plugin.appLevel") }}</div>
-					<div class="summary-value">{{ appCount }}</div>
-					<div class="summary-note">{{ t("plugin.systemLevel") }} {{ systemPlugins.length }}</div>
-				</el-card>
-				<el-card shadow="never" class="summary-card" :class="{ 'summary-card--warning': riskPluginCount > 0 }">
-					<div class="summary-label">{{ t("plugin.summary.risk") }}</div>
-					<div class="summary-value">{{ riskPluginCount }}</div>
-					<div class="summary-note">{{ t("plugin.summary.inaccessible") }} {{ inaccessiblePluginCount }} · {{ t("plugin.summary.failedTasks") }} {{ failedDevTaskCount }}</div>
-				</el-card>
-				<el-card shadow="never" class="summary-card">
-					<div class="summary-label">{{ t("plugin.summary.configurable") }}</div>
-					<div class="summary-value">{{ configSchemaCount }}</div>
-					<div class="summary-note">{{ t("plugin.summary.filtered") }} {{ filteredPluginCount }}</div>
-				</el-card>
-				<el-card shadow="never" class="summary-card is-wide">
-					<div class="summary-label">{{ t("plugin.currentDefaultHome") }}</div>
-					<div class="summary-path">{{ activeDefaultHome }}</div>
-					<div class="summary-note">{{ t("plugin.defaultHomeHint") }}</div>
-				</el-card>
-			</section>
+			<MetricStrip :items="summaryItems" />
 
 			<el-card shadow="never" class="filter-panel">
 				<el-form label-position="top" class="plugin-filters" @submit.prevent>
@@ -2542,31 +2543,16 @@ function resetDefaultHome(): void {
 			</el-card>
 		</div>
 		</template>
-	</section>
+	</PageShell>
 </template>
 
 <style scoped>
-.plugin-page {
-	display: grid;
-	gap: 16px;
-}
-
-.page-header {
-	display: flex;
-	justify-content: space-between;
-	gap: 16px;
-	align-items: flex-start;
-}
-
-.title-block h2,
 .card-header h3,
 .table-header h3 {
 	margin: 0;
 }
 
-.title-block p,
-.card-header p,
-.summary-note {
+.card-header p {
 	margin: 4px 0 0;
 	color: var(--color-text-muted);
 	font-size: 0.88rem;
@@ -2590,46 +2576,6 @@ function resetDefaultHome(): void {
 
 .page-alert {
 	margin: 0;
-}
-
-.summary-grid {
-	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 12px;
-}
-
-.summary-card {
-	min-height: 116px;
-}
-
-.summary-card--warning {
-	border-color: var(--color-warning);
-	background: var(--color-warning-soft);
-}
-
-.summary-card.is-wide {
-	grid-column: span 1;
-}
-
-.summary-label {
-	color: var(--color-text-muted);
-	font-size: 0.86rem;
-}
-
-.summary-value {
-	margin-top: 8px;
-	font-size: 2rem;
-	font-weight: 700;
-	line-height: 1;
-	color: var(--color-primary-strong);
-}
-
-.summary-path {
-	margin-top: 8px;
-	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-	font-size: 0.92rem;
-	font-weight: 700;
-	word-break: break-all;
 }
 
 .install-panel {
@@ -2998,10 +2944,6 @@ function resetDefaultHome(): void {
 }
 
 @media (max-width: 1180px) {
-	.summary-grid {
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-	}
-
 	.plugin-filters {
 		grid-template-columns: 1fr 1fr;
 	}
@@ -3032,7 +2974,6 @@ function resetDefaultHome(): void {
 }
 
 @media (max-width: 720px) {
-	.page-header,
 	.install-actions {
 		flex-direction: column;
 		align-items: stretch;
@@ -3054,9 +2995,6 @@ function resetDefaultHome(): void {
 		justify-content: flex-start;
 	}
 
-	.summary-grid {
-		grid-template-columns: 1fr;
-	}
 }
 </style>
 

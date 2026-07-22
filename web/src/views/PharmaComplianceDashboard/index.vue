@@ -49,6 +49,10 @@ const sourceStats = computed(() => [
 	{ key: "drug_recall", label: t("pharma.complianceDashboard.recalls"), value: summary.value.recalls },
 	{ key: "cold_chain", label: t("pharma.complianceDashboard.coldChain"), value: summary.value.coldChain }
 ]);
+const sourceOptions = computed(() => [
+	{ label: t("pharma.complianceDashboard.allSources"), value: "" },
+	...sourceStats.value.map((item) => ({ label: `${item.label} ${item.value}`, value: item.key }))
+]);
 const rows = computed<RiskRow[]>(() => (snapshot.value?.items ?? []).map((item) => ({
 	...item,
 	sourceText: sourceLabel(item.source),
@@ -112,11 +116,6 @@ function clearFilters(): void {
 	void refresh();
 }
 
-function selectSource(value: string): void {
-	source.value = source.value === value ? "" : value as ComplianceSource;
-	void refresh();
-}
-
 function openDetail(item: ComplianceRiskItem): void {
 	selected.value = item;
 	detailOpen.value = true;
@@ -154,9 +153,7 @@ function isComplianceSource(value: unknown): value is ComplianceSource {
 			<div><span>{{ t("pharma.complianceDashboard.matchedView") }}</span><strong>{{ snapshot?.matchedCount ?? 0 }}</strong></div>
 		</section>
 
-		<section class="source-band" :aria-label="t('pharma.complianceDashboard.riskSources')">
-			<button v-for="item in sourceStats" :key="item.key" type="button" :class="{ active: source === item.key }" @click="selectSource(item.key)"><span>{{ item.label }}</span><strong>{{ item.value }}</strong></button>
-		</section>
+		<el-segmented v-model="source" class="source-band" :aria-label="t('pharma.complianceDashboard.riskSources')" :options="sourceOptions" @change="refresh" />
 
 		<div class="filter-band">
 			<el-input v-model="keyword" clearable :placeholder="t('pharma.complianceDashboard.keywordPlaceholder')" :prefix-icon="Search" @keyup.enter="refresh" @clear="refresh" />
@@ -198,5 +195,162 @@ function isComplianceSource(value: unknown): value is ComplianceSource {
 </template>
 
 <style scoped>
-.summary-band{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;padding:4px 0 16px;border-bottom:1px solid var(--el-border-color-lighter)}.summary-band div{display:grid;gap:4px}.summary-band span{color:var(--el-text-color-secondary);font-size:13px}.summary-band strong{font-size:24px;line-height:1.1}.summary-band .high strong{color:var(--el-color-danger)}.source-band{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--el-border-color-lighter);border-radius:6px;overflow:hidden}.source-band button{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:12px 14px;border:0;border-right:1px solid var(--el-border-color-lighter);background:var(--el-bg-color);color:var(--el-text-color-regular);cursor:pointer}.source-band button:last-child{border-right:0}.source-band button:hover,.source-band button.active{background:var(--el-fill-color-light);color:var(--el-color-primary)}.source-band span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source-band strong{font-size:17px}.filter-band{display:grid;grid-template-columns:minmax(240px,1fr) 190px auto 40px;gap:10px;align-items:center}.detail-status{display:flex;gap:8px}.risk-heading{display:flex;align-items:flex-start;gap:12px;padding:16px 0;border-bottom:1px solid var(--el-border-color-lighter)}.risk-heading h3{margin:0;font-size:17px}.risk-heading p{margin:5px 0 0;color:var(--el-text-color-secondary);overflow-wrap:anywhere}.detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0}.detail-grid div,.trace-list dl div{min-width:0}.detail-grid dt,.trace-list dt{color:var(--el-text-color-secondary);font-size:12px}.detail-grid dd,.trace-list dd{margin:5px 0 0;overflow-wrap:anywhere}.trace-list{padding-top:16px;border-top:1px solid var(--el-border-color-lighter)}.trace-list h3{margin:0 0 12px;font-size:15px}.trace-list dl{display:grid;gap:12px;margin:0}.trace-list dl div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;padding-bottom:10px;border-bottom:1px solid var(--el-border-color-extra-light)}@media(max-width:900px){.filter-band{grid-template-columns:1fr 180px}.filter-band :deep(.el-segmented){width:100%}.source-band{grid-template-columns:repeat(2,minmax(0,1fr))}.source-band button:nth-child(2){border-right:0}.source-band button:nth-child(-n+2){border-bottom:1px solid var(--el-border-color-lighter)}}@media(max-width:760px){.summary-band{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.summary-band strong{font-size:20px}.filter-band{grid-template-columns:1fr}.filter-band :deep(.el-button.is-circle){justify-self:start}.source-band{grid-template-columns:1fr}.source-band button{border-right:0;border-bottom:1px solid var(--el-border-color-lighter)}.source-band button:last-child{border-bottom:0}.detail-grid{grid-template-columns:1fr}.trace-list dl div{grid-template-columns:1fr;gap:3px}}
+.summary-band {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 24px;
+	padding: 4px 0 16px;
+	border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.summary-band div {
+	display: grid;
+	gap: 4px;
+}
+
+.summary-band span {
+	color: var(--el-text-color-secondary);
+	font-size: 13px;
+}
+
+.summary-band strong {
+	font-size: 24px;
+	line-height: 1.1;
+}
+
+.summary-band .high strong {
+	color: var(--el-color-danger);
+}
+
+.source-band {
+	width: 100%;
+}
+
+:deep(.source-band .el-segmented__group) {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	width: 100%;
+}
+
+.filter-band {
+	display: grid;
+	grid-template-columns: minmax(240px, 1fr) 190px auto 40px;
+	gap: 10px;
+	align-items: center;
+}
+
+.detail-status {
+	display: flex;
+	gap: 8px;
+}
+
+.risk-heading {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 16px 0;
+	border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.risk-heading h3 {
+	margin: 0;
+	font-size: 17px;
+}
+
+.risk-heading p {
+	margin: 5px 0 0;
+	color: var(--el-text-color-secondary);
+	overflow-wrap: anywhere;
+}
+
+.detail-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
+	margin: 0;
+}
+
+.detail-grid div,
+.trace-list dl div {
+	min-width: 0;
+}
+
+.detail-grid dt,
+.trace-list dt {
+	color: var(--el-text-color-secondary);
+	font-size: 12px;
+}
+
+.detail-grid dd,
+.trace-list dd {
+	margin: 5px 0 0;
+	overflow-wrap: anywhere;
+}
+
+.trace-list {
+	padding-top: 16px;
+	border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.trace-list h3 {
+	margin: 0 0 12px;
+	font-size: 15px;
+}
+
+.trace-list dl {
+	display: grid;
+	gap: 12px;
+	margin: 0;
+}
+
+.trace-list dl div {
+	display: grid;
+	grid-template-columns: 150px minmax(0, 1fr);
+	gap: 12px;
+	padding-bottom: 10px;
+	border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+
+@media (max-width: 900px) {
+	.filter-band {
+		grid-template-columns: 1fr 180px;
+	}
+
+	.filter-band :deep(.el-segmented) {
+		width: 100%;
+	}
+
+	:deep(.source-band .el-segmented__group) {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 760px) {
+	.summary-band {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 16px;
+	}
+
+	.summary-band strong {
+		font-size: 20px;
+	}
+
+	.filter-band {
+		grid-template-columns: 1fr;
+	}
+
+	.filter-band :deep(.el-button.is-circle) {
+		justify-self: start;
+	}
+
+	:deep(.source-band .el-segmented__group),
+	.detail-grid,
+	.trace-list dl div {
+		grid-template-columns: 1fr;
+	}
+
+	.trace-list dl div {
+		gap: 3px;
+	}
+}
 </style>

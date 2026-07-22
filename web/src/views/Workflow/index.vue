@@ -388,24 +388,17 @@ function formatDate(value: string): string {
 			<el-button :icon="RefreshCw" @click="refreshInstances">Retry</el-button>
 		</template>
 
-		<section class="workflow-summary" aria-label="Workflow summary">
-			<button class="summary-tile" :class="{ active: activeView === 'pending' }" type="button" @click="activeView = 'pending'">
-				<span>Pending</span>
-				<strong>{{ summary.pending }}</strong>
-			</button>
-			<button class="summary-tile" :class="{ active: activeView === 'approved' }" type="button" @click="activeView = 'approved'">
-				<span>Approved</span>
-				<strong>{{ summary.approved }}</strong>
-			</button>
-			<button class="summary-tile" :class="{ active: activeView === 'initiated' }" type="button" @click="activeView = 'initiated'">
-				<span>Initiated</span>
-				<strong>{{ summary.initiated }}</strong>
-			</button>
-			<button class="summary-tile" :class="{ active: activeView === 'copied' }" type="button" @click="activeView = 'copied'">
-				<span>Copied</span>
-				<strong>{{ summary.copied }}</strong>
-			</button>
-		</section>
+		<el-segmented
+			v-model="activeView"
+			class="workflow-summary"
+			aria-label="Workflow summary"
+			:options="[
+				{ label: `Pending ${summary.pending}`, value: 'pending' },
+				{ label: `Approved ${summary.approved}`, value: 'approved' },
+				{ label: `Initiated ${summary.initiated}`, value: 'initiated' },
+				{ label: `Copied ${summary.copied}`, value: 'copied' }
+			]"
+		/>
 
 		<PageToolbar>
 			<FilterBar>
@@ -552,31 +545,7 @@ function formatDate(value: string): string {
 
 <style scoped>
 .workflow-summary {
-	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 12px;
-}
-
-.summary-tile {
-	display: grid;
-	gap: 6px;
-	min-height: 84px;
-	padding: 14px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
-	color: var(--color-text);
-	text-align: left;
-	cursor: pointer;
-}
-
-.summary-tile strong {
-	font-size: 1.35rem;
-}
-
-.summary-tile.active {
-	border-color: var(--color-primary);
-	box-shadow: inset 0 0 0 1px var(--color-primary);
+	width: 100%;
 }
 
 .title-cell,
@@ -637,7 +606,8 @@ function formatDate(value: string): string {
 }
 
 @media (max-width: 760px) {
-	.workflow-summary {
+	.workflow-summary :deep(.el-segmented__group) {
+		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 

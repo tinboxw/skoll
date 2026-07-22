@@ -189,24 +189,17 @@ function formatDate(value: string): string {
 			<el-button :icon="RefreshCw" @click="refreshItems">Retry</el-button>
 		</template>
 
-		<section class="todo-summary" aria-label="Todo center summary">
-			<button class="summary-tile" :class="{ active: activeTab === 'pending' }" type="button" @click="activeTab = 'pending'">
-				<span>Pending</span>
-				<strong>{{ summary.pending }}</strong>
-			</button>
-			<button class="summary-tile" :class="{ active: activeTab === 'done' }" type="button" @click="activeTab = 'done'">
-				<span>Done</span>
-				<strong>{{ summary.done }}</strong>
-			</button>
-			<button class="summary-tile" :class="{ active: activeTab === 'message' }" type="button" @click="activeTab = 'message'">
-				<span>Messages</span>
-				<strong>{{ summary.message }}</strong>
-			</button>
-			<button class="summary-tile" :class="{ active: activeTab === 'reminder' }" type="button" @click="activeTab = 'reminder'">
-				<span>Reminders</span>
-				<strong>{{ summary.reminder }}</strong>
-			</button>
-		</section>
+		<el-segmented
+			v-model="activeTab"
+			class="todo-summary"
+			aria-label="Todo center summary"
+			:options="[
+				{ label: `Pending ${summary.pending}`, value: 'pending' },
+				{ label: `Done ${summary.done}`, value: 'done' },
+				{ label: `Messages ${summary.message}`, value: 'message' },
+				{ label: `Reminders ${summary.reminder}`, value: 'reminder' }
+			]"
+		/>
 
 		<PageToolbar>
 			<FilterBar>
@@ -251,31 +244,7 @@ function formatDate(value: string): string {
 
 <style scoped>
 .todo-summary {
-	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
-	gap: 12px;
-}
-
-.summary-tile {
-	display: grid;
-	gap: 6px;
-	min-height: 84px;
-	padding: 14px;
-	border: 1px solid var(--color-border);
-	border-radius: var(--radius-md);
-	background: var(--color-surface);
-	color: var(--color-text);
-	text-align: left;
-	cursor: pointer;
-}
-
-.summary-tile strong {
-	font-size: 1.35rem;
-}
-
-.summary-tile.active {
-	border-color: var(--color-primary);
-	box-shadow: inset 0 0 0 1px var(--color-primary);
+	width: 100%;
 }
 
 .todo-title {
@@ -309,7 +278,8 @@ function formatDate(value: string): string {
 }
 
 @media (max-width: 760px) {
-	.todo-summary {
+	.todo-summary :deep(.el-segmented__group) {
+		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }

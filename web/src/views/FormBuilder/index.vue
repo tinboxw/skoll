@@ -428,10 +428,10 @@ function waitForSavingState(): Promise<void> {
 					data-testid="form-schema-table"
 				>
 					<template #cell-name="{ row }">
-						<button class="schema-link" type="button" @click="selectSchema(row.raw)">
+						<el-button link class="schema-link" @click="selectSchema(row.raw)">
 							<FileText class="cell-icon" aria-hidden="true" />
 							<span>{{ row.name }}</span>
-						</button>
+						</el-button>
 					</template>
 					<template #actions="{ row }">
 						<el-tooltip content="Edit schema">
@@ -654,10 +654,7 @@ function waitForSavingState(): Promise<void> {
 	align-items: center;
 	gap: 8px;
 	max-width: 100%;
-	border: 0;
-	background: transparent;
 	color: var(--color-text);
-	cursor: pointer;
 }
 
 .schema-link span {

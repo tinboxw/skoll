@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { computed, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import enUS from "element-plus/es/locale/lang/en";
 import zhCN from "element-plus/es/locale/lang/zh-cn";
 import { useRoute, useRouter } from "vue-router";
@@ -26,6 +26,7 @@ const userStore = useUserStore();
 const { locale, setLocale, t } = useI18n();
 const route = useRoute();
 const router = useRouter();
+const mobileNavigationOpen = ref(false);
 const ADMIN_BASE = "/skoll";
 const elementLocale = computed(() => locale.value === "en-US" ? enUS : zhCN);
 
@@ -187,6 +188,14 @@ async function handleOpenProfile(): Promise<void> {
 	await router.push(`${ADMIN_BASE}/profile`);
 }
 
+function toggleNavigation(): void {
+	if (window.matchMedia("(max-width: 860px)").matches) {
+		mobileNavigationOpen.value = !mobileNavigationOpen.value;
+		return;
+	}
+	appStore.toggleSidebar();
+}
+
 watch(
 	() => userStore.isAuthenticated,
 	(isAuthenticated) => {
@@ -203,6 +212,13 @@ watch(
 	},
 	{ immediate: true }
 );
+
+watch(
+	() => route.path,
+	() => {
+		mobileNavigationOpen.value = false;
+	}
+);
 </script>
 
 <template>
@@ -212,6 +228,16 @@ watch(
 		</main>
 		<main v-else class="app-shell">
 		<Sidebar :collapsed="appStore.sidebarCollapsed" :items="sidebarItems" />
+		<el-drawer
+			v-model="mobileNavigationOpen"
+			class="mobile-navigation"
+			direction="ltr"
+			size="86%"
+			:with-header="false"
+			:append-to-body="true"
+		>
+			<Sidebar mobile :collapsed="false" :items="sidebarItems" @navigate="mobileNavigationOpen = false" />
+		</el-drawer>
 		<div class="content-area" :class="{ 'plugin-content-area': isPluginHostRoute }">
 			<HeaderBar
 				:title="t('app.title')"
@@ -227,7 +253,7 @@ watch(
 				:set-theme="themeStore.setTheme"
 				:on-logout="handleLogout"
 				:on-open-profile="handleOpenProfile"
-				@toggle-sidebar="appStore.toggleSidebar"
+				@toggle-sidebar="toggleNavigation"
 			/>
 			<PinnedTabs
 				:pinned-items="tabsStore.pinnedItems"
@@ -256,6 +282,7 @@ watch(
 .login-shell {
 	min-height: 100vh;
 	padding: 24px;
+	box-sizing: border-box;
 	background: radial-gradient(circle at 20% 10%, var(--color-bg-accent) 0%, var(--color-bg) 55%);
 }
 
@@ -278,6 +305,14 @@ watch(
 	.app-shell {
 		grid-template-columns: 1fr;
 	}
+}
+
+:deep(.mobile-navigation) {
+	max-width: 320px;
+}
+
+:deep(.mobile-navigation .el-drawer__body) {
+	padding: 0;
 }
 </style>
 

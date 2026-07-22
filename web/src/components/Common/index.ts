@@ -4,6 +4,8 @@ export { default as DataTable } from "./DataTable.vue";
 export type { DataTableColumn } from "./DataTable.vue";
 export { default as DetailDrawer } from "./DetailDrawer.vue";
 export { default as FilterBar } from "./FilterBar.vue";
+export { default as MetricStrip } from "./MetricStrip.vue";
+export type { MetricStripItem } from "./MetricStrip.vue";
 export { default as PageShell } from "./PageShell.vue";
 export { default as PageToolbar } from "./PageToolbar.vue";
 export { default as SchemaForm } from "./SchemaForm.vue";

@@ -1610,3 +1610,56 @@ Result: PR4-01 acceptance passed. The new frontend experience target is the exec
 ### Commit
 
 `PR4-01: freeze frontend experience target`
+
+## PR4-02 Unify Interactive Controls And Shared UI
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> (Failed -> Doing) x4 -> Review -> Done`
+- Scope: Replace native and ad-hoc controls with Element Plus, make the mobile navigation reachable, and extend the shared UI kit with behavior-level component tests.
+
+### Retry Records
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Frontend typecheck | A dynamic `unpin` or `removeRecent` event name did not satisfy the typed Vue emit overload | Branch explicitly by tab kind so each event keeps its own typed contract |
+| 2 | Component test runtime | Importing the complete Element Plus plugin made Node attempt to load theme CSS as a module | Test SKOLL event contracts through narrow Element component stubs; production build remains the real integration gate |
+| 3 | Full frontend typecheck | New component fixtures omitted required `PinnedTab.id` and `SidebarItem.order/source` fields | Make fixtures conform to the production domain contracts and rerun the complete gate |
+| 4 | 390px visual review | The login card used `width: 100%` without including its padding, which expanded the grid minimum width | Apply border-box sizing and verify a real 390x844 CDP viewport has `scrollWidth = innerWidth = 390` |
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Element Plus controls | Pass | Login, profile, uploads, batch import, workflow filters, todo filters, compliance source selection, and form-builder actions use Element Plus controls |
+| Native control removal | Pass | `rg -n --glob '*.vue' '<(button|input|table)\b' web/src` returns no source matches |
+| Shared layout | Pass | Plugin workspace uses `PageShell` and the new responsive `MetricStrip`; the unused native `Table` component is removed |
+| Mobile navigation | Pass | App shell provides an Element drawer and a mobile Sidebar variant; navigation closes the drawer through an explicit event |
+| Header and tabs | Pass | Locale, theme, profile, logout, menu, open, pin, and close actions use stable Element controls, Lucide icons, labels, and typed events |
+| Forms and errors | Pass | Login and profile retain label, validation, disabled, loading, success, and error semantics through Element forms and alerts |
+| Component behavior | Pass after retry | Vitest runs four behavior tests covering header contracts, tab events, mobile navigation, and metric warning/wide states |
+| Responsive browser review | Pass after retry | Real Chrome CDP at 390x844 renders the login without horizontal overflow; authenticated shell evidence keeps the menu control in the first viewport |
+| Frontend quality gates | Pass after retry | i18n, accessibility, large-list, `vue-tsc`, and Vite production build pass |
+| Current-only architecture | Pass | One Element Plus/shared-kit interaction path remains; no native fallback, compatibility control, legacy component, or dual UI path was introduced |
+
+### Verification Commands
+
+```powershell
+cd web
+npm run test:components
+npm run typecheck
+npm run build
+rg -n --glob '*.vue' '<(button|input|table)\b' src
+codegraph sync ..
+codegraph impact MetricStrip
+codegraph impact Header
+codegraph impact PinnedTabs
+codegraph status ..
+git diff --check
+```
+
+Result: PR4-02 passed after four documented retries. Primary console controls now share Element Plus behavior, the mobile navigation has an executable entry, shared operational metrics replace page-local summary cards, and component tests protect the most important interaction contracts.
+
+### Commit
+
+`PR4-02: unify frontend interaction controls`

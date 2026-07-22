@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 
+import { PageShell } from "../../components/Common";
 import { useI18n } from "../../i18n";
 import { useUserStore } from "../../stores/user";
 import { apiPatch, apiPut, type ApiResponse } from "../../utils/api";
@@ -109,81 +110,59 @@ onMounted(() => {
 </script>
 
 <template>
-	<section>
-		<h2>{{ t("page.profile") }}</h2>
-		<div class="panel">
-			<h3>{{ t("profile.basicInfo") }}</h3>
-			<label>
-				<span>{{ t("table.name") }}</span>
-				<input v-model="name" type="text" :disabled="savingProfile" />
-			</label>
-			<label>
-				<span>{{ t("table.email") }}</span>
-				<input v-model="email" type="email" :disabled="savingProfile" />
-			</label>
-			<p v-if="profileError" class="error">{{ profileError }}</p>
-			<p v-if="profileSuccess" class="success">{{ profileSuccess }}</p>
-			<button type="button" :disabled="savingProfile" @click="saveProfile">{{ savingProfile ? t("common.loading") : t("common.save") }}</button>
-		</div>
+	<PageShell :title="t('page.profile')">
+		<div class="profile-grid">
+			<section class="panel">
+				<h3>{{ t("profile.basicInfo") }}</h3>
+				<el-form label-position="top" :disabled="savingProfile" @submit.prevent="saveProfile">
+					<el-form-item :label="t('table.name')"><el-input v-model="name" autocomplete="name" /></el-form-item>
+					<el-form-item :label="t('table.email')"><el-input v-model="email" type="email" autocomplete="email" /></el-form-item>
+					<el-alert v-if="profileError" type="error" :title="profileError" show-icon :closable="false" />
+					<el-alert v-if="profileSuccess" type="success" :title="profileSuccess" show-icon :closable="false" />
+					<el-button native-type="submit" type="primary" :loading="savingProfile">{{ t("common.save") }}</el-button>
+				</el-form>
+			</section>
 
-		<div class="panel">
-			<h3>{{ t("profile.updatePassword") }}</h3>
-			<label>
-				<span>{{ t("profile.currentPassword") }}</span>
-				<input v-model="currentPassword" type="password" :disabled="savingPassword" />
-			</label>
-			<label>
-				<span>{{ t("profile.newPassword") }}</span>
-				<input v-model="newPassword" type="password" :disabled="savingPassword" />
-			</label>
-			<label>
-				<span>{{ t("profile.confirmPassword") }}</span>
-				<input v-model="confirmPassword" type="password" :disabled="savingPassword" />
-			</label>
-			<p v-if="passwordError" class="error">{{ passwordError }}</p>
-			<p v-if="passwordSuccess" class="success">{{ passwordSuccess }}</p>
-			<button type="button" :disabled="savingPassword" @click="savePassword">{{ savingPassword ? t("common.loading") : t("profile.savePassword") }}</button>
+			<section class="panel">
+				<h3>{{ t("profile.updatePassword") }}</h3>
+				<el-form label-position="top" :disabled="savingPassword" @submit.prevent="savePassword">
+					<el-form-item :label="t('profile.currentPassword')"><el-input v-model="currentPassword" type="password" show-password autocomplete="current-password" /></el-form-item>
+					<el-form-item :label="t('profile.newPassword')"><el-input v-model="newPassword" type="password" show-password autocomplete="new-password" /></el-form-item>
+					<el-form-item :label="t('profile.confirmPassword')"><el-input v-model="confirmPassword" type="password" show-password autocomplete="new-password" /></el-form-item>
+					<el-alert v-if="passwordError" type="error" :title="passwordError" show-icon :closable="false" />
+					<el-alert v-if="passwordSuccess" type="success" :title="passwordSuccess" show-icon :closable="false" />
+					<el-button native-type="submit" type="primary" :loading="savingPassword">{{ t("profile.savePassword") }}</el-button>
+				</el-form>
+			</section>
 		</div>
-	</section>
+	</PageShell>
 </template>
 
 <style scoped>
+.profile-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: var(--layout-gap);
+}
+
 .panel {
-	margin-bottom: 12px;
 	padding: 12px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-md);
-	display: grid;
-	gap: 8px;
-	max-width: 520px;
+	background: var(--color-surface);
 }
 
-label {
-	display: grid;
-	gap: 6px;
+.panel h3 {
+	margin: 0 0 12px;
 }
 
-input,
-button {
-	height: 34px;
-	padding: 0 10px;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
+.panel :deep(.el-alert) {
+	margin-bottom: 12px;
 }
 
-button {
-	background: var(--color-surface-soft);
-	cursor: pointer;
-	width: fit-content;
-}
-
-.error {
-	margin: 0;
-	color: var(--color-danger);
-}
-
-.success {
-	margin: 0;
-	color: var(--color-success);
+@media (max-width: 760px) {
+	.profile-grid {
+		grid-template-columns: 1fr;
+	}
 }
 </style>

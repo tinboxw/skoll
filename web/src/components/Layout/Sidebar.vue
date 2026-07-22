@@ -2,9 +2,16 @@
 import { Bell, ClipboardList, FileText, FolderOpen, GitPullRequest, LayoutDashboard, ListTree, Puzzle, Settings2, ShieldCheck, Users, UserRoundCog } from "lucide-vue-next";
 import type { SidebarItem } from "../../navigation/menu";
 
-defineProps<{
+withDefaults(defineProps<{
 	collapsed: boolean;
 	items: SidebarItem[];
+	mobile?: boolean;
+}>(), {
+	mobile: false
+});
+
+const emit = defineEmits<{
+	(event: "navigate"): void;
 }>();
 
 const iconMap = {
@@ -28,7 +35,7 @@ function resolveIconComponent(icon: string) {
 </script>
 
 <template>
-	<aside class="sidebar" :class="{ collapsed }">
+	<aside class="sidebar" :class="{ collapsed, 'sidebar--mobile': mobile }">
 		<RouterLink to="/skoll/" class="brand" title="Home">Skoll</RouterLink>
 		<nav>
 			<RouterLink
@@ -37,6 +44,7 @@ function resolveIconComponent(icon: string) {
 				:to="item.to"
 				class="link"
 				active-class="active"
+				@click="emit('navigate')"
 			>
 				<component :is="resolveIconComponent(item.icon)" class="icon" :stroke-width="1.8" aria-hidden="true" />
 				<span v-if="!collapsed">{{ item.label }}</span>
@@ -106,9 +114,15 @@ nav {
 }
 
 @media (max-width: 860px) {
-	.sidebar {
+	.sidebar:not(.sidebar--mobile) {
 		display: none;
 	}
+}
+
+.sidebar--mobile {
+	width: 100%;
+	min-height: 100%;
+	border-right: 0;
 }
 </style>
 

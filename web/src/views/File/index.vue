@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { Delete, Download, RefreshCw, Upload } from "lucide-vue-next";
+import type { UploadFile } from "element-plus";
 
 import { confirmAction } from "../../composables/useConfirmAction";
 import { downloadBlob } from "../../composables/useDownloadBlob";
@@ -12,7 +13,6 @@ import { toErrorMessage, formatDateTime } from "../../utils/common";
 const { t } = useI18n();
 const fileStore = useFileStore();
 
-const fileInput = ref<HTMLInputElement | null>(null);
 const detailVisible = ref(false);
 const selected = ref<FileObject | null>(null);
 const filters = reactive<{
@@ -90,14 +90,8 @@ async function loadFiles(): Promise<void> {
 	}
 }
 
-function chooseFile(): void {
-	fileInput.value?.click();
-}
-
-async function handleFileChange(event: Event): Promise<void> {
-	const input = event.target as HTMLInputElement;
-	const file = input.files?.[0];
-	input.value = "";
+async function handleFileChange(uploadFile: UploadFile): Promise<void> {
+	const file = uploadFile.raw;
 	if (!file) {
 		return;
 	}
@@ -177,13 +171,12 @@ onMounted(() => {
 				<p>{{ t("file.desc") }}</p>
 			</div>
 			<div class="header-actions">
-				<input ref="fileInput" class="native-file-input" type="file" @change="handleFileChange" />
 				<el-button :icon="RefreshCw" :loading="fileStore.listStatus === 'loading'" :disabled="fileStore.mutationStatus === 'loading'" @click="loadFiles">
 					{{ t("common.refresh") }}
 				</el-button>
-				<el-button type="primary" :icon="Upload" :disabled="fileStore.listStatus === 'loading'" @click="chooseFile">
-					{{ t("file.upload") }}
-				</el-button>
+				<el-upload :auto-upload="false" :show-file-list="false" :disabled="fileStore.listStatus === 'loading'" :on-change="handleFileChange">
+					<el-button type="primary" :icon="Upload" :disabled="fileStore.listStatus === 'loading'">{{ t("file.upload") }}</el-button>
+				</el-upload>
 			</div>
 		</header>
 
@@ -315,10 +308,6 @@ onMounted(() => {
 	display: flex;
 	align-items: center;
 	gap: 8px;
-}
-
-.native-file-input {
-	display: none;
 }
 
 .upload-panel,

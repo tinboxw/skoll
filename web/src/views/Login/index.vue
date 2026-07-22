@@ -107,32 +107,35 @@ async function login(): Promise<void> {
 			<h1>{{ t("login.title") }}</h1>
 			<p>{{ t("login.subtitle") }}</p>
 
-			<label>
-				<span>{{ t("login.account") }}</span>
-				<input v-model="account" type="text" :placeholder="t('login.accountPlaceholder')" :disabled="loading" />
-			</label>
-
-			<label>
-				<span>{{ t("login.password") }}</span>
-				<input v-model="password" type="password" :placeholder="t('login.passwordPlaceholder')" :disabled="loading" @keydown.enter="login" />
-			</label>
-
-			<p v-if="error" class="error">{{ error }}</p>
-
-			<button type="button" :disabled="loading" @click="login">{{ loading ? t("login.loading") : t("login.submit") }}</button>
+			<el-form label-position="top" :disabled="loading" @submit.prevent="login">
+				<el-form-item :label="t('login.account')">
+					<el-input v-model="account" autocomplete="username" :placeholder="t('login.accountPlaceholder')" />
+				</el-form-item>
+				<el-form-item :label="t('login.password')">
+					<el-input v-model="password" type="password" show-password autocomplete="current-password" :placeholder="t('login.passwordPlaceholder')" @keydown.enter="login" />
+				</el-form-item>
+				<el-alert v-if="error" type="error" :title="error" show-icon :closable="false" />
+				<el-button native-type="submit" type="primary" :loading="loading" class="submit-button">
+					{{ loading ? t("login.loading") : t("login.submit") }}
+				</el-button>
+			</el-form>
 		</div>
 	</section>
 </template>
 
 <style scoped>
 .login-page {
+	width: 100%;
+	min-width: 0;
 	min-height: calc(100vh - 48px);
 	display: grid;
 	place-items: center;
 }
 
 .card {
-	width: min(420px, 92vw);
+	width: 100%;
+	max-width: 420px;
+	box-sizing: border-box;
 	padding: 20px;
 	border: 1px solid var(--color-border);
 	border-radius: var(--radius-lg);
@@ -152,34 +155,7 @@ p {
 	color: var(--color-text-muted);
 }
 
-label {
-	display: grid;
-	gap: 6px;
-}
-
-input {
-	height: 38px;
-	padding: 0 10px;
-	border-radius: var(--radius-md);
-	border: 1px solid var(--color-border);
-	background: var(--color-surface-soft);
-}
-
-button {
-	height: 38px;
-	border: none;
-	border-radius: var(--radius-md);
-	background: var(--color-primary);
-	color: var(--color-on-primary);
-	cursor: pointer;
-}
-
-button:disabled {
-	opacity: 0.65;
-	cursor: default;
-}
-
-.error {
-	color: var(--color-danger);
+.submit-button {
+	width: 100%;
 }
 </style>

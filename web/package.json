@@ -9,6 +9,7 @@
 		"check:i18n": "node scripts/h4-locale-baseline-check.mjs",
 		"check:a11y": "node scripts/h4-accessibility-check.mjs",
 		"check:large-list": "node scripts/h5-large-list-check.mjs",
+		"test:components": "vitest run",
 		"typecheck": "npm run check:i18n && npm run check:a11y && npm run check:large-list && vue-tsc --noEmit",
 		"preview": "vite preview",
 		"smoke:health": "node scripts/health-smoke.mjs",
@@ -30,11 +31,14 @@
 	},
 	"devDependencies": {
 		"@vitejs/plugin-vue": "^5.2.4",
+		"@vue/test-utils": "^2.4.6",
+		"jsdom": "^25.0.1",
 		"sass": "^1.99.0",
 		"typescript": "^5.9.3",
 		"unplugin-auto-import": "^0.18.6",
 		"unplugin-vue-components": "^0.27.5",
 		"vite": "^5.4.21",
+		"vitest": "^2.1.9",
 		"vue-tsc": "^3.3.4"
 	}
 }

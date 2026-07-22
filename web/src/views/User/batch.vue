@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import * as XLSX from "xlsx";
+import type { UploadFile } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 
 import { useI18n } from "../../i18n";
@@ -153,14 +154,13 @@ function pickImportValue(kv: Map<string, unknown>, aliases: Set<string>): string
 	return "";
 }
 
-async function importExcel(event: Event): Promise<void> {
+async function importExcel(uploadFile: UploadFile): Promise<void> {
 	error.value = "";
 	if (!canCreateUser.value) {
 		error.value = t("error.forbidden");
 		return;
 	}
-	const input = event.target as HTMLInputElement;
-	const file = input.files?.[0];
+	const file = uploadFile.raw;
 	if (!file) {
 		return;
 	}
@@ -189,8 +189,6 @@ async function importExcel(event: Event): Promise<void> {
 		rows.value = parsed.length > 0 ? parsed : [{ id: crypto.randomUUID(), account: "", name: "", email: "", password: "" }];
 	} catch (e) {
 		error.value = toErrorMessage(e);
-	} finally {
-		input.value = "";
 	}
 }
 </script>
@@ -210,10 +208,9 @@ async function importExcel(event: Event): Promise<void> {
 		<section class="panel">
 			<div class="toolbar">
 				<el-button type="primary" :disabled="importing || !canCreateUser" @click="addRow">{{ t("batchUser.addRow") }}</el-button>
-				<label class="upload-btn" :class="{ disabled: importing || !canCreateUser }">
+				<el-upload accept=".xlsx,.xls" :auto-upload="false" :show-file-list="false" :disabled="importing || !canCreateUser" :on-change="importExcel">
 					<el-button :disabled="importing || !canCreateUser">{{ t("batchUser.importExcel") }}</el-button>
-					<input type="file" accept=".xlsx,.xls" :disabled="importing || !canCreateUser" @change="importExcel" />
-				</label>
+				</el-upload>
 				<el-checkbox v-model="atomic" :disabled="importing || !canCreateUser">{{ t("batchUser.atomic") }}</el-checkbox>
 				<el-button type="primary" :loading="importing" :disabled="!canCreateUser" @click="submitBatch">{{ t("batchUser.submit") }}</el-button>
 			</div>
@@ -308,29 +305,6 @@ async function importExcel(event: Event): Promise<void> {
 	flex-wrap: wrap;
 	gap: 8px;
 	align-items: center;
-}
-
-.upload-btn {
-	position: relative;
-	display: inline-flex;
-	overflow: hidden;
-}
-
-.upload-btn.disabled {
-	opacity: 0.7;
-}
-
-.upload-btn input {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	opacity: 0;
-	cursor: pointer;
-}
-
-.upload-btn.disabled input {
-	cursor: default;
 }
 
 @media (max-width: 760px) {
