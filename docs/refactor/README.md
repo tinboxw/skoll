@@ -1,6 +1,6 @@
 # Skoll Refactor Docs
 
-> Status: M0-M7/FE/N0, Pharma OA F6-F12, and hardening are complete. The plugin-runtime and frontend-experience batch is active.
+> Status: M0-M7/FE/N0, Pharma OA F6-F12, hardening, and the 35-item plugin-runtime/frontend-experience batch are complete.
 > Rule: do not design legacy API, legacy data, legacy plugin, or legacy page compatibility plans.
 
 ## How To Read This Directory
@@ -19,9 +19,10 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | Document | Purpose |
 | --- | --- |
 | [current/README.md](current/README.md) | Current task intake, progress update, acceptance, and commit rules |
-| [current/plugin_runtime_task_board_2026-07-21.md](current/plugin_runtime_task_board_2026-07-21.md) | Active plugin-runtime and frontend-experience milestone board |
-| [current/plugin_runtime_work_items_2026-07-21.md](current/plugin_runtime_work_items_2026-07-21.md) | Active atomic Work Item execution table |
-| [current/plugin_runtime_acceptance_log_2026-07-21.md](current/plugin_runtime_acceptance_log_2026-07-21.md) | Active acceptance and retry evidence |
+| [current/plugin_runtime_task_board_2026-07-21.md](current/plugin_runtime_task_board_2026-07-21.md) | Closed plugin-runtime and frontend-experience milestone board |
+| [current/plugin_runtime_work_items_2026-07-21.md](current/plugin_runtime_work_items_2026-07-21.md) | Closed 35-item execution table |
+| [current/plugin_runtime_acceptance_log_2026-07-21.md](current/plugin_runtime_acceptance_log_2026-07-21.md) | Closed acceptance and retry evidence |
+| [current/plugin_runtime_closeout_2026-07-22.md](current/plugin_runtime_closeout_2026-07-22.md) | Plugin-platform capability boundary, final gates, risks, and next functional direction |
 | [current/hardening_task_board_2026-07-18.md](current/hardening_task_board_2026-07-18.md) | Latest closed hardening parent task board |
 | [current/hardening_work_items_2026-07-18.md](current/hardening_work_items_2026-07-18.md) | Latest closed hardening Work Item table |
 | [current/hardening_acceptance_log_2026-07-18.md](current/hardening_acceptance_log_2026-07-18.md) | Latest closed hardening acceptance evidence |
@@ -34,7 +35,7 @@ Completed documents are intentionally archived under `old/`. They are not the cu
 | [current/feature_ui_milestone_plan_2026-07-04.md](current/feature_ui_milestone_plan_2026-07-04.md) | Feature development and UI optimization milestone plan |
 | [current/feature_ui_work_items_2026-07-04.md](current/feature_ui_work_items_2026-07-04.md) | Candidate work items for feature and UI improvements |
 
-Recommended next action: take the first dependency-ready `Todo` from the active plugin-runtime Work Item table.
+Recommended next action: create the next official functionality/UI batch from the closeout's highest-priority gap, the public plugin datastore and scoped query service. Do not reopen the closed plugin-runtime table.
 
 ## Governance
 

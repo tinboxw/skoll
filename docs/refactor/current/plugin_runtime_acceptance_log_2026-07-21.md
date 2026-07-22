@@ -2157,3 +2157,69 @@ Result: PR5-05 passed after thirteen documented retries. The equipment-maintenan
 ### Commit
 
 `PR5-05: implement equipment maintenance proof plugin`
+
+## PR5-06 Close Independent-Plugin And Platform Acceptance
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Prove the packaged equipment-maintenance plugin and generated plugin against the real external-process runtime, close all PR0-PR5 gates, and publish the batch closeout without adding plugin-specific production code to the host.
+
+### Retry Record
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Source immutability hash | A Windows `node_modules` junction was visited as a file before the exclusion rule and could not be opened by the hash walker | Exclude generated/toolchain directory names before file-kind handling, then rerun the unchanged lifecycle scenario |
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Deterministic package | Pass | A clean temporary source copy builds the backend and frontend, preserves its source hash, produces a deterministic package, verifies its checksum, and installs into a clean plugin root |
+| Real managed process | Pass | The installed package starts through `ManagedProcessLauncher` and `ServiceSupervisor`; readiness and business traffic reach the external process rather than an in-process fixture |
+| Host-service boundary | Pass | Asset creation and a durable job audit consume the lifecycle-bound `HostGateway`; transaction and audit calls are observed through the public process contract |
+| Restart durability | Pass | Plugin state is written below its isolated data root, the process stops and restarts, and the previously created asset remains readable |
+| Disable fail-closed | Pass | Disable stops the process and the business endpoint becomes unreachable; re-enable creates a new supervised process with the same durable state |
+| Uninstall lifecycle | Pass | Final disable, migration-ledger rollback, declared drop policy, and uninstall remove process access, plugin data, migration records, and installed state |
+| Generated plugin E2E | Pass | Generator output builds, packages, installs, starts, executes CRUD, disables, and uninstalls without hand editing |
+| Zero core production diff | Pass | PR5-05 changed no `internal/` or host `web/src` production source; PR5-06 adds only the lifecycle acceptance test and closeout evidence |
+| Milestone completeness | Pass | The official Work Item table contains 35 items and all 35 are `Done`; PR0 through PR5 satisfy their exit criteria |
+| Frontend quality | Pass | Locale, accessibility, large-list, theme, TypeScript, 13 component tests, and production build pass |
+| Repository quality | Pass | Targeted tests, race lifecycle E2E, full `go test ./...`, full `go vet ./...`, and `git diff --check` pass |
+| Current-only rule | Pass | Acceptance exercises one manifest, package, process entry, host gateway, data root, lifecycle, and uninstall policy; no compatibility or fallback path is introduced |
+
+### Verification Commands
+
+```powershell
+$env:SKOLL_EQUIPMENT_PLUGIN_E2E='1'
+go test ./internal/plugin -run TestEquipmentMaintenancePackagedLifecycleE2E -count=1 -v
+go test -race ./internal/plugin -run TestEquipmentMaintenancePackagedLifecycleE2E -count=1 -v
+$env:SKOLL_GENERATOR_PLUGIN_E2E='1'
+go test ./internal/service/generator -run TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits -count=1 -v
+go test ./internal/plugin ./internal/service/generator -count=1
+go test ./... -count=1
+go vet ./...
+cd web
+npm run typecheck
+npm run test:components
+npm run build
+cd ..
+git diff-tree --no-commit-id --name-only -r af87fef
+git diff --check
+codegraph sync .
+```
+
+Result: PR5-06 passed after one documented retry. The real package lifecycle, public host-service boundary, restart persistence, fail-closed disable, destructive uninstall policy, generated-plugin path, frontend quality gates, and repository-wide quality gates all pass. The `skoll-plugin-runtime-2026-07-21` batch is closed at 35/35 accepted Work Items.
+
+### Impact Review
+
+- API/OpenAPI: no production API change; existing public plugin and host-service contracts are exercised end to end.
+- Permission/audit: lifecycle-bound identity, data scope, transaction use, and audit evidence pass through the external process boundary.
+- Migration/seed: paired migrations, ledger rollback, and explicit drop policy are verified during uninstall.
+- Frontend/i18n: root console locale, accessibility, theme, component, type, and production-build gates pass.
+- Documentation: task board, Work Item table, acceptance log, closeout, and indexes are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`PR5-06: close independent plugin acceptance`

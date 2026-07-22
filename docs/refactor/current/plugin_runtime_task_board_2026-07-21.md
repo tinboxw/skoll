@@ -10,11 +10,11 @@
 | ID | Goal | Exit Criteria | Dependencies | Status |
 | --- | --- | --- | --- | --- |
 | PR0 | Establish the official execution batch | Board, Work Items, acceptance log, indexes, and collaboration rules are complete | Closed hardening batch | Done |
-| PR1 | Execute independent plugins through a real runtime | External plugin routes execute real backends; lifecycle, health, migrations, events, and Pharma OA separation pass | PR0 | Doing |
-| PR2 | Provide persistent platform services to plugins | Workflow, notifications, jobs, transactions, files, audit, config, and data scope survive restart and expose tested SDK contracts | PR1 | Todo |
-| PR3 | Generate installable full-stack plugins | Generator output installs and runs without hand editing or core-code changes | PR2 | Todo |
-| PR4 | Deliver a unified premium frontend experience | Element Plus, themes, i18n, accessibility, responsive states, visual regression, and performance budgets pass | PR1, PR2 | Todo |
-| PR5 | Prove framework generality with a second industry | An equipment-maintenance plugin is built only on public contracts and completes lifecycle E2E with zero core-code diff | PR3, PR4 | Todo |
+| PR1 | Execute independent plugins through a real runtime | External plugin routes execute real backends; lifecycle, health, migrations, events, and Pharma OA separation pass | PR0 | Done |
+| PR2 | Provide persistent platform services to plugins | Workflow, notifications, jobs, transactions, files, audit, config, and data scope survive restart and expose tested SDK contracts | PR1 | Done |
+| PR3 | Generate installable full-stack plugins | Generator output installs and runs without hand editing or core-code changes | PR2 | Done |
+| PR4 | Deliver a unified premium frontend experience | Element Plus, themes, i18n, accessibility, responsive states, visual regression, and performance budgets pass | PR1, PR2 | Done |
+| PR5 | Prove framework generality with a second industry | An equipment-maintenance plugin is built only on public contracts and completes lifecycle E2E with zero core-code diff | PR3, PR4 | Done |
 
 ## Milestone Acceptance
 
