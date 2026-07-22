@@ -83,6 +83,20 @@ page, err := store.Query(ctx, pluginsdk.DataQuery{
 
 过滤器每个节点只能是一个 leaf、`all` 或 `any`。支持 `eq`、`ne`、`lt`、`lte`、`gt`、`gte`、`in`、`not_in`、`contains`、`prefix`、`is_null`、`not_null`；最大深度 8、节点 64、集合值 100。
 
+### 宿主查询规划
+
+BF1-03 的宿主规划器在执行 SQL 前完成以下处理：
+
+- 使用请求上下文和插件自有权限资源调用 `DataScopeService`，不接受插件进程传入的可信身份或最终作用域。
+- 将插件请求的租户、组织和所有者 ID 与可信作用域取交集；任一维度越权或可信作用域不完整时直接拒绝。
+- 根据 Schema 注册表校验表、选择字段、过滤字段和排序字段；标识符由宿主引用，值始终使用绑定参数。
+- 对 SQLite、PostgreSQL 和 MySQL 生成各自的引用符及占位符，单次规划最多产生 900 个绑定参数。
+- 自动把缺失的主键追加到排序末尾，并额外读取 `version` 与 cursor 所需字段；插件只收到其显式选择的字段。
+- 只使用确定性的 keyset cursor。cursor 与插件、逻辑表、完整排序和值类型绑定，不能跨表或更换排序复用。
+- 排序字段必须非空。当前契约不依赖三种数据库各不相同的 NULL 默认排序规则。
+
+规划器输出由 BF1-05 的宿主 SQL 适配器执行。当前不提供 offset 分页、原始排序表达式、SQL 片段、插件指定物理表名或方言回退。
+
 ## 变更
 
 每次变更只处理一条记录，并强制主键与幂等键。`insert`、`update`、`upsert` 需要 values；`delete` 禁止 values。`expectedVersion` 用于 update、upsert、delete 的乐观并发控制。
@@ -128,6 +142,8 @@ result, err := store.Mutate(ctx, pluginsdk.DataMutation{
 ```powershell
 go test ./pkg/pluginsdk -count=1
 go test -race ./pkg/pluginsdk -count=1
+go test ./internal/plugin/datastore -count=1
+go test -race ./internal/plugin/datastore -count=1
 go test ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin -count=1
 ```
 

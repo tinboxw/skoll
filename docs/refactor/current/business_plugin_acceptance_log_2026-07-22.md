@@ -183,3 +183,53 @@ Result: BF1-02 passed after one acceptance retry. Plugins now have isolated sche
 ### Commit
 
 `BF1-02: register plugin datastore schemas`
+
+## BF1-03 Implement Trusted Scoped Query Planning
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Compile validated plugin queries into deterministic, bound SQL using host-resolved permissions and data scope for SQLite, PostgreSQL, and MySQL.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Trusted identity | Pass | `QueryPlanner` resolves `DataScopeService` from the request context and never accepts final tenant, organization, or owner predicates from plugin input |
+| Scope narrowing | Pass | Requested scope is intersected with trusted scope; outside, denied, unresolved, and incomplete scopes return stable `forbidden` errors |
+| Permission ownership | Pass | Datastore permissions must belong to the current plugin resource namespace; foreign resources fail before scope resolution |
+| Schema allowlist | Pass | Selected, filtered, and sorted fields must exist in the plugin-owned registered table and carry the required field capability |
+| Bound SQL | Pass | Identifiers are host-quoted and every plugin or scope value is a bound argument; query plans reject more than 900 parameters |
+| Dialects | Pass | Golden tests verify identifier quoting, placeholder numbering, predicates, ordering, and limits for SQLite, PostgreSQL, and MySQL |
+| Structured filters | Pass | Nested all/any groups, sets, comparisons, literal contains/prefix escaping, null semantics, and value/schema type agreement compile deterministically |
+| Stable pagination | Pass | Missing primary-key fields are appended to sort; opaque keyset cursor is bound to plugin, table, sort, and typed values |
+| Cross-dialect ordering | Pass | Nullable sort fields fail closed, avoiding database-specific NULL ordering behavior |
+| Result metadata | Pass | Plans separate requested fields from scan fields and automatically include version and cursor keys while fetching `limit + 1` rows |
+| Current-only rule | Pass | No offset pagination, raw SQL, sort expression, physical-table input, legacy cursor, dual planner, or dialect fallback exists |
+| Developer reference | Pass | The datastore contract documents trusted planning, parameter limits, stable cursor behavior, and the BF1-05 execution boundary |
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/datastore ./pkg/pluginsdk -count=1
+go test -race ./internal/plugin/datastore -count=1
+go vet ./internal/plugin/datastore ./pkg/pluginsdk
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF1-03 passed without acceptance retries. The generated plans are ready for BF1-04 mutation semantics and the BF1-05 SQL execution adapter.
+
+### Impact Review
+
+- API/OpenAPI: no HTTP route changed; the planner consumes the current public `DataQuery` contract.
+- Permission/audit: permission ownership and trusted read scope are enforced; mutation audit remains BF1-04.
+- Migration/seed: none.
+- Frontend/i18n: none.
+- Documentation: datastore query-planning rules, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF1-03: implement trusted datastore query planning`
