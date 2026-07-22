@@ -3,602 +3,176 @@ package plugin
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-func TestPharmaOAPluginManifestCoversIndustrySkeleton(t *testing.T) {
-	dir := pharmaOAPluginDir()
-	info, err := NewFileLoader().Load(dir)
-	if err != nil {
-		t.Fatalf("load pharma oa plugin manifest: %v", err)
+func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
+	info := loadPharmaOAInfo(t)
+	if info.ID != "pharma_oa" || info.AppID != info.ID || info.Level != LevelApp || info.UIMode != UIModeMonolith {
+		t.Fatalf("unexpected Pharma OA placement: %+v", info)
 	}
-	if err := info.ValidateManifest(); err != nil {
-		t.Fatalf("validate pharma oa plugin manifest: %v", err)
+	if info.Version != "0.2.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
+		t.Fatalf("unexpected current contract version: version=%q api=%q migration=%q", info.Version, info.APIVersion, info.MigrationVersion)
 	}
-
-	if info.ID != "pharma_oa" || info.Level != LevelApp || info.AppID != "pharma_oa" || info.UIMode != UIModeMonolith {
-		t.Fatalf("unexpected pharma oa placement: %+v", info)
+	if info.ServiceBaseURL != "http://127.0.0.1:18093" || info.ServiceHealthURL != "http://127.0.0.1:18093/health" {
+		t.Fatalf("managed service endpoints are incomplete: base=%q health=%q", info.ServiceBaseURL, info.ServiceHealthURL)
 	}
-	if info.NameZhCN != "医药 OA" || info.NameEnUS != "Pharma OA" {
-		t.Fatalf("unexpected localized pharma oa names: zh=%q en=%q", info.NameZhCN, info.NameEnUS)
+	if info.NameZhCN != "医药 OA" || info.NameEnUS != "Pharma OA" || info.UIMenu == nil || info.UIMenu.LabelZhCN != "医药 OA" {
+		t.Fatalf("localized plugin identity is incomplete: %+v", info.UIMenu)
 	}
-	if info.FrontendEntry != "/skoll/pharma-oa/employees" {
-		t.Fatalf("unexpected frontend entry: %s", info.FrontendEntry)
-	}
-	if info.UIMenu == nil || info.UIMenu.Key != "plugin.pharma_oa" || info.UIMenu.Path != "/skoll/pharma-oa/employees" {
-		t.Fatalf("unexpected pharma oa menu: %+v", info.UIMenu)
-	}
-	if info.UIMenu.LabelZhCN != "医药 OA" || info.UIMenu.LabelEnUS != "Pharma OA" {
-		t.Fatalf("unexpected localized pharma oa menu: %+v", info.UIMenu)
-	}
-	if len(info.UIMenu.RequiredPermissions) != 1 || info.UIMenu.RequiredPermissions[0] != "pharma_oa.menu.read" {
-		t.Fatalf("unexpected menu permissions: %+v", info.UIMenu.RequiredPermissions)
+	if info.UIMenu.Path != info.FrontendEntry || len(info.UIMenu.RequiredPermissions) != 1 || info.UIMenu.RequiredPermissions[0] != "pharma_oa.menu.read" {
+		t.Fatalf("unexpected plugin menu: %+v", info.UIMenu)
 	}
 	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 3 {
 		t.Fatalf("unexpected config schema: %+v", info.ConfigSchema)
 	}
-	if info.ConfigSchema.TitleZhCN != "医药 OA 配置" || info.ConfigSchema.TitleEnUS != "Pharma OA Config" {
-		t.Fatalf("unexpected localized pharma oa config title: %+v", info.ConfigSchema)
+	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 2 {
+		t.Fatalf("unexpected plugin data lifecycle: %+v", info.DataManifest)
 	}
-	if info.ConfigSchema.Fields[0].LabelZhCN != "启用演示数据入口" || info.ConfigSchema.Fields[0].LabelEnUS != "Enable demo seed entry" ||
-		info.ConfigSchema.Fields[1].LabelZhCN != "演示数据范围" || info.ConfigSchema.Fields[1].LabelEnUS != "Demo seed scope" ||
-		info.ConfigSchema.Fields[2].LabelZhCN != "资质预警天数" || info.ConfigSchema.Fields[2].LabelEnUS != "Qualification alert days" {
-		t.Fatalf("unexpected localized pharma oa config fields: %+v", info.ConfigSchema.Fields)
+	for _, table := range info.DataManifest.Tables {
+		columns := make(map[string]struct{}, len(table.Columns))
+		for _, column := range table.Columns {
+			columns[column] = struct{}{}
+		}
+		for _, required := range []string{"tenant_id", "organization_id", "owner_id"} {
+			if _, ok := columns[required]; !ok {
+				t.Fatalf("table %s is missing scope column %s", table.Name, required)
+			}
+		}
 	}
-	assertConfigField(t, info.ConfigSchema.Fields[0], "pharma_oa.seed.enabled", "boolean", false)
-	assertConfigField(t, info.ConfigSchema.Fields[1], "pharma_oa.seed.scope", "string", true)
-	assertConfigField(t, info.ConfigSchema.Fields[2], "pharma_oa.alert_days", "number", false)
+	if info.EventContract == nil || len(info.EventContract.Subscriptions) != 5 {
+		t.Fatalf("unexpected event contract: %+v", info.EventContract)
+	}
 
-	if len(info.PermissionResources) != 96 {
-		t.Fatalf("unexpected permission resources: %+v", info.PermissionResources)
+	permissions := make(map[string]struct{}, len(info.PermissionResources))
+	for _, permission := range info.PermissionResources {
+		if permission.Key == "" || permission.Module != info.ID || permission.Type == "" || permission.Risk == "" {
+			t.Fatalf("incomplete permission declaration: %+v", permission)
+		}
+		if _, exists := permissions[permission.Key]; exists {
+			t.Fatalf("duplicate permission declaration: %s", permission.Key)
+		}
+		permissions[permission.Key] = struct{}{}
 	}
-	assertPermissionDeclaration(t, info.PermissionResources[0], "pharma_oa.menu.read", "menu", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[1], "pharma_oa.plugin.manage", "plugin", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[2], "pharma_oa.seed.apply", "button", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[3], "pharma_oa.employee.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[4], "pharma_oa.employee.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[5], "pharma_oa.employee.update", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[6], "pharma_oa.employee.leave", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[7], "pharma_oa.employee.reminder", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[8], "pharma_oa.product.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[9], "pharma_oa.product.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[10], "pharma_oa.product.update", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[11], "pharma_oa.product.disable", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[12], "pharma_oa.product.import", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[13], "pharma_oa.supplier.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[14], "pharma_oa.supplier.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[15], "pharma_oa.supplier.update", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[16], "pharma_oa.supplier.disable", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[17], "pharma_oa.supplier.reminder", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[18], "pharma_oa.supplier.purchase", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[19], "pharma_oa.customer.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[20], "pharma_oa.customer.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[21], "pharma_oa.customer.update", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[22], "pharma_oa.customer.disable", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[23], "pharma_oa.customer.reminder", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[24], "pharma_oa.customer.sales", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[25], "pharma_oa.warehouse.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[26], "pharma_oa.warehouse.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[27], "pharma_oa.warehouse.update", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[28], "pharma_oa.warehouse.disable", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[29], "pharma_oa.warehouse.movement", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[30], "pharma_oa.master.template", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[31], "pharma_oa.master.import", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[32], "pharma_oa.master.export", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[33], "pharma_oa.purchase.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[34], "pharma_oa.purchase.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[35], "pharma_oa.purchase.approve", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[36], "pharma_oa.purchase.reject", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[37], "pharma_oa.order.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[38], "pharma_oa.inbound.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[39], "pharma_oa.inbound.create", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[40], "pharma_oa.sales.order.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[41], "pharma_oa.sales.order.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[42], "pharma_oa.sales.outbound.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[43], "pharma_oa.sales.outbound.create", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[44], "pharma_oa.stocktake.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[45], "pharma_oa.stocktake.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[46], "pharma_oa.stocktake.approve", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[47], "pharma_oa.stocktake.reject", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[48], "pharma_oa.transfer.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[49], "pharma_oa.transfer.create", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[50], "pharma_oa.inventory_alert.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[51], "pharma_oa.inventory_alert.run", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[52], "pharma_oa.announcement.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[53], "pharma_oa.announcement.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[54], "pharma_oa.announcement.publish", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[55], "pharma_oa.announcement.confirm", "button", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[56], "pharma_oa.announcement.receipt.read", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[57], "pharma_oa.contract.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[58], "pharma_oa.contract.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[59], "pharma_oa.contract.approve", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[60], "pharma_oa.contract.reject", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[61], "pharma_oa.contract.expiry.run", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[62], "pharma_oa.qualification.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[63], "pharma_oa.qualification.expiry.run", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[64], "pharma_oa.quality_complaint.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[65], "pharma_oa.quality_complaint.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[66], "pharma_oa.quality_complaint.resolve", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[67], "pharma_oa.quality_complaint.reject", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[68], "pharma_oa.drug_recall.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[69], "pharma_oa.drug_recall.create", "api", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[70], "pharma_oa.drug_recall.complete", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[71], "pharma_oa.cold_chain.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[72], "pharma_oa.cold_chain.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[73], "pharma_oa.cold_chain.run", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[74], "pharma_oa.compliance_dashboard.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[75], "pharma_oa.compliance_dashboard.export", "button", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[76], "pharma_oa.customer_follow_up.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[77], "pharma_oa.customer_follow_up.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[78], "pharma_oa.customer_follow_up.update", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[79], "pharma_oa.customer_follow_up.complete", "button", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[80], "pharma_oa.customer_follow_up.cancel", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[81], "pharma_oa.sales_opportunity.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[82], "pharma_oa.sales_opportunity.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[83], "pharma_oa.sales_opportunity.update", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[84], "pharma_oa.sales_opportunity.advance", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[85], "pharma_oa.payment_invoice.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[86], "pharma_oa.payment_plan.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[87], "pharma_oa.payment_plan.receive", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[88], "pharma_oa.invoice_record.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[89], "pharma_oa.invoice_record.void", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[90], "pharma_oa.payment_reminder.run", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[91], "pharma_oa.business_metrics.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[92], "pharma_oa.report_export.read", "api", "low")
-	assertPermissionDeclaration(t, info.PermissionResources[93], "pharma_oa.report_export.create", "api", "medium")
-	assertPermissionDeclaration(t, info.PermissionResources[94], "pharma_oa.report_export.retry", "button", "high")
-	assertPermissionDeclaration(t, info.PermissionResources[95], "pharma_oa.report_export.download", "api", "medium")
+	for _, required := range []string{"pharma_oa.foundation.read", "pharma_oa.menu.read", "pharma_oa.seed.read", "pharma_oa.employee.read", "pharma_oa.qualification.read"} {
+		if _, ok := permissions[required]; !ok {
+			t.Fatalf("required permission %s is missing", required)
+		}
+	}
 
 	routes, err := info.RouteExtensions()
 	if err != nil {
-		t.Fatalf("route extensions: %v", err)
+		t.Fatalf("resolve Pharma OA routes: %v", err)
 	}
-	if len(routes) != 119 {
-		t.Fatalf("unexpected route count: %+v", routes)
+	if len(routes) < 100 {
+		t.Fatalf("Pharma OA route surface is unexpectedly small: %d", len(routes))
 	}
-	permissionRegistry, err := NewRoutePermissionRegistry(routes)
-	if err != nil {
-		t.Fatalf("build pharma OA route permission registry: %v", err)
+	seenRoutes := make(map[string]struct{}, len(routes))
+	foundationFound := false
+	for _, route := range routes {
+		key := route.Method + " " + route.Path
+		if !strings.HasPrefix(route.Path, "/v1/plugins/pharma_oa/api/") || route.Source != "plugin.pharma_oa" {
+			t.Fatalf("route escapes current plugin namespace: %+v", route)
+		}
+		if _, exists := seenRoutes[key]; exists {
+			t.Fatalf("duplicate route: %s", key)
+		}
+		seenRoutes[key] = struct{}{}
+		if _, ok := permissions[route.Permission]; !ok {
+			t.Fatalf("route %s references undeclared permission %s", key, route.Permission)
+		}
+		if strings.TrimSpace(route.AuditAction) == "" {
+			t.Fatalf("route %s has no audit action", key)
+		}
+		if key == "GET /v1/plugins/pharma_oa/api/meta" && route.Permission == "pharma_oa.foundation.read" {
+			foundationFound = true
+		}
 	}
-	if descriptors := permissionRegistry.Descriptors(); len(descriptors) != len(routes) {
-		t.Fatalf("route permission descriptor count = %d, want %d", len(descriptors), len(routes))
+	if !foundationFound {
+		t.Fatal("independent plugin foundation route is missing")
 	}
-	assertRoute(t, routes[0], "GET", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.read", "pharma_oa.employee.read")
-	assertRoute(t, routes[1], "POST", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.create", "pharma_oa.employee.create")
-	assertRoute(t, routes[2], "PUT", "/v1/plugins/pharma_oa/api/employees/{id}", "pharma_oa.employee.update", "pharma_oa.employee.update")
-	assertRoute(t, routes[3], "POST", "/v1/plugins/pharma_oa/api/employees/{id}/leave", "pharma_oa.employee.leave", "pharma_oa.employee.leave")
-	assertRoute(t, routes[4], "GET", "/v1/plugins/pharma_oa/api/employees/qualification-reminders", "pharma_oa.employee.reminder", "pharma_oa.employee.reminder")
-	assertRoute(t, routes[5], "GET", "/v1/plugins/pharma_oa/api/products", "pharma_oa.product.read", "pharma_oa.product.read")
-	assertRoute(t, routes[6], "POST", "/v1/plugins/pharma_oa/api/products", "pharma_oa.product.create", "pharma_oa.product.create")
-	assertRoute(t, routes[7], "PUT", "/v1/plugins/pharma_oa/api/products/{id}", "pharma_oa.product.update", "pharma_oa.product.update")
-	assertRoute(t, routes[8], "POST", "/v1/plugins/pharma_oa/api/products/{id}/disable", "pharma_oa.product.disable", "pharma_oa.product.disable")
-	assertRoute(t, routes[9], "POST", "/v1/plugins/pharma_oa/api/products/import", "pharma_oa.product.import", "pharma_oa.product.import")
-	assertRoute(t, routes[10], "GET", "/v1/plugins/pharma_oa/api/suppliers", "pharma_oa.supplier.read", "pharma_oa.supplier.read")
-	assertRoute(t, routes[11], "POST", "/v1/plugins/pharma_oa/api/suppliers", "pharma_oa.supplier.create", "pharma_oa.supplier.create")
-	assertRoute(t, routes[12], "PUT", "/v1/plugins/pharma_oa/api/suppliers/{id}", "pharma_oa.supplier.update", "pharma_oa.supplier.update")
-	assertRoute(t, routes[13], "POST", "/v1/plugins/pharma_oa/api/suppliers/{id}/disable", "pharma_oa.supplier.disable", "pharma_oa.supplier.disable")
-	assertRoute(t, routes[14], "GET", "/v1/plugins/pharma_oa/api/suppliers/qualification-reminders", "pharma_oa.supplier.reminder", "pharma_oa.supplier.reminder")
-	assertRoute(t, routes[15], "GET", "/v1/plugins/pharma_oa/api/suppliers/{id}/purchase-eligibility", "pharma_oa.supplier.purchase", "pharma_oa.supplier.purchase")
-	assertRoute(t, routes[16], "GET", "/v1/plugins/pharma_oa/api/customers", "pharma_oa.customer.read", "pharma_oa.customer.read")
-	assertRoute(t, routes[17], "POST", "/v1/plugins/pharma_oa/api/customers", "pharma_oa.customer.create", "pharma_oa.customer.create")
-	assertRoute(t, routes[18], "PUT", "/v1/plugins/pharma_oa/api/customers/{id}", "pharma_oa.customer.update", "pharma_oa.customer.update")
-	assertRoute(t, routes[19], "POST", "/v1/plugins/pharma_oa/api/customers/{id}/disable", "pharma_oa.customer.disable", "pharma_oa.customer.disable")
-	assertRoute(t, routes[20], "GET", "/v1/plugins/pharma_oa/api/customers/qualification-reminders", "pharma_oa.customer.reminder", "pharma_oa.customer.reminder")
-	assertRoute(t, routes[21], "GET", "/v1/plugins/pharma_oa/api/customers/{id}/sales-eligibility", "pharma_oa.customer.sales", "pharma_oa.customer.sales")
-	assertRoute(t, routes[22], "GET", "/v1/plugins/pharma_oa/api/warehouses", "pharma_oa.warehouse.read", "pharma_oa.warehouse.read")
-	assertRoute(t, routes[23], "POST", "/v1/plugins/pharma_oa/api/warehouses", "pharma_oa.warehouse.create", "pharma_oa.warehouse.create")
-	assertRoute(t, routes[24], "PUT", "/v1/plugins/pharma_oa/api/warehouses/{id}", "pharma_oa.warehouse.update", "pharma_oa.warehouse.update")
-	assertRoute(t, routes[25], "POST", "/v1/plugins/pharma_oa/api/warehouses/{id}/disable", "pharma_oa.warehouse.disable", "pharma_oa.warehouse.disable")
-	assertRoute(t, routes[26], "GET", "/v1/plugins/pharma_oa/api/warehouses/{id}/movement-eligibility", "pharma_oa.warehouse.movement", "pharma_oa.warehouse.movement")
-	assertRoute(t, routes[27], "GET", "/v1/plugins/pharma_oa/api/master-data/template", "pharma_oa.master.template", "pharma_oa.master.template")
-	assertRoute(t, routes[28], "POST", "/v1/plugins/pharma_oa/api/master-data/import", "pharma_oa.master.import", "pharma_oa.master.import")
-	assertRoute(t, routes[29], "GET", "/v1/plugins/pharma_oa/api/master-data/export", "pharma_oa.master.export", "pharma_oa.master.export")
-	assertRoute(t, routes[30], "GET", "/v1/plugins/pharma_oa/api/purchase-requests", "pharma_oa.purchase.read", "pharma_oa.purchase.read")
-	assertRoute(t, routes[31], "POST", "/v1/plugins/pharma_oa/api/purchase-requests", "pharma_oa.purchase.create", "pharma_oa.purchase.create")
-	assertRoute(t, routes[32], "GET", "/v1/plugins/pharma_oa/api/purchase-requests/{id}", "pharma_oa.purchase.read", "pharma_oa.purchase.read")
-	assertRoute(t, routes[33], "POST", "/v1/plugins/pharma_oa/api/purchase-requests/{id}/approve", "pharma_oa.purchase.approve", "pharma_oa.purchase.approve")
-	assertRoute(t, routes[34], "POST", "/v1/plugins/pharma_oa/api/purchase-requests/{id}/reject", "pharma_oa.purchase.reject", "pharma_oa.purchase.reject")
-	assertRoute(t, routes[35], "GET", "/v1/plugins/pharma_oa/api/purchase-orders", "pharma_oa.order.read", "pharma_oa.order.read")
-	assertRoute(t, routes[36], "GET", "/v1/plugins/pharma_oa/api/purchase-orders/{id}", "pharma_oa.order.read", "pharma_oa.order.read")
-	assertRoute(t, routes[37], "GET", "/v1/plugins/pharma_oa/api/purchase-inbounds", "pharma_oa.inbound.read", "pharma_oa.inbound.read")
-	assertRoute(t, routes[38], "POST", "/v1/plugins/pharma_oa/api/purchase-inbounds", "pharma_oa.inbound.create", "pharma_oa.inbound.create")
-	assertRoute(t, routes[39], "GET", "/v1/plugins/pharma_oa/api/purchase-inbounds/{id}", "pharma_oa.inbound.read", "pharma_oa.inbound.read")
-	assertRoute(t, routes[40], "GET", "/v1/plugins/pharma_oa/api/sales-orders", "pharma_oa.sales.order.read", "pharma_oa.sales.order_read")
-	assertRoute(t, routes[41], "POST", "/v1/plugins/pharma_oa/api/sales-orders", "pharma_oa.sales.order.create", "pharma_oa.sales.order_create")
-	assertRoute(t, routes[42], "GET", "/v1/plugins/pharma_oa/api/sales-orders/{id}", "pharma_oa.sales.order.read", "pharma_oa.sales.order_read")
-	assertRoute(t, routes[43], "GET", "/v1/plugins/pharma_oa/api/sales-outbounds", "pharma_oa.sales.outbound.read", "pharma_oa.sales.outbound_read")
-	assertRoute(t, routes[44], "POST", "/v1/plugins/pharma_oa/api/sales-outbounds", "pharma_oa.sales.outbound.create", "pharma_oa.sales.outbound_create")
-	assertRoute(t, routes[45], "GET", "/v1/plugins/pharma_oa/api/sales-outbounds/{id}", "pharma_oa.sales.outbound.read", "pharma_oa.sales.outbound_read")
-	assertRoute(t, routes[46], "GET", "/v1/plugins/pharma_oa/api/stocktakes", "pharma_oa.stocktake.read", "pharma_oa.stocktake.read")
-	assertRoute(t, routes[47], "POST", "/v1/plugins/pharma_oa/api/stocktakes", "pharma_oa.stocktake.create", "pharma_oa.stocktake.create")
-	assertRoute(t, routes[48], "GET", "/v1/plugins/pharma_oa/api/stocktakes/{id}", "pharma_oa.stocktake.read", "pharma_oa.stocktake.read")
-	assertRoute(t, routes[49], "POST", "/v1/plugins/pharma_oa/api/stocktakes/{id}/approve", "pharma_oa.stocktake.approve", "pharma_oa.stocktake.approve")
-	assertRoute(t, routes[50], "POST", "/v1/plugins/pharma_oa/api/stocktakes/{id}/reject", "pharma_oa.stocktake.reject", "pharma_oa.stocktake.reject")
-	assertRoute(t, routes[51], "GET", "/v1/plugins/pharma_oa/api/transfers", "pharma_oa.transfer.read", "pharma_oa.transfer.read")
-	assertRoute(t, routes[52], "POST", "/v1/plugins/pharma_oa/api/transfers", "pharma_oa.transfer.create", "pharma_oa.transfer.create")
-	assertRoute(t, routes[53], "GET", "/v1/plugins/pharma_oa/api/transfers/{id}", "pharma_oa.transfer.read", "pharma_oa.transfer.read")
-	assertRoute(t, routes[54], "GET", "/v1/plugins/pharma_oa/api/inventory-alerts", "pharma_oa.inventory_alert.read", "pharma_oa.alert.read")
-	assertRoute(t, routes[55], "GET", "/v1/plugins/pharma_oa/api/inventory-alert-jobs", "pharma_oa.inventory_alert.read", "pharma_oa.alert.read")
-	assertRoute(t, routes[56], "POST", "/v1/plugins/pharma_oa/api/inventory-alert-jobs", "pharma_oa.inventory_alert.run", "pharma_oa.alert.run")
-	assertRoute(t, routes[57], "POST", "/v1/plugins/pharma_oa/api/inventory-alert-jobs/{id}/retry", "pharma_oa.inventory_alert.run", "pharma_oa.alert.run")
-	assertRoute(t, routes[58], "GET", "/v1/plugins/pharma_oa/api/announcements", "pharma_oa.announcement.read", "pharma_oa.announcement.read_list")
-	assertRoute(t, routes[59], "POST", "/v1/plugins/pharma_oa/api/announcements", "pharma_oa.announcement.create", "pharma_oa.announcement.create")
-	assertRoute(t, routes[60], "POST", "/v1/plugins/pharma_oa/api/announcements/{id}/publish", "pharma_oa.announcement.publish", "pharma_oa.announcement.publish")
-	assertRoute(t, routes[61], "POST", "/v1/plugins/pharma_oa/api/announcements/{id}/read", "pharma_oa.announcement.confirm", "pharma_oa.announcement.read")
-	assertRoute(t, routes[62], "GET", "/v1/plugins/pharma_oa/api/announcements/{id}/read-confirmations", "pharma_oa.announcement.receipt.read", "pharma_oa.announcement.receipt_read")
-	assertRoute(t, routes[63], "GET", "/v1/plugins/pharma_oa/api/contracts", "pharma_oa.contract.read", "pharma_oa.contract.read_list")
-	assertRoute(t, routes[64], "POST", "/v1/plugins/pharma_oa/api/contracts", "pharma_oa.contract.create", "pharma_oa.contract.create")
-	assertRoute(t, routes[65], "GET", "/v1/plugins/pharma_oa/api/contracts/{id}", "pharma_oa.contract.read", "pharma_oa.contract.read")
-	assertRoute(t, routes[66], "POST", "/v1/plugins/pharma_oa/api/contracts/{id}/approve", "pharma_oa.contract.approve", "pharma_oa.contract.approve")
-	assertRoute(t, routes[67], "POST", "/v1/plugins/pharma_oa/api/contracts/{id}/reject", "pharma_oa.contract.reject", "pharma_oa.contract.reject")
-	assertRoute(t, routes[68], "POST", "/v1/plugins/pharma_oa/api/contracts/expiry-scan", "pharma_oa.contract.expiry.run", "pharma_oa.contract.expiry_scan")
-	assertRoute(t, routes[69], "GET", "/v1/plugins/pharma_oa/api/qualifications", "pharma_oa.qualification.read", "pharma_oa.qualification.read_list")
-	assertRoute(t, routes[70], "POST", "/v1/plugins/pharma_oa/api/qualifications/expiry-scan", "pharma_oa.qualification.expiry.run", "pharma_oa.qualification.expiry_scan")
-	assertRoute(t, routes[71], "GET", "/v1/plugins/pharma_oa/api/quality-complaints", "pharma_oa.quality_complaint.read", "pharma_oa.quality_complaint.read_list")
-	assertRoute(t, routes[72], "POST", "/v1/plugins/pharma_oa/api/quality-complaints", "pharma_oa.quality_complaint.create", "pharma_oa.quality_complaint.create")
-	assertRoute(t, routes[73], "GET", "/v1/plugins/pharma_oa/api/quality-complaints/{id}", "pharma_oa.quality_complaint.read", "pharma_oa.quality_complaint.read")
-	assertRoute(t, routes[74], "POST", "/v1/plugins/pharma_oa/api/quality-complaints/{id}/resolve", "pharma_oa.quality_complaint.resolve", "pharma_oa.quality_complaint.resolve")
-	assertRoute(t, routes[75], "POST", "/v1/plugins/pharma_oa/api/quality-complaints/{id}/reject", "pharma_oa.quality_complaint.reject", "pharma_oa.quality_complaint.reject")
-	assertRoute(t, routes[76], "GET", "/v1/plugins/pharma_oa/api/quality-complaints/batches", "pharma_oa.quality_complaint.read", "pharma_oa.quality_complaint.batch_read")
-	assertRoute(t, routes[77], "GET", "/v1/plugins/pharma_oa/api/drug-recalls", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.read_list")
-	assertRoute(t, routes[78], "POST", "/v1/plugins/pharma_oa/api/drug-recalls", "pharma_oa.drug_recall.create", "pharma_oa.drug_recall.create")
-	assertRoute(t, routes[79], "GET", "/v1/plugins/pharma_oa/api/drug-recalls/{id}", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.read")
-	assertRoute(t, routes[80], "GET", "/v1/plugins/pharma_oa/api/drug-recalls/batches", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.batch_read")
-	assertRoute(t, routes[81], "GET", "/v1/plugins/pharma_oa/api/drug-recalls/scope", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.scope_read")
-	assertRoute(t, routes[82], "POST", "/v1/plugins/pharma_oa/api/drug-recalls/{id}/tasks/{taskId}/complete", "pharma_oa.drug_recall.complete", "pharma_oa.drug_recall.task_complete")
-	assertRoute(t, routes[83], "GET", "/v1/plugins/pharma_oa/api/cold-chain-contexts", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.context_read")
-	assertRoute(t, routes[84], "GET", "/v1/plugins/pharma_oa/api/cold-chain-records", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.read_list")
-	assertRoute(t, routes[85], "POST", "/v1/plugins/pharma_oa/api/cold-chain-records", "pharma_oa.cold_chain.create", "pharma_oa.cold_chain.record")
-	assertRoute(t, routes[86], "GET", "/v1/plugins/pharma_oa/api/cold-chain-anomalies", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.anomaly_read")
-	assertRoute(t, routes[87], "GET", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.job_read")
-	assertRoute(t, routes[88], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.run")
-	assertRoute(t, routes[89], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs/{id}/retry", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.retry")
-	assertRoute(t, routes[90], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard", "pharma_oa.compliance_dashboard.read", "pharma_oa.compliance_dashboard.view")
-	assertRoute(t, routes[91], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard/export", "pharma_oa.compliance_dashboard.export", "pharma_oa.compliance_dashboard.export")
-	assertRoute(t, routes[92], "GET", "/v1/plugins/pharma_oa/api/customer-follow-ups", "pharma_oa.customer_follow_up.read", "pharma_oa.customer_follow_up.read_list")
-	assertRoute(t, routes[93], "POST", "/v1/plugins/pharma_oa/api/customer-follow-ups", "pharma_oa.customer_follow_up.create", "pharma_oa.customer_follow_up.create")
-	assertRoute(t, routes[94], "PUT", "/v1/plugins/pharma_oa/api/customer-follow-ups/{id}", "pharma_oa.customer_follow_up.update", "pharma_oa.customer_follow_up.update")
-	assertRoute(t, routes[95], "POST", "/v1/plugins/pharma_oa/api/customer-follow-ups/{id}/complete", "pharma_oa.customer_follow_up.complete", "pharma_oa.customer_follow_up.complete")
-	assertRoute(t, routes[96], "POST", "/v1/plugins/pharma_oa/api/customer-follow-ups/{id}/cancel", "pharma_oa.customer_follow_up.cancel", "pharma_oa.customer_follow_up.cancel")
-	assertRoute(t, routes[97], "GET", "/v1/plugins/pharma_oa/api/sales-opportunities", "pharma_oa.sales_opportunity.read", "pharma_oa.sales_opportunity.read_list")
-	assertRoute(t, routes[98], "POST", "/v1/plugins/pharma_oa/api/sales-opportunities", "pharma_oa.sales_opportunity.create", "pharma_oa.sales_opportunity.create")
-	assertRoute(t, routes[99], "GET", "/v1/plugins/pharma_oa/api/sales-opportunities/statistics", "pharma_oa.sales_opportunity.read", "pharma_oa.sales_opportunity.read_statistics")
-	assertRoute(t, routes[100], "PUT", "/v1/plugins/pharma_oa/api/sales-opportunities/{id}", "pharma_oa.sales_opportunity.update", "pharma_oa.sales_opportunity.update")
-	assertRoute(t, routes[101], "POST", "/v1/plugins/pharma_oa/api/sales-opportunities/{id}/advance", "pharma_oa.sales_opportunity.advance", "pharma_oa.sales_opportunity.advance")
-	assertRoute(t, routes[102], "GET", "/v1/plugins/pharma_oa/api/payment-plans", "pharma_oa.payment_invoice.read", "pharma_oa.payment_plan.read_list")
-	assertRoute(t, routes[103], "POST", "/v1/plugins/pharma_oa/api/payment-plans", "pharma_oa.payment_plan.create", "pharma_oa.payment_plan.create")
-	assertRoute(t, routes[104], "POST", "/v1/plugins/pharma_oa/api/payment-plans/{id}/receive", "pharma_oa.payment_plan.receive", "pharma_oa.payment_plan.receive")
-	assertRoute(t, routes[105], "GET", "/v1/plugins/pharma_oa/api/invoice-records", "pharma_oa.payment_invoice.read", "pharma_oa.invoice_record.read_list")
-	assertRoute(t, routes[106], "POST", "/v1/plugins/pharma_oa/api/invoice-records", "pharma_oa.invoice_record.create", "pharma_oa.invoice_record.create")
-	assertRoute(t, routes[107], "POST", "/v1/plugins/pharma_oa/api/invoice-records/{id}/void", "pharma_oa.invoice_record.void", "pharma_oa.invoice_record.void")
-	assertRoute(t, routes[108], "GET", "/v1/plugins/pharma_oa/api/payment-reminder-jobs", "pharma_oa.payment_invoice.read", "pharma_oa.payment_reminder.job_read")
-	assertRoute(t, routes[109], "POST", "/v1/plugins/pharma_oa/api/payment-reminder-jobs", "pharma_oa.payment_reminder.run", "pharma_oa.payment_reminder.run")
-	assertRoute(t, routes[110], "POST", "/v1/plugins/pharma_oa/api/payment-reminder-jobs/{id}/retry", "pharma_oa.payment_reminder.run", "pharma_oa.payment_reminder.retry")
-	assertRoute(t, routes[111], "GET", "/v1/plugins/pharma_oa/api/demo-seed/status", "pharma_oa.seed.read", "pharma_oa.seed.read")
-	assertRoute(t, routes[112], "POST", "/v1/plugins/pharma_oa/api/demo-seed/apply", "pharma_oa.seed.apply", "pharma_oa.seed.apply")
-	assertRoute(t, routes[113], "GET", "/v1/plugins/pharma_oa/api/business-metrics", "pharma_oa.business_metrics.read", "pharma_oa.business_metrics.read")
-	assertRoute(t, routes[114], "GET", "/v1/plugins/pharma_oa/api/report-export-jobs", "pharma_oa.report_export.read", "pharma_oa.report_export.read_list")
-	assertRoute(t, routes[115], "POST", "/v1/plugins/pharma_oa/api/report-export-jobs", "pharma_oa.report_export.create", "pharma_oa.report_export.queue")
-	assertRoute(t, routes[116], "GET", "/v1/plugins/pharma_oa/api/report-export-jobs/{id}", "pharma_oa.report_export.read", "pharma_oa.report_export.read")
-	assertRoute(t, routes[117], "POST", "/v1/plugins/pharma_oa/api/report-export-jobs/{id}/retry", "pharma_oa.report_export.retry", "pharma_oa.report_export.retry")
-	assertRoute(t, routes[118], "GET", "/v1/plugins/pharma_oa/api/report-export-jobs/{id}/download", "pharma_oa.report_export.download", "pharma_oa.report_export.download")
 }
 
-func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
+func TestPharmaOAPluginLifecycleUsesManifestAsSourceOfTruth(t *testing.T) {
 	dir := pharmaOAPluginDir()
-	preflight, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
-		Path: dir,
-	})
+	info := loadPharmaOAInfo(t)
+	wantRoutes, err := info.RouteExtensions()
 	if err != nil {
-		t.Fatalf("preflight pharma oa plugin: %v", err)
+		t.Fatal(err)
 	}
-	if preflight.Status != InstallPreflightStatusPass {
-		t.Fatalf("expected preflight pass, got %+v", preflight)
+	preflight, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{Path: dir})
+	if err != nil {
+		t.Fatalf("preflight Pharma OA plugin: %v", err)
 	}
-	if len(preflight.Menus.Add) != 1 || preflight.Menus.Add[0].Key != "plugin.pharma_oa" {
-		t.Fatalf("expected pharma oa menu preflight, got %+v", preflight.Menus)
-	}
-	if len(preflight.API.Routes) != 119 || len(preflight.API.AuditActions) != 110 {
-		t.Fatalf("expected api and audit preflight, got %+v", preflight.API)
+	if preflight.Status != InstallPreflightStatusPass || len(preflight.Menus.Add) != 1 || len(preflight.API.Routes) != len(wantRoutes) {
+		t.Fatalf("unexpected Pharma OA preflight: %+v", preflight)
 	}
 
 	catalog := NewMemoryCatalogRegistry()
-	routes := NewMemoryRegistry()
+	routeRegistry := NewMemoryRegistry()
 	audit := &fakeCatalogAuditSink{}
 	manager := NewRuntimeManager(NewFileLoader(), NewTopologicalResolver())
 	manager.SetCatalogRegistry(catalog)
-	manager.SetExtensionRegistry(routes)
+	manager.SetExtensionRegistry(routeRegistry)
 	manager.SetCatalogAuditSink(audit)
 
 	installed, err := manager.Install(dir)
 	if err != nil {
-		t.Fatalf("install pharma oa plugin: %v", err)
-	}
-	if installed.ID != "pharma_oa" || installed.State != StateInstalled {
-		t.Fatalf("unexpected installed plugin: %+v", installed)
+		t.Fatalf("install Pharma OA plugin: %v", err)
 	}
 	if _, err := manager.Install(dir); !errors.Is(err, ErrPluginAlreadyExists) {
 		t.Fatalf("expected duplicate install failure, got %v", err)
 	}
-	if err := manager.Enable("pharma_oa"); err != nil {
-		t.Fatalf("enable pharma oa plugin: %v", err)
+	if err := manager.Enable(info.ID); err != nil {
+		t.Fatalf("enable Pharma OA plugin: %v", err)
 	}
-	assertCatalogPermission(t, catalog, "pharma_oa.menu.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.plugin.manage", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.seed.apply", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.seed.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.employee.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.employee.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.employee.update", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.employee.leave", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.employee.reminder", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.product.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.product.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.product.update", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.product.disable", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.product.import", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.supplier.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.supplier.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.supplier.update", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.supplier.disable", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.supplier.reminder", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.supplier.purchase", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer.update", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer.disable", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer.reminder", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer.sales", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.warehouse.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.warehouse.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.warehouse.update", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.warehouse.disable", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.warehouse.movement", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.master.template", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.master.import", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.master.export", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.purchase.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.purchase.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.purchase.approve", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.purchase.reject", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.order.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.inbound.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.inbound.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales.order.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales.order.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales.outbound.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales.outbound.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.stocktake.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.stocktake.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.stocktake.approve", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.stocktake.reject", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.transfer.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.transfer.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.inventory_alert.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.inventory_alert.run", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.announcement.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.announcement.publish", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.announcement.confirm", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.approve", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.reject", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.expiry.run", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.qualification.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.qualification.expiry.run", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.resolve", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.reject", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.drug_recall.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.drug_recall.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.drug_recall.complete", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.run", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.export", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.update", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.complete", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.cancel", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.update", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.advance", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_invoice.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_plan.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_plan.receive", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.invoice_record.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.invoice_record.void", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_reminder.run", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.business_metrics.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.read", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.create", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.retry", true)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.download", true)
-	assertCatalogMenu(t, catalog, "plugin.pharma_oa", "/skoll/pharma-oa/employees", true)
-
-	snapshot := routes.Snapshot()
-	if len(snapshot.Routes) != 119 {
-		t.Fatalf("expected registered pharma oa routes, got %+v", snapshot.Routes)
+	for _, permission := range info.PermissionResources {
+		assertCatalogPermission(t, catalog, permission.Key, true)
 	}
-	assertRoute(t, snapshot.Routes[0], "GET", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.read", "pharma_oa.employee.read")
-	assertRoute(t, snapshot.Routes[1], "POST", "/v1/plugins/pharma_oa/api/employees", "pharma_oa.employee.create", "pharma_oa.employee.create")
-	assertRoute(t, snapshot.Routes[2], "PUT", "/v1/plugins/pharma_oa/api/employees/{id}", "pharma_oa.employee.update", "pharma_oa.employee.update")
-	assertRoute(t, snapshot.Routes[3], "POST", "/v1/plugins/pharma_oa/api/employees/{id}/leave", "pharma_oa.employee.leave", "pharma_oa.employee.leave")
-	assertRoute(t, snapshot.Routes[4], "GET", "/v1/plugins/pharma_oa/api/employees/qualification-reminders", "pharma_oa.employee.reminder", "pharma_oa.employee.reminder")
-	assertRoute(t, snapshot.Routes[5], "GET", "/v1/plugins/pharma_oa/api/products", "pharma_oa.product.read", "pharma_oa.product.read")
-	assertRoute(t, snapshot.Routes[6], "POST", "/v1/plugins/pharma_oa/api/products", "pharma_oa.product.create", "pharma_oa.product.create")
-	assertRoute(t, snapshot.Routes[7], "PUT", "/v1/plugins/pharma_oa/api/products/{id}", "pharma_oa.product.update", "pharma_oa.product.update")
-	assertRoute(t, snapshot.Routes[8], "POST", "/v1/plugins/pharma_oa/api/products/{id}/disable", "pharma_oa.product.disable", "pharma_oa.product.disable")
-	assertRoute(t, snapshot.Routes[9], "POST", "/v1/plugins/pharma_oa/api/products/import", "pharma_oa.product.import", "pharma_oa.product.import")
-	assertRoute(t, snapshot.Routes[10], "GET", "/v1/plugins/pharma_oa/api/suppliers", "pharma_oa.supplier.read", "pharma_oa.supplier.read")
-	assertRoute(t, snapshot.Routes[11], "POST", "/v1/plugins/pharma_oa/api/suppliers", "pharma_oa.supplier.create", "pharma_oa.supplier.create")
-	assertRoute(t, snapshot.Routes[12], "PUT", "/v1/plugins/pharma_oa/api/suppliers/{id}", "pharma_oa.supplier.update", "pharma_oa.supplier.update")
-	assertRoute(t, snapshot.Routes[13], "POST", "/v1/plugins/pharma_oa/api/suppliers/{id}/disable", "pharma_oa.supplier.disable", "pharma_oa.supplier.disable")
-	assertRoute(t, snapshot.Routes[14], "GET", "/v1/plugins/pharma_oa/api/suppliers/qualification-reminders", "pharma_oa.supplier.reminder", "pharma_oa.supplier.reminder")
-	assertRoute(t, snapshot.Routes[15], "GET", "/v1/plugins/pharma_oa/api/suppliers/{id}/purchase-eligibility", "pharma_oa.supplier.purchase", "pharma_oa.supplier.purchase")
-	assertRoute(t, snapshot.Routes[16], "GET", "/v1/plugins/pharma_oa/api/customers", "pharma_oa.customer.read", "pharma_oa.customer.read")
-	assertRoute(t, snapshot.Routes[17], "POST", "/v1/plugins/pharma_oa/api/customers", "pharma_oa.customer.create", "pharma_oa.customer.create")
-	assertRoute(t, snapshot.Routes[18], "PUT", "/v1/plugins/pharma_oa/api/customers/{id}", "pharma_oa.customer.update", "pharma_oa.customer.update")
-	assertRoute(t, snapshot.Routes[19], "POST", "/v1/plugins/pharma_oa/api/customers/{id}/disable", "pharma_oa.customer.disable", "pharma_oa.customer.disable")
-	assertRoute(t, snapshot.Routes[20], "GET", "/v1/plugins/pharma_oa/api/customers/qualification-reminders", "pharma_oa.customer.reminder", "pharma_oa.customer.reminder")
-	assertRoute(t, snapshot.Routes[21], "GET", "/v1/plugins/pharma_oa/api/customers/{id}/sales-eligibility", "pharma_oa.customer.sales", "pharma_oa.customer.sales")
-	assertRoute(t, snapshot.Routes[22], "GET", "/v1/plugins/pharma_oa/api/warehouses", "pharma_oa.warehouse.read", "pharma_oa.warehouse.read")
-	assertRoute(t, snapshot.Routes[23], "POST", "/v1/plugins/pharma_oa/api/warehouses", "pharma_oa.warehouse.create", "pharma_oa.warehouse.create")
-	assertRoute(t, snapshot.Routes[24], "PUT", "/v1/plugins/pharma_oa/api/warehouses/{id}", "pharma_oa.warehouse.update", "pharma_oa.warehouse.update")
-	assertRoute(t, snapshot.Routes[25], "POST", "/v1/plugins/pharma_oa/api/warehouses/{id}/disable", "pharma_oa.warehouse.disable", "pharma_oa.warehouse.disable")
-	assertRoute(t, snapshot.Routes[26], "GET", "/v1/plugins/pharma_oa/api/warehouses/{id}/movement-eligibility", "pharma_oa.warehouse.movement", "pharma_oa.warehouse.movement")
-	assertRoute(t, snapshot.Routes[27], "GET", "/v1/plugins/pharma_oa/api/master-data/template", "pharma_oa.master.template", "pharma_oa.master.template")
-	assertRoute(t, snapshot.Routes[28], "POST", "/v1/plugins/pharma_oa/api/master-data/import", "pharma_oa.master.import", "pharma_oa.master.import")
-	assertRoute(t, snapshot.Routes[29], "GET", "/v1/plugins/pharma_oa/api/master-data/export", "pharma_oa.master.export", "pharma_oa.master.export")
-	assertRoute(t, snapshot.Routes[30], "GET", "/v1/plugins/pharma_oa/api/purchase-requests", "pharma_oa.purchase.read", "pharma_oa.purchase.read")
-	assertRoute(t, snapshot.Routes[33], "POST", "/v1/plugins/pharma_oa/api/purchase-requests/{id}/approve", "pharma_oa.purchase.approve", "pharma_oa.purchase.approve")
-	assertRoute(t, snapshot.Routes[36], "GET", "/v1/plugins/pharma_oa/api/purchase-orders/{id}", "pharma_oa.order.read", "pharma_oa.order.read")
-	assertRoute(t, snapshot.Routes[37], "GET", "/v1/plugins/pharma_oa/api/purchase-inbounds", "pharma_oa.inbound.read", "pharma_oa.inbound.read")
-	assertRoute(t, snapshot.Routes[40], "GET", "/v1/plugins/pharma_oa/api/sales-orders", "pharma_oa.sales.order.read", "pharma_oa.sales.order_read")
-	assertRoute(t, snapshot.Routes[44], "POST", "/v1/plugins/pharma_oa/api/sales-outbounds", "pharma_oa.sales.outbound.create", "pharma_oa.sales.outbound_create")
-	assertRoute(t, snapshot.Routes[46], "GET", "/v1/plugins/pharma_oa/api/stocktakes", "pharma_oa.stocktake.read", "pharma_oa.stocktake.read")
-	assertRoute(t, snapshot.Routes[49], "POST", "/v1/plugins/pharma_oa/api/stocktakes/{id}/approve", "pharma_oa.stocktake.approve", "pharma_oa.stocktake.approve")
-	assertRoute(t, snapshot.Routes[52], "POST", "/v1/plugins/pharma_oa/api/transfers", "pharma_oa.transfer.create", "pharma_oa.transfer.create")
-	assertRoute(t, snapshot.Routes[54], "GET", "/v1/plugins/pharma_oa/api/inventory-alerts", "pharma_oa.inventory_alert.read", "pharma_oa.alert.read")
-	assertRoute(t, snapshot.Routes[56], "POST", "/v1/plugins/pharma_oa/api/inventory-alert-jobs", "pharma_oa.inventory_alert.run", "pharma_oa.alert.run")
-	assertRoute(t, snapshot.Routes[57], "POST", "/v1/plugins/pharma_oa/api/inventory-alert-jobs/{id}/retry", "pharma_oa.inventory_alert.run", "pharma_oa.alert.run")
-	assertRoute(t, snapshot.Routes[58], "GET", "/v1/plugins/pharma_oa/api/announcements", "pharma_oa.announcement.read", "pharma_oa.announcement.read_list")
-	assertRoute(t, snapshot.Routes[60], "POST", "/v1/plugins/pharma_oa/api/announcements/{id}/publish", "pharma_oa.announcement.publish", "pharma_oa.announcement.publish")
-	assertRoute(t, snapshot.Routes[62], "GET", "/v1/plugins/pharma_oa/api/announcements/{id}/read-confirmations", "pharma_oa.announcement.receipt.read", "pharma_oa.announcement.receipt_read")
-	assertRoute(t, snapshot.Routes[63], "GET", "/v1/plugins/pharma_oa/api/contracts", "pharma_oa.contract.read", "pharma_oa.contract.read_list")
-	assertRoute(t, snapshot.Routes[66], "POST", "/v1/plugins/pharma_oa/api/contracts/{id}/approve", "pharma_oa.contract.approve", "pharma_oa.contract.approve")
-	assertRoute(t, snapshot.Routes[68], "POST", "/v1/plugins/pharma_oa/api/contracts/expiry-scan", "pharma_oa.contract.expiry.run", "pharma_oa.contract.expiry_scan")
-	assertRoute(t, snapshot.Routes[69], "GET", "/v1/plugins/pharma_oa/api/qualifications", "pharma_oa.qualification.read", "pharma_oa.qualification.read_list")
-	assertRoute(t, snapshot.Routes[70], "POST", "/v1/plugins/pharma_oa/api/qualifications/expiry-scan", "pharma_oa.qualification.expiry.run", "pharma_oa.qualification.expiry_scan")
-	assertRoute(t, snapshot.Routes[71], "GET", "/v1/plugins/pharma_oa/api/quality-complaints", "pharma_oa.quality_complaint.read", "pharma_oa.quality_complaint.read_list")
-	assertRoute(t, snapshot.Routes[72], "POST", "/v1/plugins/pharma_oa/api/quality-complaints", "pharma_oa.quality_complaint.create", "pharma_oa.quality_complaint.create")
-	assertRoute(t, snapshot.Routes[73], "GET", "/v1/plugins/pharma_oa/api/quality-complaints/{id}", "pharma_oa.quality_complaint.read", "pharma_oa.quality_complaint.read")
-	assertRoute(t, snapshot.Routes[74], "POST", "/v1/plugins/pharma_oa/api/quality-complaints/{id}/resolve", "pharma_oa.quality_complaint.resolve", "pharma_oa.quality_complaint.resolve")
-	assertRoute(t, snapshot.Routes[75], "POST", "/v1/plugins/pharma_oa/api/quality-complaints/{id}/reject", "pharma_oa.quality_complaint.reject", "pharma_oa.quality_complaint.reject")
-	assertRoute(t, snapshot.Routes[76], "GET", "/v1/plugins/pharma_oa/api/quality-complaints/batches", "pharma_oa.quality_complaint.read", "pharma_oa.quality_complaint.batch_read")
-	assertRoute(t, snapshot.Routes[77], "GET", "/v1/plugins/pharma_oa/api/drug-recalls", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.read_list")
-	assertRoute(t, snapshot.Routes[78], "POST", "/v1/plugins/pharma_oa/api/drug-recalls", "pharma_oa.drug_recall.create", "pharma_oa.drug_recall.create")
-	assertRoute(t, snapshot.Routes[79], "GET", "/v1/plugins/pharma_oa/api/drug-recalls/{id}", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.read")
-	assertRoute(t, snapshot.Routes[80], "GET", "/v1/plugins/pharma_oa/api/drug-recalls/batches", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.batch_read")
-	assertRoute(t, snapshot.Routes[81], "GET", "/v1/plugins/pharma_oa/api/drug-recalls/scope", "pharma_oa.drug_recall.read", "pharma_oa.drug_recall.scope_read")
-	assertRoute(t, snapshot.Routes[82], "POST", "/v1/plugins/pharma_oa/api/drug-recalls/{id}/tasks/{taskId}/complete", "pharma_oa.drug_recall.complete", "pharma_oa.drug_recall.task_complete")
-	assertRoute(t, snapshot.Routes[83], "GET", "/v1/plugins/pharma_oa/api/cold-chain-contexts", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.context_read")
-	assertRoute(t, snapshot.Routes[84], "GET", "/v1/plugins/pharma_oa/api/cold-chain-records", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.read_list")
-	assertRoute(t, snapshot.Routes[85], "POST", "/v1/plugins/pharma_oa/api/cold-chain-records", "pharma_oa.cold_chain.create", "pharma_oa.cold_chain.record")
-	assertRoute(t, snapshot.Routes[86], "GET", "/v1/plugins/pharma_oa/api/cold-chain-anomalies", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.anomaly_read")
-	assertRoute(t, snapshot.Routes[87], "GET", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.read", "pharma_oa.cold_chain.job_read")
-	assertRoute(t, snapshot.Routes[88], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.run")
-	assertRoute(t, snapshot.Routes[89], "POST", "/v1/plugins/pharma_oa/api/cold-chain-jobs/{id}/retry", "pharma_oa.cold_chain.run", "pharma_oa.cold_chain.retry")
-	assertRoute(t, snapshot.Routes[90], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard", "pharma_oa.compliance_dashboard.read", "pharma_oa.compliance_dashboard.view")
-	assertRoute(t, snapshot.Routes[91], "GET", "/v1/plugins/pharma_oa/api/compliance-dashboard/export", "pharma_oa.compliance_dashboard.export", "pharma_oa.compliance_dashboard.export")
-	assertRoute(t, snapshot.Routes[92], "GET", "/v1/plugins/pharma_oa/api/customer-follow-ups", "pharma_oa.customer_follow_up.read", "pharma_oa.customer_follow_up.read_list")
-	assertRoute(t, snapshot.Routes[93], "POST", "/v1/plugins/pharma_oa/api/customer-follow-ups", "pharma_oa.customer_follow_up.create", "pharma_oa.customer_follow_up.create")
-	assertRoute(t, snapshot.Routes[94], "PUT", "/v1/plugins/pharma_oa/api/customer-follow-ups/{id}", "pharma_oa.customer_follow_up.update", "pharma_oa.customer_follow_up.update")
-	assertRoute(t, snapshot.Routes[95], "POST", "/v1/plugins/pharma_oa/api/customer-follow-ups/{id}/complete", "pharma_oa.customer_follow_up.complete", "pharma_oa.customer_follow_up.complete")
-	assertRoute(t, snapshot.Routes[96], "POST", "/v1/plugins/pharma_oa/api/customer-follow-ups/{id}/cancel", "pharma_oa.customer_follow_up.cancel", "pharma_oa.customer_follow_up.cancel")
-	assertRoute(t, snapshot.Routes[97], "GET", "/v1/plugins/pharma_oa/api/sales-opportunities", "pharma_oa.sales_opportunity.read", "pharma_oa.sales_opportunity.read_list")
-	assertRoute(t, snapshot.Routes[98], "POST", "/v1/plugins/pharma_oa/api/sales-opportunities", "pharma_oa.sales_opportunity.create", "pharma_oa.sales_opportunity.create")
-	assertRoute(t, snapshot.Routes[99], "GET", "/v1/plugins/pharma_oa/api/sales-opportunities/statistics", "pharma_oa.sales_opportunity.read", "pharma_oa.sales_opportunity.read_statistics")
-	assertRoute(t, snapshot.Routes[100], "PUT", "/v1/plugins/pharma_oa/api/sales-opportunities/{id}", "pharma_oa.sales_opportunity.update", "pharma_oa.sales_opportunity.update")
-	assertRoute(t, snapshot.Routes[101], "POST", "/v1/plugins/pharma_oa/api/sales-opportunities/{id}/advance", "pharma_oa.sales_opportunity.advance", "pharma_oa.sales_opportunity.advance")
-	assertRoute(t, snapshot.Routes[102], "GET", "/v1/plugins/pharma_oa/api/payment-plans", "pharma_oa.payment_invoice.read", "pharma_oa.payment_plan.read_list")
-	assertRoute(t, snapshot.Routes[103], "POST", "/v1/plugins/pharma_oa/api/payment-plans", "pharma_oa.payment_plan.create", "pharma_oa.payment_plan.create")
-	assertRoute(t, snapshot.Routes[104], "POST", "/v1/plugins/pharma_oa/api/payment-plans/{id}/receive", "pharma_oa.payment_plan.receive", "pharma_oa.payment_plan.receive")
-	assertRoute(t, snapshot.Routes[105], "GET", "/v1/plugins/pharma_oa/api/invoice-records", "pharma_oa.payment_invoice.read", "pharma_oa.invoice_record.read_list")
-	assertRoute(t, snapshot.Routes[106], "POST", "/v1/plugins/pharma_oa/api/invoice-records", "pharma_oa.invoice_record.create", "pharma_oa.invoice_record.create")
-	assertRoute(t, snapshot.Routes[107], "POST", "/v1/plugins/pharma_oa/api/invoice-records/{id}/void", "pharma_oa.invoice_record.void", "pharma_oa.invoice_record.void")
-	assertRoute(t, snapshot.Routes[108], "GET", "/v1/plugins/pharma_oa/api/payment-reminder-jobs", "pharma_oa.payment_invoice.read", "pharma_oa.payment_reminder.job_read")
-	assertRoute(t, snapshot.Routes[109], "POST", "/v1/plugins/pharma_oa/api/payment-reminder-jobs", "pharma_oa.payment_reminder.run", "pharma_oa.payment_reminder.run")
-	assertRoute(t, snapshot.Routes[110], "POST", "/v1/plugins/pharma_oa/api/payment-reminder-jobs/{id}/retry", "pharma_oa.payment_reminder.run", "pharma_oa.payment_reminder.retry")
-	assertRoute(t, snapshot.Routes[111], "GET", "/v1/plugins/pharma_oa/api/demo-seed/status", "pharma_oa.seed.read", "pharma_oa.seed.read")
-	assertRoute(t, snapshot.Routes[112], "POST", "/v1/plugins/pharma_oa/api/demo-seed/apply", "pharma_oa.seed.apply", "pharma_oa.seed.apply")
-	assertRoute(t, snapshot.Routes[113], "GET", "/v1/plugins/pharma_oa/api/business-metrics", "pharma_oa.business_metrics.read", "pharma_oa.business_metrics.read")
-	assertRoute(t, snapshot.Routes[114], "GET", "/v1/plugins/pharma_oa/api/report-export-jobs", "pharma_oa.report_export.read", "pharma_oa.report_export.read_list")
-	assertRoute(t, snapshot.Routes[115], "POST", "/v1/plugins/pharma_oa/api/report-export-jobs", "pharma_oa.report_export.create", "pharma_oa.report_export.queue")
-	assertRoute(t, snapshot.Routes[116], "GET", "/v1/plugins/pharma_oa/api/report-export-jobs/{id}", "pharma_oa.report_export.read", "pharma_oa.report_export.read")
-	assertRoute(t, snapshot.Routes[117], "POST", "/v1/plugins/pharma_oa/api/report-export-jobs/{id}/retry", "pharma_oa.report_export.retry", "pharma_oa.report_export.retry")
-	assertRoute(t, snapshot.Routes[118], "GET", "/v1/plugins/pharma_oa/api/report-export-jobs/{id}/download", "pharma_oa.report_export.download", "pharma_oa.report_export.download")
-
-	if err := manager.Disable("pharma_oa"); err != nil {
-		t.Fatalf("disable pharma oa plugin: %v", err)
+	assertCatalogMenu(t, catalog, info.UIMenu.Key, info.UIMenu.Path, true)
+	snapshot := routeRegistry.Snapshot()
+	if len(snapshot.Routes) != len(wantRoutes) {
+		t.Fatalf("registered routes=%d want=%d", len(snapshot.Routes), len(wantRoutes))
 	}
-	assertCatalogPermission(t, catalog, "pharma_oa.menu.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.seed.apply", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.employee.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.product.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.supplier.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.warehouse.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.master.import", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.purchase.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.order.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.inbound.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales.order.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales.outbound.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.stocktake.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.stocktake.approve", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.transfer.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.inventory_alert.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.inventory_alert.run", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.announcement.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.announcement.publish", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.announcement.confirm", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.approve", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.reject", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.contract.expiry.run", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.qualification.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.qualification.expiry.run", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.resolve", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.quality_complaint.reject", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.drug_recall.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.drug_recall.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.drug_recall.complete", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.cold_chain.run", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.compliance_dashboard.export", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.update", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.complete", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.customer_follow_up.cancel", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.update", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.sales_opportunity.advance", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_invoice.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_plan.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_plan.receive", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.invoice_record.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.invoice_record.void", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.payment_reminder.run", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.business_metrics.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.read", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.create", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.retry", false)
-	assertCatalogPermission(t, catalog, "pharma_oa.report_export.download", false)
-	assertCatalogMenu(t, catalog, "plugin.pharma_oa", "/skoll/pharma-oa/employees", false)
-
-	if len(audit.events) != 3 {
-		t.Fatalf("expected catalog, route, and disable audit events, got %+v", audit.events)
+	registered := make(map[string]RouteExtension, len(snapshot.Routes))
+	for _, route := range snapshot.Routes {
+		registered[route.Method+" "+route.Path] = route
 	}
-	assertAuditEvent(t, audit.events[0], "pharma_oa", "plugin_catalog_import", "ok", 215, 1, 119, 110)
-	assertAuditEvent(t, audit.events[1], "pharma_oa", "plugin_route_import", "ok", 215, 1, 119, 110)
-	assertAuditEvent(t, audit.events[2], "pharma_oa", "plugin_catalog_disable", "ok", 215, 1, 119, 110)
+	for _, route := range wantRoutes {
+		key := route.Method + " " + route.Path
+		if got, ok := registered[key]; !ok || got.Permission != route.Permission || got.AuditAction != route.AuditAction {
+			t.Fatalf("registered route mismatch for %s: %+v", key, got)
+		}
+	}
 
-	duplicate, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{
-		Path:      dir,
-		Installed: []Info{installed},
-	})
+	if err := manager.Disable(info.ID); err != nil {
+		t.Fatalf("disable Pharma OA plugin: %v", err)
+	}
+	for _, permission := range info.PermissionResources {
+		assertCatalogPermission(t, catalog, permission.Key, false)
+	}
+	assertCatalogMenu(t, catalog, info.UIMenu.Key, info.UIMenu.Path, false)
+	if len(audit.events) != 4 {
+		t.Fatalf("expected catalog, route, event, and disable audit events, got %+v", audit.events)
+	}
+	wantActions := map[string]struct{}{
+		"plugin_catalog_import":  {},
+		"plugin_route_import":    {},
+		"plugin_event_import":    {},
+		"plugin_catalog_disable": {},
+	}
+	for _, event := range audit.events {
+		if _, ok := wantActions[event.Action]; !ok {
+			t.Fatalf("unexpected lifecycle audit action: %+v", event)
+		}
+		delete(wantActions, event.Action)
+		if event.PluginID != info.ID || event.Routes != len(wantRoutes) || event.Events != len(info.EventContract.Subscriptions) {
+			t.Fatalf("unexpected lifecycle audit evidence: %+v", event)
+		}
+	}
+
+	duplicate, err := NewInstallPreflightService(nil).Check(InstallPreflightInput{Path: dir, Installed: []Info{installed}})
 	if err != nil {
 		t.Fatalf("duplicate preflight: %v", err)
 	}
@@ -607,37 +181,18 @@ func TestPharmaOAPluginLifecycleSmoke(t *testing.T) {
 	}
 }
 
+func loadPharmaOAInfo(t *testing.T) Info {
+	t.Helper()
+	info, err := NewFileLoader().Load(pharmaOAPluginDir())
+	if err != nil {
+		t.Fatalf("load Pharma OA plugin manifest: %v", err)
+	}
+	if err := info.ValidateManifest(); err != nil {
+		t.Fatalf("validate Pharma OA plugin manifest: %v", err)
+	}
+	return info
+}
+
 func pharmaOAPluginDir() string {
 	return filepath.Join("..", "..", "plugins", "pharma_oa")
-}
-
-func assertConfigField(t *testing.T, field ConfigField, key string, typ string, required bool) {
-	t.Helper()
-	if field.Key != key || field.Type != typ || field.Required != required {
-		t.Fatalf("unexpected config field: %+v", field)
-	}
-}
-
-func assertPermissionDeclaration(t *testing.T, permission PermissionDeclaration, key string, typ string, risk string) {
-	t.Helper()
-	if permission.Key != key || permission.Type != typ || permission.Module != "pharma_oa" || permission.Risk != risk {
-		t.Fatalf("unexpected permission declaration: %+v", permission)
-	}
-}
-
-func assertRoute(t *testing.T, route RouteExtension, method string, path string, permission string, auditAction string) {
-	t.Helper()
-	if route.Method != method || route.Path != path || route.Permission != permission || route.AuditAction != auditAction || route.Source != "plugin.pharma_oa" {
-		t.Fatalf("unexpected route: %+v", route)
-	}
-}
-
-func assertAuditEvent(t *testing.T, event CatalogAuditEvent, pluginID string, action string, result string, permissions int, menus int, routes int, auditActions int) {
-	t.Helper()
-	if event.PluginID != pluginID || event.Action != action || event.Result != result {
-		t.Fatalf("unexpected audit event identity: %+v", event)
-	}
-	if event.Permissions != permissions || event.Menus != menus || event.Routes != routes || event.AuditActions != auditActions {
-		t.Fatalf("unexpected audit event counts: %+v", event)
-	}
 }

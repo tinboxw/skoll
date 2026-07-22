@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "pharma_oa",
+  "contractVersion": "0.2.0",
+  "publicContract": {
+    "manifest": "plugin.yaml",
+    "apiVersion": "v1",
+    "apiPrefix": "/v1/plugins/pharma_oa/api/",
+    "backendProtocol": "skoll-plugin-host-v1",
+    "backendClient": "github.com/tinboxw/skoll/pkg/pluginclient",
+    "hostServices": ["Transactions", "DataScopes", "DataStore", "DocumentNumbers", "Documents", "Files", "Audit", "Config", "Secrets", "Workflows", "Jobs"]
+  },
+  "modules": [
+    {"id": "workforce", "workItems": ["BF4-02"], "documentTypes": [], "acceptance": "Employee records, assignments, employment state, attachments, scope, and audit are plugin-owned."},
+    {"id": "parties", "workItems": ["BF4-03"], "documentTypes": ["business_contract"], "acceptance": "Customers, suppliers, contacts, addresses, settlement, and qualification links share one scoped party model."},
+    {"id": "catalog", "workItems": ["BF4-04"], "documentTypes": [], "acceptance": "Products, SKUs, dosage forms, specifications, units, categories, and manufacturers are governed master data."},
+    {"id": "qualifications", "workItems": ["BF4-05"], "documentTypes": [], "acceptance": "Evidence, reviews, validity, expiry alerts, and business gates use owned files and host jobs."},
+    {"id": "office", "workItems": ["BF5-01"], "documentTypes": ["leave_request", "expense_request"], "acceptance": "General OA documents use host numbering, forms, documents, workflow, files, comments, and timeline."},
+    {"id": "crm", "workItems": ["BF5-02"], "documentTypes": [], "acceptance": "Contacts, visits, opportunities, follow-ups, reminders, ownership, and pipeline history remain scoped."},
+    {"id": "purchasing", "workItems": ["BF5-03"], "documentTypes": ["purchase_request", "purchase_order", "purchase_inbound"], "acceptance": "Purchasing and receiving enforce approval, qualification, quantity, price, idempotency, and audit rules."},
+    {"id": "sales", "workItems": ["BF5-04"], "documentTypes": ["sales_order", "sales_outbound"], "acceptance": "Sales, allocation, picking, and delivery enforce customer, stock, lot, expiry, and cancellation rules."},
+    {"id": "inventory", "workItems": ["BF5-05"], "documentTypes": ["stocktake", "stock_transfer"], "acceptance": "Warehouses, locations, lots, expiry, movements, returns, transfers, and counts form an immutable ledger."},
+    {"id": "quality", "workItems": ["BF5-06"], "documentTypes": ["quality_inspection", "drug_recall"], "acceptance": "Inspection, quarantine, release, rejection, complaint, and recall decisions are traceable and block invalid stock."},
+    {"id": "finance", "workItems": ["BF5-07"], "documentTypes": [], "acceptance": "Receivables, payables, invoices, payments, aging, and export reconcile against accepted business documents."},
+    {"id": "analytics", "workItems": ["BF5-08"], "documentTypes": [], "acceptance": "Role-aware dashboards and exports derive only from trusted scoped records."}
+  ],
+  "documentTypes": ["leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"],
+  "events": [
+    {"name": "approval-completed", "handler": "onApprovalCompleted"},
+    {"name": "qualification-expiring", "handler": "onQualificationExpiring"},
+    {"name": "inventory-changed", "handler": "onInventoryChanged"},
+    {"name": "quality-lot-released", "handler": "onQualityLotReleased"},
+    {"name": "quality-recall-started", "handler": "onQualityRecallStarted"}
+  ],
+  "migrations": {"version": "0.2.0", "tables": ["pharma_oa_module_registry", "pharma_oa_document_type_registry"]},
+  "acceptanceScenarios": [
+    {"id": "POA-BOUNDARY-01", "result": "Build, package, verify, install, start, and health-check the plugin without modifying host production source."},
+    {"id": "POA-BOUNDARY-02", "result": "Every module, document type, event, table, route, and permission resolves from one current manifest family."},
+    {"id": "POA-BOUNDARY-03", "result": "Backend code imports public pluginclient contracts and no Skoll internal package."},
+    {"id": "POA-BOUNDARY-04", "result": "Foundation migration applies and rolls back completely on a clean plugin datastore."},
+    {"id": "POA-BOUNDARY-05", "result": "Host bootstrap contains no medical OA factory, service construction, fixture, or unconditional registration."}
+  ]
+}

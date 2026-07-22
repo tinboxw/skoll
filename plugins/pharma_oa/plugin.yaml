@@ -2,8 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.1.0
+version: 0.2.0
 api_version: v1
+migration_version: 0.2.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: monolith
 level: app
@@ -13,6 +14,8 @@ ui_nav_position: sidebar
 ui_open_mode: integrated
 ui_tab_mode: fixed
 frontend_entry: /skoll/pharma-oa/employees
+service_base_url: http://127.0.0.1:18093
+service_health_url: http://127.0.0.1:18093/health
 ui_menu:
   key: plugin.pharma_oa
   label: Pharma OA
@@ -57,6 +60,11 @@ i18n_locales:
   - zh-CN
   - en-US
 permissions:
+  - key: pharma_oa.foundation.read
+    type: api
+    module: pharma_oa
+    name: Read Pharma OA plugin foundation contract
+    risk: low
   - key: pharma_oa.menu.read
     type: menu
     module: pharma_oa
@@ -75,6 +83,12 @@ permissions:
     name: Apply Pharma OA demo seed
     risk: medium
     metadata.description: Initializes the complete Pharma OA demonstration scenario through the host seed service.
+  - key: pharma_oa.seed.read
+    type: api
+    module: pharma_oa
+    name: Read Pharma OA demo seed status
+    risk: low
+    metadata.description: Reads the current demonstration-data initialization state.
   - key: pharma_oa.employee.read
     type: api
     module: pharma_oa
@@ -542,6 +556,11 @@ permissions:
     risk: medium
 api:
   routes:
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/meta
+      summary: Read the independent Pharma OA plugin boundary
+      permission: pharma_oa.foundation.read
+      audit_action: pharma_oa.foundation.read
     - method: GET
       path: /v1/plugins/pharma_oa/api/employees
       summary: List Pharma OA employees
@@ -1137,3 +1156,39 @@ api:
       summary: Download a completed report export
       permission: pharma_oa.report_export.download
       audit_action: pharma_oa.report_export.download
+
+data:
+  namespace: pharma_oa
+  migration_version: 0.2.0
+  migration_directory: migrations
+  uninstall_policy: drop
+  rollback_policy: automatic
+  tables:
+    - name: pharma_oa_module_registry
+      description: Tenant-scoped registry for the medical OA domain modules delivered by this plugin family.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, module_key, status, contract_version, created_at, updated_at
+      indexes: unique uq_pharma_oa_modules_tenant_key(tenant_id,module_key); idx_pharma_oa_modules_scope(tenant_id,organization_id,status)
+    - name: pharma_oa_document_type_registry
+      description: Tenant-scoped binding between medical business documents, modules, and host workflows.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, document_type, module_key, workflow_key, status, created_at, updated_at
+      indexes: unique uq_pharma_oa_documents_tenant_type(tenant_id,document_type); idx_pharma_oa_documents_scope(tenant_id,organization_id,status)
+
+events:
+  subscriptions:
+    - name: approval-completed
+      handler: onApprovalCompleted
+      retry_policy: standard
+    - name: qualification-expiring
+      handler: onQualificationExpiring
+      retry_policy: standard
+    - name: inventory-changed
+      handler: onInventoryChanged
+      retry_policy: standard
+    - name: quality-lot-released
+      handler: onQualityLotReleased
+      retry_policy: standard
+    - name: quality-recall-started
+      handler: onQualityRecallStarted
+      retry_policy: standard

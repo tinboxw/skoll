@@ -1,0 +1,2 @@
+DROP TABLE pharma_oa_document_type_registry;
+DROP TABLE pharma_oa_module_registry;

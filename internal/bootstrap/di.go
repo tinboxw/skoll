@@ -25,7 +25,6 @@ import (
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
 	"github.com/tinboxw/skoll/internal/plugin/datastore"
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
-	pharmaoaplugin "github.com/tinboxw/skoll/internal/plugin/pharmaoa"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
@@ -36,7 +35,6 @@ import (
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	menusvc "github.com/tinboxw/skoll/internal/service/menu"
-	notificationsvc "github.com/tinboxw/skoll/internal/service/notification"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	"github.com/tinboxw/skoll/internal/service/rbac"
 	"github.com/tinboxw/skoll/internal/service/role"
@@ -60,7 +58,6 @@ type dependencies struct {
 	businessEventBus *event.BusinessEventBus
 	pluginRuntime    closeable
 	jobService       *jobsvc.Service
-	pluginHost       pluginsdk.HostServices
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
@@ -107,7 +104,6 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Permission: rbacService,
 		Audit:      auditEventService,
 	})
-	notificationService := notificationsvc.NewService(bundle.Notifications, nil, nil)
 	jobService := jobsvc.NewService(bundle.Jobs, nil)
 	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
 	documentWorkflowStore := gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB)
@@ -142,33 +138,6 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	if err != nil {
 		return nil, err
 	}
-	configStore, ok := pluginManager.(hostservice.PluginConfigStore)
-	if !ok {
-		return nil, fmt.Errorf("plugin manager does not support host config services")
-	}
-	pluginHost, err := hostservice.NewHostServices(hostservice.HostServicesDependencies{
-		PluginID: pharmaoaplugin.PluginID, Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory,
-		Files: fileService, Audit: auditService, ConfigStore: configStore, System: systemService, DocumentNumbers: documentNumberService,
-		MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, DocumentWorkflows: documentWorkflowStore, Jobs: jobService,
-	})
-	if err != nil {
-		return nil, err
-	}
-	pharmaBackendDeps := pharmaoaplugin.Dependencies{
-		Stores: bundle, Host: pluginHost, Notification: notificationService,
-	}
-	registrar, ok := pluginManager.(interface {
-		RegisterInProcessBackend(string, plugin.InProcessBackendFactory) error
-	})
-	if !ok {
-		return nil, fmt.Errorf("plugin manager does not support in-process backends")
-	}
-	if err := registrar.RegisterInProcessBackend(pharmaoaplugin.PluginID, func() (http.Handler, error) {
-		return pharmaoaplugin.NewBackend(pharmaBackendDeps)
-	}); err != nil {
-		return nil, fmt.Errorf("register Pharma OA plugin backend: %w", err)
-	}
-
 	router := httpHandler.NewRouter(httpHandler.Dependencies{
 		UserService:       userService,
 		RoleService:       roleService,
@@ -208,19 +177,10 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	}
 
 	ensureBuiltinAuthData(context.Background(), logger, bundle.Users, bundle.Roles, bundle.RBAC)
-	if scopeMatrixFixturesEnabled() {
-		customerService, err := pharmaoaplugin.NewCustomerService(pharmaBackendDeps)
-		if err != nil {
-			return nil, fmt.Errorf("build Pharma OA scope fixture service: %w", err)
-		}
-		if err := ensureScopeMatrixFixtures(context.Background(), bundle.Users, bundle.Roles, bundle.RBAC, bundle.Organization, customerService); err != nil {
-			return nil, fmt.Errorf("seed organization scope matrix fixtures: %w", err)
-		}
-	}
 	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
 	pluginRuntime, _ := pluginManager.(closeable)
-	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime, jobService: jobService, pluginHost: pluginHost}, nil
+	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime, jobService: jobService}, nil
 }
 
 func buildEventBus(cfg config.EventConfig) (event.Bus, error) {

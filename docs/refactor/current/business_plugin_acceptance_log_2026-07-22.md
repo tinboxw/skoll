@@ -1250,3 +1250,53 @@ Result: BF3-06 passed after fixture, product-performance, and measurement-bounda
 ### Commit
 
 `BF3-06: enforce plugin control center quality budgets`
+
+## BF4-01 Establish The Independent Medical OA Plugin Boundary
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Remove medical OA ownership from host bootstrap and establish one installable, managed-process plugin family over public contracts.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Independent package | Pass | `plugins/pharma_oa` builds a managed backend process, retains plugin-owned static assets, and packages as `pharma_oa-0.2.0.zip` with a verified SHA-256 checksum |
+| Public dependency boundary | Pass | The backend imports `pkg/pluginclient`; architecture tests reject any `github.com/tinboxw/skoll/internal/` import |
+| Host independence | Pass | Bootstrap no longer imports, constructs, registers, or seeds Pharma OA services; the Pharma-specific scope fixture and in-process backend contract were removed |
+| Domain boundary | Pass | One acceptance map assigns 12 modules to BF4/BF5 work, with one owner for each of 12 document types |
+| Permission and API contract | Pass | All 120 routes stay under `/v1/plugins/pharma_oa/api/`, reference declared permissions, declare audit actions, and expose the foundation metadata route |
+| Event contract | Pass | Five manifest subscriptions map to the managed process event endpoint and produce dedicated lifecycle registration audit evidence |
+| Data lifecycle | Pass | Two tenant/organization/owner-scoped foundation registries apply and roll back through the declared `drop` and `automatic` policies |
+| Current-only rule | Pass | The hard-coded in-process registration path and host-owned fixtures were deleted; no compatibility flag, legacy route, fallback process, or dual registration remains |
+| Automated tests | Pass | Plugin contract, backend, bootstrap, plugin runtime, migration, package verification, and full `go test ./...` pass |
+
+The first contract run found the existing demo-seed status route referenced an undeclared read permission, so the result was rejected and the permission was added. The next runtime run exposed count- and index-based manifest snapshots that treated valid contract growth as failure; those tests were replaced by structural permission, namespace, lifecycle, and registry assertions. The following run correctly observed the new event-registration audit action, so lifecycle evidence was expanded to require catalog, route, event, and disable audit records before final acceptance.
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa/... ./internal/bootstrap/... ./internal/plugin/...
+./plugins/pharma_oa/plugin.ps1 -Action package -DistDir $env:TEMP/skoll-bf4-01-package
+./plugins/pharma_oa/plugin.ps1 -Action verify -DistDir $env:TEMP/skoll-bf4-01-package
+go test ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF4-01 passed after three acceptance repairs. Medical OA now has one current package boundary, one versioned module/document/event contract, reversible plugin-owned foundation data, and no unconditional host bootstrap registration.
+
+### Impact Review
+
+- API: added the plugin-owned metadata route and managed process health/event endpoints; existing business routes remain declared for subsequent BF4/BF5 implementation.
+- Permission/audit: added explicit foundation and seed-status read permissions; lifecycle audit now proves five event subscriptions are registered.
+- Data: added two foundation registry tables with trusted scope columns and reversible migrations.
+- Host architecture: removed direct Pharma OA imports, service assembly, in-process factory registration, and Pharma-specific scope fixtures from bootstrap.
+- Plugin architecture: added public-client backend entry, package scripts, module acceptance map, migrations, and package/host dependency tests.
+- Compatibility: none; only the independent managed-process boundary is current.
+
+### Commit
+
+`BF4-01: establish independent medical OA boundary`
