@@ -53,7 +53,7 @@ async function install(): Promise<void> {
 				</div>
 				<el-alert v-if="preflight.blockers?.length" type="error" show-icon :closable="false" :title="preflight.blockers.join('; ')" />
 				<el-alert v-if="preflight.warnings?.length" type="warning" show-icon :closable="false" :title="preflight.warnings.join('; ')" />
-				<el-descriptions :column="3" border>
+				<el-descriptions class="responsive-descriptions" :column="3" border>
 					<el-descriptions-item :label="t('plugin.advanced.preflight.permissionDiff')">{{ permissionChanges }}</el-descriptions-item>
 					<el-descriptions-item :label="t('plugin.advanced.preflight.configFields')">{{ preflight.config.fieldCount }}</el-descriptions-item>
 					<el-descriptions-item :label="t('plugin.advanced.preflight.migrations')">{{ preflight.migration.pending?.length ?? 0 }}</el-descriptions-item>

@@ -1126,3 +1126,62 @@ Result: BF3-04 passed after one browser expectation repair. Operators can now in
 ### Commit
 
 `BF3-04: build plugin diagnostics workspace`
+
+## BF3-05 Complete Themes, Density, Bilingual Copy, Accessibility, And Responsive States
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Close the plugin control-center theme, density, locale, keyboard, screen-reader, reduced-motion, mobile, and wide-desktop experience matrix.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Chinese navigation copy | Pass | The default zh-CN shell now renders `工作流`, `待办中心`, and `表单设计器`; unit and browser assertions preserve the corresponding English labels after locale switching |
+| Theme and density | Pass | Light/dark and comfortable/compact combinations apply the current two-axis token contract; browser evidence covers four paired combinations on desktop and mobile |
+| Bilingual workspace | Pass | zh-CN and en-US navigation, page descriptions, states, controls, and Element Plus locale bindings render from centralized messages with document `lang` synchronized |
+| Keyboard and focus | Pass | The workspace tablist exposes navigation semantics, the active tabs are keyboard focusable, and ArrowRight moves focus and routes from Overview to Runtime |
+| Screen-reader structure | Pass | Page shells retain heading association, navigation has a localized accessible name, icon-only controls remain named, and statuses use visible text in addition to color |
+| Reduced motion | Pass | The browser matrix explicitly emulates `prefers-reduced-motion: reduce`, verifies the media query, and the global rule reduces animation, transition, and smooth scrolling |
+| Responsive layout | Pass | The control center no longer enters the fixed-height hosted-plugin layout; 390px pages scroll normally and description tables stack into readable label/value rows without escaped cells or document overflow |
+| Visual review | Pass | Final light/dark, compact/comfortable, zh-CN/en-US screenshots were inspected at 1440x1000 and 390x844; hierarchy, contrast, wrapping, actions, tabs, and full runtime details remain readable |
+| Frontend quality | Pass | 1,968 locale keys, 1,527 references, 67 UI files, zero hard-coded visible strings, 69 named icon buttons, 15 guarded confirmations, strict TypeScript, large-list, theme, and document UI checks pass |
+| Automated tests | Pass | Host components pass 10 files/19 tests, document UI passes 2 files/5 tests, plugin-center Playwright passes 6 tests, and bilingual state Playwright passes 4 tests across desktop/mobile |
+| Production build | Pass | Vite transforms 3,657 modules and preserves lazy plugin workspace routes; Runtime remains 1.06 KB gzip and the application builds successfully |
+| Current-only rule | Pass | One current route-layout classifier and one current responsive description pattern exist; no legacy route heuristic, fallback layout, dual theme contract, or compatibility copy was added |
+
+The first browser matrix relied on the Playwright project setting to emulate reduced motion, but the selected Chrome channel still reported the media query as false. That evidence was rejected; the test now emulates reduced motion explicitly before asserting the page behavior. The next visual review exposed a deeper issue even though automated overflow checks passed: plugin-control-center route names were being mistaken for full-height hosted plugin pages, which clipped mobile details behind `overflow: hidden`. The route classifier was separated, responsive descriptions were added, and the full matrix was rerun before final visual acceptance.
+
+### Verification Commands
+
+```powershell
+cd web
+npm exec vitest run src/i18n/index.spec.ts src/plugins/route-layout.spec.ts
+npm run typecheck
+npm run test:components
+$env:SKOLL_E2E_BASE_URL = "http://127.0.0.1:5173"
+npm run test:plugin-center
+npm run test:states
+npm run build
+
+cd ..
+git diff --check
+```
+
+Result: BF3-05 passed after two acceptance repairs. The default Chinese shell uses complete Chinese navigation, hosted plugins retain their full-height frame, and the plugin control center is now bilingual, theme-complete, keyboard-operable, reduced-motion aware, and fully readable from 390px mobile through wide desktop.
+
+### Impact Review
+
+- API/OpenAPI: unchanged; this task consumes the existing plugin runtime, data-control, diagnostics, and lifecycle contracts.
+- Permission/audit: unchanged; all existing route and button access rules remain authoritative.
+- Frontend/i18n: corrected three default Chinese menu labels, centralized the hosted-plugin route-layout decision, and added one reusable responsive description pattern to five plugin surfaces.
+- Accessibility: added browser evidence for localized navigation names, heading association, keyboard tab routing, reduced motion, and viewport-contained description cells.
+- Responsive behavior: control-center pages use the normal scrollable admin layout; only plugin-owned pages use the fixed-height hosted layout.
+- Performance: no eager dependency or route was added; the route helper and responsive CSS are included in the existing entry path.
+- Documentation: milestone status, Work Item status, failure cycles, verification commands, and final evidence are synchronized.
+- Compatibility: none; only the current locale, theme, density, route, and responsive contracts are supported.
+
+### Commit
+
+`BF3-05: complete plugin workspace experience matrix`

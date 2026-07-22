@@ -11,10 +11,16 @@ describe("platform internationalization", () => {
 		const { t } = useI18n();
 
 		setLocale("zh-CN");
+		expect(t("menu.workflow")).toBe("工作流");
+		expect(t("menu.todo")).toBe("待办中心");
+		expect(t("menu.formBuilder")).toBe("表单设计器");
 		expect(t("workflow.title")).toBe("工作流");
 		expect(t("todo.tab.pending", { count: 3 })).toBe("待办 3");
 
 		setLocale("en-US");
+		expect(t("menu.workflow")).toBe("Workflow");
+		expect(t("menu.todo")).toBe("Todo Center");
+		expect(t("menu.formBuilder")).toBe("Form Builder");
 		expect(t("workflow.title")).toBe("Workflow");
 		expect(t("todo.tab.pending", { count: 3 })).toBe("Pending 3");
 		expect(localStorage.getItem("skoll.ui.locale")).toBe("en-US");

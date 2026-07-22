@@ -2,14 +2,26 @@ import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 const PLUGIN_ID = "pharma_oa";
 
+const APPEARANCE_MATRIX = [
+	{ locale: "zh-CN", colorScheme: "light", density: "comfortable", navigation: "插件工作区导航", overview: "概览" },
+	{ locale: "zh-CN", colorScheme: "dark", density: "compact", navigation: "插件工作区导航", overview: "概览" },
+	{ locale: "en-US", colorScheme: "light", density: "compact", navigation: "Plugin workspace navigation", overview: "Overview" },
+	{ locale: "en-US", colorScheme: "dark", density: "comfortable", navigation: "Plugin workspace navigation", overview: "Overview" }
+] as const;
+
 test("plugin fleet and routed workspace stay operational", async ({ page }, testInfo) => {
 	await login(page, "admin", "Admin@123456");
 	await mockDataControl(page);
 	await mockDiagnostics(page);
 
 	await page.goto("/skoll/plugin-center");
+	await expect(page.locator(".content-area")).not.toHaveClass(/plugin-content-area/);
+	await expect(page.locator(".main-content")).not.toHaveClass(/plugin-main-content/);
 	await expect(page.locator("[data-testid='plugin-fleet-table']")).toBeVisible();
 	await expect(page.locator("[data-testid='plugin-fleet-table'] .el-table__row")).not.toHaveCount(0);
+	await expect(page.locator("a[href='/skoll/workflow']").first()).toHaveText("工作流");
+	await expect(page.locator("a[href='/skoll/todo']").first()).toHaveText("待办中心");
+	await expect(page.locator("a[href='/skoll/form-builder']").first()).toHaveText("表单设计器");
 	await assertNoHorizontalOverflow(page, "fleet");
 
 	const surfaces = [
@@ -52,6 +64,47 @@ test("plugin fleet and routed workspace stay operational", async ({ page }, test
 	await attachScreenshot(page, testInfo, "plugin-control-center");
 });
 
+test("plugin workspace passes locale, theme, density, keyboard, and reduced-motion matrix", async ({ page }, testInfo) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await login(page, "admin", "Admin@123456");
+	await mockDataControl(page);
+	await mockDiagnostics(page);
+
+	for (const appearance of APPEARANCE_MATRIX) {
+		await test.step(`${appearance.locale}-${appearance.colorScheme}-${appearance.density}`, async () => {
+			await page.evaluate((value) => {
+				localStorage.setItem("skoll.ui.locale", value.locale);
+				localStorage.setItem("skoll.ui.colorScheme", value.colorScheme);
+				localStorage.setItem("skoll.ui.density", value.density);
+			}, appearance);
+			await page.goto(`/skoll/plugin-center/${PLUGIN_ID}/overview`);
+			await expect(page.locator(".page-shell")).toHaveAttribute("aria-busy", "false");
+			await expect(page.locator("html")).toHaveAttribute("lang", appearance.locale);
+			await expect(page.locator("html")).toHaveAttribute("data-theme", appearance.colorScheme);
+			await expect(page.locator("html")).toHaveAttribute("data-density", appearance.density);
+
+			const navigation = page.getByRole("navigation", { name: appearance.navigation });
+			await expect(navigation).toBeVisible();
+			const tabs = navigation.getByRole("tab");
+			await expect(tabs.first()).toHaveText(appearance.overview);
+			await tabs.first().focus();
+			await expect(tabs.first()).toBeFocused();
+			await page.keyboard.press("ArrowRight");
+			await expect(tabs.nth(1)).toBeFocused();
+			await expect(page).toHaveURL(new RegExp(`/skoll/plugin-center/${PLUGIN_ID}/runtime$`));
+
+			const pageShell = page.locator(".page-shell");
+			const titleId = await pageShell.getAttribute("aria-labelledby");
+			expect(titleId).toBeTruthy();
+			await expect(page.locator(`#${titleId}`)).toBeVisible();
+			expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
+			await assertResponsiveDescriptions(page, `${appearance.locale}-${appearance.colorScheme}-${appearance.density}`);
+			await assertNoHorizontalOverflow(page, `${appearance.locale}-${appearance.colorScheme}-${appearance.density}`);
+			await attachScreenshot(page, testInfo, `${appearance.locale}-${appearance.colorScheme}-${appearance.density}`);
+		});
+	}
+});
+
 test("plugin control center exposes a distinct forbidden state", async ({ page }) => {
 	await login(page, "dept_admin", "Dept@123456");
 	await page.goto(`/skoll/plugin-center/${PLUGIN_ID}/overview`);
@@ -76,6 +129,21 @@ async function login(page: Page, account: string, password: string): Promise<voi
 async function assertNoHorizontalOverflow(page: Page, state: string): Promise<void> {
 	const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 	expect(overflow, `${state}: document horizontal overflow`).toBeLessThanOrEqual(1);
+}
+
+async function assertResponsiveDescriptions(page: Page, state: string): Promise<void> {
+	const violations = await page.locator(".responsive-descriptions").evaluateAll((elements) => elements.flatMap((element, index) => {
+		const container = element as HTMLElement;
+		const cells = [...container.querySelectorAll<HTMLElement>(".el-descriptions__cell")];
+		const escaped = cells.filter((cell) => {
+			const rect = cell.getBoundingClientRect();
+			return rect.left < -1 || rect.right > window.innerWidth + 1;
+		});
+		return container.scrollWidth > container.clientWidth + 1 || escaped.length > 0
+			? [`descriptions-${index}: scroll=${container.scrollWidth}/${container.clientWidth}, escaped=${escaped.length}`]
+			: [];
+	}));
+	expect(violations, `${state}: responsive descriptions fit the viewport`).toEqual([]);
 }
 
 async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): Promise<void> {

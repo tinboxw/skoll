@@ -26,7 +26,7 @@ const snapshot = computed(() => control.snapshot.value);
 					{{ snapshot.schema.registered ? t("plugin.center.schemaRegistered") : snapshot.schema.available ? t("plugin.center.schemaDeclaredInactive") : t("plugin.center.schemaUnavailable") }}
 				</el-tag>
 			</div>
-			<el-descriptions :column="3" border>
+			<el-descriptions class="responsive-descriptions" :column="3" border>
 				<el-descriptions-item :label="t('plugin.center.namespace')">{{ snapshot.schema.namespace || "-" }}</el-descriptions-item>
 				<el-descriptions-item :label="t('plugin.center.tableCount')">{{ snapshot.schema.tables.length }}</el-descriptions-item>
 				<el-descriptions-item :label="t('plugin.center.storageSize')">{{ formatDataSize(snapshot.schema.totalSizeBytes, snapshot.schema.sizeKnown) }}</el-descriptions-item>

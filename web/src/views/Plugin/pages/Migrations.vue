@@ -68,7 +68,7 @@ async function rollback(): Promise<void> {
 				:title="t('plugin.center.rollbackCompleted', { count: control.rollbackResult.value.rolledBackSteps })"
 				:description="`${control.rollbackResult.value.operationId} / ${formatDateTime(control.rollbackResult.value.completedAt)}`"
 			/>
-			<el-descriptions :column="4" border>
+			<el-descriptions class="responsive-descriptions" :column="4" border>
 				<el-descriptions-item :label="t('plugin.center.declaredVersion')">{{ snapshot.migration.declaredVersion || "-" }}</el-descriptions-item>
 				<el-descriptions-item :label="t('plugin.center.currentMigration')">{{ snapshot.migration.currentVersion || "-" }}</el-descriptions-item>
 				<el-descriptions-item :label="t('plugin.center.appliedCount')">{{ snapshot.migration.applied.length }}</el-descriptions-item>

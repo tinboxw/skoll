@@ -24,7 +24,7 @@ const state = computed(() => deriveRuntimeState(snapshot.value, now.value));
 		<el-alert v-if="state === 'stale'" type="warning" show-icon :closable="false" :title="t('plugin.center.staleObservation')" />
 		<el-alert v-else-if="state === 'crashed'" type="error" show-icon :closable="false" :title="t('plugin.center.crashedObservation')" />
 		<el-alert v-else-if="state === 'degraded'" type="warning" show-icon :closable="false" :title="t('plugin.center.degradedObservation')" />
-		<el-descriptions :column="2" border>
+		<el-descriptions class="responsive-descriptions" :column="2" border>
 			<el-descriptions-item :label="t('plugin.center.lifecycleState')">{{ snapshot.runtime.state }}</el-descriptions-item>
 			<el-descriptions-item :label="t('plugin.signal.health')">{{ snapshot.runtime.health?.status || t('plugin.center.notObserved') }}</el-descriptions-item>
 			<el-descriptions-item :label="t('plugin.center.healthCode')">{{ snapshot.runtime.health?.code || "-" }}</el-descriptions-item>

@@ -37,7 +37,7 @@ function open(name: string): void {
 		</section>
 		<section class="surface-section">
 			<h3>{{ t("plugin.center.identity") }}</h3>
-			<el-descriptions :column="2" border>
+			<el-descriptions class="responsive-descriptions" :column="2" border>
 				<el-descriptions-item :label="t('plugin.table.id')">{{ snapshot.plugin.id }}</el-descriptions-item>
 				<el-descriptions-item :label="t('plugin.table.version')">{{ snapshot.plugin.version }}</el-descriptions-item>
 				<el-descriptions-item :label="t('plugin.table.mode')">{{ snapshot.plugin.uiMode || "-" }}</el-descriptions-item>

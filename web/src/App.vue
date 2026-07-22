@@ -9,6 +9,7 @@ import PinnedTabs from "./components/Layout/PinnedTabs.vue";
 import Sidebar from "./components/Layout/Sidebar.vue";
 import { useI18n } from "./i18n";
 import { buildSidebarItems } from "./navigation/menu";
+import { isHostedPluginRoute } from "./plugins/route-layout";
 import { useAppStore } from "./stores/app";
 import { useNavigationStore } from "./stores/navigation";
 import { usePluginStore } from "./stores/plugins";
@@ -33,9 +34,7 @@ const elementLocale = computed(() => locale.value === "en-US" ? enUS : zhCN);
 const pluginCount = computed(() => pluginStore.items.length);
 const isLoginRoute = computed(() => route.path === `${ADMIN_BASE}/login`);
 const isPluginHostRoute = computed(() => {
-	const name = String(route.name || "");
-	const path = String(route.path || "");
-	return name.startsWith("plugin-") || name.startsWith("app-home-") || path.startsWith(`${ADMIN_BASE}/plugins/`);
+	return isHostedPluginRoute(route.name, route.path);
 });
 
 function resolvePluginLabel(item: { id: string; name?: string; nameZhCN?: string; nameEnUS?: string }): string {

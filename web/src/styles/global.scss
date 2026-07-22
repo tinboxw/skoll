@@ -239,3 +239,26 @@ textarea {
 	}
 }
 
+@media (max-width: 620px) {
+	.responsive-descriptions .el-descriptions__body,
+	.responsive-descriptions .el-descriptions__table,
+	.responsive-descriptions .el-descriptions__table tbody {
+		display: block;
+		width: 100%;
+		min-width: 0 !important;
+	}
+
+	.responsive-descriptions .el-descriptions__table tr {
+		display: grid;
+		grid-template-columns: minmax(104px, 38%) minmax(0, 1fr);
+		width: 100%;
+	}
+
+	.responsive-descriptions .el-descriptions__cell {
+		box-sizing: border-box;
+		width: auto !important;
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+}
+

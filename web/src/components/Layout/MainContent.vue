@@ -8,12 +8,12 @@
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 
+import { isHostedPluginRoute } from "../../plugins/route-layout";
+
 const route = useRoute();
 
 const isPluginRoute = computed(() => {
-	const name = String(route.name || "");
-	const path = String(route.path || "");
-	return name.startsWith("plugin-") || name.startsWith("app-home-") || path.startsWith("/skoll/plugins/");
+	return isHostedPluginRoute(route.name, route.path);
 });
 </script>
 
