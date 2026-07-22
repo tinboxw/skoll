@@ -1531,6 +1531,111 @@ paths:
           description: OK
         '404':
           description: Not Found
+  /v1/plugins/{id}/control:
+    get:
+      summary: Get the authoritative plugin control-center snapshot
+      description: Returns plugin identity, runtime observation freshness, health, routes, permissions, dependencies, extensions, and available host services in one inspectable snapshot. Health probe failures remain represented in the successful snapshot.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current plugin control snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginControlAPIResponse'
+        '404':
+          description: Plugin not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Plugin manager is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/plugins/{id}/data-control:
+    get:
+      summary: Inspect plugin-owned data and migration state
+      description: Returns the host schema registry, physical storage observation, durable migration ledger, declared data policies, and currently allowed lifecycle actions.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current plugin data-control snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginDataControlAPIResponse'
+        '404':
+          description: Plugin not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Plugin data control is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/plugins/{id}/migrations/rollback:
+    post:
+      summary: Roll back applied plugin data migrations
+      description: Requires the super_admin role, an exact plugin-ID confirmation, a disabled plugin, an automatic rollback policy, and a limit no greater than the applied migration count. The migration sink and audit service persist the outcome.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PluginMigrationRollbackRequest'
+      responses:
+        '200':
+          description: Migration rollback completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PluginMigrationRollbackAPIResponse'
+        '400':
+          description: Invalid confirmation or rollback limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Super administrator role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Plugin not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current plugin state or policy blocks rollback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/plugins/{id}/config:
     get:
       summary: Get plugin config
@@ -4599,6 +4704,219 @@ components:
           required: [data]
           properties:
             data: {$ref: '#/components/schemas/PluginHealthReport'}
+    PluginControlPlugin:
+      type: object
+      required: [id, name, version, enabled, uiMode, level, mountPolicy, systemBuiltin]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        nameZhCN: {type: string}
+        nameEnUS: {type: string}
+        version: {type: string}
+        enabled: {type: boolean}
+        uiMode: {type: string}
+        level: {type: string}
+        appId: {type: string}
+        mountPolicy: {type: string}
+        uiNavPosition: {type: string}
+        uiOpenMode: {type: string}
+        uiTabMode: {type: string}
+        i18nLocales:
+          type: array
+          items: {type: string}
+        uiMenu:
+          type: object
+          additionalProperties: true
+        configSchema:
+          type: object
+          additionalProperties: true
+        frontendEntry: {type: string}
+        systemBuiltin: {type: boolean}
+    PluginControlRuntime:
+      type: object
+      required: [state, installedAt]
+      properties:
+        state: {type: string, enum: [installed, enabled, disabled, uninstalled]}
+        installedAt: {type: string, format: date-time}
+        enabledAt: {type: string, format: date-time}
+        serviceBaseUrl: {type: string, format: uri}
+        serviceHealthUrl: {type: string, format: uri}
+        health: {$ref: '#/components/schemas/PluginHealthReport'}
+    PluginControlPermission:
+      type: object
+      required: [key]
+      properties:
+        key: {type: string}
+        type: {type: string}
+        module: {type: string}
+        name: {type: string}
+        risk: {type: string}
+    PluginControlRoute:
+      type: object
+      required: [method, path, source]
+      properties:
+        method: {type: string}
+        path: {type: string}
+        summary: {type: string}
+        permission: {type: string}
+        auditAction: {type: string}
+        source: {type: string}
+    PluginControlDependency:
+      type: object
+      required: [id]
+      properties:
+        id: {type: string}
+        version: {type: string}
+    PluginControlExtensions:
+      type: object
+      required: [routes, middlewares, events, menus, widgets, settings]
+      properties:
+        routes: {type: integer, minimum: 0}
+        middlewares: {type: integer, minimum: 0}
+        events: {type: integer, minimum: 0}
+        menus: {type: integer, minimum: 0}
+        widgets: {type: integer, minimum: 0}
+        settings: {type: integer, minimum: 0}
+    PluginControlCapabilities:
+      type: object
+      required: [hostServices, permissions, routes, dependencies, extensions]
+      properties:
+        apiVersion: {type: string}
+        migrationVersion: {type: string}
+        hostServices:
+          type: array
+          items: {type: string}
+        permissions:
+          type: array
+          items: {$ref: '#/components/schemas/PluginControlPermission'}
+        routes:
+          type: array
+          items: {$ref: '#/components/schemas/PluginControlRoute'}
+        dependencies:
+          type: array
+          items: {$ref: '#/components/schemas/PluginControlDependency'}
+        extensions: {$ref: '#/components/schemas/PluginControlExtensions'}
+    PluginControlSnapshot:
+      type: object
+      required: [plugin, capturedAt, staleAfter, runtime, capabilities]
+      properties:
+        plugin: {$ref: '#/components/schemas/PluginControlPlugin'}
+        capturedAt: {type: string, format: date-time}
+        staleAfter: {type: string, format: date-time}
+        runtime: {$ref: '#/components/schemas/PluginControlRuntime'}
+        capabilities: {$ref: '#/components/schemas/PluginControlCapabilities'}
+    PluginControlAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginControlSnapshot'}
+    PluginDataControlTable:
+      type: object
+      required: [logicalName, physicalName, fields, primaryKey, indexCount, exists, sizeBytes, sizeKnown]
+      properties:
+        logicalName: {type: string}
+        physicalName: {type: string}
+        fields:
+          type: array
+          items: {type: string}
+        primaryKey:
+          type: array
+          items: {type: string}
+        indexCount: {type: integer, minimum: 0}
+        exists: {type: boolean}
+        sizeBytes: {type: integer, format: int64, minimum: 0}
+        sizeKnown: {type: boolean}
+    PluginDataControlSchema:
+      type: object
+      required: [available, registered, tables, totalSizeBytes, sizeKnown]
+      properties:
+        available: {type: boolean}
+        registered: {type: boolean}
+        namespace: {type: string}
+        tables:
+          type: array
+          items: {$ref: '#/components/schemas/PluginDataControlTable'}
+        totalSizeBytes: {type: integer, format: int64, minimum: 0}
+        sizeKnown: {type: boolean}
+    PluginMigrationStep:
+      type: object
+      required: [version, name, checksum]
+      properties:
+        version: {type: integer, minimum: 1}
+        name: {type: string}
+        checksum: {type: string}
+        appliedAt: {type: string, format: date-time}
+    PluginDataControlMigration:
+      type: object
+      required: [currentVersion, applied, pending]
+      properties:
+        declaredVersion: {type: string}
+        currentVersion: {type: integer, minimum: 0}
+        applied:
+          type: array
+          items: {$ref: '#/components/schemas/PluginMigrationStep'}
+        pending:
+          type: array
+          items: {$ref: '#/components/schemas/PluginMigrationStep'}
+        error: {type: string}
+    PluginDataControlPolicy:
+      type: object
+      required: [effect]
+      properties:
+        uninstall: {type: string, enum: [retain, archive, drop]}
+        rollback: {type: string, enum: [manual, automatic, none]}
+        effect: {type: string, enum: [no_plugin_data, policy_not_declared, retain_data, archive_data, drop_data]}
+    PluginDataControlActions:
+      type: object
+      required: [canRollback, rollbackMaxSteps]
+      properties:
+        canRollback: {type: boolean}
+        rollbackMaxSteps: {type: integer, minimum: 0, maximum: 100}
+        blockedReason:
+          type: string
+          enum: [migrations_not_declared, plugin_must_be_disabled, rollback_policy_blocked, no_applied_migrations]
+    PluginDataControlSnapshot:
+      type: object
+      required: [pluginId, capturedAt, state, schema, migration, policy, actions]
+      properties:
+        pluginId: {type: string}
+        capturedAt: {type: string, format: date-time}
+        state: {type: string, enum: [installed, enabled, disabled, uninstalled]}
+        schema: {$ref: '#/components/schemas/PluginDataControlSchema'}
+        migration: {$ref: '#/components/schemas/PluginDataControlMigration'}
+        policy: {$ref: '#/components/schemas/PluginDataControlPolicy'}
+        actions: {$ref: '#/components/schemas/PluginDataControlActions'}
+    PluginDataControlAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginDataControlSnapshot'}
+    PluginMigrationRollbackRequest:
+      type: object
+      additionalProperties: false
+      required: [limit, confirmPluginId]
+      properties:
+        limit: {type: integer, minimum: 1, maximum: 100}
+        confirmPluginId: {type: string, description: Must exactly match the id path parameter.}
+    PluginMigrationRollbackResult:
+      type: object
+      required: [operationId, completedAt, rolledBackSteps, snapshot]
+      properties:
+        operationId: {type: string}
+        completedAt: {type: string, format: date-time}
+        rolledBackSteps: {type: integer, minimum: 1, maximum: 100}
+        snapshot: {$ref: '#/components/schemas/PluginDataControlSnapshot'}
+    PluginMigrationRollbackAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginMigrationRollbackResult'}
     PluginReadinessAPIResponse:
       allOf:
         - {$ref: '#/components/schemas/MessageResponse'}

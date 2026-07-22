@@ -1294,6 +1294,137 @@ func (m *pluginManagerWithExtensions) RollbackPluginData(pluginID string, limit 
 	return nil
 }
 
+func (m *pluginManagerWithExtensions) PluginDataControl(ctx context.Context, pluginID string) (plugin.DataControlSnapshot, error) {
+	if m == nil {
+		return plugin.DataControlSnapshot{}, plugin.ErrPluginNotFound
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+	info, err := m.getCurrent(strings.TrimSpace(pluginID))
+	if err != nil {
+		return plugin.DataControlSnapshot{}, err
+	}
+	snapshot := plugin.DataControlSnapshot{
+		PluginID: info.ID, CapturedAt: time.Now().UTC(), State: string(info.State),
+		Schema:    plugin.DataControlSchema{Tables: []plugin.DataControlTable{}},
+		Migration: plugin.DataControlMigration{Applied: []plugin.DataControlMigrationStep{}, Pending: []plugin.DataControlMigrationStep{}},
+		Policy:    plugin.DataControlPolicy{Effect: "no_plugin_data"},
+		Actions:   plugin.DataControlActions{BlockedReason: "migrations_not_declared"},
+	}
+	if info.DataManifest == nil {
+		return snapshot, nil
+	}
+	manifest := info.DataManifest
+	snapshot.Schema.Namespace = strings.TrimSpace(manifest.Namespace)
+	snapshot.Migration.DeclaredVersion = strings.TrimSpace(manifest.MigrationVersion)
+	snapshot.Policy = plugin.DataControlPolicy{
+		Uninstall: string(manifest.UninstallPolicy), Rollback: string(manifest.RollbackPolicy),
+		Effect: dataPolicyEffect(manifest.UninstallPolicy),
+	}
+	if m.dataLifecycle != nil {
+		storage, exists, storageErr := m.dataLifecycle.InspectStorage(ctx, info.ID)
+		if storageErr != nil {
+			return plugin.DataControlSnapshot{}, storageErr
+		}
+		snapshot.Schema.Registered = exists
+		if !exists {
+			candidate, candidateErr := m.preparePluginDataStore(info)
+			if candidateErr != nil {
+				return plugin.DataControlSnapshot{}, candidateErr
+			}
+			storage, exists, storageErr = m.dataLifecycle.InspectCandidateStorage(ctx, candidate)
+			if storageErr != nil {
+				return plugin.DataControlSnapshot{}, storageErr
+			}
+		}
+		if exists {
+			snapshot.Schema.Available = true
+			snapshot.Schema.Namespace = storage.Namespace
+			snapshot.Schema.TotalSizeBytes = storage.TotalSizeBytes
+			snapshot.Schema.SizeKnown = storage.SizeKnown
+			for _, table := range storage.Tables {
+				snapshot.Schema.Tables = append(snapshot.Schema.Tables, plugin.DataControlTable{
+					LogicalName: table.LogicalName, PhysicalName: table.PhysicalName, Fields: append([]string(nil), table.Fields...),
+					PrimaryKey: append([]string(nil), table.PrimaryKey...), IndexCount: table.IndexCount,
+					Exists: table.Exists, SizeBytes: table.SizeBytes, SizeKnown: table.SizeKnown,
+				})
+			}
+		}
+	}
+	if snapshot.Migration.DeclaredVersion == "" {
+		return snapshot, nil
+	}
+	if m.migrationHook == nil {
+		snapshot.Migration.Error = "plugin migration store is not configured"
+		return snapshot, nil
+	}
+	candidate, err := m.preparePluginDataStore(info)
+	if err != nil {
+		snapshot.Migration.Error = err.Error()
+		return snapshot, nil
+	}
+	transformSQL, err := m.pluginMigrationTransformer(candidate)
+	if err != nil {
+		snapshot.Migration.Error = err.Error()
+		return snapshot, nil
+	}
+	plan, records, inspectErr := m.migrationHook.Inspect(ctx, plugin.PluginMigrationHookInput{
+		PluginID: info.ID, PluginDir: info.Source, MigrationDirectory: manifest.MigrationDirectory, TransformSQL: transformSQL,
+	})
+	if inspectErr != nil {
+		snapshot.Migration.Error = inspectErr.Error()
+		return snapshot, nil
+	}
+	recordsByVersion := make(map[int]plugin.MigrationRecord, len(records))
+	for _, record := range records {
+		recordsByVersion[record.Version] = record
+		if record.Version > snapshot.Migration.CurrentVersion {
+			snapshot.Migration.CurrentVersion = record.Version
+		}
+	}
+	for _, step := range plan.Applied {
+		item := dataControlMigrationStep(step)
+		if record, exists := recordsByVersion[step.Version]; exists {
+			appliedAt := record.AppliedAt
+			item.AppliedAt = &appliedAt
+		}
+		snapshot.Migration.Applied = append(snapshot.Migration.Applied, item)
+	}
+	for _, step := range plan.Pending {
+		snapshot.Migration.Pending = append(snapshot.Migration.Pending, dataControlMigrationStep(step))
+	}
+	snapshot.Actions.RollbackMaxSteps = len(snapshot.Migration.Applied)
+	switch {
+	case info.State == plugin.StateEnabled:
+		snapshot.Actions.BlockedReason = "plugin_must_be_disabled"
+	case manifest.RollbackPolicy != plugin.DataRollbackAutomatic:
+		snapshot.Actions.BlockedReason = "rollback_policy_blocked"
+	case len(snapshot.Migration.Applied) == 0:
+		snapshot.Actions.BlockedReason = "no_applied_migrations"
+	default:
+		snapshot.Actions.CanRollback = true
+		snapshot.Actions.BlockedReason = ""
+	}
+	return snapshot, nil
+}
+
+func dataControlMigrationStep(step plugin.MigrationStep) plugin.DataControlMigrationStep {
+	return plugin.DataControlMigrationStep{Version: step.Version, Name: step.Name, Checksum: step.Checksum}
+}
+
+func dataPolicyEffect(policy plugin.DataUninstallPolicy) string {
+	switch policy {
+	case plugin.DataUninstallRetain:
+		return "retain_data"
+	case plugin.DataUninstallArchive:
+		return "archive_data"
+	case plugin.DataUninstallDrop:
+		return "drop_data"
+	default:
+		return "policy_not_declared"
+	}
+}
+
 func (m *pluginManagerWithExtensions) refreshRoutePermissions() error {
 	if m == nil || m.Manager == nil {
 		return nil

@@ -58,6 +58,60 @@ export type PluginControlSnapshot = {
 	};
 };
 
+export type PluginDataControlSnapshot = {
+	pluginId: string;
+	capturedAt: string;
+	state: string;
+	schema: {
+		available: boolean;
+		registered: boolean;
+		namespace?: string;
+		tables: Array<{
+			logicalName: string;
+			physicalName: string;
+			fields: string[];
+			primaryKey: string[];
+			indexCount: number;
+			exists: boolean;
+			sizeBytes: number;
+			sizeKnown: boolean;
+		}>;
+		totalSizeBytes: number;
+		sizeKnown: boolean;
+	};
+	migration: {
+		declaredVersion?: string;
+		currentVersion: number;
+		applied: PluginMigrationStep[];
+		pending: PluginMigrationStep[];
+		error?: string;
+	};
+	policy: {
+		uninstall?: string;
+		rollback?: string;
+		effect: string;
+	};
+	actions: {
+		canRollback: boolean;
+		rollbackMaxSteps: number;
+		blockedReason?: string;
+	};
+};
+
+export type PluginMigrationStep = {
+	version: number;
+	name: string;
+	checksum: string;
+	appliedAt?: string;
+};
+
+export type PluginMigrationRollbackResult = {
+	operationId: string;
+	completedAt: string;
+	rolledBackSteps: number;
+	snapshot: PluginDataControlSnapshot;
+};
+
 export type PluginInstallPreflight = {
 	status: "pass" | "blocked";
 	plugin: { id: string; name: string; version: string; source: string };
@@ -85,6 +139,19 @@ export type MarketplacePlugin = {
 
 export async function getPluginControl(pluginId: string): Promise<PluginControlSnapshot> {
 	const response = await apiGet<ApiResponse<PluginControlSnapshot>>(`/v1/plugins/${encodeURIComponent(pluginId)}/control`);
+	return response.data;
+}
+
+export async function getPluginDataControl(pluginId: string): Promise<PluginDataControlSnapshot> {
+	const response = await apiGet<ApiResponse<PluginDataControlSnapshot>>(`/v1/plugins/${encodeURIComponent(pluginId)}/data-control`);
+	return response.data;
+}
+
+export async function rollbackPluginMigration(pluginId: string, limit: number): Promise<PluginMigrationRollbackResult> {
+	const response = await apiPost<ApiResponse<PluginMigrationRollbackResult>>(`/v1/plugins/${encodeURIComponent(pluginId)}/migrations/rollback`, {
+		limit,
+		confirmPluginId: pluginId
+	});
 	return response.data;
 }
 

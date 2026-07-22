@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -103,6 +104,28 @@ func (h *PluginMigrationHook) Run(ctx context.Context, in PluginMigrationHookInp
 	}
 	h.record(in, PluginMigrationSucceeded, steps, "")
 	return steps, nil
+}
+
+func (h *PluginMigrationHook) Inspect(ctx context.Context, in PluginMigrationHookInput) (MigrationPlan, []MigrationRecord, error) {
+	if h == nil || h.store == nil {
+		return MigrationPlan{}, nil, errors.New("plugin migration store is not configured")
+	}
+	in.PluginID = strings.TrimSpace(in.PluginID)
+	in.PluginDir = strings.TrimSpace(in.PluginDir)
+	if in.PluginID == "" || in.PluginDir == "" {
+		return MigrationPlan{}, nil, fmt.Errorf("%w: plugin id and dir are required", ErrPluginManifestBroken)
+	}
+	records, err := h.store.ListApplied(normalizeMigrationContext(ctx), in.PluginID)
+	if err != nil {
+		return MigrationPlan{}, nil, fmt.Errorf("list applied plugin migrations: %w", err)
+	}
+	planner := NewMigrationPlanner(in.PluginDir, in.MigrationDirectory)
+	planner.transformSQL = in.TransformSQL
+	plan, err := planner.Plan(records)
+	if err != nil {
+		return MigrationPlan{}, append([]MigrationRecord(nil), records...), err
+	}
+	return plan, append([]MigrationRecord(nil), records...), nil
 }
 
 func (r *MemoryPluginMigrationRecorder) RecordPluginMigration(event PluginMigrationEvent) error {

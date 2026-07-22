@@ -121,6 +121,28 @@ func TestPluginMigrationHookRecordsFailure(t *testing.T) {
 	}
 }
 
+func TestPluginMigrationHookInspectReturnsLedgerAndPlanWithoutExecuting(t *testing.T) {
+	dir := setupMigrationHookPlugin(t)
+	store := newTestMigrationStore()
+	hook := NewPluginMigrationHook(store, nil)
+	if _, err := hook.Run(context.Background(), PluginMigrationHookInput{
+		PluginID: "demo", PluginDir: dir, Action: PluginMigrationInstall, Limit: 1,
+	}); err != nil {
+		t.Fatalf("apply first migration: %v", err)
+	}
+	executedBefore := len(store.executed)
+	plan, records, err := hook.Inspect(context.Background(), PluginMigrationHookInput{PluginID: "demo", PluginDir: dir})
+	if err != nil {
+		t.Fatalf("inspect migrations: %v", err)
+	}
+	if len(plan.Applied) != 1 || plan.Applied[0].Version != 1 || len(plan.Pending) != 1 || plan.Pending[0].Version != 2 {
+		t.Fatalf("unexpected plan: %+v", plan)
+	}
+	if len(records) != 1 || records[0].Version != 1 || len(store.executed) != executedBefore {
+		t.Fatalf("inspect must return the ledger without executing SQL: records=%+v executed=%d", records, len(store.executed))
+	}
+}
+
 func setupMigrationHookPlugin(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

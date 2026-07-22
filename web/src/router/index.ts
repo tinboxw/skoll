@@ -24,6 +24,8 @@ const PluginWorkspaceShell = () => import("../views/Plugin/components/PluginWork
 const PluginOverviewPage = () => import("../views/Plugin/pages/Overview.vue");
 const PluginRuntimePage = () => import("../views/Plugin/pages/Runtime.vue");
 const PluginCapabilitiesPage = () => import("../views/Plugin/pages/Capabilities.vue");
+const PluginDataPage = () => import("../views/Plugin/pages/Data.vue");
+const PluginMigrationsPage = () => import("../views/Plugin/pages/Migrations.vue");
 const PluginSettingsPage = () => import("../views/Plugin/pages/Settings.vue");
 const ProfilePage = () => import("../views/Profile/index.vue");
 const RoleEditPage = () => import("../views/Role/edit.vue");
@@ -97,6 +99,8 @@ const routes: RouteRecordRaw[] = [
 				{ path: "overview", name: "plugin-center-overview", component: PluginOverviewPage },
 				{ path: "runtime", name: "plugin-center-runtime", component: PluginRuntimePage },
 				{ path: "capabilities", name: "plugin-center-capabilities", component: PluginCapabilitiesPage },
+				{ path: "data", name: "plugin-center-data", component: PluginDataPage },
+				{ path: "migrations", name: "plugin-center-migrations", component: PluginMigrationsPage },
 				{ path: "settings", name: "plugin-center-settings", component: PluginSettingsPage }
 			]
 		},

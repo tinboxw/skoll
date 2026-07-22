@@ -999,3 +999,66 @@ Result: BF3-02 passed after six repair cycles. Operators now have one current, p
 ### Commit
 
 `BF3-02: build plugin runtime control center`
+
+## BF3-03 Build Datastore And Migration Lifecycle Views
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Add authoritative plugin data/schema inspection, durable migration-ledger inspection, policy-aware rollback, and responsive Data/Migrations workspaces.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Authoritative data API | Pass | `GET /v1/plugins/{id}/data-control` reads the live plugin state, datastore schema registry or inactive declared schema, physical table existence/size, migration ledger, policies, and allowed actions |
+| Existing engine reuse | Pass | Inspection and rollback reuse `MigrationPlanner`, `MigrationStore`, `PluginMigrationHook`, and `datastore.Lifecycle`; no second migration engine or browser-derived state exists |
+| Disabled-schema inspectability | Pass | A schema unregistered by explicit rollback remains inspectable from the sole current `datastore.yaml` declaration, including physical table presence and metadata, while `registered=false` preserves runtime truth |
+| Rollback safety | Pass | `POST /v1/plugins/{id}/migrations/rollback` requires `super_admin`, exact plugin-ID confirmation, a positive bounded limit, a disabled plugin, automatic rollback policy, and an applied-step ceiling |
+| Durable feedback | Pass | Successful responses include operation ID, completion time, rolled-back step count, and refreshed snapshot; the existing migration audit sink and route audit record the operation and policy |
+| Permission behavior | Pass | Handler tests prove non-super-admin denial and exact confirmation; browser UI additionally requires `plugin.manage` and `super_admin` before rendering the action |
+| Operator UI | Pass | Routed Data and Migrations pages expose schema namespace, logical/physical tables, fields, keys, indexes, sizes, versions, applied/pending steps, policy consequences, blocked reasons, and explicit confirmation |
+| Responsive browser matrix | Pass | Playwright passes fleet plus six workspace routes at 1440x1000 and 390x844 with zero document overflow; final loaded-state screenshots were visually inspected after the first skeleton-timing evidence was rejected |
+| Backend tests | Pass | `go test ./internal/handler/http/... ./internal/plugin/... ./internal/bootstrap/...` passes, including API, permission, migration inspection, inactive schema inspection, and lifecycle coverage |
+| Frontend quality | Pass | 1,907 locale keys, 1,486 references, zero hard-coded visible strings, accessibility, large-list, theme, strict TypeScript, 8 host files/15 tests, and 2 document files/5 tests pass |
+| Production performance | Pass | Vite transforms 3,646 modules; Data is 1.48 KB gzip, Migrations is 2.15 KB gzip, entry is 132,349/140,000 bytes gzip, and all bundle budgets pass |
+| API/docs sync | Pass | `docs/api/openapi.yaml` and embedded `internal/handler/http/openapi.yaml` share SHA256 `805EC2113928A267EC4454ACA4A1DBFEE392587DCCD6CE2B5D2C1E083DAC2279`; route, request, response, policy, and action schemas parse |
+| Current-only rule | Pass | Only the current API, datastore declaration, migration ledger, and routed workspaces exist; no compatibility payload, alternate schema source, fallback state, or dual route was added |
+
+The first browser evidence captured the final route while its skeleton was still visible. That evidence was rejected, the test was changed to wait for the rendered policy block, and the complete desktop/mobile suite was rerun before visual inspection. A later lifecycle review found that explicit rollback intentionally unregisters active datastore access; candidate-schema inspection was added so disabled plugin data remains observable without reactivating access.
+
+### Verification Commands
+
+```powershell
+go test ./internal/handler/http/... ./internal/plugin/... ./internal/bootstrap/...
+
+cd web
+npm run typecheck
+npm run test:components
+$env:SKOLL_E2E_BASE_URL = "http://127.0.0.1:5173"
+npm run test:plugin-center
+npm run build
+npm run check:bundle
+
+cd ..
+Compare-Object (Get-Content -Encoding UTF8 docs/api/openapi.yaml) (Get-Content -Encoding UTF8 internal/handler/http/openapi.yaml)
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF3-03 passed after rejecting premature visual evidence. Operators can now inspect plugin-owned storage and migration truth and perform only policy-allowed rollback with explicit consequences and durable feedback.
+
+### Impact Review
+
+- API/OpenAPI: one read-only data lifecycle snapshot and one guarded rollback endpoint were added with synchronized runtime/document contracts.
+- Permission/audit: read access remains under the plugin workspace; rollback requires `plugin.manage` in the UI and `super_admin` at the authoritative handler, with durable migration and route audit records.
+- Migration/data: no migration format changed; existing planner, ledger, transformer, policies, and down scripts are reused.
+- Frontend/i18n: two lazy workspace routes and complete zh-CN/en-US, loading, empty, error, blocked, success, mobile, and desktop states were added.
+- Performance: both new pages remain independent small async chunks and all existing budgets pass.
+- Documentation: module README, OpenAPI, Work Item status, and this acceptance evidence are synchronized.
+- Compatibility: none; only the current data-control contract and current routed workspaces are supported.
+
+### Commit
+
+`BF3-03: add plugin data lifecycle control`

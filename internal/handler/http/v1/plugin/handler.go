@@ -42,6 +42,11 @@ type PluginExtensionSnapshotProvider interface {
 	GetExtensionSnapshot(pluginID string) (plugin.RegistrySnapshot, bool)
 }
 
+type PluginDataControlProvider interface {
+	PluginDataControl(ctx context.Context, pluginID string) (plugin.DataControlSnapshot, error)
+	RollbackPluginData(pluginID string, limit int) error
+}
+
 type PluginExternalRegistrar interface {
 	RegisterExternalPlugin(info plugin.Info) error
 }
@@ -59,23 +64,24 @@ type PluginRoleCatalogProvider interface {
 }
 
 type PluginHandler struct {
-	manager            PluginManager
-	extensionProvider  PluginExtensionSnapshotProvider
-	healthProvider     plugin.HealthProvider
-	loader             plugin.MetadataLoader
-	logger             logging.Logger
-	auditSvc           auditsvc.Service
-	auditEventSink     auditmw.AuditEventSink
-	roleCatalog        PluginRoleCatalogProvider
-	devRolloutExecutor adapter.DevRolloutExecutor
-	logLevel           string
-	logDir             string
-	logFile            string
-	pluginPerFile      bool
-	devPortalEnabled   bool
-	devPortalRoot      string
-	devPortalRoots     []string
-	devMu              sync.Mutex
+	manager             PluginManager
+	extensionProvider   PluginExtensionSnapshotProvider
+	dataControlProvider PluginDataControlProvider
+	healthProvider      plugin.HealthProvider
+	loader              plugin.MetadataLoader
+	logger              logging.Logger
+	auditSvc            auditsvc.Service
+	auditEventSink      auditmw.AuditEventSink
+	roleCatalog         PluginRoleCatalogProvider
+	devRolloutExecutor  adapter.DevRolloutExecutor
+	logLevel            string
+	logDir              string
+	logFile             string
+	pluginPerFile       bool
+	devPortalEnabled    bool
+	devPortalRoot       string
+	devPortalRoots      []string
+	devMu               sync.Mutex
 }
 
 type PluginRouteOption func(*PluginHandler)
@@ -433,6 +439,9 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	if provider, ok := manager.(PluginExtensionSnapshotProvider); ok {
 		h.extensionProvider = provider
 	}
+	if provider, ok := manager.(PluginDataControlProvider); ok {
+		h.dataControlProvider = provider
+	}
 	if provider, ok := manager.(plugin.HealthProvider); ok {
 		h.healthProvider = provider
 	}
@@ -447,6 +456,8 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	mux.HandleFunc("GET /v1/plugins/{id}", h.get)
 	mux.HandleFunc("GET /v1/plugins/{id}/health", h.health)
 	mux.HandleFunc("GET /v1/plugins/{id}/control", h.control)
+	mux.HandleFunc("GET /v1/plugins/{id}/data-control", h.dataControl)
+	mux.HandleFunc("POST /v1/plugins/{id}/migrations/rollback", h.rollbackMigration)
 	mux.HandleFunc("POST /v1/plugins/preflight", h.preflight)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
 	mux.HandleFunc("POST /v1/plugins/link", h.createLink)

@@ -2,9 +2,11 @@ package datastore
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/tinboxw/skoll/internal/plugin"
@@ -22,6 +24,25 @@ type SchemaCandidate struct {
 type Lifecycle struct {
 	db       *gorm.DB
 	registry *SchemaRegistry
+}
+
+type StorageSnapshot struct {
+	PluginID       string
+	Namespace      string
+	Tables         []StorageTable
+	TotalSizeBytes int64
+	SizeKnown      bool
+}
+
+type StorageTable struct {
+	LogicalName  string
+	PhysicalName string
+	Fields       []string
+	PrimaryKey   []string
+	IndexCount   int
+	Exists       bool
+	SizeBytes    int64
+	SizeKnown    bool
 }
 
 func NewLifecycle(db *gorm.DB, registry *SchemaRegistry) (*Lifecycle, error) {
@@ -64,6 +85,85 @@ func (l *Lifecycle) Snapshot(pluginID string) (RegisteredSchema, bool) {
 		return RegisteredSchema{}, false
 	}
 	return l.registry.Snapshot(pluginID)
+}
+
+func (l *Lifecycle) InspectStorage(ctx context.Context, pluginID string) (StorageSnapshot, bool, error) {
+	if l == nil || l.db == nil || l.registry == nil {
+		return StorageSnapshot{}, false, errors.New("plugin datastore lifecycle is not configured")
+	}
+	registered, exists := l.registry.Snapshot(strings.TrimSpace(pluginID))
+	if !exists {
+		return StorageSnapshot{}, false, nil
+	}
+	storage, err := l.inspectRegisteredStorage(ctx, registered)
+	return storage, true, err
+}
+
+func (l *Lifecycle) InspectCandidateStorage(ctx context.Context, candidate SchemaCandidate) (StorageSnapshot, bool, error) {
+	if l == nil || l.db == nil {
+		return StorageSnapshot{}, false, errors.New("plugin datastore lifecycle is not configured")
+	}
+	if !candidate.Present {
+		return StorageSnapshot{}, false, nil
+	}
+	registered, err := buildRegisteredSchema(candidate.Schema)
+	if err != nil {
+		return StorageSnapshot{}, true, err
+	}
+	storage, err := l.inspectRegisteredStorage(ctx, registered)
+	return storage, true, err
+}
+
+func (l *Lifecycle) inspectRegisteredStorage(ctx context.Context, registered RegisteredSchema) (StorageSnapshot, error) {
+	dialect, err := lifecycleDialect(l.db)
+	if err != nil {
+		return StorageSnapshot{}, err
+	}
+	db := l.db.WithContext(normalizeLifecycleContext(ctx))
+	out := StorageSnapshot{PluginID: registered.PluginID, Namespace: registered.Namespace, Tables: make([]StorageTable, 0, len(registered.Tables)), SizeKnown: true}
+	for _, table := range registered.Tables {
+		fields := make([]string, 0, len(table.Fields))
+		for name := range table.Fields {
+			fields = append(fields, name)
+		}
+		sort.Strings(fields)
+		item := StorageTable{
+			LogicalName: table.LogicalName, PhysicalName: table.PhysicalName, Fields: fields,
+			PrimaryKey: append([]string(nil), table.PrimaryKey...), IndexCount: len(table.Indexes),
+			Exists: db.Migrator().HasTable(table.PhysicalName),
+		}
+		if item.Exists {
+			item.SizeBytes, item.SizeKnown = inspectTableSize(db, dialect, table.PhysicalName)
+		} else {
+			item.SizeKnown = true
+		}
+		if item.SizeKnown {
+			out.TotalSizeBytes += item.SizeBytes
+		} else {
+			out.SizeKnown = false
+		}
+		out.Tables = append(out.Tables, item)
+	}
+	return out, nil
+}
+
+func inspectTableSize(db *gorm.DB, dialect SQLDialect, table string) (int64, bool) {
+	var size sql.NullInt64
+	var result *gorm.DB
+	switch dialect {
+	case DialectMySQL:
+		result = db.Raw("SELECT COALESCE(data_length + index_length, 0) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?", table).Scan(&size)
+	case DialectPostgreSQL:
+		result = db.Raw("SELECT COALESCE(pg_total_relation_size(to_regclass(?)), 0)", table).Scan(&size)
+	case DialectSQLite:
+		result = db.Raw("SELECT COALESCE(SUM(pgsize), 0) FROM dbstat WHERE name = ?", table).Scan(&size)
+	default:
+		return 0, false
+	}
+	if result.Error != nil || !size.Valid || size.Int64 < 0 {
+		return 0, false
+	}
+	return size.Int64, true
 }
 
 func (l *Lifecycle) MigrationTransformer(candidate SchemaCandidate) (func(string) (string, error), error) {
