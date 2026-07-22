@@ -24,6 +24,7 @@
 | Latest hardening closeout | `hardening_closeout_2026-07-21.md` |
 | Active performance baseline | `performance_capacity_baseline_2026-07-21.md` |
 | Frozen frontend experience target | `frontend_experience_target_2026-07-22.md` |
+| Frozen plugin control-center information architecture | `plugin_control_center_information_architecture_2026-07-23.md` |
 | Active deployment and recovery rehearsal | `deployment_recovery_rehearsal_2026-07-21.md` |
 | Active H2-05 database acceptance report | `pharma_oa_database_acceptance_2026-07-18.md` |
 | Active batch source | `pharma_oa_milestone_closeout_2026-07-17.md` |

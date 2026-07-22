@@ -891,3 +891,45 @@ Result: BF2-07 passed after two acceptance retries. A generated business-documen
 ### Commit
 
 `BF2-07: generate zero-edit document plugins`
+
+## BF3-01 Redesign The Plugin Control-Center Information Architecture
+
+- Date: 2026-07-23
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Audit the current plugin console and freeze one current-only route, ownership, state, component, and interaction contract for the control center.
+
+### Acceptance Result
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Current audit | Pass | The 2,994-line plugin view, local heavy-panel state, global inspector, duplicated inventory, inferred health, broad detail drawer, and embedded developer portal are mapped to concrete replacement owners |
+| Scannable hierarchy | Pass | Fleet navigation and an eight-surface plugin workspace give install, runtime, capabilities, data, migrations, jobs, audit, and errors one stable location |
+| Ownership | Pass | Every required concern has one canonical route, source, mutation owner, and BF3 implementation Work Item |
+| State model | Pass | Install, lifecycle, data, job, and request states are finite; stale observations remain visibly distinct from current health |
+| Component contract | Pass | Twelve focused component responsibilities and forbidden ownership boundaries replace page-global state and duplicated behavior |
+| Interaction review | Pass | Deep links, browser history, install/lifecycle commands, confirmation, durable evidence, correlation navigation, responsive navigation, keyboard, and focus behavior are specified |
+| Current-only rule | Pass | The old monolithic route, alternate detail drawer, compatibility tabs, fallback sources, and mixed developer/operator navigation are explicitly excluded |
+
+### Verification
+
+```powershell
+codegraph status .
+codegraph node "web/src/views/Plugin/index.vue"
+codegraph impact openPluginDetail
+git diff --check
+```
+
+Result: BF3-01 passed. BF3-02 through BF3-06 now have one implementation boundary for an operational, routed, independently testable plugin control center.
+
+### Impact Review
+
+- API/OpenAPI: no runtime API changed; required snapshot timestamps and durable operation/correlation IDs are frozen as frontend consumption requirements for BF3-02 through BF3-04.
+- Permission/audit: route permissions and mutation ownership are explicit; detailed permission and audit implementation remains in the owning Work Items.
+- Migration/seed: none.
+- Frontend/i18n: route and component architecture is frozen; implementation begins in BF3-02.
+- Documentation: current README, Work Item status, information architecture, and acceptance evidence are synchronized.
+- Compatibility: none; the current monolithic route is replaced directly when BF3-02 lands.
+
+### Commit
+
+`BF3-01: define plugin control center architecture`
