@@ -487,3 +487,54 @@ Result: BF1-08 and milestone BF1 passed. A clean independent process now exercis
 ### Commit
 
 `BF1-08: prove datastore lifecycle end to end`
+
+## BF2-01 Define Reusable Business-Document Schemas And States
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Publish one strict plugin-facing contract for business-document schemas, typed values, records, state transitions, metadata, and optimistic action versions.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public boundary | Pass | All contracts live in `pkg/pluginsdk` and depend only on the Go standard library; plugins do not import internal form, workflow, pharma OA, or database packages |
+| Schema identity | Pass | Lowercase type keys, positive schema versions, unique header/line/state/action keys, bounded collections, and one declared non-terminal initial state are enforced |
+| Header and lines | Pass | Required/unknown header fields, named line groups, row limits, line IDs, duplicate rows, required line fields, and unknown line groups fail with exact paths |
+| Lossless values | Pass | Integer and decimal strings are canonical; money carries uppercase currency; quantity carries unit; dates, UTC datetimes, booleans, references, strings, text, and JSON are explicit |
+| Validation rules | Pass | Numeric min/max use exact rational comparison; string length and regex rules are bounded, type-compatible, unique, and deterministically applied |
+| State graph | Pass | Terminal sources, self-transitions, unknown states, duplicate actions, and non-terminal dead ends are rejected; `NextState` enforces availability and required comments |
+| Record metadata | Pass | Document type/schema version, number, title, current state, positive record version, UTC timestamps, actor attribution, and bounded unique tags validate |
+| Optimistic action | Pass | `DocumentActionInput` requires one document, declared-shaped action key, and positive `expectedVersion`; no last-write-wins input exists |
+| Deterministic errors | Pass | Map keys are sorted before unknown-field validation and `DocumentContractError` publishes stable field/message data for UI binding |
+| Wire contract | Pass | JSON uses explicit tagged values and camelCase fields including `schemaVersion`, `createdAt`, `createdBy`, currency, unit, and typed references |
+| Full quality gate | Pass | Focused contract tests, focused race tests, full Go tests, full vet, CodeGraph review, and diff checks pass |
+| Current-only rule | Pass | No dynamic-form translation, float business value, inferred type, undeclared-field preservation, alternate state path, legacy format, or fallback exists |
+
+All focused acceptance tests passed on the first run. CodeGraph review confirmed that the contract sits above datastore persistence and workflow execution without replacing or importing either internal implementation.
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk -run Document -count=1
+go test -race ./pkg/pluginsdk -run Document -count=1
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF2-01 passed. Independent plugins can now describe and deterministically validate business-document headers, lines, exact business values, custom fields, state machines, metadata, and optimistic versions through one public contract.
+
+### Impact Review
+
+- API/OpenAPI: no HTTP route was added; the JSON-tagged SDK types establish the wire shape for later host services.
+- Permission/audit: no authorization path changed; metadata requires actor attribution while trusted tenant and organization scope remains host-owned.
+- Migration/seed: none.
+- Frontend/i18n: no component changed; stable field paths and labels are ready for schema-driven forms in BF2-06.
+- Documentation: plugin business-document contract, Work Item state, milestone state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF2-01: define business document contracts`
