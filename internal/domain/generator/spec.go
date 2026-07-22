@@ -2,6 +2,7 @@ package generator
 
 import (
 	"fmt"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -174,6 +175,8 @@ type PluginSpec struct {
 	RollbackPolicy     string
 	FrontendEntry      string
 	UIMode             string
+	ServiceBaseURL     string
+	ServiceHealthURL   string
 	EventSubscriptions []PluginEventSubscriptionSpec
 }
 
@@ -376,6 +379,8 @@ func normalizePluginSpec(in PluginSpec, spec GeneratorSpecInput) PluginSpec {
 	if in.UIMode == "" {
 		in.UIMode = "separated"
 	}
+	in.ServiceBaseURL = strings.TrimRight(strings.TrimSpace(in.ServiceBaseURL), "/")
+	in.ServiceHealthURL = strings.TrimSpace(in.ServiceHealthURL)
 	out := make([]PluginEventSubscriptionSpec, 0, len(in.EventSubscriptions))
 	for _, item := range in.EventSubscriptions {
 		item.Name = strings.TrimSpace(strings.ToLower(item.Name))
@@ -653,6 +658,25 @@ func validatePluginSpec(spec PluginSpec) error {
 	case "backend_only", "frontend_only", "monolith", "separated":
 	default:
 		return fmt.Errorf("generator plugin ui mode is invalid: %s", spec.UIMode)
+	}
+	if (spec.ServiceBaseURL == "") != (spec.ServiceHealthURL == "") {
+		return fmt.Errorf("generator plugin service base and health URLs must be declared together")
+	}
+	for _, serviceURL := range []struct {
+		label string
+		value string
+	}{
+		{label: "base", value: spec.ServiceBaseURL},
+		{label: "health", value: spec.ServiceHealthURL},
+	} {
+		label, value := serviceURL.label, serviceURL.value
+		if value == "" {
+			continue
+		}
+		parsed, err := url.Parse(value)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return fmt.Errorf("generator plugin service %s URL is invalid", label)
+		}
 	}
 	seen := map[string]struct{}{}
 	for _, subscription := range spec.EventSubscriptions {

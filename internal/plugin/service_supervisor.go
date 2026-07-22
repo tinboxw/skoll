@@ -167,7 +167,9 @@ func (s *ServiceSupervisor) Stop(ctx context.Context, pluginID string) error {
 		if errors.Is(err, context.DeadlineExceeded) || errors.Is(stopCtx.Err(), context.DeadlineExceeded) {
 			code = "service_stop_timeout"
 		}
-		s.transition(pluginID, ServiceStateFailed, code, current.handle)
+		// Keep the service in stopping while force-stop owns the terminal transition.
+		// This also prevents the Done watcher from overwriting the final stopped state.
+		s.transition(pluginID, ServiceStateStopping, code, current.handle)
 		if forceErr := current.handle.ForceStop(); forceErr != nil {
 			s.transition(pluginID, ServiceStateFailed, "service_force_stop_failed", current.handle)
 			return fmt.Errorf("%s: %w; force stop: %v", code, err, forceErr)

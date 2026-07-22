@@ -1489,3 +1489,79 @@ Result: all acceptance gates passed after two documented command retries. Genera
 ### Commit
 
 `PR3-05: generate plugin packaging commands`
+
+## PR3-06 Retry Records
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing` for every failed gate below; the complete gate restarted after each correction.
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Generated command contract | The assertion required a direct `go run` path after the command was changed to build artifacts first | Assert the current build-backed command contract |
+| 2 | Source immutability scan | A Windows `node_modules` directory link was treated as a source file | Classify directory links before hashing source files |
+| 3 | Generated backend compile | A log placeholder rendered invalid double-quoted Go source | Render one valid formatted log call |
+| 4 | Generated frontend typecheck | The standalone UI support emitted invalid nested TypeScript render syntax | Emit explicit valid render functions |
+| 5 | Generated frontend typecheck | `ImportMeta.env` lacked the Vite client declaration | Add the generated Vite type reference |
+| 6 | PowerShell package command | A parameter default referenced `$PSScriptRoot` before script parameter binding completed | Resolve script-relative defaults after parameter parsing |
+| 7 | Package artifact assertion | The failed command produced no artifact and insufficient diagnostics | Capture generated command output and artifact directory evidence |
+| 8 | Package command execution | The host CLI was launched from the generated plugin Go module and native command failures did not terminate PowerShell | Run the CLI from `SKOLL_REPO_ROOT` and fail fast on every native exit code |
+| 9 | Package source scan | A Windows `node_modules` junction reached the generic unsupported-link rejection | Skip reserved `.git` and `node_modules` entries before fail-closed link handling |
+| 10 | Focused generator test | A semantic assertion depended on `gofmt` constant alignment | Assert the API constant and value independently of whitespace |
+| 11 | Race gate | The service exit watcher could overwrite `service_force_stopped` with `service_exited` after a stop timeout | Keep the lifecycle in `stopping` through force-stop, retain timeout audit evidence, and let one terminal transition win |
+
+## PR3-06 Prove Generated Plugin Zero-Edit E2E
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Generate a standalone current-format full-stack plugin and prove its build, package, runtime, business API, lifecycle, migration, and uninstall flow without editing generated files or host core source.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Zero-edit generation | Pass after retry | The generator emits a Go module/backend, standalone Vue project, manifest, migrations, tests, and cross-platform commands into an isolated temporary root |
+| Source immutability | Pass after retry | Hashes of every generated source file are identical before and after build/package/install execution |
+| Backend build | Pass after retry | Generated Go tests pass and the generated backend compiles into the package runtime directory |
+| Frontend build | Pass after retry | Generated Vue, TypeScript, Element Plus, shared support, and Vite output pass `vue-tsc` and production build |
+| Package integrity | Pass after retry | The generated command builds one deterministic ZIP and SHA-256 sidecar accepted by the centralized verifier and installer |
+| Safe package content | Pass after retry | Built backend and `web/dist` are installed; `.git`, `node_modules`, output recursion, traversal, and unsupported links remain excluded or rejected |
+| Migration lifecycle | Pass | The generated up migration executes before enable; drop uninstall executes down migration and clears the ledger |
+| Service lifecycle | Pass after retry | The installed generated service becomes healthy, and timeout/force-stop terminal states cannot be overwritten by its exit watcher |
+| Runtime lifecycle | Pass | `RuntimeManager` installs, enables, disables, and uninstalls the generated manifest using only current public runtime contracts |
+| Business execution | Pass | The installed backend executes create, list, and detail requests through its declared plugin API namespace |
+| Disable boundary | Pass | Disabled state rejects plugin access before uninstall |
+| Full regression | Pass | Focused tests, race tests, full `go test ./...`, `go vet ./...`, frontend typecheck, and frontend production build pass |
+| Current-only architecture | Pass | One generated package/runtime path exists; no legacy output, compatibility mode, source-install fallback, or dual lifecycle was introduced |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/generator ./internal/service/generator ./internal/plugin ./internal/handler/cli ./internal/handler/http/v1/plugin -count=1
+go test -race ./internal/domain/generator ./internal/service/generator ./internal/plugin -count=1
+$env:SKOLL_GENERATOR_PLUGIN_E2E='1'; go test ./internal/service/generator -run TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits -count=1 -v
+go test ./... -count=1
+go vet ./...
+cd web; npm run typecheck; npm run build
+codegraph sync .
+codegraph impact PluginSpec
+codegraph impact buildCandidates
+codegraph impact ServiceSupervisor
+codegraph status .
+git diff --check
+```
+
+Result: all PR3-06 acceptance gates passed after eleven documented retries. A generated plugin now builds and executes as an independently packaged full-stack unit, exercises real lifecycle and business calls, and leaves its generated source and host core unchanged.
+
+### Impact Review
+
+- Generator contract: plugin specs may declare the one service base/health pair used by the current manifest and runtime.
+- Generated runtime: every plugin target includes a standalone Go CRUD service and Vue production project instead of frontend-only fragments.
+- Commands: generated build/package/dev commands compile both runtime halves and invoke the host package tool from the host module.
+- Packaging: explicit reserved dependency directories are skipped before generic link rejection; all other unsupported links still fail closed.
+- Lifecycle: stop timeout audit evidence is retained while force-stop owns the single terminal state transition.
+- Performance handoff: the generated sample currently emits about 1.03 MB minified JavaScript and 358 KB CSS before gzip; PR4-06 must introduce and enforce route/package budgets rather than suppressing the Vite warning.
+
+### Commit
+
+`PR3-06: prove generated plugin zero-edit E2E`

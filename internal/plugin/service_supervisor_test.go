@@ -44,7 +44,8 @@ func TestServiceSupervisorStopShutdownAndTimeout(t *testing.T) {
 
 	timeoutHandle := newFakeServiceHandle()
 	timeoutHandle.blockStop = true
-	timeoutSupervisor := NewServiceSupervisor(&fakeServiceLauncher{handle: timeoutHandle}, nil, time.Second, 20*time.Millisecond)
+	timeoutAudit := &recordingServiceAudit{}
+	timeoutSupervisor := NewServiceSupervisor(&fakeServiceLauncher{handle: timeoutHandle}, timeoutAudit, time.Second, 20*time.Millisecond)
 	if err := timeoutSupervisor.Start(context.Background(), Info{ID: "slow", ServiceBaseURL: "http://service", ServiceHealthURL: "http://service/health"}); err != nil {
 		t.Fatalf("start slow service: %v", err)
 	}
@@ -52,6 +53,9 @@ func TestServiceSupervisorStopShutdownAndTimeout(t *testing.T) {
 		t.Fatal("expected stop timeout")
 	}
 	assertServiceState(t, timeoutSupervisor, "slow", ServiceStateStopped, "service_force_stopped")
+	if got := timeoutAudit.codes(); !containsServiceCode(got, "service_stop_timeout") || !containsServiceCode(got, "service_force_stopped") {
+		t.Fatalf("unexpected timeout audit codes: %v", got)
+	}
 
 	startTimeoutSupervisor := NewServiceSupervisor(&fakeServiceLauncher{blockStart: true}, nil, 20*time.Millisecond, time.Second)
 	if err := startTimeoutSupervisor.Start(context.Background(), Info{ID: "slow-start", ServiceBaseURL: "http://service", ServiceHealthURL: "http://service/health"}); err == nil {

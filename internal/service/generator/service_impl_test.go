@@ -276,6 +276,8 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		t.Fatalf("DryRun() error = %v", err)
 	}
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.yaml", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/go.mod", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/backend/main.go", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_pharma_oa_products.up.sql", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_pharma_oa_products.down.sql", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts", FileStatusCreate)
@@ -283,6 +285,8 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/i18n/generated_product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/router/generated_product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/package.json", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/main.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.ps1", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.sh", FileStatusCreate)
 	testPlan := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin_acceptance_test.go")
@@ -325,14 +329,20 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		t.Fatalf("plugin frontend view content = %q", view)
 	}
 	powerShell := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin.ps1").GeneratedContent
-	for _, marker := range []string{"verify-package", "install-package", "cmd/skoll-plugin", "pharma-oa-1.0.0.zip"} {
+	for _, marker := range []string{"verify-package", "install-package", "Invoke-SkollPlugin", "pharma-oa-1.0.0.zip"} {
 		if !strings.Contains(filepath.ToSlash(powerShell), marker) {
 			t.Fatalf("plugin PowerShell command missing %q\n%s", marker, powerShell)
 		}
 	}
 	shell := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin.sh").GeneratedContent
-	if !strings.Contains(shell, `dev) go run "$repo_root/cmd/skoll-plugin" dev`) {
+	if !strings.Contains(shell, `dev) build_plugin; (cd "$repo_root" && go run ./cmd/skoll-plugin dev`) {
 		t.Fatalf("plugin shell command does not use package-backed dev flow\n%s", shell)
+	}
+	backend := findPlan(t, result.Files, "examples/plugins/pharma-oa/backend/main.go").GeneratedContent
+	for _, marker := range []string{`apiPath`, `"/v1/plugins/pharma-oa/api/products"`, `GET /health`, "http.ListenAndServe"} {
+		if !strings.Contains(backend, marker) {
+			t.Fatalf("plugin backend missing %q\n%s", marker, backend)
+		}
 	}
 }
 

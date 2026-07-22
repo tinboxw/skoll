@@ -177,10 +177,13 @@ func packageFiles(sourceDir, outputDir string) ([]string, error) {
 			return nil
 		}
 		name := entry.Name()
-		if entry.IsDir() {
-			if name == ".git" || name == "node_modules" {
+		if name == ".git" || name == "node_modules" {
+			if entry.IsDir() {
 				return filepath.SkipDir
 			}
+			return nil
+		}
+		if entry.IsDir() {
 			return nil
 		}
 		info, err := entry.Info()

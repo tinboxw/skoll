@@ -61,6 +61,10 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderFrontendView(spec)
 	case "plugin.manifest":
 		return renderPluginManifest(spec)
+	case "plugin.go.mod":
+		return renderPluginGoMod(spec)
+	case "plugin.backend.server":
+		return formatGoTemplate(renderPluginBackendServer(spec))
 	case "plugin.migration.up":
 		return renderMigration(spec, "postgres")
 	case "plugin.migration.down":
@@ -75,6 +79,28 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderPluginFrontendRoute(spec)
 	case "plugin.frontend.view":
 		return renderPluginFrontendView(spec)
+	case "plugin.frontend.package":
+		return renderPluginFrontendPackage(spec)
+	case "plugin.frontend.tsconfig":
+		return renderPluginFrontendTSConfig()
+	case "plugin.frontend.vite":
+		return renderPluginFrontendVite()
+	case "plugin.frontend.index":
+		return renderPluginFrontendIndex(spec)
+	case "plugin.frontend.main":
+		return renderPluginFrontendMain(spec)
+	case "plugin.frontend.styles":
+		return renderPluginFrontendStyles()
+	case "plugin.frontend.api-support":
+		return renderPluginFrontendAPISupport()
+	case "plugin.frontend.common-support":
+		return renderPluginFrontendCommonSupport()
+	case "plugin.frontend.i18n-support":
+		return renderPluginFrontendI18nSupport()
+	case "plugin.frontend.permission-support":
+		return renderPluginFrontendPermissionSupport()
+	case "plugin.frontend.ui-support":
+		return renderPluginFrontendUISupport()
 	case "plugin.acceptance.test":
 		return formatGoTemplate(renderPluginAcceptanceTest(spec))
 	case "plugin.command.powershell":
@@ -425,6 +451,10 @@ func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
 	fmt.Fprintf(&b, "api_version: v1\n")
 	fmt.Fprintf(&b, "ui_mode: %s\n", spec.Plugin.UIMode)
 	fmt.Fprintf(&b, "frontend_entry: %s\n", spec.Plugin.FrontendEntry)
+	if spec.Plugin.ServiceBaseURL != "" {
+		fmt.Fprintf(&b, "service_base_url: %s\n", spec.Plugin.ServiceBaseURL)
+		fmt.Fprintf(&b, "service_health_url: %s\n", spec.Plugin.ServiceHealthURL)
+	}
 	fmt.Fprintf(&b, "i18n_locales:\n  - zh-CN\n  - en-US\n")
 	fmt.Fprintf(&b, "permissions:\n")
 	for _, key := range pluginPermissionKeys(spec) {
@@ -472,6 +502,7 @@ func pluginAPIRoutes(spec domaingenerator.GeneratorSpec) []pluginRoute {
 	auditResource := pluginAuditResource(spec)
 	return []pluginRoute{
 		{method: "GET", path: base, summary: "List " + spec.Table.CollectionName, permission: spec.Permissions.ReadKey, auditAction: auditResource + ".read"},
+		{method: "GET", path: base + "/{id}", summary: "Get " + spec.Table.DomainName, permission: spec.Permissions.ReadKey, auditAction: auditResource + ".read"},
 		{method: "POST", path: base, summary: "Create " + spec.Table.DomainName, permission: spec.Permissions.CreateKey, auditAction: auditResource + ".create"},
 		{method: "PUT", path: base + "/{id}", summary: "Update " + spec.Table.DomainName, permission: spec.Permissions.UpdateKey, auditAction: auditResource + ".update"},
 		{method: "DELETE", path: base + "/{id}", summary: "Delete " + spec.Table.DomainName, permission: spec.Permissions.DeleteKey, auditAction: auditResource + ".delete"},
@@ -614,25 +645,46 @@ Both `+"`dev`"+` and `+"`install`"+` verify and extract the same current package
 
 func renderPluginPowerShellCommand(spec domaingenerator.GeneratorSpec) string {
 	return fmt.Sprintf(`param(
-    [ValidateSet("package", "verify", "install", "dev")]
+    [ValidateSet("build", "package", "verify", "install", "dev")]
     [string]$Action = "package",
-    [string]$DistDir = (Join-Path $PSScriptRoot "dist"),
-    [string]$PluginsRoot = (Join-Path $PSScriptRoot ".skoll-dev")
+    [string]$DistDir = "",
+    [string]$PluginsRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
-$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
-$Tool = Join-Path $RepoRoot "cmd/skoll-plugin"
+$DistDir = if ($DistDir) { $DistDir } else { Join-Path $PSScriptRoot "dist" }
+$PluginsRoot = if ($PluginsRoot) { $PluginsRoot } else { Join-Path $PSScriptRoot ".skoll-dev" }
+$RepoRoot = if ($env:SKOLL_REPO_ROOT) { (Resolve-Path $env:SKOLL_REPO_ROOT).Path } else { (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path }
 $Artifact = Join-Path $DistDir "%s-%s.zip"
 $Checksum = "$Artifact.sha256"
+$Backend = Join-Path $PSScriptRoot "backend/bin/%s-server.exe"
+
+function Build-Plugin {
+    New-Item -ItemType Directory -Force (Split-Path $Backend) | Out-Null
+    go build -o $Backend (Join-Path $PSScriptRoot "backend")
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    npm --prefix (Join-Path $PSScriptRoot "web") run build
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+
+function Invoke-SkollPlugin([string[]]$ToolArgs) {
+    Push-Location $RepoRoot
+    try {
+        & go run ./cmd/skoll-plugin @ToolArgs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } finally {
+        Pop-Location
+    }
+}
 
 switch ($Action) {
-    "package" { go run $Tool package $PSScriptRoot $DistDir }
-    "verify" { go run $Tool verify-package $Artifact $Checksum }
-    "install" { go run $Tool install-package $Artifact $Checksum $PluginsRoot }
-    "dev" { go run $Tool dev $PSScriptRoot $DistDir $PluginsRoot }
+    "build" { Build-Plugin }
+    "package" { Build-Plugin; Invoke-SkollPlugin @("package", $PSScriptRoot, $DistDir) }
+    "verify" { Invoke-SkollPlugin @("verify-package", $Artifact, $Checksum) }
+    "install" { Invoke-SkollPlugin @("install-package", $Artifact, $Checksum, $PluginsRoot) }
+    "dev" { Build-Plugin; Invoke-SkollPlugin @("dev", $PSScriptRoot, $DistDir, $PluginsRoot) }
 }
-`, spec.Plugin.ID, spec.Plugin.Version)
+`, spec.Plugin.ID, spec.Plugin.Version, spec.Plugin.ID)
 }
 
 func renderPluginShellCommand(spec domaingenerator.GeneratorSpec) string {
@@ -646,15 +698,23 @@ dist_dir="${SKOLL_PLUGIN_DIST:-$plugin_dir/dist}"
 plugins_root="${SKOLL_DEV_PLUGINS_ROOT:-$plugin_dir/.skoll-dev}"
 artifact="$dist_dir/%s-%s.zip"
 checksum="$artifact.sha256"
+backend="$plugin_dir/backend/bin/%s-server"
+
+build_plugin() {
+  mkdir -p "$(dirname "$backend")"
+  go build -o "$backend" "$plugin_dir/backend"
+  npm --prefix "$plugin_dir/web" run build
+}
 
 case "$action" in
-  package) go run "$repo_root/cmd/skoll-plugin" package "$plugin_dir" "$dist_dir" ;;
-  verify) go run "$repo_root/cmd/skoll-plugin" verify-package "$artifact" "$checksum" ;;
-  install) go run "$repo_root/cmd/skoll-plugin" install-package "$artifact" "$checksum" "$plugins_root" ;;
-  dev) go run "$repo_root/cmd/skoll-plugin" dev "$plugin_dir" "$dist_dir" "$plugins_root" ;;
-  *) echo "usage: $0 {package|verify|install|dev}" >&2; exit 2 ;;
+  build) build_plugin ;;
+  package) build_plugin; (cd "$repo_root" && go run ./cmd/skoll-plugin package "$plugin_dir" "$dist_dir") ;;
+  verify) (cd "$repo_root" && go run ./cmd/skoll-plugin verify-package "$artifact" "$checksum") ;;
+  install) (cd "$repo_root" && go run ./cmd/skoll-plugin install-package "$artifact" "$checksum" "$plugins_root") ;;
+  dev) build_plugin; (cd "$repo_root" && go run ./cmd/skoll-plugin dev "$plugin_dir" "$dist_dir" "$plugins_root") ;;
+  *) echo "usage: $0 {build|package|verify|install|dev}" >&2; exit 2 ;;
 esac
-`, spec.Plugin.ID, spec.Plugin.Version)
+`, spec.Plugin.ID, spec.Plugin.Version, spec.Plugin.ID)
 }
 
 func renderService(spec domaingenerator.GeneratorSpec) string {
