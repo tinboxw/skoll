@@ -42,7 +42,7 @@ export type WorkflowTask = {
 
 export type WorkflowAction = {
 	id: string;
-	type: "start" | "approve" | "reject" | "withdraw" | "transfer" | "copy";
+	type: "start" | "approve" | "reject" | "withdraw" | "transfer" | "copy" | "cancel";
 	instanceId: string;
 	taskId?: string;
 	nodeId?: string;
@@ -59,7 +59,7 @@ export type WorkflowInstance = {
 	businessType: string;
 	businessId: string;
 	title: string;
-	status: "running" | "approved" | "rejected" | "withdrawn";
+	status: "running" | "approved" | "rejected" | "withdrawn" | "canceled";
 	starter: WorkflowActor;
 	currentNode: string;
 	tasks: WorkflowTask[];

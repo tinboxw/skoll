@@ -17,6 +17,8 @@
 # web installed packages
 node_modules
 package-lock.json
+!packages/skoll-document-ui/package-lock.json
+packages/*/dist
 web/dist
 web/test-results/
 web/playwright-report/

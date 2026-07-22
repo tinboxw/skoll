@@ -752,3 +752,71 @@ Result: BF2-05 passed. Independent plugins can discover approval-backed document
 ### Commit
 
 `BF2-05: add document query and export`
+
+## BF2-06 Build Schema-Driven Document UI Components
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Publish a host-independent Element Plus document UI package covering schema-driven list, form, detail, approval, collaboration, timeline, and redaction-safe print workflows.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public package | Pass | `@skoll/document-ui` has an independent package manifest, lockfile, source boundary, peer dependencies, build, type declarations, tests, README, and packable exports |
+| Host independence | Pass | Package source imports no host view, workflow client, internal component, or host source path; plugins consume only the public package and browser host bridge |
+| Schema model | Pass | Header/line schemas, exact string-backed number types, money, quantity, dates, references, JSON, state/action metadata, document records, workflow state, and collaboration records are typed |
+| Forms and validation | Pass | Required fields, line bounds, numeric precision, JSON, dates, references, stable field paths, immutable updates, save, submit, cancel, add, and remove controls are covered |
+| Document workflows | Pass | Detail composition includes approve, reject, delegate, withdraw, cancel, attachments, immutable comments, ordered timeline, print, export, and sensitive-field redaction |
+| Locale and time | Pass | zh-CN/en-US messages and overrides cover visible kit copy; boolean and attachment actions are localized; selected date-time values emit RFC3339 UTC |
+| Responsive states | Pass | Desktop/mobile list, form, detail, approval, and print layouts have no page overflow; wide tables use explicit horizontal work surfaces |
+| Theme and density | Pass | Light/dark x comfortable/compact consume the current semantic token bridge without raw product colors or a package-owned theme fork |
+| State matrix | Pass | Ready, loading, empty, error, forbidden, form, detail, and redaction-safe print fixtures pass in desktop and mobile Playwright projects |
+| Package budget | Pass | Library output is 58.34 KB raw/12.44 KB gzip JavaScript and 12.86 KB raw/2.29 KB gzip CSS; Vue, Element Plus, and Lucide remain peer dependencies |
+| Package consumption | Pass | `npm pack --dry-run` includes README, JavaScript, CSS, and declarations; a runtime import verifies all eight primary component exports |
+| Component tests | Pass | Host component suite passes 13 tests and the independent document package passes 5 tests |
+| Full frontend gate | Pass | Host typecheck/static checks, package typecheck, production build, and all bundle budgets pass |
+| Current-only rule | Pass | No host-source import, legacy component path, alternate payload, compatibility mode, dual implementation, or fallback UI exists |
+
+The first visual run exposed five mobile overflow/boundary failures in form and detail work surfaces. Grid minimum widths and explicit table scroll boundaries were corrected before the 20-case matrix passed. After extraction into the public package, a later run passed 16/20 but lost stable error/forbidden semantic selectors when the host `StateBlock` dependency was removed; package-owned state hooks were added and the complete 20-case matrix passed on retry.
+
+### Verification Commands
+
+```powershell
+cd packages/skoll-document-ui
+npm run typecheck
+npm test
+npm run build
+npm pack --dry-run
+node -e "import('./dist/index.js').then(...)"
+
+cd ../../web
+npm run test:documents:browser
+npm run typecheck
+npm run test:components
+npm run build
+npm run check:bundle
+
+cd ..
+codegraph sync .
+codegraph status .
+codegraph impact DocumentList
+rg -n "web/src|\.\./workflow|\.\./components|src/business-documents" packages/skoll-document-ui web/tests docs/development/plugin-business-document-ui.en.md
+git diff --check
+```
+
+Result: BF2-06 passed after two acceptance retries. Independent plugins now have a compact, packable, schema-driven business document UI package that consumes current host contracts without importing or modifying host production pages.
+
+### Impact Review
+
+- API/OpenAPI: no HTTP route changed; the public TypeScript component and workflow-view types mirror the current document and workflow contracts.
+- Permission/audit: components accept explicit action and visibility decisions; trusted authorization, sensitive-field filtering, audit, and mutation remain backend-owned.
+- Migration/seed: none.
+- Frontend/i18n: one public package provides controlled components, two locales, token-driven themes/density, responsive states, and browser fixtures.
+- Documentation: package README, developer package guide, development index, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current package and current contracts only.
+
+### Commit
+
+`BF2-06: add schema-driven document UI kit`
