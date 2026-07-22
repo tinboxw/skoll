@@ -1315,3 +1315,104 @@ Result: all acceptance gates passed after four documented retries. Generated mig
 ### Commit
 
 `PR3-03: generate plugin lifecycle data contracts`
+
+## PR3-04 Retry Record 1
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused generator contract suite
+- Evidence: the output safety matrix blocked the new generated locale and route paths; previous frontend assertions also required the removed array-only list return and raw Element Plus page structure.
+- Retry action: allow the explicit current i18n/router prefixes, preserve the plugin page ownership marker on `PageShell`, update assertions to the typed page and shared-kit contracts, and restart focused tests.
+
+## PR3-04 Retry Record 2
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: focused Demo Product frontend contract
+- Evidence: generated stores correctly imported the shared `toErrorMessage`, while two assertions still required a page-local duplicate helper; the strict golden hash still represented the previous 25-file set.
+- Retry action: assert shared helper reuse, defer the golden update until all behavior gates stabilized, and restart the focused suite.
+
+## PR3-04 Retry Record 3
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: generated frontend `vue-tsc`
+- Evidence: the Windows test process changed its working directory before launching a relative `vue-tsc.cmd`, so the executable could not be resolved.
+- Retry action: resolve the web workspace and frontend toolchain to absolute paths before materialization and rerun the executable frontend gate.
+
+## PR3-04 Retry Record 4
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: generated frontend browser smoke
+- Evidence: the combined test exceeded its outer timeout because killing the Vite command wrapper did not stop its child Node preview process during cleanup.
+- Retry action: launch Vite through its Node entry point, add hard Chrome subprocess timeouts and independent browser profiles, terminate the exact preview process, and restart the complete generated frontend gate.
+
+## PR3-04 Retry Record 5
+
+- Date: 2026-07-22
+- Status: `Doing -> Failed -> Doing`
+- Failed gate: desktop Chrome DOM smoke
+- Evidence: typecheck and production build passed, but temporary shared-component fixtures used runtime template strings unavailable in the production Vue runtime, so Chrome rendered an empty root.
+- Retry action: replace fixture templates with explicit render functions, retain nonblank DOM and narrow screenshot assertions, and rerun typecheck, build, desktop, and mobile smoke.
+
+## PR3-04 Generate Element Plus Frontend Workflows
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Failed -> Doing -> Review -> Done`
+- Scope: Generate a current Element Plus frontend workflow containing typed list/detail/mutation clients, durable Pinia state, permission-aware lazy routes, Chinese/English locale keys, and shared-kit list/form/detail UI with executable frontend and browser acceptance.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Typed API | Pass | Generated clients expose typed page/get/create/update/delete operations, encode IDs, and consume the platform response envelope |
+| Store states | Pass | Pinia output separates list, detail, and mutation status/errors; preserves query/page state; and provides retry, selection, mutation, and removal actions |
+| Permission route | Pass after retry | Each module emits one lazy authenticated route with its read permission; plugin routes use the manifest frontend entry |
+| Bilingual locale | Pass | Generated module-local `zh-CN` and `en-US` dictionaries cover page, actions, fields, validation, empty, permission, success, and destructive copy |
+| Shared UI kit | Pass | Generated pages compose `PageShell`, `FilterBar`, `DataTable`, `DetailDrawer`, and `ConfirmAction` with Element Plus controls and Lucide icons |
+| Loading/empty/error | Pass | Initial loading/error, stale-list error, detail loading/error, mutation error, and empty table states have explicit render paths |
+| Permission state | Pass | Read denial blocks data loading and page content; create/update/delete actions bind their generated permission declarations |
+| Validation/save | Pass | Element Plus form rules, typed controls, saving state, backend error preservation, and success feedback execute without hand edits |
+| Destructive action | Pass | Delete requires shared confirmation, exposes progress, updates the store, and reports success/failure |
+| Responsive layout | Pass | Stable controls and pagination include an explicit 760px narrow layout; Chrome produces a non-empty 390x844 screenshot |
+| Generated typecheck/build | Pass after retry | The exact five frontend outputs materialize into a clean current workspace and pass `vue-tsc` plus Vite production build |
+| Browser render | Pass after retry | Headless Chrome verifies nonblank desktop DOM markers and narrow viewport pixels against the production bundle |
+| Root frontend regression | Pass | i18n, accessibility, large-list, `vue-tsc`, and production build gates pass for the existing console |
+| Determinism | Pass | The strict 27-file golden snapshot and repeated dry runs pass using the current hash |
+| Current-only architecture | Pass | One typed page contract, one route shape, and one shared-kit UI path are emitted; no compatibility route, alternate UI template, or fallback output was added |
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/generator ./internal/service/generator -count=3
+go test -race ./internal/domain/generator ./internal/service/generator -count=1
+$env:SKOLL_GENERATOR_FRONTEND_BUILD='1'; go test ./internal/service/generator -run TestGeneratedFrontendTypechecksAndBuilds -count=1 -v
+cd web; npm run typecheck; npm run build
+go test ./... -count=1
+go vet ./...
+codegraph sync .
+codegraph impact buildCandidates
+codegraph impact renderFrontendAPI
+codegraph impact renderFrontendStore
+codegraph impact renderFrontendView
+codegraph impact renderFrontendRoute
+codegraph impact renderFrontendLocale
+codegraph status .
+git diff --check
+```
+
+Result: all acceptance gates passed after five documented retries. Generated frontend slices now compile and render as complete current workflows, reuse the platform UI kit, expose permission and bilingual contracts, and cover the required async, validation, destructive, and responsive states without hand edits.
+
+### Impact Review
+
+- Candidate output: every module gains locale and route files; plugin targets receive the same current files under their own frontend root.
+- API/store: list responses retain paging metadata and detail calls have an independent state channel.
+- UI: generated pages use the same operational components, Element Plus controls, and Lucide actions as the host console.
+- Routing/i18n: core routes use the menu path, plugin routes use the manifest frontend entry, and visible generated copy resolves through module-local Chinese/English dictionaries.
+- Testing: build-heavy browser acceptance is explicit through `SKOLL_GENERATOR_FRONTEND_BUILD=1`; normal Go and race suites retain deterministic source-level coverage without repeatedly starting browsers.
+
+### Commit
+
+`PR3-04: generate Element Plus frontend workflows`

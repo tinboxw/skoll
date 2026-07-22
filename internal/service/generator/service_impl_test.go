@@ -143,19 +143,29 @@ func TestDryRunRendersBackendTemplatesAsValidGo(t *testing.T) {
 	if !strings.Contains(api.GeneratedContent, "apiGet") ||
 		!strings.Contains(api.GeneratedContent, "export type Product") ||
 		!strings.Contains(api.GeneratedContent, "createProduct") ||
-		!strings.Contains(api.GeneratedContent, "return resp.data.items") ||
-		strings.Count(api.GeneratedContent, "return resp.data.item;") != 2 {
+		!strings.Contains(api.GeneratedContent, "getProduct") ||
+		!strings.Contains(api.GeneratedContent, "Promise<ProductListPage>") ||
+		strings.Count(api.GeneratedContent, "return resp.data.item;") != 3 {
 		t.Fatalf("frontend api content = %q", api.GeneratedContent)
 	}
 	store := findPlan(t, result.Files, "web/src/stores/product.ts")
-	if !strings.Contains(store.GeneratedContent, "defineStore") || !strings.Contains(store.GeneratedContent, "useProductStore") || !strings.Contains(store.GeneratedContent, "async retry") || !strings.Contains(store.GeneratedContent, "lastError") {
+	if !strings.Contains(store.GeneratedContent, "defineStore") || !strings.Contains(store.GeneratedContent, "useProductStore") || !strings.Contains(store.GeneratedContent, "async retry") || !strings.Contains(store.GeneratedContent, "detailStatus") {
 		t.Fatalf("frontend store content = %q", store.GeneratedContent)
 	}
+	locale := findPlan(t, result.Files, "web/src/i18n/generated_product.ts")
+	if !strings.Contains(locale.GeneratedContent, "translateProduct") || !strings.Contains(locale.GeneratedContent, `"zh-CN"`) || !strings.Contains(locale.GeneratedContent, `"en-US"`) {
+		t.Fatalf("frontend locale content = %q", locale.GeneratedContent)
+	}
+	route := findPlan(t, result.Files, "web/src/router/generated_product.ts")
+	if !strings.Contains(route.GeneratedContent, "productRoutes") || !strings.Contains(route.GeneratedContent, `permissions: ["product.read"]`) {
+		t.Fatalf("frontend route content = %q", route.GeneratedContent)
+	}
 	view := findPlan(t, result.Files, "web/src/views/Product/index.vue")
-	if !strings.Contains(view.GeneratedContent, "<el-table") ||
-		!strings.Contains(view.GeneratedContent, "<el-drawer") ||
+	if !strings.Contains(view.GeneratedContent, "<DataTable") ||
+		!strings.Contains(view.GeneratedContent, "<DetailDrawer") ||
+		!strings.Contains(view.GeneratedContent, "<ConfirmAction") ||
 		!strings.Contains(view.GeneratedContent, "v-permission=\"createPermission\"") ||
-		!strings.Contains(view.GeneratedContent, "store.hasError") ||
+		!strings.Contains(view.GeneratedContent, "initialError") ||
 		!strings.Contains(view.GeneratedContent, "useProductStore") {
 		t.Fatalf("frontend view content = %q", view.GeneratedContent)
 	}
@@ -270,6 +280,8 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_pharma_oa_products.down.sql", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/stores/product.ts", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/i18n/generated_product.ts", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/router/generated_product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue", FileStatusCreate)
 	testPlan := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin_acceptance_test.go")
 	if _, err := parser.ParseFile(token.NewFileSet(), testPlan.Path, testPlan.GeneratedContent, parser.AllErrors); err != nil {
@@ -297,6 +309,14 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 	api := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts").GeneratedContent
 	if !strings.Contains(api, `const basePath = "/v1/plugins/pharma-oa/api/products"`) || !strings.Contains(api, "createProduct") {
 		t.Fatalf("plugin frontend api content = %q", api)
+	}
+	locale := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/i18n/generated_product.ts").GeneratedContent
+	if !strings.Contains(locale, "translateProduct") || !strings.Contains(locale, `"generated.product.field.name"`) {
+		t.Fatalf("plugin frontend locale content = %q", locale)
+	}
+	route := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/router/generated_product.ts").GeneratedContent
+	if !strings.Contains(route, "productRoutes") || !strings.Contains(route, `path: "/skoll/plugins/pharma-oa"`) || !strings.Contains(route, `permissions: ["pharma_oa.product.read"]`) {
+		t.Fatalf("plugin frontend route content = %q", route)
 	}
 	view := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue").GeneratedContent
 	if !strings.Contains(view, "plugin-generated-page") || !strings.Contains(view, "v-permission=\"createPermission\"") {
@@ -330,7 +350,7 @@ func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
 	if firstSnapshot != secondSnapshot {
 		t.Fatalf("dry-run is not idempotent\nfirst=%s\nsecond=%s", firstSnapshot, secondSnapshot)
 	}
-	const expectedSnapshotHash = "4048e976a936b48ac7660c4b8df4ecec7f8abdb7ada4bc612f3aef3759f8db6a"
+	const expectedSnapshotHash = "419c206932d2f6928e89752962d3e7f87186ec634006c20e3c96008f10575f4a"
 	if got := sha256Hex(firstSnapshot); got != expectedSnapshotHash {
 		t.Fatalf("golden snapshot hash = %s, want %s\n%s", got, expectedSnapshotHash, firstSnapshot)
 	}

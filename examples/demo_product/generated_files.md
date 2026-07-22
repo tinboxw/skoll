@@ -6,7 +6,7 @@
 
 ## Output Matrix
 
-The generator dry-run should produce 25 file plans for `demo_product` with no conflicts and no blocked paths.
+The generator dry-run should produce 27 file plans for `demo_product` with no conflicts and no blocked paths.
 
 | Layer | Template ID | Path | Expected status in clean repo |
 |---|---|---|---|
@@ -34,6 +34,8 @@ The generator dry-run should produce 25 file plans for `demo_product` with no co
 | Permission/menu catalog | `backend.permission.seed` | `internal/bootstrap/generated_demo_product_catalog.go` | create |
 | Frontend API | `frontend.api` | `web/src/api/demo_product.ts` | create |
 | Frontend store | `frontend.store` | `web/src/stores/demo_product.ts` | create |
+| Frontend locale | `frontend.locale` | `web/src/i18n/generated_demo_product.ts` | create |
+| Frontend route | `frontend.route` | `web/src/router/generated_demo_product.ts` | create |
 | Frontend view | `frontend.view` | `web/src/views/DemoProduct/index.vue` | create |
 
 ## Permission and Menu Declarations
@@ -66,6 +68,7 @@ The generator dry-run should produce 25 file plans for `demo_product` with no co
 
 ```powershell
 go test ./internal/domain/generator/... ./internal/service/generator/...
+$env:SKOLL_GENERATOR_FRONTEND_BUILD='1'; go test ./internal/service/generator -run TestGeneratedFrontendTypechecksAndBuilds -count=1 -v
 rg -n "demo_product.read|demo_product.create|demo_product.update|demo_product.delete|demo_product.manage|DemoProduct/index|/demo-products" examples/demo_product/spec.json examples/demo_product/README.md examples/demo_product/generated_files.md
 ```
 
@@ -73,4 +76,5 @@ Expected result:
 
 - `TestDemoProductGenerationAcceptance` passes.
 - The generated Go files parse successfully in dry-run tests.
-- OpenAPI, frontend API/store/view, permissions, menu declaration, history recording, and rollback planning are covered by generator tests.
+- OpenAPI, frontend API/store/locale/route/view, permissions, menu declaration, history recording, and rollback planning are covered by generator tests.
+- The generated frontend is typechecked, production-built, opened in headless Chrome, and rendered at desktop and 390x844 viewports without hand edits.

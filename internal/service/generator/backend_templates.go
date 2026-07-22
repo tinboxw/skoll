@@ -53,6 +53,10 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderFrontendAPI(spec)
 	case "frontend.store":
 		return renderFrontendStore(spec)
+	case "frontend.locale":
+		return renderFrontendLocale(spec)
+	case "frontend.route":
+		return renderFrontendRoute(spec)
 	case "frontend.view":
 		return renderFrontendView(spec)
 	case "plugin.manifest":
@@ -65,6 +69,10 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderPluginFrontendAPI(spec)
 	case "plugin.frontend.store":
 		return renderFrontendStore(spec)
+	case "plugin.frontend.locale":
+		return renderFrontendLocale(spec)
+	case "plugin.frontend.route":
+		return renderPluginFrontendRoute(spec)
 	case "plugin.frontend.view":
 		return renderPluginFrontendView(spec)
 	case "plugin.acceptance.test":
@@ -528,6 +536,11 @@ func renderPluginFrontendView(spec domaingenerator.GeneratorSpec) string {
 	content = strings.ReplaceAll(content, "generated-toolbar", "plugin-generated-toolbar")
 	content = strings.ReplaceAll(content, "generated-filters", "plugin-generated-filters")
 	return content
+}
+
+func renderPluginFrontendRoute(spec domaingenerator.GeneratorSpec) string {
+	content := renderFrontendRoute(spec)
+	return strings.Replace(content, fmt.Sprintf("\t\tpath: %q,", spec.Menu.Path), fmt.Sprintf("\t\tpath: %q,", spec.Plugin.FrontendEntry), 1)
 }
 
 func renderPluginAcceptanceTest(spec domaingenerator.GeneratorSpec) string {
@@ -995,24 +1008,25 @@ func renderPermissionSeed(spec domaingenerator.GeneratorSpec) string {
 }
 
 func renderFrontendAPI(spec domaingenerator.GeneratorSpec) string {
-	module := spec.Module.Package
 	typeName := spec.Table.DomainName
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "import { apiDelete, apiGet, apiPost, apiPut, type ApiResponse } from \"../utils/api\";\n\n")
 	fmt.Fprintf(&b, "export type %s = {\n", typeName)
+	fmt.Fprintf(&b, "\t[key: string]: unknown;\n")
 	for _, field := range spec.Fields {
 		fmt.Fprintf(&b, "\t%s: %s;\n", field.Name, tsFieldType(field))
 	}
 	fmt.Fprintf(&b, "};\n\n")
 	fmt.Fprintf(&b, "export type %sListQuery = {\n\tkeyword?: string;\n\toffset?: number;\n\tlimit?: number;\n};\n\n", typeName)
+	fmt.Fprintf(&b, "export type %sListPage = {\n\titems: %s[];\n\toffset: number;\n\tlimit: number;\n\thasMore: boolean;\n};\n\n", typeName, typeName)
 	fmt.Fprintf(&b, "export type %sInput = Partial<Omit<%s, \"id\">>;\n\n", typeName, typeName)
 	fmt.Fprintf(&b, "const basePath = %q;\n\n", spec.Menu.Path)
-	fmt.Fprintf(&b, "export async function list%s(query: %sListQuery = {}): Promise<%s[]> {\n", typeName, typeName, typeName)
-	fmt.Fprintf(&b, "\tconst params = new URLSearchParams();\n\tif (query.keyword) params.set(\"keyword\", query.keyword);\n\tif (query.offset !== undefined) params.set(\"offset\", String(query.offset));\n\tif (query.limit !== undefined) params.set(\"limit\", String(query.limit));\n\tconst suffix = params.toString();\n\tconst resp = await apiGet<ApiResponse<{ items: %s[]; offset: number; limit: number }>>(`${basePath}${suffix ? `?${suffix}` : \"\"}`);\n\treturn resp.data.items;\n}\n\n", typeName)
+	fmt.Fprintf(&b, "export async function list%s(query: %sListQuery = {}): Promise<%sListPage> {\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\tconst params = new URLSearchParams();\n\tif (query.keyword) params.set(\"keyword\", query.keyword);\n\tif (query.offset !== undefined) params.set(\"offset\", String(query.offset));\n\tif (query.limit !== undefined) params.set(\"limit\", String(query.limit));\n\tconst suffix = params.toString();\n\tconst resp = await apiGet<ApiResponse<{ items: %s[]; offset: number; limit: number }>>(`${basePath}${suffix ? `?${suffix}` : \"\"}`);\n\treturn { ...resp.data, hasMore: resp.data.items.length >= resp.data.limit };\n}\n\n", typeName)
+	fmt.Fprintf(&b, "export async function get%s(id: string): Promise<%s> {\n\tconst resp = await apiGet<ApiResponse<{ item: %s }>>(`${basePath}/${encodeURIComponent(id)}`);\n\treturn resp.data.item;\n}\n\n", typeName, typeName, typeName)
 	fmt.Fprintf(&b, "export async function create%s(input: %sInput): Promise<%s> {\n\tconst resp = await apiPost<ApiResponse<{ item: %s }>>(basePath, input);\n\treturn resp.data.item;\n}\n\n", typeName, typeName, typeName, typeName)
-	fmt.Fprintf(&b, "export async function update%s(id: string, input: %sInput): Promise<%s> {\n\tconst resp = await apiPut<ApiResponse<{ item: %s }>>(`${basePath}/${id}`, input);\n\treturn resp.data.item;\n}\n\n", typeName, typeName, typeName, typeName)
-	fmt.Fprintf(&b, "export async function delete%s(id: string): Promise<void> {\n\tawait apiDelete<ApiResponse<null>>(`${basePath}/${id}`);\n}\n", typeName)
-	_ = module
+	fmt.Fprintf(&b, "export async function update%s(id: string, input: %sInput): Promise<%s> {\n\tconst resp = await apiPut<ApiResponse<{ item: %s }>>(`${basePath}/${encodeURIComponent(id)}`, input);\n\treturn resp.data.item;\n}\n\n", typeName, typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export async function delete%s(id: string): Promise<void> {\n\tawait apiDelete<ApiResponse<null>>(`${basePath}/${encodeURIComponent(id)}`);\n}\n", typeName)
 	return b.String()
 }
 
@@ -1022,87 +1036,203 @@ func renderFrontendStore(spec domaingenerator.GeneratorSpec) string {
 	storeName := exportedName(module)
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "import { defineStore } from \"pinia\";\n")
-	fmt.Fprintf(&b, "import { create%s, delete%s, list%s, update%s, type %s, type %sInput, type %sListQuery } from \"../api/%s\";\n\n", typeName, typeName, typeName, typeName, typeName, typeName, typeName, module)
+	fmt.Fprintf(&b, "import { create%s, delete%s, get%s, list%s, update%s, type %s, type %sInput, type %sListQuery } from \"../api/%s\";\n", typeName, typeName, typeName, typeName, typeName, typeName, typeName, typeName, module)
+	fmt.Fprintf(&b, "import { toErrorMessage } from \"../utils/common\";\n\n")
 	fmt.Fprintf(&b, "type LoadStatus = \"idle\" | \"loading\" | \"success\" | \"error\";\n\n")
-	fmt.Fprintf(&b, "type %sState = {\n\titems: %s[];\n\tlistStatus: LoadStatus;\n\tmutationStatus: LoadStatus;\n\tlastError: string | null;\n\tlastQuery: %sListQuery;\n};\n\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "type %sState = {\n\titems: %s[];\n\tselected: %s | null;\n\tlistStatus: LoadStatus;\n\tdetailStatus: LoadStatus;\n\tmutationStatus: LoadStatus;\n\tlistError: string;\n\tdetailError: string;\n\tmutationError: string;\n\tlastQuery: %sListQuery;\n\toffset: number;\n\tlimit: number;\n\thasMore: boolean;\n};\n\n", typeName, typeName, typeName, typeName)
 	fmt.Fprintf(&b, "export const use%sStore = defineStore(\"%s\", {\n", storeName, module)
-	fmt.Fprintf(&b, "\tstate: (): %sState => ({\n\t\titems: [],\n\t\tlistStatus: \"idle\",\n\t\tmutationStatus: \"idle\",\n\t\tlastError: null,\n\t\tlastQuery: {}\n\t}),\n", typeName)
-	fmt.Fprintf(&b, "\tgetters: {\n\t\tisLoading: (state): boolean => state.listStatus === \"loading\" || state.mutationStatus === \"loading\",\n\t\thasError: (state): boolean => state.listStatus === \"error\" || state.mutationStatus === \"error\"\n\t},\n")
-	fmt.Fprintf(&b, "\tactions: {\n\t\tasync load(query: %sListQuery = {}): Promise<void> {\n\t\t\tthis.listStatus = \"loading\";\n\t\t\tthis.lastQuery = query;\n\t\t\ttry {\n\t\t\t\tthis.items = await list%s(query);\n\t\t\t\tthis.listStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t} catch (error) {\n\t\t\t\tthis.listStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName)
+	fmt.Fprintf(&b, "\tstate: (): %sState => ({\n\t\titems: [],\n\t\tselected: null,\n\t\tlistStatus: \"idle\",\n\t\tdetailStatus: \"idle\",\n\t\tmutationStatus: \"idle\",\n\t\tlistError: \"\",\n\t\tdetailError: \"\",\n\t\tmutationError: \"\",\n\t\tlastQuery: {},\n\t\toffset: 0,\n\t\tlimit: 20,\n\t\thasMore: false\n\t}),\n", typeName)
+	fmt.Fprintf(&b, "\tgetters: {\n\t\tisLoading: (state): boolean => state.listStatus === \"loading\" || state.detailStatus === \"loading\" || state.mutationStatus === \"loading\"\n\t},\n")
+	fmt.Fprintf(&b, "\tactions: {\n\t\tasync load(query: %sListQuery = {}): Promise<void> {\n\t\t\tthis.listStatus = \"loading\";\n\t\t\tthis.listError = \"\";\n\t\t\tthis.lastQuery = query;\n\t\t\ttry {\n\t\t\t\tconst page = await list%s(query);\n\t\t\t\tthis.items = page.items;\n\t\t\t\tthis.offset = page.offset;\n\t\t\t\tthis.limit = page.limit;\n\t\t\t\tthis.hasMore = page.hasMore;\n\t\t\t\tthis.listStatus = \"success\";\n\t\t\t} catch (error) {\n\t\t\t\tthis.listStatus = \"error\";\n\t\t\t\tthis.listError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName)
 	fmt.Fprintf(&b, "\t\tasync retry(): Promise<void> {\n\t\t\tawait this.load(this.lastQuery);\n\t\t},\n")
-	fmt.Fprintf(&b, "\t\tasync create(input: %sInput): Promise<%s> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tconst item = await create%s(input);\n\t\t\t\tthis.items = [item, ...this.items];\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t\treturn item;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName, typeName)
-	fmt.Fprintf(&b, "\t\tasync update(id: string, input: %sInput): Promise<%s> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tconst item = await update%s(id, input);\n\t\t\t\tthis.items = this.items.map((current) => current.id === id ? item : current);\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t\treturn item;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName, typeName)
-	fmt.Fprintf(&b, "\t\tasync remove(id: string): Promise<void> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\ttry {\n\t\t\t\tawait delete%s(id);\n\t\t\t\tthis.items = this.items.filter((item) => item.id !== id);\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\tthis.lastError = null;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.lastError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t}\n\t}\n});\n\n", typeName)
-	fmt.Fprintf(&b, "function toErrorMessage(error: unknown): string {\n\treturn error instanceof Error && error.message.trim() !== \"\" ? error.message : \"%s_request_failed\";\n}\n", module)
+	fmt.Fprintf(&b, "\t\tasync loadOne(id: string): Promise<%s> {\n\t\t\tthis.detailStatus = \"loading\";\n\t\t\tthis.detailError = \"\";\n\t\t\ttry {\n\t\t\t\tconst item = await get%s(id);\n\t\t\t\tthis.selected = item;\n\t\t\t\tthis.detailStatus = \"success\";\n\t\t\t\treturn item;\n\t\t\t} catch (error) {\n\t\t\t\tthis.detailStatus = \"error\";\n\t\t\t\tthis.detailError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName)
+	fmt.Fprintf(&b, "\t\tasync create(input: %sInput): Promise<%s> {\n\t\t\treturn this.runMutation(() => create%s(input));\n\t\t},\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\t\tasync update(id: string, input: %sInput): Promise<%s> {\n\t\t\treturn this.runMutation(() => update%s(id, input));\n\t\t},\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\t\tasync remove(id: string): Promise<void> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\tthis.mutationError = \"\";\n\t\t\ttry {\n\t\t\t\tawait delete%s(id);\n\t\t\t\tthis.items = this.items.filter((item) => item.id !== id);\n\t\t\t\tif (this.selected?.id === id) this.selected = null;\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.mutationError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName)
+	fmt.Fprintf(&b, "\t\tasync runMutation(operation: () => Promise<%s>): Promise<%s> {\n\t\t\tthis.mutationStatus = \"loading\";\n\t\t\tthis.mutationError = \"\";\n\t\t\ttry {\n\t\t\t\tconst item = await operation();\n\t\t\t\tconst index = this.items.findIndex((current) => current.id === item.id);\n\t\t\t\tif (index >= 0) this.items.splice(index, 1, item); else this.items.unshift(item);\n\t\t\t\tthis.selected = item;\n\t\t\t\tthis.mutationStatus = \"success\";\n\t\t\t\treturn item;\n\t\t\t} catch (error) {\n\t\t\t\tthis.mutationStatus = \"error\";\n\t\t\t\tthis.mutationError = toErrorMessage(error);\n\t\t\t\tthrow error;\n\t\t\t}\n\t\t},\n", typeName, typeName)
+	fmt.Fprintf(&b, "\t\tclearMutationState(): void {\n\t\t\tthis.mutationStatus = \"idle\";\n\t\t\tthis.mutationError = \"\";\n\t\t}\n\t}\n});\n")
 	return b.String()
+}
+
+func renderFrontendLocale(spec domaingenerator.GeneratorSpec) string {
+	module := spec.Module.Package
+	name := spec.Table.DomainName
+	prefix := "generated." + module
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "export type %sLocale = \"zh-CN\" | \"en-US\";\n\n", name)
+	fmt.Fprintf(&b, "const messages: Record<%sLocale, Record<string, string>> = {\n", name)
+	for _, locale := range []string{"zh-CN", "en-US"} {
+		fmt.Fprintf(&b, "\t%q: {\n", locale)
+		labels := [][2]string{
+			{"title", spec.Page.Title}, {"description", spec.Module.Description}, {"search", "Search"}, {"searchPlaceholder", "Search " + spec.Table.CollectionName},
+			{"refresh", "Refresh"}, {"create", "Create"}, {"edit", "Edit"}, {"view", "View"}, {"delete", "Delete"}, {"save", "Save"}, {"cancel", "Cancel"},
+			{"actions", "Actions"}, {"empty", "No " + spec.Table.CollectionName + " found"}, {"detail", spec.Table.DomainName + " details"},
+			{"createTitle", "Create " + spec.Table.DomainName}, {"editTitle", "Edit " + spec.Table.DomainName}, {"saved", spec.Table.DomainName + " saved"},
+			{"deleted", spec.Table.DomainName + " deleted"}, {"deleteTitle", "Delete " + spec.Table.DomainName}, {"deleteConfirm", "This action permanently deletes the selected record."},
+			{"noPermission", "You do not have permission to view this page."}, {"retry", "Retry"}, {"previous", "Previous"}, {"next", "Next"},
+		}
+		if locale == "zh-CN" {
+			labels = [][2]string{
+				{"title", spec.Page.Title}, {"description", spec.Module.Description}, {"search", "搜索"}, {"searchPlaceholder", "搜索" + spec.Table.CollectionName},
+				{"refresh", "刷新"}, {"create", "新建"}, {"edit", "编辑"}, {"view", "查看"}, {"delete", "删除"}, {"save", "保存"}, {"cancel", "取消"},
+				{"actions", "操作"}, {"empty", "暂无" + spec.Table.CollectionName}, {"detail", spec.Table.DomainName + "详情"},
+				{"createTitle", "新建" + spec.Table.DomainName}, {"editTitle", "编辑" + spec.Table.DomainName}, {"saved", spec.Table.DomainName + "已保存"},
+				{"deleted", spec.Table.DomainName + "已删除"}, {"deleteTitle", "删除" + spec.Table.DomainName}, {"deleteConfirm", "此操作将永久删除所选记录。"},
+				{"noPermission", "当前账号无权访问此页面。"}, {"retry", "重试"}, {"previous", "上一页"}, {"next", "下一页"},
+			}
+		}
+		for _, label := range labels {
+			fmt.Fprintf(&b, "\t\t%q: %q,\n", prefix+"."+label[0], label[1])
+		}
+		for _, field := range spec.Fields {
+			fmt.Fprintf(&b, "\t\t%q: %q,\n", prefix+".field."+field.Name, field.Label)
+			fmt.Fprintf(&b, "\t\t%q: %q,\n", prefix+".validation."+field.Name, field.Label+" is invalid")
+		}
+		fmt.Fprintf(&b, "\t},\n")
+	}
+	fmt.Fprintf(&b, "};\n\n")
+	fmt.Fprintf(&b, "export function translate%s(locale: string, key: string): string {\n\tconst selected: %sLocale = locale === \"en-US\" ? \"en-US\" : \"zh-CN\";\n\treturn messages[selected][key] ?? key;\n}\n\n", name, name)
+	fmt.Fprintf(&b, "export const %sMessages = messages;\n", module)
+	return b.String()
+}
+
+func renderFrontendRoute(spec domaingenerator.GeneratorSpec) string {
+	name := spec.Table.DomainName
+	module := spec.Module.Package
+	return fmt.Sprintf(`import type { RouteRecordRaw } from "vue-router";
+
+const %sPage = () => import("../views/%s/index.vue");
+
+export const %sRoutes: RouteRecordRaw[] = [
+	{
+		path: %q,
+		name: %q,
+		component: %sPage,
+		meta: { requiresAuth: true, permissions: [%q] }
+	}
+];
+`, name, name, module, spec.Menu.Path, spec.Page.RouteName, name, spec.Permissions.ReadKey)
 }
 
 func renderFrontendView(spec domaingenerator.GeneratorSpec) string {
 	module := spec.Module.Package
 	typeName := spec.Table.DomainName
 	storeName := exportedName(module)
-	keywordField := "keyword"
-	if len(spec.Page.List.Filters) > 0 {
-		keywordField = spec.Page.List.Filters[0]
-	}
+	prefix := "generated." + module
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "<template>\n")
-	fmt.Fprintf(&b, "\t<section class=\"generated-page\">\n")
-	fmt.Fprintf(&b, "\t\t<header class=\"generated-toolbar\">\n\t\t\t<h1>%s</h1>\n\t\t\t<el-button v-permission=\"createPermission\" type=\"primary\" :loading=\"store.mutationStatus === 'loading'\" @click=\"openCreate\">Create</el-button>\n\t\t</header>\n", spec.Page.Title)
-	fmt.Fprintf(&b, "\t\t<div class=\"generated-filters\">\n\t\t\t<el-input v-model=\"filters.keyword\" clearable placeholder=\"Search\" @keyup.enter=\"load\" />\n\t\t\t<el-button :loading=\"store.listStatus === 'loading'\" @click=\"load\">Search</el-button>\n\t\t</div>\n")
-	fmt.Fprintf(&b, "\t\t<el-alert v-if=\"store.hasError\" type=\"error\" :title=\"store.lastError || 'Load failed'\" show-icon />\n")
-	fmt.Fprintf(&b, "\t\t<el-table v-loading=\"store.listStatus === 'loading'\" :data=\"store.items\" empty-text=\"No data\">\n")
+	fmt.Fprintf(&b, "\t<PageShell\n\t\tclass=\"generated-page\"\n\t\t:title=\"t('%s.title')\"\n\t\t:description=\"t('%s.description')\"\n\t\t:forbidden=\"!canRead\"\n\t\t:forbidden-description=\"t('%s.noPermission')\"\n\t\t:loading=\"initialLoading\"\n\t\t:error=\"initialError\"\n\t>\n", prefix, prefix, prefix)
+	fmt.Fprintf(&b, "\t\t<template #actions>\n\t\t\t<el-button :icon=\"RefreshCw\" :loading=\"store.listStatus === 'loading'\" @click=\"loadPage(store.offset)\">{{ t('%s.refresh') }}</el-button>\n\t\t\t<el-button v-permission=\"createPermission\" type=\"primary\" :icon=\"Plus\" @click=\"openCreate\">{{ t('%s.create') }}</el-button>\n\t\t</template>\n", prefix, prefix)
+	fmt.Fprintf(&b, "\t\t<template #stateActions>\n\t\t\t<el-button v-if=\"canRead\" :icon=\"RefreshCw\" @click=\"loadPage(0)\">{{ t('%s.retry') }}</el-button>\n\t\t</template>\n", prefix)
+	fmt.Fprintf(&b, "\t\t<FilterBar>\n\t\t\t<el-form-item :label=\"t('%s.search')\">\n\t\t\t\t<el-input v-model=\"filters.keyword\" clearable :placeholder=\"t('%s.searchPlaceholder')\" @keyup.enter=\"loadPage(0)\" />\n\t\t\t</el-form-item>\n\t\t\t<template #actions>\n\t\t\t\t<el-button type=\"primary\" :icon=\"Search\" :loading=\"store.listStatus === 'loading'\" @click=\"loadPage(0)\">{{ t('%s.search') }}</el-button>\n\t\t\t</template>\n\t\t</FilterBar>\n", prefix, prefix, prefix)
+	fmt.Fprintf(&b, "\t\t<DataTable\n\t\t\t:rows=\"store.items\"\n\t\t\t:columns=\"columns\"\n\t\t\t:loading=\"store.listStatus === 'loading'\"\n\t\t\t:error=\"tableError\"\n\t\t\t:empty-text=\"t('%s.empty')\"\n\t\t\t:aria-label=\"t('%s.title')\"\n\t\t>\n", prefix, prefix)
+	fmt.Fprintf(&b, "\t\t\t<template #actions=\"{ row }\">\n\t\t\t\t<el-tooltip :content=\"t('%s.view')\">\n\t\t\t\t\t<el-button circle text :icon=\"Eye\" :aria-label=\"t('%s.view')\" @click=\"openDetail(row)\" />\n\t\t\t\t</el-tooltip>\n", prefix, prefix)
+	fmt.Fprintf(&b, "\t\t\t\t<el-tooltip :content=\"t('%s.edit')\">\n\t\t\t\t\t<el-button v-permission=\"updatePermission\" circle text type=\"primary\" :icon=\"Pencil\" :aria-label=\"t('%s.edit')\" @click=\"openEdit(row)\" />\n\t\t\t\t</el-tooltip>\n", prefix, prefix)
+	fmt.Fprintf(&b, "\t\t\t\t<ConfirmAction\n\t\t\t\t\tv-permission=\"deletePermission\"\n\t\t\t\t\t:label=\"t('%s.delete')\"\n\t\t\t\t\t:title=\"t('%s.deleteTitle')\"\n\t\t\t\t\t:message=\"t('%s.deleteConfirm')\"\n\t\t\t\t\t:loading=\"deletingId === String(row.id)\"\n\t\t\t\t\tsize=\"small\"\n\t\t\t\t\tplain\n\t\t\t\t\t@confirm=\"remove(String(row.id))\"\n\t\t\t\t/>\n\t\t\t</template>\n", prefix, prefix, prefix)
+	fmt.Fprintf(&b, "\t\t\t<template #pagination>\n\t\t\t\t<div class=\"generated-pagination\">\n\t\t\t\t\t<el-button :disabled=\"store.offset === 0 || store.listStatus === 'loading'\" @click=\"loadPage(Math.max(0, store.offset - store.limit))\">{{ t('%s.previous') }}</el-button>\n\t\t\t\t\t<span>{{ store.offset + 1 }} - {{ store.offset + store.items.length }}</span>\n\t\t\t\t\t<el-button :disabled=\"!store.hasMore || store.listStatus === 'loading'\" @click=\"loadPage(store.offset + store.limit)\">{{ t('%s.next') }}</el-button>\n\t\t\t\t</div>\n\t\t\t</template>\n\t\t</DataTable>\n", prefix, prefix)
+	fmt.Fprintf(&b, "\t</PageShell>\n\n")
+	fmt.Fprintf(&b, "\t<DetailDrawer v-model=\"detailOpen\" :title=\"t('%s.detail')\" :loading=\"store.detailStatus === 'loading'\">\n\t\t<el-alert v-if=\"store.detailError\" type=\"error\" :title=\"store.detailError\" show-icon :closable=\"false\" />\n\t\t<el-descriptions v-else-if=\"store.selected\" :column=\"1\" border>\n", prefix)
 	for _, fieldName := range spec.Page.List.Columns {
 		if field, ok := spec.FieldByName(fieldName); ok {
-			fmt.Fprintf(&b, "\t\t\t<el-table-column prop=\"%s\" label=\"%s\" />\n", field.Name, field.Label)
+			fmt.Fprintf(&b, "\t\t\t<el-descriptions-item :label=\"t('%s.field.%s')\">{{ displayValue(store.selected.%s) }}</el-descriptions-item>\n", prefix, field.Name, field.Name)
 		}
 	}
-	fmt.Fprintf(&b, "\t\t\t<el-table-column fixed=\"right\" label=\"Actions\" width=\"180\">\n\t\t\t\t<template #default=\"{ row }\">\n\t\t\t\t\t<el-button v-permission=\"updatePermission\" text type=\"primary\" @click=\"openEdit(row)\">Edit</el-button>\n\t\t\t\t\t<el-button v-permission=\"deletePermission\" text type=\"danger\" @click=\"remove(row.id)\">Delete</el-button>\n\t\t\t\t</template>\n\t\t\t</el-table-column>\n")
-	fmt.Fprintf(&b, "\t\t</el-table>\n")
-	fmt.Fprintf(&b, "\t\t<el-drawer v-model=\"drawerOpen\" :title=\"editingId ? 'Edit' : 'Create'\" size=\"420px\">\n\t\t\t<el-form label-position=\"top\" @submit.prevent>\n")
+	fmt.Fprintf(&b, "\t\t</el-descriptions>\n\t</DetailDrawer>\n\n")
+	fmt.Fprintf(&b, "\t<DetailDrawer v-model=\"formOpen\" :title=\"formTitle\" :loading=\"false\">\n\t\t<el-alert v-if=\"store.mutationError\" type=\"error\" :title=\"store.mutationError\" show-icon :closable=\"false\" />\n\t\t<el-form ref=\"formRef\" :model=\"form\" :rules=\"rules\" label-position=\"top\" @submit.prevent>\n")
 	for _, fieldName := range spec.Page.Form.Fields {
 		if field, ok := spec.FieldByName(fieldName); ok {
-			renderGeneratedFormControl(&b, field)
+			renderGeneratedFormControl(&b, field, prefix)
 		}
 	}
-	fmt.Fprintf(&b, "\t\t\t\t<el-button type=\"primary\" :loading=\"store.mutationStatus === 'loading'\" @click=\"save\">Save</el-button>\n\t\t\t</el-form>\n\t\t</el-drawer>\n")
-	fmt.Fprintf(&b, "\t</section>\n</template>\n\n")
+	fmt.Fprintf(&b, "\t\t</el-form>\n\t\t<template #footer>\n\t\t\t<el-button @click=\"formOpen = false\">{{ t('%s.cancel') }}</el-button>\n\t\t\t<el-button type=\"primary\" :icon=\"Save\" :loading=\"store.mutationStatus === 'loading'\" @click=\"save\">{{ t('%s.save') }}</el-button>\n\t\t</template>\n\t</DetailDrawer>\n", prefix, prefix)
+	fmt.Fprintf(&b, "</template>\n\n")
 	fmt.Fprintf(&b, "<script setup lang=\"ts\">\n")
-	fmt.Fprintf(&b, "import { onMounted, reactive, ref } from \"vue\";\n")
+	fmt.Fprintf(&b, "import { computed, onMounted, reactive, ref } from \"vue\";\n")
+	fmt.Fprintf(&b, "import { ElMessage, type FormInstance, type FormRules } from \"element-plus\";\n")
+	fmt.Fprintf(&b, "import { Eye, Pencil, Plus, RefreshCw, Save, Search } from \"lucide-vue-next\";\n\n")
+	fmt.Fprintf(&b, "import { ConfirmAction, DataTable, DetailDrawer, FilterBar, PageShell, type DataTableColumn } from \"../../components/Common\";\n")
+	fmt.Fprintf(&b, "import { useI18n } from \"../../i18n\";\n")
+	fmt.Fprintf(&b, "import { translate%s } from \"../../i18n/generated_%s\";\n", typeName, module)
+	fmt.Fprintf(&b, "import { useButtonAccess } from \"../../permissions/button\";\n")
 	fmt.Fprintf(&b, "import { use%sStore } from \"../../stores/%s\";\n", storeName, module)
 	fmt.Fprintf(&b, "import type { %s, %sInput } from \"../../api/%s\";\n\n", typeName, typeName, module)
 	fmt.Fprintf(&b, "const store = use%sStore();\n", storeName)
-	fmt.Fprintf(&b, "const createPermission = %q;\nconst updatePermission = %q;\nconst deletePermission = %q;\n", spec.Permissions.CreateKey, spec.Permissions.UpdateKey, spec.Permissions.DeleteKey)
-	fmt.Fprintf(&b, "const filters = reactive({ keyword: \"\" });\nconst drawerOpen = ref(false);\nconst editingId = ref<string | null>(null);\nconst form = reactive<%sInput>({});\n\n", typeName)
-	fmt.Fprintf(&b, "async function load(): Promise<void> {\n\tawait store.load({ keyword: filters.keyword || undefined, offset: 0, limit: 20 });\n}\n\n")
-	fmt.Fprintf(&b, "function openCreate(): void {\n\teditingId.value = null;\n\tresetForm();\n\tdrawerOpen.value = true;\n}\n\n")
-	fmt.Fprintf(&b, "function openEdit(row: %s): void {\n\teditingId.value = row.id;\n\tObject.assign(form, row);\n\tdrawerOpen.value = true;\n}\n\n", typeName)
-	fmt.Fprintf(&b, "async function save(): Promise<void> {\n\tif (editingId.value) {\n\t\tawait store.update(editingId.value, form);\n\t} else {\n\t\tawait store.create(form);\n\t}\n\tdrawerOpen.value = false;\n}\n\n")
-	fmt.Fprintf(&b, "async function remove(id: string): Promise<void> {\n\tawait store.remove(id);\n}\n\n")
-	fmt.Fprintf(&b, "function resetForm(): void {\n")
-	for _, fieldName := range spec.Page.Form.Fields {
+	fmt.Fprintf(&b, "const { locale } = useI18n();\nconst buttonAccess = useButtonAccess();\nconst t = (key: string): string => translate%s(locale.value, key);\n", typeName)
+	fmt.Fprintf(&b, "const readPermission = %q;\nconst createPermission = %q;\nconst updatePermission = %q;\nconst deletePermission = %q;\n", spec.Permissions.ReadKey, spec.Permissions.CreateKey, spec.Permissions.UpdateKey, spec.Permissions.DeleteKey)
+	fmt.Fprintf(&b, "const canRead = computed(() => buttonAccess.can(readPermission));\nconst initialLoading = computed(() => store.listStatus === \"loading\" && store.items.length === 0);\nconst initialError = computed(() => store.items.length === 0 ? store.listError : \"\");\nconst tableError = computed(() => store.items.length > 0 ? store.listError : \"\");\n")
+	fmt.Fprintf(&b, "const filters = reactive({ keyword: \"\" });\nconst detailOpen = ref(false);\nconst formOpen = ref(false);\nconst editingId = ref<string | null>(null);\nconst deletingId = ref(\"\");\nconst formRef = ref<FormInstance>();\nconst form = reactive<%sInput>({});\n", typeName)
+	fmt.Fprintf(&b, "const formTitle = computed(() => t(editingId.value ? %q : %q));\n", prefix+".editTitle", prefix+".createTitle")
+	fmt.Fprintf(&b, "const columns: DataTableColumn[] = [\n")
+	for _, fieldName := range spec.Page.List.Columns {
 		if field, ok := spec.FieldByName(fieldName); ok {
-			fmt.Fprintf(&b, "\tform.%s = undefined;\n", field.Name)
+			fmt.Fprintf(&b, "\t{ key: %q, label: t(%q), minWidth: 140 },\n", field.Name, prefix+".field."+field.Name)
 		}
 	}
-	fmt.Fprintf(&b, "}\n\nonMounted(load);\n")
+	fmt.Fprintf(&b, "];\nconst rules: FormRules = {\n")
+	for _, fieldName := range spec.Page.Form.Fields {
+		if field, ok := spec.FieldByName(fieldName); ok && (field.Required || len(field.Validation) > 0) {
+			fmt.Fprintf(&b, "\t%s: [", field.Name)
+			if field.Required {
+				fmt.Fprintf(&b, "{ required: true, message: t(%q), trigger: \"blur\" }", prefix+".validation."+field.Name)
+			}
+			for _, rule := range field.Validation {
+				if rule.Type == domaingenerator.ValidationPattern && strings.TrimSpace(rule.Value) != "" {
+					if field.Required {
+						fmt.Fprintf(&b, ", ")
+					}
+					fmt.Fprintf(&b, "{ pattern: new RegExp(%q), message: t(%q), trigger: \"blur\" }", rule.Value, prefix+".validation."+field.Name)
+				}
+			}
+			fmt.Fprintf(&b, "],\n")
+		}
+	}
+	fmt.Fprintf(&b, "};\n\n")
+	fmt.Fprintf(&b, "async function loadPage(offset: number): Promise<void> {\n\ttry {\n\t\tawait store.load({ keyword: filters.keyword.trim() || undefined, offset, limit: store.limit });\n\t} catch {\n\t\t// The shared page and table states render the store error.\n\t}\n}\n\n")
+	fmt.Fprintf(&b, "async function openDetail(row: Record<string, unknown>): Promise<void> {\n\tdetailOpen.value = true;\n\ttry {\n\t\tawait store.loadOne(String(row.id));\n\t} catch {\n\t\t// The detail drawer renders the store error.\n\t}\n}\n\n")
+	fmt.Fprintf(&b, "function openCreate(): void {\n\teditingId.value = null;\n\tresetForm();\n\tstore.clearMutationState();\n\tformOpen.value = true;\n}\n\n")
+	fmt.Fprintf(&b, "function openEdit(row: Record<string, unknown>): void {\n\teditingId.value = String(row.id);\n\tresetForm();\n\tObject.assign(form, row);\n\tstore.clearMutationState();\n\tformOpen.value = true;\n}\n\n")
+	fmt.Fprintf(&b, "async function save(): Promise<void> {\n\tif (!await formRef.value?.validate().catch(() => false)) return;\n\ttry {\n\t\tif (editingId.value) await store.update(editingId.value, { ...form }); else await store.create({ ...form });\n\t\tformOpen.value = false;\n\t\tElMessage.success(t(%q));\n\t} catch {\n\t\t// The form drawer keeps the backend error visible for correction.\n\t}\n}\n\n", prefix+".saved")
+	fmt.Fprintf(&b, "async function remove(id: string): Promise<void> {\n\tdeletingId.value = id;\n\ttry {\n\t\tawait store.remove(id);\n\t\tElMessage.success(t(%q));\n\t} catch {\n\t\tElMessage.error(store.mutationError);\n\t} finally {\n\t\tdeletingId.value = \"\";\n\t}\n}\n\n", prefix+".deleted")
+	fmt.Fprintf(&b, "function resetForm(): void {\n\tfor (const key of Object.keys(form)) delete form[key];\n")
+	for _, fieldName := range spec.Page.Form.Fields {
+		if field, ok := spec.FieldByName(fieldName); ok {
+			fmt.Fprintf(&b, "\tform.%s = %s;\n", field.Name, tsFieldDefault(field))
+		}
+	}
+	fmt.Fprintf(&b, "}\n\nfunction displayValue(value: unknown): string {\n\tif (value === null || value === undefined || value === \"\") return \"-\";\n\tif (typeof value === \"object\") return JSON.stringify(value);\n\treturn String(value);\n}\n\nonMounted(() => { if (canRead.value) void loadPage(0); });\n")
 	fmt.Fprintf(&b, "</script>\n\n")
-	fmt.Fprintf(&b, "<style scoped>\n.generated-page { display: grid; gap: 16px; }\n.generated-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }\n.generated-toolbar h1 { margin: 0; font-size: 20px; font-weight: 650; }\n.generated-filters { display: flex; gap: 8px; max-width: 520px; }\n@media (max-width: 720px) { .generated-toolbar, .generated-filters { align-items: stretch; flex-direction: column; } }\n</style>\n")
-	_ = keywordField
+	fmt.Fprintf(&b, "<style scoped>\n.generated-pagination { display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 32px; }\n:deep(.el-form-item) { margin-bottom: 18px; }\n:deep(.el-input-number), :deep(.el-date-editor) { width: 100%%; }\n@media (max-width: 760px) { .generated-pagination { justify-content: space-between; width: 100%%; } }\n</style>\n")
 	return b.String()
 }
 
-func renderGeneratedFormControl(b *bytes.Buffer, field domaingenerator.FieldSpec) {
-	fmt.Fprintf(b, "\t\t\t\t<el-form-item label=\"%s\">\n", field.Label)
+func renderGeneratedFormControl(b *bytes.Buffer, field domaingenerator.FieldSpec, prefix string) {
+	fmt.Fprintf(b, "\t\t\t<el-form-item :label=\"t('%s.field.%s')\" prop=\"%s\">\n", prefix, field.Name, field.Name)
 	switch field.Type {
 	case domaingenerator.FieldTypeBool:
-		fmt.Fprintf(b, "\t\t\t\t\t<el-switch v-model=\"form.%s\" />\n", field.Name)
+		fmt.Fprintf(b, "\t\t\t\t<el-switch v-model=\"form.%s\" />\n", field.Name)
 	case domaingenerator.FieldTypeInt, domaingenerator.FieldTypeDecimal:
-		fmt.Fprintf(b, "\t\t\t\t\t<el-input-number v-model=\"form.%s\" :min=\"0\" controls-position=\"right\" />\n", field.Name)
+		fmt.Fprintf(b, "\t\t\t\t<el-input-number v-model=\"form.%s\" controls-position=\"right\" />\n", field.Name)
+	case domaingenerator.FieldTypeTime:
+		fmt.Fprintf(b, "\t\t\t\t<el-date-picker v-model=\"form.%s\" type=\"datetime\" value-format=\"YYYY-MM-DDTHH:mm:ss[Z]\" />\n", field.Name)
+	case domaingenerator.FieldTypeText, domaingenerator.FieldTypeJSON:
+		fmt.Fprintf(b, "\t\t\t\t<el-input v-model=\"form.%s\" type=\"textarea\" :rows=\"4\" />\n", field.Name)
 	default:
-		fmt.Fprintf(b, "\t\t\t\t\t<el-input v-model=\"form.%s\" />\n", field.Name)
+		fmt.Fprintf(b, "\t\t\t\t<el-input v-model=\"form.%s\" />\n", field.Name)
 	}
-	fmt.Fprintf(b, "\t\t\t\t</el-form-item>\n")
+	fmt.Fprintf(b, "\t\t\t</el-form-item>\n")
+}
+
+func tsFieldDefault(field domaingenerator.FieldSpec) string {
+	switch field.Type {
+	case domaingenerator.FieldTypeBool:
+		return "false"
+	case domaingenerator.FieldTypeInt, domaingenerator.FieldTypeDecimal:
+		return "0"
+	case domaingenerator.FieldTypeJSON:
+		return `"{}"`
+	default:
+		return `""`
+	}
 }
 
 func renderServiceInputFields(b *bytes.Buffer, spec domaingenerator.GeneratorSpec, update bool) {

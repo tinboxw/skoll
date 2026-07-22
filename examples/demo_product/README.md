@@ -6,7 +6,7 @@ The fixture proves:
 
 - `GeneratorSpec` can be loaded from an example file.
 - dry-run emits backend domain/repository/store/service/handler/OpenAPI templates.
-- dry-run emits frontend API/store/list-form page templates.
+- dry-run emits typed frontend API/store, bilingual locale, permission-aware route, and shared-kit list/form/detail templates.
 - generated file hashes can be recorded in history and used by rollback planning.
 
 ## Spec Contract

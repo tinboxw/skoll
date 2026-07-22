@@ -204,6 +204,8 @@ func buildCandidates(spec domaingenerator.GeneratorSpec, migrationTimestamp stri
 		candidate("backend.permission.seed", fmt.Sprintf("internal/bootstrap/generated_%s_catalog.go", module), spec),
 		candidate("frontend.api", fmt.Sprintf("web/src/api/%s.ts", module), spec),
 		candidate("frontend.store", fmt.Sprintf("web/src/stores/%s.ts", module), spec),
+		candidate("frontend.locale", fmt.Sprintf("web/src/i18n/generated_%s.ts", module), spec),
+		candidate("frontend.route", fmt.Sprintf("web/src/router/generated_%s.ts", module), spec),
 		candidate("frontend.view", fmt.Sprintf("web/src/views/%s/index.vue", domainName), spec),
 	}
 	if spec.Plugin.Enabled {
@@ -214,6 +216,8 @@ func buildCandidates(spec domaingenerator.GeneratorSpec, migrationTimestamp stri
 			candidate("plugin.migration.down", fmt.Sprintf("%s/%s/001_create_%s.down.sql", pluginRoot, spec.Plugin.MigrationDirectory, table), spec),
 			candidate("plugin.frontend.api", fmt.Sprintf("%s/web/src/api/%s.ts", pluginRoot, module), spec),
 			candidate("plugin.frontend.store", fmt.Sprintf("%s/web/src/stores/%s.ts", pluginRoot, module), spec),
+			candidate("plugin.frontend.locale", fmt.Sprintf("%s/web/src/i18n/generated_%s.ts", pluginRoot, module), spec),
+			candidate("plugin.frontend.route", fmt.Sprintf("%s/web/src/router/generated_%s.ts", pluginRoot, module), spec),
 			candidate("plugin.frontend.view", fmt.Sprintf("%s/web/src/views/%s/index.vue", pluginRoot, domainName), spec),
 			candidate("plugin.acceptance.test", pluginRoot+"/plugin_acceptance_test.go", spec),
 			candidate("plugin.readme", pluginRoot+"/README.md", spec),
@@ -456,6 +460,8 @@ func allowedOutputPath(path string) bool {
 		"docs/api/openapi.yaml",
 		"internal/bootstrap/generated_",
 		"web/src/api/",
+		"web/src/i18n/",
+		"web/src/router/",
 		"web/src/stores/",
 		"web/src/views/",
 		"examples/plugins/",

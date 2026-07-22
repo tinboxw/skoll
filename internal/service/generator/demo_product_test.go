@@ -60,8 +60,10 @@ func TestDemoProductGenerationAcceptance(t *testing.T) {
 	)
 	assertGeneratedContains(t, result, "docs/api/openapi.yaml", "/demo-products:", "operationId: listDemoProduct", "DemoProduct:")
 	assertGeneratedContains(t, result, "web/src/api/demo_product.ts", "export type DemoProduct", "listDemoProduct", "createDemoProduct")
-	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts", "useDemoProductStore", "lastError", "async retry")
-	assertGeneratedContains(t, result, "web/src/views/DemoProduct/index.vue", "<el-table", "<el-drawer", "demo_product.create")
+	assertGeneratedContains(t, result, "web/src/stores/demo_product.ts", "useDemoProductStore", "listError", "detailStatus", "async retry")
+	assertGeneratedContains(t, result, "web/src/i18n/generated_demo_product.ts", "translateDemoProduct", `"zh-CN"`, `"en-US"`)
+	assertGeneratedContains(t, result, "web/src/router/generated_demo_product.ts", "demo_productRoutes", `permissions: ["demo_product.read"]`)
+	assertGeneratedContains(t, result, "web/src/views/DemoProduct/index.vue", "<DataTable", "<DetailDrawer", "demo_product.create")
 	assertDemoProductBackendContract(t, result)
 	assertDemoProductFrontendContract(t, result)
 
@@ -215,7 +217,9 @@ func assertDemoProductFrontendContract(t *testing.T, result *DryRunResult) {
 		"deleteDemoProduct",
 		`const basePath = "/demo-products"`,
 		"ApiResponse<{ items: DemoProduct[]; offset: number; limit: number }>",
-		"return resp.data.items",
+		"Promise<DemoProductListPage>",
+		"getDemoProduct",
+		"hasMore: resp.data.items.length >= resp.data.limit",
 		"ApiResponse<{ item: DemoProduct }>",
 		"return resp.data.item",
 	)
@@ -223,18 +227,22 @@ func assertDemoProductFrontendContract(t *testing.T, result *DryRunResult) {
 		"items: DemoProduct[]",
 		"listStatus: LoadStatus",
 		"mutationStatus: LoadStatus",
-		"lastError: string | null",
+		"listError: string",
+		"detailError: string",
+		"mutationError: string",
 		"async retry",
+		"async loadOne",
 		"async create",
 		"async update",
 		"async remove",
-		"toErrorMessage(error: unknown)",
+		`import { toErrorMessage } from "../utils/common"`,
 	)
 	assertGeneratedContains(t, result, "web/src/views/DemoProduct/index.vue",
-		"<el-table",
-		`empty-text="No data"`,
-		`<el-alert v-if="store.hasError"`,
-		"<el-drawer",
+		"<PageShell",
+		"<FilterBar",
+		"<DataTable",
+		"<DetailDrawer",
+		"<ConfirmAction",
 		`v-permission="createPermission"`,
 		`v-permission="updatePermission"`,
 		`v-permission="deletePermission"`,
@@ -244,5 +252,22 @@ func assertDemoProductFrontendContract(t *testing.T, result *DryRunResult) {
 		`<el-input v-model="form.name" />`,
 		`<el-input-number v-model="form.price"`,
 		`<el-switch v-model="form.enabled" />`,
+		"FormRules",
+		"initialLoading",
+		"initialError",
+		"@media (max-width: 760px)",
+	)
+	assertGeneratedContains(t, result, "web/src/i18n/generated_demo_product.ts",
+		"translateDemoProduct",
+		`"generated.demo_product.title"`,
+		`"generated.demo_product.field.name"`,
+		`"zh-CN"`,
+		`"en-US"`,
+	)
+	assertGeneratedContains(t, result, "web/src/router/generated_demo_product.ts",
+		"demo_productRoutes",
+		`path: "/demo-products"`,
+		`name: "demo_product.list"`,
+		`permissions: ["demo_product.read"]`,
 	)
 }
