@@ -131,3 +131,55 @@ Result: BF1-01 passed without acceptance retries. The SDK now has one validated,
 ### Commit
 
 `BF1-01: define public plugin datastore contract`
+
+## BF1-02 Register Plugin-Owned Schemas And Relational Namespaces
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Add the host-side schema ownership registry, deterministic relational namespace mapping, declared table and field allowlists, limits, isolation, and concurrency tests.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Namespace ownership | Pass | Every valid plugin ID maps deterministically to one opaque `skp_<hash>` namespace; cross-plugin resolution returns `forbidden` |
+| Physical names | Pass | Logical names are validated before mapping and the maximum table name produces a 63-character physical identifier |
+| Table allowlist | Pass | Only registered logical tables resolve; undeclared tables and unregistered plugins return `not_found` |
+| Field ownership | Pass | Plugin fields are validated and merged with immutable host-managed scope, version, and timestamp fields |
+| Reserved identifiers | Pass | Core, system database, host field, and reserved-prefix identifiers fail closed |
+| Schema limits | Pass | Table, field, primary-key, index-count, and index-width limits are enforced before registration |
+| Queryability | Pass | Indexes can reference only declared filterable or sortable fields; JSON and byte fields cannot become queryable |
+| Concurrency | Pass | Parallel registration and resolution for 32 plugins passes the Go race detector |
+| Defensive copies | Pass | Registration, snapshot, namespace resolution, and table resolution do not expose mutable registry state |
+| Lifecycle boundary | Pass | Unregister immediately closes table and namespace access; manifest and migration binding remains isolated to BF1-07 |
+| Current-only rule | Pass | No raw SQL, direct database handle, legacy namespace, dual registration path, or fallback storage was added |
+| Developer reference | Pass | The datastore contract documents schema ownership, host fields, limits, and the BF1-07 lifecycle boundary |
+
+The first focused run failed because the `unqueryable_index` fixture still marked its field as queryable. The fixture was corrected, duplicate-field and duplicate-index validation was tightened, and all focused and full gates passed on the retry.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/datastore ./pkg/pluginsdk -count=1
+go test -race ./internal/plugin/datastore -count=1
+go vet ./internal/plugin/datastore ./pkg/pluginsdk
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF1-02 passed after one acceptance retry. Plugins now have isolated schema ownership metadata ready for trusted query planning.
+
+### Impact Review
+
+- API/OpenAPI: no HTTP or public SDK route change; the registry is host-internal.
+- Permission/audit: host scope fields are reserved; trusted predicate injection is implemented in BF1-03 and mutation audit in BF1-04.
+- Migration/seed: no database DDL is executed; lifecycle and migration binding belongs to BF1-07.
+- Frontend/i18n: none.
+- Documentation: datastore contract, BF1 milestone status, Work Item status, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF1-02: register plugin datastore schemas`
