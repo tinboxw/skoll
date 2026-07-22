@@ -61,6 +61,12 @@ The host validates each `{{table:logical_name}}` binding against the candidate s
 
 Plugins never receive physical names, SQL connections, GORM objects, host credentials, or access to another plugin namespace.
 
+## Independent Process Example
+
+`plugins/datastore_e2e` is the current executable reference. Its backend imports only `pkg/pluginclient` and `pkg/pluginsdk`, starts from the environment provided by the managed-process launcher, and performs scoped queries and transactional mutations through `HostServices.DataStore`.
+
+The always-run bootstrap E2E builds and packages this plugin from source, installs and enables it, rejects a forged tenant scope, verifies restart durability, performs an explicit rollback and clean recreation, and verifies that drop uninstall removes the physical namespace and idempotency rows.
+
 ## Verification
 
 ```powershell

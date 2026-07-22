@@ -1,0 +1,29 @@
+id: datastore_e2e
+name: Datastore E2E
+version: 1.0.0
+api_version: v1
+service_base_url: http://127.0.0.1:18093
+service_health_url: http://127.0.0.1:18093/health
+data:
+  namespace: datastore_e2e
+  migration_version: v1.0.0
+  migration_directory: migrations
+  uninstall_policy: drop
+  rollback_policy: automatic
+api:
+  routes:
+    - method: POST
+      path: /v1/plugins/datastore_e2e/api/records
+      summary: Create a scoped record
+      permission: datastore_e2e.record.write
+      audit_action: datastore_e2e.record.create
+    - method: GET
+      path: /v1/plugins/datastore_e2e/api/records
+      summary: List scoped records
+      permission: datastore_e2e.record.read
+      audit_action: datastore_e2e.record.list
+    - method: GET
+      path: /v1/plugins/datastore_e2e/api/records/forged
+      summary: Prove cross-tenant scope rejection
+      permission: datastore_e2e.record.read
+      audit_action: datastore_e2e.record.scope_probe

@@ -437,3 +437,53 @@ Result: BF1-07 passed. Datastore schemas and records now follow plugin install, 
 ### Commit
 
 `BF1-07: bind datastore to plugin lifecycle`
+
+## BF1-08 Prove Plugin Datastore Lifecycle E2E
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Prove the public datastore and lifecycle contracts with an independent packaged plugin running as a real managed process.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Independent boundary | Pass | `plugins/datastore_e2e/backend` imports public `pkg/pluginclient` and `pkg/pluginsdk` contracts and contains no core plugin registration code |
+| Clean package | Pass | The test builds the plugin binary, packages source declarations and migrations, installs into an empty plugin root, and verifies every required artifact |
+| Real process | Pass | The managed-process launcher starts the packaged binary, provisions host credentials, and reaches its HTTP API over an ephemeral loopback address |
+| Scoped write and query | Pass | A JWT-bound employee creates and lists a record through a real host gateway, transaction service, SQLite adapter, and datastore registry |
+| Cross-scope rejection | Pass | The same process submits a forged tenant predicate and receives the public forbidden datastore response |
+| Restart durability | Pass | Disable stops the process and makes the endpoint unavailable; re-enable restarts it and preserves the scoped record |
+| Explicit rollback | Pass | Disabled rollback removes the active schema and physical table; re-enable reapplies migration and presents a clean datastore |
+| Drop uninstall | Pass | Uninstall stops the process, removes the physical table and schema registration, and deletes plugin idempotency rows |
+| Audit attribution | Pass | Successful plugin mutations publish the concrete `datastore.insert` action through the host audit contract |
+| Full quality gate | Pass | Focused real-process E2E, race, full Go tests, full vet, dependency-boundary inspection, and diff checks pass |
+| Current-only rule | Pass | The sample uses one current manifest, client, SDK, schema declaration, migration binding, and lifecycle path; no compatibility or fallback path exists |
+
+The first acceptance run exposed a missing empty map literal in the E2E fixture. The second completed the full lifecycle and showed that the audit contract records the concrete mutation action `datastore.insert`; the assertion was corrected from a non-contract generic action name. The third focused run passed.
+
+### Verification Commands
+
+```powershell
+go test ./plugins/datastore_e2e/backend ./internal/bootstrap -run TestIndependentPluginDataStoreProcessLifecycleE2E -count=1 -v
+go test -race ./internal/bootstrap -run TestIndependentPluginDataStoreProcessLifecycleE2E -count=1
+go test ./... -count=1
+go vet ./...
+git diff --check
+```
+
+Result: BF1-08 and milestone BF1 passed. A clean independent process now exercises the complete public datastore path through package, runtime, scope, transaction, restart, rollback, audit, and uninstall boundaries.
+
+### Impact Review
+
+- API/OpenAPI: no browser route change; the sample exposes only plugin-owned routes declared in its manifest.
+- Permission/audit: host-issued JWT identity remains authoritative, forged tenant scope fails closed, and successful mutations are audited.
+- Migration/seed: the sample uses one current `datastore.yaml` and logical migration bindings; the E2E creates and removes its isolated SQLite namespace.
+- Frontend/i18n: none.
+- Documentation: datastore reference, Work Item state, milestone state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts only.
+
+### Commit
+
+`BF1-08: prove datastore lifecycle end to end`

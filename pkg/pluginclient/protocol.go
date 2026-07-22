@@ -1,9 +1,10 @@
 package pluginclient
 
 const (
-	EnvironmentPluginID  = "SKOLL_PLUGIN_ID"
-	EnvironmentHostURL   = "SKOLL_PLUGIN_HOST_URL"
-	EnvironmentHostToken = "SKOLL_PLUGIN_HOST_TOKEN"
+	EnvironmentPluginID      = "SKOLL_PLUGIN_ID"
+	EnvironmentPluginAddress = "SKOLL_PLUGIN_ADDRESS"
+	EnvironmentHostURL       = "SKOLL_PLUGIN_HOST_URL"
+	EnvironmentHostToken     = "SKOLL_PLUGIN_HOST_TOKEN"
 
 	AuthorizationHeader = "Authorization"
 	UserTokenHeader     = "X-Skoll-User-Token"

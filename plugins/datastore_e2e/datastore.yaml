@@ -1,0 +1,16 @@
+version: 1
+tables:
+  - name: records
+    primary_key: [id]
+    fields:
+      - name: id
+        type: string
+        filterable: true
+        sortable: true
+      - name: name
+        type: string
+        mutable: true
+        filterable: true
+        sortable: true
+    indexes:
+      - fields: [name]
