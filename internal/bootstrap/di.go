@@ -243,6 +243,11 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		eventSubscriptions: make(map[string][]func()),
 		migrationHook:      plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
 	}
+	dataDirectories, err := plugin.NewPluginDataDirectories(filepath.Join("data", "plugins"))
+	if err != nil {
+		return nil, err
+	}
+	m.dataDirectories = dataDirectories
 	hostGateway, err := plugin.NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
 		deps := hostDeps
 		deps.PluginID = pluginID
@@ -254,7 +259,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 	}
 	m.hostGateway = hostGateway
 	m.serviceSupervisor = plugin.NewServiceSupervisor(
-		plugin.NewManagedProcessLauncher(healthChecker, 5*time.Second, hostGateway),
+		plugin.NewManagedProcessLauncher(healthChecker, 5*time.Second, hostGateway, dataDirectories),
 		pluginServiceAuditSink{auditSvc: auditSvc}, 5*time.Second, 5*time.Second,
 	)
 
@@ -371,6 +376,7 @@ type pluginManagerWithExtensions struct {
 	serviceSupervisor  *plugin.ServiceSupervisor
 	hostGateway        *plugin.HostGateway
 	migrationHook      *plugin.PluginMigrationHook
+	dataDirectories    *plugin.PluginDataDirectories
 	businessEvents     *event.BusinessEventBus
 	eventDelivery      plugin.EventDeliveryClient
 	eventSubscriptions map[string][]func()
@@ -953,6 +959,14 @@ func (m *pluginManagerWithExtensions) Uninstall(pluginID string) error {
 	}
 	if err := m.runPluginMigrations(context.Background(), info, plugin.PluginMigrationUninstall); err != nil {
 		return err
+	}
+	if info.DataManifest != nil {
+		if m.dataDirectories == nil {
+			return errors.New("plugin data directories are not configured")
+		}
+		if err := m.dataDirectories.Uninstall(pluginID, info.DataManifest.UninstallPolicy); err != nil {
+			return err
+		}
 	}
 	if managedByRuntime {
 		if err := m.Manager.Uninstall(pluginID); err != nil {

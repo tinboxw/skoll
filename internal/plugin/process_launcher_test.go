@@ -24,7 +24,8 @@ func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
 
 	checker := NewHTTPHealthChecker(200 * time.Millisecond)
 	credentials := &testProcessCredentialIssuer{}
-	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(checker, 20*time.Millisecond, credentials), nil, 5*time.Second, time.Second)
+	dataDirectories := mustPluginDataDirectories(t)
+	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(checker, 20*time.Millisecond, credentials, dataDirectories), nil, 5*time.Second, time.Second)
 	t.Cleanup(func() { _ = supervisor.Shutdown(context.Background()) })
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatalf("start managed backend: %v", err)
@@ -42,6 +43,9 @@ func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
 	}
 	if runtimeInfo["pluginId"] != pluginID || runtimeInfo["address"] != address || filepath.Clean(runtimeInfo["pluginDir"]) != filepath.Clean(pluginDir) {
 		t.Fatalf("managed runtime context = %+v", runtimeInfo)
+	}
+	if filepath.Clean(runtimeInfo["dataDir"]) != filepath.Join(dataDirectories.root, pluginID) || runtimeInfo["starts"] != "1" {
+		t.Fatalf("managed data context = %+v", runtimeInfo)
 	}
 	if runtimeInfo["secret"] != "" {
 		t.Fatalf("parent secret leaked into plugin process: %+v", runtimeInfo)
@@ -61,6 +65,18 @@ func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatalf("restart managed backend: %v", err)
 	}
+	response, err = http.Get(info.ServiceBaseURL + "/runtime")
+	if err != nil {
+		t.Fatalf("read restarted managed runtime: %v", err)
+	}
+	defer response.Body.Close()
+	runtimeInfo = map[string]string{}
+	if err := json.NewDecoder(response.Body).Decode(&runtimeInfo); err != nil {
+		t.Fatal(err)
+	}
+	if runtimeInfo["starts"] != "2" {
+		t.Fatalf("plugin-owned persistence did not survive restart: %+v", runtimeInfo)
+	}
 	if err := supervisor.Stop(context.Background(), pluginID); err != nil {
 		t.Fatalf("stop managed backend: %v", err)
 	}
@@ -72,7 +88,7 @@ func TestManagedProcessLauncherReportsCrash(t *testing.T) {
 	const pluginID = "managed_crash"
 	address := reserveManagedProcessAddress(t)
 	info := managedTestInfo(pluginID, buildManagedTestBackend(t, pluginID), address)
-	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(NewHTTPHealthChecker(200*time.Millisecond), 20*time.Millisecond, &testProcessCredentialIssuer{}), nil, 5*time.Second, time.Second)
+	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(NewHTTPHealthChecker(200*time.Millisecond), 20*time.Millisecond, &testProcessCredentialIssuer{}, mustPluginDataDirectories(t)), nil, 5*time.Second, time.Second)
 	t.Cleanup(func() { _ = supervisor.Shutdown(context.Background()) })
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatal(err)
@@ -86,20 +102,16 @@ func TestManagedProcessLauncherReportsCrash(t *testing.T) {
 }
 
 func TestManagedProcessLauncherRejectsMissingEntryAndRemoteService(t *testing.T) {
-	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), time.Millisecond, &testProcessCredentialIssuer{})
-	missing := Info{
-		ID: "missing", Source: t.TempDir(),
-		ServiceBaseURL: "http://127.0.0.1:19090", ServiceHealthURL: "http://127.0.0.1:19090/health",
-	}
+	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), time.Millisecond, &testProcessCredentialIssuer{}, mustPluginDataDirectories(t))
+	missing := managedTestInfo("missing", t.TempDir(), "127.0.0.1:19090")
 	if _, err := launcher.Start(context.Background(), missing); err == nil || !strings.Contains(err.Error(), "backend entry") {
 		t.Fatalf("missing backend error = %v", err)
 	}
 
 	pluginDir := buildManagedTestBackend(t, "remote")
-	remote := Info{
-		ID: "remote", Source: pluginDir,
-		ServiceBaseURL: "https://plugins.example.com", ServiceHealthURL: "https://plugins.example.com/health",
-	}
+	remote := managedTestInfo("remote", pluginDir, "127.0.0.1:19090")
+	remote.ServiceBaseURL = "https://plugins.example.com"
+	remote.ServiceHealthURL = "https://plugins.example.com/health"
 	if _, err := launcher.Start(context.Background(), remote); err == nil || !strings.Contains(err.Error(), "loopback") {
 		t.Fatalf("remote backend error = %v", err)
 	}
@@ -119,15 +131,24 @@ import (
   "net/http"
   "os"
   "os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
   "sync/atomic"
   "syscall"
 )
 func main() {
+	dataDir := os.Getenv("SKOLL_PLUGIN_DATA_DIR")
+	startsPath := filepath.Join(dataDir, "starts")
+	starts := 0
+	if raw, err := os.ReadFile(startsPath); err == nil { starts, _ = strconv.Atoi(strings.TrimSpace(string(raw))) }
+	starts++
+	_ = os.WriteFile(startsPath, []byte(strconv.Itoa(starts)), 0600)
   var healthy atomic.Bool
   healthy.Store(true)
   mux := http.NewServeMux()
   mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) { if !healthy.Load() { http.Error(w, "unhealthy", http.StatusServiceUnavailable); return }; w.WriteHeader(http.StatusNoContent) })
-  mux.HandleFunc("GET /runtime", func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(map[string]string{"pluginId": os.Getenv("SKOLL_PLUGIN_ID"), "address": os.Getenv("SKOLL_PLUGIN_ADDRESS"), "pluginDir": os.Getenv("SKOLL_PLUGIN_DIR"), "hostUrl": os.Getenv("SKOLL_PLUGIN_HOST_URL"), "hostToken": os.Getenv("SKOLL_PLUGIN_HOST_TOKEN"), "secret": os.Getenv("SKOLL_TEST_SECRET")}) })
+  mux.HandleFunc("GET /runtime", func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(map[string]string{"pluginId": os.Getenv("SKOLL_PLUGIN_ID"), "address": os.Getenv("SKOLL_PLUGIN_ADDRESS"), "pluginDir": os.Getenv("SKOLL_PLUGIN_DIR"), "dataDir": dataDir, "starts": strconv.Itoa(starts), "hostUrl": os.Getenv("SKOLL_PLUGIN_HOST_URL"), "hostToken": os.Getenv("SKOLL_PLUGIN_HOST_TOKEN"), "secret": os.Getenv("SKOLL_TEST_SECRET")}) })
   mux.HandleFunc("POST /unhealthy", func(w http.ResponseWriter, _ *http.Request) { healthy.Store(false); w.WriteHeader(http.StatusNoContent) })
   mux.HandleFunc("POST /crash", func(http.ResponseWriter, *http.Request) { os.Exit(23) })
   server := &http.Server{Addr: os.Getenv("SKOLL_PLUGIN_ADDRESS"), Handler: mux}
@@ -160,7 +181,19 @@ func (i *testProcessCredentialIssuer) Revoke(string) { i.revoked.Add(1) }
 
 func managedTestInfo(pluginID string, pluginDir string, address string) Info {
 	base := "http://" + address
-	return Info{ID: pluginID, Source: pluginDir, ServiceBaseURL: base, ServiceHealthURL: base + "/health"}
+	return Info{
+		ID: pluginID, Source: pluginDir, ServiceBaseURL: base, ServiceHealthURL: base + "/health",
+		DataManifest: &DataManifest{Namespace: pluginID, UninstallPolicy: DataUninstallDrop, RollbackPolicy: DataRollbackAutomatic},
+	}
+}
+
+func mustPluginDataDirectories(t *testing.T) *PluginDataDirectories {
+	t.Helper()
+	directories, err := NewPluginDataDirectories(filepath.Join(t.TempDir(), "plugin-data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return directories
 }
 
 func reserveManagedProcessAddress(t *testing.T) string {

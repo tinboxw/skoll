@@ -2034,3 +2034,56 @@ Result: PR5-03 passed after five documented retries. A packaged independent plug
 ### Commit
 
 `PR5-03: publish host services to plugin processes`
+
+## PR5-04 Bind Independent Plugin Data To Lifecycle Policy
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> (Review -> Failed -> Doing) x3 -> Review -> Done`
+- Scope: Give every managed plugin one stable host-owned file-data root, require explicit current data policies, and bind restart, upgrade, migration, and uninstall behavior to that root and the existing transactional migration ledger.
+
+### Retry Records
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Focused compile and process gate | The new strict launcher exposed three stale test connections: negative fixtures lacked data declarations, generator E2E used an undefined root, and a bootstrap test reached an unexported field | Give every managed-process fixture the current explicit data contract, derive test roots from public return values, and rerun all focused packages |
+| 2 | Runtime milestone gate | A manually assembled milestone manager had a Data Manifest but no data-directory dependency, so uninstall failed closed | Inject `PluginDataDirectories` into the milestone composition; keep production and tests strict instead of adding an optional runtime path |
+| 3 | Race gate execution | The combined plugin and bootstrap race command exceeded the 120-second runner budget without a test or race failure | Split the gate by package, raise the bounded execution budget, and require both independent commands to complete successfully |
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Stable identity root | Pass | `PluginDataDirectories` resolves one real directory below the host root by validated plugin ID; package source paths do not participate in the data path |
+| Path isolation | Pass | Invalid identities, escapes, and symlink/non-directory active paths fail closed; plugin data cannot resolve outside the managed root |
+| Process contract | Pass | Managed processes require an explicit Data Manifest and receive `SKOLL_PLUGIN_DATA_DIR` in the bounded environment before credentials are issued |
+| Restart persistence | Pass | The real managed-process fixture increments a file-backed start counter; the second process reads the same directory and reports start 2 |
+| Upgrade persistence | Pass | Successful metadata/migration upgrade retains a plugin-owned marker; an atomic failed upgrade leaves both the previous schema and marker unchanged |
+| Migration atomicity | Pass | A multi-step failed install and failed upgrade leak neither schema nor ledger changes and keep the plugin closed |
+| Explicit policy | Pass | `data.uninstall_policy` and `data.rollback_policy` are mandatory; loader defaults were removed, so no implicit retain/manual behavior remains |
+| Retain policy | Pass | Active file data, plugin tables, and migration ledger remain associated with the plugin ID after uninstall |
+| Archive policy | Pass | Active file data moves to `.archive/<plugin-id>/<timestamp>` while declared SQL data and ledger remain retained |
+| Drop policy | Pass | Down migrations and ledger deletion complete after the process stops, then the active managed data directory is removed with no remaining archive |
+| No orphaned process | Pass | Uninstall still stops supervised and in-process backends before migration or file-data policy execution |
+| Current-only rule | Pass | Launcher construction requires data directories, managed plugins require explicit policies, and no legacy directory, optional dependency, compatibility constructor, or package-data fallback exists |
+| Documentation | Pass | Chinese and English process contracts identify the stable data variable, package/data boundary, required policies, and exact uninstall behavior |
+
+### Verification Commands
+
+```powershell
+go vet ./internal/plugin ./internal/bootstrap ./internal/service/generator
+go test ./internal/plugin ./internal/bootstrap ./internal/service/generator -count=1
+go test -race ./internal/plugin -run "Test(PluginDataDirectories|ManagedProcessLauncher)" -count=1
+go test -race ./internal/bootstrap -run "Test(PluginManager.*Migration|PluginRuntimeMilestone)" -count=1
+go test ./... -count=1
+rg -n "NewManagedProcessLauncher\(" -g "*.go"
+rg -n 'if data\.(UninstallPolicy|RollbackPolicy) == ""' internal/plugin -g "*.go"
+rg -n "SKOLL_PLUGIN_DATA_DIR" internal docs/development -g "*.go" -g "*.md"
+git diff --check
+```
+
+Result: PR5-04 passed after three documented retries. Independent plugin file persistence is now isolated from packages, stable across restart and upgrade, and governed by the same explicit current Manifest policy used by transactional SQL lifecycle operations.
+
+### Commit
+
+`PR5-04: bind plugin data to lifecycle policy`

@@ -77,6 +77,10 @@ func TestPluginRuntimeMilestoneEndToEnd(t *testing.T) {
 		time.Second,
 		time.Second,
 	)
+	dataDirectories, err := plugin.NewPluginDataDirectories(filepath.Join(t.TempDir(), "plugin-data"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	manager := &pluginManagerWithExtensions{
 		Manager:            plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:       map[string]plugin.Info{},
@@ -88,6 +92,7 @@ func TestPluginRuntimeMilestoneEndToEnd(t *testing.T) {
 		healthTTL:          time.Second,
 		serviceSupervisor:  supervisor,
 		migrationHook:      plugin.NewPluginMigrationHook(gormrepo.NewPluginMigrationStore(db), nil),
+		dataDirectories:    dataDirectories,
 		businessEvents:     event.NewBusinessEventBus(nil),
 		eventDelivery:      plugin.NewHTTPEventDeliveryClient(nil, time.Second),
 		eventSubscriptions: map[string][]func(){},

@@ -269,6 +269,18 @@ func TestInfoValidateManifestDataContract(t *testing.T) {
 		t.Fatalf("expected valid data contract, got %v", err)
 	}
 
+	missingUninstallPolicy := valid
+	missingUninstallPolicy.DataManifest = &DataManifest{Namespace: "reports", RollbackPolicy: DataRollbackManual}
+	if err := missingUninstallPolicy.ValidateManifest(); err == nil {
+		t.Fatal("expected data manifest without uninstall policy to fail")
+	}
+
+	missingRollbackPolicy := valid
+	missingRollbackPolicy.DataManifest = &DataManifest{Namespace: "reports", UninstallPolicy: DataUninstallRetain}
+	if err := missingRollbackPolicy.ValidateManifest(); err == nil {
+		t.Fatal("expected data manifest without rollback policy to fail")
+	}
+
 	reservedNamespace := valid
 	reservedNamespace.DataManifest = &DataManifest{Namespace: "sk_plugin", Tables: []DataTable{{Name: "sk_plugin_items", Columns: []string{"id"}}}}
 	if err := reservedNamespace.ValidateManifest(); err == nil {

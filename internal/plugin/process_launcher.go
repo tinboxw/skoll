@@ -23,22 +23,30 @@ type ManagedProcessLauncher struct {
 	checker      HealthChecker
 	pollInterval time.Duration
 	credentials  ProcessCredentialIssuer
+	data         ProcessDataDirectory
 }
 
-func NewManagedProcessLauncher(checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer) *ManagedProcessLauncher {
+func NewManagedProcessLauncher(checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer, data ProcessDataDirectory) *ManagedProcessLauncher {
 	if pollInterval <= 0 {
 		pollInterval = 100 * time.Millisecond
 	}
-	return &ManagedProcessLauncher{checker: checker, pollInterval: pollInterval, credentials: credentials}
+	return &ManagedProcessLauncher{checker: checker, pollInterval: pollInterval, credentials: credentials, data: data}
 }
 
 func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceHandle, error) {
-	if l == nil || l.checker == nil || l.credentials == nil {
-		return nil, errors.New("plugin health checker and credential issuer are required")
+	if l == nil || l.checker == nil || l.credentials == nil || l.data == nil {
+		return nil, errors.New("plugin health checker, credential issuer, and data directories are required")
+	}
+	if info.DataManifest == nil || info.DataManifest.UninstallPolicy == "" || info.DataManifest.RollbackPolicy == "" {
+		return nil, errors.New("managed plugin requires an explicit data lifecycle policy")
 	}
 	entry, pluginDir, address, err := resolveManagedProcess(info)
 	if err != nil {
 		return nil, err
+	}
+	dataDir, err := l.data.Prepare(info.ID)
+	if err != nil {
+		return nil, fmt.Errorf("prepare plugin data directory: %w", err)
 	}
 	credential, err := l.credentials.Issue(info.ID)
 	if err != nil {
@@ -56,7 +64,7 @@ func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceH
 	}()
 	command := exec.Command(entry)
 	command.Dir = pluginDir
-	command.Env = managedProcessEnvironment(info.ID, address, pluginDir, credential)
+	command.Env = managedProcessEnvironment(info.ID, address, pluginDir, dataDir, credential)
 	command.Stdin = nil
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
@@ -164,9 +172,9 @@ func managedBackendRelativePath(pluginID string) string {
 	return filepath.ToSlash(filepath.Join(managedBackendDirectory, name))
 }
 
-func managedProcessEnvironment(pluginID string, address string, pluginDir string, credential ProcessCredential) []string {
+func managedProcessEnvironment(pluginID string, address string, pluginDir string, dataDir string, credential ProcessCredential) []string {
 	allowed := []string{"PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "HOME", "USERPROFILE"}
-	environment := make([]string, 0, len(allowed)+5)
+	environment := make([]string, 0, len(allowed)+6)
 	for _, key := range allowed {
 		if value, ok := os.LookupEnv(key); ok && strings.TrimSpace(value) != "" {
 			environment = append(environment, key+"="+value)
@@ -176,6 +184,7 @@ func managedProcessEnvironment(pluginID string, address string, pluginDir string
 		"SKOLL_PLUGIN_ID="+strings.TrimSpace(pluginID),
 		"SKOLL_PLUGIN_ADDRESS="+strings.TrimSpace(address),
 		"SKOLL_PLUGIN_DIR="+filepath.Clean(pluginDir),
+		"SKOLL_PLUGIN_DATA_DIR="+filepath.Clean(dataDir),
 		"SKOLL_PLUGIN_HOST_URL="+strings.TrimSpace(credential.HostURL),
 		"SKOLL_PLUGIN_HOST_TOKEN="+strings.TrimSpace(credential.Token),
 	)

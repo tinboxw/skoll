@@ -895,12 +895,6 @@ func normalizeDataManifest(info *Info) {
 	if data.MigrationDirectory == "" {
 		data.MigrationDirectory = "migrations"
 	}
-	if data.UninstallPolicy == "" {
-		data.UninstallPolicy = DataUninstallRetain
-	}
-	if data.RollbackPolicy == "" {
-		data.RollbackPolicy = DataRollbackManual
-	}
 	for i := range data.Tables {
 		table := &data.Tables[i]
 		table.Name = normalizeDataIdentifier(table.Name)

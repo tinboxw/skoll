@@ -140,7 +140,11 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 	if err := manager.Enable(info.ID); err != nil {
 		t.Fatalf("enable generated plugin: %v", err)
 	}
-	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewManagedProcessLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond, generatedCredentialIssuer{}), nil, 3*time.Second, time.Second)
+	dataDirectories, err := pluginruntime.NewPluginDataDirectories(filepath.Join(filepath.Dir(pluginDir), "plugin-data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewManagedProcessLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond, generatedCredentialIssuer{}, dataDirectories), nil, 3*time.Second, time.Second)
 	if err := supervisor.Start(context.Background(), mustGeneratedPluginInfo(t, manager, info.ID)); err != nil {
 		t.Fatalf("start and supervise generated backend: %v", err)
 	}

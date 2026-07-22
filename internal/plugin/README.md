@@ -26,7 +26,7 @@
 - 已发布独立插件进程的完整 Host SDK；`pkg/pluginclient` 通过生命周期凭证提供八类 `pluginsdk.HostServices`，开发者契约见 `docs/development/plugin-host-services.md`。
 
 ## Data Manifest
-业务插件如果需要自有数据表，必须在 `plugin.yaml` 中声明 `data:` 段。表名必须位于插件 namespace 下，不能使用 `sk_` 系统前缀；安装预检会展示表、索引、migration 与卸载策略风险。
+业务插件如果需要自有数据表或文件，必须在 `plugin.yaml` 中声明 `data:` 段，并显式声明卸载与回滚策略，不存在隐式默认值。表名必须位于插件 namespace 下，不能使用 `sk_` 系统前缀；安装预检会展示表、索引、migration 与卸载策略风险。
 
 ```yaml
 data:
@@ -45,7 +45,7 @@ data:
 
 迁移文件必须成对命名为 `{version}_{name}.up.sql` 和 `{version}_{name}.down.sql`。插件启用与升级会在服务启动、路由发布之前执行全部 pending migration，并在主数据库的 `sk_plugin_migrations` 账本中记录版本与 SHA-256；SQL 或账本任一步失败都会回滚本批次并阻止插件启用，重复执行不会再次运行已入账版本。已执行的 up 文件禁止修改，checksum 漂移会直接阻断生命周期。
 
-当前卸载策略为 `retain`、`archive`、`drop`：`retain` 与 `archive` 保留插件数据和迁移账本，`drop` 按版本倒序执行全部 down migration 并删除账本记录。回滚策略为 `manual`、`automatic`、`none`，自动 downgrade 仅允许 `automatic`。`drop` 会被安装预检标记为高风险/破坏性策略。真实迁移只通过已配置主数据库的插件生命周期执行；CLI `plan` 仅做静态预览，不提供脱离事务账本的 apply/rollback 路径。
+当前卸载策略为 `retain`、`archive`、`drop`：`retain` 保留活动文件目录、数据表和迁移账本；`archive` 将活动文件移入宿主管理的 `.archive/<plugin-id>/`，并保留数据表和账本；`drop` 按版本倒序执行全部 down migration、删除账本和活动文件目录。回滚策略为 `manual`、`automatic`、`none`，自动 downgrade 仅允许 `automatic`。`drop` 会被安装预检标记为高风险/破坏性策略。真实迁移只通过已配置主数据库的插件生命周期执行；CLI `plan` 仅做静态预览，不提供脱离事务账本的 apply/rollback 路径。独立插件自有文件只能写入 `SKOLL_PLUGIN_DATA_DIR`，该目录不属于安装包，跨进程重启和包升级保持稳定。
 
 ## API Contract
 业务插件如果暴露后端 API，必须在 `api.routes` 中声明当前契约。路径必须位于 `/v1/plugins/{pluginId}/api/` 下，每条 route 必须绑定权限；审计动作使用 `module.resource.action` 格式。安装预检会展示 route、permission、audit action 和 OpenAPI path 预览。

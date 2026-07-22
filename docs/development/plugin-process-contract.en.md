@@ -24,10 +24,13 @@ The child receives only the operating-system path, temporary-directory, and user
 - `SKOLL_PLUGIN_ID`: validated Manifest identity;
 - `SKOLL_PLUGIN_ADDRESS`: service listen address;
 - `SKOLL_PLUGIN_DIR`: installed plugin root.
+- `SKOLL_PLUGIN_DATA_DIR`: stable host-owned persistence root for this plugin;
 - `SKOLL_PLUGIN_HOST_URL`: loopback-only host-service v1 endpoint;
 - `SKOLL_PLUGIN_HOST_TOKEN`: credential valid only for this managed process lifecycle.
 
 JWT secrets, database credentials, and unrelated `SKOLL_*` values are not inherited. Host capabilities are consumed through `pkg/pluginclient`; the lifecycle token is revoked on failed start, crash, disable, uninstall, or shutdown and is never reused.
+
+The package root is read-only application material and may change during upgrade. A plugin must store its files only below `SKOLL_PLUGIN_DATA_DIR`; that directory is keyed by validated plugin identity and survives process restart and package upgrade. Every managed plugin must declare `data.uninstall_policy` and `data.rollback_policy`; no implicit policy is selected.
 
 ## Lifecycle
 
@@ -35,7 +38,7 @@ JWT secrets, database credentials, and unrelated `SKOLL_*` values are not inheri
 2. Enable runs current migrations, starts the backend, and waits for readiness within the lifecycle budget.
 3. Process exit or health failure moves the service to Failed and closes business traffic.
 4. Disable closes routes and subscriptions before stopping the process.
-5. Uninstall stops the process before applying the one declared data policy.
+5. Uninstall stops the process before applying the one declared data policy to SQL migrations and the managed data directory: `retain` keeps the active directory, `archive` moves it below `.archive/<plugin-id>/`, and `drop` removes it.
 6. Host shutdown stops every managed plugin process.
 
 Windows terminates the process directly. Unix sends an interrupt first and force-stops after the timeout. Lifecycle audit records stable state codes and never records the child environment.

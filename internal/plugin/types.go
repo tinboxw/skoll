@@ -543,12 +543,12 @@ func (i Info) ValidateDataManifest() error {
 		return ErrPluginManifestBroken
 	}
 	switch data.UninstallPolicy {
-	case "", DataUninstallRetain, DataUninstallDrop, DataUninstallArchive:
+	case DataUninstallRetain, DataUninstallDrop, DataUninstallArchive:
 	default:
 		return ErrPluginManifestBroken
 	}
 	switch data.RollbackPolicy {
-	case "", DataRollbackManual, DataRollbackAutomatic, DataRollbackNone:
+	case DataRollbackManual, DataRollbackAutomatic, DataRollbackNone:
 	default:
 		return ErrPluginManifestBroken
 	}

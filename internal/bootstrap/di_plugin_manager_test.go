@@ -145,7 +145,7 @@ func TestPluginManagerMigrationFailureBlocksEnable(t *testing.T) {
 		"002_fail.up.sql":     "INSERT INTO missing_migration_table(id) VALUES (1);",
 		"002_fail.down.sql":   "DELETE FROM missing_migration_table WHERE id = 1;",
 	})
-	manager := newMigrationTestPluginManager(db)
+	manager := newMigrationTestPluginManager(t, db)
 	if _, err := manager.Install(pluginDir); err != nil {
 		t.Fatalf("install plugin metadata: %v", err)
 	}
@@ -183,12 +183,19 @@ func TestPluginManagerUninstallHonorsDataPolicy(t *testing.T) {
 				"001_create.up.sql":   "CREATE TABLE " + table + " (id INTEGER PRIMARY KEY);",
 				"001_create.down.sql": "DROP TABLE " + table + ";",
 			})
-			manager := newMigrationTestPluginManager(db)
+			manager := newMigrationTestPluginManager(t, db)
 			if _, err := manager.Install(pluginDir); err != nil {
 				t.Fatalf("install plugin metadata: %v", err)
 			}
 			if err := manager.Enable(pluginID); err != nil {
 				t.Fatalf("enable plugin: %v", err)
+			}
+			dataDir, err := manager.dataDirectories.Prepare(pluginID)
+			if err != nil {
+				t.Fatalf("prepare plugin data: %v", err)
+			}
+			if err := os.WriteFile(filepath.Join(dataDir, "owned-data"), []byte(pluginID), 0o600); err != nil {
+				t.Fatalf("write plugin data: %v", err)
 			}
 			if err := manager.Uninstall(pluginID); err != nil {
 				t.Fatalf("uninstall plugin: %v", err)
@@ -203,6 +210,18 @@ func TestPluginManagerUninstallHonorsDataPolicy(t *testing.T) {
 			if len(records) != tc.wantLedger {
 				t.Fatalf("ledger records=%d want=%d", len(records), tc.wantLedger)
 			}
+			dataRoot := filepath.Dir(dataDir)
+			_, activeErr := os.Stat(filepath.Join(dataRoot, pluginID, "owned-data"))
+			if activeExists := activeErr == nil; activeExists != (tc.policy == plugin.DataUninstallRetain) {
+				t.Fatalf("active plugin data exists=%v policy=%s", activeExists, tc.policy)
+			}
+			archived, err := filepath.Glob(filepath.Join(dataRoot, ".archive", pluginID, "*", "owned-data"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if archivedExists := len(archived) == 1; archivedExists != (tc.policy == plugin.DataUninstallArchive) {
+				t.Fatalf("archived plugin data exists=%v policy=%s paths=%v", archivedExists, tc.policy, archived)
+			}
 		})
 	}
 }
@@ -213,12 +232,20 @@ func TestPluginManagerReloadAppliesUpgradeAndDisablesOnMigrationFailure(t *testi
 		"001_create.up.sql":   "CREATE TABLE upgrade_migration_items (id INTEGER PRIMARY KEY);",
 		"001_create.down.sql": "DROP TABLE upgrade_migration_items;",
 	})
-	manager := newMigrationTestPluginManager(db)
+	manager := newMigrationTestPluginManager(t, db)
 	if _, err := manager.Install(pluginDir); err != nil {
 		t.Fatalf("install plugin metadata: %v", err)
 	}
 	if err := manager.Enable("upgrade-migration"); err != nil {
 		t.Fatalf("enable plugin: %v", err)
+	}
+	dataDir, err := manager.dataDirectories.Prepare("upgrade-migration")
+	if err != nil {
+		t.Fatalf("prepare plugin data: %v", err)
+	}
+	markerPath := filepath.Join(dataDir, "upgrade-marker")
+	if err := os.WriteFile(markerPath, []byte("stable"), 0o600); err != nil {
+		t.Fatalf("write plugin data marker: %v", err)
 	}
 
 	writeLifecycleMigrationFile(t, pluginDir, "002_add_name.up.sql", "ALTER TABLE upgrade_migration_items ADD COLUMN name TEXT;")
@@ -229,6 +256,9 @@ func TestPluginManagerReloadAppliesUpgradeAndDisablesOnMigrationFailure(t *testi
 	}
 	if !db.Migrator().HasColumn("upgrade_migration_items", "name") {
 		t.Fatal("successful plugin upgrade did not apply pending schema")
+	}
+	if raw, err := os.ReadFile(markerPath); err != nil || string(raw) != "stable" {
+		t.Fatalf("plugin data did not survive upgrade: value=%q err=%v", raw, err)
 	}
 
 	writeLifecycleMigrationFile(t, pluginDir, "003_add_leaked.up.sql", "ALTER TABLE upgrade_migration_items ADD COLUMN leaked TEXT;")
@@ -242,6 +272,9 @@ func TestPluginManagerReloadAppliesUpgradeAndDisablesOnMigrationFailure(t *testi
 	if db.Migrator().HasColumn("upgrade_migration_items", "leaked") {
 		t.Fatal("failed upgrade leaked schema from the pending transaction")
 	}
+	if raw, err := os.ReadFile(markerPath); err != nil || string(raw) != "stable" {
+		t.Fatalf("failed upgrade changed plugin-owned data: value=%q err=%v", raw, err)
+	}
 	info, err := manager.Get("upgrade-migration")
 	if err != nil {
 		t.Fatalf("get plugin after failed upgrade: %v", err)
@@ -251,7 +284,12 @@ func TestPluginManagerReloadAppliesUpgradeAndDisablesOnMigrationFailure(t *testi
 	}
 }
 
-func newMigrationTestPluginManager(db *gorm.DB) *pluginManagerWithExtensions {
+func newMigrationTestPluginManager(t *testing.T, db *gorm.DB) *pluginManagerWithExtensions {
+	t.Helper()
+	dataDirectories, err := plugin.NewPluginDataDirectories(filepath.Join(t.TempDir(), "plugin-data"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &pluginManagerWithExtensions{
 		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:     map[string]plugin.Info{},
@@ -259,6 +297,7 @@ func newMigrationTestPluginManager(db *gorm.DB) *pluginManagerWithExtensions {
 		routeHandlers:    map[string]http.HandlerFunc{},
 		routePermissions: mustEmptyRoutePermissionRegistry(),
 		migrationHook:    plugin.NewPluginMigrationHook(gormrepo.NewPluginMigrationStore(db), nil),
+		dataDirectories:  dataDirectories,
 	}
 }
 

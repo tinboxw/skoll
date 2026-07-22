@@ -35,10 +35,13 @@
 | `SKOLL_PLUGIN_ID` | 已校验的 Manifest 插件 ID |
 | `SKOLL_PLUGIN_ADDRESS` | 插件服务监听地址 |
 | `SKOLL_PLUGIN_DIR` | 插件安装根目录 |
+| `SKOLL_PLUGIN_DATA_DIR` | 按插件 ID 隔离、跨重启与升级稳定的宿主管理数据目录 |
 | `SKOLL_PLUGIN_HOST_URL` | 仅回环访问的宿主服务 v1 地址 |
 | `SKOLL_PLUGIN_HOST_TOKEN` | 仅当前受管进程生命周期有效的宿主凭证 |
 
 数据库凭据、JWT 密钥、宿主密钥及其他 `SKOLL_*` 变量不会透传。独立插件需要的宿主能力由公开插件协议提供，不通过进程环境绕过。
+
+插件安装目录只保存随版本发布的程序材料，升级时可以变化。插件自有文件必须仅写入 `SKOLL_PLUGIN_DATA_DIR`。受管插件必须在 `data` 段显式声明 `uninstall_policy` 和 `rollback_policy`，宿主不会选择隐式默认策略。
 
 ## 生命周期
 
@@ -46,7 +49,7 @@
 2. `Enable` 先执行当前迁移，再启动后端并等待健康检查；预算内未就绪则启用失败。
 3. 进入 Ready 后，宿主持续检查进程退出与健康状态。崩溃或探活失败会进入 Failed 并关闭业务流量。
 4. `Disable` 先关闭业务路由和事件订阅，再停止进程。
-5. `Uninstall` 确认进程已停止后执行声明的数据策略并移除运行时注册。
+5. `Uninstall` 确认进程已停止后，对迁移和受管数据目录执行同一声明策略：`retain` 保留活动目录，`archive` 移入 `.archive/<plugin-id>/`，`drop` 删除目录。
 6. 宿主关闭时停止全部受管插件进程，不留下后台进程。
 
 Windows 使用终止进程完成停止；Unix 先发送中断信号，超时后强制终止。状态转换通过现有插件服务审计记录稳定 code，不记录进程环境或底层敏感错误。
