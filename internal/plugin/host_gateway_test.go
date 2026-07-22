@@ -90,6 +90,12 @@ func (gatewayDocumentNumberFailure) Preview(context.Context, pluginsdk.DocumentN
 
 type gatewayDocuments struct{}
 
+func gatewayDocumentActor() pluginsdk.WorkflowActor {
+	return pluginsdk.WorkflowActor{ID: "user-7", Name: "User Seven"}
+}
+
+func gatewayDocumentTime() time.Time { return time.Date(2026, time.July, 22, 8, 0, 0, 0, time.UTC) }
+
 func (gatewayDocuments) Submit(context.Context, pluginsdk.DocumentWorkflowSubmitInput) (pluginsdk.DocumentWorkflowResult, error) {
 	return pluginsdk.DocumentWorkflowResult{}, nil
 }
@@ -110,6 +116,52 @@ func (gatewayDocuments) Act(context.Context, pluginsdk.DocumentWorkflowActionInp
 }
 func (gatewayDocuments) Get(context.Context, pluginsdk.DocumentWorkflowGetInput) (pluginsdk.DocumentWorkflowResult, error) {
 	return pluginsdk.DocumentWorkflowResult{}, nil
+}
+func (gatewayDocuments) AddAttachment(_ context.Context, input pluginsdk.DocumentAttachmentAddInput) (pluginsdk.DocumentAttachmentResult, error) {
+	return pluginsdk.DocumentAttachmentResult{
+		Attachment: pluginsdk.DocumentAttachment{ID: input.AttachmentID, DocumentID: input.DocumentID, File: pluginsdk.FileObject{ID: input.FileID}, AddedBy: gatewayDocumentActor(), AddedAt: gatewayDocumentTime(), AddedSequence: 2},
+		Event:      pluginsdk.DocumentTimelineEvent{ID: "attachment-added:" + input.AttachmentID, Sequence: 2, DocumentID: input.DocumentID, Kind: pluginsdk.DocumentTimelineAttachmentAdded, AttachmentID: input.AttachmentID, FileID: input.FileID, Actor: gatewayDocumentActor(), OccurredAt: gatewayDocumentTime()},
+	}, nil
+}
+func (gatewayDocuments) RemoveAttachment(_ context.Context, input pluginsdk.DocumentAttachmentRemoveInput) (pluginsdk.DocumentAttachmentResult, error) {
+	removedAt, removedSequence := gatewayDocumentTime(), int64(4)
+	return pluginsdk.DocumentAttachmentResult{
+		Attachment: pluginsdk.DocumentAttachment{ID: input.AttachmentID, DocumentID: input.DocumentID, File: pluginsdk.FileObject{ID: "file-1"}, AddedBy: gatewayDocumentActor(), AddedAt: gatewayDocumentTime(), AddedSequence: 2, RemovedBy: gatewayDocumentActor(), RemovedAt: &removedAt, RemovedSequence: &removedSequence},
+		Event:      pluginsdk.DocumentTimelineEvent{ID: "attachment-removed:" + input.AttachmentID, Sequence: 4, DocumentID: input.DocumentID, Kind: pluginsdk.DocumentTimelineAttachmentRemoved, AttachmentID: input.AttachmentID, FileID: "file-1", Actor: gatewayDocumentActor(), OccurredAt: removedAt},
+	}, nil
+}
+func (gatewayDocuments) ListAttachments(_ context.Context, input pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentAttachment, error) {
+	return []pluginsdk.DocumentAttachment{{ID: "attachment-1", DocumentID: input.DocumentID, File: pluginsdk.FileObject{ID: "file-1"}, AddedBy: gatewayDocumentActor(), AddedAt: gatewayDocumentTime(), AddedSequence: 2}}, nil
+}
+func (gatewayDocuments) AddComment(_ context.Context, input pluginsdk.DocumentCommentAddInput) (pluginsdk.DocumentCommentResult, error) {
+	return pluginsdk.DocumentCommentResult{
+		Comment: pluginsdk.DocumentComment{ID: input.CommentID, DocumentID: input.DocumentID, Body: input.Body, Author: gatewayDocumentActor(), CreatedAt: gatewayDocumentTime(), Sequence: 3},
+		Event:   pluginsdk.DocumentTimelineEvent{ID: "comment-added:" + input.CommentID, Sequence: 3, DocumentID: input.DocumentID, Kind: pluginsdk.DocumentTimelineCommentAdded, CommentID: input.CommentID, Actor: gatewayDocumentActor(), OccurredAt: gatewayDocumentTime()},
+	}, nil
+}
+func (gatewayDocuments) ListComments(_ context.Context, input pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentComment, error) {
+	return []pluginsdk.DocumentComment{{ID: "comment-1", DocumentID: input.DocumentID, Body: "Gateway comment", Author: gatewayDocumentActor(), CreatedAt: gatewayDocumentTime(), Sequence: 3}}, nil
+}
+func (gatewayDocuments) Timeline(_ context.Context, input pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
+	return pluginsdk.DocumentTimelinePage{Events: []pluginsdk.DocumentTimelineEvent{{ID: "event-1", Sequence: 1, DocumentID: input.DocumentID, Kind: pluginsdk.DocumentTimelineAction, Action: "submit", Actor: gatewayDocumentActor(), OccurredAt: gatewayDocumentTime()}}, NextSequence: 1}, nil
+}
+func (gatewayDocumentWorkflowFailure) AddAttachment(context.Context, pluginsdk.DocumentAttachmentAddInput) (pluginsdk.DocumentAttachmentResult, error) {
+	return pluginsdk.DocumentAttachmentResult{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "fileId", "file access denied", false)
+}
+func (gatewayDocumentWorkflowFailure) RemoveAttachment(context.Context, pluginsdk.DocumentAttachmentRemoveInput) (pluginsdk.DocumentAttachmentResult, error) {
+	return pluginsdk.DocumentAttachmentResult{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorNotFound, "attachmentId", "attachment not found", false)
+}
+func (gatewayDocumentWorkflowFailure) ListAttachments(context.Context, pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentAttachment, error) {
+	return nil, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "documentId", "document access denied", false)
+}
+func (gatewayDocumentWorkflowFailure) AddComment(context.Context, pluginsdk.DocumentCommentAddInput) (pluginsdk.DocumentCommentResult, error) {
+	return pluginsdk.DocumentCommentResult{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorConflict, "commentId", "comment already exists", false)
+}
+func (gatewayDocumentWorkflowFailure) ListComments(context.Context, pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentComment, error) {
+	return nil, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorForbidden, "documentId", "document access denied", false)
+}
+func (gatewayDocumentWorkflowFailure) Timeline(context.Context, pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
+	return pluginsdk.DocumentTimelinePage{}, pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorNotFound, "documentId", "document not found", false)
 }
 
 func (gatewayDocumentNumberFailure) Issue(context.Context, pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
@@ -274,6 +326,32 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	}
 	if issued, issueErr := services.DocumentNumbers.Issue(ctx, numberInput); issueErr != nil || issued.Number != "WO-000001" {
 		t.Fatalf("document number issue=%+v err=%v", issued, issueErr)
+	}
+	documentPermission := pluginsdk.Permission{Resource: "equipment.work_order", Action: "manage"}
+	attachmentInput := pluginsdk.DocumentAttachmentAddInput{
+		TenantID: "tenant-a", Permission: documentPermission, DocumentID: "work-order-1", AttachmentID: "attachment-1", FileID: "file-1",
+	}
+	if added, addErr := services.Documents.AddAttachment(ctx, attachmentInput); addErr != nil || added.Attachment.ID != attachmentInput.AttachmentID || added.Event.Sequence != 2 {
+		t.Fatalf("document attachment=%+v err=%v", added, addErr)
+	}
+	commentInput := pluginsdk.DocumentCommentAddInput{
+		TenantID: "tenant-a", Permission: documentPermission, DocumentID: "work-order-1", CommentID: "comment-1", Body: "Gateway comment",
+	}
+	if commented, commentErr := services.Documents.AddComment(ctx, commentInput); commentErr != nil || commented.Comment.Body != commentInput.Body || commented.Event.Sequence != 3 {
+		t.Fatalf("document comment=%+v err=%v", commented, commentErr)
+	}
+	documentQuery := pluginsdk.DocumentCollaborationQueryInput{TenantID: "tenant-a", Permission: documentPermission, DocumentID: "work-order-1"}
+	if attachments, listErr := services.Documents.ListAttachments(ctx, documentQuery); listErr != nil || len(attachments) != 1 {
+		t.Fatalf("document attachments=%+v err=%v", attachments, listErr)
+	}
+	if comments, listErr := services.Documents.ListComments(ctx, documentQuery); listErr != nil || len(comments) != 1 {
+		t.Fatalf("document comments=%+v err=%v", comments, listErr)
+	}
+	if page, timelineErr := services.Documents.Timeline(ctx, pluginsdk.DocumentTimelineQueryInput{TenantID: "tenant-a", Permission: documentPermission, DocumentID: "work-order-1"}); timelineErr != nil || len(page.Events) != 1 || page.NextSequence != 1 {
+		t.Fatalf("document timeline=%+v err=%v", page, timelineErr)
+	}
+	if removed, removeErr := services.Documents.RemoveAttachment(ctx, pluginsdk.DocumentAttachmentRemoveInput{TenantID: "tenant-a", Permission: documentPermission, DocumentID: "work-order-1", AttachmentID: "attachment-1"}); removeErr != nil || removed.Event.Sequence != 4 {
+		t.Fatalf("document attachment removal=%+v err=%v", removed, removeErr)
 	}
 	if result, mutateErr := services.DataStore.Mutate(ctx, pluginsdk.DataMutation{
 		Table: "assets", Operation: pluginsdk.DataMutationDelete,

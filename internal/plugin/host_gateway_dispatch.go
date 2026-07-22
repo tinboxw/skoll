@@ -81,6 +81,42 @@ func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capabili
 			return nil, err
 		}
 		return host.Documents.Get(ctx, in)
+	case "documents.add-attachment":
+		var in pluginsdk.DocumentAttachmentAddInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.AddAttachment(ctx, in)
+	case "documents.remove-attachment":
+		var in pluginsdk.DocumentAttachmentRemoveInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.RemoveAttachment(ctx, in)
+	case "documents.list-attachments":
+		var in pluginsdk.DocumentCollaborationQueryInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.ListAttachments(ctx, in)
+	case "documents.add-comment":
+		var in pluginsdk.DocumentCommentAddInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.AddComment(ctx, in)
+	case "documents.list-comments":
+		var in pluginsdk.DocumentCollaborationQueryInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.ListComments(ctx, in)
+	case "documents.timeline":
+		var in pluginsdk.DocumentTimelineQueryInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Documents.Timeline(ctx, in)
 	case "scopes.resolve":
 		var in pluginsdk.Permission
 		if err := decodeHostInput(decoder, &in); err != nil {

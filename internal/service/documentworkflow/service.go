@@ -47,8 +47,14 @@ type ActionRecord struct {
 type Repository interface {
 	Get(ctx context.Context, key Key, forUpdate bool) (Binding, error)
 	FindAction(ctx context.Context, key Key, idempotencyKey string) (ActionRecord, bool, error)
-	Create(ctx context.Context, binding Binding, action ActionRecord) error
-	Update(ctx context.Context, binding Binding, previousVersion int64, action ActionRecord) error
+	Create(ctx context.Context, binding Binding, action ActionRecord, event pluginsdk.DocumentTimelineEvent) error
+	Update(ctx context.Context, binding Binding, previousVersion int64, action ActionRecord, event pluginsdk.DocumentTimelineEvent) error
+	AddAttachment(ctx context.Context, key Key, attachment pluginsdk.DocumentAttachment, event pluginsdk.DocumentTimelineEvent) (pluginsdk.DocumentAttachmentResult, error)
+	RemoveAttachment(ctx context.Context, key Key, attachmentID string, actor pluginsdk.WorkflowActor, now time.Time, event pluginsdk.DocumentTimelineEvent) (pluginsdk.DocumentAttachmentResult, error)
+	ListAttachments(ctx context.Context, key Key, offset, limit int, includeRemoved bool) ([]pluginsdk.DocumentAttachment, error)
+	AddComment(ctx context.Context, key Key, comment pluginsdk.DocumentComment, event pluginsdk.DocumentTimelineEvent) (pluginsdk.DocumentCommentResult, error)
+	ListComments(ctx context.Context, key Key, offset, limit int) ([]pluginsdk.DocumentComment, error)
+	Timeline(ctx context.Context, key Key, afterSequence int64, limit int) (pluginsdk.DocumentTimelinePage, error)
 }
 
 type Service struct {
@@ -114,7 +120,8 @@ func (s *Service) Submit(ctx context.Context, pluginID string, actor pluginsdk.W
 		Key: key, Schema: input.Schema, Document: document, DefinitionID: input.DefinitionID,
 		WorkflowInstanceID: input.InstanceID, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.repository.Create(ctx, binding, action); err != nil {
+	event := documentActionEvent(input.Draft.ID, input.IdempotencyKey, "submit", actor, now)
+	if err := s.repository.Create(ctx, binding, action, event); err != nil {
 		return pluginsdk.DocumentWorkflowResult{}, err
 	}
 	return result, nil
@@ -182,10 +189,136 @@ func (s *Service) Act(ctx context.Context, pluginID string, actor pluginsdk.Work
 	if err != nil {
 		return pluginsdk.DocumentWorkflowResult{}, err
 	}
-	if err := s.repository.Update(ctx, binding, previousVersion, action); err != nil {
+	event := documentActionEvent(input.DocumentID, input.IdempotencyKey, string(input.Action), actor, now)
+	if err := s.repository.Update(ctx, binding, previousVersion, action, event); err != nil {
 		return pluginsdk.DocumentWorkflowResult{}, err
 	}
 	return result, nil
+}
+
+func (s *Service) AddAttachment(ctx context.Context, pluginID string, actor pluginsdk.WorkflowActor, input pluginsdk.DocumentAttachmentAddInput, file pluginsdk.FileObject) (pluginsdk.DocumentAttachmentResult, error) {
+	if err := input.Validate(); err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	if err := validateActor(actor); err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	if strings.TrimSpace(file.ID) != input.FileID || strings.TrimSpace(file.Status) != "available" {
+		return pluginsdk.DocumentAttachmentResult{}, fmt.Errorf("document attachment file is unavailable")
+	}
+	key, err := bindingKey(pluginID, input.TenantID, input.DocumentID)
+	if err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	if _, err = s.repository.Get(ctx, key, true); err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	now := s.now().UTC()
+	attachment := pluginsdk.DocumentAttachment{
+		ID: input.AttachmentID, DocumentID: input.DocumentID, File: file,
+		AddedBy: actor, AddedAt: now,
+	}
+	event := pluginsdk.DocumentTimelineEvent{
+		ID: "attachment-added:" + input.AttachmentID, DocumentID: input.DocumentID,
+		Kind: pluginsdk.DocumentTimelineAttachmentAdded, AttachmentID: input.AttachmentID, FileID: input.FileID,
+		Actor: actor, OccurredAt: now,
+	}
+	return s.repository.AddAttachment(ctx, key, attachment, event)
+}
+
+func (s *Service) RemoveAttachment(ctx context.Context, pluginID string, actor pluginsdk.WorkflowActor, input pluginsdk.DocumentAttachmentRemoveInput) (pluginsdk.DocumentAttachmentResult, error) {
+	if err := input.Validate(); err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	if err := validateActor(actor); err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	key, err := bindingKey(pluginID, input.TenantID, input.DocumentID)
+	if err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	if _, err = s.repository.Get(ctx, key, true); err != nil {
+		return pluginsdk.DocumentAttachmentResult{}, err
+	}
+	now := s.now().UTC()
+	event := pluginsdk.DocumentTimelineEvent{
+		ID: "attachment-removed:" + input.AttachmentID, DocumentID: input.DocumentID,
+		Kind: pluginsdk.DocumentTimelineAttachmentRemoved, AttachmentID: input.AttachmentID,
+		Actor: actor, OccurredAt: now,
+	}
+	return s.repository.RemoveAttachment(ctx, key, input.AttachmentID, actor, now, event)
+}
+
+func (s *Service) ListAttachments(ctx context.Context, pluginID string, input pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentAttachment, error) {
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+	key, err := bindingKey(pluginID, input.TenantID, input.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = s.repository.Get(ctx, key, false); err != nil {
+		return nil, err
+	}
+	return s.repository.ListAttachments(ctx, key, input.Offset, activityLimit(input.Limit), input.IncludeRemoved)
+}
+
+func (s *Service) AddComment(ctx context.Context, pluginID string, actor pluginsdk.WorkflowActor, input pluginsdk.DocumentCommentAddInput) (pluginsdk.DocumentCommentResult, error) {
+	if err := input.Validate(); err != nil {
+		return pluginsdk.DocumentCommentResult{}, err
+	}
+	if err := validateActor(actor); err != nil {
+		return pluginsdk.DocumentCommentResult{}, err
+	}
+	key, err := bindingKey(pluginID, input.TenantID, input.DocumentID)
+	if err != nil {
+		return pluginsdk.DocumentCommentResult{}, err
+	}
+	if _, err = s.repository.Get(ctx, key, true); err != nil {
+		return pluginsdk.DocumentCommentResult{}, err
+	}
+	now := s.now().UTC()
+	comment := pluginsdk.DocumentComment{ID: input.CommentID, DocumentID: input.DocumentID, Body: input.Body, Author: actor, CreatedAt: now}
+	event := pluginsdk.DocumentTimelineEvent{
+		ID: "comment-added:" + input.CommentID, DocumentID: input.DocumentID,
+		Kind: pluginsdk.DocumentTimelineCommentAdded, CommentID: input.CommentID, Actor: actor, OccurredAt: now,
+	}
+	return s.repository.AddComment(ctx, key, comment, event)
+}
+
+func (s *Service) ListComments(ctx context.Context, pluginID string, input pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentComment, error) {
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+	key, err := bindingKey(pluginID, input.TenantID, input.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = s.repository.Get(ctx, key, false); err != nil {
+		return nil, err
+	}
+	return s.repository.ListComments(ctx, key, input.Offset, activityLimit(input.Limit))
+}
+
+func (s *Service) Timeline(ctx context.Context, pluginID string, input pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
+	if err := input.Validate(); err != nil {
+		return pluginsdk.DocumentTimelinePage{}, err
+	}
+	key, err := bindingKey(pluginID, input.TenantID, input.DocumentID)
+	if err != nil {
+		return pluginsdk.DocumentTimelinePage{}, err
+	}
+	if _, err = s.repository.Get(ctx, key, false); err != nil {
+		return pluginsdk.DocumentTimelinePage{}, err
+	}
+	return s.repository.Timeline(ctx, key, input.AfterSequence, activityLimit(input.Limit))
+}
+
+func activityLimit(value int) int {
+	if value == 0 {
+		return 50
+	}
+	return value
 }
 
 func (s *Service) Get(ctx context.Context, pluginID string, input pluginsdk.DocumentWorkflowGetInput) (pluginsdk.DocumentWorkflowResult, error) {
@@ -258,6 +391,13 @@ func newActionRecord(key Key, idempotencyKey, action, hash string, result plugin
 		return ActionRecord{}, err
 	}
 	return ActionRecord{Key: key, IdempotencyKey: idempotencyKey, Action: action, RequestHash: hash, ResultJSON: raw, CreatedAt: now}, nil
+}
+
+func documentActionEvent(documentID, idempotencyKey, action string, actor pluginsdk.WorkflowActor, now time.Time) pluginsdk.DocumentTimelineEvent {
+	return pluginsdk.DocumentTimelineEvent{
+		ID: "action:" + idempotencyKey, DocumentID: documentID, Kind: pluginsdk.DocumentTimelineAction,
+		Action: action, Actor: actor, OccurredAt: now,
+	}
 }
 
 func replay(prior ActionRecord, hash string) (pluginsdk.DocumentWorkflowResult, error) {

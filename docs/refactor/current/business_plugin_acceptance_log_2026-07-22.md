@@ -645,3 +645,56 @@ Result: BF2-03 passed. Independent plugins can submit typed business documents a
 ### Commit
 
 `BF2-03: bind documents to workflow actions`
+
+## BF2-04 Add Attachments, Comments, And Immutable Timelines
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Publish tenant-scoped document attachments, immutable comments, and one ordered append-only activity timeline through the current in-process and managed-plugin host boundary.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public contract | Pass | `DocumentService` extends document workflows with add/remove/list attachment, add/list comment, and cursor-paged timeline operations plus bounded request and strict response validation |
+| File ownership | Pass | The Host resolves every attachment through the plugin- and actor-scoped `FileService`; a user cannot attach another user's private file and receives stable `forbidden` on `fileId` |
+| Tenant isolation | Pass | Every collaboration operation resolves the declared permission and constrains it to exactly one trusted tenant before document access |
+| Attachment lifecycle | Pass | Add stores an immutable file snapshot and actor; remove is an attributed soft unlink that preserves the file snapshot and add/remove sequence history |
+| Comment immutability | Pass | Comments are append-only, attributed, byte-bounded, and expose no update or delete service or persistence lifecycle columns |
+| Timeline ordering | Pass | Submit, workflow actions, attachment add/remove, and comment add share one per-document monotonic sequence with a database unique constraint and strict cursor paging |
+| Transaction atomicity | Pass | Collaboration writes require a host transaction; explicit rollback leaves no attachment, comment, or timeline event while retaining the committed submit event |
+| Audit | Pass | Attachment add/remove and comment add emit attributed audit actions linked to immutable event IDs and sequences without copying comment bodies into audit detail |
+| Stable errors | Pass | Duplicate comments, duplicate/removed attachments, missing resources, missing transactions, forbidden files, and malformed external responses retain operation-specific typed code and field data |
+| Process gateway | Pass | All six collaboration operations round-trip through `pkg/pluginclient`; mismatched document IDs, cursors, attribution, event shapes, and ordering fail closed as `unavailable` response errors |
+| Public conformance | Pass | `plugins/sdk-conformance` stores a file, submits a document, attaches the file, comments, approves, and reads all collaboration history using only public packages |
+| Persistence | Pass | GORM models and MySQL/PostgreSQL migration 29 create scoped attachment, comment, and timeline tables with binding foreign keys and matching indexes |
+| Full quality gate | Pass | Focused tests/race, full Go tests/race, vet, CodeGraph impact review, migration review, and diff checks pass after final error-contract review |
+| Current-only rule | Pass | No legacy attachment table, mutable comment path, alternate timeline, compatibility adapter, dual write, or fallback exists |
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "DocumentWorkflow|DocumentCollaboration|HostGatewayClientConformance|ThirdPartyPlugin" -count=1
+go test -race ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo -run "DocumentWorkflow|DocumentCollaboration|HostGatewayClientConformance|ThirdPartyPlugin" -count=1
+go test ./... -count=1
+go test -race ./... -count=1
+go vet ./...
+git diff --check
+codegraph impact DocumentService
+```
+
+Result: BF2-04 passed. Independent plugins can collaborate on approval-backed business documents with host-verified file ownership, immutable attribution, ordered history, transaction rollback, stable process-boundary errors, and one current persistence model.
+
+### Impact Review
+
+- API/OpenAPI: no application HTTP route was added; managed plugin host capability `documents` adds six collaboration operations to the current public client.
+- Permission/audit: tenant and file access remain host-owned; attachment and comment mutations emit resource-linked audit evidence under the verified actor.
+- Migration/seed: migration 29 adds three current-only tables for MySQL and PostgreSQL; memory mode migrates matching GORM models; no seed data.
+- Frontend/i18n: no UI changed; attributed attachments, comments, stable cursors, and timeline event kinds are ready for BF2-06 document components.
+- Documentation: plugin document workflow guide, migration notes, Work Item state, and acceptance evidence are synchronized.
+- Compatibility: none; current contracts and current persistence only.
+
+### Commit
+
+`BF2-04: add document collaboration timeline`

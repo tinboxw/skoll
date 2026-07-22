@@ -26,6 +26,7 @@ PostgreSQL 迁移脚本目录。
 - 20260722_000026_create_job_persistence.sql
 - 20260722_000027_create_document_number_persistence.sql
 - 20260722_000028_create_document_workflow_persistence.sql
+- 20260722_000029_create_document_collaboration_persistence.sql
 
 ## 执行顺序
 
@@ -167,3 +168,10 @@ PostgreSQL 迁移脚本目录。
 - 用途：在同一宿主事务内持久化业务单据、审批实例绑定和动作幂等结果。
 - 隔离：单据主键包含 `plugin_id` 与 `tenant_id`；审批实例在插件命名空间内唯一。
 - 一致性：动作记录通过复合外键绑定单据，删除绑定时级联删除幂等历史。
+
+### 20260722_000029_create_document_collaboration_persistence.sql
+
+- 表名：`sk_document_attachments`、`sk_document_comments`、`sk_document_timeline_events`。
+- 用途：保存附件快照与软移除归属、不可编辑评论和单据内严格递增的只增时间线。
+- 隔离：所有主键与索引包含插件、租户和单据边界；关联记录级联绑定当前单据。
+- 当前规则：附件移除不删除文件或历史，评论与时间线没有更新/删除路径。

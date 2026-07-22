@@ -10,16 +10,17 @@ import (
 )
 
 type Report struct {
-	Transaction bool
-	Scope       bool
-	DataStore   bool
-	Document    bool
-	File        bool
-	Audit       bool
-	Config      bool
-	Secret      bool
-	Workflow    bool
-	Job         bool
+	Transaction   bool
+	Scope         bool
+	DataStore     bool
+	Document      bool
+	Collaboration bool
+	File          bool
+	Audit         bool
+	Config        bool
+	Secret        bool
+	Workflow      bool
+	Job           bool
 }
 
 func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
@@ -149,6 +150,21 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 		return report, fmt.Errorf("document submit contract: %w", err)
 	}
 	if err = host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
+		if _, err = host.Documents.AddAttachment(tx.Context(), pluginsdk.DocumentAttachmentAddInput{
+			TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+			AttachmentID: "evidence-1", FileID: file.ID,
+		}); err != nil {
+			return err
+		}
+		_, err = host.Documents.AddComment(tx.Context(), pluginsdk.DocumentCommentAddInput{
+			TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+			CommentID: "review-note-1", Body: "Evidence received.",
+		})
+		return err
+	}); err != nil {
+		return report, fmt.Errorf("document collaboration write contract: %w", err)
+	}
+	if err = host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
 		document, err = host.Documents.Act(tx.Context(), pluginsdk.DocumentWorkflowActionInput{
 			TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
 			Action: pluginsdk.DocumentWorkflowApprove, ExpectedVersion: document.Document.Version,
@@ -158,6 +174,25 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 	}); err != nil || document.Document.State != "approved" || document.Workflow.Status != pluginsdk.WorkflowInstanceApproved {
 		return report, fmt.Errorf("document approval contract: %w", err)
 	}
+	attachments, err := host.Documents.ListAttachments(ctx, pluginsdk.DocumentCollaborationQueryInput{
+		TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+	})
+	if err != nil || len(attachments) != 1 || attachments[0].File.ID != file.ID {
+		return report, fmt.Errorf("document attachment read contract: %w", err)
+	}
+	comments, err := host.Documents.ListComments(ctx, pluginsdk.DocumentCollaborationQueryInput{
+		TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+	})
+	if err != nil || len(comments) != 1 || comments[0].Body != "Evidence received." {
+		return report, fmt.Errorf("document comment read contract: %w", err)
+	}
+	timeline, err := host.Documents.Timeline(ctx, pluginsdk.DocumentTimelineQueryInput{
+		TenantID: "tenant-conformance", Permission: documentInput.Permission, DocumentID: document.Document.ID,
+	})
+	if err != nil || len(timeline.Events) != 4 || timeline.NextSequence != 4 {
+		return report, fmt.Errorf("document timeline contract: %w", err)
+	}
+	report.Collaboration = true
 	report.Document = true
 	job, err := host.Jobs.Schedule(ctx, pluginsdk.JobScheduleInput{
 		ID: "sync", Kind: "sync", IdempotencyKey: "sync-1", Payload: json.RawMessage(`{"mode":"full"}`), MaxAttempts: 1,

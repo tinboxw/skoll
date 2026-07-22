@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	documentworkflowsvc "github.com/tinboxw/skoll/internal/service/documentworkflow"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
@@ -19,10 +20,41 @@ import (
 )
 
 type documentWorkflowFixture struct {
-	documents pluginsdk.DocumentWorkflowService
+	documents pluginsdk.DocumentService
 	workflows pluginsdk.WorkflowService
 	tx        pluginsdk.TransactionService
 	audit     *documentWorkflowAudit
+}
+
+type documentWorkflowFiles struct{}
+
+func (documentWorkflowFiles) Store(context.Context, pluginsdk.FileWrite) (pluginsdk.FileObject, error) {
+	return pluginsdk.FileObject{}, errors.New("file store is not used by this fixture")
+}
+
+func (documentWorkflowFiles) List(context.Context, pluginsdk.FileQuery) ([]pluginsdk.FileObject, error) {
+	return nil, errors.New("file list is not used by this fixture")
+}
+
+func (documentWorkflowFiles) Get(ctx context.Context, id string) (pluginsdk.FileObject, error) {
+	claims, ok := security.JWTClaimsFromContext(ctx)
+	if !ok || id != "file-"+claims.Subject {
+		return pluginsdk.FileObject{}, errors.New("file access denied")
+	}
+	now := time.Date(2026, time.July, 22, 8, 0, 0, 0, time.UTC)
+	return pluginsdk.FileObject{
+		ID: id, Key: "documents/" + id, Name: id + ".pdf", Size: 1024,
+		MIME: "application/pdf", Hash: "sha256:test", Visibility: pluginsdk.FileVisibilityPrivate,
+		Status: "available", Metadata: map[string]string{"source": "acceptance"}, CreatedAt: now, UpdatedAt: now,
+	}, nil
+}
+
+func (documentWorkflowFiles) Download(context.Context, string) (pluginsdk.FileDownload, error) {
+	return pluginsdk.FileDownload{}, errors.New("file download is not used by this fixture")
+}
+
+func (documentWorkflowFiles) Delete(context.Context, string) error {
+	return errors.New("file delete is not used by this fixture")
 }
 
 type documentWorkflowAudit struct {
@@ -35,6 +67,199 @@ func (a *documentWorkflowAudit) Record(_ context.Context, entry pluginsdk.AuditE
 	defer a.mu.Unlock()
 	a.entries = append(a.entries, entry)
 	return pluginsdk.AuditReceipt{ID: "audit"}, nil
+}
+
+func (a *documentWorkflowAudit) snapshot() []pluginsdk.AuditEntry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]pluginsdk.AuditEntry(nil), a.entries...)
+}
+
+func TestDocumentCollaborationTimelineAttributionAndImmutability(t *testing.T) {
+	fixture := newDocumentWorkflowFixture(t)
+	ctx := documentWorkflowUserContext("user-1")
+	submitDocument(t, fixture, ctx, "collaboration-document", "instance-collaboration")
+
+	var added pluginsdk.DocumentAttachmentResult
+	var commented pluginsdk.DocumentCommentResult
+	var removed pluginsdk.DocumentAttachmentResult
+	err := fixture.tx.Within(ctx, func(tx pluginsdk.Transaction) error {
+		var err error
+		added, err = fixture.documents.AddAttachment(tx.Context(), pluginsdk.DocumentAttachmentAddInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document",
+			AttachmentID: "attachment-1", FileID: "file-user-1",
+		})
+		if err != nil {
+			return err
+		}
+		commented, err = fixture.documents.AddComment(tx.Context(), pluginsdk.DocumentCommentAddInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document",
+			CommentID: "comment-1", Body: "Reviewed by quality assurance.",
+		})
+		if err != nil {
+			return err
+		}
+		removed, err = fixture.documents.RemoveAttachment(tx.Context(), pluginsdk.DocumentAttachmentRemoveInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document", AttachmentID: "attachment-1",
+		})
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if added.Attachment.AddedBy.ID != "user-1" || added.Event.Sequence != 2 || commented.Comment.Author.ID != "user-1" || commented.Event.Sequence != 3 {
+		t.Fatalf("collaboration attribution or ordering is invalid: added=%+v commented=%+v", added, commented)
+	}
+	if removed.Attachment.RemovedAt == nil || removed.Attachment.RemovedBy.ID != "user-1" || removed.Event.Sequence != 4 || removed.Event.FileID != "file-user-1" {
+		t.Fatalf("attachment removal lost attribution: %+v", removed)
+	}
+
+	query := pluginsdk.DocumentCollaborationQueryInput{TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document"}
+	active, err := fixture.documents.ListAttachments(ctx, query)
+	if err != nil || len(active) != 0 {
+		t.Fatalf("removed attachment remained active: items=%+v err=%v", active, err)
+	}
+	query.IncludeRemoved = true
+	attachments, err := fixture.documents.ListAttachments(ctx, query)
+	if err != nil || len(attachments) != 1 || attachments[0].RemovedSequence == nil || *attachments[0].RemovedSequence != 4 {
+		t.Fatalf("attachment history is incomplete: items=%+v err=%v", attachments, err)
+	}
+	comments, err := fixture.documents.ListComments(ctx, query)
+	if err != nil || len(comments) != 1 || comments[0].Body != "Reviewed by quality assurance." || comments[0].Sequence != 3 {
+		t.Fatalf("immutable comment is incomplete: items=%+v err=%v", comments, err)
+	}
+
+	first, err := fixture.documents.Timeline(ctx, pluginsdk.DocumentTimelineQueryInput{
+		TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document", Limit: 2,
+	})
+	if err != nil || !first.HasMore || first.NextSequence != 2 || len(first.Events) != 2 {
+		t.Fatalf("first timeline page=%+v err=%v", first, err)
+	}
+	second, err := fixture.documents.Timeline(ctx, pluginsdk.DocumentTimelineQueryInput{
+		TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document", AfterSequence: first.NextSequence, Limit: 2,
+	})
+	if err != nil || second.HasMore || second.NextSequence != 4 || len(second.Events) != 2 {
+		t.Fatalf("second timeline page=%+v err=%v", second, err)
+	}
+	kinds := []pluginsdk.DocumentTimelineKind{first.Events[0].Kind, first.Events[1].Kind, second.Events[0].Kind, second.Events[1].Kind}
+	want := []pluginsdk.DocumentTimelineKind{pluginsdk.DocumentTimelineAction, pluginsdk.DocumentTimelineAttachmentAdded, pluginsdk.DocumentTimelineCommentAdded, pluginsdk.DocumentTimelineAttachmentRemoved}
+	for index := range want {
+		if kinds[index] != want[index] {
+			t.Fatalf("timeline kind %d=%q want=%q", index, kinds[index], want[index])
+		}
+	}
+
+	err = fixture.tx.Within(ctx, func(tx pluginsdk.Transaction) error {
+		_, err := fixture.documents.AddComment(tx.Context(), pluginsdk.DocumentCommentAddInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document",
+			CommentID: "comment-1", Body: "Duplicate comment.",
+		})
+		return err
+	})
+	assertDocumentCollaborationError(t, err, pluginsdk.DocumentWorkflowErrorConflict, "commentId")
+	err = fixture.tx.Within(ctx, func(tx pluginsdk.Transaction) error {
+		_, err := fixture.documents.RemoveAttachment(tx.Context(), pluginsdk.DocumentAttachmentRemoveInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "collaboration-document", AttachmentID: "attachment-1",
+		})
+		return err
+	})
+	assertDocumentCollaborationError(t, err, pluginsdk.DocumentWorkflowErrorConflict, "attachmentId")
+
+	actions := map[string]bool{}
+	for _, entry := range fixture.audit.snapshot() {
+		actions[entry.Action] = true
+		if entry.Action == "document.comment.add" {
+			if _, leaked := entry.Detail["body"]; leaked {
+				t.Fatal("audit detail leaked comment body")
+			}
+		}
+	}
+	for _, action := range []string{"document.attachment.add", "document.comment.add", "document.attachment.remove"} {
+		if !actions[action] {
+			t.Fatalf("missing audit action %q", action)
+		}
+	}
+}
+
+func assertDocumentCollaborationError(t *testing.T, err error, code pluginsdk.DocumentWorkflowErrorCode, field string) {
+	t.Helper()
+	var publicErr *pluginsdk.DocumentWorkflowError
+	if !errors.As(err, &publicErr) || publicErr.Code != code || publicErr.Field != field {
+		t.Fatalf("document collaboration error=%v want code=%s field=%s", err, code, field)
+	}
+}
+
+func TestDocumentCollaborationRejectsForeignFilesAndRollsBackAtomically(t *testing.T) {
+	fixture := newDocumentWorkflowFixture(t)
+	ctx := documentWorkflowUserContext("user-1")
+	submitDocument(t, fixture, ctx, "scope-document", "instance-scope")
+
+	err := fixture.tx.Within(ctx, func(tx pluginsdk.Transaction) error {
+		_, err := fixture.documents.AddAttachment(tx.Context(), pluginsdk.DocumentAttachmentAddInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "scope-document",
+			AttachmentID: "foreign-attachment", FileID: "file-user-2",
+		})
+		return err
+	})
+	var publicErr *pluginsdk.DocumentWorkflowError
+	if !errors.As(err, &publicErr) || publicErr.Code != pluginsdk.DocumentWorkflowErrorForbidden || publicErr.Field != "fileId" {
+		t.Fatalf("foreign file error=%v", err)
+	}
+
+	rollback := errors.New("rollback collaboration")
+	err = fixture.tx.Within(ctx, func(tx pluginsdk.Transaction) error {
+		if _, err := fixture.documents.AddAttachment(tx.Context(), pluginsdk.DocumentAttachmentAddInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "scope-document",
+			AttachmentID: "rollback-attachment", FileID: "file-user-1",
+		}); err != nil {
+			return err
+		}
+		if _, err := fixture.documents.AddComment(tx.Context(), pluginsdk.DocumentCommentAddInput{
+			TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "scope-document",
+			CommentID: "rollback-comment", Body: "This must not persist.",
+		}); err != nil {
+			return err
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("rollback error=%v", err)
+	}
+	query := pluginsdk.DocumentCollaborationQueryInput{TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "scope-document", IncludeRemoved: true}
+	attachments, err := fixture.documents.ListAttachments(ctx, query)
+	if err != nil || len(attachments) != 0 {
+		t.Fatalf("rolled back attachment is visible: items=%+v err=%v", attachments, err)
+	}
+	comments, err := fixture.documents.ListComments(ctx, query)
+	if err != nil || len(comments) != 0 {
+		t.Fatalf("rolled back comment is visible: items=%+v err=%v", comments, err)
+	}
+	timeline, err := fixture.documents.Timeline(ctx, pluginsdk.DocumentTimelineQueryInput{TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "scope-document"})
+	if err != nil || len(timeline.Events) != 1 || timeline.Events[0].Action != "submit" {
+		t.Fatalf("rollback changed immutable timeline: page=%+v err=%v", timeline, err)
+	}
+}
+
+func TestDocumentCollaborationWritesRequireTransaction(t *testing.T) {
+	fixture := newDocumentWorkflowFixture(t)
+	ctx := documentWorkflowUserContext("user-1")
+	submitDocument(t, fixture, ctx, "transaction-document", "instance-transaction")
+	writes := []func() error{
+		func() error {
+			_, err := fixture.documents.AddAttachment(ctx, pluginsdk.DocumentAttachmentAddInput{TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "transaction-document", AttachmentID: "attachment-1", FileID: "file-user-1"})
+			return err
+		},
+		func() error {
+			_, err := fixture.documents.AddComment(ctx, pluginsdk.DocumentCommentAddInput{TenantID: "tenant-a", Permission: documentWorkflowPermission(), DocumentID: "transaction-document", CommentID: "comment-1", Body: "Requires a transaction."})
+			return err
+		},
+	}
+	for index, write := range writes {
+		var publicErr *pluginsdk.DocumentWorkflowError
+		if err := write(); !errors.As(err, &publicErr) || publicErr.Code != pluginsdk.DocumentWorkflowErrorTransactionRequired {
+			t.Fatalf("write %d transaction error=%v", index, err)
+		}
+	}
 }
 
 func TestDocumentWorkflowActionsAndIdempotentDecision(t *testing.T) {
@@ -224,6 +449,7 @@ func newDocumentWorkflowFixture(t *testing.T) documentWorkflowFixture {
 		&gormrepo.WorkflowDefinitionModel{}, &gormrepo.WorkflowNodeModel{}, &gormrepo.WorkflowNodeAssigneeModel{}, &gormrepo.WorkflowTransitionModel{},
 		&gormrepo.WorkflowInstanceModel{}, &gormrepo.WorkflowTaskModel{}, &gormrepo.WorkflowActionModel{},
 		&gormrepo.DocumentWorkflowBindingModel{}, &gormrepo.DocumentWorkflowActionModel{},
+		&gormrepo.DocumentAttachmentModel{}, &gormrepo.DocumentCommentModel{}, &gormrepo.DocumentTimelineEventModel{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +460,7 @@ func newDocumentWorkflowFixture(t *testing.T) documentWorkflowFixture {
 	}
 	documents, err := NewDocumentWorkflowService(
 		"medical_oa", documentworkflowsvc.NewService(gormrepo.NewDocumentWorkflowStore(db), workflow),
-		documentNumberTestScopes{tenantID: "tenant-a"}, audit,
+		documentNumberTestScopes{tenantID: "tenant-a"}, documentWorkflowFiles{}, audit,
 	)
 	if err != nil {
 		t.Fatal(err)

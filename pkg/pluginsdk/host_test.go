@@ -49,6 +49,24 @@ func (hostTestDocuments) Act(context.Context, DocumentWorkflowActionInput) (Docu
 func (hostTestDocuments) Get(context.Context, DocumentWorkflowGetInput) (DocumentWorkflowResult, error) {
 	return DocumentWorkflowResult{}, nil
 }
+func (hostTestDocuments) AddAttachment(context.Context, DocumentAttachmentAddInput) (DocumentAttachmentResult, error) {
+	return DocumentAttachmentResult{}, nil
+}
+func (hostTestDocuments) RemoveAttachment(context.Context, DocumentAttachmentRemoveInput) (DocumentAttachmentResult, error) {
+	return DocumentAttachmentResult{}, nil
+}
+func (hostTestDocuments) ListAttachments(context.Context, DocumentCollaborationQueryInput) ([]DocumentAttachment, error) {
+	return nil, nil
+}
+func (hostTestDocuments) AddComment(context.Context, DocumentCommentAddInput) (DocumentCommentResult, error) {
+	return DocumentCommentResult{}, nil
+}
+func (hostTestDocuments) ListComments(context.Context, DocumentCollaborationQueryInput) ([]DocumentComment, error) {
+	return nil, nil
+}
+func (hostTestDocuments) Timeline(context.Context, DocumentTimelineQueryInput) (DocumentTimelinePage, error) {
+	return DocumentTimelinePage{}, nil
+}
 func (hostTestDocumentNumbers) Issue(context.Context, DocumentNumberInput) (DocumentNumberResult, error) {
 	return DocumentNumberResult{Number: "TEST-000001", Sequence: 1}, nil
 }

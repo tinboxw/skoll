@@ -196,6 +196,24 @@ func (dataStoreE2EDocuments) Act(context.Context, pluginsdk.DocumentWorkflowActi
 func (dataStoreE2EDocuments) Get(context.Context, pluginsdk.DocumentWorkflowGetInput) (pluginsdk.DocumentWorkflowResult, error) {
 	return pluginsdk.DocumentWorkflowResult{}, nil
 }
+func (dataStoreE2EDocuments) AddAttachment(context.Context, pluginsdk.DocumentAttachmentAddInput) (pluginsdk.DocumentAttachmentResult, error) {
+	return pluginsdk.DocumentAttachmentResult{}, nil
+}
+func (dataStoreE2EDocuments) RemoveAttachment(context.Context, pluginsdk.DocumentAttachmentRemoveInput) (pluginsdk.DocumentAttachmentResult, error) {
+	return pluginsdk.DocumentAttachmentResult{}, nil
+}
+func (dataStoreE2EDocuments) ListAttachments(context.Context, pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentAttachment, error) {
+	return nil, nil
+}
+func (dataStoreE2EDocuments) AddComment(context.Context, pluginsdk.DocumentCommentAddInput) (pluginsdk.DocumentCommentResult, error) {
+	return pluginsdk.DocumentCommentResult{}, nil
+}
+func (dataStoreE2EDocuments) ListComments(context.Context, pluginsdk.DocumentCollaborationQueryInput) ([]pluginsdk.DocumentComment, error) {
+	return nil, nil
+}
+func (dataStoreE2EDocuments) Timeline(context.Context, pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
+	return pluginsdk.DocumentTimelinePage{}, nil
+}
 
 func (dataStoreE2EDocumentNumbers) Issue(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
 	return pluginsdk.DocumentNumberResult{Number: input.Rule.Prefix + "-000001", Sequence: 1}, nil

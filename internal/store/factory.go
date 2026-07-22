@@ -170,6 +170,7 @@ func openMemoryPluginDataDB() (*gorm.DB, error) {
 	if err = db.AutoMigrate(
 		&gormrepo.PluginDataMutationModel{}, &gormrepo.DocumentNumberSequenceModel{}, &gormrepo.DocumentNumberIssueModel{},
 		&gormrepo.DocumentWorkflowBindingModel{}, &gormrepo.DocumentWorkflowActionModel{},
+		&gormrepo.DocumentAttachmentModel{}, &gormrepo.DocumentCommentModel{}, &gormrepo.DocumentTimelineEventModel{},
 	); err != nil {
 		return nil, fmt.Errorf("migrate memory plugin datastore: %w", err)
 	}

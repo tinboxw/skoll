@@ -132,6 +132,107 @@ func (s documentWorkflowService) Get(ctx context.Context, input pluginsdk.Docume
 	return
 }
 
+func (s documentWorkflowService) AddAttachment(ctx context.Context, input pluginsdk.DocumentAttachmentAddInput) (out pluginsdk.DocumentAttachmentResult, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "add-attachment", input, &out)
+	if err == nil {
+		err = validateDocumentAttachmentResponse(input.DocumentID, input.AttachmentID, input.FileID, out)
+	}
+	return
+}
+
+func (s documentWorkflowService) RemoveAttachment(ctx context.Context, input pluginsdk.DocumentAttachmentRemoveInput) (out pluginsdk.DocumentAttachmentResult, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "remove-attachment", input, &out)
+	if err == nil {
+		err = validateDocumentAttachmentResponse(input.DocumentID, input.AttachmentID, "", out)
+	}
+	return
+}
+
+func (s documentWorkflowService) ListAttachments(ctx context.Context, input pluginsdk.DocumentCollaborationQueryInput) (out []pluginsdk.DocumentAttachment, err error) {
+	if err = input.Validate(); err != nil {
+		return nil, err
+	}
+	err = s.client.call(ctx, "documents", "list-attachments", input, &out)
+	if err == nil {
+		for _, item := range out {
+			if validateErr := item.Validate(); validateErr != nil || item.DocumentID != input.DocumentID || (!input.IncludeRemoved && item.RemovedAt != nil) {
+				err = invalidDocumentCollaborationResponse()
+				break
+			}
+		}
+	}
+	return
+}
+
+func (s documentWorkflowService) AddComment(ctx context.Context, input pluginsdk.DocumentCommentAddInput) (out pluginsdk.DocumentCommentResult, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "add-comment", input, &out)
+	if err == nil {
+		if validateErr := out.Validate(); validateErr != nil || out.Comment.DocumentID != input.DocumentID || out.Comment.ID != input.CommentID || out.Comment.Body != input.Body {
+			err = invalidDocumentCollaborationResponse()
+		}
+	}
+	return
+}
+
+func (s documentWorkflowService) ListComments(ctx context.Context, input pluginsdk.DocumentCollaborationQueryInput) (out []pluginsdk.DocumentComment, err error) {
+	if err = input.Validate(); err != nil {
+		return nil, err
+	}
+	err = s.client.call(ctx, "documents", "list-comments", input, &out)
+	if err == nil {
+		for _, item := range out {
+			if validateErr := item.Validate(); validateErr != nil || item.DocumentID != input.DocumentID {
+				err = invalidDocumentCollaborationResponse()
+				break
+			}
+		}
+	}
+	return
+}
+
+func (s documentWorkflowService) Timeline(ctx context.Context, input pluginsdk.DocumentTimelineQueryInput) (out pluginsdk.DocumentTimelinePage, err error) {
+	if err = input.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "documents", "timeline", input, &out)
+	if err == nil {
+		if validateErr := out.Validate(); validateErr != nil || (len(out.Events) == 0 && out.NextSequence != input.AfterSequence) {
+			err = invalidDocumentCollaborationResponse()
+		} else {
+			for _, event := range out.Events {
+				if event.DocumentID != input.DocumentID || event.Sequence <= input.AfterSequence {
+					err = invalidDocumentCollaborationResponse()
+					break
+				}
+			}
+		}
+	}
+	return
+}
+
+func validateDocumentAttachmentResponse(documentID, attachmentID, fileID string, out pluginsdk.DocumentAttachmentResult) error {
+	if err := out.Validate(); err != nil || out.Attachment.DocumentID != documentID || out.Attachment.ID != attachmentID {
+		return invalidDocumentCollaborationResponse()
+	}
+	if fileID != "" && out.Attachment.File.ID != fileID {
+		return invalidDocumentCollaborationResponse()
+	}
+	return nil
+}
+
+func invalidDocumentCollaborationResponse() error {
+	return pluginsdk.NewDocumentWorkflowError(pluginsdk.DocumentWorkflowErrorUnavailable, "response", "plugin host returned an invalid document collaboration result", true)
+}
+
 func (s dataStoreService) Mutate(ctx context.Context, mutation pluginsdk.DataMutation) (out pluginsdk.DataMutationResult, err error) {
 	if err = mutation.Validate(); err != nil {
 		return out, err
@@ -337,7 +438,7 @@ var _ pluginsdk.TransactionService = transactionService{}
 var _ pluginsdk.DataScopeService = dataScopeService{}
 var _ pluginsdk.DataStoreService = dataStoreService{}
 var _ pluginsdk.DocumentNumberService = documentNumberService{}
-var _ pluginsdk.DocumentWorkflowService = documentWorkflowService{}
+var _ pluginsdk.DocumentService = documentWorkflowService{}
 var _ pluginsdk.FileService = fileService{}
 var _ pluginsdk.AuditService = auditService{}
 var _ pluginsdk.ConfigService = configService{}

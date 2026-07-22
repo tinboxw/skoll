@@ -29,7 +29,7 @@ type HostServices struct {
 	DataScopes      DataScopeService
 	DataStore       DataStoreService
 	DocumentNumbers DocumentNumberService
-	Documents       DocumentWorkflowService
+	Documents       DocumentService
 	Files           FileService
 	Audit           AuditService
 	Config          ConfigService
