@@ -1062,3 +1062,67 @@ Result: BF3-03 passed after rejecting premature visual evidence. Operators can n
 ### Commit
 
 `BF3-03: add plugin data lifecycle control`
+
+## BF3-04 Build Jobs, Audit, Errors, And Diagnostics Views
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Add one plugin-scoped diagnostics contract, namespaced job inspection, combined Host/HTTP audit timelines, derived process/route/job/audit errors, and controlled dead-letter retry.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Authoritative diagnostics API | Pass | `GET /v1/plugins/{id}/diagnostics` aggregates the current health provider, persistent job service, Host audit records, and HTTP audit events; the browser does not infer operational state |
+| Plugin isolation | Pass | Job queries are fixed to `plugin.{id}` and full task IDs remain `plugin:{id}:{localId}`; service tests verify only the requested plugin namespace is exposed |
+| Correlation chain | Pass | Process, route, job, audit, request, trace, and error IDs are preserved in typed correlation records and navigable from the audit page into filtered diagnostics |
+| Error derivation | Pass | Unhealthy process checks, job errors/dead letters, denied routes, failed routes, and failed Host audit records produce separately owned error signals with stable source IDs |
+| Dead-letter retry | Pass | `POST /v1/plugins/{id}/jobs/{jobId}/retry` accepts only a dead-letter source, creates a new scheduled task, and leaves the original failed task unchanged |
+| Permission and confirmation | Pass | Retry requires `super_admin` plus exact plugin-ID and job-ID confirmations; handler tests cover role denial, confirmation mismatch, successful execution, and durable audit evidence |
+| Operator UI | Pass | Lazy Jobs, Audit, and Diagnostics routes provide filters, explicit empty/loading/error states, attempt/error context, retry feedback, audit resources, summary signals, and compact correlation tags |
+| Responsive browser matrix | Pass | Playwright passes all nine plugin workspace routes at 1440x1000 and 390x844, validates retry action state and linked error IDs, and reports zero document horizontal overflow |
+| Visual review | Pass | Final desktop and mobile screenshots were inspected after loading; desktop exposes the full investigation hierarchy, while mobile keeps navigation and wide tables internally scrollable without overlap |
+| Backend tests | Pass | `go test ./internal/handler/http/... ./internal/plugin/... ./internal/bootstrap/...` passes, including diagnostics aggregation, namespace isolation, correlation, retry immutability, role, confirmation, and audit tests |
+| Frontend quality | Pass | 1,968 locale keys, 1,524 references, 67 UI files, zero hard-coded visible strings, accessibility, large-list, theme, strict TypeScript, 9 host files/17 tests, and 2 document files/5 tests pass |
+| Production performance | Pass | Vite transforms 3,656 modules; Jobs, Audit, and Diagnostics remain lazy chunks at 2.14 KB, 1.88 KB, and 1.92 KB gzip; all bundle budgets pass with entry 134,075/140,000 bytes gzip |
+| API/docs sync | Pass | `docs/api/openapi.yaml` and embedded `internal/handler/http/openapi.yaml` share SHA256 `4DEC7B3EC36976818B3707ACC99B1F0BB6C5E68675CB520E69ED320A2E4BE036` and both parse successfully |
+| Current-only rule | Pass | Only the current diagnostics and retry contracts exist; no compatibility payload, alternate task store, fallback endpoint, legacy route, or dual execution path was added |
+
+The first browser run exposed an incorrect test assumption: the `admin` fixture is a super administrator, so its retry action was correctly enabled. The ordinary-admin denial remained covered by the authoritative handler test; the browser assertion was corrected and the complete desktop/mobile suite was rerun. Visual evidence was then scrolled to the correlated error table so mobile reachability was inspected rather than inferred from the summary viewport.
+
+### Verification Commands
+
+```powershell
+go test ./internal/handler/http/... ./internal/plugin/... ./internal/bootstrap/...
+
+cd web
+npm run typecheck
+npm run test:components
+$env:SKOLL_E2E_BASE_URL = "http://127.0.0.1:5173"
+npm run test:plugin-center
+npm run build
+npm run check:bundle
+
+cd ..
+python -c "import yaml; yaml.safe_load(open('docs/api/openapi.yaml', encoding='utf-8')); yaml.safe_load(open('internal/handler/http/openapi.yaml', encoding='utf-8'))"
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF3-04 passed after one browser expectation repair. Operators can now investigate one plugin from process health through route, job, audit, and error identifiers, then perform only confirmed and durably audited dead-letter retry.
+
+### Impact Review
+
+- API/OpenAPI: one read-only correlated diagnostics endpoint and one guarded dead-letter retry endpoint were added with synchronized Go, OpenAPI, and TypeScript contracts.
+- Permission/audit: diagnostics remain inside the authenticated plugin workspace; retry requires `super_admin`, exact dual confirmation, and writes the source job, retry job, operation, plugin, and actor to durable audit storage.
+- Jobs/data: no task schema or worker lifecycle changed; retry creates a new task through the existing persistent job service and preserves the source dead letter.
+- Frontend/i18n: three lazy bilingual routes and complete loading, empty, error, filter, success, permission, mobile, and desktop states were added.
+- Performance: the three new routes are independent small async chunks and all current JavaScript/CSS budgets pass.
+- Documentation: module README, OpenAPI, Work Item status, and this acceptance evidence are synchronized.
+- Compatibility: none; only the current diagnostics aggregate and current retry operation are supported.
+
+### Commit
+
+`BF3-04: build plugin diagnostics workspace`

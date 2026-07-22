@@ -26,6 +26,9 @@ const PluginRuntimePage = () => import("../views/Plugin/pages/Runtime.vue");
 const PluginCapabilitiesPage = () => import("../views/Plugin/pages/Capabilities.vue");
 const PluginDataPage = () => import("../views/Plugin/pages/Data.vue");
 const PluginMigrationsPage = () => import("../views/Plugin/pages/Migrations.vue");
+const PluginJobsPage = () => import("../views/Plugin/pages/Jobs.vue");
+const PluginAuditPage = () => import("../views/Plugin/pages/Audit.vue");
+const PluginDiagnosticsPage = () => import("../views/Plugin/pages/Diagnostics.vue");
 const PluginSettingsPage = () => import("../views/Plugin/pages/Settings.vue");
 const ProfilePage = () => import("../views/Profile/index.vue");
 const RoleEditPage = () => import("../views/Role/edit.vue");
@@ -101,6 +104,9 @@ const routes: RouteRecordRaw[] = [
 				{ path: "capabilities", name: "plugin-center-capabilities", component: PluginCapabilitiesPage },
 				{ path: "data", name: "plugin-center-data", component: PluginDataPage },
 				{ path: "migrations", name: "plugin-center-migrations", component: PluginMigrationsPage },
+				{ path: "jobs", name: "plugin-center-jobs", component: PluginJobsPage },
+				{ path: "audit", name: "plugin-center-audit", component: PluginAuditPage },
+				{ path: "diagnostics", name: "plugin-center-diagnostics", component: PluginDiagnosticsPage },
 				{ path: "settings", name: "plugin-center-settings", component: PluginSettingsPage }
 			]
 		},

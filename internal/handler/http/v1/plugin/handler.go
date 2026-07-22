@@ -47,6 +47,11 @@ type PluginDataControlProvider interface {
 	RollbackPluginData(pluginID string, limit int) error
 }
 
+type PluginDiagnosticsProvider interface {
+	Inspect(ctx context.Context, pluginID string, query plugin.DiagnosticQuery) (plugin.DiagnosticSnapshot, error)
+	RetryDeadLetter(ctx context.Context, pluginID, jobID string) (plugin.DiagnosticRetryResult, error)
+}
+
 type PluginExternalRegistrar interface {
 	RegisterExternalPlugin(info plugin.Info) error
 }
@@ -67,6 +72,7 @@ type PluginHandler struct {
 	manager             PluginManager
 	extensionProvider   PluginExtensionSnapshotProvider
 	dataControlProvider PluginDataControlProvider
+	diagnosticsProvider PluginDiagnosticsProvider
 	healthProvider      plugin.HealthProvider
 	loader              plugin.MetadataLoader
 	logger              logging.Logger
@@ -104,6 +110,12 @@ func WithPluginAuditService(auditSvc auditsvc.Service) PluginRouteOption {
 func WithPluginAuditEventSink(sink auditmw.AuditEventSink) PluginRouteOption {
 	return func(h *PluginHandler) {
 		h.auditEventSink = sink
+	}
+}
+
+func WithPluginDiagnosticsProvider(provider PluginDiagnosticsProvider) PluginRouteOption {
+	return func(h *PluginHandler) {
+		h.diagnosticsProvider = provider
 	}
 }
 
@@ -458,6 +470,8 @@ func RegisterPluginRoutes(mux *http.ServeMux, manager PluginManager, opts ...Plu
 	mux.HandleFunc("GET /v1/plugins/{id}/control", h.control)
 	mux.HandleFunc("GET /v1/plugins/{id}/data-control", h.dataControl)
 	mux.HandleFunc("POST /v1/plugins/{id}/migrations/rollback", h.rollbackMigration)
+	mux.HandleFunc("GET /v1/plugins/{id}/diagnostics", h.diagnostics)
+	mux.HandleFunc("POST /v1/plugins/{id}/jobs/{jobId}/retry", h.retryDeadLetterJob)
 	mux.HandleFunc("POST /v1/plugins/preflight", h.preflight)
 	mux.HandleFunc("POST /v1/plugins/install", h.install)
 	mux.HandleFunc("POST /v1/plugins/link", h.createLink)

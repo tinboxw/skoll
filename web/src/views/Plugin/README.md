@@ -14,9 +14,12 @@ This directory owns the operator-facing plugin fleet and one routed workspace pe
 | `/skoll/plugin-center/:pluginId/capabilities` | `pages/Capabilities.vue` | Routes, permissions, services, dependencies, and extensions |
 | `/skoll/plugin-center/:pluginId/data` | `pages/Data.vue` | Host-managed schemas, physical tables, storage size, and data policy |
 | `/skoll/plugin-center/:pluginId/migrations` | `pages/Migrations.vue` | Durable migration ledger, pending steps, policy gates, and controlled rollback |
+| `/skoll/plugin-center/:pluginId/jobs` | `pages/Jobs.vue` | Namespaced job state, attempts, dead letters, and controlled retry |
+| `/skoll/plugin-center/:pluginId/audit` | `pages/Audit.vue` | Host records and HTTP audit events with correlation navigation |
+| `/skoll/plugin-center/:pluginId/diagnostics` | `pages/Diagnostics.vue` | Process, route, job, audit, and error correlation |
 | `/skoll/plugin-center/:pluginId/settings` | `pages/Settings.vue` | Schema-driven plugin configuration |
 
-`components/PluginWorkspaceShell.vue` owns the runtime/capability snapshot and lifecycle commands for all workspace routes. Child pages consume the injected workspace from `workspace.ts`; data and migration pages use `data-control.ts` to read the separate authoritative data lifecycle contract.
+`components/PluginWorkspaceShell.vue` owns the runtime/capability snapshot and lifecycle commands for all workspace routes. Child pages consume the injected workspace from `workspace.ts`; data and migration pages use `data-control.ts`, while jobs, audit, and diagnostics pages use `diagnostics.ts` to read their separate authoritative contracts.
 
 ## Authoritative Data
 
@@ -24,10 +27,12 @@ This directory owns the operator-facing plugin fleet and one routed workspace pe
 - Workspace snapshot: `GET /v1/plugins/{id}/control`
 - Data lifecycle snapshot: `GET /v1/plugins/{id}/data-control`
 - Migration rollback: `POST /v1/plugins/{id}/migrations/rollback`
+- Correlated diagnostics: `GET /v1/plugins/{id}/diagnostics`
+- Dead-letter retry: `POST /v1/plugins/{id}/jobs/{jobId}/retry`
 - Configuration: `GET|PUT /v1/plugins/{id}/config`
 - Lifecycle: `POST /v1/plugins/{id}/enable`, `POST /v1/plugins/{id}/disable`, and `DELETE /v1/plugins/{id}`
 
-The control snapshot includes `capturedAt` and `staleAfter`. A failed health probe is data inside the snapshot, not a reason to hide the rest of the plugin controls. The data lifecycle snapshot comes from the host schema registry and migration ledger; the frontend does not infer migration state. Rollback requires a disabled plugin, automatic rollback policy, exact plugin-ID confirmation, `plugin.manage`, and the `super_admin` role.
+The control snapshot includes `capturedAt` and `staleAfter`. A failed health probe is data inside the snapshot, not a reason to hide the rest of the plugin controls. The data lifecycle snapshot comes from the host schema registry and migration ledger; the frontend does not infer migration state. Diagnostics aggregate persistent job and audit stores with current health observations. Dead-letter retry creates a new job and preserves the failed source record. Rollback and retry require exact confirmations, `plugin.manage`, and the `super_admin` role.
 
 ## Verification
 
@@ -41,4 +46,4 @@ npm run build
 npm run check:bundle
 ```
 
-The browser suite runs both 1440px desktop and 390px mobile projects and verifies fleet access, all workspace routes, lifecycle and migration action state, forbidden access, and horizontal overflow.
+The browser suite runs both 1440px desktop and 390px mobile projects and verifies fleet access, all workspace routes, lifecycle, migration and dead-letter action state, correlation rendering, forbidden access, and horizontal overflow.

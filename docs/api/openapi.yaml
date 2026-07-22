@@ -1636,6 +1636,93 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /v1/plugins/{id}/diagnostics:
+    get:
+      summary: Inspect correlated plugin diagnostics
+      description: Aggregates current process health, namespaced jobs, host audit records, HTTP audit events, and derived error signals for one plugin.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: jobStatus
+          in: query
+          schema: {type: string, enum: [scheduled, running, retry_wait, succeeded, dead_letter]}
+        - name: auditResult
+          in: query
+          schema: {type: string, enum: [success, failure, denied]}
+        - name: correlation
+          in: query
+          description: Case-insensitive job, audit, request, trace, route, process, or error identifier search.
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 200, default: 50}
+      responses:
+        '200':
+          description: Correlated plugin diagnostic snapshot
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginDiagnosticsAPIResponse'}
+        '400':
+          description: Invalid diagnostic filter
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: Plugin not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '503':
+          description: Plugin diagnostics are unavailable
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/plugins/{id}/jobs/{jobId}/retry:
+    post:
+      summary: Retry a plugin dead-letter job as a new job
+      description: Requires the super_admin role and exact plugin and job confirmations. The original dead-letter record remains unchanged and the new job plus operation are durably audited.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+        - name: jobId
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PluginJobRetryRequest'}
+      responses:
+        '200':
+          description: Retry job created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PluginJobRetryAPIResponse'}
+        '400':
+          description: Invalid or mismatched confirmation
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '403':
+          description: Super administrator role required
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '404':
+          description: Plugin or job not found
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '409':
+          description: Job is not in the dead-letter state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/plugins/{id}/config:
     get:
       summary: Get plugin config
@@ -4917,6 +5004,114 @@ components:
           required: [data]
           properties:
             data: {$ref: '#/components/schemas/PluginMigrationRollbackResult'}
+    PluginDiagnosticSummary:
+      type: object
+      required: [totalJobs, activeJobs, deadLetters, auditEvents, failureCount]
+      properties:
+        totalJobs: {type: integer, minimum: 0}
+        activeJobs: {type: integer, minimum: 0}
+        deadLetters: {type: integer, minimum: 0}
+        auditEvents: {type: integer, minimum: 0}
+        failureCount: {type: integer, minimum: 0}
+    PluginDiagnosticJob:
+      type: object
+      required: [id, kind, status, runAt, maxAttempts, attemptCount, createdAt, updatedAt, canRetry]
+      properties:
+        id: {type: string}
+        kind: {type: string}
+        status: {type: string, enum: [scheduled, running, retry_wait, succeeded, dead_letter]}
+        runAt: {type: string, format: date-time}
+        maxAttempts: {type: integer, minimum: 1}
+        attemptCount: {type: integer, minimum: 0}
+        lastError: {type: string}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time}
+        deadLetteredAt: {type: string, format: date-time}
+        canRetry: {type: boolean}
+    PluginDiagnosticAudit:
+      type: object
+      required: [id, source, action, result, risk, actorId, resourceType, resourceId, occurredAt]
+      properties:
+        id: {type: string}
+        source: {type: string, enum: [host, event]}
+        action: {type: string}
+        result: {type: string, enum: ['', success, failure, denied]}
+        risk: {type: string}
+        actorId: {type: string}
+        resourceType: {type: string}
+        resourceId: {type: string}
+        occurredAt: {type: string, format: date-time}
+        traceId: {type: string}
+        requestId: {type: string}
+        method: {type: string}
+        path: {type: string}
+        metadata: {type: object, additionalProperties: true}
+    PluginDiagnosticCorrelation:
+      type: object
+      properties:
+        processId: {type: string}
+        routeId: {type: string}
+        jobId: {type: string}
+        auditId: {type: string}
+        requestId: {type: string}
+        traceId: {type: string}
+    PluginDiagnosticError:
+      type: object
+      required: [id, category, severity, summary, occurredAt, correlation]
+      properties:
+        id: {type: string}
+        category: {type: string, enum: [process, route, job, audit]}
+        severity: {type: string, enum: [medium, high, critical]}
+        summary: {type: string}
+        occurredAt: {type: string, format: date-time}
+        correlation: {$ref: '#/components/schemas/PluginDiagnosticCorrelation'}
+    PluginDiagnosticsSnapshot:
+      type: object
+      required: [pluginId, capturedAt, health, summary, jobs, audit, errors]
+      properties:
+        pluginId: {type: string}
+        capturedAt: {type: string, format: date-time}
+        health: {$ref: '#/components/schemas/PluginHealthReport'}
+        summary: {$ref: '#/components/schemas/PluginDiagnosticSummary'}
+        jobs:
+          type: array
+          items: {$ref: '#/components/schemas/PluginDiagnosticJob'}
+        audit:
+          type: array
+          items: {$ref: '#/components/schemas/PluginDiagnosticAudit'}
+        errors:
+          type: array
+          items: {$ref: '#/components/schemas/PluginDiagnosticError'}
+    PluginDiagnosticsAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginDiagnosticsSnapshot'}
+    PluginJobRetryRequest:
+      type: object
+      additionalProperties: false
+      required: [confirmPluginId, confirmJobId]
+      properties:
+        confirmPluginId: {type: string, description: Must exactly match the id path parameter.}
+        confirmJobId: {type: string, description: Must exactly match the jobId path parameter.}
+    PluginJobRetryResult:
+      type: object
+      required: [operationId, completedAt, sourceJobId, retryJob]
+      properties:
+        operationId: {type: string}
+        completedAt: {type: string, format: date-time}
+        sourceJobId: {type: string}
+        retryJob: {$ref: '#/components/schemas/PluginDiagnosticJob'}
+    PluginJobRetryAPIResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/PluginJobRetryResult'}
     PluginReadinessAPIResponse:
       allOf:
         - {$ref: '#/components/schemas/MessageResponse'}

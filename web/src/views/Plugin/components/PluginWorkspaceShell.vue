@@ -22,6 +22,9 @@ const tabs = computed(() => [
 	{ name: "plugin-center-capabilities", label: t("plugin.center.nav.capabilities") },
 	{ name: "plugin-center-data", label: t("plugin.center.nav.data") },
 	{ name: "plugin-center-migrations", label: t("plugin.center.nav.migrations") },
+	{ name: "plugin-center-jobs", label: t("plugin.center.nav.jobs") },
+	{ name: "plugin-center-audit", label: t("plugin.center.nav.audit") },
+	{ name: "plugin-center-diagnostics", label: t("plugin.center.nav.diagnostics") },
 	{ name: "plugin-center-settings", label: t("plugin.center.nav.settings") }
 ]);
 
@@ -66,6 +69,6 @@ function changeTab(name: string | number): void {
 .workspace-navigation :deep(.el-tabs__header) { margin: 0; }
 @media (max-width: 620px) {
 	.workspace-navigation { overflow-x: auto; }
-	.workspace-navigation :deep(.el-tabs__nav) { min-width: 720px; }
+	.workspace-navigation :deep(.el-tabs__nav) { min-width: 980px; }
 }
 </style>

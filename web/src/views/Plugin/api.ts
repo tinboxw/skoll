@@ -112,6 +112,86 @@ export type PluginMigrationRollbackResult = {
 	snapshot: PluginDataControlSnapshot;
 };
 
+export type PluginDiagnosticJobStatus = "scheduled" | "running" | "retry_wait" | "succeeded" | "dead_letter";
+
+export type PluginDiagnosticJob = {
+	id: string;
+	kind: string;
+	status: PluginDiagnosticJobStatus;
+	runAt: string;
+	maxAttempts: number;
+	attemptCount: number;
+	lastError?: string;
+	createdAt: string;
+	updatedAt: string;
+	completedAt?: string;
+	deadLetteredAt?: string;
+	canRetry: boolean;
+};
+
+export type PluginDiagnosticAudit = {
+	id: string;
+	source: "host" | "event";
+	action: string;
+	result: "" | "success" | "failure" | "denied";
+	risk: string;
+	actorId: string;
+	resourceType: string;
+	resourceId: string;
+	occurredAt: string;
+	traceId?: string;
+	requestId?: string;
+	method?: string;
+	path?: string;
+	metadata?: Record<string, unknown>;
+};
+
+export type PluginDiagnosticError = {
+	id: string;
+	category: "process" | "route" | "job" | "audit";
+	severity: "medium" | "high" | "critical";
+	summary: string;
+	occurredAt: string;
+	correlation: {
+		processId?: string;
+		routeId?: string;
+		jobId?: string;
+		auditId?: string;
+		requestId?: string;
+		traceId?: string;
+	};
+};
+
+export type PluginDiagnosticsSnapshot = {
+	pluginId: string;
+	capturedAt: string;
+	health: PluginHealthReport;
+	summary: {
+		totalJobs: number;
+		activeJobs: number;
+		deadLetters: number;
+		auditEvents: number;
+		failureCount: number;
+	};
+	jobs: PluginDiagnosticJob[];
+	audit: PluginDiagnosticAudit[];
+	errors: PluginDiagnosticError[];
+};
+
+export type PluginDiagnosticQuery = {
+	jobStatus?: PluginDiagnosticJobStatus | "";
+	auditResult?: "" | "success" | "failure" | "denied";
+	correlation?: string;
+	limit?: number;
+};
+
+export type PluginJobRetryResult = {
+	operationId: string;
+	completedAt: string;
+	sourceJobId: string;
+	retryJob: PluginDiagnosticJob;
+};
+
 export type PluginInstallPreflight = {
 	status: "pass" | "blocked";
 	plugin: { id: string; name: string; version: string; source: string };
@@ -151,6 +231,25 @@ export async function rollbackPluginMigration(pluginId: string, limit: number): 
 	const response = await apiPost<ApiResponse<PluginMigrationRollbackResult>>(`/v1/plugins/${encodeURIComponent(pluginId)}/migrations/rollback`, {
 		limit,
 		confirmPluginId: pluginId
+	});
+	return response.data;
+}
+
+export async function getPluginDiagnostics(pluginId: string, query: PluginDiagnosticQuery = {}): Promise<PluginDiagnosticsSnapshot> {
+	const params = new URLSearchParams();
+	if (query.jobStatus) params.set("jobStatus", query.jobStatus);
+	if (query.auditResult) params.set("auditResult", query.auditResult);
+	if (query.correlation?.trim()) params.set("correlation", query.correlation.trim());
+	if (query.limit) params.set("limit", String(query.limit));
+	const suffix = params.size > 0 ? `?${params.toString()}` : "";
+	const response = await apiGet<ApiResponse<PluginDiagnosticsSnapshot>>(`/v1/plugins/${encodeURIComponent(pluginId)}/diagnostics${suffix}`);
+	return response.data;
+}
+
+export async function retryPluginDeadLetter(pluginId: string, jobId: string): Promise<PluginJobRetryResult> {
+	const response = await apiPost<ApiResponse<PluginJobRetryResult>>(`/v1/plugins/${encodeURIComponent(pluginId)}/jobs/${encodeURIComponent(jobId)}/retry`, {
+		confirmPluginId: pluginId,
+		confirmJobId: jobId
 	});
 	return response.data;
 }

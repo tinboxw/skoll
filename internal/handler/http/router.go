@@ -20,6 +20,7 @@ import (
 	"github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/service/audit"
 	filesvc "github.com/tinboxw/skoll/internal/service/file"
+	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	"github.com/tinboxw/skoll/internal/service/menu"
 	"github.com/tinboxw/skoll/internal/service/permission"
 	"github.com/tinboxw/skoll/internal/service/rbac"
@@ -38,6 +39,7 @@ type Dependencies struct {
 	RBACService       rbac.Service
 	AuditService      audit.Service
 	AuditEventService audit.EventService
+	JobService        *jobsvc.Service
 	FileService       filesvc.Service
 	SystemService     system.Service
 	PermissionService permission.Service
@@ -98,12 +100,18 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	menuhttp.RegisterMenuRoutes(apiMux, deps.MenuService)
 	workflowhttp.RegisterWorkflowRoutes(apiMux, deps.WorkflowService)
 	_ = workflowhttp.RegisterWorkflowPermissions(deps.PermissionService)
+	var pluginHealth plugin.HealthProvider
+	if provider, ok := deps.PluginManager.(plugin.HealthProvider); ok {
+		pluginHealth = provider
+	}
+	pluginDiagnostics := plugin.NewDiagnosticsService(deps.PluginManager, deps.JobService, deps.AuditService, deps.AuditEventService, pluginHealth)
 	pluginhttp.RegisterPluginRoutes(
 		apiMux,
 		deps.PluginManager,
 		pluginhttp.WithPluginLogTarget(deps.LogLevel, deps.LogDir, deps.LogFile, deps.LogPluginPerFile),
 		pluginhttp.WithPluginAuditService(deps.AuditService),
 		pluginhttp.WithPluginAuditEventSink(deps.AuditEventService),
+		pluginhttp.WithPluginDiagnosticsProvider(pluginDiagnostics),
 		pluginhttp.WithPluginRoleCatalogProvider(deps.RoleService),
 		pluginhttp.WithPluginDevPortal(deps.DevPortalEnabled, deps.DevPortalRoot, deps.DevPortalRoots),
 	)
