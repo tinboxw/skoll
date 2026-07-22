@@ -1,0 +1,68 @@
+version: 1
+tables:
+  - name: employees
+    primary_key: [id]
+    fields:
+      - name: id
+        type: string
+        filterable: true
+        sortable: true
+      - name: code
+        type: string
+        mutable: true
+        filterable: true
+        sortable: true
+      - name: name
+        type: string
+        mutable: true
+        filterable: true
+        sortable: true
+      - name: department_id
+        type: string
+        mutable: true
+        filterable: true
+        sortable: true
+      - name: position_id
+        type: string
+        mutable: true
+        filterable: true
+        sortable: true
+      - name: employment_status
+        type: string
+        mutable: true
+        filterable: true
+        sortable: true
+      - name: phone
+        type: string
+        mutable: true
+        filterable: true
+      - name: email
+        type: string
+        mutable: true
+        filterable: true
+      - name: hire_date
+        type: timestamp
+        mutable: true
+        filterable: true
+        sortable: true
+      - name: left_at
+        type: timestamp
+        nullable: true
+        mutable: true
+        filterable: true
+        sortable: true
+      - name: leave_reason
+        type: string
+        nullable: true
+        mutable: true
+      - name: attachments
+        type: json
+        mutable: true
+      - name: certificates
+        type: json
+        mutable: true
+    indexes:
+      - fields: [code]
+        unique: true
+      - fields: [employment_status, name]
+      - fields: [department_id, position_id]

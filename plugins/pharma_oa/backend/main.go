@@ -16,14 +16,19 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := client.HostServices(); err != nil {
+	host, err := client.HostServices()
+	if err != nil {
 		log.Fatal(err)
 	}
 	address := strings.TrimSpace(os.Getenv("SKOLL_PLUGIN_ADDRESS"))
 	if address == "" {
 		log.Fatal(errors.New("SKOLL_PLUGIN_ADDRESS is required"))
 	}
-	server := &http.Server{Addr: address, Handler: newHandler(), ReadHeaderTimeout: 5 * time.Second}
+	handler, err := newHandler(host)
+	if err != nil {
+		log.Fatal(err)
+	}
+	server := &http.Server{Addr: address, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 	log.Printf("%s listening on %s", pluginID, address)
 	log.Fatal(server.ListenAndServe())
 }

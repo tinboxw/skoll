@@ -1,78 +1,87 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Pharma OA</title>
+		<title>员工管理 - 医药 OA</title>
 		<link rel="stylesheet" href="./style.css" />
 	</head>
 	<body>
-		<main class="pharma-shell" data-state="ready">
-			<section class="hero">
+		<main class="employee-workspace" id="app" data-state="loading">
+			<header class="page-header">
 				<div>
-					<p class="eyebrow">Industry plugin</p>
-					<h1>Pharma OA</h1>
-					<p class="summary">Master data, workflow, inventory, and compliance modules will attach here as F8-F12 work items land.</p>
+					<p class="eyebrow" data-i18n="module">医药 OA · 人力资源</p>
+					<h1 data-i18n="title">员工管理</h1>
+					<p class="subtitle" data-i18n="subtitle">员工档案、任职信息与资质到期统一管理</p>
 				</div>
-				<div class="status-pill" id="status-pill">Ready</div>
+				<button class="button primary" id="create-button" type="button"><span aria-hidden="true">＋</span><span data-i18n="newEmployee">新建员工</span></button>
+			</header>
+
+			<section class="scope-bar" aria-label="业务范围">
+				<label><span data-i18n="tenant">租户</span><input id="tenant-input" autocomplete="off" placeholder="tenant-a" /></label>
+				<label><span data-i18n="organization">组织</span><input id="organization-input" autocomplete="off" placeholder="org-a" /></label>
+				<button class="button" id="scope-button" type="button" data-i18n="applyScope">应用范围</button>
 			</section>
 
-			<nav class="toolbar" aria-label="Plugin state smoke controls">
-				<button type="button" data-state-button="ready">Data</button>
-				<button type="button" data-state-button="loading">Loading</button>
-				<button type="button" data-state-button="empty">Empty</button>
-				<button type="button" data-state-button="error">Error</button>
-				<button type="button" data-state-button="no-permission">No permission</button>
-				<button type="button" data-state-button="saving">Saving</button>
-				<button type="button" data-state-button="destructive">Destructive</button>
-			</nav>
-
-			<section class="state state-loading" aria-live="polite">
-				<div class="spinner"></div>
-				<p>Loading Pharma OA modules...</p>
+			<section class="metrics" aria-label="员工概览">
+				<article><span data-i18n="totalEmployees">员工总数</span><strong id="metric-total">0</strong></article>
+				<article><span data-i18n="activeEmployees">在职员工</span><strong id="metric-active">0</strong></article>
+				<article><span data-i18n="departedEmployees">已离职</span><strong id="metric-left">0</strong></article>
+				<article class="warning-metric"><span data-i18n="expiringQualifications">资质提醒</span><strong id="metric-reminders">0</strong></article>
 			</section>
 
-			<section class="state state-empty">
-				<h2>No module enabled</h2>
-				<p>Enable the upcoming master-data modules to populate this workspace.</p>
-			</section>
+			<section class="content-section">
+				<div class="toolbar">
+					<label class="search-field"><span class="sr-only" data-i18n="search">搜索</span><span aria-hidden="true">⌕</span><input id="keyword-input" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="搜索姓名、工号、部门或邮箱" /></label>
+					<label class="select-field"><span class="sr-only" data-i18n="employmentStatus">任职状态</span><select id="status-filter"><option value="" data-i18n="allStatuses">全部状态</option><option value="active" data-i18n="active">在职</option><option value="on_leave" data-i18n="onLeave">休假</option><option value="left" data-i18n="left">已离职</option></select></label>
+					<button class="icon-button" id="refresh-button" type="button" title="刷新" aria-label="刷新">↻</button>
+			</div>
 
-			<section class="state state-error">
-				<h2>Plugin contract unavailable</h2>
-				<p>Check the plugin lifecycle log and retry the route registration smoke.</p>
-			</section>
+				<div class="state-panel loading-state" aria-live="polite"><span class="spinner" aria-hidden="true"></span><p data-i18n="loading">正在加载员工档案</p></div>
+				<div class="state-panel error-state" role="alert"><strong data-i18n="loadFailed">员工档案加载失败</strong><p id="error-message"></p><button class="button" id="retry-button" type="button" data-i18n="retry">重新加载</button></div>
+				<div class="state-panel denied-state" role="alert"><strong data-i18n="permissionRequired">需要员工档案访问权限</strong><p data-i18n="contactAdmin">请联系管理员配置医药 OA 员工权限。</p></div>
+				<div class="state-panel empty-state"><span class="empty-icon" aria-hidden="true">◇</span><strong data-i18n="noEmployees">暂无员工档案</strong><p data-i18n="emptyHint">创建首位员工，开始维护组织任职与资质信息。</p><button class="button primary" id="empty-create-button" type="button" data-i18n="newEmployee">新建员工</button></div>
 
-			<section class="state state-no-permission">
-				<h2>Permission required</h2>
-				<p>`pharma_oa.menu.read` is required to enter this plugin group.</p>
-			</section>
-
-			<section class="module-grid state-ready">
-				<article>
-					<span>F8</span>
-					<h2>Master data</h2>
-					<p>Employees, products, suppliers, customers, warehouses, and import/export.</p>
-				</article>
-				<article>
-					<span>F9</span>
-					<h2>Inventory loop</h2>
-					<p>Purchase, inbound, sales outbound, batches, expiry, and stock alerts.</p>
-				</article>
-				<article>
-					<span>F10</span>
-					<h2>Compliance</h2>
-					<p>Qualifications, complaints, recalls, contracts, cold-chain records, and audit dashboard.</p>
-				</article>
-			</section>
-
-			<section class="seed-panel">
-				<div>
-					<h2>Demo seed entry</h2>
-					<p>Reserved for the later complete Pharma OA demo data set.</p>
+				<div class="data-state">
+					<div class="table-wrap">
+						<table>
+							<thead><tr><th data-i18n="employee">员工</th><th data-i18n="assignment">任职信息</th><th data-i18n="contact">联系方式</th><th data-i18n="qualifications">资质</th><th data-i18n="employmentStatus">任职状态</th><th class="actions-column" data-i18n="actions">操作</th></tr></thead>
+							<tbody id="employee-table"></tbody>
+						</table>
+					</div>
+					<div class="mobile-list" id="employee-cards"></div>
+					<footer class="list-footer"><span id="result-count">共 0 条</span></footer>
 				</div>
-				<button type="button" id="seed-button">Prepare seed</button>
 			</section>
 		</main>
+
+		<dialog class="dialog" id="employee-dialog">
+			<form id="employee-form" method="dialog">
+				<header><div><p class="eyebrow" data-i18n="employeeRecord">员工档案</p><h2 id="employee-dialog-title">新建员工</h2></div><button class="close-button" type="button" data-close="employee-dialog" aria-label="关闭">×</button></header>
+				<div class="form-grid">
+					<label><span data-i18n="employeeCode">员工工号</span><input name="code" maxlength="64" required /></label>
+					<label><span data-i18n="employeeName">姓名</span><input name="name" maxlength="200" required /></label>
+					<label><span data-i18n="department">部门</span><input name="departmentId" maxlength="128" required /></label>
+					<label><span data-i18n="position">职位</span><input name="positionId" maxlength="128" required /></label>
+					<label><span data-i18n="phone">手机号</span><input name="phone" maxlength="64" inputmode="tel" /></label>
+					<label><span data-i18n="email">邮箱</span><input name="email" maxlength="250" type="email" /></label>
+					<label><span data-i18n="hireDate">入职日期</span><input name="hireDate" type="date" /></label>
+				</div>
+				<fieldset><legend data-i18n="qualification">执业资质</legend><div class="form-grid"><label><span data-i18n="qualificationName">资质名称</span><input name="certificateName" maxlength="120" /></label><label><span data-i18n="qualificationNumber">证书编号</span><input name="certificateNumber" maxlength="120" /></label><label><span data-i18n="expiryDate">有效期至</span><input name="certificateExpiry" type="date" /></label></div></fieldset>
+				<p class="form-error" id="employee-form-error" role="alert"></p>
+				<footer><button class="button" type="button" data-close="employee-dialog" data-i18n="cancel">取消</button><button class="button primary" id="employee-save-button" type="submit" data-i18n="save">保存</button></footer>
+			</form>
+		</dialog>
+
+		<dialog class="dialog compact-dialog" id="attachment-dialog">
+			<form id="attachment-form" method="dialog"><header><div><p class="eyebrow" data-i18n="employeeAttachment">员工附件</p><h2 id="attachment-title">上传附件</h2></div><button class="close-button" type="button" data-close="attachment-dialog" aria-label="关闭">×</button></header><label class="file-field"><span data-i18n="selectFile">选择文件</span><input name="file" type="file" required /></label><p class="form-error" id="attachment-form-error" role="alert"></p><footer><button class="button" type="button" data-close="attachment-dialog" data-i18n="cancel">取消</button><button class="button primary" id="attachment-save-button" type="submit" data-i18n="upload">上传</button></footer></form>
+		</dialog>
+
+		<dialog class="dialog compact-dialog" id="leave-dialog">
+			<form id="leave-form" method="dialog"><header><div><p class="eyebrow" data-i18n="employmentChange">任职变更</p><h2 id="leave-title">办理离职</h2></div><button class="close-button" type="button" data-close="leave-dialog" aria-label="关闭">×</button></header><label><span data-i18n="leaveReason">离职原因</span><textarea name="reason" maxlength="500" rows="4" required></textarea></label><p class="form-error" id="leave-form-error" role="alert"></p><footer><button class="button" type="button" data-close="leave-dialog" data-i18n="cancel">取消</button><button class="button danger" id="leave-save-button" type="submit" data-i18n="confirmLeave">确认离职</button></footer></form>
+		</dialog>
+
+		<div class="toast" id="toast" role="status" aria-live="polite"></div>
 		<script src="./app.js"></script>
 	</body>
 </html>

@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.2.0
+version: 0.3.0
 api_version: v1
-migration_version: 0.2.0
+migration_version: 0.3.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: monolith
 level: app
@@ -13,7 +13,7 @@ mount_policy: mixed
 ui_nav_position: sidebar
 ui_open_mode: integrated
 ui_tab_mode: fixed
-frontend_entry: /skoll/pharma-oa/employees
+frontend_entry: /skoll/plugins/pharma-oa
 service_base_url: http://127.0.0.1:18093
 service_health_url: http://127.0.0.1:18093/health
 ui_menu:
@@ -21,7 +21,7 @@ ui_menu:
   label: Pharma OA
   label_zh_cn: 医药 OA
   label_en_us: Pharma OA
-  path: /skoll/pharma-oa/employees
+  path: /skoll/plugins/pharma-oa
   component: PluginRuntime
   icon: plugins
   order: 210
@@ -581,6 +581,11 @@ api:
       summary: Mark Pharma OA employee left
       permission: pharma_oa.employee.leave
       audit_action: pharma_oa.employee.leave
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/employees/{id}/attachments
+      summary: Attach an owned employee record file
+      permission: pharma_oa.employee.update
+      audit_action: pharma_oa.employee.attach
     - method: GET
       path: /v1/plugins/pharma_oa/api/employees/qualification-reminders
       summary: List Pharma OA employee qualification reminders
@@ -1159,7 +1164,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.2.0
+  migration_version: 0.3.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1174,6 +1179,11 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, document_type, module_key, workflow_key, status, created_at, updated_at
       indexes: unique uq_pharma_oa_documents_tenant_type(tenant_id,document_type); idx_pharma_oa_documents_scope(tenant_id,organization_id,status)
+    - name: pharma_oa_employees
+      description: Trusted-scope employee profiles, organization assignments, employment state, certificates, and owned attachments.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, code, name, department_id, position_id, employment_status, phone, email, hire_date, left_at, leave_reason, attachments, certificates, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_employees_tenant_code(tenant_id,code); idx_pharma_oa_employees_scope(tenant_id,organization_id,employment_status); idx_pharma_oa_employees_name(tenant_id,name)
 
 events:
   subscriptions:

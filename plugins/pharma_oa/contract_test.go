@@ -22,7 +22,11 @@ type pharmaManifest struct {
 	AppID            string `yaml:"app_id"`
 	ServiceBaseURL   string `yaml:"service_base_url"`
 	ServiceHealthURL string `yaml:"service_health_url"`
-	Permissions      []struct {
+	FrontendEntry    string `yaml:"frontend_entry"`
+	UIMenu           struct {
+		Path string `yaml:"path"`
+	} `yaml:"ui_menu"`
+	Permissions []struct {
 		Key string `yaml:"key"`
 	} `yaml:"permissions"`
 	Data struct {
@@ -89,7 +93,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	if manifest.ID != "pharma_oa" || manifest.AppID != manifest.ID || contract.PluginID != manifest.ID {
 		t.Fatalf("plugin identity mismatch: manifest=%q app=%q contract=%q", manifest.ID, manifest.AppID, contract.PluginID)
 	}
-	if manifest.Version != "0.2.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
+	if manifest.Version != "0.3.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
 		t.Fatalf("contract version mismatch: manifest=%q migration=%q map=%q", manifest.Version, manifest.MigrationVersion, contract.ContractVersion)
 	}
 	if manifest.APIVersion != "v1" || contract.SchemaVersion != 1 || contract.PublicContract.APIVersion != manifest.APIVersion {
@@ -97,6 +101,9 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	}
 	if manifest.ServiceBaseURL == "" || manifest.ServiceHealthURL == "" || contract.PublicContract.BackendClient != "github.com/tinboxw/skoll/pkg/pluginclient" {
 		t.Fatal("managed process and public backend client are required")
+	}
+	if manifest.FrontendEntry != "/skoll/plugins/pharma-oa" || manifest.UIMenu.Path != manifest.FrontendEntry {
+		t.Fatalf("independent plugin UI entry mismatch: frontend=%q menu=%q", manifest.FrontendEntry, manifest.UIMenu.Path)
 	}
 	if manifest.Data.Namespace != manifest.ID || manifest.Data.MigrationVersion != manifest.Version || manifest.Data.MigrationDirectory != "migrations" || manifest.Data.UninstallPolicy != "drop" || manifest.Data.RollbackPolicy != "automatic" {
 		t.Fatalf("data lifecycle is incomplete: %+v", manifest.Data)
@@ -168,8 +175,9 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 
 func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	for _, path := range []string{
-		"backend/main.go", "backend/server.go", "plugin.ps1", "plugin.sh", "static/index.html",
+		"backend/main.go", "backend/server.go", "backend/employee.go", "plugin.ps1", "plugin.sh", "static/index.html", "datastore.yaml",
 		"contract/acceptance-map.json", "migrations/001_foundation.up.sql", "migrations/001_foundation.down.sql",
+		"migrations/002_employees.up.sql", "migrations/002_employees.down.sql",
 	} {
 		if info, err := os.Stat(filepath.FromSlash(path)); err != nil || info.IsDir() {
 			t.Fatalf("required package file %q is unavailable: %v", path, err)
@@ -221,12 +229,15 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	up, err := os.ReadFile("migrations/001_foundation.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Exec(string(up)).Error; err != nil {
-		t.Fatalf("apply foundation migration: %v", err)
+	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql"} {
+		migration, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		sql := strings.ReplaceAll(string(migration), "{{table:employees}}", "pharma_oa_employees")
+		if err := db.Exec(sql).Error; err != nil {
+			t.Fatalf("apply %s: %v", path, err)
+		}
 	}
 	manifest := loadPharmaManifest(t)
 	wantTables := make(map[string]struct{}, len(manifest.Data.Tables))
@@ -243,16 +254,45 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	for _, table := range loadPharmaAcceptanceMap(t).Migrations.Tables {
 		assertPharmaContains(t, wantTables, table, "contract migration table")
 	}
-	down, err := os.ReadFile("migrations/001_foundation.down.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Exec(string(down)).Error; err != nil {
-		t.Fatalf("rollback foundation migration: %v", err)
+	for _, path := range []string{"migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
+		migration, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		sql := strings.ReplaceAll(string(migration), "{{table:employees}}", "pharma_oa_employees")
+		if err := db.Exec(sql).Error; err != nil {
+			t.Fatalf("rollback %s: %v", path, err)
+		}
 	}
 	for table := range wantTables {
 		if db.Migrator().HasTable(table) {
 			t.Fatalf("rollback retained %s", table)
+		}
+	}
+}
+
+func TestMedicalOAEmployeeWorkspaceIsChineseFirstAndHostNative(t *testing.T) {
+	html := pharmaReadText(t, "static/index.html")
+	script := pharmaReadText(t, "static/app.js")
+	styles := pharmaReadText(t, "static/style.css")
+	for _, value := range []string{`<html lang="zh-CN">`, "员工管理", "员工档案", "资质提醒", "办理离职", `data-state="loading"`} {
+		if !strings.Contains(html, value) {
+			t.Fatalf("Chinese-first employee workspace is missing %q", value)
+		}
+	}
+	for _, obsolete := range []string{"Industry plugin", "Master data", "Prepare seed", "No permission"} {
+		if strings.Contains(html, obsolete) {
+			t.Fatalf("obsolete English smoke UI remains: %q", obsolete)
+		}
+	}
+	for _, value := range []string{"window.__SKOLL_HOST__", "host().request", "/employees/qualification-reminders", "/attachments", "/leave", `"Idempotency-Key"`, "skoll:locale", "skoll:host-ready"} {
+		if !strings.Contains(script, value) {
+			t.Fatalf("host-native employee workflow is missing %q", value)
+		}
+	}
+	for _, value := range []string{"--color-surface", "--color-primary", `[data-density="compact"]`, `[data-theme="dark"]`, "@media (max-width: 900px)", "@media (max-width: 620px)", "prefers-reduced-motion"} {
+		if !strings.Contains(styles, value) {
+			t.Fatalf("responsive theme contract is missing %q", value)
 		}
 	}
 }
@@ -268,6 +308,15 @@ func loadPharmaManifest(t *testing.T) pharmaManifest {
 		t.Fatalf("decode manifest: %v", err)
 	}
 	return manifest
+}
+
+func pharmaReadText(t *testing.T, path string) string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(raw)
 }
 
 func loadPharmaAcceptanceMap(t *testing.T) pharmaAcceptanceMap {

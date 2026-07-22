@@ -1300,3 +1300,58 @@ Result: BF4-01 passed after three acceptance repairs. Medical OA now has one cur
 ### Commit
 
 `BF4-01: establish independent medical OA boundary`
+
+## BF4-02 Implement Employee Records And Organization Assignments
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Deliver the first independent medical OA master-data module over public host services, including employee records, assignments, employment lifecycle, qualifications, owned attachments, and a Chinese-first responsive workspace.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Versioned employee data | Pass | Plugin `0.3.0` declares the logical `employees` datastore schema and namespaced `pharma_oa_employees` physical table; foundation and employee migrations apply in order and roll back in reverse order |
+| Public plugin boundary | Pass | The managed process implements employee operations only through `pkg/pluginclient` and `pkg/pluginsdk`; package tests continue to reject every host `internal/` import |
+| Trusted scope | Pass | Create resolves trusted tenant, organization, and actor-owned scope; every mutation carries exactly one tenant, organization, and owner; denied predicates fail with HTTP 403 |
+| Employee lifecycle | Pass | Create, search, status filtering, organization assignment update, optimistic-version conflict, and departure with reason pass the backend lifecycle test |
+| Qualifications | Pass | Employee certificates are validated, stored with the record, sorted into 30-day reminders, and excluded immediately after departure |
+| Owned attachments | Pass | Private files bind to employee and request identity, reject files over 1 MiB, persist the idempotency key, avoid duplicate storage, and delete a newly stored file when mutation fails |
+| Transactions and audit | Pass | Create, update, attach, and leave mutations execute in host transaction context with distinct medium/high-risk audit actions |
+| Chinese-first workspace | Pass | The plugin-owned route `/skoll/plugins/pharma-oa` replaces the English smoke page with Chinese employee management, complete loading/empty/error/no-permission states, search, filters, CRUD, attachment, and departure flows |
+| Theme, locale, and accessibility | Pass | Current host theme tokens, light/dark scheme, comfortable/compact density, zh-CN/en-US events, named controls, focus states, reduced motion, semantic table, dialog, and live status regions are supported |
+| Responsive visual review | Pass | Chrome screenshots were inspected at 1440x900 and 390x844; desktop table and mobile cards/form have no document overflow, the mobile dialog is exactly viewport width, and the repaired desktop header gap is 18px |
+| Package and automated tests | Pass | JavaScript syntax, frontend contract, backend lifecycle, plugin manifest/migration, package/verify, internal plugin integration, and full repository Go tests pass |
+| Current-only rule | Pass | The old host-owned route and English seed/smoke UI were replaced; no compatibility route, legacy employee service, fallback API, dual data model, or transitional renderer was added |
+
+The first acceptance run exposed three contract failures: a non-namespaced physical table name, an employee migration omitted from the executable migration test, and backend tests that had not yet supplied public host services. That evidence was rejected and all three contracts were repaired. The next two backend runs corrected test assumptions around Go's native plain-text 404 and method-aware 405 responses. The first visual review then rejected excessive desktop whitespace caused by grid height distribution; content alignment was corrected and desktop/mobile screenshots were regenerated before acceptance.
+
+### Verification Commands
+
+```powershell
+node --check plugins/pharma_oa/static/app.js
+go test ./plugins/pharma_oa/backend ./plugins/pharma_oa ./internal/plugin
+./plugins/pharma_oa/plugin.ps1 -Action package -DistDir <temporary-directory>
+./plugins/pharma_oa/plugin.ps1 -Action verify -DistDir <temporary-directory>
+go test ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF4-02 passed after four acceptance repairs. Medical OA now owns one installable employee module with trusted-scope persistence, transaction and audit evidence, attachment ownership, employment and qualification workflows, and a host-native Chinese workspace usable from mobile through wide desktop.
+
+### Impact Review
+
+- API: implemented current employee list, create, update, leave, attachment, and qualification-reminder routes in the independent managed process.
+- Permission/audit: employee read/create/update/leave/reminder permissions stay manifest-owned; attach now records its own `pharma_oa.employee.attach` action.
+- Data: added one logical datastore declaration and one reversible namespaced employee migration with optimistic version and scope columns.
+- Frontend: moved the active menu to the independent plugin runtime and replaced the English smoke surface with the employee workspace.
+- Visual and accessibility: added host token/density/locale integration, desktop table, mobile cards, full-screen mobile forms, complete states, focus visibility, and reduced-motion behavior.
+- Package: advanced the plugin artifact from `0.2.0` to `0.3.0` and verified the generated archive and checksum.
+- Compatibility: none; only the independent `0.3.0` employee contract and `/skoll/plugins/pharma-oa` route are current.
+
+### Commit
+
+`BF4-02: implement employee records and assignments`

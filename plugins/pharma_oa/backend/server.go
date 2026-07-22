@@ -1,12 +1,24 @@
 package main
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/tinboxw/skoll/pkg/pluginclient"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
-const pluginID = "pharma_oa"
+const (
+	pluginID = "pharma_oa"
+	apiBase  = "/v1/plugins/pharma_oa/api"
+)
 
 type foundationContract struct {
 	PluginID        string   `json:"pluginId"`
@@ -23,6 +35,12 @@ type eventEnvelope struct {
 	EventName  string `json:"eventName"`
 }
 
+type server struct {
+	host  pluginsdk.HostServices
+	now   func() time.Time
+	newID func() string
+}
+
 var foundationEvents = map[string]string{
 	"onApprovalCompleted":     "approval-completed",
 	"onQualificationExpiring": "qualification-expiring",
@@ -31,35 +49,150 @@ var foundationEvents = map[string]string{
 	"onQualityRecallStarted":  "quality-recall-started",
 }
 
-func newHandler() http.Handler {
+func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
+	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.Files == nil || host.Audit == nil {
+		return nil, errors.New("complete Pharma OA host services are required")
+	}
+	s := &server{host: host, now: time.Now, newID: employeeID}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"pluginId": pluginID, "status": "ready"})
-	})
-	mux.HandleFunc("POST /_skoll/events", handleEvent)
-	mux.HandleFunc("GET /v1/plugins/pharma_oa/api/meta", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, foundationContract{
-			PluginID: pluginID, ContractVersion: "0.2.0",
-			Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
-			DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
-			Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},
-		})
-	})
-	return mux
+	mux.HandleFunc("GET /health", s.health)
+	mux.HandleFunc("POST /_skoll/events", s.handleEvent)
+	mux.HandleFunc("GET "+apiBase+"/meta", s.meta)
+	mux.HandleFunc("GET "+apiBase+"/employees", s.listEmployees)
+	mux.HandleFunc("POST "+apiBase+"/employees", s.createEmployee)
+	mux.HandleFunc("PUT "+apiBase+"/employees/{id}", s.updateEmployee)
+	mux.HandleFunc("POST "+apiBase+"/employees/{id}/leave", s.leaveEmployee)
+	mux.HandleFunc("POST "+apiBase+"/employees/{id}/attachments", s.attachEmployeeFile)
+	mux.HandleFunc("GET "+apiBase+"/employees/qualification-reminders", s.employeeQualificationReminders)
+	return mux, nil
 }
 
-func handleEvent(w http.ResponseWriter, r *http.Request) {
+func (s *server) health(w http.ResponseWriter, _ *http.Request) {
+	writeOK(w, map[string]string{"pluginId": pluginID, "status": "ready"})
+}
+
+func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
+	writeOK(w, foundationContract{
+		PluginID: pluginID, ContractVersion: "0.3.0",
+		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
+		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
+		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},
+	})
+}
+
+func (s *server) handleEvent(w http.ResponseWriter, r *http.Request) {
 	var event eventEnvelope
-	if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "invalid_event"})
+	if !decodeJSON(w, r, &event) {
 		return
 	}
 	wantEvent, ok := foundationEvents[strings.TrimSpace(event.Handler)]
 	if !ok || event.PluginID != pluginID || event.EventName != wantEvent || strings.TrimSpace(event.DeliveryID) == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"code": "invalid_event"})
+		writeError(w, http.StatusBadRequest, "invalid_event", "event contract does not match the manifest")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) requestContext(r *http.Request) (context.Context, error) {
+	value := strings.TrimSpace(r.Header.Get("Authorization"))
+	if len(value) < 8 || !strings.EqualFold(value[:7], "Bearer ") {
+		return nil, newHTTPError(http.StatusUnauthorized, "unauthorized", "bearer token is required")
+	}
+	token := strings.TrimSpace(value[7:])
+	if token == "" {
+		return nil, newHTTPError(http.StatusUnauthorized, "unauthorized", "bearer token is required")
+	}
+	return pluginclient.WithUserToken(r.Context(), token), nil
+}
+
+func (s *server) transaction(ctx context.Context, fn func(context.Context) error) error {
+	return s.host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error { return fn(tx.Context()) })
+}
+
+func (s *server) audit(ctx context.Context, action, employeeID string, risk pluginsdk.AuditRisk, detail map[string]any) error {
+	_, err := s.host.Audit.Record(ctx, pluginsdk.AuditEntry{
+		Action: action, Resource: "pharma_oa.employee", ResourceID: employeeID,
+		Result: pluginsdk.AuditResultSuccess, Risk: risk, Detail: detail,
+	})
+	return err
+}
+
+func employeeID() string {
+	var raw [12]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "employee-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 36)
+	}
+	return "employee-" + hex.EncodeToString(raw[:])
+}
+
+type httpError struct {
+	status  int
+	code    string
+	message string
+}
+
+func (e *httpError) Error() string { return e.message }
+
+func newHTTPError(status int, code, message string) error {
+	return &httpError{status: status, code: code, message: message}
+}
+
+func writeServiceError(w http.ResponseWriter, err error) {
+	var transport *httpError
+	if errors.As(err, &transport) {
+		writeError(w, transport.status, transport.code, transport.message)
+		return
+	}
+	var datastore *pluginsdk.DataStoreError
+	if errors.As(err, &datastore) {
+		status := http.StatusInternalServerError
+		switch datastore.Code {
+		case pluginsdk.DataStoreErrorInvalidRequest:
+			status = http.StatusBadRequest
+		case pluginsdk.DataStoreErrorForbidden:
+			status = http.StatusForbidden
+		case pluginsdk.DataStoreErrorNotFound:
+			status = http.StatusNotFound
+		case pluginsdk.DataStoreErrorConflict:
+			status = http.StatusConflict
+		case pluginsdk.DataStoreErrorLimitExceeded:
+			status = http.StatusRequestEntityTooLarge
+		case pluginsdk.DataStoreErrorUnsupported:
+			status = http.StatusUnprocessableEntity
+		case pluginsdk.DataStoreErrorUnavailable:
+			status = http.StatusServiceUnavailable
+		}
+		writeError(w, status, string(datastore.Code), datastore.Message)
+		return
+	}
+	var hostError *pluginclient.Error
+	if errors.As(err, &hostError) {
+		writeError(w, hostError.StatusCode, hostError.Code, hostError.Message)
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "internal_error", "request could not be completed")
+}
+
+func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return false
+	}
+	return true
+}
+
+func writeOK(w http.ResponseWriter, value any) {
+	writeJSON(w, http.StatusOK, map[string]any{"code": "ok", "message": "", "data": value})
+}
+
+func writeCreated(w http.ResponseWriter, value any) {
+	writeJSON(w, http.StatusCreated, map[string]any{"code": "ok", "message": "", "data": value})
+}
+
+func writeError(w http.ResponseWriter, status int, code, message string) {
+	writeJSON(w, status, map[string]any{"code": code, "message": message, "data": nil})
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
