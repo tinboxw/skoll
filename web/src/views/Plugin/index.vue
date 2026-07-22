@@ -2895,7 +2895,7 @@ function resetDefaultHome(): void {
 	margin: 12px 0 0;
 	padding: 12px;
 	border-radius: 8px;
-	background: #f6f8fb;
+	background: var(--color-code-surface);
 	border: 1px solid var(--color-border);
 	white-space: pre-wrap;
 	word-break: break-word;

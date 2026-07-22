@@ -249,8 +249,10 @@ watch(
 				:error="pluginStore.lastSyncError"
 				:locale="locale"
 				:set-locale="setLocale"
-				:theme="themeStore.mode"
-				:set-theme="themeStore.setTheme"
+				:color-scheme="themeStore.colorScheme"
+				:set-color-scheme="themeStore.setColorScheme"
+				:density="themeStore.density"
+				:set-density="themeStore.setDensity"
 				:on-logout="handleLogout"
 				:on-open-profile="handleOpenProfile"
 				@toggle-sidebar="toggleNavigation"
@@ -276,14 +278,14 @@ watch(
 	min-height: 100vh;
 	display: grid;
 	grid-template-columns: 240px 1fr;
-	background: radial-gradient(circle at 20% 10%, var(--color-bg-accent) 0%, var(--color-bg) 55%);
+	background: var(--color-bg);
 }
 
 .login-shell {
 	min-height: 100vh;
 	padding: 24px;
 	box-sizing: border-box;
-	background: radial-gradient(circle at 20% 10%, var(--color-bg-accent) 0%, var(--color-bg) 55%);
+	background: var(--color-bg);
 }
 
 .content-area {

@@ -474,15 +474,15 @@ function formatDate(value: string): string {
 }
 
 .summary-tile.risk {
-	border-color: #f4c16a;
+	border-color: var(--color-warning-border);
 }
 
 .reminder-strip {
 	align-items: center;
-	background: #fff8e6;
-	border: 1px solid #f4d58a;
+	background: var(--color-warning-soft);
+	border: 1px solid var(--color-warning-border);
 	border-radius: var(--radius-md);
-	color: #7a4f00;
+	color: var(--color-warning-text);
 	display: flex;
 	gap: 10px;
 	padding: 12px 14px;

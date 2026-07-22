@@ -1663,3 +1663,49 @@ Result: PR4-02 passed after four documented retries. Primary console controls no
 ### Commit
 
 `PR4-02: unify frontend interaction controls`
+
+## PR4-03 Complete Token-Driven Themes
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Replace the mutually exclusive theme preset with independent color-scheme and density axes, publish the same current contract to plugins, and move all product colors into semantic tokens.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Current theme model | Pass | Store state is exactly `colorScheme: light\|dark` plus `density: comfortable\|compact`; setters and storage keys are independent |
+| No compatibility path | Pass | The removed `ThemeMode`, `data-theme-mode`, `skoll.ui.theme`, and compact-as-color contract have zero production references; the old key is ignored rather than migrated |
+| Plugin theme contract | Pass | Host bridge sends only `colorScheme`, `density`, and resolved semantic tokens; iframe updates apply the same two root attributes |
+| Semantic token coverage | Pass | Background, surface, border, text, primary, status, sidebar, code, loading, shadow, radius, spacing, control, Element Plus overlay, fill, and mask values have light/dark definitions |
+| Product raw-color scan | Pass | Automated scan covers 101 TypeScript, Vue, SCSS, and CSS files; raw hex/RGB/gradient values exist only in `variables.scss` |
+| Density behavior | Pass | Browser-computed Element input height changes from 36px to 32px and card radius from 8px to 6px without changing color scheme |
+| Light contrast | Pass | Real Chrome computed light text/surface contrast at 15.97:1 |
+| Dark contrast | Pass | Real Chrome computed dark text/surface contrast at 14.06:1 |
+| Element state colors | Pass | Dashboard matrix resolves distinct light/dark overlay, warning, danger, success, primary, fill, and border tokens |
+| Desktop matrix | Pass | Light/comfortable, light/compact, dark/comfortable, and dark/compact render at 1280x900 with no horizontal overflow |
+| Mobile matrix | Pass | Dark/compact dashboard at 390x844 has no horizontal overflow; all three segmented controls and the menu action remain reachable |
+| Automated behavior | Pass | Ten Vitest tests cover all four theme combinations, storage, root attributes, plugin payload, host script, and layout controls |
+| Frontend quality gates | Pass | i18n, accessibility, large-list, theme scan, `vue-tsc`, and Vite production build pass |
+
+### Verification Commands
+
+```powershell
+cd web
+npm run test:components
+npm run check:theme
+npm run typecheck
+npm run build
+codegraph sync ..
+codegraph impact ThemeBridgePayload
+codegraph impact useThemeStore
+codegraph status ..
+git diff --check
+```
+
+Result: PR4-03 passed without acceptance retries. Theme and density are now orthogonal current contracts across the host and plugin bridge, product screens consume semantic tokens, and the four visual combinations have executable contrast, size, overflow, and state-color evidence.
+
+### Commit
+
+`PR4-03: complete token-driven themes`

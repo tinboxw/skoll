@@ -57,7 +57,7 @@ function resolveIconComponent(icon: string) {
 .sidebar {
 	padding: 14px 10px;
 	border-right: 1px solid var(--color-border);
-	background: linear-gradient(180deg, var(--color-sidebar-bg) 0%, #182230 100%);
+	background: var(--color-sidebar-bg);
 	color: var(--color-on-primary);
 }
 

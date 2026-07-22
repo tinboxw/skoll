@@ -54,7 +54,8 @@ describe("layout controls", () => {
 
 	it("routes header choices and commands through explicit contracts", async () => {
 		const setLocale = vi.fn();
-		const setTheme = vi.fn();
+		const setColorScheme = vi.fn();
+		const setDensity = vi.fn();
 		const openProfile = vi.fn();
 		const logout = vi.fn();
 		const wrapper = mount(Header, {
@@ -69,21 +70,25 @@ describe("layout controls", () => {
 				error: null,
 				locale: "zh-CN",
 				setLocale,
-				theme: "light",
-				setTheme,
+				colorScheme: "light",
+				setColorScheme,
+				density: "comfortable",
+				setDensity,
 				onOpenProfile: openProfile,
 				onLogout: logout
 			}
 		});
 
 		const segmentedControls = wrapper.findAllComponents({ name: "ElSegmented" });
-		expect(segmentedControls).toHaveLength(2);
+		expect(segmentedControls).toHaveLength(3);
 		segmentedControls[0].vm.$emit("update:modelValue", "en-US");
 		segmentedControls[1].vm.$emit("update:modelValue", "dark");
+		segmentedControls[2].vm.$emit("update:modelValue", "compact");
 		await wrapper.find("button[aria-label='切换菜单']").trigger("click");
 
 		expect(setLocale).toHaveBeenCalledWith("en-US");
-		expect(setTheme).toHaveBeenCalledWith("dark");
+		expect(setColorScheme).toHaveBeenCalledWith("dark");
+		expect(setDensity).toHaveBeenCalledWith("compact");
 		expect(wrapper.emitted("toggle-sidebar")).toHaveLength(1);
 		expect(wrapper.text()).toContain("插件 4");
 	});

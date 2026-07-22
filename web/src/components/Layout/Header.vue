@@ -4,7 +4,7 @@ import { LogOut, Menu, UserRound } from "lucide-vue-next";
 
 import type { Locale } from "../../i18n";
 import { useI18n } from "../../i18n";
-import type { ThemeMode } from "../../stores/theme";
+import type { ThemeColorScheme, ThemeDensity } from "../../stores/theme";
 
 const props = defineProps<{
 	title: string;
@@ -16,8 +16,10 @@ const props = defineProps<{
 	error: string | null;
 	locale: Locale;
 	setLocale: (value: Locale) => void;
-	theme: ThemeMode;
-	setTheme: (value: ThemeMode) => void;
+	colorScheme: ThemeColorScheme;
+	setColorScheme: (value: ThemeColorScheme) => void;
+	density: ThemeDensity;
+	setDensity: (value: ThemeDensity) => void;
 	onOpenProfile: () => void | Promise<void>;
 	onLogout: () => void | Promise<void>;
 }>();
@@ -43,15 +45,19 @@ const syncDetail = computed(() => {
 
 const avatarFallback = computed(() => props.userName.trim().slice(0, 1).toUpperCase() || "U");
 const localeModel = computed<Locale>({ get: () => props.locale, set: props.setLocale });
-const themeModel = computed<ThemeMode>({ get: () => props.theme, set: props.setTheme });
+const colorSchemeModel = computed<ThemeColorScheme>({ get: () => props.colorScheme, set: props.setColorScheme });
+const densityModel = computed<ThemeDensity>({ get: () => props.density, set: props.setDensity });
 const localeOptions = computed(() => [
 	{ label: t("locale.zh-CN"), value: "zh-CN" },
 	{ label: t("locale.en-US"), value: "en-US" }
 ]);
 const themeOptions = computed(() => [
 	{ label: t("header.themeLightShort"), value: "light" },
-	{ label: t("header.themeDarkShort"), value: "dark" },
-	{ label: t("header.themeCompactShort"), value: "compact" }
+	{ label: t("header.themeDarkShort"), value: "dark" }
+]);
+const densityOptions = computed(() => [
+	{ label: t("header.densityComfortableShort"), value: "comfortable" },
+	{ label: t("header.densityCompactShort"), value: "compact" }
 ]);
 
 async function handleUserCommand(command: "profile" | "logout"): Promise<void> {
@@ -81,7 +87,10 @@ async function handleUserCommand(command: "profile" | "logout"): Promise<void> {
 				<el-segmented v-model="localeModel" size="small" :options="localeOptions" :aria-label="t('header.language')" />
 			</el-tooltip>
 			<el-tooltip :content="t('header.theme')">
-				<el-segmented v-model="themeModel" size="small" :options="themeOptions" :aria-label="t('header.theme')" />
+				<el-segmented v-model="colorSchemeModel" size="small" :options="themeOptions" :aria-label="t('header.theme')" />
+			</el-tooltip>
+			<el-tooltip :content="t('header.density')">
+				<el-segmented v-model="densityModel" size="small" :options="densityOptions" :aria-label="t('header.density')" />
 			</el-tooltip>
 
 			<el-dropdown trigger="click" @command="handleUserCommand">
