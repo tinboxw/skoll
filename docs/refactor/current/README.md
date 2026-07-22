@@ -19,6 +19,7 @@
 | Latest closed acceptance log | `hardening_acceptance_log_2026-07-18.md` |
 | Latest hardening closeout | `hardening_closeout_2026-07-21.md` |
 | Active performance baseline | `performance_capacity_baseline_2026-07-21.md` |
+| Frozen frontend experience target | `frontend_experience_target_2026-07-22.md` |
 | Active deployment and recovery rehearsal | `deployment_recovery_rehearsal_2026-07-21.md` |
 | Active H2-05 database acceptance report | `pharma_oa_database_acceptance_2026-07-18.md` |
 | Active batch source | `pharma_oa_milestone_closeout_2026-07-17.md` |
@@ -49,6 +50,7 @@ The active batch uses these files under `docs/refactor/current/`:
 plugin_runtime_task_board_2026-07-21.md
 plugin_runtime_work_items_2026-07-21.md
 plugin_runtime_acceptance_log_2026-07-21.md
+frontend_experience_target_2026-07-22.md
 ```
 
 The hardening and Pharma OA files are closed evidence. Do not reopen them for new progress.

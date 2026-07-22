@@ -1565,3 +1565,48 @@ Result: all PR3-06 acceptance gates passed after eleven documented retries. A ge
 ### Commit
 
 `PR3-06: prove generated plugin zero-edit E2E`
+
+## PR4-01 Audit Current UI And Freeze The Experience Target
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Audit the complete current Vue console, visually inspect the auth entry at desktop and narrow widths, classify architecture and experience gaps, and freeze a measurable current-only target for PR4-02 through PR4-06.
+
+### Acceptance Matrix
+
+| Scenario | Result | Evidence |
+| --- | --- | --- |
+| Frontend architecture | Pass | CodeGraph maps the app shell, 35 views, shared page/table/state components, theme store, plugin bridge, and high-impact consumers |
+| Element Plus decision | Pass | Element Plus is frozen as the only control system; the baseline records 24 native buttons, nine native inputs, one native table, and duplicate local patterns for removal |
+| Shared component inventory | Pass | App shell, page, toolbar, table, form, drawer, confirmation, state, plugin workspace, and test ownership are explicit |
+| Theme decision | Pass | Theme is defined as independent `light|dark` scheme and `comfortable|compact` density axes; incomplete preset semantics are rejected directly |
+| Primary workflows | Pass | Sixteen platform, plugin, workflow, IAM, foundation, and Pharma OA workflow entries identify gaps, owner, target components, and downstream Work Item |
+| State matrix | Pass | Loading, empty, error/retry, forbidden, degraded, saving, success, destructive, and narrow requirements are frozen by workflow group |
+| Inconsistency register | Pass | Fifteen P0-P2 findings have evidence, owner, target, measurable acceptance, and PR4 assignment |
+| Responsive visual review | Pass | Real Chrome renders prove the login desktop baseline and reproduce 390x844 horizontal overflow |
+| Production render review | Pass | Asset requests prove `vite preview` base mismatch and the blank `/skoll/login` production preview; UI-002 assigns the executable fix to PR4-06 |
+| Performance baseline | Pass | Host initial and generated-plugin bundle evidence becomes enforceable PR4-06 budgets rather than warning suppression |
+| Documentation routing | Pass | Current refactor README and PR4-01 deliverable link resolve with zero broken local links |
+| Current-only architecture | Pass | The target explicitly forbids old theme migration, compatibility controls/routes, dual UI paths, and fallback design |
+
+### Verification Commands
+
+```powershell
+codegraph explore "Vue frontend architecture primary admin workflows shared components Element Plus themes responsive states"
+codegraph impact PageShell
+codegraph impact DataTable
+codegraph impact ThemeMode
+rg --files web/src
+rg -n --glob '*.vue' '<(button|input|table)\b' web/src
+rg -n --glob '*.vue' --glob '*.scss' '#[0-9A-Fa-f]{3,8}\b|rgba?\(' web/src
+npm run typecheck
+npm run build
+git diff --check
+```
+
+Result: PR4-01 acceptance passed. The new frontend experience target is the executable design source for PR4-02 through PR4-06; it records that the present UI is functional but not yet unified, theme-complete, mobile-safe, browser-tested, or performance-gated.
+
+### Commit
+
+`PR4-01: freeze frontend experience target`
