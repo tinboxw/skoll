@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "pluginId": "equipment_maintenance",
+  "publicContract": {
+    "manifest": "plugin.yaml",
+    "apiVersion": "v1",
+    "apiPrefix": "/v1/plugins/equipment_maintenance/api/",
+    "backendProtocol": "skoll-plugin-host-v1",
+    "backendClient": "github.com/tinboxw/skoll/pkg/pluginclient",
+    "frontendBridge": "window.__SKOLL_HOST__",
+    "hostServices": [
+      "Transactions",
+      "DataScopes",
+      "Files",
+      "Audit",
+      "Config",
+      "Secrets",
+      "Workflows",
+      "Jobs"
+    ]
+  },
+  "domains": [
+    {
+      "id": "assets",
+      "tables": ["equipment_maintenance_assets"],
+      "permissions": [
+        "equipment_maintenance.asset.read",
+        "equipment_maintenance.asset.create",
+        "equipment_maintenance.asset.update",
+        "equipment_maintenance.asset.retire"
+      ],
+      "routes": [
+        "GET /v1/plugins/equipment_maintenance/api/assets",
+        "POST /v1/plugins/equipment_maintenance/api/assets",
+        "GET /v1/plugins/equipment_maintenance/api/assets/{id}",
+        "PUT /v1/plugins/equipment_maintenance/api/assets/{id}",
+        "POST /v1/plugins/equipment_maintenance/api/assets/{id}/retire"
+      ],
+      "acceptance": "Authorized users manage tenant-scoped assets and retired assets cannot receive new work."
+    },
+    {
+      "id": "work_orders",
+      "tables": ["equipment_maintenance_work_orders"],
+      "permissions": [
+        "equipment_maintenance.work_order.read",
+        "equipment_maintenance.work_order.create",
+        "equipment_maintenance.work_order.update",
+        "equipment_maintenance.work_order.dispatch",
+        "equipment_maintenance.work_order.execute",
+        "equipment_maintenance.work_order.submit",
+        "equipment_maintenance.work_order.close"
+      ],
+      "routes": [
+        "GET /v1/plugins/equipment_maintenance/api/work-orders",
+        "POST /v1/plugins/equipment_maintenance/api/work-orders",
+        "GET /v1/plugins/equipment_maintenance/api/work-orders/{id}",
+        "PUT /v1/plugins/equipment_maintenance/api/work-orders/{id}",
+        "POST /v1/plugins/equipment_maintenance/api/work-orders/{id}/dispatch",
+        "POST /v1/plugins/equipment_maintenance/api/work-orders/{id}/start",
+        "POST /v1/plugins/equipment_maintenance/api/work-orders/{id}/submit",
+        "POST /v1/plugins/equipment_maintenance/api/work-orders/{id}/complete",
+        "POST /v1/plugins/equipment_maintenance/api/work-orders/{id}/close"
+      ],
+      "acceptance": "A work order follows the declared state machine and costly work cannot close before workflow approval."
+    },
+    {
+      "id": "inspections",
+      "tables": [
+        "equipment_maintenance_plans",
+        "equipment_maintenance_inspections"
+      ],
+      "permissions": [
+        "equipment_maintenance.inspection.read",
+        "equipment_maintenance.inspection.plan",
+        "equipment_maintenance.inspection.execute"
+      ],
+      "routes": [
+        "GET /v1/plugins/equipment_maintenance/api/maintenance-plans",
+        "POST /v1/plugins/equipment_maintenance/api/maintenance-plans",
+        "PUT /v1/plugins/equipment_maintenance/api/maintenance-plans/{id}",
+        "GET /v1/plugins/equipment_maintenance/api/inspections",
+        "POST /v1/plugins/equipment_maintenance/api/inspections",
+        "GET /v1/plugins/equipment_maintenance/api/inspections/{id}",
+        "POST /v1/plugins/equipment_maintenance/api/inspections/{id}/complete"
+      ],
+      "acceptance": "Due plans create traceable inspections whose findings and attachments remain scoped and auditable."
+    },
+    {
+      "id": "spare_parts",
+      "tables": [
+        "equipment_maintenance_spare_parts",
+        "equipment_maintenance_spare_movements"
+      ],
+      "permissions": [
+        "equipment_maintenance.spare_part.read",
+        "equipment_maintenance.spare_part.manage",
+        "equipment_maintenance.spare_part.move"
+      ],
+      "routes": [
+        "GET /v1/plugins/equipment_maintenance/api/spare-parts",
+        "POST /v1/plugins/equipment_maintenance/api/spare-parts",
+        "PUT /v1/plugins/equipment_maintenance/api/spare-parts/{id}",
+        "GET /v1/plugins/equipment_maintenance/api/spare-movements",
+        "POST /v1/plugins/equipment_maintenance/api/spare-movements"
+      ],
+      "acceptance": "Idempotent movements never produce negative stock and work-order usage remains traceable."
+    },
+    {
+      "id": "dashboards",
+      "tables": [],
+      "permissions": ["equipment_maintenance.dashboard.read"],
+      "routes": [
+        "GET /v1/plugins/equipment_maintenance/api/dashboard",
+        "GET /v1/plugins/equipment_maintenance/api/dashboard/trends"
+      ],
+      "acceptance": "Metrics are computed only from records allowed by the trusted data-scope predicate."
+    }
+  ],
+  "workflows": [
+    {
+      "id": "work_order_cost_approval",
+      "businessType": "equipment.work_order",
+      "hostService": "Workflows",
+      "triggerRoute": "POST /v1/plugins/equipment_maintenance/api/work-orders/{id}/submit",
+      "completionEvent": "approval-completed"
+    }
+  ],
+  "events": [
+    {
+      "name": "approval-completed",
+      "handler": "onApprovalCompleted",
+      "idempotencyField": "deliveryId"
+    }
+  ],
+  "jobs": [
+    {
+      "kind": "maintenance.due_scan",
+      "hostService": "Jobs",
+      "triggerRoute": "POST /v1/plugins/equipment_maintenance/api/jobs/maintenance-due-scan",
+      "idempotencyKey": "maintenance-due-scan:{tenantId}:{date}"
+    },
+    {
+      "kind": "spare.low_stock_scan",
+      "hostService": "Jobs",
+      "triggerRoute": "POST /v1/plugins/equipment_maintenance/api/jobs/spare-stock-scan",
+      "idempotencyKey": "spare-low-stock-scan:{tenantId}:{date}"
+    }
+  ],
+  "acceptanceScenarios": [
+    {
+      "id": "EM-E2E-01",
+      "domain": "assets",
+      "result": "Create, update, filter, inspect, and retire an asset within trusted tenant and organization scope."
+    },
+    {
+      "id": "EM-E2E-02",
+      "domain": "work_orders",
+      "result": "Create, dispatch, start, submit, approve, complete, and close a work order with audit evidence."
+    },
+    {
+      "id": "EM-E2E-03",
+      "domain": "inspections",
+      "result": "Schedule a due plan, complete its inspection, and retain attachment references and findings."
+    },
+    {
+      "id": "EM-E2E-04",
+      "domain": "spare_parts",
+      "result": "Receive and issue parts idempotently, reject negative stock, and trigger a low-stock job."
+    },
+    {
+      "id": "EM-E2E-05",
+      "domain": "dashboards",
+      "result": "Render scoped operational metrics in Chinese and English across light, dark, and compact themes."
+    },
+    {
+      "id": "EM-E2E-06",
+      "domain": "lifecycle",
+      "result": "Install, migrate, start, enable, use, disable, stop, and uninstall on a clean host with zero core source changes."
+    }
+  ]
+}

@@ -1888,3 +1888,45 @@ Result: PR4-06 passed after six documented retries. Critical surfaces now have e
 ### Commit
 
 `PR4-06: enforce frontend quality budgets`
+
+## PR5-01 Define The Equipment-Maintenance Proof Plugin
+
+- Date: 2026-07-22
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Freeze an independent equipment-maintenance business boundary, current Manifest, permissions, routes, data ownership, event/workflow/job integration, and machine-readable acceptance scenarios before implementation.
+
+### Retry Record
+
+| Retry | Failed gate | Evidence | Correction |
+| --- | --- | --- | --- |
+| 1 | Contract test | Four spare-part routes used two-segment audit actions such as `equipment_maintenance.spare_part_list` | Replace them with strict three-segment actions such as `equipment_maintenance.spare_part.read_list` and rerun the complete gate |
+
+### Architecture Review
+
+| Decision | Result | Evidence |
+| --- | --- | --- |
+| Domain boundary | Pass | Assets, work orders, inspections, spare parts, and dashboards have explicit ownership and exclusions in `plugins/equipment_maintenance/README.md` |
+| Current Manifest | Pass | Separated app plugin declares bilingual navigation/config, service and health URLs, 21 permissions, 6 scoped tables, 31 API routes, and `approval-completed` subscription |
+| Trusted scope | Pass | Every owned table declares `tenant_id`, `organization_id`, and `owner_id`; the contract requires scope to originate from the host rather than request data |
+| Workflow and jobs | Pass | Cost approval maps to `Workflows`; maintenance-due and low-stock scans map to durable `Jobs`; trigger routes and completion events are declared |
+| Machine-readable acceptance | Pass | Six lifecycle/business scenarios and every domain table, permission, route, host service, workflow, event, and job are linked in `contract/acceptance-map.json` |
+| Public boundary | Pass for definition | Proof-plugin source contains no `internal/` import and targets the public `pkg/pluginclient` contract for external processes |
+| Platform gap review | Actioned | Existing supervisor only probes an already-running service and `pluginsdk.HostServices` is process-local; PR5-02 through PR5-04 now explicitly deliver process launch, external host services, and lifecycle-bound data before plugin implementation |
+| Current-only rule | Pass | One Manifest, API namespace, lifecycle, backend protocol target, and uninstall policy are defined; no alternate route or runtime path was introduced |
+
+### Verification Commands
+
+```powershell
+go test ./plugins/equipment_maintenance -count=1
+go test ./internal/plugin -run "TestValidatePluginManifestsUnderPluginsDir" -count=1
+go test ./internal/plugin/... ./pkg/pluginsdk/... -count=1
+rg -n "github.com/tinboxw/skoll/internal/" plugins/equipment_maintenance -g "*.go"
+git diff --check
+```
+
+Result: PR5-01 passed after one documented retry. The proof plugin now has an executable contract and the plan no longer assumes that process-local SDK ports or health-only supervision can support a clean independent installation.
+
+### Commit
+
+`PR5-01: define equipment maintenance proof plugin`

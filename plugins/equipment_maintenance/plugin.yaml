@@ -1,0 +1,380 @@
+id: equipment_maintenance
+name: Equipment Maintenance
+name_zh_cn: 设备维保
+name_en_us: Equipment Maintenance
+version: 0.1.0
+api_version: v1
+migration_version: 0.1.0
+description: Independent equipment maintenance proof plugin for assets, work orders, inspections, spare parts, and operational dashboards.
+ui_mode: separated
+level: app
+app_id: equipment_maintenance
+mount_policy: mixed
+ui_nav_position: sidebar
+ui_open_mode: integrated
+ui_tab_mode: fixed
+frontend_entry: /skoll/plugins/equipment-maintenance
+service_base_url: http://127.0.0.1:18092
+service_health_url: http://127.0.0.1:18092/health
+vendor: Skoll Maintainers
+vendor_url: https://github.com/tinboxw/skoll
+i18n_locales:
+  - zh-CN
+  - en-US
+
+ui_menu:
+  key: plugin.equipment_maintenance
+  parent_key: plugins
+  label: Equipment Maintenance
+  label_zh_cn: 设备维保
+  label_en_us: Equipment Maintenance
+  path: /skoll/plugins/equipment-maintenance
+  component: PluginRuntime
+  icon: wrench
+  order: 220
+  visible: true
+  required_permissions:
+    - equipment_maintenance.menu.read
+
+config_schema:
+  title: Equipment Maintenance Config
+  title_zh_cn: 设备维保配置
+  title_en_us: Equipment Maintenance Config
+  description: Current operational thresholds used by planning, approval, and stock-alert workflows.
+  fields:
+    - key: equipment_maintenance.maintenance_due_days
+      label: Maintenance due horizon
+      label_zh_cn: 保养到期预警天数
+      label_en_us: Maintenance due horizon
+      type: number
+      required: true
+      default: 14
+      min: 1
+      max: 90
+    - key: equipment_maintenance.low_stock_threshold
+      label: Low stock threshold
+      label_zh_cn: 备件低库存阈值
+      label_en_us: Low stock threshold
+      type: number
+      required: true
+      default: 5
+      min: 0
+      max: 100000
+    - key: equipment_maintenance.approval_cost_limit
+      label: Approval cost limit
+      label_zh_cn: 工单审批金额阈值
+      label_en_us: Approval cost limit
+      type: number
+      required: true
+      default: 1000
+      min: 0
+      max: 100000000
+
+permissions:
+  - key: equipment_maintenance.menu.read
+    type: menu
+    module: equipment_maintenance
+    name: View equipment maintenance menu
+    risk: low
+  - key: equipment_maintenance.asset.read
+    type: api
+    module: equipment_maintenance
+    name: Read assets
+    risk: low
+  - key: equipment_maintenance.asset.create
+    type: api
+    module: equipment_maintenance
+    name: Create assets
+    risk: medium
+  - key: equipment_maintenance.asset.update
+    type: api
+    module: equipment_maintenance
+    name: Update assets
+    risk: medium
+  - key: equipment_maintenance.asset.retire
+    type: button
+    module: equipment_maintenance
+    name: Retire assets
+    risk: high
+  - key: equipment_maintenance.work_order.read
+    type: api
+    module: equipment_maintenance
+    name: Read work orders
+    risk: low
+  - key: equipment_maintenance.work_order.create
+    type: api
+    module: equipment_maintenance
+    name: Create work orders
+    risk: medium
+  - key: equipment_maintenance.work_order.update
+    type: api
+    module: equipment_maintenance
+    name: Update work orders
+    risk: medium
+  - key: equipment_maintenance.work_order.dispatch
+    type: button
+    module: equipment_maintenance
+    name: Dispatch work orders
+    risk: high
+  - key: equipment_maintenance.work_order.execute
+    type: button
+    module: equipment_maintenance
+    name: Execute work orders
+    risk: high
+  - key: equipment_maintenance.work_order.submit
+    type: button
+    module: equipment_maintenance
+    name: Submit work orders for approval
+    risk: high
+  - key: equipment_maintenance.work_order.close
+    type: button
+    module: equipment_maintenance
+    name: Close work orders
+    risk: high
+  - key: equipment_maintenance.inspection.read
+    type: api
+    module: equipment_maintenance
+    name: Read maintenance plans and inspections
+    risk: low
+  - key: equipment_maintenance.inspection.plan
+    type: api
+    module: equipment_maintenance
+    name: Manage maintenance plans
+    risk: medium
+  - key: equipment_maintenance.inspection.execute
+    type: button
+    module: equipment_maintenance
+    name: Execute inspections
+    risk: high
+  - key: equipment_maintenance.spare_part.read
+    type: api
+    module: equipment_maintenance
+    name: Read spare parts and movements
+    risk: low
+  - key: equipment_maintenance.spare_part.manage
+    type: api
+    module: equipment_maintenance
+    name: Manage spare parts
+    risk: medium
+  - key: equipment_maintenance.spare_part.move
+    type: button
+    module: equipment_maintenance
+    name: Move spare-part inventory
+    risk: high
+  - key: equipment_maintenance.dashboard.read
+    type: api
+    module: equipment_maintenance
+    name: Read equipment maintenance dashboards
+    risk: low
+  - key: equipment_maintenance.job.read
+    type: api
+    module: equipment_maintenance
+    name: Read equipment maintenance jobs
+    risk: low
+  - key: equipment_maintenance.job.run
+    type: button
+    module: equipment_maintenance
+    name: Run equipment maintenance jobs
+    risk: high
+
+data:
+  namespace: equipment_maintenance
+  migration_version: 0.1.0
+  migration_directory: migrations
+  uninstall_policy: drop
+  rollback_policy: automatic
+  tables:
+    - name: equipment_maintenance_assets
+      description: Tenant-scoped equipment asset registry.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, code, name, category, model, serial_number, location, status, next_maintenance_at, created_at, updated_at
+      indexes: unique uq_equipment_assets_tenant_code(tenant_id,code); idx_equipment_assets_scope(tenant_id,organization_id,status); idx_equipment_assets_due(tenant_id,next_maintenance_at)
+    - name: equipment_maintenance_work_orders
+      description: Work-order lifecycle and workflow binding.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, asset_id, number, title, priority, status, assignee_id, workflow_instance_id, estimated_cost, started_at, completed_at, closed_at, created_at, updated_at
+      indexes: unique uq_equipment_work_orders_tenant_number(tenant_id,number); idx_equipment_work_orders_scope(tenant_id,organization_id,status); idx_equipment_work_orders_asset(asset_id,status)
+    - name: equipment_maintenance_plans
+      description: Preventive maintenance and inspection plans.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, asset_id, name, interval_days, next_run_at, status, created_at, updated_at
+      indexes: idx_equipment_plans_scope(tenant_id,organization_id,status); idx_equipment_plans_due(tenant_id,next_run_at)
+    - name: equipment_maintenance_inspections
+      description: Inspection execution evidence and findings.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, plan_id, asset_id, work_order_id, result, finding, attachment_ids, inspected_at, created_at, updated_at
+      indexes: idx_equipment_inspections_scope(tenant_id,organization_id,inspected_at); idx_equipment_inspections_asset(asset_id,inspected_at)
+    - name: equipment_maintenance_spare_parts
+      description: Spare-part catalog and current balance.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, sku, name, unit, quantity, minimum_quantity, status, created_at, updated_at
+      indexes: unique uq_equipment_spares_tenant_sku(tenant_id,sku); idx_equipment_spares_scope(tenant_id,organization_id,status)
+    - name: equipment_maintenance_spare_movements
+      description: Idempotent inbound, outbound, adjustment, and work-order usage ledger.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, spare_part_id, work_order_id, movement_type, quantity, idempotency_key, occurred_at, created_at
+      indexes: unique uq_equipment_movements_idempotency(tenant_id,idempotency_key); idx_equipment_movements_part(spare_part_id,occurred_at); idx_equipment_movements_work_order(work_order_id,occurred_at)
+
+api:
+  routes:
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/assets
+      summary: List authorized equipment assets
+      permission: equipment_maintenance.asset.read
+      audit_action: equipment_maintenance.asset.read_list
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/assets
+      summary: Create an equipment asset
+      permission: equipment_maintenance.asset.create
+      audit_action: equipment_maintenance.asset.create
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/assets/{id}
+      summary: Read an equipment asset
+      permission: equipment_maintenance.asset.read
+      audit_action: equipment_maintenance.asset.read
+    - method: PUT
+      path: /v1/plugins/equipment_maintenance/api/assets/{id}
+      summary: Update an equipment asset
+      permission: equipment_maintenance.asset.update
+      audit_action: equipment_maintenance.asset.update
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/assets/{id}/retire
+      summary: Retire an equipment asset
+      permission: equipment_maintenance.asset.retire
+      audit_action: equipment_maintenance.asset.retire
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/work-orders
+      summary: List authorized work orders
+      permission: equipment_maintenance.work_order.read
+      audit_action: equipment_maintenance.work_order.read_list
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/work-orders
+      summary: Create a work order
+      permission: equipment_maintenance.work_order.create
+      audit_action: equipment_maintenance.work_order.create
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/work-orders/{id}
+      summary: Read a work order
+      permission: equipment_maintenance.work_order.read
+      audit_action: equipment_maintenance.work_order.read
+    - method: PUT
+      path: /v1/plugins/equipment_maintenance/api/work-orders/{id}
+      summary: Update a draft work order
+      permission: equipment_maintenance.work_order.update
+      audit_action: equipment_maintenance.work_order.update
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/work-orders/{id}/dispatch
+      summary: Dispatch a work order
+      permission: equipment_maintenance.work_order.dispatch
+      audit_action: equipment_maintenance.work_order.dispatch
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/work-orders/{id}/start
+      summary: Start a dispatched work order
+      permission: equipment_maintenance.work_order.execute
+      audit_action: equipment_maintenance.work_order.start
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/work-orders/{id}/submit
+      summary: Submit a costly work order for approval
+      permission: equipment_maintenance.work_order.submit
+      audit_action: equipment_maintenance.work_order.submit
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/work-orders/{id}/complete
+      summary: Complete work and record evidence
+      permission: equipment_maintenance.work_order.execute
+      audit_action: equipment_maintenance.work_order.complete
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/work-orders/{id}/close
+      summary: Close a completed work order
+      permission: equipment_maintenance.work_order.close
+      audit_action: equipment_maintenance.work_order.close
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/maintenance-plans
+      summary: List preventive maintenance plans
+      permission: equipment_maintenance.inspection.read
+      audit_action: equipment_maintenance.plan.read_list
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/maintenance-plans
+      summary: Create a preventive maintenance plan
+      permission: equipment_maintenance.inspection.plan
+      audit_action: equipment_maintenance.plan.create
+    - method: PUT
+      path: /v1/plugins/equipment_maintenance/api/maintenance-plans/{id}
+      summary: Update a preventive maintenance plan
+      permission: equipment_maintenance.inspection.plan
+      audit_action: equipment_maintenance.plan.update
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/inspections
+      summary: List inspection records
+      permission: equipment_maintenance.inspection.read
+      audit_action: equipment_maintenance.inspection.read_list
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/inspections
+      summary: Start an inspection
+      permission: equipment_maintenance.inspection.execute
+      audit_action: equipment_maintenance.inspection.create
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/inspections/{id}
+      summary: Read inspection evidence
+      permission: equipment_maintenance.inspection.read
+      audit_action: equipment_maintenance.inspection.read
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/inspections/{id}/complete
+      summary: Complete an inspection
+      permission: equipment_maintenance.inspection.execute
+      audit_action: equipment_maintenance.inspection.complete
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/spare-parts
+      summary: List spare parts and balances
+      permission: equipment_maintenance.spare_part.read
+      audit_action: equipment_maintenance.spare_part.read_list
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/spare-parts
+      summary: Create a spare part
+      permission: equipment_maintenance.spare_part.manage
+      audit_action: equipment_maintenance.spare_part.create
+    - method: PUT
+      path: /v1/plugins/equipment_maintenance/api/spare-parts/{id}
+      summary: Update a spare part
+      permission: equipment_maintenance.spare_part.manage
+      audit_action: equipment_maintenance.spare_part.update
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/spare-movements
+      summary: List spare-part movements
+      permission: equipment_maintenance.spare_part.read
+      audit_action: equipment_maintenance.spare_movement.read_list
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/spare-movements
+      summary: Record an idempotent spare-part movement
+      permission: equipment_maintenance.spare_part.move
+      audit_action: equipment_maintenance.spare_movement.create
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/dashboard
+      summary: Read equipment maintenance operational metrics
+      permission: equipment_maintenance.dashboard.read
+      audit_action: equipment_maintenance.dashboard.read
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/dashboard/trends
+      summary: Read maintenance trend metrics
+      permission: equipment_maintenance.dashboard.read
+      audit_action: equipment_maintenance.dashboard.trends
+    - method: GET
+      path: /v1/plugins/equipment_maintenance/api/jobs
+      summary: List maintenance and stock scan jobs
+      permission: equipment_maintenance.job.read
+      audit_action: equipment_maintenance.job.read_list
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/jobs/maintenance-due-scan
+      summary: Schedule a maintenance due scan
+      permission: equipment_maintenance.job.run
+      audit_action: equipment_maintenance.job.maintenance_scan
+    - method: POST
+      path: /v1/plugins/equipment_maintenance/api/jobs/spare-stock-scan
+      summary: Schedule a low-stock scan
+      permission: equipment_maintenance.job.run
+      audit_action: equipment_maintenance.job.stock_scan
+
+events:
+  subscriptions:
+    - name: approval-completed
+      handler: onApprovalCompleted
+      retry_policy: standard
