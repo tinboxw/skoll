@@ -15,8 +15,8 @@ type TransactionService interface {
 }
 
 type Permission struct {
-	Resource string
-	Action   string
+	Resource string `json:"resource"`
+	Action   string `json:"action"`
 }
 
 type DataScopeService interface {

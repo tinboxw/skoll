@@ -4,6 +4,8 @@
 
 当前基础建设不提供旧 SDK、旧 manifest、双路径或降级适配。`HostServices.Validate` 任一端口缺失即构造失败。
 
+`pkg/pluginsdk` 已定义结构化 `DataStoreService` 数据模型；其宿主端口和外部进程客户端分别由 BF1-05、BF1-06 接入，接入前不得将类型存在误认为运行时可调用。完整类型、作用域、限制和错误规则见 [插件数据存储契约](plugin-datastore-contract.md)。
+
 ## HostServices
 
 | 端口 | 用途 | 宿主强制边界 |

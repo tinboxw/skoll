@@ -16,9 +16,9 @@ type TrustedScope struct {
 }
 
 type ScopeFilter struct {
-	TenantIDs       []string
-	OwnerIDs        []string
-	OrganizationIDs []string
+	TenantIDs       []string `json:"tenantIds,omitempty"`
+	OwnerIDs        []string `json:"ownerIds,omitempty"`
+	OrganizationIDs []string `json:"organizationIds,omitempty"`
 }
 
 type ScopedRecord struct {
