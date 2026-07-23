@@ -1355,3 +1355,57 @@ Result: BF4-02 passed after four acceptance repairs. Medical OA now owns one ins
 ### Commit
 
 `BF4-02: implement employee records and assignments`
+
+## BF4-03 Implement Customer And Supplier Master Data
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Deliver customer and supplier identity, contacts, addresses, settlement, duplicate prevention, lifecycle state, audit, and responsive workflows in the independent medical OA plugin.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Unified current model | Pass | Plugin `0.4.0` owns one logical `parties` aggregate with a required `party_type`; no duplicate customer/supplier implementation or host model is used |
+| Versioned persistence | Pass | Namespaced `pharma_oa_parties` migration applies after foundation and employees, enforces tenant/type code and credit-code uniqueness, and rolls back first |
+| Identity and duplicate checks | Pass | Customer and supplier require business code, name, unified social credit code, region, and rating; code or credit duplication fails with HTTP 409 inside trusted scope |
+| Contacts and addresses | Pass | Bounded contact/address collections require exactly one primary contact and one default address, with email and required-detail validation |
+| Settlement | Pass | Current settlement contract validates three-letter currency, 0-365 payment days, and nonnegative credit limit |
+| Lifecycle | Pass | Scoped list/search/status filtering, create, optimistic update, reasoned disable, and re-enable pass for customer and supplier routes |
+| Scope, transaction, audit | Pass | Every mutation carries one trusted tenant, organization, and actor owner; create/update/disable/enable run in host transactions with distinct risk-rated audit actions |
+| Responsive workspace | Pass | Chinese employee/customer/supplier tabs share current scope and state handling; party table/cards and dedicated forms expose identity, primary contact, default address, settlement, edit, enable, and disable workflows |
+| Visual review | Pass | Chrome at 1440x900 renders the Chinese customer table without overflow; 390x844 renders a viewport-width scrollable form with sticky actions and no horizontal escape |
+| Package and tests | Pass | JavaScript syntax, party lifecycle E2E, migration/manifest/frontend contracts, package checksum verification, plugin integration, vet, and full Go tests pass |
+| Current-only rule | Pass | One `parties` model, one route family per party type, and one three-tab workspace are current; no legacy host service, compatibility adapter, fallback endpoint, or dual renderer exists |
+
+The first visual review found that the customer page still inherited the employee module eyebrow and employee-specific search placeholder. That evidence was rejected; module switching now updates title, eyebrow, search semantics, metrics, columns, statuses, actions, and form labels together before the browser matrix is accepted.
+
+### Verification Commands
+
+```powershell
+node --check plugins/pharma_oa/static/app.js
+go test ./plugins/pharma_oa/backend ./plugins/pharma_oa ./internal/plugin
+./plugins/pharma_oa/plugin.ps1 -Action package -DistDir <temporary-directory>
+./plugins/pharma_oa/plugin.ps1 -Action verify -DistDir <temporary-directory>
+go vet ./plugins/pharma_oa/...
+go test ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF4-03 passed after one visual repair. Medical OA now provides independent, trusted-scope customer and supplier master data with strong identity, contacts, addresses, settlement, duplicate prevention, lifecycle controls, audit evidence, and responsive Chinese workflows.
+
+### Impact Review
+
+- API: implemented current customer/supplier list, create, update, disable, and enable routes; added explicit enable permissions and audit declarations.
+- Data: added one plugin-owned parties schema and reversible namespaced migration with tenant/type uniqueness.
+- Validation: added identity, contact, address, settlement, rating, optimistic version, and duplicate rules.
+- Frontend: expanded the plugin-owned workspace to Chinese employee/customer/supplier tabs with desktop tables and mobile cards/forms.
+- Package: advanced the independent artifact to `0.4.0` and verified its generated checksum.
+- Compatibility: none; only the unified current parties model and independent plugin routes are supported.
+
+### Commit
+
+`BF4-03: implement customer and supplier master data`

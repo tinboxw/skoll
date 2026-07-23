@@ -64,6 +64,14 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("POST "+apiBase+"/employees/{id}/leave", s.leaveEmployee)
 	mux.HandleFunc("POST "+apiBase+"/employees/{id}/attachments", s.attachEmployeeFile)
 	mux.HandleFunc("GET "+apiBase+"/employees/qualification-reminders", s.employeeQualificationReminders)
+	for _, kind := range []string{"customer", "supplier"} {
+		plural := kind + "s"
+		mux.HandleFunc("GET "+apiBase+"/"+plural, s.listParties(kind))
+		mux.HandleFunc("POST "+apiBase+"/"+plural, s.createParty(kind))
+		mux.HandleFunc("PUT "+apiBase+"/"+plural+"/{id}", s.updateParty(kind))
+		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/disable", s.changePartyStatus(kind, false))
+		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/enable", s.changePartyStatus(kind, true))
+	}
 	return mux, nil
 }
 
@@ -73,7 +81,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.3.0",
+		PluginID: pluginID, ContractVersion: "0.4.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},

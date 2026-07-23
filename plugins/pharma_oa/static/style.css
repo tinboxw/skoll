@@ -29,6 +29,9 @@ h1, h2, p, dl, dd { margin: 0; }
 h1 { font-size: 28px; line-height: 1.25; }
 h2 { font-size: 19px; line-height: 1.35; }
 .subtitle { color: var(--local-muted); font-size: 14px; line-height: 1.55; margin-top: 6px; }
+.module-tabs { border-bottom: 1px solid var(--local-border); display: flex; gap: 22px; }
+.module-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--local-muted); font-weight: 650; min-height: 38px; padding: 0 2px; }
+.module-tabs button.active { border-bottom-color: var(--local-primary); color: var(--local-primary-strong); }
 
 .button, .icon-button, .text-button, .close-button { align-items: center; border: 1px solid var(--local-border); border-radius: var(--radius-sm, 6px); background: var(--local-surface); display: inline-flex; justify-content: center; min-height: var(--local-control); }
 .button { gap: 7px; padding: 0 14px; }
@@ -74,7 +77,7 @@ td small, .employee-cell small { color: var(--local-muted); display: block; line
 .status { border-radius: 999px; display: inline-flex; font-size: 12px; font-weight: 700; line-height: 24px; padding: 0 9px; width: max-content; }
 .status-active { background: color-mix(in srgb, var(--local-success) 12%, var(--local-surface)); color: var(--local-success); }
 .status-on_leave { background: color-mix(in srgb, var(--local-warning) 14%, var(--local-surface)); color: var(--local-warning); }
-.status-left { background: var(--local-soft); color: var(--local-muted); }
+.status-left, .status-disabled { background: var(--local-soft); color: var(--local-muted); }
 .row-actions { display: flex; flex-wrap: wrap; gap: 1px; }
 .muted { color: var(--local-muted); }
 .list-footer { color: var(--local-muted); display: flex; font-size: 12px; justify-content: flex-end; padding: 2px 4px; }
@@ -93,6 +96,7 @@ td small, .employee-cell small { color: var(--local-muted); display: block; line
 .dialog form > header { align-items: flex-start; display: flex; justify-content: space-between; }
 .dialog form > footer { display: flex; gap: 9px; justify-content: flex-end; }
 .form-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.wide-field { grid-column: 1 / -1; }
 .form-grid label, .dialog form > label { display: grid; gap: 6px; }
 fieldset { border: 1px solid var(--local-border); border-radius: var(--radius-sm, 6px); margin: 0; padding: 15px; }
 legend { color: var(--local-muted); font-size: 12px; font-weight: 700; padding: 0 5px; }

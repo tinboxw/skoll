@@ -16,6 +16,7 @@
 				</div>
 				<button class="button primary" id="create-button" type="button"><span aria-hidden="true">＋</span><span data-i18n="newEmployee">新建员工</span></button>
 			</header>
+			<nav class="module-tabs" aria-label="医药 OA 主数据"><button class="active" type="button" data-module="employee">员工</button><button type="button" data-module="customer">客户</button><button type="button" data-module="supplier">供应商</button></nav>
 
 			<section class="scope-bar" aria-label="业务范围">
 				<label><span data-i18n="tenant">租户</span><input id="tenant-input" autocomplete="off" placeholder="tenant-a" /></label>
@@ -80,6 +81,17 @@
 		<dialog class="dialog compact-dialog" id="leave-dialog">
 			<form id="leave-form" method="dialog"><header><div><p class="eyebrow" data-i18n="employmentChange">任职变更</p><h2 id="leave-title">办理离职</h2></div><button class="close-button" type="button" data-close="leave-dialog" aria-label="关闭">×</button></header><label><span data-i18n="leaveReason">离职原因</span><textarea name="reason" maxlength="500" rows="4" required></textarea></label><p class="form-error" id="leave-form-error" role="alert"></p><footer><button class="button" type="button" data-close="leave-dialog" data-i18n="cancel">取消</button><button class="button danger" id="leave-save-button" type="submit" data-i18n="confirmLeave">确认离职</button></footer></form>
 		</dialog>
+
+		<dialog class="dialog" id="party-dialog">
+			<form id="party-form" method="dialog"><header><div><p class="eyebrow" id="party-eyebrow">往来单位</p><h2 id="party-dialog-title">新建客户</h2></div><button class="close-button" type="button" data-close="party-dialog" aria-label="关闭">×</button></header>
+				<div class="form-grid"><label><span>业务编码</span><input name="code" maxlength="64" required /></label><label><span>单位名称</span><input name="name" maxlength="255" required /></label><label><span>统一社会信用代码</span><input name="creditCode" minlength="8" maxlength="32" required /></label><label><span>所在地区</span><input name="region" maxlength="128" required /></label><label><span>合作评级</span><select name="rating"><option value="5">五星</option><option value="4">四星</option><option value="3">三星</option><option value="2">二星</option><option value="1">一星</option></select></label></div>
+				<fieldset><legend>主联系人</legend><div class="form-grid"><label><span>姓名</span><input name="contactName" maxlength="120" required /></label><label><span>职务</span><input name="contactTitle" maxlength="120" /></label><label><span>手机号</span><input name="contactPhone" maxlength="64" /></label><label><span>邮箱</span><input name="contactEmail" type="email" maxlength="250" /></label></div></fieldset>
+				<fieldset><legend>默认地址</legend><div class="form-grid"><label><span>地址标签</span><input name="addressLabel" value="总部" maxlength="64" required /></label><label><span>省份</span><input name="province" maxlength="64" /></label><label><span>城市</span><input name="city" maxlength="64" /></label><label><span>区县</span><input name="district" maxlength="64" /></label><label class="wide-field"><span>详细地址</span><input name="addressDetail" maxlength="300" required /></label></div></fieldset>
+				<fieldset><legend>结算条款</legend><div class="form-grid"><label><span>币种</span><input name="currency" value="CNY" minlength="3" maxlength="3" required /></label><label><span>账期（天）</span><input name="paymentDays" type="number" min="0" max="365" value="30" required /></label><label><span>授信额度（元）</span><input name="creditLimit" type="number" min="0" value="0" required /></label></div></fieldset>
+				<p class="form-error" id="party-form-error" role="alert"></p><footer><button class="button" type="button" data-close="party-dialog">取消</button><button class="button primary" id="party-save-button" type="submit">保存</button></footer></form>
+		</dialog>
+
+		<dialog class="dialog compact-dialog" id="party-status-dialog"><form id="party-status-form" method="dialog"><header><div><p class="eyebrow">状态变更</p><h2 id="party-status-title">停用客户</h2></div><button class="close-button" type="button" data-close="party-status-dialog" aria-label="关闭">×</button></header><label id="party-status-reason-field"><span>停用原因</span><textarea name="reason" maxlength="500" rows="4"></textarea></label><p class="form-error" id="party-status-error" role="alert"></p><footer><button class="button" type="button" data-close="party-status-dialog">取消</button><button class="button danger" id="party-status-save-button" type="submit">确认停用</button></footer></form></dialog>
 
 		<div class="toast" id="toast" role="status" aria-live="polite"></div>
 		<script src="./app.js"></script>

@@ -223,7 +223,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.3.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.4.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
@@ -319,6 +319,61 @@ func TestEmployeeCreateRejectsDeniedScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	testRequest(t, handler, http.MethodPost, apiBase+"/employees", map[string]any{"code": "EMP-002", "name": "王芳", "departmentId": "sales", "positionId": "staff"}, "employee-denied-1", true, http.StatusForbidden)
+}
+
+func TestCustomerAndSupplierMasterDataLifecycle(t *testing.T) {
+	runtime := newTestRuntime(t)
+	base := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "CUS-001", "name": "华东医药商业有限公司",
+		"unifiedSocialCreditCode": "91330000MA000001", "region": "浙江省杭州市", "rating": 5,
+		"contacts":        []map[string]any{{"id": "contact-1", "name": "陈经理", "title": "采购经理", "phone": "13800000001", "email": "buyer@example.com", "primary": true}},
+		"addresses":       []map[string]any{{"id": "address-1", "label": "总部", "province": "浙江省", "city": "杭州市", "district": "拱墅区", "detail": "康桥路 1 号", "default": true}},
+		"settlementTerms": map[string]any{"currency": "CNY", "paymentDays": 30, "creditLimit": 500000},
+	}
+	created := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/customers", base, "customer-create-1", true, http.StatusCreated)
+	item := testMap(t, created, "item")
+	id := testString(t, item, "id")
+	if testString(t, item, "type") != "customer" || testString(t, item, "status") != "active" || testInt64(t, item, "version") != 1 {
+		t.Fatalf("unexpected customer: %v", item)
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/customers", base, "customer-duplicate-1", true, http.StatusConflict)
+	listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/customers?keyword=%E5%8D%8E%E4%B8%9C&status=active", nil, "", true, http.StatusOK)
+	if testInt64(t, listed, "total") != 1 {
+		t.Fatalf("unexpected customer list: %v", listed)
+	}
+	base["name"], base["rating"], base["version"] = "华东医药商业集团", 4, 1
+	updated := testRequest(t, runtime.handler, http.MethodPut, apiBase+"/customers/"+id, base, "customer-update-1", true, http.StatusOK)
+	if testString(t, testMap(t, updated, "item"), "name") != "华东医药商业集团" {
+		t.Fatalf("customer update failed: %v", updated)
+	}
+	disabled := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/customers/"+id+"/disable", map[string]any{"reason": "合作暂停", "version": 2}, "customer-disable-1", true, http.StatusOK)
+	if testString(t, testMap(t, disabled, "item"), "status") != "disabled" {
+		t.Fatalf("customer disable failed: %v", disabled)
+	}
+	enabled := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/customers/"+id+"/enable", map[string]any{"version": 3}, "customer-enable-1", true, http.StatusOK)
+	if testString(t, testMap(t, enabled, "item"), "status") != "active" {
+		t.Fatalf("customer enable failed: %v", enabled)
+	}
+
+	supplier := map[string]any{}
+	for key, value := range base {
+		supplier[key] = value
+	}
+	supplier["code"], supplier["name"], supplier["unifiedSocialCreditCode"] = "SUP-001", "国药器械供应有限公司", "91330000MA000002"
+	delete(supplier, "version")
+	createdSupplier := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/suppliers", supplier, "supplier-create-1", true, http.StatusCreated)
+	if testString(t, testMap(t, createdSupplier, "item"), "type") != "supplier" {
+		t.Fatalf("unexpected supplier: %v", createdSupplier)
+	}
+	wantActions := []string{"pharma_oa.customer.create", "pharma_oa.customer.update", "pharma_oa.customer.disable", "pharma_oa.customer.enable", "pharma_oa.supplier.create"}
+	if len(runtime.audit.entries) != len(wantActions) {
+		t.Fatalf("party audit count=%d want=%d", len(runtime.audit.entries), len(wantActions))
+	}
+	for index, action := range wantActions {
+		if runtime.audit.entries[index].Action != action {
+			t.Fatalf("party audit[%d]=%q want=%q", index, runtime.audit.entries[index].Action, action)
+		}
+	}
 }
 
 func TestFoundationRejectsIncompleteHostAndUnknownRoutes(t *testing.T) {

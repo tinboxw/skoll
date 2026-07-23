@@ -66,3 +66,22 @@ tables:
         unique: true
       - fields: [employment_status, name]
       - fields: [department_id, position_id]
+  - name: parties
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: party_type, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: unified_social_credit_code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: region, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: rating, type: integer, mutable: true, filterable: true, sortable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: disable_reason, type: string, nullable: true, mutable: true}
+      - {name: contacts, type: json, mutable: true}
+      - {name: addresses, type: json, mutable: true}
+      - {name: settlement_terms, type: json, mutable: true}
+    indexes:
+      - {fields: [party_type, code], unique: true}
+      - {fields: [party_type, unified_social_credit_code], unique: true}
+      - {fields: [party_type, status, name]}

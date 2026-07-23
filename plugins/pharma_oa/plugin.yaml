@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.3.0
+version: 0.4.0
 api_version: v1
-migration_version: 0.3.0
+migration_version: 0.4.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: monolith
 level: app
@@ -159,6 +159,11 @@ permissions:
     module: pharma_oa
     name: Disable pharma suppliers
     risk: high
+  - key: pharma_oa.supplier.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma suppliers
+    risk: high
   - key: pharma_oa.supplier.reminder
     type: api
     module: pharma_oa
@@ -188,6 +193,11 @@ permissions:
     type: button
     module: pharma_oa
     name: Disable pharma customers
+    risk: high
+  - key: pharma_oa.customer.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma customers
     risk: high
   - key: pharma_oa.customer.reminder
     type: api
@@ -636,6 +646,11 @@ api:
       summary: Disable Pharma OA supplier
       permission: pharma_oa.supplier.disable
       audit_action: pharma_oa.supplier.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/suppliers/{id}/enable
+      summary: Enable Pharma OA supplier
+      permission: pharma_oa.supplier.enable
+      audit_action: pharma_oa.supplier.enable
     - method: GET
       path: /v1/plugins/pharma_oa/api/suppliers/qualification-reminders
       summary: List Pharma OA supplier qualification reminders
@@ -666,6 +681,11 @@ api:
       summary: Disable Pharma OA customer
       permission: pharma_oa.customer.disable
       audit_action: pharma_oa.customer.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/customers/{id}/enable
+      summary: Enable Pharma OA customer
+      permission: pharma_oa.customer.enable
+      audit_action: pharma_oa.customer.enable
     - method: GET
       path: /v1/plugins/pharma_oa/api/customers/qualification-reminders
       summary: List Pharma OA customer qualification reminders
@@ -1164,7 +1184,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.3.0
+  migration_version: 0.4.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1184,6 +1204,11 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, code, name, department_id, position_id, employment_status, phone, email, hire_date, left_at, leave_reason, attachments, certificates, version, created_at, updated_at
       indexes: unique uq_pharma_oa_employees_tenant_code(tenant_id,code); idx_pharma_oa_employees_scope(tenant_id,organization_id,employment_status); idx_pharma_oa_employees_name(tenant_id,name)
+    - name: pharma_oa_parties
+      description: Trusted-scope customer and supplier identity, contacts, addresses, settlement, and lifecycle state.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, party_type, code, name, unified_social_credit_code, region, rating, status, disable_reason, contacts, addresses, settlement_terms, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_parties_tenant_type_code(tenant_id,party_type,code); unique uq_pharma_oa_parties_tenant_type_credit(tenant_id,party_type,unified_social_credit_code); idx_pharma_oa_parties_scope(tenant_id,organization_id,party_type,status)
 
 events:
   subscriptions:
