@@ -4,6 +4,7 @@ import { MoreHorizontal, Pin, X } from "lucide-vue-next";
 import { useRoute } from "vue-router";
 
 import { useI18n } from "../../i18n";
+import { resolveSystemNavigationLabel } from "../../navigation/system-label";
 import type { PinnedTab } from "../../stores/tabs";
 
 const MAX_VISIBLE_TABS = 8;
@@ -25,9 +26,13 @@ const emit = defineEmits<{
 const route = useRoute();
 const { t } = useI18n();
 const mergedItems = computed<WorkspaceTab[]>(() => {
-	const pinned = props.pinnedItems.map((item) => ({ ...item, kind: "pinned" as const }));
+	const localized = (item: PinnedTab): PinnedTab => ({
+		...item,
+		label: resolveSystemNavigationLabel(item.path, item.id, t, item.label)
+	});
+	const pinned = props.pinnedItems.map((item) => ({ ...localized(item), kind: "pinned" as const }));
 	const pinnedPaths = new Set(props.pinnedItems.map((item) => item.path));
-	const recent = props.recentItems.filter((item) => !pinnedPaths.has(item.path)).map((item) => ({ ...item, kind: "recent" as const }));
+	const recent = props.recentItems.filter((item) => !pinnedPaths.has(item.path)).map((item) => ({ ...localized(item), kind: "recent" as const }));
 	return [...pinned, ...recent];
 });
 const visibleItems = computed(() => mergedItems.value.slice(0, MAX_VISIBLE_TABS));

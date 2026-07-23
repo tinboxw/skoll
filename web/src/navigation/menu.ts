@@ -1,6 +1,7 @@
 import type { FrontendPluginManifest } from "../plugins/types";
 import { canAccess } from "../permissions/access";
 import type { SystemMenuRecord } from "../stores/navigation";
+import { resolveSystemNavigationLabel } from "./system-label";
 
 const ADMIN_BASE = "/skoll";
 const SIDEBAR_ICONS = new Set(["dashboard", "users", "roles", "permissions", "menus", "audit", "plugins", "settings", "files", "workflow", "forms", "todo"]);
@@ -99,7 +100,7 @@ function resolveSystemMenuLabel(item: SystemMenuRecord, t: (key: string) => stri
 	if (translated !== `menu.${item.id}`) {
 		return translated;
 	}
-	return item.label;
+	return resolveSystemNavigationLabel(item.path, item.id, t, item.label);
 }
 
 function resolvePluginMenuLabel(item: FrontendPluginManifest, currentLocale: string, resolvePluginLabel: (item: FrontendPluginManifest) => string): string {
