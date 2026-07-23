@@ -72,6 +72,18 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/disable", s.changePartyStatus(kind, false))
 		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/enable", s.changePartyStatus(kind, true))
 	}
+	for kind, plural := range map[string]string{"category": "categories", "unit": "units", "manufacturer": "manufacturers"} {
+		mux.HandleFunc("GET "+apiBase+"/"+plural, s.listCatalogs(kind))
+		mux.HandleFunc("POST "+apiBase+"/"+plural, s.createCatalog(kind))
+		mux.HandleFunc("PUT "+apiBase+"/"+plural+"/{id}", s.updateCatalog(kind))
+		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/disable", s.changeCatalogStatus(kind, false))
+		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/enable", s.changeCatalogStatus(kind, true))
+	}
+	mux.HandleFunc("GET "+apiBase+"/products", s.listProducts)
+	mux.HandleFunc("POST "+apiBase+"/products", s.createProduct)
+	mux.HandleFunc("PUT "+apiBase+"/products/{id}", s.updateProduct)
+	mux.HandleFunc("POST "+apiBase+"/products/{id}/disable", s.changeProductStatus(false))
+	mux.HandleFunc("POST "+apiBase+"/products/{id}/enable", s.changeProductStatus(true))
 	return mux, nil
 }
 
@@ -81,7 +93,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.4.0",
+		PluginID: pluginID, ContractVersion: "0.5.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},
@@ -117,9 +129,13 @@ func (s *server) transaction(ctx context.Context, fn func(context.Context) error
 	return s.host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error { return fn(tx.Context()) })
 }
 
-func (s *server) audit(ctx context.Context, action, employeeID string, risk pluginsdk.AuditRisk, detail map[string]any) error {
+func (s *server) audit(ctx context.Context, action, resourceID string, risk pluginsdk.AuditRisk, detail map[string]any) error {
+	resource := action
+	if index := strings.LastIndex(action, "."); index > 0 {
+		resource = action[:index]
+	}
 	_, err := s.host.Audit.Record(ctx, pluginsdk.AuditEntry{
-		Action: action, Resource: "pharma_oa.employee", ResourceID: employeeID,
+		Action: action, Resource: resource, ResourceID: resourceID,
 		Result: pluginsdk.AuditResultSuccess, Risk: risk, Detail: detail,
 	})
 	return err

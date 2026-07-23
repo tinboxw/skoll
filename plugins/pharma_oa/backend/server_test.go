@@ -6,9 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -74,7 +76,20 @@ func (s *testDataStore) Query(_ context.Context, query pluginsdk.DataQuery) (plu
 		}
 		records = append(records, testProjectRecord(record, query.Fields))
 	}
-	return pluginsdk.DataPage{Records: records}, nil
+	start := 0
+	if query.Page.Cursor != "" {
+		var err error
+		start, err = strconv.Atoi(query.Page.Cursor)
+		if err != nil || start < 0 || start > len(records) {
+			return pluginsdk.DataPage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "cursor", "cursor is invalid", false)
+		}
+	}
+	end := min(len(records), start+query.Page.Limit)
+	nextCursor := ""
+	if end < len(records) {
+		nextCursor = strconv.Itoa(end)
+	}
+	return pluginsdk.DataPage{Records: records[start:end], NextCursor: nextCursor, HasMore: nextCursor != ""}, nil
 }
 
 func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
@@ -223,7 +238,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.4.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.5.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
@@ -374,6 +389,99 @@ func TestCustomerAndSupplierMasterDataLifecycle(t *testing.T) {
 			t.Fatalf("party audit[%d]=%q want=%q", index, runtime.audit.entries[index].Action, action)
 		}
 	}
+}
+
+func TestProductCatalogLifecycleAndReferenceGuards(t *testing.T) {
+	runtime := newTestRuntime(t)
+	category := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/categories", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "RX", "name": "处方药", "description": "处方药分类",
+	}, "category-create-1", true, http.StatusCreated)
+	categoryItem := testMap(t, category, "item")
+	categoryID := testString(t, categoryItem, "id")
+
+	unit := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/units", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "BOX", "name": "盒", "description": "销售包装", "symbol": "盒", "decimalPlaces": 0,
+	}, "unit-create-1", true, http.StatusCreated)
+	unitItem := testMap(t, unit, "item")
+	unitID := testString(t, unitItem, "id")
+
+	manufacturer := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/manufacturers", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "MFG-001", "name": "华东制药有限公司", "description": "药品生产企业", "unifiedSocialCreditCode": "91330000MA100001", "licenseNumber": "浙20260001",
+	}, "manufacturer-create-1", true, http.StatusCreated)
+	manufacturerItem := testMap(t, manufacturer, "item")
+	manufacturerID := testString(t, manufacturerItem, "id")
+
+	productBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "MED-001", "sku": "SKU-001", "name": "阿莫西林胶囊", "genericName": "阿莫西林", "categoryId": categoryID, "unitId": unitID, "manufacturerId": manufacturerID,
+		"dosageForm": "胶囊剂", "specification": "0.25g*24粒", "approvalNumber": "国药准字H20260001", "barcode": "690000000001", "storageCondition": "密封，阴凉干燥处保存", "temperatureMin": 2, "temperatureMax": 25,
+	}
+	invalidReference := make(map[string]any, len(productBody))
+	for key, value := range productBody {
+		invalidReference[key] = value
+	}
+	invalidReference["categoryId"] = "category-missing"
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products", invalidReference, "product-invalid-reference-1", true, http.StatusUnprocessableEntity)
+
+	created := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products", productBody, "product-create-1", true, http.StatusCreated)
+	productItem := testMap(t, created, "item")
+	productID := testString(t, productItem, "id")
+	if testString(t, productItem, "status") != "active" || testString(t, productItem, "sku") != "SKU-001" || testInt64(t, productItem, "version") != 1 {
+		t.Fatalf("unexpected product: %v", productItem)
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products", productBody, "product-duplicate-1", true, http.StatusConflict)
+	listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/products?keyword=%E9%98%BF%E8%8E%AB&status=active&limit=50", nil, "", true, http.StatusOK)
+	if len(listed["items"].([]any)) != 1 {
+		t.Fatalf("unexpected product list: %v", listed)
+	}
+
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/units/"+unitID+"/disable", map[string]any{"reason": "停用计量单位", "version": 1}, "unit-disable-blocked-1", true, http.StatusConflict)
+	disabled := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products/"+productID+"/disable", map[string]any{"reason": "暂停销售", "version": 1}, "product-disable-1", true, http.StatusOK)
+	if testString(t, testMap(t, disabled, "item"), "status") != "disabled" {
+		t.Fatalf("product disable failed: %v", disabled)
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/units/"+unitID+"/disable", map[string]any{"reason": "停用计量单位", "version": 1}, "unit-disable-1", true, http.StatusOK)
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/units/"+unitID+"/enable", map[string]any{"version": 2}, "unit-enable-1", true, http.StatusOK)
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products/"+productID+"/enable", map[string]any{"version": 2}, "product-enable-1", true, http.StatusOK)
+
+	wantActions := []string{"pharma_oa.category.create", "pharma_oa.unit.create", "pharma_oa.manufacturer.create", "pharma_oa.product.create", "pharma_oa.product.disable", "pharma_oa.unit.disable", "pharma_oa.unit.enable", "pharma_oa.product.enable"}
+	if len(runtime.audit.entries) != len(wantActions) {
+		t.Fatalf("catalog audit count=%d want=%d entries=%v", len(runtime.audit.entries), len(wantActions), runtime.audit.entries)
+	}
+	for index, action := range wantActions {
+		entry := runtime.audit.entries[index]
+		if entry.Action != action || entry.Resource != action[:strings.LastIndex(action, ".")] {
+			t.Fatalf("catalog audit[%d]=%+v want action=%q", index, entry, action)
+		}
+	}
+}
+
+func TestCatalogListUsesBoundedCursorPages(t *testing.T) {
+	runtime := newTestRuntime(t)
+	for index := 0; index < 205; index++ {
+		id := fmt.Sprintf("category-%03d", index)
+		runtime.store.records[id] = pluginsdk.DataRecord{Values: map[string]pluginsdk.DataValue{
+			"id": stringValue(id), "catalog_type": stringValue("category"), "code": stringValue(fmt.Sprintf("CAT-%03d", index)), "name": stringValue(fmt.Sprintf("分类 %03d", index)), "description": stringValue("性能验收数据"), "parent_id": nullableStringValue(""), "symbol": nullableStringValue(""), "decimal_places": integerValue(0), "unified_social_credit_code": nullableStringValue(""), "license_number": nullableStringValue(""), "status": stringValue("active"), "disable_reason": nullableStringValue(""), "tenant_id": stringValue("tenant-a"), "organization_id": stringValue("org-a"), "owner_id": stringValue("actor-1"), "created_at": timestampValue("2026-07-23T08:00:00Z"), "updated_at": timestampValue("2026-07-23T08:00:00Z"),
+		}, Version: 1}
+	}
+	first := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/categories?limit=200", nil, "", true, http.StatusOK)
+	if len(first["items"].([]any)) != 200 || !testMap(t, first, "pageInfo")["hasMore"].(bool) || testString(t, testMap(t, first, "pageInfo"), "nextCursor") != "200" {
+		t.Fatalf("unexpected first catalog page: %v", first["pageInfo"])
+	}
+	second := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/categories?limit=200&cursor=200", nil, "", true, http.StatusOK)
+	if len(second["items"].([]any)) != 5 || testMap(t, second, "pageInfo")["hasMore"].(bool) {
+		t.Fatalf("unexpected second catalog page: %v", second["pageInfo"])
+	}
+}
+
+func TestCategoryHierarchyRejectsCycles(t *testing.T) {
+	runtime := newTestRuntime(t)
+	rootBody := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "code": "ROOT", "name": "药品", "description": "根分类"}
+	root := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/categories", rootBody, "category-root-1", true, http.StatusCreated), "item")
+	childBody := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "code": "CHILD", "name": "处方药", "description": "子分类", "parentId": testString(t, root, "id")}
+	child := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/categories", childBody, "category-child-1", true, http.StatusCreated), "item")
+	rootBody["parentId"] = testString(t, child, "id")
+	rootBody["version"] = 1
+	testRequest(t, runtime.handler, http.MethodPut, apiBase+"/categories/"+testString(t, root, "id"), rootBody, "category-cycle-1", true, http.StatusConflict)
 }
 
 func TestFoundationRejectsIncompleteHostAndUnknownRoutes(t *testing.T) {

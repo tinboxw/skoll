@@ -1409,3 +1409,59 @@ Result: BF4-03 passed after one visual repair. Medical OA now provides independe
 ### Commit
 
 `BF4-03: implement customer and supplier master data`
+
+## BF4-04 Implement Product, Category, Unit, And Manufacturer Catalogs
+
+- Date: 2026-07-23
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Deliver governed pharmaceutical product/SKU, category hierarchy, unit precision, manufacturer identity, strong references, lifecycle controls, cursor pagination, audit, and responsive Chinese workflows in the independent medical OA plugin.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Current data model | Pass | Plugin `0.5.0` owns one `catalogs` model for category/unit/manufacturer and one `products` model; explicit searchable columns carry hierarchy, unit precision, manufacturer identity, pharmaceutical attributes, and storage requirements |
+| Versioned persistence | Pass | `004_catalogs` creates namespaced catalogs before products, adds scope-aware uniqueness, product foreign keys and search indexes, and rolls back products before catalogs |
+| Catalog constraints | Pass | Category accepts hierarchy only, unit requires symbol and 0-6 decimal places, manufacturer requires credit and license identity, and duplicate code/credit values fail inside trusted scope |
+| Hierarchy integrity | Pass | Category parent must be active and scoped; self-reference, ancestor cycles, depth beyond 32, and re-enabling a child beneath a disabled parent are rejected |
+| Product identity | Pass | Product code, SKU, name, generic name, dosage form, specification, approval number, storage condition, and ordered -80 to 80 Celsius range are required; code/SKU/approval duplicates return HTTP 409 |
+| Reference integrity | Pass | Product create, update, and enable require active category, unit, and manufacturer records in the exact trusted scope; active references block catalog disable |
+| Lifecycle and audit | Pass | Create, optimistic update, reasoned disable, and re-enable use host transactions, idempotency keys, exact tenant/organization/owner scope, risk-rated actions, and correctly derived audit resources |
+| Large-list behavior | Pass | Catalog and product APIs pass bounded cursor pages directly through the host datastore with a maximum of 200 records; a 205-record test verifies deterministic 200+5 pagination |
+| Responsive workspace | Pass | One Chinese workspace exposes employee/customer/supplier/product/category/unit/manufacturer tabs, dynamic module copy, product reference selects, tables, mobile cards, forms, filters, and lifecycle actions |
+| Visual review | Pass | Chrome at 1440x900 renders the product table with all seven tabs and no overflow; 390x844 renders cards plus a 390px full-screen product form, locally scrollable tabs, sticky actions, and no document overflow |
+| Package and tests | Pass | JavaScript syntax, backend lifecycle/reference/hierarchy/pagination tests, executable migration and manifest/frontend contracts, package checksum verification, plugin vet, and full Go tests pass |
+| Current-only rule | Pass | Only the plugin-owned `catalogs` and `products` models, `/v1/plugins/pharma_oa/api` route family, and seven-tab workspace are implemented; no host duplicate, compatibility adapter, fallback endpoint, or dual renderer was added |
+
+Two browser-test conditions were rejected during acceptance: Chinese text in a PowerShell-piped test became `????`, and a mobile assertion waited for a visible desktop table even though the responsive card view was active. The final matrix uses Unicode-safe mock data and asserts desktop table visibility, mobile card visibility, viewport-width dialogs, local tab overflow, document overflow, and browser errors separately.
+
+### Verification Commands
+
+```powershell
+node --check plugins/pharma_oa/static/app.js
+go test ./plugins/pharma_oa/backend ./plugins/pharma_oa ./internal/plugin
+./plugins/pharma_oa/plugin.ps1 -Action package
+./plugins/pharma_oa/plugin.ps1 -Action verify
+go vet ./plugins/pharma_oa/...
+go test ./...
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF4-04 passed. Medical OA now owns governed pharmaceutical catalogs and products with trusted-scope references, hierarchy and lifecycle protection, bounded large-list pagination, complete audit evidence, and responsive Chinese workflows.
+
+### Impact Review
+
+- API: implemented current list/create/update/disable/enable routes for products, categories, units, and manufacturers with explicit manifest permissions and audit declarations.
+- Data: added plugin-owned `catalogs` and `products` schemas plus reversible migration, scope-aware uniqueness, foreign keys, and query indexes.
+- Validation: added type-specific catalog contracts, category cycle protection, product identity/storage rules, duplicate detection, active reference gates, and in-use disable protection.
+- Performance: list APIs now expose bounded host cursor pages instead of materializing an arbitrary full catalog in plugin memory.
+- Frontend: expanded the independent workspace to seven Chinese modules with product reference selects, module-specific metrics, desktop tables, mobile cards, full-screen mobile forms, and locally scrollable tabs.
+- Package: advanced the independent artifact to `0.5.0`; verified SHA-256 `babe6cbc5d12a3d10aaf17e99be3daca3c5f8b909d60fb32d420d2284c9f286f`.
+- Compatibility: none; only the plugin-owned `0.5.0` catalog/product contract is current.
+
+### Commit
+
+`BF4-04: implement pharmaceutical catalogs and products`

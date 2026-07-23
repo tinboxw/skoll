@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; min-width: 320px; background: var(--color-bg, #f4f6f8); }
 button, input, select, textarea { color: inherit; font: inherit; letter-spacing: 0; }
 button { cursor: pointer; }
@@ -29,8 +30,8 @@ h1, h2, p, dl, dd { margin: 0; }
 h1 { font-size: 28px; line-height: 1.25; }
 h2 { font-size: 19px; line-height: 1.35; }
 .subtitle { color: var(--local-muted); font-size: 14px; line-height: 1.55; margin-top: 6px; }
-.module-tabs { border-bottom: 1px solid var(--local-border); display: flex; gap: 22px; }
-.module-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--local-muted); font-weight: 650; min-height: 38px; padding: 0 2px; }
+.module-tabs { border-bottom: 1px solid var(--local-border); display: flex; gap: 22px; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
+.module-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--local-muted); flex: 0 0 auto; font-weight: 650; min-height: 38px; padding: 0 2px; white-space: nowrap; }
 .module-tabs button.active { border-bottom-color: var(--local-primary); color: var(--local-primary-strong); }
 
 .button, .icon-button, .text-button, .close-button { align-items: center; border: 1px solid var(--local-border); border-radius: var(--radius-sm, 6px); background: var(--local-surface); display: inline-flex; justify-content: center; min-height: var(--local-control); }

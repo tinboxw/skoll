@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.4.0
+version: 0.5.0
 api_version: v1
-migration_version: 0.4.0
+migration_version: 0.5.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: monolith
 level: app
@@ -133,6 +133,86 @@ permissions:
     type: button
     module: pharma_oa
     name: Disable pharma products
+    risk: high
+  - key: pharma_oa.product.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma products
+    risk: high
+  - key: pharma_oa.category.read
+    type: api
+    module: pharma_oa
+    name: Read pharma product categories
+    risk: low
+  - key: pharma_oa.category.create
+    type: api
+    module: pharma_oa
+    name: Create pharma product categories
+    risk: medium
+  - key: pharma_oa.category.update
+    type: api
+    module: pharma_oa
+    name: Update pharma product categories
+    risk: medium
+  - key: pharma_oa.category.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma product categories
+    risk: high
+  - key: pharma_oa.category.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma product categories
+    risk: high
+  - key: pharma_oa.unit.read
+    type: api
+    module: pharma_oa
+    name: Read pharma units
+    risk: low
+  - key: pharma_oa.unit.create
+    type: api
+    module: pharma_oa
+    name: Create pharma units
+    risk: medium
+  - key: pharma_oa.unit.update
+    type: api
+    module: pharma_oa
+    name: Update pharma units
+    risk: medium
+  - key: pharma_oa.unit.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma units
+    risk: high
+  - key: pharma_oa.unit.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma units
+    risk: high
+  - key: pharma_oa.manufacturer.read
+    type: api
+    module: pharma_oa
+    name: Read pharma manufacturers
+    risk: low
+  - key: pharma_oa.manufacturer.create
+    type: api
+    module: pharma_oa
+    name: Create pharma manufacturers
+    risk: medium
+  - key: pharma_oa.manufacturer.update
+    type: api
+    module: pharma_oa
+    name: Update pharma manufacturers
+    risk: medium
+  - key: pharma_oa.manufacturer.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma manufacturers
+    risk: high
+  - key: pharma_oa.manufacturer.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma manufacturers
     risk: high
   - key: pharma_oa.product.import
     type: api
@@ -621,6 +701,86 @@ api:
       summary: Disable Pharma OA product
       permission: pharma_oa.product.disable
       audit_action: pharma_oa.product.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/products/{id}/enable
+      summary: Enable Pharma OA product
+      permission: pharma_oa.product.enable
+      audit_action: pharma_oa.product.enable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/categories
+      summary: List Pharma OA product categories
+      permission: pharma_oa.category.read
+      audit_action: pharma_oa.category.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/categories
+      summary: Create Pharma OA product category
+      permission: pharma_oa.category.create
+      audit_action: pharma_oa.category.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/categories/{id}
+      summary: Update Pharma OA product category
+      permission: pharma_oa.category.update
+      audit_action: pharma_oa.category.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/categories/{id}/disable
+      summary: Disable Pharma OA product category
+      permission: pharma_oa.category.disable
+      audit_action: pharma_oa.category.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/categories/{id}/enable
+      summary: Enable Pharma OA product category
+      permission: pharma_oa.category.enable
+      audit_action: pharma_oa.category.enable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/units
+      summary: List Pharma OA units
+      permission: pharma_oa.unit.read
+      audit_action: pharma_oa.unit.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/units
+      summary: Create Pharma OA unit
+      permission: pharma_oa.unit.create
+      audit_action: pharma_oa.unit.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/units/{id}
+      summary: Update Pharma OA unit
+      permission: pharma_oa.unit.update
+      audit_action: pharma_oa.unit.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/units/{id}/disable
+      summary: Disable Pharma OA unit
+      permission: pharma_oa.unit.disable
+      audit_action: pharma_oa.unit.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/units/{id}/enable
+      summary: Enable Pharma OA unit
+      permission: pharma_oa.unit.enable
+      audit_action: pharma_oa.unit.enable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/manufacturers
+      summary: List Pharma OA manufacturers
+      permission: pharma_oa.manufacturer.read
+      audit_action: pharma_oa.manufacturer.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/manufacturers
+      summary: Create Pharma OA manufacturer
+      permission: pharma_oa.manufacturer.create
+      audit_action: pharma_oa.manufacturer.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/manufacturers/{id}
+      summary: Update Pharma OA manufacturer
+      permission: pharma_oa.manufacturer.update
+      audit_action: pharma_oa.manufacturer.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/manufacturers/{id}/disable
+      summary: Disable Pharma OA manufacturer
+      permission: pharma_oa.manufacturer.disable
+      audit_action: pharma_oa.manufacturer.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/manufacturers/{id}/enable
+      summary: Enable Pharma OA manufacturer
+      permission: pharma_oa.manufacturer.enable
+      audit_action: pharma_oa.manufacturer.enable
     - method: POST
       path: /v1/plugins/pharma_oa/api/products/import
       summary: Import Pharma OA products
@@ -1184,7 +1344,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.4.0
+  migration_version: 0.5.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1209,6 +1369,16 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, party_type, code, name, unified_social_credit_code, region, rating, status, disable_reason, contacts, addresses, settlement_terms, version, created_at, updated_at
       indexes: unique uq_pharma_oa_parties_tenant_type_code(tenant_id,party_type,code); unique uq_pharma_oa_parties_tenant_type_credit(tenant_id,party_type,unified_social_credit_code); idx_pharma_oa_parties_scope(tenant_id,organization_id,party_type,status)
+    - name: pharma_oa_catalogs
+      description: Trusted-scope categories, units, manufacturers, hierarchy, identity, and lifecycle state.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, catalog_type, code, name, description, parent_id, symbol, decimal_places, unified_social_credit_code, license_number, status, disable_reason, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_catalogs_tenant_type_code(tenant_id,catalog_type,code); unique uq_pharma_oa_catalogs_tenant_type_credit(tenant_id,catalog_type,unified_social_credit_code); idx_pharma_oa_catalogs_scope(tenant_id,organization_id,catalog_type,status)
+    - name: pharma_oa_products
+      description: Trusted-scope pharmaceutical products and SKUs with governed catalog references and storage requirements.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, code, sku, name, generic_name, category_id, unit_id, manufacturer_id, dosage_form, specification, approval_number, barcode, storage_condition, temperature_min, temperature_max, status, disable_reason, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_products_tenant_code(tenant_id,code); unique uq_pharma_oa_products_tenant_sku(tenant_id,sku); unique uq_pharma_oa_products_tenant_approval(tenant_id,approval_number); idx_pharma_oa_products_scope(tenant_id,organization_id,status)
 
 events:
   subscriptions:

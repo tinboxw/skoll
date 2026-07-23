@@ -85,3 +85,48 @@ tables:
       - {fields: [party_type, code], unique: true}
       - {fields: [party_type, unified_social_credit_code], unique: true}
       - {fields: [party_type, status, name]}
+  - name: catalogs
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: catalog_type, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: description, type: string, mutable: true, filterable: true}
+      - {name: parent_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: symbol, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: decimal_places, type: integer, mutable: true, filterable: true}
+      - {name: unified_social_credit_code, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: license_number, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: disable_reason, type: string, nullable: true, mutable: true}
+    indexes:
+      - {fields: [catalog_type, code], unique: true}
+      - {fields: [catalog_type, unified_social_credit_code], unique: true}
+      - {fields: [catalog_type, status, name]}
+  - name: products
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: sku, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: generic_name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: category_id, type: string, mutable: true, filterable: true}
+      - {name: unit_id, type: string, mutable: true, filterable: true}
+      - {name: manufacturer_id, type: string, mutable: true, filterable: true}
+      - {name: dosage_form, type: string, mutable: true, filterable: true}
+      - {name: specification, type: string, mutable: true, filterable: true}
+      - {name: approval_number, type: string, mutable: true, filterable: true}
+      - {name: barcode, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: storage_condition, type: string, mutable: true, filterable: true}
+      - {name: temperature_min, type: integer, mutable: true, filterable: true}
+      - {name: temperature_max, type: integer, mutable: true, filterable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: disable_reason, type: string, nullable: true, mutable: true}
+    indexes:
+      - {fields: [code], unique: true}
+      - {fields: [sku], unique: true}
+      - {fields: [approval_number], unique: true}
+      - {fields: [status, name]}
+      - {fields: [category_id, unit_id, manufacturer_id]}
