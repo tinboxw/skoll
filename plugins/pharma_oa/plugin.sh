@@ -6,7 +6,7 @@ plugin_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$plugin_dir/../.." && pwd)
 dist_dir="${SKOLL_PLUGIN_DIST:-$plugin_dir/dist}"
 plugins_root="${SKOLL_DEV_PLUGINS_ROOT:-$plugin_dir/.skoll-dev}"
-artifact="$dist_dir/pharma_oa-0.5.0.zip"
+artifact="$dist_dir/pharma_oa-0.6.0.zip"
 checksum="$artifact.sha256"
 backend="$plugin_dir/backend/bin/pharma_oa-server"
 

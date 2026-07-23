@@ -4,7 +4,8 @@
 	var apiBase = "/v1/plugins/pharma_oa/api";
 	var partyCollections = { customer: "/customers", supplier: "/suppliers" };
 	var catalogCollections = { product: "/products", category: "/categories", unit: "/units", manufacturer: "/manufacturers" };
-	var state = { items: [], reminders: [], lookups: {}, editing: null, target: null, loading: false, locale: "zh-CN", module: "employee", statusAction: "disable" };
+	var qualificationCollections = { qualification: "/qualifications", qualificationType: "/qualification-types" };
+	var state = { items: [], reminders: [], lookups: {}, editing: null, target: null, loading: false, locale: "zh-CN", module: "employee", statusAction: "disable", qualificationAction: "submit" };
 	var app = document.querySelector("#app");
 	var employeeDialog = document.querySelector("#employee-dialog");
 	var attachmentDialog = document.querySelector("#attachment-dialog");
@@ -20,6 +21,12 @@
 	var catalogForm = document.querySelector("#catalog-form");
 	var productDialog = document.querySelector("#product-dialog");
 	var productForm = document.querySelector("#product-form");
+	var qualificationTypeDialog = document.querySelector("#qualification-type-dialog");
+	var qualificationTypeForm = document.querySelector("#qualification-type-form");
+	var qualificationDialog = document.querySelector("#qualification-dialog");
+	var qualificationForm = document.querySelector("#qualification-form");
+	var qualificationActionDialog = document.querySelector("#qualification-action-dialog");
+	var qualificationActionForm = document.querySelector("#qualification-action-form");
 	var translations = {
 		"zh-CN": {
 			module: "医药 OA · 人力资源", title: "员工管理", subtitle: "员工档案、任职信息与资质到期统一管理", newEmployee: "新建员工", tenant: "租户", organization: "组织", applyScope: "应用范围", totalEmployees: "员工总数", activeEmployees: "在职员工", departedEmployees: "已离职", expiringQualifications: "资质提醒", search: "搜索", searchPlaceholder: "搜索姓名、工号、部门或邮箱", employmentStatus: "任职状态", allStatuses: "全部状态", active: "在职", onLeave: "休假", left: "已离职", loading: "正在加载员工档案", loadFailed: "员工档案加载失败", retry: "重新加载", permissionRequired: "需要员工档案访问权限", contactAdmin: "请联系管理员配置医药 OA 员工权限。", noEmployees: "暂无员工档案", emptyHint: "创建首位员工，开始维护组织任职与资质信息。", employee: "员工", assignment: "任职信息", contact: "联系方式", qualifications: "资质", actions: "操作", employeeRecord: "员工档案", employeeCode: "员工工号", employeeName: "姓名", department: "部门", position: "职位", phone: "手机号", email: "邮箱", hireDate: "入职日期", qualification: "执业资质", qualificationName: "资质名称", qualificationNumber: "证书编号", expiryDate: "有效期至", cancel: "取消", save: "保存", employeeAttachment: "员工附件", selectFile: "选择文件", upload: "上传", employmentChange: "任职变更", leaveReason: "离职原因", confirmLeave: "确认离职", edit: "编辑", attachment: "附件", processLeave: "离职", records: "条", certificates: "项资质", noCertificate: "无资质", noContact: "未填写联系方式", hiredOn: "入职", createTitle: "新建员工", editTitle: "编辑员工", uploadTitle: "上传附件", leaveTitle: "办理离职", saved: "员工档案已保存", uploaded: "附件已上传", leftDone: "离职手续已完成", scopeApplied: "业务范围已更新", fileTooLarge: "文件不能超过 1 MB", hostUnavailable: "未连接 SKOLL 插件宿主", unknownError: "操作未完成，请稍后重试", saving: "保存中", uploading: "上传中", processing: "处理中", refresh: "刷新"
@@ -52,6 +59,8 @@
 			return { eyebrow: english ? "Pharma OA · Parties" : "医药 OA · 往来单位", search: english ? "Search name, code, credit code, or region" : "搜索单位名称、编码、信用代码或地区", title: english ? singular + " master data" : singular + "管理", subtitle: english ? "Identity, contacts, addresses, settlement, and lifecycle" : "统一维护单位身份、联系人、地址、结算条款与合作状态", create: english ? "New " + singular.toLowerCase() : "新建" + singular, total: english ? "Total" : singular + "总数", active: english ? "Active" : "合作中", inactive: english ? "Disabled" : "已停用", alert: english ? "Average rating" : "平均评级", heads: [singular, english ? "Identity" : "单位身份", english ? "Primary contact" : "主联系人", english ? "Settlement" : "结算条款", english ? "Status" : "合作状态", text("actions")] };
 		}
 		if (state.module === "product") return { eyebrow: english ? "Pharma OA · Catalog" : "医药 OA · 药品目录", search: english ? "Search product, SKU, approval number, or barcode" : "搜索药品名称、编码、SKU、批准文号或条码", title: english ? "Products" : "药品管理", subtitle: english ? "Govern product identity, pharmaceutical attributes, catalogs, and storage" : "统一维护药品身份、剂型规格、基础目录引用与储存要求", create: english ? "New product" : "新建药品", total: english ? "Products" : "药品总数", active: english ? "Active" : "启用药品", inactive: english ? "Disabled" : "已停用", alert: english ? "Cold-chain" : "低温药品", heads: [english ? "Product" : "药品", english ? "Pharmaceutical" : "剂型规格", english ? "Catalogs" : "目录归属", english ? "Storage" : "储存要求", english ? "Status" : "状态", text("actions")] };
+		if (state.module === "qualification") return { eyebrow: english ? "Pharma OA · Compliance" : "医药 OA · 合规资质", search: english ? "Search certificate number, issuer, or subject" : "搜索证照编号、发证机关或业务主体", title: english ? "Qualification ledger" : "资质台账", subtitle: english ? "Evidence, review, validity, expiry alerts, and business eligibility" : "统一管理证据文件、审核流转、有效期预警与业务准入", create: english ? "New qualification" : "新建资质", total: english ? "Qualifications" : "资质总数", active: english ? "Approved" : "已通过", inactive: english ? "Pending" : "待审核", alert: english ? "Expiring" : "30 天内到期", heads: [english ? "Certificate" : "证照信息", english ? "Subject" : "业务主体", english ? "Validity" : "有效期限", english ? "Evidence" : "证据文件", english ? "Status" : "审核状态", text("actions")] };
+		if (state.module === "qualificationType") return { eyebrow: english ? "Pharma OA · Compliance" : "医药 OA · 合规规则", search: english ? "Search type code, name, or description" : "搜索类型编码、名称或规则说明", title: english ? "Qualification types" : "资质类型", subtitle: english ? "Bind qualification policies to subjects and business gates" : "配置主体类型、有效期、预警规则与业务准入条件", create: english ? "New qualification type" : "新建资质类型", total: english ? "Types" : "类型总数", active: english ? "Active" : "启用中", inactive: english ? "Disabled" : "已停用", alert: english ? "Required" : "准入必备", heads: [english ? "Type" : "资质类型", english ? "Subject" : "主体与准入", english ? "Validity" : "有效期规则", english ? "Requirements" : "材料要求", english ? "Status" : "状态", text("actions")] };
 		var labels = { category: english ? "Category" : "分类", unit: english ? "Unit" : "单位", manufacturer: english ? "Manufacturer" : "生产企业" };
 		var singularCatalog = labels[state.module];
 		return { eyebrow: english ? "Pharma OA · Catalog" : "医药 OA · 基础目录", search: english ? "Search code, name, identity, or license" : "搜索编码、名称、单位符号、信用代码或许可证", title: english ? singularCatalog + " catalog" : singularCatalog + "管理", subtitle: english ? "Govern reusable pharmaceutical catalog references and lifecycle" : "统一维护可复用目录、业务约束、引用关系与启停状态", create: english ? "New " + singularCatalog.toLowerCase() : "新建" + singularCatalog, total: english ? "Total" : singularCatalog + "总数", active: english ? "Active" : "启用中", inactive: english ? "Disabled" : "已停用", alert: state.module === "category" ? (english ? "Root categories" : "一级分类") : state.module === "unit" ? (english ? "Precise units" : "精度单位") : (english ? "Licensed" : "证照完整"), heads: [singularCatalog, english ? "Business identity" : "业务标识", english ? "Catalog detail" : "目录属性", english ? "Description" : "说明", english ? "Status" : "状态", text("actions")] };
@@ -69,7 +78,10 @@
 		document.querySelectorAll("thead th").forEach(function (node, index) { node.textContent = copy.heads[index]; });
 		document.querySelectorAll("[data-module]").forEach(function (button) { button.classList.toggle("active", button.dataset.module === state.module); });
 		var status = document.querySelector("#status-filter");
-		status.innerHTML = state.module === "employee" ? '<option value="">'+text("allStatuses")+'</option><option value="active">'+text("active")+'</option><option value="on_leave">'+text("onLeave")+'</option><option value="left">'+text("left")+'</option>' : '<option value="">'+text("allStatuses")+'</option><option value="active">'+(state.locale === "en-US" ? "Active" : "合作中")+'</option><option value="disabled">'+(state.locale === "en-US" ? "Disabled" : "已停用")+'</option>';
+		if (state.module === "employee") status.innerHTML = '<option value="">'+text("allStatuses")+'</option><option value="active">'+text("active")+'</option><option value="on_leave">'+text("onLeave")+'</option><option value="left">'+text("left")+'</option>';
+		else if (state.module === "qualification") status.innerHTML = '<option value="">全部状态</option><option value="draft">草稿</option><option value="pending">待审核</option><option value="approved">已通过</option><option value="rejected">已驳回</option><option value="revoked">已撤销</option><option value="expired">已到期</option>';
+		else status.innerHTML = '<option value="">'+text("allStatuses")+'</option><option value="active">'+(state.locale === "en-US" ? "Active" : "启用中")+'</option><option value="disabled">'+(state.locale === "en-US" ? "Disabled" : "已停用")+'</option>';
+		document.querySelector("#scan-button").hidden = state.module !== "qualification";
 		var english = state.locale === "en-US";
 		document.querySelector(".loading-state p").textContent = english ? "Loading " + copy.title.toLowerCase() : "正在加载" + copy.title;
 		document.querySelector(".error-state strong").textContent = english ? "Unable to load " + copy.title.toLowerCase() : copy.title + "加载失败";
@@ -82,7 +94,7 @@
 
 	function collectionForModule() {
 		if (state.module === "employee") return "/employees";
-		return partyCollections[state.module] || catalogCollections[state.module];
+		return partyCollections[state.module] || catalogCollections[state.module] || qualificationCollections[state.module];
 	}
 
 	function host() {
@@ -136,10 +148,11 @@
 			var results;
 			if (state.module === "employee") results = await Promise.all([request(collection + query({ keyword: keyword, status: status, limit: 200 })), request("/employees/qualification-reminders?days=30")]);
 			else if (state.module === "product") results = await Promise.all([request(collection + query({ keyword: keyword, status: status, limit: 200 })), request("/categories?status=active&limit=200"), request("/units?status=active&limit=200"), request("/manufacturers?status=active&limit=200")]);
+			else if (state.module === "qualification") results = await Promise.all([request(collection + query({ keyword: keyword, status: status, limit: 200 })), request("/qualification-types?status=active&limit=200")]);
 			else results = [await request(collection + query({ keyword: keyword, status: status, limit: 200 })), { items: [] }];
 			state.items = Array.isArray(results[0].items) ? results[0].items : [];
 			state.reminders = Array.isArray(results[1].items) ? results[1].items : [];
-			state.lookups = state.module === "product" ? { category: indexById(results[1].items), unit: indexById(results[2].items), manufacturer: indexById(results[3].items) } : {};
+			state.lookups = state.module === "product" ? { category: indexById(results[1].items), unit: indexById(results[2].items), manufacturer: indexById(results[3].items) } : state.module === "qualification" ? { qualificationType: indexById(results[1].items) } : {};
 			app.dataset.state = state.items.length ? "ready" : "empty";
 			render();
 		} catch (error) {
@@ -154,6 +167,8 @@
 	function render() {
 		if (partyCollections[state.module]) { renderParties(); return; }
 		if (state.module === "product") { renderProducts(); return; }
+		if (state.module === "qualification") { renderQualifications(); return; }
+		if (state.module === "qualificationType") { renderQualificationTypes(); return; }
 		if (catalogCollections[state.module]) { renderCatalogs(); return; }
 		var active = state.items.filter(function (item) { return item.employmentStatus === "active"; }).length;
 		var left = state.items.filter(function (item) { return item.employmentStatus === "left"; }).length;
@@ -165,6 +180,51 @@
 		document.querySelector("#employee-table").innerHTML = state.items.map(renderRow).join("");
 		document.querySelector("#employee-cards").innerHTML = state.items.map(renderCard).join("");
 	}
+
+	function renderQualifications() {
+		var now = Date.now();
+		var approved = state.items.filter(function (item) { return item.status === "approved"; }).length;
+		var pending = state.items.filter(function (item) { return item.status === "pending"; }).length;
+		var expiring = state.items.filter(function (item) { var until = new Date(item.validTo).getTime() - now; return item.status === "approved" && until >= 0 && until <= 30 * 86400000; }).length;
+		setMetrics(state.items.length, approved, pending, expiring);
+		document.querySelector("#result-count").textContent = state.items.length + " " + text("records");
+		document.querySelector("#employee-table").innerHTML = state.items.map(renderQualificationRow).join("");
+		document.querySelector("#employee-cards").innerHTML = state.items.map(renderQualificationCard).join("");
+	}
+
+	function renderQualificationTypes() {
+		var active = state.items.filter(function (item) { return item.status === "active"; }).length;
+		var required = state.items.filter(function (item) { return item.businessRequired; }).length;
+		setMetrics(state.items.length, active, state.items.length - active, required);
+		document.querySelector("#result-count").textContent = state.items.length + " " + text("records");
+		document.querySelector("#employee-table").innerHTML = state.items.map(renderQualificationTypeRow).join("");
+		document.querySelector("#employee-cards").innerHTML = state.items.map(renderQualificationTypeCard).join("");
+	}
+
+	function renderQualificationRow(item) {
+		var type = state.lookups.qualificationType && state.lookups.qualificationType[item.typeId];
+		return '<tr><td><strong>'+escapeHTML(type ? type.name : item.typeId)+'</strong><small>'+escapeHTML(item.certificateNumber)+' · '+escapeHTML(item.issuer)+'</small></td><td><strong>'+qualificationSubjectLabel(item.subjectType)+'</strong><small>'+escapeHTML(item.subjectId)+'</small></td><td><strong>'+formatDate(item.validFrom)+' 至 '+formatDate(item.validTo)+'</strong><small>'+qualificationValidityHint(item)+'</small></td><td><strong>'+escapeHTML(item.evidenceFileName||'未上传')+'</strong><small>'+(item.evidenceFileHash?'校验值 '+escapeHTML(item.evidenceFileHash.slice(0,12)):'无校验值')+'</small></td><td>'+qualificationStatusHTML(item)+'</td><td>'+qualificationActionHTML(item)+'</td></tr>';
+	}
+
+	function renderQualificationCard(item) {
+		var type = state.lookups.qualificationType && state.lookups.qualificationType[item.typeId];
+		return '<article class="employee-card"><header><div><strong>'+escapeHTML(type ? type.name : item.typeId)+'</strong><small>'+escapeHTML(item.certificateNumber)+'</small></div>'+qualificationStatusHTML(item)+'</header><dl><div><dt>业务主体</dt><dd>'+qualificationSubjectLabel(item.subjectType)+'<small>'+escapeHTML(item.subjectId)+'</small></dd></div><div><dt>有效期限</dt><dd>'+formatDate(item.validFrom)+' 至 '+formatDate(item.validTo)+'</dd></div><div><dt>证据文件</dt><dd>'+escapeHTML(item.evidenceFileName||'未上传')+'</dd></div></dl><footer>'+qualificationActionHTML(item)+'</footer></article>';
+	}
+
+	function renderQualificationTypeRow(item) {
+		return '<tr><td><div class="employee-cell"><span class="avatar">'+escapeHTML(item.name.slice(0,1))+'</span><div><strong>'+escapeHTML(item.name)+'</strong><small>'+escapeHTML(item.code)+'</small></div></div></td><td><strong>'+qualificationSubjectLabel(item.subjectType)+'</strong><small>'+qualificationGateLabel(item.businessGate)+'</small></td><td><strong>最长 '+Number(item.validityDays)+' 天</strong><small>提前 '+Number(item.alertDays)+' 天提醒</small></td><td><strong>'+(item.evidenceRequired?'必须上传证据':'证据可选')+'</strong><small>'+(item.businessRequired?'业务准入必备':'不阻断业务')+'</small></td><td>'+statusHTML(item)+'</td><td>'+qualificationTypeActionHTML(item)+'</td></tr>';
+	}
+
+	function renderQualificationTypeCard(item) {
+		return '<article class="employee-card"><header><div class="employee-cell"><span class="avatar">'+escapeHTML(item.name.slice(0,1))+'</span><div><strong>'+escapeHTML(item.name)+'</strong><small>'+escapeHTML(item.code)+'</small></div></div>'+statusHTML(item)+'</header><dl><div><dt>主体与准入</dt><dd>'+qualificationSubjectLabel(item.subjectType)+'<small>'+qualificationGateLabel(item.businessGate)+'</small></dd></div><div><dt>有效期规则</dt><dd>'+Number(item.validityDays)+' 天<small>提前 '+Number(item.alertDays)+' 天提醒</small></dd></div><div><dt>材料要求</dt><dd>'+(item.evidenceRequired?'必须上传证据':'证据可选')+'</dd></div></dl><footer>'+qualificationTypeActionHTML(item)+'</footer></article>';
+	}
+
+	function qualificationSubjectLabel(value) { return {customer:"客户",supplier:"供应商",product:"药品",manufacturer:"生产企业"}[value] || escapeHTML(value); }
+	function qualificationGateLabel(value) { return {sales:"销售客户准入",purchase:"采购供应商准入",sale:"药品销售准入",supply:"生产企业供货准入"}[value] || escapeHTML(value); }
+	function qualificationValidityHint(item) { var days=Math.ceil((new Date(item.validTo).getTime()-Date.now())/86400000); return days < 0 ? "已到期" : days === 0 ? "今日到期" : "剩余 "+days+" 天"; }
+	function qualificationStatusHTML(item) { var labels={draft:"草稿",pending:"待审核",approved:"已通过",rejected:"已驳回",revoked:"已撤销",expired:"已到期"}; return '<span class="status status-'+escapeHTML(item.status)+'">'+(labels[item.status]||escapeHTML(item.status))+'</span><small>'+escapeHTML(item.reviewComment||'')+'</small>'; }
+	function qualificationActionHTML(item) { var id=escapeHTML(item.id),buttons=[]; if(item.status==='draft'||item.status==='rejected'){buttons.push('<button class="text-button" type="button" data-action="qualification-edit" data-id="'+id+'">编辑</button>');buttons.push('<button class="text-button" type="button" data-action="qualification-submit" data-id="'+id+'">提交</button>');} if(item.status==='pending'){buttons.push('<button class="text-button" type="button" data-action="qualification-approve" data-id="'+id+'">通过</button>');buttons.push('<button class="text-button danger-text" type="button" data-action="qualification-reject" data-id="'+id+'">驳回</button>');} if(item.status==='approved')buttons.push('<button class="text-button danger-text" type="button" data-action="qualification-revoke" data-id="'+id+'">撤销</button>'); return '<div class="row-actions">'+(buttons.join('')||'<span class="muted">无可用操作</span>')+'</div>'; }
+	function qualificationTypeActionHTML(item) { var id=escapeHTML(item.id); return '<div class="row-actions"><button class="text-button" type="button" data-action="qualification-type-edit" data-id="'+id+'">编辑</button><button class="text-button '+(item.status==='active'?'danger-text':'')+'" type="button" data-action="qualification-type-status" data-id="'+id+'">'+(item.status==='active'?'停用':'启用')+'</button></div>'; }
 
 	function renderParties() {
 		var active = state.items.filter(function (item) { return item.status === "active"; }).length;
@@ -381,8 +441,57 @@
 		finally{setButtonBusy("#product-save-button",false,"save");}
 	}
 
+	function openQualificationType(item) {
+		state.editing=item||null; qualificationTypeForm.reset(); document.querySelector("#qualification-type-error").textContent=""; document.querySelector("#qualification-type-title").textContent=item?"编辑资质类型":"新建资质类型";
+		if(item){["code","name","subjectType","businessGate","description","validityDays","alertDays"].forEach(function(field){qualificationTypeForm.elements[field].value=item[field]??"";}); qualificationTypeForm.elements.evidenceRequired.checked=Boolean(item.evidenceRequired); qualificationTypeForm.elements.businessRequired.checked=Boolean(item.businessRequired);}
+		else syncQualificationGate();
+		qualificationTypeDialog.showModal();
+	}
+
+	function syncQualificationGate() {
+		var gates={customer:"sales",supplier:"purchase",product:"sale",manufacturer:"supply"};
+		qualificationTypeForm.elements.businessGate.value=gates[qualificationTypeForm.elements.subjectType.value]||"";
+	}
+
+	async function saveQualificationType(event) {
+		event.preventDefault(); if(!qualificationTypeForm.reportValidity())return; var data=new FormData(qualificationTypeForm),current=state.editing;
+		var body=Object.assign({},scope(),{code:String(data.get("code")||"").trim(),name:String(data.get("name")||"").trim(),subjectType:String(data.get("subjectType")||""),businessGate:String(data.get("businessGate")||""),description:String(data.get("description")||"").trim(),validityDays:Number(data.get("validityDays")),alertDays:Number(data.get("alertDays")),evidenceRequired:qualificationTypeForm.elements.evidenceRequired.checked,businessRequired:qualificationTypeForm.elements.businessRequired.checked}); if(current)body.version=current.version;
+		setButtonBusy("#qualification-type-save-button",true,"saving"); try{await request("/qualification-types"+(current?"/"+encodeURIComponent(current.id):""),{method:current?"PUT":"POST",body:body,headers:{"Idempotency-Key":idempotencyKey("qualification-type-"+(current?"update":"create"))}}); qualificationTypeDialog.close(); showToast("资质类型已保存"); await load();}catch(error){document.querySelector("#qualification-type-error").textContent=error.message||text("unknownError");}finally{setButtonBusy("#qualification-type-save-button",false,"save");}
+	}
+
+	async function openQualification(item) {
+		state.editing=item||null; qualificationForm.reset(); document.querySelector("#qualification-error").textContent=""; document.querySelector("#qualification-title").textContent=item?"编辑资质":"新建资质"; document.querySelector("#qualification-evidence-field").hidden=Boolean(item);
+		try{var page=await request("/qualification-types?status=active&limit=200"); var types=Array.isArray(page.items)?page.items:[]; state.lookups.qualificationType=indexById(types); qualificationForm.elements.typeId.innerHTML='<option value="">请选择资质类型</option>'+types.map(function(type){return '<option value="'+escapeHTML(type.id)+'"'+(item&&item.typeId===type.id?' selected':'')+'>'+escapeHTML(type.name)+'（'+escapeHTML(type.code)+'）</option>';}).join(""); if(!types.length)document.querySelector("#qualification-error").textContent="请先建立启用的资质类型。";}catch(error){document.querySelector("#qualification-error").textContent=error.message||text("unknownError");}
+		if(item){["typeId","subjectType","subjectId","certificateNumber","issuer"].forEach(function(field){qualificationForm.elements[field].value=item[field]??"";}); qualificationForm.elements.validFrom.value=dateInput(item.validFrom); qualificationForm.elements.validTo.value=dateInput(item.validTo);} else syncQualificationSubject();
+		qualificationDialog.showModal();
+	}
+
+	function syncQualificationSubject() {
+		var type=state.lookups.qualificationType&&state.lookups.qualificationType[qualificationForm.elements.typeId.value];
+		if(type)qualificationForm.elements.subjectType.value=type.subjectType;
+	}
+
+	async function saveQualification(event) {
+		event.preventDefault(); if(!qualificationForm.reportValidity())return; var data=new FormData(qualificationForm),current=state.editing,file=qualificationForm.elements.evidence.files[0],type=state.lookups.qualificationType&&state.lookups.qualificationType[String(data.get("typeId")||"")];
+		if(!current&&type&&type.evidenceRequired&&!file){document.querySelector("#qualification-error").textContent="该资质类型必须上传证据文件。";return;} if(file&&file.size>5*1024*1024){document.querySelector("#qualification-error").textContent="证据文件不能超过 5 MB。";return;}
+		var body=Object.assign({},scope(),{typeId:String(data.get("typeId")||""),subjectType:String(data.get("subjectType")||""),subjectId:String(data.get("subjectId")||"").trim(),certificateNumber:String(data.get("certificateNumber")||"").trim(),issuer:String(data.get("issuer")||"").trim(),validFrom:String(data.get("validFrom")||""),validTo:String(data.get("validTo")||"")}); if(file)body.evidence={name:file.name,contentBase64:await fileToBase64(file)}; if(current)body.version=current.version;
+		setButtonBusy("#qualification-save-button",true,"saving"); try{await request("/qualifications"+(current?"/"+encodeURIComponent(current.id):""),{method:current?"PUT":"POST",body:body,headers:{"Idempotency-Key":idempotencyKey("qualification-"+(current?"update":"create"))}}); qualificationDialog.close(); showToast("资质档案已保存"); await load();}catch(error){document.querySelector("#qualification-error").textContent=error.message||text("unknownError");}finally{setButtonBusy("#qualification-save-button",false,"save");}
+	}
+
+	function openQualificationAction(item,action) {
+		state.target=item; state.qualificationAction=action; qualificationActionForm.reset(); document.querySelector("#qualification-action-error").textContent=""; var copy={submit:["提交资质审核","确认提交"],approve:["通过资质审核","确认通过"],reject:["驳回资质审核","确认驳回"],revoke:["撤销已通过资质","确认撤销"]}[action]; document.querySelector("#qualification-action-title").textContent=copy[0]; document.querySelector("#qualification-action-save-button").textContent=copy[1]; qualificationActionForm.elements.comment.required=action==="reject"||action==="revoke"; qualificationActionDialog.showModal();
+	}
+
+	async function saveQualificationAction(event) {
+		event.preventDefault(); if(!qualificationActionForm.reportValidity())return; var button=document.querySelector("#qualification-action-save-button"); button.disabled=true; try{await request("/qualifications/"+encodeURIComponent(state.target.id)+"/"+state.qualificationAction,{method:"POST",body:{comment:qualificationActionForm.elements.comment.value.trim(),version:state.target.version},headers:{"Idempotency-Key":idempotencyKey("qualification-"+state.qualificationAction)}}); qualificationActionDialog.close(); showToast("资质状态已更新"); await load();}catch(error){document.querySelector("#qualification-action-error").textContent=error.message||text("unknownError");}finally{button.disabled=false;}
+	}
+
+	async function scanQualificationExpiry() {
+		var button=document.querySelector("#scan-button"); button.disabled=true; button.textContent="扫描中"; try{var result=await request("/qualifications/expiry-scan",{method:"POST",body:{},headers:{"Idempotency-Key":idempotencyKey("qualification-expiry-scan")}}); showToast("已创建 "+Number(result.scheduled||0)+" 个提醒任务，跳过 "+Number(result.skipped||0)+" 个重复任务"); await load();}catch(error){showToast(error.message||text("unknownError"));}finally{button.disabled=false;button.textContent="扫描到期资质";}
+	}
+
 	function populateSelect(select,items,placeholder,selected,excludeID){select.innerHTML='<option value="">'+escapeHTML(placeholder)+'</option>'+(Array.isArray(items)?items:[]).filter(function(item){return item.id!==excludeID;}).map(function(item){return '<option value="'+escapeHTML(item.id)+'"'+(item.id===selected?' selected':'')+'>'+escapeHTML(item.name)+'（'+escapeHTML(item.code)+'）</option>';}).join("");}
-	function moduleLabel(){return {customer:"客户",supplier:"供应商",product:"药品",category:"分类",unit:"单位",manufacturer:"生产企业"}[state.module]||"记录";}
+	function moduleLabel(){return {customer:"客户",supplier:"供应商",product:"药品",category:"分类",unit:"单位",manufacturer:"生产企业",qualification:"资质",qualificationType:"资质类型"}[state.module]||"记录";}
 	function openPartyStatus(item){state.target=item; state.statusAction=item.status==="active"?"disable":"enable"; partyStatusForm.reset(); var disabling=state.statusAction==="disable"; document.querySelector("#party-status-title").textContent=(disabling?"停用":"启用")+moduleLabel()+" · "+item.name; document.querySelector("#party-status-reason-field").hidden=!disabling; partyStatusForm.elements.reason.required=disabling; document.querySelector("#party-status-save-button").textContent=disabling?"确认停用":"确认启用"; document.querySelector("#party-status-save-button").className="button "+(disabling?"danger":"primary"); document.querySelector("#party-status-error").textContent=""; partyStatusDialog.showModal();}
 	async function savePartyStatus(event){event.preventDefault(); if(!partyStatusForm.reportValidity())return; setButtonBusy("#party-status-save-button",true,"processing"); try{await request(collectionForModule()+"/"+encodeURIComponent(state.target.id)+"/"+state.statusAction,{method:"POST",body:{reason:partyStatusForm.elements.reason.value.trim(),version:state.target.version},headers:{"Idempotency-Key":idempotencyKey(state.module+"-"+state.statusAction)}}); partyStatusDialog.close(); showToast(state.statusAction==="disable"?"已停用":"已启用"); await load();}catch(error){document.querySelector("#party-status-error").textContent=error.message||text("unknownError");}finally{document.querySelector("#party-status-save-button").disabled=false;}}
 
@@ -505,6 +614,8 @@
 		if (state.module === "employee") return openEmployee(item);
 		if (partyCollections[state.module]) return openParty(item);
 		if (state.module === "product") return openProduct(item);
+		if (state.module === "qualification") return openQualification(item);
+		if (state.module === "qualificationType") return openQualificationType(item);
 		return openCatalog(item);
 	}
 
@@ -516,6 +627,7 @@
 	document.querySelector("#create-button").addEventListener("click", function () { openCurrent(null); });
 	document.querySelector("#empty-create-button").addEventListener("click", function () { openCurrent(null); });
 	document.querySelector("#refresh-button").addEventListener("click", load);
+	document.querySelector("#scan-button").addEventListener("click", scanQualificationExpiry);
 	document.querySelector("#retry-button").addEventListener("click", load);
 	document.querySelector("#scope-button").addEventListener("click", function () { saveScope(); load(); });
 	document.querySelector("#keyword-input").addEventListener("input", debounce(load, 280));
@@ -537,6 +649,13 @@
 		if (button.dataset.action === "catalog-status") openPartyStatus(item);
 		if (button.dataset.action === "product-edit") openProduct(item);
 		if (button.dataset.action === "product-status") openPartyStatus(item);
+		if (button.dataset.action === "qualification-edit") openQualification(item);
+		if (button.dataset.action === "qualification-submit") openQualificationAction(item,"submit");
+		if (button.dataset.action === "qualification-approve") openQualificationAction(item,"approve");
+		if (button.dataset.action === "qualification-reject") openQualificationAction(item,"reject");
+		if (button.dataset.action === "qualification-revoke") openQualificationAction(item,"revoke");
+		if (button.dataset.action === "qualification-type-edit") openQualificationType(item);
+		if (button.dataset.action === "qualification-type-status") openPartyStatus(item);
 	});
 	employeeForm.addEventListener("submit", saveEmployee);
 	attachmentForm.addEventListener("submit", uploadAttachment);
@@ -545,6 +664,11 @@
 	partyStatusForm.addEventListener("submit", savePartyStatus);
 	catalogForm.addEventListener("submit", saveCatalog);
 	productForm.addEventListener("submit", saveProduct);
+	qualificationTypeForm.addEventListener("submit", saveQualificationType);
+	qualificationTypeForm.elements.subjectType.addEventListener("change", syncQualificationGate);
+	qualificationForm.addEventListener("submit", saveQualification);
+	qualificationForm.elements.typeId.addEventListener("change", syncQualificationSubject);
+	qualificationActionForm.addEventListener("submit", saveQualificationAction);
 	window.addEventListener("skoll:locale", function (event) { applyLocale(event.detail && event.detail.locale); });
 	window.addEventListener("skoll:host-ready", load);
 

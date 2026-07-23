@@ -130,3 +130,46 @@ tables:
       - {fields: [approval_number], unique: true}
       - {fields: [status, name]}
       - {fields: [category_id, unit_id, manufacturer_id]}
+  - name: qualification_types
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: subject_type, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: business_gate, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: description, type: string, mutable: true, filterable: true}
+      - {name: validity_days, type: integer, mutable: true, filterable: true}
+      - {name: alert_days, type: integer, mutable: true, filterable: true}
+      - {name: evidence_required, type: boolean, mutable: true, filterable: true}
+      - {name: business_required, type: boolean, mutable: true, filterable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: disable_reason, type: string, nullable: true, mutable: true}
+    indexes:
+      - {fields: [code], unique: true}
+      - {fields: [subject_type, business_gate, status]}
+  - name: qualifications
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: type_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: subject_type, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: subject_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: certificate_number, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: issuer, type: string, mutable: true, filterable: true}
+      - {name: valid_from, type: timestamp, mutable: true, filterable: true, sortable: true}
+      - {name: valid_to, type: timestamp, mutable: true, filterable: true, sortable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: evidence_file_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: evidence_file_name, type: string, nullable: true, mutable: true}
+      - {name: evidence_file_hash, type: string, nullable: true, mutable: true}
+      - {name: review_comment, type: string, nullable: true, mutable: true}
+      - {name: submitted_at, type: timestamp, nullable: true, mutable: true, filterable: true}
+      - {name: reviewed_at, type: timestamp, nullable: true, mutable: true, filterable: true}
+      - {name: reviewed_by, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: revoked_at, type: timestamp, nullable: true, mutable: true, filterable: true}
+      - {name: last_alert_key, type: string, nullable: true, mutable: true, filterable: true}
+    indexes:
+      - {fields: [type_id, subject_id, certificate_number], unique: true}
+      - {fields: [subject_type, subject_id, status]}
+      - {fields: [status, valid_to]}

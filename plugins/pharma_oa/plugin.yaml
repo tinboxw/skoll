@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.5.0
+version: 0.6.0
 api_version: v1
-migration_version: 0.5.0
+migration_version: 0.6.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: monolith
 level: app
@@ -479,10 +479,75 @@ permissions:
     module: pharma_oa
     name: Read qualification ledger
     risk: low
+  - key: pharma_oa.qualification.create
+    type: api
+    module: pharma_oa
+    name: Create qualification records
+    risk: medium
+  - key: pharma_oa.qualification.update
+    type: api
+    module: pharma_oa
+    name: Update qualification records
+    risk: medium
+  - key: pharma_oa.qualification.submit
+    type: button
+    module: pharma_oa
+    name: Submit qualification records
+    risk: medium
+  - key: pharma_oa.qualification.approve
+    type: button
+    module: pharma_oa
+    name: Approve qualification records
+    risk: high
+  - key: pharma_oa.qualification.reject
+    type: button
+    module: pharma_oa
+    name: Reject qualification records
+    risk: high
+  - key: pharma_oa.qualification.revoke
+    type: button
+    module: pharma_oa
+    name: Revoke qualification records
+    risk: high
+  - key: pharma_oa.qualification_type.read
+    type: api
+    module: pharma_oa
+    name: Read qualification types
+    risk: low
+  - key: pharma_oa.qualification_type.create
+    type: api
+    module: pharma_oa
+    name: Create qualification types
+    risk: medium
+  - key: pharma_oa.qualification_type.update
+    type: api
+    module: pharma_oa
+    name: Update qualification types
+    risk: medium
+  - key: pharma_oa.qualification_type.disable
+    type: button
+    module: pharma_oa
+    name: Disable qualification types
+    risk: high
+  - key: pharma_oa.qualification_type.enable
+    type: button
+    module: pharma_oa
+    name: Enable qualification types
+    risk: high
   - key: pharma_oa.qualification.expiry.run
     type: button
     module: pharma_oa
     name: Run qualification expiry scans
+    risk: high
+  - key: pharma_oa.product.sales
+    type: api
+    module: pharma_oa
+    name: Validate product for sales
+    risk: high
+  - key: pharma_oa.manufacturer.supply
+    type: api
+    module: pharma_oa
+    name: Validate manufacturer for supply
     risk: high
   - key: pharma_oa.quality_complaint.read
     type: api
@@ -707,6 +772,11 @@ api:
       permission: pharma_oa.product.enable
       audit_action: pharma_oa.product.enable
     - method: GET
+      path: /v1/plugins/pharma_oa/api/products/{id}/sale-eligibility
+      summary: Validate a Pharma OA product for sales
+      permission: pharma_oa.product.sales
+      audit_action: pharma_oa.product.sales
+    - method: GET
       path: /v1/plugins/pharma_oa/api/categories
       summary: List Pharma OA product categories
       permission: pharma_oa.category.read
@@ -781,6 +851,11 @@ api:
       summary: Enable Pharma OA manufacturer
       permission: pharma_oa.manufacturer.enable
       audit_action: pharma_oa.manufacturer.enable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/manufacturers/{id}/supply-eligibility
+      summary: Validate a Pharma OA manufacturer for supply
+      permission: pharma_oa.manufacturer.supply
+      audit_action: pharma_oa.manufacturer.supply
     - method: POST
       path: /v1/plugins/pharma_oa/api/products/import
       summary: Import Pharma OA products
@@ -1092,10 +1167,65 @@ api:
       permission: pharma_oa.contract.expiry.run
       audit_action: pharma_oa.contract.expiry_scan
     - method: GET
+      path: /v1/plugins/pharma_oa/api/qualification-types
+      summary: List qualification types
+      permission: pharma_oa.qualification_type.read
+      audit_action: pharma_oa.qualification_type.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualification-types
+      summary: Create a qualification type
+      permission: pharma_oa.qualification_type.create
+      audit_action: pharma_oa.qualification_type.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/qualification-types/{id}
+      summary: Update a qualification type
+      permission: pharma_oa.qualification_type.update
+      audit_action: pharma_oa.qualification_type.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualification-types/{id}/disable
+      summary: Disable a qualification type
+      permission: pharma_oa.qualification_type.disable
+      audit_action: pharma_oa.qualification_type.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualification-types/{id}/enable
+      summary: Enable a qualification type
+      permission: pharma_oa.qualification_type.enable
+      audit_action: pharma_oa.qualification_type.enable
+    - method: GET
       path: /v1/plugins/pharma_oa/api/qualifications
-      summary: List employee, supplier, and customer qualifications
+      summary: List qualification records
       permission: pharma_oa.qualification.read
-      audit_action: pharma_oa.qualification.read_list
+      audit_action: pharma_oa.qualification.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualifications
+      summary: Create a qualification record
+      permission: pharma_oa.qualification.create
+      audit_action: pharma_oa.qualification.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/qualifications/{id}
+      summary: Update a qualification record
+      permission: pharma_oa.qualification.update
+      audit_action: pharma_oa.qualification.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualifications/{id}/submit
+      summary: Submit a qualification record
+      permission: pharma_oa.qualification.submit
+      audit_action: pharma_oa.qualification.submit
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualifications/{id}/approve
+      summary: Approve a qualification record
+      permission: pharma_oa.qualification.approve
+      audit_action: pharma_oa.qualification.approve
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualifications/{id}/reject
+      summary: Reject a qualification record
+      permission: pharma_oa.qualification.reject
+      audit_action: pharma_oa.qualification.reject
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/qualifications/{id}/revoke
+      summary: Revoke a qualification record
+      permission: pharma_oa.qualification.revoke
+      audit_action: pharma_oa.qualification.revoke
     - method: POST
       path: /v1/plugins/pharma_oa/api/qualifications/expiry-scan
       summary: Run qualification expiry reminders
@@ -1344,7 +1474,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.5.0
+  migration_version: 0.6.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1379,6 +1509,16 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, code, sku, name, generic_name, category_id, unit_id, manufacturer_id, dosage_form, specification, approval_number, barcode, storage_condition, temperature_min, temperature_max, status, disable_reason, version, created_at, updated_at
       indexes: unique uq_pharma_oa_products_tenant_code(tenant_id,code); unique uq_pharma_oa_products_tenant_sku(tenant_id,sku); unique uq_pharma_oa_products_tenant_approval(tenant_id,approval_number); idx_pharma_oa_products_scope(tenant_id,organization_id,status)
+    - name: pharma_oa_qualification_types
+      description: Trusted-scope qualification policies bound to one subject type and business gate.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, code, name, subject_type, business_gate, description, validity_days, alert_days, evidence_required, business_required, status, disable_reason, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_qualification_types_tenant_code(tenant_id,code); idx_pharma_oa_qualification_types_scope(tenant_id,organization_id,subject_type,business_gate,status)
+    - name: pharma_oa_qualifications
+      description: Trusted-scope qualification evidence, review lifecycle, validity, and expiry alert state.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, type_id, subject_type, subject_id, certificate_number, issuer, valid_from, valid_to, status, evidence_file_id, evidence_file_name, evidence_file_hash, review_comment, submitted_at, reviewed_at, reviewed_by, revoked_at, last_alert_key, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_qualifications_tenant_type_subject_certificate(tenant_id,type_id,subject_id,certificate_number); idx_pharma_oa_qualifications_scope(tenant_id,organization_id,subject_type,subject_id,status); idx_pharma_oa_qualifications_expiry(tenant_id,status,valid_to)
 
 events:
   subscriptions:

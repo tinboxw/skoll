@@ -50,7 +50,7 @@ var foundationEvents = map[string]string{
 }
 
 func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
-	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.Files == nil || host.Audit == nil {
+	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.Files == nil || host.Audit == nil || host.Jobs == nil {
 		return nil, errors.New("complete Pharma OA host services are required")
 	}
 	s := &server{host: host, now: time.Now, newID: employeeID}
@@ -72,6 +72,8 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/disable", s.changePartyStatus(kind, false))
 		mux.HandleFunc("POST "+apiBase+"/"+plural+"/{id}/enable", s.changePartyStatus(kind, true))
 	}
+	mux.HandleFunc("GET "+apiBase+"/customers/{id}/sales-eligibility", s.customerSalesEligibility)
+	mux.HandleFunc("GET "+apiBase+"/suppliers/{id}/purchase-eligibility", s.supplierPurchaseEligibility)
 	for kind, plural := range map[string]string{"category": "categories", "unit": "units", "manufacturer": "manufacturers"} {
 		mux.HandleFunc("GET "+apiBase+"/"+plural, s.listCatalogs(kind))
 		mux.HandleFunc("POST "+apiBase+"/"+plural, s.createCatalog(kind))
@@ -84,6 +86,21 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("PUT "+apiBase+"/products/{id}", s.updateProduct)
 	mux.HandleFunc("POST "+apiBase+"/products/{id}/disable", s.changeProductStatus(false))
 	mux.HandleFunc("POST "+apiBase+"/products/{id}/enable", s.changeProductStatus(true))
+	mux.HandleFunc("GET "+apiBase+"/products/{id}/sale-eligibility", s.productSaleEligibility)
+	mux.HandleFunc("GET "+apiBase+"/manufacturers/{id}/supply-eligibility", s.manufacturerSupplyEligibility)
+	mux.HandleFunc("GET "+apiBase+"/qualification-types", s.listQualificationTypes)
+	mux.HandleFunc("POST "+apiBase+"/qualification-types", s.createQualificationType)
+	mux.HandleFunc("PUT "+apiBase+"/qualification-types/{id}", s.updateQualificationType)
+	mux.HandleFunc("POST "+apiBase+"/qualification-types/{id}/disable", s.changeQualificationTypeStatus(false))
+	mux.HandleFunc("POST "+apiBase+"/qualification-types/{id}/enable", s.changeQualificationTypeStatus(true))
+	mux.HandleFunc("GET "+apiBase+"/qualifications", s.listQualifications)
+	mux.HandleFunc("POST "+apiBase+"/qualifications", s.createQualification)
+	mux.HandleFunc("PUT "+apiBase+"/qualifications/{id}", s.updateQualification)
+	mux.HandleFunc("POST "+apiBase+"/qualifications/{id}/submit", s.submitQualification)
+	mux.HandleFunc("POST "+apiBase+"/qualifications/{id}/approve", s.approveQualification)
+	mux.HandleFunc("POST "+apiBase+"/qualifications/{id}/reject", s.rejectQualification)
+	mux.HandleFunc("POST "+apiBase+"/qualifications/{id}/revoke", s.revokeQualification)
+	mux.HandleFunc("POST "+apiBase+"/qualifications/expiry-scan", s.scanQualificationExpiry)
 	return mux, nil
 }
 
@@ -93,7 +110,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.5.0",
+		PluginID: pluginID, ContractVersion: "0.6.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},

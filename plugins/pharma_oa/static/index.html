@@ -16,7 +16,7 @@
 				</div>
 				<button class="button primary" id="create-button" type="button"><span aria-hidden="true">＋</span><span data-i18n="newEmployee">新建员工</span></button>
 			</header>
-			<nav class="module-tabs" aria-label="医药 OA 主数据"><button class="active" type="button" data-module="employee">员工</button><button type="button" data-module="customer">客户</button><button type="button" data-module="supplier">供应商</button><button type="button" data-module="product">药品</button><button type="button" data-module="category">分类</button><button type="button" data-module="unit">单位</button><button type="button" data-module="manufacturer">生产企业</button></nav>
+			<nav class="module-tabs" aria-label="医药 OA 主数据"><button class="active" type="button" data-module="employee">员工</button><button type="button" data-module="customer">客户</button><button type="button" data-module="supplier">供应商</button><button type="button" data-module="product">药品</button><button type="button" data-module="category">分类</button><button type="button" data-module="unit">单位</button><button type="button" data-module="manufacturer">生产企业</button><button type="button" data-module="qualification">资质台账</button><button type="button" data-module="qualificationType">资质类型</button></nav>
 
 			<section class="scope-bar" aria-label="业务范围">
 				<label><span data-i18n="tenant">租户</span><input id="tenant-input" autocomplete="off" placeholder="tenant-a" /></label>
@@ -35,6 +35,7 @@
 				<div class="toolbar">
 					<label class="search-field"><span class="sr-only" data-i18n="search">搜索</span><span aria-hidden="true">⌕</span><input id="keyword-input" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="搜索姓名、工号、部门或邮箱" /></label>
 					<label class="select-field"><span class="sr-only" data-i18n="employmentStatus">任职状态</span><select id="status-filter"><option value="" data-i18n="allStatuses">全部状态</option><option value="active" data-i18n="active">在职</option><option value="on_leave" data-i18n="onLeave">休假</option><option value="left" data-i18n="left">已离职</option></select></label>
+					<button class="button" id="scan-button" type="button" hidden>扫描到期资质</button>
 					<button class="icon-button" id="refresh-button" type="button" title="刷新" aria-label="刷新">↻</button>
 			</div>
 
@@ -106,6 +107,22 @@
 		</dialog>
 
 		<dialog class="dialog compact-dialog" id="party-status-dialog"><form id="party-status-form" method="dialog"><header><div><p class="eyebrow">状态变更</p><h2 id="party-status-title">停用客户</h2></div><button class="close-button" type="button" data-close="party-status-dialog" aria-label="关闭">×</button></header><label id="party-status-reason-field"><span>停用原因</span><textarea name="reason" maxlength="500" rows="4"></textarea></label><p class="form-error" id="party-status-error" role="alert"></p><footer><button class="button" type="button" data-close="party-status-dialog">取消</button><button class="button danger" id="party-status-save-button" type="submit">确认停用</button></footer></form></dialog>
+
+		<dialog class="dialog" id="qualification-type-dialog">
+			<form id="qualification-type-form" method="dialog"><header><div><p class="eyebrow">资质规则</p><h2 id="qualification-type-title">新建资质类型</h2></div><button class="close-button" type="button" data-close="qualification-type-dialog" aria-label="关闭">×</button></header>
+				<div class="form-grid"><label><span>类型编码</span><input name="code" maxlength="64" required /></label><label><span>类型名称</span><input name="name" maxlength="255" required /></label><label><span>资质主体</span><select name="subjectType" required><option value="customer">客户</option><option value="supplier">供应商</option><option value="product">药品</option><option value="manufacturer">生产企业</option></select></label><label><span>业务准入</span><select name="businessGate" required><option value="sales">销售客户准入</option><option value="purchase">采购供应商准入</option><option value="sale">药品销售准入</option><option value="supply">生产企业供货准入</option></select></label><label><span>最长有效期（天）</span><input name="validityDays" type="number" min="1" max="3650" value="365" required /></label><label><span>提前提醒（天）</span><input name="alertDays" type="number" min="1" max="3650" value="30" required /></label><label class="wide-field"><span>规则说明</span><input name="description" maxlength="512" /></label><label class="check-field"><input name="evidenceRequired" type="checkbox" checked /><span>必须上传证据文件</span></label><label class="check-field"><input name="businessRequired" type="checkbox" checked /><span>作为业务准入必备资质</span></label></div>
+				<p class="form-error" id="qualification-type-error" role="alert"></p><footer><button class="button" type="button" data-close="qualification-type-dialog">取消</button><button class="button primary" id="qualification-type-save-button" type="submit">保存</button></footer></form>
+		</dialog>
+
+		<dialog class="dialog" id="qualification-dialog">
+			<form id="qualification-form" method="dialog"><header><div><p class="eyebrow">证照档案</p><h2 id="qualification-title">新建资质</h2></div><button class="close-button" type="button" data-close="qualification-dialog" aria-label="关闭">×</button></header>
+				<div class="form-grid"><label><span>资质类型</span><select name="typeId" required></select></label><label><span>主体类型</span><select name="subjectType" required><option value="customer">客户</option><option value="supplier">供应商</option><option value="product">药品</option><option value="manufacturer">生产企业</option></select></label><label class="wide-field"><span>业务主体 ID</span><input name="subjectId" maxlength="128" required /></label><label><span>证照编号</span><input name="certificateNumber" maxlength="128" required /></label><label><span>发证机关</span><input name="issuer" maxlength="255" required /></label><label><span>有效期起</span><input name="validFrom" type="date" required /></label><label><span>有效期止</span><input name="validTo" type="date" required /></label><label class="file-field wide-field" id="qualification-evidence-field"><span>证据文件（PDF、JPEG 或 PNG，不超过 5 MB）</span><input name="evidence" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" /></label></div>
+				<p class="form-error" id="qualification-error" role="alert"></p><footer><button class="button" type="button" data-close="qualification-dialog">取消</button><button class="button primary" id="qualification-save-button" type="submit">保存</button></footer></form>
+		</dialog>
+
+		<dialog class="dialog compact-dialog" id="qualification-action-dialog">
+			<form id="qualification-action-form" method="dialog"><header><div><p class="eyebrow">资质审核</p><h2 id="qualification-action-title">提交审核</h2></div><button class="close-button" type="button" data-close="qualification-action-dialog" aria-label="关闭">×</button></header><label><span>审核意见</span><textarea name="comment" maxlength="1000" rows="4"></textarea></label><p class="form-error" id="qualification-action-error" role="alert"></p><footer><button class="button" type="button" data-close="qualification-action-dialog">取消</button><button class="button primary" id="qualification-action-save-button" type="submit">确认</button></footer></form>
+		</dialog>
 
 		<div class="toast" id="toast" role="status" aria-live="polite"></div>
 		<script src="./app.js"></script>

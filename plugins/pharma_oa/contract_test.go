@@ -93,7 +93,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	if manifest.ID != "pharma_oa" || manifest.AppID != manifest.ID || contract.PluginID != manifest.ID {
 		t.Fatalf("plugin identity mismatch: manifest=%q app=%q contract=%q", manifest.ID, manifest.AppID, contract.PluginID)
 	}
-	if manifest.Version != "0.5.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
+	if manifest.Version != "0.6.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
 		t.Fatalf("contract version mismatch: manifest=%q migration=%q map=%q", manifest.Version, manifest.MigrationVersion, contract.ContractVersion)
 	}
 	if manifest.APIVersion != "v1" || contract.SchemaVersion != 1 || contract.PublicContract.APIVersion != manifest.APIVersion {
@@ -175,11 +175,12 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 
 func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	for _, path := range []string{
-		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "plugin.ps1", "plugin.sh", "static/index.html", "datastore.yaml",
+		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "plugin.ps1", "plugin.sh", "static/index.html", "datastore.yaml",
 		"contract/acceptance-map.json", "migrations/001_foundation.up.sql", "migrations/001_foundation.down.sql",
 		"migrations/002_employees.up.sql", "migrations/002_employees.down.sql",
 		"migrations/003_parties.up.sql", "migrations/003_parties.down.sql",
 		"migrations/004_catalogs.up.sql", "migrations/004_catalogs.down.sql",
+		"migrations/005_qualifications.up.sql", "migrations/005_qualifications.down.sql",
 	} {
 		if info, err := os.Stat(filepath.FromSlash(path)); err != nil || info.IsDir() {
 			t.Fatalf("required package file %q is unavailable: %v", path, err)
@@ -231,7 +232,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql"} {
+	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -240,6 +241,8 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:parties}}", "pharma_oa_parties")
 		sql = strings.ReplaceAll(sql, "{{table:catalogs}}", "pharma_oa_catalogs")
 		sql = strings.ReplaceAll(sql, "{{table:products}}", "pharma_oa_products")
+		sql = strings.ReplaceAll(sql, "{{table:qualification_types}}", "pharma_oa_qualification_types")
+		sql = strings.ReplaceAll(sql, "{{table:qualifications}}", "pharma_oa_qualifications")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("apply %s: %v", path, err)
 		}
@@ -259,7 +262,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	for _, table := range loadPharmaAcceptanceMap(t).Migrations.Tables {
 		assertPharmaContains(t, wantTables, table, "contract migration table")
 	}
-	for _, path := range []string{"migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
+	for _, path := range []string{"migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -268,6 +271,8 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:parties}}", "pharma_oa_parties")
 		sql = strings.ReplaceAll(sql, "{{table:catalogs}}", "pharma_oa_catalogs")
 		sql = strings.ReplaceAll(sql, "{{table:products}}", "pharma_oa_products")
+		sql = strings.ReplaceAll(sql, "{{table:qualification_types}}", "pharma_oa_qualification_types")
+		sql = strings.ReplaceAll(sql, "{{table:qualifications}}", "pharma_oa_qualifications")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("rollback %s: %v", path, err)
 		}
@@ -308,6 +313,11 @@ func TestMedicalOAEmployeeWorkspaceIsChineseFirstAndHostNative(t *testing.T) {
 			t.Fatalf("catalog workspace is missing %q", value)
 		}
 	}
+	for _, value := range []string{`data-module="qualification"`, `data-module="qualificationType"`, "资质台账", "资质类型", "扫描到期资质", "qualification-dialog", "qualification-type-dialog", "qualification-action-dialog"} {
+		if !strings.Contains(html, value) {
+			t.Fatalf("qualification workspace is missing %q", value)
+		}
+	}
 	for _, value := range []string{`"/customers"`, `"/suppliers"`, "party-edit", "party-status", "unifiedSocialCreditCode"} {
 		if !strings.Contains(script, value) {
 			t.Fatalf("party workflow is missing %q", value)
@@ -316,6 +326,11 @@ func TestMedicalOAEmployeeWorkspaceIsChineseFirstAndHostNative(t *testing.T) {
 	for _, value := range []string{`product: "/products"`, `category: "/categories"`, `unit: "/units"`, `manufacturer: "/manufacturers"`, "catalog-edit", "catalog-status", "product-edit", "product-status", "populateSelect", "temperatureMin", "approvalNumber"} {
 		if !strings.Contains(script, value) {
 			t.Fatalf("catalog workflow is missing %q", value)
+		}
+	}
+	for _, value := range []string{`qualification: "/qualifications"`, `qualificationType: "/qualification-types"`, "qualification-submit", "qualification-approve", "qualification-reject", "qualification-revoke", "scanQualificationExpiry", "evidenceRequired", "businessRequired"} {
+		if !strings.Contains(script, value) {
+			t.Fatalf("qualification workflow is missing %q", value)
 		}
 	}
 	for _, value := range []string{"--color-surface", "--color-primary", `[data-density="compact"]`, `[data-theme="dark"]`, "@media (max-width: 900px)", "@media (max-width: 620px)", "prefers-reduced-motion"} {

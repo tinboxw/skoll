@@ -155,6 +155,82 @@ type testFiles struct {
 	deletes int
 }
 
+type testJobs struct {
+	mu            sync.Mutex
+	items         map[string]pluginsdk.Job
+	byIdempotency map[string]string
+	scheduleCalls int
+}
+
+func (j *testJobs) Schedule(_ context.Context, input pluginsdk.JobScheduleInput) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if id, exists := j.byIdempotency[input.IdempotencyKey]; exists {
+		return j.items[id], nil
+	}
+	j.scheduleCalls++
+	now := time.Now().UTC()
+	item := pluginsdk.Job{ID: input.ID, Kind: input.Kind, IdempotencyKey: input.IdempotencyKey, Payload: input.Payload, Status: pluginsdk.JobStatusScheduled, RunAt: input.RunAt, MaxAttempts: input.MaxAttempts, CreatedAt: now, UpdatedAt: now}
+	j.items[item.ID] = item
+	j.byIdempotency[item.IdempotencyKey] = item.ID
+	return item, nil
+}
+
+func (j *testJobs) LeaseDue(context.Context, pluginsdk.JobLeaseInput) ([]pluginsdk.Job, error) {
+	return nil, nil
+}
+
+func (j *testJobs) Complete(_ context.Context, input pluginsdk.JobCompleteInput) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	item, exists := j.items[input.JobID]
+	if !exists {
+		return pluginsdk.Job{}, errors.New("job not found")
+	}
+	item.Status, item.Result = pluginsdk.JobStatusSucceeded, input.Result
+	j.items[item.ID] = item
+	return item, nil
+}
+
+func (j *testJobs) Fail(_ context.Context, input pluginsdk.JobFailInput) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	item, exists := j.items[input.JobID]
+	if !exists {
+		return pluginsdk.Job{}, errors.New("job not found")
+	}
+	item.Status, item.LastError = pluginsdk.JobStatusRetryWait, input.Error
+	j.items[item.ID] = item
+	return item, nil
+}
+
+func (j *testJobs) Get(_ context.Context, id string) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	item, exists := j.items[id]
+	if !exists {
+		return pluginsdk.Job{}, errors.New("job not found")
+	}
+	return item, nil
+}
+
+func (j *testJobs) List(_ context.Context, query pluginsdk.JobQuery) ([]pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	items := make([]pluginsdk.Job, 0, len(j.items))
+	for _, item := range j.items {
+		if query.Kind != "" && item.Kind != query.Kind || query.Status != "" && item.Status != query.Status {
+			continue
+		}
+		items = append(items, item)
+	}
+	sort.Slice(items, func(left, right int) bool { return items[left].ID < items[right].ID })
+	if query.Limit > 0 && len(items) > query.Limit {
+		items = items[:query.Limit]
+	}
+	return items, nil
+}
+
 func (f *testFiles) Store(_ context.Context, input pluginsdk.FileWrite) (pluginsdk.FileObject, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -208,6 +284,8 @@ type testRuntime struct {
 	store        *testDataStore
 	files        *testFiles
 	audit        *testAudit
+	jobs         *testJobs
+	scopes       testScopes
 }
 
 func newTestRuntime(t *testing.T) testRuntime {
@@ -222,13 +300,15 @@ func newTestRuntime(t *testing.T) testRuntime {
 	store := &testDataStore{records: make(map[string]pluginsdk.DataRecord), idempotency: make(map[string]string), scope: employeeScope{TenantID: "tenant-a", OrganizationID: "org-a", OwnerID: "actor-1"}}
 	files := &testFiles{items: make(map[string]pluginsdk.FileObject)}
 	audit := &testAudit{}
+	jobs := &testJobs{items: make(map[string]pluginsdk.Job), byIdempotency: make(map[string]string)}
+	scopes := testScopes{predicate: predicate}
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: transactions, DataScopes: testScopes{predicate: predicate}, DataStore: store, Files: files, Audit: audit,
+		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Files: files, Audit: audit, Jobs: jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return testRuntime{handler: handler, transactions: transactions, store: store, files: files, audit: audit}
+	return testRuntime{handler: handler, transactions: transactions, store: store, files: files, audit: audit, jobs: jobs, scopes: scopes}
 }
 
 func TestFoundationEndpoints(t *testing.T) {
@@ -238,7 +318,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.5.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.6.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
@@ -328,7 +408,7 @@ func TestEmployeeLifecycleUsesPublicScopedHostServices(t *testing.T) {
 func TestEmployeeCreateRejectsDeniedScope(t *testing.T) {
 	runtime := newTestRuntime(t)
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")}, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit,
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")}, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Jobs: runtime.jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -484,6 +564,92 @@ func TestCategoryHierarchyRejectsCycles(t *testing.T) {
 	testRequest(t, runtime.handler, http.MethodPut, apiBase+"/categories/"+testString(t, root, "id"), rootBody, "category-cycle-1", true, http.StatusConflict)
 }
 
+func TestQualificationLifecycleEligibilityAndExpiryIdempotency(t *testing.T) {
+	runtime := newTestRuntime(t)
+	customer := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/customers", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "CUS-QA-001", "name": "华东合规药房", "unifiedSocialCreditCode": "91330000MAQA0001", "region": "浙江省杭州市", "rating": 5,
+		"contacts":        []map[string]any{{"name": "质量负责人", "phone": "13800000001", "email": "qa@example.com", "primary": true}},
+		"addresses":       []map[string]any{{"label": "总部", "province": "浙江省", "city": "杭州市", "district": "拱墅区", "detail": "康桥路 8 号", "default": true}},
+		"settlementTerms": map[string]any{"currency": "CNY", "paymentDays": 30, "creditLimit": 100000},
+	}, "qualification-customer-1", true, http.StatusCreated), "item")
+	customerID := testString(t, customer, "id")
+
+	typeItem := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualification-types", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "DRUG-BUSINESS", "name": "药品经营许可证", "subjectType": "customer", "businessGate": "sales", "description": "客户销售业务准入证照", "validityDays": 365, "alertDays": 30, "evidenceRequired": true, "businessRequired": true,
+	}, "qualification-type-create-1", true, http.StatusCreated), "item")
+	typeID := testString(t, typeItem, "id")
+
+	now := time.Now().UTC()
+	qualificationBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "typeId": typeID, "subjectType": "customer", "subjectId": customerID, "certificateNumber": "浙药经许-2026-001", "issuer": "浙江省药品监督管理局",
+		"validFrom": now.AddDate(0, 0, -30).Format("2006-01-02"), "validTo": now.AddDate(0, 0, 10).Format("2006-01-02"),
+		"evidence": map[string]any{"name": "license.txt", "contentBase64": base64.StdEncoding.EncodeToString([]byte("not a license"))},
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications", qualificationBody, "qualification-invalid-file-1", true, http.StatusBadRequest)
+	qualificationBody["evidence"] = map[string]any{"name": "license.pdf", "contentBase64": base64.StdEncoding.EncodeToString([]byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF"))}
+	created := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications", qualificationBody, "qualification-create-1", true, http.StatusCreated)
+	qualificationItem := testMap(t, created, "item")
+	qualificationID := testString(t, qualificationItem, "id")
+	if testString(t, qualificationItem, "status") != "draft" || testString(t, qualificationItem, "evidenceFileId") == "" || runtime.files.stores != 1 {
+		t.Fatalf("unexpected qualification evidence result: item=%v stores=%d", qualificationItem, runtime.files.stores)
+	}
+	file := runtime.files.items[testString(t, qualificationItem, "evidenceFileId")]
+	if file.Visibility != pluginsdk.FileVisibilityPrivate || file.Metadata["qualificationId"] != qualificationID || file.Metadata["subjectId"] != customerID {
+		t.Fatalf("qualification evidence ownership is incomplete: %+v", file)
+	}
+	duplicate := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications", qualificationBody, "qualification-create-1", true, http.StatusOK)
+	if duplicate["duplicate"] != true || runtime.files.stores != 1 {
+		t.Fatalf("qualification create is not idempotent: response=%v stores=%d", duplicate, runtime.files.stores)
+	}
+	testRequest(t, runtime.handler, http.MethodPut, apiBase+"/qualification-types/"+typeID, map[string]any{
+		"code": "DRUG-BUSINESS", "name": "药品经营许可证", "subjectType": "customer", "businessGate": "sales", "description": "不得改写已引用规则", "validityDays": 364, "alertDays": 30, "evidenceRequired": true, "businessRequired": true, "version": 1,
+	}, "qualification-type-policy-change-1", true, http.StatusConflict)
+
+	eligibility := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/customers/"+customerID+"/sales-eligibility", nil, "", true, http.StatusOK)
+	if eligibility["eligible"] != false || len(eligibility["missing"].([]any)) != 1 {
+		t.Fatalf("draft qualification unexpectedly passed business gate: %v", eligibility)
+	}
+	submitted := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications/"+qualificationID+"/submit", map[string]any{"version": 1}, "qualification-submit-1", true, http.StatusOK), "item")
+	if testString(t, submitted, "status") != "pending" || testInt64(t, submitted, "version") != 2 {
+		t.Fatalf("unexpected qualification submission: %v", submitted)
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualification-types/"+typeID+"/disable", map[string]any{"reason": "不应停用", "version": 1}, "qualification-type-disable-blocked-1", true, http.StatusConflict)
+	approved := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications/"+qualificationID+"/approve", map[string]any{"comment": "证照真实有效", "version": 2}, "qualification-approve-1", true, http.StatusOK), "item")
+	if testString(t, approved, "status") != "approved" || testString(t, approved, "reviewedBy") != "actor-1" || testInt64(t, approved, "version") != 3 {
+		t.Fatalf("unexpected qualification approval: %v", approved)
+	}
+	eligibility = testRequest(t, runtime.handler, http.MethodGet, apiBase+"/customers/"+customerID+"/sales-eligibility", nil, "", true, http.StatusOK)
+	if eligibility["eligible"] != true || len(eligibility["missing"].([]any)) != 0 {
+		t.Fatalf("approved qualification did not pass business gate: %v", eligibility)
+	}
+
+	firstScan := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications/expiry-scan", map[string]any{}, "qualification-expiry-1", true, http.StatusOK)
+	if testInt64(t, firstScan, "scheduled") != 1 || runtime.jobs.scheduleCalls != 1 {
+		t.Fatalf("expiry scan did not schedule exactly once: response=%v calls=%d", firstScan, runtime.jobs.scheduleCalls)
+	}
+	secondScan := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications/expiry-scan", map[string]any{}, "qualification-expiry-2", true, http.StatusOK)
+	if testInt64(t, secondScan, "scheduled") != 0 || testInt64(t, secondScan, "skipped") != 1 || runtime.jobs.scheduleCalls != 1 {
+		t.Fatalf("expiry scan duplicate was not skipped: response=%v calls=%d", secondScan, runtime.jobs.scheduleCalls)
+	}
+	restarted, err := newHandler(pluginsdk.HostServices{PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Jobs: runtime.jobs})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restartScan := testRequest(t, restarted, http.MethodPost, apiBase+"/qualifications/expiry-scan", map[string]any{}, "qualification-expiry-after-restart-1", true, http.StatusOK)
+	if testInt64(t, restartScan, "scheduled") != 0 || testInt64(t, restartScan, "skipped") != 1 || runtime.jobs.scheduleCalls != 1 {
+		t.Fatalf("expiry scan lost idempotency after restart: response=%v calls=%d", restartScan, runtime.jobs.scheduleCalls)
+	}
+
+	revoked := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications/"+qualificationID+"/revoke", map[string]any{"comment": "监管机构撤销证照", "version": 4}, "qualification-revoke-1", true, http.StatusOK), "item")
+	if testString(t, revoked, "status") != "revoked" {
+		t.Fatalf("qualification was not revoked: %v", revoked)
+	}
+	eligibility = testRequest(t, runtime.handler, http.MethodGet, apiBase+"/customers/"+customerID+"/sales-eligibility", nil, "", true, http.StatusOK)
+	if eligibility["eligible"] != false {
+		t.Fatalf("revoked qualification still passed business gate: %v", eligibility)
+	}
+}
+
 func TestFoundationRejectsIncompleteHostAndUnknownRoutes(t *testing.T) {
 	if _, err := newHandler(pluginsdk.HostServices{PluginID: pluginID}); err == nil {
 		t.Fatal("incomplete host services were accepted")
@@ -551,7 +717,7 @@ func testFilterMatches(record pluginsdk.DataRecord, filter pluginsdk.DataFilter)
 		return false
 	}
 	actual := dataString(record, filter.Field)
-	if filter.Value == nil {
+	if filter.Operator != pluginsdk.DataOperatorIn && filter.Value == nil {
 		return false
 	}
 	switch filter.Operator {
@@ -559,6 +725,13 @@ func testFilterMatches(record pluginsdk.DataRecord, filter pluginsdk.DataFilter)
 		return actual == filter.Value.Value
 	case pluginsdk.DataOperatorContains:
 		return strings.Contains(strings.ToLower(actual), strings.ToLower(filter.Value.Value))
+	case pluginsdk.DataOperatorIn:
+		for _, value := range filter.Values {
+			if actual == value.Value {
+				return true
+			}
+		}
+		return false
 	default:
 		return false
 	}
