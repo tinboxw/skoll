@@ -12,7 +12,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if info.ID != "pharma_oa" || info.AppID != info.ID || info.Level != LevelApp || info.UIMode != UIModeSeparated {
 		t.Fatalf("unexpected Pharma OA placement: %+v", info)
 	}
-	if info.Version != "0.7.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
+	if info.Version != "0.8.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
 		t.Fatalf("unexpected current contract version: version=%q api=%q migration=%q", info.Version, info.APIVersion, info.MigrationVersion)
 	}
 	if info.ServiceBaseURL != "http://127.0.0.1:18093" || info.ServiceHealthURL != "http://127.0.0.1:18093/health" {
@@ -27,7 +27,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 3 {
 		t.Fatalf("unexpected config schema: %+v", info.ConfigSchema)
 	}
-	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 8 {
+	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 9 {
 		t.Fatalf("unexpected plugin data lifecycle: %+v", info.DataManifest)
 	}
 	for _, table := range info.DataManifest.Tables {
@@ -55,7 +55,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 		}
 		permissions[permission.Key] = struct{}{}
 	}
-	for _, required := range []string{"pharma_oa.foundation.read", "pharma_oa.menu.read", "pharma_oa.seed.read", "pharma_oa.employee.read", "pharma_oa.product.read", "pharma_oa.product.enable", "pharma_oa.product.sales", "pharma_oa.category.read", "pharma_oa.unit.read", "pharma_oa.manufacturer.read", "pharma_oa.manufacturer.supply", "pharma_oa.qualification_type.read", "pharma_oa.qualification.read", "pharma_oa.qualification.submit", "pharma_oa.qualification.approve", "pharma_oa.qualification.expiry.run"} {
+	for _, required := range []string{"pharma_oa.foundation.read", "pharma_oa.menu.read", "pharma_oa.seed.read", "pharma_oa.employee.read", "pharma_oa.product.read", "pharma_oa.product.enable", "pharma_oa.product.sales", "pharma_oa.category.read", "pharma_oa.unit.read", "pharma_oa.manufacturer.read", "pharma_oa.manufacturer.supply", "pharma_oa.qualification_type.read", "pharma_oa.qualification.read", "pharma_oa.qualification.submit", "pharma_oa.qualification.approve", "pharma_oa.qualification.expiry.run", "pharma_oa.oa_request.read", "pharma_oa.oa_request.create", "pharma_oa.oa_request.update", "pharma_oa.oa_request.submit"} {
 		if _, ok := permissions[required]; !ok {
 			t.Fatalf("required permission %s is missing", required)
 		}

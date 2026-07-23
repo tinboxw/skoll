@@ -50,7 +50,7 @@ var foundationEvents = map[string]string{
 }
 
 func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
-	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.Files == nil || host.Audit == nil || host.Jobs == nil {
+	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.Files == nil || host.Audit == nil || host.Workflows == nil || host.Jobs == nil {
 		return nil, errors.New("complete Pharma OA host services are required")
 	}
 	s := &server{host: host, now: time.Now, newID: employeeID}
@@ -101,6 +101,11 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("POST "+apiBase+"/qualifications/{id}/reject", s.rejectQualification)
 	mux.HandleFunc("POST "+apiBase+"/qualifications/{id}/revoke", s.revokeQualification)
 	mux.HandleFunc("POST "+apiBase+"/qualifications/expiry-scan", s.scanQualificationExpiry)
+	mux.HandleFunc("GET "+apiBase+"/oa-requests", s.listOARequests)
+	mux.HandleFunc("GET "+apiBase+"/oa-requests/{id}", s.getOARequestHandler)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests", s.createOARequest)
+	mux.HandleFunc("PUT "+apiBase+"/oa-requests/{id}", s.updateOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/submit", s.submitOARequest)
 	return mux, nil
 }
 
@@ -110,7 +115,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.7.0",
+		PluginID: pluginID, ContractVersion: "0.8.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},
@@ -159,11 +164,15 @@ func (s *server) audit(ctx context.Context, action, resourceID string, risk plug
 }
 
 func employeeID() string {
+	return newEntityID("employee")
+}
+
+func newEntityID(prefix string) string {
 	var raw [12]byte
 	if _, err := rand.Read(raw[:]); err != nil {
-		return "employee-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 36)
+		return prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 36)
 	}
-	return "employee-" + hex.EncodeToString(raw[:])
+	return prefix + "-" + hex.EncodeToString(raw[:])
 }
 
 type httpError struct {

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "pluginId": "pharma_oa",
-  "contractVersion": "0.7.0",
+  "contractVersion": "0.8.0",
   "publicContract": {
     "manifest": "plugin.yaml",
     "apiVersion": "v1",
@@ -32,7 +32,7 @@
     {"name": "quality-lot-released", "handler": "onQualityLotReleased"},
     {"name": "quality-recall-started", "handler": "onQualityRecallStarted"}
   ],
-  "migrations": {"version": "0.7.0", "tables": ["pharma_oa_module_registry", "pharma_oa_document_type_registry", "pharma_oa_employees", "pharma_oa_parties", "pharma_oa_catalogs", "pharma_oa_products", "pharma_oa_qualification_types", "pharma_oa_qualifications"]},
+  "migrations": {"version": "0.8.0", "tables": ["pharma_oa_module_registry", "pharma_oa_document_type_registry", "pharma_oa_employees", "pharma_oa_parties", "pharma_oa_catalogs", "pharma_oa_products", "pharma_oa_qualification_types", "pharma_oa_qualifications", "pharma_oa_oa_requests"]},
   "acceptanceScenarios": [
     {"id": "POA-BOUNDARY-01", "result": "Build, package, verify, install, start, and health-check the plugin without modifying host production source."},
     {"id": "POA-BOUNDARY-02", "result": "Every module, document type, event, table, route, and permission resolves from one current manifest family."},

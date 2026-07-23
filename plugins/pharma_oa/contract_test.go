@@ -93,7 +93,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	if manifest.ID != "pharma_oa" || manifest.AppID != manifest.ID || contract.PluginID != manifest.ID {
 		t.Fatalf("plugin identity mismatch: manifest=%q app=%q contract=%q", manifest.ID, manifest.AppID, contract.PluginID)
 	}
-	if manifest.Version != "0.7.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
+	if manifest.Version != "0.8.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
 		t.Fatalf("contract version mismatch: manifest=%q migration=%q map=%q", manifest.Version, manifest.MigrationVersion, contract.ContractVersion)
 	}
 	if manifest.APIVersion != "v1" || contract.SchemaVersion != 1 || contract.PublicContract.APIVersion != manifest.APIVersion {
@@ -175,12 +175,13 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 
 func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	for _, path := range []string{
-		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
+		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "backend/oa_request.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
 		"contract/acceptance-map.json", "migrations/001_foundation.up.sql", "migrations/001_foundation.down.sql",
 		"migrations/002_employees.up.sql", "migrations/002_employees.down.sql",
 		"migrations/003_parties.up.sql", "migrations/003_parties.down.sql",
 		"migrations/004_catalogs.up.sql", "migrations/004_catalogs.down.sql",
 		"migrations/005_qualifications.up.sql", "migrations/005_qualifications.down.sql",
+		"migrations/006_oa_requests.up.sql", "migrations/006_oa_requests.down.sql",
 	} {
 		if info, err := os.Stat(filepath.FromSlash(path)); err != nil || info.IsDir() {
 			t.Fatalf("required package file %q is unavailable: %v", path, err)
@@ -232,7 +233,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql"} {
+	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql", "migrations/006_oa_requests.up.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -243,6 +244,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:products}}", "pharma_oa_products")
 		sql = strings.ReplaceAll(sql, "{{table:qualification_types}}", "pharma_oa_qualification_types")
 		sql = strings.ReplaceAll(sql, "{{table:qualifications}}", "pharma_oa_qualifications")
+		sql = strings.ReplaceAll(sql, "{{table:oa_requests}}", "pharma_oa_oa_requests")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("apply %s: %v", path, err)
 		}
@@ -262,7 +264,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	for _, table := range loadPharmaAcceptanceMap(t).Migrations.Tables {
 		assertPharmaContains(t, wantTables, table, "contract migration table")
 	}
-	for _, path := range []string{"migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
+	for _, path := range []string{"migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -273,6 +275,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:products}}", "pharma_oa_products")
 		sql = strings.ReplaceAll(sql, "{{table:qualification_types}}", "pharma_oa_qualification_types")
 		sql = strings.ReplaceAll(sql, "{{table:qualifications}}", "pharma_oa_qualifications")
+		sql = strings.ReplaceAll(sql, "{{table:oa_requests}}", "pharma_oa_oa_requests")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("rollback %s: %v", path, err)
 		}

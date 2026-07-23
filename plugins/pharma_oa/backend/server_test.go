@@ -162,6 +162,106 @@ type testJobs struct {
 	scheduleCalls int
 }
 
+type testWorkflows struct {
+	mu          sync.Mutex
+	definitions map[string]pluginsdk.WorkflowDefinition
+	instances   map[string]pluginsdk.WorkflowInstance
+}
+
+func (w *testWorkflows) CreateDefinition(_ context.Context, input pluginsdk.WorkflowDefinitionInput) (pluginsdk.WorkflowDefinition, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if item, exists := w.definitions[input.ID]; exists {
+		return item, nil
+	}
+	now := time.Now().UTC()
+	item := pluginsdk.WorkflowDefinition{ID: input.ID, Key: input.Key, Name: input.Name, Version: input.Version, Status: pluginsdk.WorkflowDefinitionDraft, Nodes: input.Nodes, Transitions: input.Transitions, CreatedAt: now, UpdatedAt: now}
+	w.definitions[item.ID] = item
+	return item, nil
+}
+
+func (w *testWorkflows) GetDefinition(_ context.Context, id string) (pluginsdk.WorkflowDefinition, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.definitions[id]
+	if !exists {
+		return pluginsdk.WorkflowDefinition{}, errors.New("workflow definition not found")
+	}
+	return item, nil
+}
+
+func (w *testWorkflows) PublishDefinition(_ context.Context, id string) (pluginsdk.WorkflowDefinition, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.definitions[id]
+	if !exists {
+		return pluginsdk.WorkflowDefinition{}, errors.New("workflow definition not found")
+	}
+	item.Status, item.UpdatedAt = pluginsdk.WorkflowDefinitionPublished, time.Now().UTC()
+	w.definitions[id] = item
+	return item, nil
+}
+
+func (w *testWorkflows) Start(_ context.Context, input pluginsdk.WorkflowStartInput) (pluginsdk.WorkflowInstance, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if item, exists := w.instances[input.ID]; exists {
+		return item, nil
+	}
+	definition, exists := w.definitions[input.DefinitionID]
+	if !exists || definition.Status != pluginsdk.WorkflowDefinitionPublished {
+		return pluginsdk.WorkflowInstance{}, errors.New("published workflow definition not found")
+	}
+	var approval pluginsdk.WorkflowNode
+	for _, node := range definition.Nodes {
+		if node.Type == pluginsdk.WorkflowNodeApproval {
+			approval = node
+			break
+		}
+	}
+	if len(approval.AssigneeIDs) != 1 {
+		return pluginsdk.WorkflowInstance{}, errors.New("one workflow approver is required")
+	}
+	now := time.Now().UTC()
+	item := pluginsdk.WorkflowInstance{
+		ID: input.ID, DefinitionID: input.DefinitionID, DefinitionKey: definition.Key, BusinessType: input.BusinessType, BusinessID: input.BusinessID,
+		Title: input.Title, Status: pluginsdk.WorkflowInstanceRunning, CurrentNode: approval.ID, CreatedAt: now, UpdatedAt: now,
+		Tasks:    []pluginsdk.WorkflowTask{{ID: input.ID + "-task", InstanceID: input.ID, NodeID: approval.ID, Assignee: pluginsdk.WorkflowActor{ID: approval.AssigneeIDs[0]}, Status: pluginsdk.WorkflowTaskPending, CreatedAt: now}},
+		Timeline: []pluginsdk.WorkflowAction{{ID: input.ID + "-start", Type: pluginsdk.WorkflowActionStart, InstanceID: input.ID, NodeID: "start", CreatedAt: now}},
+	}
+	w.instances[item.ID] = item
+	return item, nil
+}
+
+func (w *testWorkflows) GetInstance(_ context.Context, id string) (pluginsdk.WorkflowInstance, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.instances[id]
+	if !exists {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	return item, nil
+}
+
+func (*testWorkflows) Approve(context.Context, pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+}
+func (*testWorkflows) Reject(context.Context, pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+}
+func (*testWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+}
+func (*testWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+}
+func (*testWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+}
+func (*testWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+}
+
 func (j *testJobs) Schedule(_ context.Context, input pluginsdk.JobScheduleInput) (pluginsdk.Job, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -285,6 +385,7 @@ type testRuntime struct {
 	files        *testFiles
 	audit        *testAudit
 	jobs         *testJobs
+	workflows    *testWorkflows
 	scopes       testScopes
 }
 
@@ -301,14 +402,15 @@ func newTestRuntime(t *testing.T) testRuntime {
 	files := &testFiles{items: make(map[string]pluginsdk.FileObject)}
 	audit := &testAudit{}
 	jobs := &testJobs{items: make(map[string]pluginsdk.Job), byIdempotency: make(map[string]string)}
+	workflows := &testWorkflows{definitions: make(map[string]pluginsdk.WorkflowDefinition), instances: make(map[string]pluginsdk.WorkflowInstance)}
 	scopes := testScopes{predicate: predicate}
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Files: files, Audit: audit, Jobs: jobs,
+		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Files: files, Audit: audit, Workflows: workflows, Jobs: jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return testRuntime{handler: handler, transactions: transactions, store: store, files: files, audit: audit, jobs: jobs, scopes: scopes}
+	return testRuntime{handler: handler, transactions: transactions, store: store, files: files, audit: audit, jobs: jobs, workflows: workflows, scopes: scopes}
 }
 
 func TestFoundationEndpoints(t *testing.T) {
@@ -318,7 +420,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.7.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.8.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
@@ -329,6 +431,94 @@ func TestFoundationEventContract(t *testing.T) {
 		testRequest(t, runtime.handler, http.MethodPost, "/_skoll/events", map[string]any{"deliveryId": "delivery-1", "pluginId": pluginID, "handler": handler, "eventName": eventName}, "", false, http.StatusNoContent)
 	}
 	testRequest(t, runtime.handler, http.MethodPost, "/_skoll/events", map[string]any{"deliveryId": "delivery-2", "pluginId": pluginID, "handler": "privateHandler", "eventName": "approval-completed"}, "", false, http.StatusBadRequest)
+}
+
+func TestOARequestDraftUpdateAndSubmitUsesHostWorkflow(t *testing.T) {
+	cases := []struct {
+		kind string
+		form map[string]any
+	}{
+		{kind: "leave", form: map[string]any{"leaveType": "annual", "startDate": "2026-08-01", "endDate": "2026-08-03"}},
+		{kind: "expense", form: map[string]any{"category": "travel", "amount": 1280.50}},
+		{kind: "procurement", form: map[string]any{"purpose": "质量检验耗材", "amount": 8600.0}},
+		{kind: "contract", form: map[string]any{"counterparty": "华东医药商业有限公司", "amount": 200000.0, "effectiveDate": "2026-08-01"}},
+		{kind: "custom", form: map[string]any{"formKey": "office-supplies", "quantity": 3.0}},
+	}
+	for _, item := range cases {
+		t.Run(item.kind, func(t *testing.T) {
+			runtime := newTestRuntime(t)
+			body := map[string]any{
+				"tenantId": "tenant-a", "organizationId": "org-a", "requestType": item.kind, "title": "通用申请-" + item.kind,
+				"description": "用于验证公开宿主工作流桥接", "formData": item.form, "approverId": "manager-1", "approverName": "王经理",
+			}
+			created := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests", body, "oa-"+item.kind+"-create", true, http.StatusCreated), "item")
+			id := testString(t, created, "id")
+			if testString(t, created, "status") != "draft" || testString(t, created, "requestType") != item.kind || testInt64(t, created, "version") != 1 {
+				t.Fatalf("unexpected request draft: %v", created)
+			}
+
+			body["title"], body["version"] = "已修改-"+item.kind, 1
+			updated := testMap(t, testRequest(t, runtime.handler, http.MethodPut, apiBase+"/oa-requests/"+id, body, "oa-"+item.kind+"-update", true, http.StatusOK), "item")
+			if testString(t, updated, "title") != "已修改-"+item.kind || testInt64(t, updated, "version") != 2 {
+				t.Fatalf("unexpected request update: %v", updated)
+			}
+
+			submitted := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/submit", map[string]any{"version": 2}, "oa-"+item.kind+"-submit", true, http.StatusOK)
+			submittedItem := testMap(t, submitted, "item")
+			workflow := testMap(t, submitted, "workflow")
+			if testString(t, submittedItem, "status") != "pending" || testInt64(t, submittedItem, "version") != 3 || testString(t, workflow, "status") != string(pluginsdk.WorkflowInstanceRunning) {
+				t.Fatalf("unexpected submitted request: %v", submitted)
+			}
+			if len(workflow["tasks"].([]any)) != 1 || len(runtime.workflows.definitions) != 1 || len(runtime.workflows.instances) != 1 {
+				t.Fatalf("host workflow was not created exactly once: workflow=%v definitions=%v instances=%v", workflow, runtime.workflows.definitions, runtime.workflows.instances)
+			}
+			duplicate := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/submit", map[string]any{"version": 2}, "oa-"+item.kind+"-submit", true, http.StatusOK)
+			if duplicate["duplicate"] != true || len(runtime.workflows.definitions) != 1 || len(runtime.workflows.instances) != 1 {
+				t.Fatalf("submit idempotency failed: %v", duplicate)
+			}
+
+			detail := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/oa-requests/"+id, nil, "", true, http.StatusOK)
+			if testString(t, testMap(t, detail, "item"), "workflowInstanceId") == "" || testString(t, testMap(t, detail, "workflow"), "businessId") != id {
+				t.Fatalf("request detail lost workflow binding: %v", detail)
+			}
+			listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/oa-requests?requestType="+item.kind+"&status=pending", nil, "", true, http.StatusOK)
+			if testInt64(t, listed, "total") != 1 {
+				t.Fatalf("request list did not return submitted item: %v", listed)
+			}
+			if runtime.transactions.calls != 3 || len(runtime.audit.entries) != 3 {
+				t.Fatalf("request operations escaped transaction/audit: transactions=%d audit=%v", runtime.transactions.calls, runtime.audit.entries)
+			}
+			for index, action := range []string{"pharma_oa.oa_request.create", "pharma_oa.oa_request.update", "pharma_oa.oa_request.submit"} {
+				if runtime.audit.entries[index].Action != action {
+					t.Fatalf("audit[%d]=%q want=%q", index, runtime.audit.entries[index].Action, action)
+				}
+			}
+		})
+	}
+}
+
+func TestOARequestRejectsInvalidKindSpecificForms(t *testing.T) {
+	cases := []struct {
+		kind string
+		form map[string]any
+	}{
+		{kind: "leave", form: map[string]any{"leaveType": "annual", "startDate": "2026-08-03", "endDate": "2026-08-01"}},
+		{kind: "expense", form: map[string]any{"category": "travel", "amount": 0}},
+		{kind: "procurement", form: map[string]any{"purpose": "", "amount": 100}},
+		{kind: "contract", form: map[string]any{"counterparty": "", "amount": 100, "effectiveDate": "bad"}},
+		{kind: "custom", form: map[string]any{"formKey": ""}},
+	}
+	for _, item := range cases {
+		t.Run(item.kind, func(t *testing.T) {
+			runtime := newTestRuntime(t)
+			testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests", map[string]any{
+				"tenantId": "tenant-a", "organizationId": "org-a", "requestType": item.kind, "title": "无效申请", "formData": item.form, "approverId": "manager-1", "approverName": "王经理",
+			}, "oa-invalid-"+item.kind, true, http.StatusBadRequest)
+			if runtime.transactions.calls != 0 || len(runtime.workflows.instances) != 0 {
+				t.Fatalf("invalid request reached persistence: transactions=%d workflows=%v", runtime.transactions.calls, runtime.workflows.instances)
+			}
+		})
+	}
 }
 
 func TestEmployeeLifecycleUsesPublicScopedHostServices(t *testing.T) {
@@ -408,7 +598,7 @@ func TestEmployeeLifecycleUsesPublicScopedHostServices(t *testing.T) {
 func TestEmployeeCreateRejectsDeniedScope(t *testing.T) {
 	runtime := newTestRuntime(t)
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")}, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Jobs: runtime.jobs,
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")}, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -631,7 +821,7 @@ func TestQualificationLifecycleEligibilityAndExpiryIdempotency(t *testing.T) {
 	if testInt64(t, secondScan, "scheduled") != 0 || testInt64(t, secondScan, "skipped") != 1 || runtime.jobs.scheduleCalls != 1 {
 		t.Fatalf("expiry scan duplicate was not skipped: response=%v calls=%d", secondScan, runtime.jobs.scheduleCalls)
 	}
-	restarted, err := newHandler(pluginsdk.HostServices{PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Jobs: runtime.jobs})
+	restarted, err := newHandler(pluginsdk.HostServices{PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs})
 	if err != nil {
 		t.Fatal(err)
 	}

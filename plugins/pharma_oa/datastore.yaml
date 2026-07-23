@@ -173,3 +173,22 @@ tables:
       - {fields: [type_id, subject_id, certificate_number], unique: true}
       - {fields: [subject_type, subject_id, status]}
       - {fields: [status, valid_to]}
+  - name: oa_requests
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: request_type, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: title, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: description, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: form_data, type: json, mutable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: approver_id, type: string, mutable: true, filterable: true}
+      - {name: approver_name, type: string, mutable: true, filterable: true}
+      - {name: workflow_definition_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: workflow_instance_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: submitted_at, type: timestamp, nullable: true, mutable: true, filterable: true, sortable: true}
+      - {name: last_operation_key, type: string, mutable: true, filterable: true}
+    indexes:
+      - {fields: [status, updated_at]}
+      - {fields: [request_type, updated_at]}
+      - {fields: [workflow_instance_id]}

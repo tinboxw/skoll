@@ -71,7 +71,7 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		t.Fatalf("install package: %v", err)
 	}
 	required := []string{"plugin.yaml", "frontend/dist/index.html", managedBackendRelativePath("pharma_oa")}
-	for version, name := range map[string]string{"001": "foundation", "002": "employees", "003": "parties", "004": "catalogs", "005": "qualifications"} {
+	for version, name := range map[string]string{"001": "foundation", "002": "employees", "003": "parties", "004": "catalogs", "005": "qualifications", "006": "oa_requests"} {
 		required = append(required, "migrations/"+version+"_"+name+".up.sql", "migrations/"+version+"_"+name+".down.sql")
 	}
 	for _, path := range required {
@@ -120,7 +120,7 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("install migration: %v", err)
 	}
-	if len(migrationStore.records) != 5 {
+	if len(migrationStore.records) != 6 {
 		t.Fatalf("install migration ledger=%+v", migrationStore.records)
 	}
 	for index, record := range migrationStore.records {
