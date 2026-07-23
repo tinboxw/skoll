@@ -2,11 +2,11 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.6.0
+version: 0.7.0
 api_version: v1
-migration_version: 0.6.0
+migration_version: 0.7.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
-ui_mode: monolith
+ui_mode: separated
 level: app
 app_id: pharma_oa
 mount_policy: mixed
@@ -1474,7 +1474,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.6.0
+  migration_version: 0.7.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic

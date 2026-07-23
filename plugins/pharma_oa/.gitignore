@@ -1,3 +1,5 @@
 /backend/bin/
 /dist/
 /.skoll-dev/
+/frontend/dist/
+/frontend/node_modules/

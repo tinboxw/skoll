@@ -9,10 +9,10 @@ import (
 
 func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	info := loadPharmaOAInfo(t)
-	if info.ID != "pharma_oa" || info.AppID != info.ID || info.Level != LevelApp || info.UIMode != UIModeMonolith {
+	if info.ID != "pharma_oa" || info.AppID != info.ID || info.Level != LevelApp || info.UIMode != UIModeSeparated {
 		t.Fatalf("unexpected Pharma OA placement: %+v", info)
 	}
-	if info.Version != "0.6.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
+	if info.Version != "0.7.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
 		t.Fatalf("unexpected current contract version: version=%q api=%q migration=%q", info.Version, info.APIVersion, info.MigrationVersion)
 	}
 	if info.ServiceBaseURL != "http://127.0.0.1:18093" || info.ServiceHealthURL != "http://127.0.0.1:18093/health" {

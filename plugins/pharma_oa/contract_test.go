@@ -93,7 +93,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	if manifest.ID != "pharma_oa" || manifest.AppID != manifest.ID || contract.PluginID != manifest.ID {
 		t.Fatalf("plugin identity mismatch: manifest=%q app=%q contract=%q", manifest.ID, manifest.AppID, contract.PluginID)
 	}
-	if manifest.Version != "0.6.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
+	if manifest.Version != "0.7.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
 		t.Fatalf("contract version mismatch: manifest=%q migration=%q map=%q", manifest.Version, manifest.MigrationVersion, contract.ContractVersion)
 	}
 	if manifest.APIVersion != "v1" || contract.SchemaVersion != 1 || contract.PublicContract.APIVersion != manifest.APIVersion {
@@ -175,7 +175,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 
 func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	for _, path := range []string{
-		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "plugin.ps1", "plugin.sh", "static/index.html", "datastore.yaml",
+		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
 		"contract/acceptance-map.json", "migrations/001_foundation.up.sql", "migrations/001_foundation.down.sql",
 		"migrations/002_employees.up.sql", "migrations/002_employees.down.sql",
 		"migrations/003_parties.up.sql", "migrations/003_parties.down.sql",
@@ -284,59 +284,43 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	}
 }
 
-func TestMedicalOAEmployeeWorkspaceIsChineseFirstAndHostNative(t *testing.T) {
-	html := pharmaReadText(t, "static/index.html")
-	script := pharmaReadText(t, "static/app.js")
-	styles := pharmaReadText(t, "static/style.css")
-	for _, value := range []string{`<html lang="zh-CN">`, "员工管理", "员工档案", "资质提醒", "办理离职", `data-state="loading"`} {
-		if !strings.Contains(html, value) {
-			t.Fatalf("Chinese-first employee workspace is missing %q", value)
+func TestMedicalOAWorkspaceIsElementNativeChineseFirstAndComplete(t *testing.T) {
+	html := pharmaReadText(t, "frontend/index.html")
+	app := pharmaReadText(t, "frontend/src/App.vue")
+	api := pharmaReadText(t, "frontend/src/api.ts")
+	i18n := pharmaReadText(t, "frontend/src/i18n.ts")
+	styles := pharmaReadText(t, "frontend/src/styles.css")
+	manifest := pharmaReadText(t, "plugin.yaml")
+	if !strings.Contains(html, `<html lang="zh-CN">`) || !strings.Contains(manifest, "ui_mode: separated") {
+		t.Fatal("the current separated Chinese-first frontend contract is missing")
+	}
+	for _, value := range []string{"员工管理", "客户管理", "供应商管理", "药品管理", "药品分类", "计量单位", "生产企业", "资质台账", "资质类型", "扫描到期资质"} {
+		if !strings.Contains(i18n, value) {
+			t.Fatalf("localized workspace is missing %q", value)
 		}
 	}
-	for _, obsolete := range []string{"Industry plugin", "Master data", "Prepare seed", "No permission"} {
-		if strings.Contains(html, obsolete) {
-			t.Fatalf("obsolete English smoke UI remains: %q", obsolete)
+	for _, value := range []string{"el-config-provider", "el-table", "el-dialog", "el-drawer", "mobile-records", "statusActions", "scanExpiry", "uploadAttachment", "saveEditor"} {
+		if !strings.Contains(app, value) {
+			t.Fatalf("Element Plus workspace is missing %q", value)
 		}
 	}
-	for _, value := range []string{"window.__SKOLL_HOST__", "host().request", "/employees/qualification-reminders", "/attachments", "/leave", `"Idempotency-Key"`, "skoll:locale", "skoll:host-ready"} {
-		if !strings.Contains(script, value) {
-			t.Fatalf("host-native employee workflow is missing %q", value)
+	for _, value := range []string{"window.__SKOLL_HOST__", `"Idempotency-Key"`, `customer: "/customers"`, `supplier: "/suppliers"`, `product: "/products"`, `qualification: "/qualifications"`, `qualificationType: "/qualification-types"`, "scanQualificationExpiry"} {
+		if !strings.Contains(api, value) {
+			t.Fatalf("host-native API workflow is missing %q", value)
 		}
 	}
-	for _, value := range []string{`data-module="customer"`, `data-module="supplier"`, "统一社会信用代码", "结算条款", "party-status-dialog"} {
-		if !strings.Contains(html, value) {
-			t.Fatalf("party workspace is missing %q", value)
+	for _, value := range []string{"skoll:locale", "skoll:host-ready", "Master Data Workspace", "主数据工作台"} {
+		if !strings.Contains(i18n, value) {
+			t.Fatalf("runtime locale contract is missing %q", value)
 		}
 	}
-	for _, value := range []string{`data-module="product"`, `data-module="category"`, `data-module="unit"`, `data-module="manufacturer"`, "药品主数据", "生产许可证号", "储存要求", "product-dialog", "catalog-dialog"} {
-		if !strings.Contains(html, value) {
-			t.Fatalf("catalog workspace is missing %q", value)
-		}
-	}
-	for _, value := range []string{`data-module="qualification"`, `data-module="qualificationType"`, "资质台账", "资质类型", "扫描到期资质", "qualification-dialog", "qualification-type-dialog", "qualification-action-dialog"} {
-		if !strings.Contains(html, value) {
-			t.Fatalf("qualification workspace is missing %q", value)
-		}
-	}
-	for _, value := range []string{`"/customers"`, `"/suppliers"`, "party-edit", "party-status", "unifiedSocialCreditCode"} {
-		if !strings.Contains(script, value) {
-			t.Fatalf("party workflow is missing %q", value)
-		}
-	}
-	for _, value := range []string{`product: "/products"`, `category: "/categories"`, `unit: "/units"`, `manufacturer: "/manufacturers"`, "catalog-edit", "catalog-status", "product-edit", "product-status", "populateSelect", "temperatureMin", "approvalNumber"} {
-		if !strings.Contains(script, value) {
-			t.Fatalf("catalog workflow is missing %q", value)
-		}
-	}
-	for _, value := range []string{`qualification: "/qualifications"`, `qualificationType: "/qualification-types"`, "qualification-submit", "qualification-approve", "qualification-reject", "qualification-revoke", "scanQualificationExpiry", "evidenceRequired", "businessRequired"} {
-		if !strings.Contains(script, value) {
-			t.Fatalf("qualification workflow is missing %q", value)
-		}
-	}
-	for _, value := range []string{"--color-surface", "--color-primary", `[data-density="compact"]`, `[data-theme="dark"]`, "@media (max-width: 900px)", "@media (max-width: 620px)", "prefers-reduced-motion"} {
+	for _, value := range []string{"--color-surface", "--color-primary", `[data-density="compact"]`, `[data-theme="dark"]`, "@media (max-width: 900px)", "@media (max-width: 620px)", "prefers-reduced-motion", ":focus-visible"} {
 		if !strings.Contains(styles, value) {
 			t.Fatalf("responsive theme contract is missing %q", value)
 		}
+	}
+	if _, err := os.Stat("static/index.html"); !os.IsNotExist(err) {
+		t.Fatalf("legacy static frontend entry must not remain: %v", err)
 	}
 }
 

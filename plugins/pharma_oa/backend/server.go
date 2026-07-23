@@ -110,7 +110,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.6.0",
+		PluginID: pluginID, ContractVersion: "0.7.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},

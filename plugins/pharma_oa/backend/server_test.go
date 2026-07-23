@@ -318,7 +318,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.6.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.7.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
