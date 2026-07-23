@@ -106,6 +106,14 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("POST "+apiBase+"/oa-requests", s.createOARequest)
 	mux.HandleFunc("PUT "+apiBase+"/oa-requests/{id}", s.updateOARequest)
 	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/submit", s.submitOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/approve", s.approveOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/reject", s.rejectOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/withdraw", s.withdrawOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/cancel", s.cancelOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/delegate", s.delegateOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/attachments", s.attachOARequestFile)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/comments", s.commentOARequest)
+	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/reminders", s.remindOARequest)
 	return mux, nil
 }
 

@@ -729,6 +729,46 @@ permissions:
     module: pharma_oa
     name: Submit general OA requests for approval
     risk: high
+  - key: pharma_oa.oa_request.approve
+    type: button
+    module: pharma_oa
+    name: Approve general OA requests
+    risk: high
+  - key: pharma_oa.oa_request.reject
+    type: button
+    module: pharma_oa
+    name: Reject general OA requests
+    risk: high
+  - key: pharma_oa.oa_request.withdraw
+    type: button
+    module: pharma_oa
+    name: Withdraw general OA requests
+    risk: high
+  - key: pharma_oa.oa_request.cancel
+    type: button
+    module: pharma_oa
+    name: Cancel general OA requests
+    risk: high
+  - key: pharma_oa.oa_request.delegate
+    type: button
+    module: pharma_oa
+    name: Delegate general OA approval tasks
+    risk: high
+  - key: pharma_oa.oa_request.attach
+    type: button
+    module: pharma_oa
+    name: Attach files to general OA requests
+    risk: medium
+  - key: pharma_oa.oa_request.comment
+    type: button
+    module: pharma_oa
+    name: Comment on general OA requests
+    risk: low
+  - key: pharma_oa.oa_request.remind
+    type: button
+    module: pharma_oa
+    name: Schedule general OA request reminders
+    risk: medium
 api:
   routes:
     - method: GET
@@ -761,6 +801,46 @@ api:
       summary: Submit a general OA request to the host workflow service
       permission: pharma_oa.oa_request.submit
       audit_action: pharma_oa.oa_request.submit
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/approve
+      summary: Approve a general OA request task
+      permission: pharma_oa.oa_request.approve
+      audit_action: pharma_oa.oa_request.approve
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/reject
+      summary: Reject a general OA request task
+      permission: pharma_oa.oa_request.reject
+      audit_action: pharma_oa.oa_request.reject
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/withdraw
+      summary: Withdraw a general OA request
+      permission: pharma_oa.oa_request.withdraw
+      audit_action: pharma_oa.oa_request.withdraw
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/cancel
+      summary: Cancel a general OA request
+      permission: pharma_oa.oa_request.cancel
+      audit_action: pharma_oa.oa_request.cancel
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/delegate
+      summary: Delegate a general OA approval task
+      permission: pharma_oa.oa_request.delegate
+      audit_action: pharma_oa.oa_request.delegate
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/attachments
+      summary: Attach a private file to a general OA request
+      permission: pharma_oa.oa_request.attach
+      audit_action: pharma_oa.oa_request.attach
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/comments
+      summary: Add a business comment to a general OA request
+      permission: pharma_oa.oa_request.comment
+      audit_action: pharma_oa.oa_request.comment
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/oa-requests/{id}/reminders
+      summary: Schedule a reminder for a general OA request
+      permission: pharma_oa.oa_request.remind
+      audit_action: pharma_oa.oa_request.remind
     - method: GET
       path: /v1/plugins/pharma_oa/api/employees
       summary: List Pharma OA employees
@@ -1567,7 +1647,7 @@ data:
     - name: pharma_oa_oa_requests
       description: Trusted-scope general OA request drafts bound to public host workflow instances.
       primary_key: id
-      columns: id, tenant_id, organization_id, owner_id, request_type, title, description, form_data, status, approver_id, approver_name, workflow_definition_id, workflow_instance_id, submitted_at, last_operation_key, version, created_at, updated_at
+      columns: id, tenant_id, organization_id, owner_id, request_type, title, description, form_data, status, approver_id, approver_name, workflow_definition_id, workflow_instance_id, submitted_at, last_operation_key, attachments, comments, reminder_at, version, created_at, updated_at
       indexes: idx_pharma_oa_requests_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_requests_type(tenant_id,request_type,updated_at); idx_pharma_oa_requests_workflow(workflow_instance_id)
 
 events:

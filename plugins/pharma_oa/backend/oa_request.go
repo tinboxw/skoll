@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -18,28 +20,76 @@ var (
 	oaRequestFields = []string{
 		"id", "request_type", "title", "description", "form_data", "status", "approver_id", "approver_name",
 		"workflow_definition_id", "workflow_instance_id", "submitted_at", "last_operation_key",
+		"attachments", "comments", "reminder_at",
 		"tenant_id", "organization_id", "owner_id", "created_at", "updated_at",
 	}
 	oaRequestTypes = map[string]struct{}{"leave": {}, "expense": {}, "procurement": {}, "contract": {}, "custom": {}}
 )
 
 type oaRequest struct {
-	ID                   string         `json:"id"`
-	RequestType          string         `json:"requestType"`
-	Title                string         `json:"title"`
-	Description          string         `json:"description"`
-	FormData             map[string]any `json:"formData"`
-	Status               string         `json:"status"`
-	ApproverID           string         `json:"approverId"`
-	ApproverName         string         `json:"approverName"`
-	WorkflowDefinitionID string         `json:"workflowDefinitionId,omitempty"`
-	WorkflowInstanceID   string         `json:"workflowInstanceId,omitempty"`
-	SubmittedAt          string         `json:"submittedAt,omitempty"`
-	Version              int64          `json:"version"`
-	CreatedAt            string         `json:"createdAt"`
-	UpdatedAt            string         `json:"updatedAt"`
-	LastOperationKey     string         `json:"-"`
+	ID                   string                `json:"id"`
+	RequestType          string                `json:"requestType"`
+	Title                string                `json:"title"`
+	Description          string                `json:"description"`
+	FormData             map[string]any        `json:"formData"`
+	Status               string                `json:"status"`
+	ApproverID           string                `json:"approverId"`
+	ApproverName         string                `json:"approverName"`
+	WorkflowDefinitionID string                `json:"workflowDefinitionId,omitempty"`
+	WorkflowInstanceID   string                `json:"workflowInstanceId,omitempty"`
+	SubmittedAt          string                `json:"submittedAt,omitempty"`
+	Version              int64                 `json:"version"`
+	CreatedAt            string                `json:"createdAt"`
+	UpdatedAt            string                `json:"updatedAt"`
+	LastOperationKey     string                `json:"-"`
+	Attachments          []oaRequestAttachment `json:"attachments"`
+	Comments             []oaRequestComment    `json:"comments"`
+	ReminderAt           string                `json:"reminderAt,omitempty"`
 	scope                employeeScope
+}
+
+type oaRequestAttachment struct {
+	FileID     string `json:"fileId"`
+	Name       string `json:"name"`
+	Size       int64  `json:"size"`
+	MIME       string `json:"mime"`
+	RequestKey string `json:"requestKey"`
+}
+type oaRequestComment struct {
+	ID         string `json:"id"`
+	ActorID    string `json:"actorId"`
+	Content    string `json:"content"`
+	CreatedAt  string `json:"createdAt"`
+	RequestKey string `json:"requestKey"`
+}
+type oaTaskActionInput struct {
+	TaskID  string `json:"taskId"`
+	Comment string `json:"comment"`
+	Version int64  `json:"version"`
+}
+type oaInstanceActionInput struct {
+	Comment string `json:"comment"`
+	Version int64  `json:"version"`
+}
+type oaDelegateInput struct {
+	TaskID     string `json:"taskId"`
+	TargetID   string `json:"targetId"`
+	TargetName string `json:"targetName"`
+	Comment    string `json:"comment"`
+	Version    int64  `json:"version"`
+}
+type oaAttachmentInput struct {
+	Name          string `json:"name"`
+	ContentBase64 string `json:"contentBase64"`
+	Version       int64  `json:"version"`
+}
+type oaCommentInput struct {
+	Content string `json:"content"`
+	Version int64  `json:"version"`
+}
+type oaReminderInput struct {
+	RunAt   string `json:"runAt"`
+	Version int64  `json:"version"`
 }
 
 type oaRequestWriteInput struct {
@@ -132,7 +182,7 @@ func (s *server) createOARequest(w http.ResponseWriter, r *http.Request) {
 	item := oaRequest{
 		ID: newEntityID("request"), RequestType: input.RequestType, Title: input.Title, Description: input.Description,
 		FormData: input.FormData, Status: "draft", ApproverID: input.ApproverID, ApproverName: input.ApproverName,
-		LastOperationKey: requestKey, scope: scope,
+		LastOperationKey: requestKey, Attachments: []oaRequestAttachment{}, Comments: []oaRequestComment{}, scope: scope,
 	}
 	var created oaRequest
 	err = s.transaction(ctx, func(tx context.Context) error {
@@ -283,6 +333,339 @@ func (s *server) submitOARequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeOK(w, map[string]any{"item": updated, "workflow": oaWorkflowView(workflow), "duplicate": false})
+}
+
+func (s *server) approveOARequest(w http.ResponseWriter, r *http.Request) {
+	s.taskOARequest(w, r, "approve")
+}
+func (s *server) rejectOARequest(w http.ResponseWriter, r *http.Request) {
+	s.taskOARequest(w, r, "reject")
+}
+
+func (s *server) taskOARequest(w http.ResponseWriter, r *http.Request, action string) {
+	ctx, err := s.requestContext(r)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	requestKey, err := mutationKey(r, action)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	var input oaTaskActionInput
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.TaskID, input.Comment = strings.TrimSpace(input.TaskID), strings.TrimSpace(input.Comment)
+	if input.TaskID == "" || input.Version < 1 || len(input.Comment) > 1000 {
+		writeServiceError(w, newHTTPError(http.StatusBadRequest, "invalid_request", "taskId, current version, and a bounded comment are required"))
+		return
+	}
+	item, err := s.getOARequest(ctx, oaRequestPermission(action), r.PathValue("id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	if item.Status != "pending" || item.Version != input.Version {
+		writeServiceError(w, newHTTPError(http.StatusConflict, "request_not_actionable", "request is not pending or its version is stale"))
+		return
+	}
+	var workflow pluginsdk.WorkflowInstance
+	err = s.transaction(ctx, func(tx context.Context) error {
+		workflowInput := pluginsdk.WorkflowTaskActionInput{InstanceID: item.WorkflowInstanceID, TaskID: input.TaskID, Comment: input.Comment}
+		var workflowErr error
+		if action == "approve" {
+			workflow, workflowErr = s.host.Workflows.Approve(tx, workflowInput)
+		} else {
+			workflow, workflowErr = s.host.Workflows.Reject(tx, workflowInput)
+		}
+		if workflowErr != nil {
+			return workflowErr
+		}
+		item.Status, item.LastOperationKey = string(workflow.Status), requestKey
+		_, mutationErr := s.mutateOARequestTx(tx, action, requestKey, item, input.Version, pluginsdk.AuditRiskHigh, map[string]any{"taskId": input.TaskID, "comment": input.Comment})
+		return mutationErr
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	updated, err := s.getOARequest(ctx, oaRequestPermission("read"), item.ID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"item": updated, "workflow": oaWorkflowView(workflow)})
+}
+
+func (s *server) withdrawOARequest(w http.ResponseWriter, r *http.Request) {
+	s.instanceOARequest(w, r, "withdraw")
+}
+func (s *server) cancelOARequest(w http.ResponseWriter, r *http.Request) {
+	s.instanceOARequest(w, r, "cancel")
+}
+
+func (s *server) instanceOARequest(w http.ResponseWriter, r *http.Request, action string) {
+	ctx, err := s.requestContext(r)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	requestKey, err := mutationKey(r, action)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	var input oaInstanceActionInput
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Comment = strings.TrimSpace(input.Comment)
+	if input.Version < 1 || len(input.Comment) > 1000 {
+		writeServiceError(w, newHTTPError(http.StatusBadRequest, "invalid_request", "current version and a bounded comment are required"))
+		return
+	}
+	item, err := s.getOARequest(ctx, oaRequestPermission(action), r.PathValue("id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	if item.Status != "pending" || item.Version != input.Version {
+		writeServiceError(w, newHTTPError(http.StatusConflict, "request_not_actionable", "request is not pending or its version is stale"))
+		return
+	}
+	var workflow pluginsdk.WorkflowInstance
+	err = s.transaction(ctx, func(tx context.Context) error {
+		workflowInput := pluginsdk.WorkflowInstanceActionInput{InstanceID: item.WorkflowInstanceID, Comment: input.Comment}
+		var workflowErr error
+		if action == "withdraw" {
+			workflow, workflowErr = s.host.Workflows.Withdraw(tx, workflowInput)
+		} else {
+			workflow, workflowErr = s.host.Workflows.Cancel(tx, workflowInput)
+		}
+		if workflowErr != nil {
+			return workflowErr
+		}
+		item.Status, item.LastOperationKey = string(workflow.Status), requestKey
+		_, mutationErr := s.mutateOARequestTx(tx, action, requestKey, item, input.Version, pluginsdk.AuditRiskHigh, map[string]any{"comment": input.Comment})
+		return mutationErr
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	updated, err := s.getOARequest(ctx, oaRequestPermission("read"), item.ID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"item": updated, "workflow": oaWorkflowView(workflow)})
+}
+
+func (s *server) delegateOARequest(w http.ResponseWriter, r *http.Request) {
+	ctx, err := s.requestContext(r)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	requestKey, err := mutationKey(r, "delegate")
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	var input oaDelegateInput
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.TaskID, input.TargetID, input.TargetName, input.Comment = strings.TrimSpace(input.TaskID), strings.TrimSpace(input.TargetID), strings.TrimSpace(input.TargetName), strings.TrimSpace(input.Comment)
+	if input.TaskID == "" || input.TargetID == "" || input.TargetName == "" || input.Version < 1 || len(input.Comment) > 1000 {
+		writeServiceError(w, newHTTPError(http.StatusBadRequest, "invalid_request", "task, delegate target, and current version are required"))
+		return
+	}
+	item, err := s.getOARequest(ctx, oaRequestPermission("delegate"), r.PathValue("id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	if item.Status != "pending" || item.Version != input.Version {
+		writeServiceError(w, newHTTPError(http.StatusConflict, "request_not_actionable", "request is not pending or its version is stale"))
+		return
+	}
+	var workflow pluginsdk.WorkflowInstance
+	err = s.transaction(ctx, func(tx context.Context) error {
+		var workflowErr error
+		workflow, workflowErr = s.host.Workflows.Transfer(tx, pluginsdk.WorkflowTargetActionInput{InstanceID: item.WorkflowInstanceID, TaskID: input.TaskID, Target: pluginsdk.WorkflowActor{ID: input.TargetID, Name: input.TargetName}, Comment: input.Comment})
+		if workflowErr != nil {
+			return workflowErr
+		}
+		item.ApproverID, item.ApproverName, item.LastOperationKey = input.TargetID, input.TargetName, requestKey
+		_, mutationErr := s.mutateOARequestTx(tx, "delegate", requestKey, item, input.Version, pluginsdk.AuditRiskHigh, map[string]any{"taskId": input.TaskID, "targetId": input.TargetID})
+		return mutationErr
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	updated, err := s.getOARequest(ctx, oaRequestPermission("read"), item.ID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"item": updated, "workflow": oaWorkflowView(workflow)})
+}
+
+func (s *server) attachOARequestFile(w http.ResponseWriter, r *http.Request) {
+	ctx, err := s.requestContext(r)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	requestKey, err := mutationKey(r, "attach")
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	var input oaAttachmentInput
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Name = strings.TrimSpace(filepath.Base(input.Name))
+	content, decodeErr := base64.StdEncoding.DecodeString(input.ContentBase64)
+	if input.Name == "" || input.Name == "." || decodeErr != nil || len(content) == 0 || len(content) > 5<<20 || input.Version < 1 {
+		writeServiceError(w, newHTTPError(http.StatusBadRequest, "invalid_attachment", "name, bounded base64 content, and current version are required"))
+		return
+	}
+	item, err := s.getOARequest(ctx, oaRequestPermission("attach"), r.PathValue("id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	for _, attachment := range item.Attachments {
+		if attachment.RequestKey == requestKey {
+			writeOK(w, map[string]any{"item": item, "attachment": attachment, "duplicate": true})
+			return
+		}
+	}
+	file, err := s.host.Files.Store(ctx, pluginsdk.FileWrite{Key: "oa-requests/" + item.ID + "/" + requestKey, Name: input.Name, Content: content, Visibility: pluginsdk.FileVisibilityPrivate, Metadata: map[string]string{"requestId": item.ID, "requestKey": requestKey}})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	attachment := oaRequestAttachment{FileID: file.ID, Name: file.Name, Size: file.Size, MIME: file.MIME, RequestKey: requestKey}
+	item.Attachments, item.LastOperationKey = append(item.Attachments, attachment), requestKey
+	updated, err := s.mutateOARequest(ctx, "attach", "attach", requestKey, item, input.Version, pluginsdk.AuditRiskMedium, map[string]any{"fileId": file.ID})
+	if err != nil {
+		_ = s.host.Files.Delete(ctx, file.ID)
+		writeServiceError(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"item": updated, "attachment": attachment, "duplicate": false})
+}
+
+func (s *server) commentOARequest(w http.ResponseWriter, r *http.Request) {
+	ctx, err := s.requestContext(r)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	requestKey, err := mutationKey(r, "comment")
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	var input oaCommentInput
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Content = strings.TrimSpace(input.Content)
+	if input.Content == "" || len(input.Content) > 2000 || input.Version < 1 {
+		writeServiceError(w, newHTTPError(http.StatusBadRequest, "invalid_comment", "bounded comment and current version are required"))
+		return
+	}
+	item, err := s.getOARequest(ctx, oaRequestPermission("comment"), r.PathValue("id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	for _, comment := range item.Comments {
+		if comment.RequestKey == requestKey {
+			writeOK(w, map[string]any{"item": item, "comment": comment, "duplicate": true})
+			return
+		}
+	}
+	comment := oaRequestComment{ID: newEntityID("comment"), ActorID: item.scope.OwnerID, Content: input.Content, CreatedAt: s.now().UTC().Format(time.RFC3339Nano), RequestKey: requestKey}
+	item.Comments, item.LastOperationKey = append(item.Comments, comment), requestKey
+	updated, err := s.mutateOARequest(ctx, "comment", "comment", requestKey, item, input.Version, pluginsdk.AuditRiskLow, map[string]any{"commentId": comment.ID})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"item": updated, "comment": comment, "duplicate": false})
+}
+
+func (s *server) remindOARequest(w http.ResponseWriter, r *http.Request) {
+	ctx, err := s.requestContext(r)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	requestKey, err := mutationKey(r, "remind")
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	var input oaReminderInput
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	runAt, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(input.RunAt))
+	if parseErr != nil || input.Version < 1 || !runAt.After(s.now().UTC()) || runAt.After(s.now().UTC().AddDate(1, 0, 0)) {
+		writeServiceError(w, newHTTPError(http.StatusBadRequest, "invalid_reminder", "runAt must be within the next year and current version is required"))
+		return
+	}
+	item, err := s.getOARequest(ctx, oaRequestPermission("remind"), r.PathValue("id"))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	payload, _ := json.Marshal(map[string]any{"requestId": item.ID, "approverId": item.ApproverID})
+	var job pluginsdk.Job
+	err = s.transaction(ctx, func(tx context.Context) error {
+		var scheduleErr error
+		job, scheduleErr = s.host.Jobs.Schedule(tx, pluginsdk.JobScheduleInput{ID: newEntityID("job"), Kind: "pharma_oa.oa_request.reminder", IdempotencyKey: requestKey, Payload: payload, RunAt: runAt.UTC(), MaxAttempts: 5})
+		if scheduleErr != nil {
+			return scheduleErr
+		}
+		item.ReminderAt, item.LastOperationKey = runAt.UTC().Format(time.RFC3339Nano), requestKey
+		_, mutationErr := s.mutateOARequestTx(tx, "remind", requestKey, item, input.Version, pluginsdk.AuditRiskMedium, map[string]any{"jobId": job.ID, "runAt": item.ReminderAt})
+		return mutationErr
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	updated, err := s.getOARequest(ctx, oaRequestPermission("read"), item.ID)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeOK(w, map[string]any{"item": updated, "job": job})
+}
+
+func (s *server) mutateOARequestTx(tx context.Context, action, requestKey string, item oaRequest, expectedVersion int64, risk pluginsdk.AuditRisk, detail map[string]any) (oaRequest, error) {
+	result, err := s.host.DataStore.Mutate(tx, pluginsdk.DataMutation{Table: oaRequestTable, Operation: pluginsdk.DataMutationUpdate, Scope: oaRequestIntent(action, item.scope), Key: map[string]pluginsdk.DataValue{"id": stringValue(item.ID)}, Values: oaRequestValues(item), Returning: oaRequestFields, IdempotencyKey: requestKey, ExpectedVersion: &expectedVersion})
+	if err != nil {
+		return oaRequest{}, err
+	}
+	updated, err := oaRequestFromMutation(result)
+	if err != nil {
+		return oaRequest{}, err
+	}
+	if err := s.audit(tx, "pharma_oa.oa_request."+action, item.ID, risk, detail); err != nil {
+		return oaRequest{}, err
+	}
+	return updated, nil
 }
 
 func (s *server) mutateOARequest(ctx context.Context, permissionAction, auditAction, requestKey string, item oaRequest, expectedVersion int64, risk pluginsdk.AuditRisk, detail map[string]any) (oaRequest, error) {
@@ -477,6 +860,7 @@ func oaRequestValues(item oaRequest) map[string]pluginsdk.DataValue {
 		"form_data": jsonValue(item.FormData), "status": stringValue(item.Status), "approver_id": stringValue(item.ApproverID), "approver_name": stringValue(item.ApproverName),
 		"workflow_definition_id": nullableStringValue(item.WorkflowDefinitionID), "workflow_instance_id": nullableStringValue(item.WorkflowInstanceID),
 		"submitted_at": nullableTimestampValue(item.SubmittedAt), "last_operation_key": stringValue(item.LastOperationKey),
+		"attachments": jsonValue(item.Attachments), "comments": jsonValue(item.Comments), "reminder_at": nullableTimestampValue(item.ReminderAt),
 	}
 }
 
@@ -493,13 +877,24 @@ func oaRequestFromRecord(record pluginsdk.DataRecord) (oaRequest, error) {
 		Status: dataString(record, "status"), ApproverID: dataString(record, "approver_id"), ApproverName: dataString(record, "approver_name"),
 		WorkflowDefinitionID: dataString(record, "workflow_definition_id"), WorkflowInstanceID: dataString(record, "workflow_instance_id"),
 		SubmittedAt: dataString(record, "submitted_at"), LastOperationKey: dataString(record, "last_operation_key"),
-		Version: record.Version, CreatedAt: dataString(record, "created_at"), UpdatedAt: dataString(record, "updated_at"),
+		ReminderAt: dataString(record, "reminder_at"),
+		Version:    record.Version, CreatedAt: dataString(record, "created_at"), UpdatedAt: dataString(record, "updated_at"),
 		scope:    employeeScope{TenantID: dataString(record, "tenant_id"), OrganizationID: dataString(record, "organization_id"), OwnerID: dataString(record, "owner_id")},
-		FormData: map[string]any{},
+		FormData: map[string]any{}, Attachments: []oaRequestAttachment{}, Comments: []oaRequestComment{},
 	}
 	if raw := dataString(record, "form_data"); raw != "" {
 		if err := json.Unmarshal([]byte(raw), &item.FormData); err != nil {
 			return oaRequest{}, fmt.Errorf("decode OA request form data: %w", err)
+		}
+	}
+	if raw := dataString(record, "attachments"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &item.Attachments); err != nil {
+			return oaRequest{}, fmt.Errorf("decode OA request attachments: %w", err)
+		}
+	}
+	if raw := dataString(record, "comments"); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &item.Comments); err != nil {
+			return oaRequest{}, fmt.Errorf("decode OA request comments: %w", err)
 		}
 	}
 	return item, nil

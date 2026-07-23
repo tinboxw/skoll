@@ -188,6 +188,9 @@ tables:
       - {name: workflow_instance_id, type: string, nullable: true, mutable: true, filterable: true}
       - {name: submitted_at, type: timestamp, nullable: true, mutable: true, filterable: true, sortable: true}
       - {name: last_operation_key, type: string, mutable: true, filterable: true}
+      - {name: attachments, type: json, mutable: true}
+      - {name: comments, type: json, mutable: true}
+      - {name: reminder_at, type: timestamp, nullable: true, mutable: true, filterable: true, sortable: true}
     indexes:
       - {fields: [status, updated_at]}
       - {fields: [request_type, updated_at]}

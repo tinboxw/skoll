@@ -243,20 +243,97 @@ func (w *testWorkflows) GetInstance(_ context.Context, id string) (pluginsdk.Wor
 	return item, nil
 }
 
-func (*testWorkflows) Approve(context.Context, pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+func (w *testWorkflows) Approve(_ context.Context, input pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.taskAction(input, true)
 }
-func (*testWorkflows) Reject(context.Context, pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+func (w *testWorkflows) Reject(_ context.Context, input pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.taskAction(input, false)
 }
-func (*testWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+func (w *testWorkflows) taskAction(input pluginsdk.WorkflowTaskActionInput, approve bool) (pluginsdk.WorkflowInstance, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, ok := w.instances[input.InstanceID]
+	if !ok {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	now := time.Now().UTC()
+	found := false
+	for index := range item.Tasks {
+		if item.Tasks[index].ID == input.TaskID && item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
+			found = true
+			item.Tasks[index].CompletedAt = &now
+			if approve {
+				item.Tasks[index].Status = pluginsdk.WorkflowTaskApproved
+			} else {
+				item.Tasks[index].Status = pluginsdk.WorkflowTaskRejected
+			}
+			break
+		}
+	}
+	if !found {
+		return pluginsdk.WorkflowInstance{}, errors.New("pending workflow task not found")
+	}
+	action := pluginsdk.WorkflowActionReject
+	if approve {
+		item.Status, action = pluginsdk.WorkflowInstanceApproved, pluginsdk.WorkflowActionApprove
+	} else {
+		item.Status = pluginsdk.WorkflowInstanceRejected
+	}
+	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{ID: input.InstanceID + "-" + string(action), Type: action, InstanceID: item.ID, TaskID: input.TaskID, Actor: pluginsdk.WorkflowActor{ID: "actor-1"}, Comment: input.Comment, CreatedAt: now})
+	item.UpdatedAt = now
+	w.instances[item.ID] = item
+	return item, nil
 }
-func (*testWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+func (w *testWorkflows) Withdraw(_ context.Context, input pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.instanceAction(input, pluginsdk.WorkflowInstanceWithdrawn, pluginsdk.WorkflowActionWithdraw)
 }
-func (*testWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
+func (w *testWorkflows) Cancel(_ context.Context, input pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.instanceAction(input, pluginsdk.WorkflowInstanceCanceled, pluginsdk.WorkflowActionCancel)
+}
+func (w *testWorkflows) instanceAction(input pluginsdk.WorkflowInstanceActionInput, status pluginsdk.WorkflowInstanceStatus, action pluginsdk.WorkflowActionType) (pluginsdk.WorkflowInstance, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, ok := w.instances[input.InstanceID]
+	if !ok {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	now := time.Now().UTC()
+	item.Status, item.UpdatedAt = status, now
+	for index := range item.Tasks {
+		if item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
+			item.Tasks[index].Status = pluginsdk.WorkflowTaskCanceled
+			item.Tasks[index].CompletedAt = &now
+		}
+	}
+	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{ID: item.ID + "-" + string(action), Type: action, InstanceID: item.ID, Actor: pluginsdk.WorkflowActor{ID: "actor-1"}, Comment: input.Comment, CreatedAt: now})
+	w.instances[item.ID] = item
+	return item, nil
+}
+func (w *testWorkflows) Transfer(_ context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, ok := w.instances[input.InstanceID]
+	if !ok {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	now := time.Now().UTC()
+	found := false
+	for index := range item.Tasks {
+		if item.Tasks[index].ID == input.TaskID && item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
+			found = true
+			item.Tasks[index].Status = pluginsdk.WorkflowTaskTransferred
+			item.Tasks[index].CompletedAt = &now
+			break
+		}
+	}
+	if !found {
+		return pluginsdk.WorkflowInstance{}, errors.New("pending workflow task not found")
+	}
+	item.Tasks = append(item.Tasks, pluginsdk.WorkflowTask{ID: input.TaskID + "-delegated", InstanceID: item.ID, NodeID: item.CurrentNode, Assignee: input.Target, Status: pluginsdk.WorkflowTaskPending, CreatedAt: now})
+	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{ID: item.ID + "-transfer", Type: pluginsdk.WorkflowActionTransfer, InstanceID: item.ID, TaskID: input.TaskID, Actor: pluginsdk.WorkflowActor{ID: "actor-1"}, Target: input.Target, Comment: input.Comment, CreatedAt: now})
+	item.UpdatedAt = now
+	w.instances[item.ID] = item
+	return item, nil
 }
 func (*testWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, errors.New("not implemented")
@@ -519,6 +596,65 @@ func TestOARequestRejectsInvalidKindSpecificForms(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOARequestCollaborationAndApprovalLifecycle(t *testing.T) {
+	runtime, id, taskID := createSubmittedOARequest(t)
+	attached := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/attachments", map[string]any{"name": "凭证.pdf", "contentBase64": base64.StdEncoding.EncodeToString([]byte("attachment")), "version": 2}, "oa-attach-1", true, http.StatusOK)
+	if len(testMap(t, attached, "item")["attachments"].([]any)) != 1 {
+		t.Fatalf("attachment missing: %v", attached)
+	}
+	commented := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/comments", map[string]any{"content": "请优先处理", "version": 3}, "oa-comment-1", true, http.StatusOK)
+	if len(testMap(t, commented, "item")["comments"].([]any)) != 1 {
+		t.Fatalf("comment missing: %v", commented)
+	}
+	reminded := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/reminders", map[string]any{"runAt": time.Now().UTC().Add(time.Hour).Format(time.RFC3339), "version": 4}, "oa-remind-1", true, http.StatusOK)
+	if testString(t, testMap(t, reminded, "item"), "reminderAt") == "" || len(runtime.jobs.items) != 1 {
+		t.Fatalf("reminder missing: %v jobs=%v", reminded, runtime.jobs.items)
+	}
+	delegated := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/delegate", map[string]any{"taskId": taskID, "targetId": "manager-2", "targetName": "赵经理", "comment": "转交复核", "version": 5}, "oa-delegate-1", true, http.StatusOK)
+	if testString(t, testMap(t, delegated, "item"), "approverId") != "manager-2" {
+		t.Fatalf("delegate failed: %v", delegated)
+	}
+	workflow := testMap(t, delegated, "workflow")
+	tasks := workflow["tasks"].([]any)
+	delegatedTask := tasks[len(tasks)-1].(map[string]any)
+	approved := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/approve", map[string]any{"taskId": delegatedTask["id"], "comment": "同意", "version": 6}, "oa-approve-1", true, http.StatusOK)
+	if testString(t, testMap(t, approved, "item"), "status") != "approved" || testString(t, testMap(t, approved, "workflow"), "status") != "approved" {
+		t.Fatalf("approve failed: %v", approved)
+	}
+	if runtime.files.stores != 1 || runtime.transactions.calls != 7 {
+		t.Fatalf("collaboration host services mismatch: files=%d transactions=%d", runtime.files.stores, runtime.transactions.calls)
+	}
+}
+
+func TestOARequestTerminalActions(t *testing.T) {
+	for _, testCase := range []struct {
+		action, want string
+		task         bool
+	}{{"reject", "rejected", true}, {"withdraw", "withdrawn", false}, {"cancel", "canceled", false}} {
+		t.Run(testCase.action, func(t *testing.T) {
+			runtime, id, taskID := createSubmittedOARequest(t)
+			body := map[string]any{"comment": "终止流程", "version": 2}
+			if testCase.task {
+				body["taskId"] = taskID
+			}
+			result := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/"+testCase.action, body, "oa-"+testCase.action+"-1", true, http.StatusOK)
+			if testString(t, testMap(t, result, "item"), "status") != testCase.want || testString(t, testMap(t, result, "workflow"), "status") != testCase.want {
+				t.Fatalf("%s failed: %v", testCase.action, result)
+			}
+		})
+	}
+}
+
+func createSubmittedOARequest(t *testing.T) (testRuntime, string, string) {
+	t.Helper()
+	runtime := newTestRuntime(t)
+	created := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests", map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "requestType": "expense", "title": "差旅报销", "formData": map[string]any{"category": "travel", "amount": 1280.0}, "approverId": "manager-1", "approverName": "王经理"}, "oa-lifecycle-create", true, http.StatusCreated), "item")
+	id := testString(t, created, "id")
+	submitted := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/oa-requests/"+id+"/submit", map[string]any{"version": 1}, "oa-lifecycle-submit", true, http.StatusOK)
+	tasks := testMap(t, submitted, "workflow")["tasks"].([]any)
+	return runtime, id, tasks[0].(map[string]any)["id"].(string)
 }
 
 func TestEmployeeLifecycleUsesPublicScopedHostServices(t *testing.T) {
