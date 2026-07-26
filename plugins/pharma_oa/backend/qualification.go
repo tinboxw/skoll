@@ -654,20 +654,26 @@ func (s *server) writeQualificationEligibility(w http.ResponseWriter, r *http.Re
 		writeServiceError(w, err)
 		return
 	}
-	scope, err := s.subjectScope(ctx, permission, subjectType, subjectID)
+	required, missing, err := s.qualificationEligibility(ctx, permission, subjectType, subjectID, gate)
 	if err != nil {
 		writeServiceError(w, err)
 		return
+	}
+	writeOK(w, map[string]any{"eligible": len(required) > 0 && len(missing) == 0, "subjectType": subjectType, "subjectId": subjectID, "businessGate": gate, "required": required, "missing": missing})
+}
+
+func (s *server) qualificationEligibility(ctx context.Context, permission pluginsdk.Permission, subjectType, subjectID, gate string) ([]qualificationType, []qualificationType, error) {
+	scope, err := s.subjectScope(ctx, permission, subjectType, subjectID)
+	if err != nil {
+		return nil, nil, err
 	}
 	types, err := s.queryRequiredQualificationTypes(ctx, permission, scope, subjectType, gate)
 	if err != nil {
-		writeServiceError(w, err)
-		return
+		return nil, nil, err
 	}
 	qualifications, err := s.querySubjectQualifications(ctx, permission, scope, subjectType, subjectID)
 	if err != nil {
-		writeServiceError(w, err)
-		return
+		return nil, nil, err
 	}
 	now, approved := s.now().UTC(), make(map[string]bool)
 	for _, item := range qualifications {
@@ -682,7 +688,7 @@ func (s *server) writeQualificationEligibility(w http.ResponseWriter, r *http.Re
 			missing = append(missing, item)
 		}
 	}
-	writeOK(w, map[string]any{"eligible": len(types) > 0 && len(missing) == 0, "subjectType": subjectType, "subjectId": subjectID, "businessGate": gate, "required": types, "missing": missing})
+	return types, missing, nil
 }
 
 func (s *server) mutateQualification(ctx context.Context, action, key string, item qualification, version int64, risk pluginsdk.AuditRisk, checkUnique bool) (qualification, error) {
@@ -1031,8 +1037,14 @@ func combineFilters(filters []pluginsdk.DataFilter) *pluginsdk.DataFilter {
 func validateQualificationTypeWrite(input *qualificationTypeWriteRequest, update bool) error {
 	input.Code = strings.ToUpper(strings.TrimSpace(input.Code))
 	input.Name, input.SubjectType, input.BusinessGate, input.Description = strings.TrimSpace(input.Name), strings.TrimSpace(input.SubjectType), strings.TrimSpace(input.BusinessGate), strings.TrimSpace(input.Description)
-	gates := map[string]string{"customer": "sales", "supplier": "purchase", "product": "sale", "manufacturer": "supply"}
-	if input.Code == "" || len(input.Code) > 64 || input.Name == "" || len(input.Name) > 255 || len(input.Description) > 512 || gates[input.SubjectType] != input.BusinessGate || input.ValidityDays < 1 || input.ValidityDays > 3650 || input.AlertDays < 1 || input.AlertDays > input.ValidityDays || (update && input.Version < 1) {
+	gates := map[string]map[string]struct{}{
+		"customer":     {"sales": {}},
+		"supplier":     {"purchase": {}},
+		"product":      {"purchase": {}, "sale": {}},
+		"manufacturer": {"supply": {}},
+	}
+	_, gateAllowed := gates[input.SubjectType][input.BusinessGate]
+	if input.Code == "" || len(input.Code) > 64 || input.Name == "" || len(input.Name) > 255 || len(input.Description) > 512 || !gateAllowed || input.ValidityDays < 1 || input.ValidityDays > 3650 || input.AlertDays < 1 || input.AlertDays > input.ValidityDays || (update && input.Version < 1) {
 		return newHTTPError(http.StatusBadRequest, "invalid_qualification_type", "code, name, matching subject/gate, validity, alert days, and current version are required")
 	}
 	return nil

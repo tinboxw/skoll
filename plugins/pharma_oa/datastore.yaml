@@ -195,3 +195,52 @@ tables:
       - {fields: [status, updated_at]}
       - {fields: [request_type, updated_at]}
       - {fields: [workflow_instance_id]}
+  - name: purchase_requests
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: number, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: supplier_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: supplier_code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: supplier_name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: requester_id, type: string, mutable: true, filterable: true}
+      - {name: approver_id, type: string, mutable: true, filterable: true}
+      - {name: approver_name, type: string, mutable: true}
+      - {name: reason, type: string, mutable: true, filterable: true}
+      - {name: currency, type: string, mutable: true, filterable: true}
+      - {name: lines, type: json, mutable: true}
+      - {name: total_amount, type: decimal, mutable: true, filterable: true, sortable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: workflow_definition_id, type: string, mutable: true, filterable: true}
+      - {name: workflow_instance_id, type: string, mutable: true, filterable: true}
+      - {name: purchase_order_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: decision_comment, type: string, nullable: true, mutable: true}
+      - {name: decided_at, type: timestamp, nullable: true, mutable: true, filterable: true, sortable: true}
+      - {name: last_operation_key, type: string, mutable: true, filterable: true}
+    indexes:
+      - {fields: [number], unique: true}
+      - {fields: [last_operation_key], unique: true}
+      - {fields: [status, updated_at]}
+      - {fields: [supplier_id, updated_at]}
+      - {fields: [workflow_instance_id]}
+  - name: purchase_orders
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: number, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: purchase_request_id, type: string, mutable: true, filterable: true}
+      - {name: supplier_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: supplier_code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: supplier_name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: currency, type: string, mutable: true, filterable: true}
+      - {name: lines, type: json, mutable: true}
+      - {name: total_amount, type: decimal, mutable: true, filterable: true, sortable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: approved_by, type: string, mutable: true, filterable: true}
+      - {name: approved_at, type: timestamp, mutable: true, filterable: true, sortable: true}
+      - {name: last_operation_key, type: string, mutable: true, filterable: true}
+    indexes:
+      - {fields: [number], unique: true}
+      - {fields: [purchase_request_id], unique: true}
+      - {fields: [status, updated_at]}
+      - {fields: [supplier_id, updated_at]}

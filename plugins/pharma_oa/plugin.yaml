@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.8.0
+version: 0.9.0
 api_version: v1
-migration_version: 0.8.0
+migration_version: 0.9.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: separated
 level: app
@@ -1599,7 +1599,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.8.0
+  migration_version: 0.9.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1649,6 +1649,16 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, request_type, title, description, form_data, status, approver_id, approver_name, workflow_definition_id, workflow_instance_id, submitted_at, last_operation_key, attachments, comments, reminder_at, version, created_at, updated_at
       indexes: idx_pharma_oa_requests_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_requests_type(tenant_id,request_type,updated_at); idx_pharma_oa_requests_workflow(workflow_instance_id)
+    - name: pharma_oa_purchase_requests
+      description: Trusted-scope purchase requests with governed supplier/product references and public host workflow approval.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, number, supplier_id, supplier_code, supplier_name, requester_id, approver_id, approver_name, reason, currency, lines, total_amount, status, workflow_definition_id, workflow_instance_id, purchase_order_id, decision_comment, decided_at, last_operation_key, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_purchase_requests_number(tenant_id,number); unique uq_pharma_oa_purchase_requests_operation(tenant_id,last_operation_key); idx_pharma_oa_purchase_requests_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_purchase_requests_supplier(tenant_id,supplier_id,updated_at); idx_pharma_oa_purchase_requests_workflow(workflow_instance_id)
+    - name: pharma_oa_purchase_orders
+      description: Trusted-scope purchase orders created atomically from approved purchase requests.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, number, purchase_request_id, supplier_id, supplier_code, supplier_name, currency, lines, total_amount, status, approved_by, approved_at, last_operation_key, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_purchase_orders_number(tenant_id,number); unique uq_pharma_oa_purchase_orders_request(tenant_id,purchase_request_id); idx_pharma_oa_purchase_orders_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_purchase_orders_supplier(tenant_id,supplier_id,updated_at)
 
 events:
   subscriptions:

@@ -123,7 +123,7 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("install migration: %v", err)
 	}
-	if len(migrationStore.records) != 6 {
+	if len(migrationStore.records) != 7 {
 		t.Fatalf("install migration ledger=%+v", migrationStore.records)
 	}
 	for index, record := range migrationStore.records {

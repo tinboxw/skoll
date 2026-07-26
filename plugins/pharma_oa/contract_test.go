@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tinboxw/skoll/internal/plugin/datastore"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"gopkg.in/yaml.v3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -93,7 +95,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	if manifest.ID != "pharma_oa" || manifest.AppID != manifest.ID || contract.PluginID != manifest.ID {
 		t.Fatalf("plugin identity mismatch: manifest=%q app=%q contract=%q", manifest.ID, manifest.AppID, contract.PluginID)
 	}
-	if manifest.Version != "0.8.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
+	if manifest.Version != "0.9.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
 		t.Fatalf("contract version mismatch: manifest=%q migration=%q map=%q", manifest.Version, manifest.MigrationVersion, contract.ContractVersion)
 	}
 	if manifest.APIVersion != "v1" || contract.SchemaVersion != 1 || contract.PublicContract.APIVersion != manifest.APIVersion {
@@ -175,13 +177,14 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 
 func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	for _, path := range []string{
-		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "backend/oa_request.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
+		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "backend/oa_request.go", "backend/purchase.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
 		"contract/acceptance-map.json", "migrations/001_foundation.up.sql", "migrations/001_foundation.down.sql",
 		"migrations/002_employees.up.sql", "migrations/002_employees.down.sql",
 		"migrations/003_parties.up.sql", "migrations/003_parties.down.sql",
 		"migrations/004_catalogs.up.sql", "migrations/004_catalogs.down.sql",
 		"migrations/005_qualifications.up.sql", "migrations/005_qualifications.down.sql",
 		"migrations/006_oa_requests.up.sql", "migrations/006_oa_requests.down.sql",
+		"migrations/007_purchases.up.sql", "migrations/007_purchases.down.sql",
 	} {
 		if info, err := os.Stat(filepath.FromSlash(path)); err != nil || info.IsDir() {
 			t.Fatalf("required package file %q is unavailable: %v", path, err)
@@ -223,6 +226,46 @@ func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	}
 }
 
+func TestMedicalOAPurchaseDataStoreContractIsRegistered(t *testing.T) {
+	schema, present, err := datastore.LoadSchemaManifest("pharma_oa", ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !present {
+		t.Fatal("datastore schema is missing")
+	}
+	tables := make(map[string]datastore.TableSchema, len(schema.Tables))
+	for _, table := range schema.Tables {
+		tables[table.Name] = table
+	}
+	for tableName, requiredFields := range map[string]map[string]pluginsdk.DataValueType{
+		"purchase_requests": {
+			"number": pluginsdk.DataValueString, "supplier_id": pluginsdk.DataValueString,
+			"lines": pluginsdk.DataValueJSON, "total_amount": pluginsdk.DataValueDecimal,
+			"status": pluginsdk.DataValueString, "workflow_instance_id": pluginsdk.DataValueString,
+		},
+		"purchase_orders": {
+			"number": pluginsdk.DataValueString, "purchase_request_id": pluginsdk.DataValueString,
+			"lines": pluginsdk.DataValueJSON, "total_amount": pluginsdk.DataValueDecimal,
+			"status": pluginsdk.DataValueString, "approved_at": pluginsdk.DataValueTimestamp,
+		},
+	} {
+		table, ok := tables[tableName]
+		if !ok {
+			t.Fatalf("datastore schema is missing %s", tableName)
+		}
+		fields := make(map[string]pluginsdk.DataValueType, len(table.Fields))
+		for _, field := range table.Fields {
+			fields[field.Name] = field.Type
+		}
+		for field, wantType := range requiredFields {
+			if got := fields[field]; got != wantType {
+				t.Fatalf("%s.%s type=%q want=%q", tableName, field, got, wantType)
+			}
+		}
+	}
+}
+
 func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "migration.db")), &gorm.Config{})
 	if err != nil {
@@ -233,7 +276,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql", "migrations/006_oa_requests.up.sql"} {
+	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql", "migrations/006_oa_requests.up.sql", "migrations/007_purchases.up.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -245,6 +288,8 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:qualification_types}}", "pharma_oa_qualification_types")
 		sql = strings.ReplaceAll(sql, "{{table:qualifications}}", "pharma_oa_qualifications")
 		sql = strings.ReplaceAll(sql, "{{table:oa_requests}}", "pharma_oa_oa_requests")
+		sql = strings.ReplaceAll(sql, "{{table:purchase_requests}}", "pharma_oa_purchase_requests")
+		sql = strings.ReplaceAll(sql, "{{table:purchase_orders}}", "pharma_oa_purchase_orders")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("apply %s: %v", path, err)
 		}
@@ -264,7 +309,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	for _, table := range loadPharmaAcceptanceMap(t).Migrations.Tables {
 		assertPharmaContains(t, wantTables, table, "contract migration table")
 	}
-	for _, path := range []string{"migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
+	for _, path := range []string{"migrations/007_purchases.down.sql", "migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -276,6 +321,8 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:qualification_types}}", "pharma_oa_qualification_types")
 		sql = strings.ReplaceAll(sql, "{{table:qualifications}}", "pharma_oa_qualifications")
 		sql = strings.ReplaceAll(sql, "{{table:oa_requests}}", "pharma_oa_oa_requests")
+		sql = strings.ReplaceAll(sql, "{{table:purchase_requests}}", "pharma_oa_purchase_requests")
+		sql = strings.ReplaceAll(sql, "{{table:purchase_orders}}", "pharma_oa_purchase_orders")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("rollback %s: %v", path, err)
 		}

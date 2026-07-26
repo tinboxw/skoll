@@ -49,6 +49,7 @@ func (s testScopes) Resolve(context.Context, pluginsdk.Permission) (pluginsdk.Sc
 type testDataStore struct {
 	mu          sync.Mutex
 	records     map[string]pluginsdk.DataRecord
+	tables      map[string]string
 	idempotency map[string]string
 	scope       employeeScope
 	mutations   []pluginsdk.DataMutation
@@ -67,6 +68,9 @@ func (s *testDataStore) Query(_ context.Context, query pluginsdk.DataQuery) (plu
 	sort.Strings(ids)
 	records := make([]pluginsdk.DataRecord, 0, len(ids))
 	for _, id := range ids {
+		if s.tables[id] != query.Table {
+			continue
+		}
 		record := s.records[id]
 		if dataString(record, "tenant_id") != s.scope.TenantID || dataString(record, "organization_id") != s.scope.OrganizationID || dataString(record, "owner_id") != s.scope.OwnerID {
 			continue
@@ -125,9 +129,10 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 		values["created_at"] = timestampValue(now)
 		values["updated_at"] = timestampValue(now)
 		s.records[id] = pluginsdk.DataRecord{Values: values, Version: 1}
+		s.tables[id] = mutation.Table
 	case pluginsdk.DataMutationUpdate:
 		record, exists := s.records[id]
-		if !exists {
+		if !exists || s.tables[id] != mutation.Table {
 			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, "id", "employee not found", false)
 		}
 		if mutation.ExpectedVersion == nil || *mutation.ExpectedVersion != record.Version {
@@ -160,6 +165,40 @@ type testJobs struct {
 	items         map[string]pluginsdk.Job
 	byIdempotency map[string]string
 	scheduleCalls int
+}
+
+type testDocumentNumbers struct {
+	mu            sync.Mutex
+	sequences     map[string]int64
+	byIdempotency map[string]pluginsdk.DocumentNumberResult
+}
+
+func (n *testDocumentNumbers) Preview(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	sequence := n.sequences[input.Rule.DocumentType] + 1
+	return pluginsdk.DocumentNumberResult{Number: fmt.Sprintf("%s-%06d", input.Rule.Prefix, sequence), Sequence: sequence}, nil
+}
+
+func (n *testDocumentNumbers) Issue(ctx context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
+	if ctx.Value(testTransactionKey{}) != true {
+		return pluginsdk.DocumentNumberResult{}, errors.New("document number escaped transaction")
+	}
+	if err := input.Validate(true); err != nil {
+		return pluginsdk.DocumentNumberResult{}, err
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	key := input.Rule.DocumentType + ":" + input.IdempotencyKey
+	if item, exists := n.byIdempotency[key]; exists {
+		item.Duplicate = true
+		return item, nil
+	}
+	sequence := n.sequences[input.Rule.DocumentType] + 1
+	n.sequences[input.Rule.DocumentType] = sequence
+	item := pluginsdk.DocumentNumberResult{Number: fmt.Sprintf("%s-%06d", input.Rule.Prefix, sequence), Sequence: sequence}
+	n.byIdempotency[key] = item
+	return item, nil
 }
 
 type testWorkflows struct {
@@ -459,6 +498,7 @@ type testRuntime struct {
 	handler      http.Handler
 	transactions *testTransactions
 	store        *testDataStore
+	numbers      *testDocumentNumbers
 	files        *testFiles
 	audit        *testAudit
 	jobs         *testJobs
@@ -475,19 +515,21 @@ func newTestRuntime(t *testing.T) testRuntime {
 		t.Fatal(err)
 	}
 	transactions := &testTransactions{}
-	store := &testDataStore{records: make(map[string]pluginsdk.DataRecord), idempotency: make(map[string]string), scope: employeeScope{TenantID: "tenant-a", OrganizationID: "org-a", OwnerID: "actor-1"}}
+	store := &testDataStore{records: make(map[string]pluginsdk.DataRecord), tables: make(map[string]string), idempotency: make(map[string]string), scope: employeeScope{TenantID: "tenant-a", OrganizationID: "org-a", OwnerID: "actor-1"}}
+	numbers := &testDocumentNumbers{sequences: make(map[string]int64), byIdempotency: make(map[string]pluginsdk.DocumentNumberResult)}
 	files := &testFiles{items: make(map[string]pluginsdk.FileObject)}
 	audit := &testAudit{}
 	jobs := &testJobs{items: make(map[string]pluginsdk.Job), byIdempotency: make(map[string]string)}
 	workflows := &testWorkflows{definitions: make(map[string]pluginsdk.WorkflowDefinition), instances: make(map[string]pluginsdk.WorkflowInstance)}
 	scopes := testScopes{predicate: predicate}
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Files: files, Audit: audit, Workflows: workflows, Jobs: jobs,
+		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, DocumentNumbers: numbers,
+		Files: files, Audit: audit, Workflows: workflows, Jobs: jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return testRuntime{handler: handler, transactions: transactions, store: store, files: files, audit: audit, jobs: jobs, workflows: workflows, scopes: scopes}
+	return testRuntime{handler: handler, transactions: transactions, store: store, numbers: numbers, files: files, audit: audit, jobs: jobs, workflows: workflows, scopes: scopes}
 }
 
 func TestFoundationEndpoints(t *testing.T) {
@@ -497,7 +539,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.8.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.9.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
@@ -734,7 +776,8 @@ func TestEmployeeLifecycleUsesPublicScopedHostServices(t *testing.T) {
 func TestEmployeeCreateRejectsDeniedScope(t *testing.T) {
 	runtime := newTestRuntime(t)
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")}, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")},
+		DataStore: runtime.store, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -868,6 +911,7 @@ func TestCatalogListUsesBoundedCursorPages(t *testing.T) {
 		runtime.store.records[id] = pluginsdk.DataRecord{Values: map[string]pluginsdk.DataValue{
 			"id": stringValue(id), "catalog_type": stringValue("category"), "code": stringValue(fmt.Sprintf("CAT-%03d", index)), "name": stringValue(fmt.Sprintf("分类 %03d", index)), "description": stringValue("性能验收数据"), "parent_id": nullableStringValue(""), "symbol": nullableStringValue(""), "decimal_places": integerValue(0), "unified_social_credit_code": nullableStringValue(""), "license_number": nullableStringValue(""), "status": stringValue("active"), "disable_reason": nullableStringValue(""), "tenant_id": stringValue("tenant-a"), "organization_id": stringValue("org-a"), "owner_id": stringValue("actor-1"), "created_at": timestampValue("2026-07-23T08:00:00Z"), "updated_at": timestampValue("2026-07-23T08:00:00Z"),
 		}, Version: 1}
+		runtime.store.tables[id] = catalogTable
 	}
 	first := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/categories?limit=200", nil, "", true, http.StatusOK)
 	if len(first["items"].([]any)) != 200 || !testMap(t, first, "pageInfo")["hasMore"].(bool) || testString(t, testMap(t, first, "pageInfo"), "nextCursor") != "200" {
@@ -957,7 +1001,10 @@ func TestQualificationLifecycleEligibilityAndExpiryIdempotency(t *testing.T) {
 	if testInt64(t, secondScan, "scheduled") != 0 || testInt64(t, secondScan, "skipped") != 1 || runtime.jobs.scheduleCalls != 1 {
 		t.Fatalf("expiry scan duplicate was not skipped: response=%v calls=%d", secondScan, runtime.jobs.scheduleCalls)
 	}
-	restarted, err := newHandler(pluginsdk.HostServices{PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs})
+	restarted, err := newHandler(pluginsdk.HostServices{
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store,
+		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -974,6 +1021,184 @@ func TestQualificationLifecycleEligibilityAndExpiryIdempotency(t *testing.T) {
 	if eligibility["eligible"] != false {
 		t.Fatalf("revoked qualification still passed business gate: %v", eligibility)
 	}
+}
+
+func TestPurchaseRequestApprovalCreatesOneGovernedOrder(t *testing.T) {
+	runtime := newTestRuntime(t)
+	supplierID, productID, manufacturerID := createPurchaseMasterData(t, runtime)
+	purchaseBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "supplierId": supplierID,
+		"reason": "Replenish validated medicine stock", "currency": "CNY", "approverId": "manager-1", "approverName": "Purchase manager",
+		"lines": []map[string]any{{"productId": productID, "quantity": "2.5", "unitPrice": "10.20"}},
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests", purchaseBody, "purchase-create-without-qualification", true, http.StatusUnprocessableEntity)
+
+	approvePurchaseQualification(t, runtime, "supplier", supplierID, "purchase", "supplier")
+	approvePurchaseQualification(t, runtime, "product", productID, "purchase", "product")
+	approvePurchaseQualification(t, runtime, "manufacturer", manufacturerID, "supply", "manufacturer")
+
+	created := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests", purchaseBody, "purchase-create-1", true, http.StatusCreated)
+	requestItem := testMap(t, created, "item")
+	requestID := testString(t, requestItem, "id")
+	if testString(t, requestItem, "number") != "PR-000001" || testString(t, requestItem, "status") != "pending" ||
+		testString(t, requestItem, "totalAmount") != "25.50" || testInt64(t, requestItem, "version") != 1 {
+		t.Fatalf("unexpected purchase request: %v", requestItem)
+	}
+	lines := requestItem["lines"].([]any)
+	if len(lines) != 1 || testString(t, lines[0].(map[string]any), "quantity") != "2.5" || testString(t, lines[0].(map[string]any), "amount") != "25.50" {
+		t.Fatalf("purchase lines were not normalized: %v", lines)
+	}
+	taskID := testPendingWorkflowTaskID(t, testMap(t, created, "workflow"))
+	duplicate := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests", purchaseBody, "purchase-create-1", true, http.StatusOK)
+	if duplicate["duplicate"] != true || testString(t, testMap(t, duplicate, "item"), "id") != requestID || runtime.numbers.sequences["purchase_request"] != 1 {
+		t.Fatalf("purchase create idempotency failed: response=%v sequences=%v", duplicate, runtime.numbers.sequences)
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests/"+requestID+"/approve", map[string]any{
+		"taskId": taskID, "comment": "stale", "version": 2,
+	}, "purchase-approve-stale", true, http.StatusConflict)
+
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products/"+productID+"/disable", map[string]any{"reason": "Quality review", "version": 1}, "purchase-product-disable", true, http.StatusOK)
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests/"+requestID+"/approve", map[string]any{
+		"taskId": taskID, "comment": "must fail while product is disabled", "version": 1,
+	}, "purchase-approve-disabled-product", true, http.StatusUnprocessableEntity)
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products/"+productID+"/enable", map[string]any{"version": 2}, "purchase-product-enable", true, http.StatusOK)
+
+	approved := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests/"+requestID+"/approve", map[string]any{
+		"taskId": taskID, "comment": "Supplier, product, and manufacturer qualifications confirmed", "version": 1,
+	}, "purchase-approve-1", true, http.StatusOK)
+	approvedRequest, order := testMap(t, approved, "item"), testMap(t, approved, "order")
+	if testString(t, approvedRequest, "status") != "approved" || testString(t, order, "number") != "PO-000001" ||
+		testString(t, order, "status") != "open" || testString(t, order, "purchaseRequestId") != requestID ||
+		testString(t, approvedRequest, "purchaseOrderId") != testString(t, order, "id") {
+		t.Fatalf("purchase approval did not create the governed order: %v", approved)
+	}
+	duplicateApproval := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests/"+requestID+"/approve", map[string]any{
+		"taskId": taskID, "comment": "Supplier, product, and manufacturer qualifications confirmed", "version": 1,
+	}, "purchase-approve-1", true, http.StatusOK)
+	if duplicateApproval["duplicate"] != true || testString(t, testMap(t, duplicateApproval, "order"), "id") != testString(t, order, "id") ||
+		runtime.numbers.sequences["purchase_order"] != 1 {
+		t.Fatalf("purchase approval was not idempotent: response=%v sequences=%v", duplicateApproval, runtime.numbers.sequences)
+	}
+
+	second := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests", purchaseBody, "purchase-create-2", true, http.StatusCreated)
+	secondItem := testMap(t, second, "item")
+	rejected := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests/"+testString(t, secondItem, "id")+"/reject", map[string]any{
+		"taskId": testPendingWorkflowTaskID(t, testMap(t, second, "workflow")), "comment": "Budget is not approved", "version": 1,
+	}, "purchase-reject-1", true, http.StatusOK)
+	if testString(t, testMap(t, rejected, "item"), "status") != "rejected" {
+		t.Fatalf("purchase rejection failed: %v", rejected)
+	}
+
+	requests := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/purchase-requests?status=approved", nil, "", true, http.StatusOK)
+	orders := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/purchase-orders?status=open", nil, "", true, http.StatusOK)
+	if testInt64(t, requests, "total") != 1 || testInt64(t, orders, "total") != 1 {
+		t.Fatalf("purchase list filters are inconsistent: requests=%v orders=%v", requests, orders)
+	}
+	crossScope := employeeScope{TenantID: "tenant-a", OrganizationID: "org-b", OwnerID: "actor-b"}
+	crossPredicate, err := pluginsdk.NewScopePredicate(pluginsdk.TrustedScope{
+		SubjectID: crossScope.OwnerID, TenantIDs: []string{crossScope.TenantID},
+		OrganizationIDs: []string{crossScope.OrganizationID}, OwnerIDs: []string{crossScope.OwnerID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime.store.scope = crossScope
+	crossHandler, err := newHandler(pluginsdk.HostServices{
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store,
+		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossRequests := testRequest(t, crossHandler, http.MethodGet, apiBase+"/purchase-requests", nil, "", true, http.StatusOK)
+	crossOrders := testRequest(t, crossHandler, http.MethodGet, apiBase+"/purchase-orders", nil, "", true, http.StatusOK)
+	if testInt64(t, crossRequests, "total") != 0 || testInt64(t, crossOrders, "total") != 0 {
+		t.Fatalf("cross-scope purchase lists leaked records: requests=%v orders=%v", crossRequests, crossOrders)
+	}
+	testRequest(t, crossHandler, http.MethodGet, apiBase+"/purchase-requests/"+requestID, nil, "", true, http.StatusNotFound)
+	testRequest(t, crossHandler, http.MethodGet, apiBase+"/purchase-orders/"+testString(t, order, "id"), nil, "", true, http.StatusNotFound)
+	runtime.store.scope = employeeScope{TenantID: "tenant-a", OrganizationID: "org-a", OwnerID: "actor-1"}
+	for _, action := range []string{"pharma_oa.purchase.create", "pharma_oa.purchase.approve", "pharma_oa.purchase.order.create", "pharma_oa.purchase.reject"} {
+		if !testAuditHasAction(runtime.audit.entries, action) {
+			t.Fatalf("missing purchase audit action %q: %v", action, runtime.audit.entries)
+		}
+	}
+	for _, mutation := range runtime.store.mutations {
+		if mutation.Table == purchaseRequestTable || mutation.Table == purchaseOrderTable {
+			if mutation.Scope.Filter.TenantIDs[0] != "tenant-a" || mutation.Scope.Filter.OrganizationIDs[0] != "org-a" || mutation.Scope.Filter.OwnerIDs[0] != "actor-1" {
+				t.Fatalf("purchase mutation escaped exact trusted scope: %+v", mutation.Scope.Filter)
+			}
+		}
+	}
+}
+
+func createPurchaseMasterData(t *testing.T, runtime testRuntime) (string, string, string) {
+	t.Helper()
+	supplier := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/suppliers", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "SUP-PO-001", "name": "Validated Supplier",
+		"unifiedSocialCreditCode": "91330000MAPO0001", "region": "Zhejiang", "rating": 5,
+		"contacts":        []map[string]any{{"name": "Quality Owner", "phone": "13800000001", "email": "quality@supplier.example", "primary": true}},
+		"addresses":       []map[string]any{{"label": "Headquarters", "province": "Zhejiang", "city": "Hangzhou", "district": "Gongshu", "detail": "88 Compliance Road", "default": true}},
+		"settlementTerms": map[string]any{"currency": "CNY", "paymentDays": 30, "creditLimit": 500000},
+	}, "purchase-supplier-create", true, http.StatusCreated), "item")
+	category := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/categories", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "PO-RX", "name": "Prescription", "description": "Purchase acceptance category",
+	}, "purchase-category-create", true, http.StatusCreated), "item")
+	unit := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/units", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "PO-BOX", "name": "Box", "description": "Purchase package", "symbol": "box", "decimalPlaces": 3,
+	}, "purchase-unit-create", true, http.StatusCreated), "item")
+	manufacturer := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/manufacturers", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "PO-MFG-001", "name": "Validated Manufacturer",
+		"description": "Medicine manufacturer", "unifiedSocialCreditCode": "91330000MAPO1001", "licenseNumber": "MFG-PO-2026-001",
+	}, "purchase-manufacturer-create", true, http.StatusCreated), "item")
+	product := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/products", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "PO-MED-001", "sku": "PO-SKU-001",
+		"name": "Acceptance Capsule", "genericName": "Acceptance Medicine", "categoryId": testString(t, category, "id"),
+		"unitId": testString(t, unit, "id"), "manufacturerId": testString(t, manufacturer, "id"), "dosageForm": "capsule",
+		"specification": "0.25g x 24", "approvalNumber": "NMPA-PO-2026-001", "barcode": "690000009001",
+		"storageCondition": "sealed and dry", "temperatureMin": 2, "temperatureMax": 25,
+	}, "purchase-product-create", true, http.StatusCreated), "item")
+	return testString(t, supplier, "id"), testString(t, product, "id"), testString(t, manufacturer, "id")
+}
+
+func approvePurchaseQualification(t *testing.T, runtime testRuntime, subjectType, subjectID, gate, suffix string) {
+	t.Helper()
+	typeItem := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualification-types", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "PO-" + strings.ToUpper(suffix),
+		"name": "Purchase " + suffix + " qualification", "subjectType": subjectType, "businessGate": gate,
+		"description": "Required by purchase acceptance", "validityDays": 365, "alertDays": 30, "evidenceRequired": true, "businessRequired": true,
+	}, "purchase-"+suffix+"-qualification-type", true, http.StatusCreated), "item")
+	now := time.Now().UTC()
+	qualification := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "typeId": testString(t, typeItem, "id"),
+		"subjectType": subjectType, "subjectId": subjectID, "certificateNumber": "CERT-" + strings.ToUpper(suffix),
+		"issuer": "Acceptance Authority", "validFrom": now.AddDate(0, 0, -1).Format("2006-01-02"), "validTo": now.AddDate(1, 0, 0).Format("2006-01-02"),
+		"evidence": map[string]any{"name": suffix + ".pdf", "contentBase64": base64.StdEncoding.EncodeToString([]byte("%PDF-1.4\n%%EOF"))},
+	}, "purchase-"+suffix+"-qualification-create", true, http.StatusCreated), "item")
+	id := testString(t, qualification, "id")
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications/"+id+"/submit", map[string]any{"version": 1}, "purchase-"+suffix+"-qualification-submit", true, http.StatusOK)
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/qualifications/"+id+"/approve", map[string]any{"comment": "valid", "version": 2}, "purchase-"+suffix+"-qualification-approve", true, http.StatusOK)
+}
+
+func testPendingWorkflowTaskID(t *testing.T, workflow map[string]any) string {
+	t.Helper()
+	for _, raw := range workflow["tasks"].([]any) {
+		task := raw.(map[string]any)
+		if task["status"] == string(pluginsdk.WorkflowTaskPending) {
+			return testString(t, task, "id")
+		}
+	}
+	t.Fatalf("workflow has no pending task: %v", workflow)
+	return ""
+}
+
+func testAuditHasAction(entries []pluginsdk.AuditEntry, action string) bool {
+	for _, entry := range entries {
+		if entry.Action == action {
+			return true
+		}
+	}
+	return false
 }
 
 func TestFoundationRejectsIncompleteHostAndUnknownRoutes(t *testing.T) {

@@ -50,7 +50,7 @@ var foundationEvents = map[string]string{
 }
 
 func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
-	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.Files == nil || host.Audit == nil || host.Workflows == nil || host.Jobs == nil {
+	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.DocumentNumbers == nil || host.Files == nil || host.Audit == nil || host.Workflows == nil || host.Jobs == nil {
 		return nil, errors.New("complete Pharma OA host services are required")
 	}
 	s := &server{host: host, now: time.Now, newID: employeeID}
@@ -114,6 +114,13 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/attachments", s.attachOARequestFile)
 	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/comments", s.commentOARequest)
 	mux.HandleFunc("POST "+apiBase+"/oa-requests/{id}/reminders", s.remindOARequest)
+	mux.HandleFunc("GET "+apiBase+"/purchase-requests", s.listPurchaseRequests)
+	mux.HandleFunc("POST "+apiBase+"/purchase-requests", s.createPurchaseRequest)
+	mux.HandleFunc("GET "+apiBase+"/purchase-requests/{id}", s.getPurchaseRequestHandler)
+	mux.HandleFunc("POST "+apiBase+"/purchase-requests/{id}/approve", s.approvePurchaseRequest)
+	mux.HandleFunc("POST "+apiBase+"/purchase-requests/{id}/reject", s.rejectPurchaseRequest)
+	mux.HandleFunc("GET "+apiBase+"/purchase-orders", s.listPurchaseOrders)
+	mux.HandleFunc("GET "+apiBase+"/purchase-orders/{id}", s.getPurchaseOrderHandler)
 	return mux, nil
 }
 
@@ -123,7 +130,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.8.0",
+		PluginID: pluginID, ContractVersion: "0.9.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},

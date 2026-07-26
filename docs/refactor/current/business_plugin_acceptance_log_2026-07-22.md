@@ -1582,3 +1582,65 @@ Result: BF5-01D passed and closes parent BF5-01. General OA is now a packaged, s
 ### Commit
 
 `BF5-01D: close general OA lifecycle acceptance`
+
+## BF5-03A Build Purchase Approval And Order Core
+
+- Date: 2026-07-26
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Implement the current medical OA purchase-request approval core, qualification gates, exact line values, governed order creation, datastore registration, migrations, and plugin contract `0.9.0`.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Purchase request model | Pass | Current scoped request records persist governed numbers, supplier snapshots, requester/approver, CNY lines, exact totals, workflow IDs, decision facts, optimistic version, and idempotency key |
+| Exact values | Pass | Quantity accepts at most six decimal places, unit price at most two, `math/big` performs multiplication and aggregation, and persisted line/order totals remain decimal strings |
+| Qualification gates | Pass | Creation and approval both require an active supplier purchase qualification, product purchase qualification, and manufacturer supply qualification; disabled references fail closed |
+| Workflow decisions | Pass | Public host workflow definitions and instances drive approve/reject; stale versions fail, duplicate decisions return the original terminal result, and approval creates one order only |
+| Transaction and numbering | Pass | Request number, workflow creation/start, request mutation, order number, order mutation, and audit calls use public host transaction contexts and transactional number rules |
+| Scope isolation | Pass | Exact tenant/organization/owner write scope is asserted; another organization lists zero requests/orders and receives `404` for direct reads |
+| DataStore contract | Pass | `datastore.yaml` registers purchase requests/orders with typed fields and indexes; the current parser test requires JSON lines, decimal totals, workflow references, and approval timestamps |
+| Migration lifecycle | Pass | Migration 007 creates both purchase tables and indexes, participates in executable SQLite apply/reverse tests, installs in the seven-record host ledger, and uninstalls cleanly |
+| Plugin package | Pass | Current manifest, scripts, frontend package, lifecycle assertions, and acceptance map use only `0.9.0`; package verification produced SHA-256 `9216d0fc13bb2e6eaad5a43634ed619e9a1b4897ae32375aad7fbc4af62b8e13` |
+| Regression gate | Pass | All repository Go tests, focused Go vet, five frontend test files with 13 tests, TypeScript checking, production build, bundle budgets, packaged process lifecycle, and `git diff --check` pass |
+| Current-only rule | Pass | Only the current `0.9.0` plugin, current routes, public SDK services, and migration 007 are accepted; no compatibility, alias, fallback, dual-write, or legacy path exists |
+
+The first focused run rejected the product purchase qualification because the prior type validator allowed product sale gates only. The current domain contract was corrected to allow product purchase and sale gates explicitly. The second run exposed a test DataStore that ignored table identity, and the third exposed migration tests fixed at six scripts. Both fixtures were corrected and rerun. Final review then found purchase tables missing from `datastore.yaml`; that review was rejected, the host schema contract and parser assertions were added, and the complete plugin gates were rerun before acceptance.
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa/backend -run TestPurchaseRequestApprovalCreatesOneGovernedOrder -count=1 -v
+go test ./plugins/pharma_oa/... -count=1
+$env:SKOLL_PHARMA_OA_E2E='1'
+go test ./internal/plugin -run 'TestPharmaOA(PackagedMasterDataLifecycleE2E|PluginManifestCoversCurrentIndustryBoundary|PluginLifecycleUsesManifestAsSourceOfTruth)$' -count=1 -v
+go test ./... -count=1
+go vet ./plugins/pharma_oa/... ./internal/plugin/...
+
+cd plugins/pharma_oa/frontend
+npm test
+npm run build
+
+cd ../../..
+./plugins/pharma_oa/plugin.ps1 -Action package -DistDir $env:TEMP/skoll-bf5-03a-package
+./plugins/pharma_oa/plugin.ps1 -Action verify -DistDir $env:TEMP/skoll-bf5-03a-package
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF5-03A passed. The independent medical OA plugin now owns a scope-isolated, qualification-gated, transactional purchase request to approval/rejection and single-order core through public host services.
+
+### Impact Review
+
+- Backend: added purchase request and order handlers, exact decimal normalization, reference snapshots, qualification revalidation, workflow decisions, and deterministic duplicate responses.
+- Contracts: advanced the only current plugin version to `0.9.0`, added migration 007 and declared both logical DataStore schemas.
+- Qualification: product subjects now explicitly support current `purchase` and `sale` gates; other subject/gate combinations remain fail closed.
+- Test architecture: DataStore fixtures now preserve table ownership and cross-scope purchase reads are exercised explicitly.
+- Frontend: no new purchasing UI is claimed in this task; BF5-03C remains responsible for the Chinese purchasing and receiving workspace.
+- Compatibility: none; only the current plugin contract is implemented and accepted.
+
+### Commit
+
+`BF5-03A: build governed purchase approval core`
