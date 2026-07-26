@@ -59,7 +59,7 @@ func (s diagnosticHealthStub) PluginReadiness(context.Context) ReadinessReport {
 
 func TestDiagnosticsServiceLinksJobsAuditRoutesAndErrors(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 7, 23, 9, 30, 0, 0, time.UTC)
+	now := time.Now().UTC().Add(time.Minute).Truncate(time.Second)
 	jobs := jobsvc.NewService(jobsvc.NewMemoryRepository(), func() time.Time { return now })
 	if _, err := jobs.Schedule(ctx, jobsvc.ScheduleInput{
 		ID: "plugin:pharma_oa:expiry-scan", Namespace: "plugin.pharma_oa", Kind: "expiry_scan",

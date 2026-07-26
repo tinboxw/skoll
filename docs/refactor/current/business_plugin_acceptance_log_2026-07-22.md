@@ -1523,3 +1523,62 @@ Result: BF5-01C passed after strict type and dark-theme repair cycles. The indep
 ### Commit
 
 `BF5-01C: build Chinese-first OA workspace`
+
+## BF5-01D Close General OA Request Acceptance
+
+- Date: 2026-07-26
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Prove the current general OA feature through an independently packaged plugin process, host-owned services, restart, scope isolation, uninstall, visual regression, performance budgets, and the full repository quality gate.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Packaged lifecycle | Pass | The test builds backend and frontend outputs, packages and verifies the checksum, installs six migrations, enables the plugin, and starts the packaged backend as a managed child process |
+| Five request kinds | Pass | Leave, expense, procurement, contract, and custom requests are created through the packaged HTTP API with their current type-specific payload contracts |
+| Complete process actions | Pass | The lifecycle submits all five kinds and proves approve, reject, withdraw, cancel, and delegate-then-approve with real workflow task IDs and optimistic request versions |
+| Collaboration | Pass | The approved leave request persists one OA attachment, one comment, one scheduled reminder, the delegated task, and the complete workflow timeline |
+| Host service contracts | Pass | Stateful host fixtures retain workflow definitions/instances, files, and jobs; workflow mutations and all plugin audits remain inside the gateway transaction contract |
+| Scope isolation | Pass | A second organization lists zero OA requests and receives `404` when reading the first organization's request directly |
+| Audit completeness | Pass | Create, submit, attach, comment, remind, delegate, approve, reject, withdraw, and cancel actions all produce the required plugin audit records |
+| Stop and restart | Pass | Disabled endpoints close; after restart all five requests, terminal statuses, attachment, comment, approved workflow, and three-event leave timeline remain intact |
+| Uninstall boundary | Pass | Down migrations clear the ledger, drop-policy data is removed, endpoints close, runtime state becomes uninstalled, and host backend/frontend production hashes remain unchanged |
+| Visual and interaction regression | Pass | The existing desktop/mobile, light/dark, comfortable/compact browser matrix remains accepted; five Vitest files and 13 frontend tests pass |
+| Performance budget | Pass | Entry is 496,388/512,000 bytes, total JavaScript is 197,902/204,800 bytes gzip, and CSS is 19,057/25,600 bytes gzip |
+| Full repository gate | Pass | `go test ./... -count=1` passes across the complete repository after repairing a calendar-dependent diagnostics test clock |
+| Current-only rule | Pass | Acceptance uses only the current independent plugin, current six-migration schema, and public host SDK contracts; no compatibility, alias, fallback, or legacy path was introduced |
+
+The first lifecycle run rejected an over-constrained job fixture because qualification expiry scanning legitimately schedules outside a transaction. The second run rejected a resource count that omitted the qualification evidence file. Both expectations were corrected and the full packaged lifecycle was rerun successfully. The broad gate then exposed a diagnostics test fixed to 2026-07-23; its clock was changed to a bounded runtime-relative value so newly written host audits remain inside the query window.
+
+### Verification Commands
+
+```powershell
+$env:SKOLL_PHARMA_OA_E2E='1'
+go test ./internal/plugin -run TestPharmaOAPackagedMasterDataLifecycleE2E -count=1 -v
+go test ./plugins/pharma_oa/... ./internal/plugin -count=1
+go test ./... -count=1
+
+cd plugins/pharma_oa/frontend
+npm test
+npm run build
+
+cd ../../..
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF5-01D passed and closes parent BF5-01. General OA is now a packaged, scope-isolated, restart-safe, auditable plugin capability with a Chinese-first frontend and no host production coupling.
+
+### Impact Review
+
+- Test architecture: the packaged lifecycle now uses stateful host file, job, and workflow services instead of fixed conformance stubs.
+- Workflow evidence: task transfer, delegated approval, terminal instance statuses, and action timelines are checked across the gateway boundary and process restart.
+- Data evidence: all five request kinds and requester collaboration records remain plugin-owned and trusted-scope isolated.
+- Quality: repaired a date-expiring diagnostics assertion found by the full gate; production diagnostics behavior is unchanged.
+- Compatibility: none; only current contracts are accepted.
+
+### Commit
+
+`BF5-01D: close general OA lifecycle acceptance`

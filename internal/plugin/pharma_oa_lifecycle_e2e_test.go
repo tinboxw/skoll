@@ -84,10 +84,13 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 	transactions := &gatewayTransactions{}
 	store := newPharmaLifecycleStore()
 	audit := &pharmaLifecycleAudit{}
+	files := newPharmaLifecycleFiles()
+	jobs := newPharmaLifecycleJobs()
+	workflows := newPharmaLifecycleWorkflows()
 	host := pluginsdk.HostServices{
 		PluginID: "pharma_oa", Transactions: transactions, DataScopes: pharmaLifecycleScopes{}, DataStore: store,
-		Files: gatewayFiles{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Audit: audit,
-		Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+		Files: files, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Audit: audit,
+		Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: workflows, Jobs: jobs,
 	}
 	gateway, err := NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
 		if pluginID != host.PluginID {
@@ -204,15 +207,88 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 	if pharmaLifecycleInt(t, isolatedCustomers, "total") != 0 || pharmaLifecycleInt(t, isolatedEmployees, "total") != 0 {
 		t.Fatalf("cross-scope records leaked: customers=%v employees=%v", isolatedCustomers, isolatedEmployees)
 	}
+
+	leave := pharmaLifecycleCreateOARequest(t, baseURL, actorAToken, "leave", "Annual leave request", map[string]any{
+		"leaveType": "annual", "startDate": "2026-08-03", "endDate": "2026-08-05",
+	})
+	leaveID := pharmaLifecycleString(t, leave, "id")
+	leaveSubmit := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+leaveID+"/submit", actorAToken, "e2e-oa-leave-submit", map[string]any{"version": 1}, http.StatusOK)
+	leaveTaskID := pharmaLifecyclePendingTaskID(t, leaveSubmit)
+	leaveAttachment := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+leaveID+"/attachments", actorAToken, "e2e-oa-leave-attachment", map[string]any{
+		"name": "leave-note.txt", "contentBase64": base64.StdEncoding.EncodeToString([]byte("medical OA lifecycle attachment")), "version": 2,
+	}, http.StatusOK)
+	leaveComment := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+leaveID+"/comments", actorAToken, "e2e-oa-leave-comment", map[string]any{
+		"content": "Please review before the weekly roster closes.", "version": pharmaLifecycleInt(t, pharmaLifecycleMap(t, leaveAttachment, "item"), "version"),
+	}, http.StatusOK)
+	leaveReminder := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+leaveID+"/reminders", actorAToken, "e2e-oa-leave-reminder", map[string]any{
+		"runAt": time.Now().UTC().Add(2 * time.Hour).Format(time.RFC3339), "version": pharmaLifecycleInt(t, pharmaLifecycleMap(t, leaveComment, "item"), "version"),
+	}, http.StatusOK)
+	leaveDelegated := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+leaveID+"/delegate", actorAToken, "e2e-oa-leave-delegate", map[string]any{
+		"taskId": leaveTaskID, "targetId": "actor-a-delegate", "targetName": "Backup approver", "comment": "Delegated during business travel",
+		"version": pharmaLifecycleInt(t, pharmaLifecycleMap(t, leaveReminder, "item"), "version"),
+	}, http.StatusOK)
+	delegatedTaskID := pharmaLifecyclePendingTaskID(t, leaveDelegated)
+	leaveApproved := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+leaveID+"/approve", actorAToken, "e2e-oa-leave-approve", map[string]any{
+		"taskId": delegatedTaskID, "comment": "Roster coverage confirmed", "version": pharmaLifecycleInt(t, pharmaLifecycleMap(t, leaveDelegated, "item"), "version"),
+	}, http.StatusOK)
+	pharmaLifecycleAssertOAStatus(t, leaveApproved, "approved")
+
+	expense := pharmaLifecycleCreateOARequest(t, baseURL, actorAToken, "expense", "Conference travel expense", map[string]any{
+		"amount": 1860.50, "category": "travel",
+	})
+	expenseSubmit := pharmaLifecycleSubmitOARequest(t, baseURL, actorAToken, expense, "expense")
+	expenseRejected := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+pharmaLifecycleString(t, expense, "id")+"/reject", actorAToken, "e2e-oa-expense-reject", map[string]any{
+		"taskId": pharmaLifecyclePendingTaskID(t, expenseSubmit), "comment": "Missing original invoice", "version": 2,
+	}, http.StatusOK)
+	pharmaLifecycleAssertOAStatus(t, expenseRejected, "rejected")
+
+	procurement := pharmaLifecycleCreateOARequest(t, baseURL, actorAToken, "procurement", "Cold-chain data logger purchase", map[string]any{
+		"amount": 9600, "purpose": "Replace calibration-expired warehouse loggers",
+	})
+	pharmaLifecycleSubmitOARequest(t, baseURL, actorAToken, procurement, "procurement")
+	procurementWithdrawn := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+pharmaLifecycleString(t, procurement, "id")+"/withdraw", actorAToken, "e2e-oa-procurement-withdraw", map[string]any{
+		"comment": "Specification requires revision", "version": 2,
+	}, http.StatusOK)
+	pharmaLifecycleAssertOAStatus(t, procurementWithdrawn, "withdrawn")
+
+	contract := pharmaLifecycleCreateOARequest(t, baseURL, actorAToken, "contract", "Regional distribution agreement", map[string]any{
+		"amount": 250000, "counterparty": "East Region Pharmacy Group", "effectiveDate": "2026-09-01",
+	})
+	pharmaLifecycleSubmitOARequest(t, baseURL, actorAToken, contract, "contract")
+	contractCanceled := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+pharmaLifecycleString(t, contract, "id")+"/cancel", actorAToken, "e2e-oa-contract-cancel", map[string]any{
+		"comment": "Counterparty withdrew before approval", "version": 2,
+	}, http.StatusOK)
+	pharmaLifecycleAssertOAStatus(t, contractCanceled, "canceled")
+
+	custom := pharmaLifecycleCreateOARequest(t, baseURL, actorAToken, "custom", "GSP training room booking", map[string]any{
+		"formKey": "training_room_booking",
+	})
+	customSubmit := pharmaLifecycleSubmitOARequest(t, baseURL, actorAToken, custom, "custom")
+	customApproved := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+pharmaLifecycleString(t, custom, "id")+"/approve", actorAToken, "e2e-oa-custom-approve", map[string]any{
+		"taskId": pharmaLifecyclePendingTaskID(t, customSubmit), "comment": "Room and compliance trainer are available", "version": 2,
+	}, http.StatusOK)
+	pharmaLifecycleAssertOAStatus(t, customApproved, "approved")
+
+	isolatedOARequests := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/oa-requests?limit=20", actorBToken, "", nil, http.StatusOK)
+	if pharmaLifecycleInt(t, isolatedOARequests, "total") != 0 {
+		t.Fatalf("cross-scope OA requests leaked: %v", isolatedOARequests)
+	}
+	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/oa-requests/"+leaveID, actorBToken, "", nil, http.StatusNotFound)
+	if files.count() != 2 || jobs.count() != 2 || workflows.instanceCount() != 5 {
+		t.Fatalf("unexpected OA host resources: files=%d jobs=%d workflows=%d", files.count(), jobs.count(), workflows.instanceCount())
+	}
 	for _, action := range []string{
 		"pharma_oa.employee.create", "pharma_oa.customer.create", "pharma_oa.qualification_type.create", "pharma_oa.qualification.create",
 		"pharma_oa.qualification.submit", "pharma_oa.qualification.approve", "pharma_oa.qualification.expiry_scan", "pharma_oa.customer.disable", "pharma_oa.customer.enable",
+		"pharma_oa.oa_request.create", "pharma_oa.oa_request.submit", "pharma_oa.oa_request.attach", "pharma_oa.oa_request.comment",
+		"pharma_oa.oa_request.remind", "pharma_oa.oa_request.delegate", "pharma_oa.oa_request.approve", "pharma_oa.oa_request.reject",
+		"pharma_oa.oa_request.withdraw", "pharma_oa.oa_request.cancel",
 	} {
 		if !audit.hasAction(action) {
 			t.Fatalf("missing audit action %q; actions=%v", action, audit.actions())
 		}
 	}
-	if transactions.commits < 9 || transactions.rollbacks != 0 {
+	if transactions.commits < 28 || transactions.rollbacks != 0 {
 		t.Fatalf("unexpected transaction results: %+v", transactions)
 	}
 
@@ -226,6 +302,9 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		t.Fatalf("disabled service snapshot=%+v exists=%v", snapshot, ok)
 	}
 	if err := equipmentEndpointClosed(baseURL + "/customers"); err != nil {
+		t.Fatal(err)
+	}
+	if err := equipmentEndpointClosed(baseURL + "/oa-requests"); err != nil {
 		t.Fatal(err)
 	}
 	if err := manager.Enable(installed.ID); err != nil {
@@ -245,6 +324,25 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 	restartScan := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/qualifications/expiry-scan", actorAToken, "e2e-expiry-after-restart", map[string]any{}, http.StatusOK)
 	if pharmaLifecycleInt(t, restartScan, "scheduled") != 0 || pharmaLifecycleInt(t, restartScan, "skipped") != 1 {
 		t.Fatalf("restart lost expiry-alert idempotency: %v", restartScan)
+	}
+	restartedOA := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/oa-requests?limit=20", actorAToken, "", nil, http.StatusOK)
+	if pharmaLifecycleInt(t, restartedOA, "total") != 5 {
+		t.Fatalf("restart did not retain all OA requests: %v", restartedOA)
+	}
+	restartedLeave := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/oa-requests/"+leaveID, actorAToken, "", nil, http.StatusOK)
+	restartedLeaveItem := pharmaLifecycleMap(t, restartedLeave, "item")
+	if pharmaLifecycleString(t, restartedLeaveItem, "status") != "approved" ||
+		len(pharmaLifecycleArray(t, restartedLeaveItem, "attachments")) != 1 ||
+		len(pharmaLifecycleArray(t, restartedLeaveItem, "comments")) != 1 {
+		t.Fatalf("restart lost OA collaboration state: %v", restartedLeave)
+	}
+	restartedWorkflow := pharmaLifecycleMap(t, restartedLeave, "workflow")
+	if pharmaLifecycleString(t, restartedWorkflow, "status") != string(pluginsdk.WorkflowInstanceApproved) ||
+		len(pharmaLifecycleArray(t, restartedWorkflow, "timeline")) != 3 {
+		t.Fatalf("restart lost OA workflow timeline: %v", restartedWorkflow)
+	}
+	if files.count() != 2 || jobs.count() != 2 || workflows.instanceCount() != 5 {
+		t.Fatalf("restart changed host-owned OA resources: files=%d jobs=%d workflows=%d", files.count(), jobs.count(), workflows.instanceCount())
 	}
 
 	if err := manager.Disable(installed.ID); err != nil {
@@ -277,6 +375,9 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		t.Fatalf("drop uninstall retained plugin data: %v", err)
 	}
 	if err := equipmentEndpointClosed(baseURL + "/customers"); err != nil {
+		t.Fatal(err)
+	}
+	if err := equipmentEndpointClosed(baseURL + "/oa-requests"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -575,6 +676,415 @@ func pharmaLifecycleTimestampValue(value string) pluginsdk.DataValue {
 	return pluginsdk.DataValue{Type: pluginsdk.DataValueTimestamp, Value: value}
 }
 
+type pharmaLifecycleFiles struct {
+	mu    sync.Mutex
+	items map[string]pluginsdk.FileObject
+}
+
+func newPharmaLifecycleFiles() *pharmaLifecycleFiles {
+	return &pharmaLifecycleFiles{items: make(map[string]pluginsdk.FileObject)}
+}
+
+func (f *pharmaLifecycleFiles) Store(_ context.Context, input pluginsdk.FileWrite) (pluginsdk.FileObject, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	now := time.Now().UTC()
+	id := fmt.Sprintf("file-%d", len(f.items)+1)
+	item := pluginsdk.FileObject{
+		ID: id, Key: input.Key, Name: input.Name, Size: int64(len(input.Content)), MIME: "application/octet-stream",
+		Visibility: input.Visibility, Status: "ready", Metadata: input.Metadata, CreatedAt: now, UpdatedAt: now,
+	}
+	f.items[id] = item
+	return item, nil
+}
+
+func (f *pharmaLifecycleFiles) List(_ context.Context, query pluginsdk.FileQuery) ([]pluginsdk.FileObject, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	items := make([]pluginsdk.FileObject, 0, len(f.items))
+	for _, item := range f.items {
+		if query.Visibility == "" || item.Visibility == query.Visibility {
+			items = append(items, item)
+		}
+	}
+	sort.Slice(items, func(left, right int) bool { return items[left].ID < items[right].ID })
+	if query.Offset >= len(items) {
+		return []pluginsdk.FileObject{}, nil
+	}
+	items = items[query.Offset:]
+	if query.Limit > 0 && len(items) > query.Limit {
+		items = items[:query.Limit]
+	}
+	return items, nil
+}
+
+func (f *pharmaLifecycleFiles) Get(_ context.Context, id string) (pluginsdk.FileObject, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	item, ok := f.items[id]
+	if !ok {
+		return pluginsdk.FileObject{}, errors.New("file not found")
+	}
+	return item, nil
+}
+
+func (*pharmaLifecycleFiles) Download(context.Context, string) (pluginsdk.FileDownload, error) {
+	return pluginsdk.FileDownload{}, errors.New("download is outside this lifecycle acceptance")
+}
+
+func (f *pharmaLifecycleFiles) Delete(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.items, id)
+	return nil
+}
+
+func (f *pharmaLifecycleFiles) count() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.items)
+}
+
+type pharmaLifecycleJobs struct {
+	mu            sync.Mutex
+	items         map[string]pluginsdk.Job
+	byIdempotency map[string]string
+}
+
+func newPharmaLifecycleJobs() *pharmaLifecycleJobs {
+	return &pharmaLifecycleJobs{items: make(map[string]pluginsdk.Job), byIdempotency: make(map[string]string)}
+}
+
+func (j *pharmaLifecycleJobs) Schedule(_ context.Context, input pluginsdk.JobScheduleInput) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if id, exists := j.byIdempotency[input.IdempotencyKey]; exists {
+		return j.items[id], nil
+	}
+	now := time.Now().UTC()
+	item := pluginsdk.Job{
+		ID: input.ID, Kind: input.Kind, IdempotencyKey: input.IdempotencyKey, Payload: input.Payload,
+		Status: pluginsdk.JobStatusScheduled, RunAt: input.RunAt, MaxAttempts: input.MaxAttempts, CreatedAt: now, UpdatedAt: now,
+	}
+	j.items[item.ID] = item
+	j.byIdempotency[item.IdempotencyKey] = item.ID
+	return item, nil
+}
+
+func (*pharmaLifecycleJobs) LeaseDue(context.Context, pluginsdk.JobLeaseInput) ([]pluginsdk.Job, error) {
+	return nil, nil
+}
+
+func (j *pharmaLifecycleJobs) Complete(_ context.Context, input pluginsdk.JobCompleteInput) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	item, ok := j.items[input.JobID]
+	if !ok {
+		return pluginsdk.Job{}, errors.New("job not found")
+	}
+	now := time.Now().UTC()
+	item.Status, item.Result, item.UpdatedAt, item.CompletedAt = pluginsdk.JobStatusSucceeded, input.Result, now, &now
+	j.items[item.ID] = item
+	return item, nil
+}
+
+func (j *pharmaLifecycleJobs) Fail(_ context.Context, input pluginsdk.JobFailInput) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	item, ok := j.items[input.JobID]
+	if !ok {
+		return pluginsdk.Job{}, errors.New("job not found")
+	}
+	item.Status, item.LastError, item.UpdatedAt = pluginsdk.JobStatusRetryWait, input.Error, time.Now().UTC()
+	j.items[item.ID] = item
+	return item, nil
+}
+
+func (j *pharmaLifecycleJobs) Get(_ context.Context, id string) (pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	item, ok := j.items[id]
+	if !ok {
+		return pluginsdk.Job{}, errors.New("job not found")
+	}
+	return item, nil
+}
+
+func (j *pharmaLifecycleJobs) List(_ context.Context, query pluginsdk.JobQuery) ([]pluginsdk.Job, error) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	items := make([]pluginsdk.Job, 0, len(j.items))
+	for _, item := range j.items {
+		if query.Kind != "" && item.Kind != query.Kind || query.Status != "" && item.Status != query.Status {
+			continue
+		}
+		items = append(items, item)
+	}
+	sort.Slice(items, func(left, right int) bool { return items[left].ID < items[right].ID })
+	if query.Limit > 0 && len(items) > query.Limit {
+		items = items[:query.Limit]
+	}
+	return items, nil
+}
+
+func (j *pharmaLifecycleJobs) count() int {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	return len(j.items)
+}
+
+type pharmaLifecycleWorkflows struct {
+	mu          sync.Mutex
+	definitions map[string]pluginsdk.WorkflowDefinition
+	instances   map[string]pluginsdk.WorkflowInstance
+}
+
+func newPharmaLifecycleWorkflows() *pharmaLifecycleWorkflows {
+	return &pharmaLifecycleWorkflows{
+		definitions: make(map[string]pluginsdk.WorkflowDefinition),
+		instances:   make(map[string]pluginsdk.WorkflowInstance),
+	}
+}
+
+func (w *pharmaLifecycleWorkflows) CreateDefinition(ctx context.Context, input pluginsdk.WorkflowDefinitionInput) (pluginsdk.WorkflowDefinition, error) {
+	if err := pharmaLifecycleRequireTransaction(ctx); err != nil {
+		return pluginsdk.WorkflowDefinition{}, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if item, exists := w.definitions[input.ID]; exists {
+		return item, nil
+	}
+	now := time.Now().UTC()
+	item := pluginsdk.WorkflowDefinition{
+		ID: input.ID, Key: input.Key, Name: input.Name, Version: input.Version, Status: pluginsdk.WorkflowDefinitionDraft,
+		Nodes: input.Nodes, Transitions: input.Transitions, CreatedAt: now, UpdatedAt: now,
+	}
+	w.definitions[item.ID] = item
+	return item, nil
+}
+
+func (w *pharmaLifecycleWorkflows) GetDefinition(_ context.Context, id string) (pluginsdk.WorkflowDefinition, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.definitions[id]
+	if !exists {
+		return pluginsdk.WorkflowDefinition{}, errors.New("workflow definition not found")
+	}
+	return item, nil
+}
+
+func (w *pharmaLifecycleWorkflows) PublishDefinition(ctx context.Context, id string) (pluginsdk.WorkflowDefinition, error) {
+	if err := pharmaLifecycleRequireTransaction(ctx); err != nil {
+		return pluginsdk.WorkflowDefinition{}, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.definitions[id]
+	if !exists {
+		return pluginsdk.WorkflowDefinition{}, errors.New("workflow definition not found")
+	}
+	item.Status, item.UpdatedAt = pluginsdk.WorkflowDefinitionPublished, time.Now().UTC()
+	w.definitions[id] = item
+	return item, nil
+}
+
+func (w *pharmaLifecycleWorkflows) Start(ctx context.Context, input pluginsdk.WorkflowStartInput) (pluginsdk.WorkflowInstance, error) {
+	if err := pharmaLifecycleRequireTransaction(ctx); err != nil {
+		return pluginsdk.WorkflowInstance{}, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if item, exists := w.instances[input.ID]; exists {
+		return item, nil
+	}
+	definition, exists := w.definitions[input.DefinitionID]
+	if !exists || definition.Status != pluginsdk.WorkflowDefinitionPublished {
+		return pluginsdk.WorkflowInstance{}, errors.New("published workflow definition not found")
+	}
+	var approval pluginsdk.WorkflowNode
+	for _, node := range definition.Nodes {
+		if node.Type == pluginsdk.WorkflowNodeApproval {
+			approval = node
+			break
+		}
+	}
+	if len(approval.AssigneeIDs) != 1 {
+		return pluginsdk.WorkflowInstance{}, errors.New("one workflow approver is required")
+	}
+	actor := pharmaLifecycleWorkflowActor(ctx)
+	now := time.Now().UTC()
+	item := pluginsdk.WorkflowInstance{
+		ID: input.ID, DefinitionID: input.DefinitionID, DefinitionKey: definition.Key, BusinessType: input.BusinessType,
+		BusinessID: input.BusinessID, Title: input.Title, Status: pluginsdk.WorkflowInstanceRunning, Starter: actor,
+		CurrentNode: approval.ID, CreatedAt: now, UpdatedAt: now,
+		Tasks: []pluginsdk.WorkflowTask{{
+			ID: input.ID + "-task", InstanceID: input.ID, NodeID: approval.ID,
+			Assignee: pluginsdk.WorkflowActor{ID: approval.AssigneeIDs[0], Name: approval.AssigneeIDs[0]}, Status: pluginsdk.WorkflowTaskPending, CreatedAt: now,
+		}},
+		Timeline: []pluginsdk.WorkflowAction{{
+			ID: input.ID + "-start", Type: pluginsdk.WorkflowActionStart, InstanceID: input.ID, NodeID: "start", Actor: actor, CreatedAt: now,
+		}},
+	}
+	w.instances[item.ID] = item
+	return item, nil
+}
+
+func (w *pharmaLifecycleWorkflows) GetInstance(_ context.Context, id string) (pluginsdk.WorkflowInstance, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.instances[id]
+	if !exists {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	return item, nil
+}
+
+func (w *pharmaLifecycleWorkflows) Approve(ctx context.Context, input pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.taskAction(ctx, input, true)
+}
+
+func (w *pharmaLifecycleWorkflows) Reject(ctx context.Context, input pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.taskAction(ctx, input, false)
+}
+
+func (w *pharmaLifecycleWorkflows) taskAction(ctx context.Context, input pluginsdk.WorkflowTaskActionInput, approve bool) (pluginsdk.WorkflowInstance, error) {
+	if err := pharmaLifecycleRequireTransaction(ctx); err != nil {
+		return pluginsdk.WorkflowInstance{}, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.instances[input.InstanceID]
+	if !exists {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	now := time.Now().UTC()
+	found := false
+	for index := range item.Tasks {
+		if item.Tasks[index].ID == input.TaskID && item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
+			found = true
+			item.Tasks[index].CompletedAt = &now
+			if approve {
+				item.Tasks[index].Status = pluginsdk.WorkflowTaskApproved
+			} else {
+				item.Tasks[index].Status = pluginsdk.WorkflowTaskRejected
+			}
+			break
+		}
+	}
+	if !found {
+		return pluginsdk.WorkflowInstance{}, errors.New("pending workflow task not found")
+	}
+	action := pluginsdk.WorkflowActionReject
+	item.Status = pluginsdk.WorkflowInstanceRejected
+	if approve {
+		action, item.Status = pluginsdk.WorkflowActionApprove, pluginsdk.WorkflowInstanceApproved
+	}
+	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{
+		ID: fmt.Sprintf("%s-action-%d", item.ID, len(item.Timeline)+1), Type: action, InstanceID: item.ID,
+		TaskID: input.TaskID, NodeID: item.CurrentNode, Actor: pharmaLifecycleWorkflowActor(ctx), Comment: input.Comment, CreatedAt: now,
+	})
+	item.UpdatedAt = now
+	w.instances[item.ID] = item
+	return item, nil
+}
+
+func (w *pharmaLifecycleWorkflows) Withdraw(ctx context.Context, input pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.instanceAction(ctx, input, pluginsdk.WorkflowInstanceWithdrawn, pluginsdk.WorkflowActionWithdraw)
+}
+
+func (w *pharmaLifecycleWorkflows) Cancel(ctx context.Context, input pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
+	return w.instanceAction(ctx, input, pluginsdk.WorkflowInstanceCanceled, pluginsdk.WorkflowActionCancel)
+}
+
+func (w *pharmaLifecycleWorkflows) instanceAction(ctx context.Context, input pluginsdk.WorkflowInstanceActionInput, status pluginsdk.WorkflowInstanceStatus, action pluginsdk.WorkflowActionType) (pluginsdk.WorkflowInstance, error) {
+	if err := pharmaLifecycleRequireTransaction(ctx); err != nil {
+		return pluginsdk.WorkflowInstance{}, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.instances[input.InstanceID]
+	if !exists {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	now := time.Now().UTC()
+	for index := range item.Tasks {
+		if item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
+			item.Tasks[index].Status = pluginsdk.WorkflowTaskCanceled
+			item.Tasks[index].CompletedAt = &now
+		}
+	}
+	item.Status, item.UpdatedAt = status, now
+	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{
+		ID: fmt.Sprintf("%s-action-%d", item.ID, len(item.Timeline)+1), Type: action, InstanceID: item.ID,
+		Actor: pharmaLifecycleWorkflowActor(ctx), Comment: input.Comment, CreatedAt: now,
+	})
+	w.instances[item.ID] = item
+	return item, nil
+}
+
+func (w *pharmaLifecycleWorkflows) Transfer(ctx context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+	if err := pharmaLifecycleRequireTransaction(ctx); err != nil {
+		return pluginsdk.WorkflowInstance{}, err
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	item, exists := w.instances[input.InstanceID]
+	if !exists {
+		return pluginsdk.WorkflowInstance{}, errors.New("workflow instance not found")
+	}
+	now := time.Now().UTC()
+	found := false
+	for index := range item.Tasks {
+		if item.Tasks[index].ID == input.TaskID && item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
+			found = true
+			item.Tasks[index].Status = pluginsdk.WorkflowTaskTransferred
+			item.Tasks[index].CompletedAt = &now
+			break
+		}
+	}
+	if !found {
+		return pluginsdk.WorkflowInstance{}, errors.New("pending workflow task not found")
+	}
+	item.Tasks = append(item.Tasks, pluginsdk.WorkflowTask{
+		ID: input.TaskID + "-delegated", InstanceID: item.ID, NodeID: item.CurrentNode,
+		Assignee: input.Target, Status: pluginsdk.WorkflowTaskPending, CreatedAt: now,
+	})
+	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{
+		ID: fmt.Sprintf("%s-action-%d", item.ID, len(item.Timeline)+1), Type: pluginsdk.WorkflowActionTransfer,
+		InstanceID: item.ID, TaskID: input.TaskID, NodeID: item.CurrentNode, Actor: pharmaLifecycleWorkflowActor(ctx),
+		Target: input.Target, Comment: input.Comment, CreatedAt: now,
+	})
+	item.UpdatedAt = now
+	w.instances[item.ID] = item
+	return item, nil
+}
+
+func (*pharmaLifecycleWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+	return pluginsdk.WorkflowInstance{}, errors.New("workflow copy is outside this lifecycle acceptance")
+}
+
+func (w *pharmaLifecycleWorkflows) instanceCount() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.instances)
+}
+
+func pharmaLifecycleRequireTransaction(ctx context.Context) error {
+	if ctx.Value(gatewayTxMarker{}) != true {
+		return errors.New("workflow mutation escaped transaction")
+	}
+	return nil
+}
+
+func pharmaLifecycleWorkflowActor(ctx context.Context) pluginsdk.WorkflowActor {
+	claims, ok := security.JWTClaimsFromContext(ctx)
+	if !ok {
+		return pluginsdk.WorkflowActor{}
+	}
+	return pluginsdk.WorkflowActor{ID: claims.Subject, Name: claims.Subject}
+}
+
 type pharmaLifecycleAudit struct {
 	mu      sync.Mutex
 	entries []pluginsdk.AuditEntry
@@ -679,6 +1189,57 @@ func pharmaLifecycleInt(t *testing.T, values map[string]any, key string) int64 {
 		t.Fatalf("%q is not a number: %v", key, values)
 	}
 	return int64(value)
+}
+
+func pharmaLifecycleArray(t *testing.T, values map[string]any, key string) []any {
+	t.Helper()
+	value, ok := values[key].([]any)
+	if !ok {
+		t.Fatalf("%q is not an array: %v", key, values)
+	}
+	return value
+}
+
+func pharmaLifecycleCreateOARequest(t *testing.T, baseURL, token, requestType, title string, formData map[string]any) map[string]any {
+	t.Helper()
+	response := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests", token, "e2e-oa-"+requestType+"-create", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "requestType": requestType, "title": title,
+		"description": "Packaged lifecycle acceptance request", "formData": formData, "approverId": "actor-a-approver", "approverName": "Primary approver",
+	}, http.StatusCreated)
+	item := pharmaLifecycleMap(t, response, "item")
+	if pharmaLifecycleString(t, item, "requestType") != requestType || pharmaLifecycleString(t, item, "status") != "draft" || pharmaLifecycleInt(t, item, "version") != 1 {
+		t.Fatalf("unexpected created %s OA request: %v", requestType, response)
+	}
+	return item
+}
+
+func pharmaLifecycleSubmitOARequest(t *testing.T, baseURL, token string, item map[string]any, requestType string) map[string]any {
+	t.Helper()
+	return pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/oa-requests/"+pharmaLifecycleString(t, item, "id")+"/submit", token, "e2e-oa-"+requestType+"-submit", map[string]any{
+		"version": pharmaLifecycleInt(t, item, "version"),
+	}, http.StatusOK)
+}
+
+func pharmaLifecyclePendingTaskID(t *testing.T, response map[string]any) string {
+	t.Helper()
+	workflow := pharmaLifecycleMap(t, response, "workflow")
+	for _, raw := range pharmaLifecycleArray(t, workflow, "tasks") {
+		task, ok := raw.(map[string]any)
+		if ok && task["status"] == string(pluginsdk.WorkflowTaskPending) {
+			return pharmaLifecycleString(t, task, "id")
+		}
+	}
+	t.Fatalf("workflow has no pending task: %v", workflow)
+	return ""
+}
+
+func pharmaLifecycleAssertOAStatus(t *testing.T, response map[string]any, want string) {
+	t.Helper()
+	item := pharmaLifecycleMap(t, response, "item")
+	workflow := pharmaLifecycleMap(t, response, "workflow")
+	if pharmaLifecycleString(t, item, "status") != want || pharmaLifecycleString(t, workflow, "status") != want {
+		t.Fatalf("OA request and workflow status mismatch, want=%s response=%v", want, response)
+	}
 }
 
 func signPharmaLifecycleToken(t *testing.T, secret, subject, organization string) string {
