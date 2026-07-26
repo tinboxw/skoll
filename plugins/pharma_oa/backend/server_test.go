@@ -53,6 +53,7 @@ type testDataStore struct {
 	idempotency map[string]string
 	scope       employeeScope
 	mutations   []pluginsdk.DataMutation
+	failTable   string
 }
 
 func (s *testDataStore) Query(_ context.Context, query pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
@@ -110,6 +111,9 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.failTable == mutation.Table {
+		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, mutation.Table, "injected mutation failure", true)
+	}
 	if id, ok := s.idempotency[mutation.IdempotencyKey]; ok {
 		record := testProjectRecord(s.records[id], mutation.Returning)
 		return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
@@ -539,7 +543,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.9.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.10.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
@@ -1130,6 +1134,187 @@ func TestPurchaseRequestApprovalCreatesOneGovernedOrder(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPurchaseInboundPartialAndFinalReceiving(t *testing.T) {
+	runtime := newTestRuntime(t)
+	order := createApprovedPurchaseOrder(t, runtime, "2.5")
+	orderID := testString(t, order, "id")
+	orderLine := order["lines"].([]any)[0].(map[string]any)
+	orderLineID := testString(t, orderLine, "id")
+	base := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": orderID,
+		"warehouseId": "warehouse-a", "areaId": "qualified", "locationId": "A-01-01",
+		"orderVersion": 1,
+		"lines": []map[string]any{{
+			"orderLineId": orderLineID, "quantity": "1.25", "batchNo": "LOT-20260726-A",
+			"productionDate": "2026-06-01", "expiresAt": "2028-06-01",
+		}},
+		"attachments": []map[string]any{{
+			"name": "delivery-note.pdf", "contentBase64": base64.StdEncoding.EncodeToString([]byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF")),
+		}},
+	}
+
+	baseFileCount, baseStores, baseDeletes := len(runtime.files.items), runtime.files.stores, runtime.files.deletes
+	runtime.store.failTable = purchaseOrderTable
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", base, "inbound-partial-1", true, http.StatusServiceUnavailable)
+	runtime.store.failTable = ""
+	if len(runtime.files.items) != baseFileCount || runtime.files.stores != baseStores+1 || runtime.files.deletes != baseDeletes+1 {
+		t.Fatalf("failed inbound did not compensate owned files: files=%v deletes=%d", runtime.files.items, runtime.files.deletes)
+	}
+	unchanged := testMap(t, testRequest(t, runtime.handler, http.MethodGet, apiBase+"/purchase-orders/"+orderID, nil, "", true, http.StatusOK), "item")
+	if testInt64(t, unchanged, "version") != 1 || testString(t, unchanged, "status") != "open" {
+		t.Fatalf("failed inbound mutated the order: %v", unchanged)
+	}
+
+	partial := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", base, "inbound-partial-1", true, http.StatusCreated)
+	partialItem := testMap(t, partial, "item")
+	partialOrder := testMap(t, partial, "order")
+	if testString(t, partialItem, "number") != "PI-000001" || testString(t, partialItem, "status") != "completed" ||
+		testString(t, partialOrder, "status") != "partial" || testInt64(t, partialOrder, "version") != 2 ||
+		testString(t, partialOrder["lines"].([]any)[0].(map[string]any), "receivedQuantity") != "1.25" {
+		t.Fatalf("partial receiving is inconsistent: %v", partial)
+	}
+	attachment := partialItem["attachments"].([]any)[0].(map[string]any)
+	file := runtime.files.items[testString(t, attachment, "fileId")]
+	if file.Visibility != pluginsdk.FileVisibilityPrivate || file.Metadata["purchaseInboundId"] != testString(t, partialItem, "id") {
+		t.Fatalf("inbound attachment ownership is incomplete: %+v", file)
+	}
+	duplicate := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", base, "inbound-partial-1", true, http.StatusOK)
+	if duplicate["duplicate"] != true || runtime.files.stores != baseStores+2 || runtime.numbers.sequences["purchase_inbound"] != 1 {
+		t.Fatalf("inbound idempotency failed: response=%v stores=%d sequences=%v", duplicate, runtime.files.stores, runtime.numbers.sequences)
+	}
+
+	over := cloneInboundBody(base)
+	over["orderVersion"] = 2
+	over["attachments"] = []map[string]any{}
+	over["lines"] = []map[string]any{{"orderLineId": orderLineID, "quantity": "2", "batchNo": "LOT-OVER", "productionDate": "2026-06-01", "expiresAt": "2028-06-01"}}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", over, "inbound-over-1", true, http.StatusConflict)
+
+	invalidLot := cloneInboundBody(over)
+	invalidLot["lines"] = []map[string]any{{"orderLineId": orderLineID, "quantity": "1.25", "batchNo": "LOT-BAD", "productionDate": "2028-06-01", "expiresAt": "2027-06-01"}}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", invalidLot, "inbound-invalid-lot-1", true, http.StatusBadRequest)
+	stale := cloneInboundBody(over)
+	stale["orderVersion"] = 1
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", stale, "inbound-stale-1", true, http.StatusConflict)
+
+	finalBody := cloneInboundBody(over)
+	finalBody["lines"] = []map[string]any{{"orderLineId": orderLineID, "quantity": "1.25", "batchNo": "LOT-20260726-B", "productionDate": "2026-06-02", "expiresAt": "2028-06-02"}}
+	final := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", finalBody, "inbound-final-1", true, http.StatusCreated)
+	finalOrder := testMap(t, final, "order")
+	if testString(t, finalOrder, "status") != "received" || testInt64(t, finalOrder, "version") != 3 ||
+		testString(t, finalOrder["lines"].([]any)[0].(map[string]any), "receivedQuantity") != "2.5" {
+		t.Fatalf("final receiving is inconsistent: %v", final)
+	}
+	listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/purchase-inbounds?purchaseOrderId="+orderID, nil, "", true, http.StatusOK)
+	if testInt64(t, listed, "total") != 2 {
+		t.Fatalf("inbound list did not retain both facts: %v", listed)
+	}
+
+	restarted, err := newHandler(pluginsdk.HostServices{
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store,
+		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restartedList := testRequest(t, restarted, http.MethodGet, apiBase+"/purchase-inbounds?purchaseOrderId="+orderID, nil, "", true, http.StatusOK)
+	if testInt64(t, restartedList, "total") != 2 {
+		t.Fatalf("restart lost inbound facts: %v", restartedList)
+	}
+
+	crossScope := employeeScope{TenantID: "tenant-a", OrganizationID: "org-b", OwnerID: "actor-b"}
+	crossPredicate, err := pluginsdk.NewScopePredicate(pluginsdk.TrustedScope{
+		SubjectID: crossScope.OwnerID, TenantIDs: []string{crossScope.TenantID},
+		OrganizationIDs: []string{crossScope.OrganizationID}, OwnerIDs: []string{crossScope.OwnerID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime.store.scope = crossScope
+	crossHandler, err := newHandler(pluginsdk.HostServices{
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store,
+		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossList := testRequest(t, crossHandler, http.MethodGet, apiBase+"/purchase-inbounds", nil, "", true, http.StatusOK)
+	if testInt64(t, crossList, "total") != 0 {
+		t.Fatalf("cross-scope inbound list leaked facts: %v", crossList)
+	}
+	testRequest(t, crossHandler, http.MethodGet, apiBase+"/purchase-inbounds/"+testString(t, partialItem, "id"), nil, "", true, http.StatusNotFound)
+}
+
+func TestPurchaseInboundConcurrentReceiptAllowsOneWinner(t *testing.T) {
+	runtime := newTestRuntime(t)
+	order := createApprovedPurchaseOrder(t, runtime, "2")
+	lineID := testString(t, order["lines"].([]any)[0].(map[string]any), "id")
+	body := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": testString(t, order, "id"),
+		"warehouseId": "warehouse-a", "areaId": "qualified", "locationId": "A-01-01", "orderVersion": 1,
+		"lines":       []map[string]any{{"orderLineId": lineID, "quantity": "2", "batchNo": "LOT-CONCURRENT", "productionDate": "2026-06-01", "expiresAt": "2028-06-01"}},
+		"attachments": []map[string]any{},
+	}
+	statuses := make(chan int, 2)
+	var wait sync.WaitGroup
+	for index := 0; index < 2; index++ {
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			statuses <- rawTestRequestStatus(runtime.handler, http.MethodPost, apiBase+"/purchase-inbounds", body, fmt.Sprintf("inbound-concurrent-%d", index))
+		}(index)
+	}
+	wait.Wait()
+	close(statuses)
+	counts := map[int]int{}
+	for status := range statuses {
+		counts[status]++
+	}
+	if counts[http.StatusCreated] != 1 || counts[http.StatusConflict] != 1 {
+		t.Fatalf("concurrent receiving statuses=%v want one created and one conflict", counts)
+	}
+	listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/purchase-inbounds", nil, "", true, http.StatusOK)
+	if testInt64(t, listed, "total") != 1 {
+		t.Fatalf("concurrent receiving retained duplicate facts: %v", listed)
+	}
+}
+
+func rawTestRequestStatus(handler http.Handler, method, path string, body any, requestKey string) int {
+	raw, _ := json.Marshal(body)
+	request := httptest.NewRequest(method, path, bytes.NewReader(raw))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer user-token")
+	request.Header.Set("Idempotency-Key", requestKey)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	return recorder.Code
+}
+
+func createApprovedPurchaseOrder(t *testing.T, runtime testRuntime, quantity string) map[string]any {
+	t.Helper()
+	supplierID, productID, manufacturerID := createPurchaseMasterData(t, runtime)
+	approvePurchaseQualification(t, runtime, "supplier", supplierID, "purchase", "inbound-supplier")
+	approvePurchaseQualification(t, runtime, "product", productID, "purchase", "inbound-product")
+	approvePurchaseQualification(t, runtime, "manufacturer", manufacturerID, "supply", "inbound-manufacturer")
+	created := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "supplierId": supplierID,
+		"reason": "Inbound acceptance order", "currency": "CNY", "approverId": "manager-1", "approverName": "Purchase manager",
+		"lines": []map[string]any{{"productId": productID, "quantity": quantity, "unitPrice": "10.20"}},
+	}, "inbound-purchase-create", true, http.StatusCreated)
+	item := testMap(t, created, "item")
+	approved := testRequest(t, runtime.handler, http.MethodPost, apiBase+"/purchase-requests/"+testString(t, item, "id")+"/approve", map[string]any{
+		"taskId": testPendingWorkflowTaskID(t, testMap(t, created, "workflow")), "comment": "approved for receiving", "version": 1,
+	}, "inbound-purchase-approve", true, http.StatusOK)
+	return testMap(t, approved, "order")
+}
+
+func cloneInboundBody(input map[string]any) map[string]any {
+	out := make(map[string]any, len(input))
+	for key, value := range input {
+		out[key] = value
+	}
+	return out
 }
 
 func createPurchaseMasterData(t *testing.T, runtime testRuntime) (string, string, string) {

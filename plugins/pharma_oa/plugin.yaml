@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.9.0
+version: 0.10.0
 api_version: v1
-migration_version: 0.9.0
+migration_version: 0.10.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: separated
 level: app
@@ -1599,7 +1599,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.9.0
+  migration_version: 0.10.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1659,6 +1659,11 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, number, purchase_request_id, supplier_id, supplier_code, supplier_name, currency, lines, total_amount, status, approved_by, approved_at, last_operation_key, version, created_at, updated_at
       indexes: unique uq_pharma_oa_purchase_orders_number(tenant_id,number); unique uq_pharma_oa_purchase_orders_request(tenant_id,purchase_request_id); idx_pharma_oa_purchase_orders_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_purchase_orders_supplier(tenant_id,supplier_id,updated_at)
+    - name: pharma_oa_purchase_inbounds
+      description: Trusted-scope immutable receiving facts with lot dates, owned attachments, and order quantity reconciliation.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, number, purchase_order_id, purchase_order_number, warehouse_id, area_id, location_id, lines, attachments, status, received_by, received_at, last_operation_key, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_purchase_inbounds_number(tenant_id,number); unique uq_pharma_oa_purchase_inbounds_operation(tenant_id,last_operation_key); idx_pharma_oa_purchase_inbounds_scope(tenant_id,organization_id,owner_id,received_at); idx_pharma_oa_purchase_inbounds_order(tenant_id,purchase_order_id,received_at)
 
 events:
   subscriptions:

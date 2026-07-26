@@ -244,3 +244,24 @@ tables:
       - {fields: [purchase_request_id], unique: true}
       - {fields: [status, updated_at]}
       - {fields: [supplier_id, updated_at]}
+  - name: purchase_inbounds
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: number, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: purchase_order_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: purchase_order_number, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: warehouse_id, type: string, mutable: true, filterable: true}
+      - {name: area_id, type: string, mutable: true, filterable: true}
+      - {name: location_id, type: string, mutable: true, filterable: true}
+      - {name: lines, type: json, mutable: true}
+      - {name: attachments, type: json, mutable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: received_by, type: string, mutable: true, filterable: true}
+      - {name: received_at, type: timestamp, mutable: true, filterable: true, sortable: true}
+      - {name: last_operation_key, type: string, mutable: true, filterable: true}
+    indexes:
+      - {fields: [number], unique: true}
+      - {fields: [last_operation_key], unique: true}
+      - {fields: [purchase_order_id, received_at]}
+      - {fields: [received_at]}

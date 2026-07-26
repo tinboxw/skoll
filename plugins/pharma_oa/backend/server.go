@@ -121,6 +121,9 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("POST "+apiBase+"/purchase-requests/{id}/reject", s.rejectPurchaseRequest)
 	mux.HandleFunc("GET "+apiBase+"/purchase-orders", s.listPurchaseOrders)
 	mux.HandleFunc("GET "+apiBase+"/purchase-orders/{id}", s.getPurchaseOrderHandler)
+	mux.HandleFunc("GET "+apiBase+"/purchase-inbounds", s.listPurchaseInbounds)
+	mux.HandleFunc("POST "+apiBase+"/purchase-inbounds", s.createPurchaseInbound)
+	mux.HandleFunc("GET "+apiBase+"/purchase-inbounds/{id}", s.getPurchaseInboundHandler)
 	return mux, nil
 }
 
@@ -130,7 +133,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.9.0",
+		PluginID: pluginID, ContractVersion: "0.10.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},

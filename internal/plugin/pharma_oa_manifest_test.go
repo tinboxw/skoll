@@ -12,7 +12,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if info.ID != "pharma_oa" || info.AppID != info.ID || info.Level != LevelApp || info.UIMode != UIModeSeparated {
 		t.Fatalf("unexpected Pharma OA placement: %+v", info)
 	}
-	if info.Version != "0.9.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
+	if info.Version != "0.10.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
 		t.Fatalf("unexpected current contract version: version=%q api=%q migration=%q", info.Version, info.APIVersion, info.MigrationVersion)
 	}
 	if info.ServiceBaseURL != "http://127.0.0.1:18093" || info.ServiceHealthURL != "http://127.0.0.1:18093/health" {
@@ -27,7 +27,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 3 {
 		t.Fatalf("unexpected config schema: %+v", info.ConfigSchema)
 	}
-	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 11 {
+	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 12 {
 		t.Fatalf("unexpected plugin data lifecycle: %+v", info.DataManifest)
 	}
 	for _, table := range info.DataManifest.Tables {

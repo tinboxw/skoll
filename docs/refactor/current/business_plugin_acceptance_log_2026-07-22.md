@@ -1644,3 +1644,71 @@ Result: BF5-03A passed. The independent medical OA plugin now owns a scope-isola
 ### Commit
 
 `BF5-03A: build governed purchase approval core`
+
+## BF5-03B Build Partial Inbound Receiving And Batch Facts
+
+- Date: 2026-07-26
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Implement current partial and final purchase receiving, exact received quantities, batch production and expiry facts, private evidence attachments, order receiving state, migration 008, and plugin contract `0.10.0`.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Partial and final receiving | Pass | An approved order accepts a partial receipt and a later final receipt; exact decimal totals advance from `1.25/2.5` to `2.5/2.5`, while order state advances from `partial` to `received` |
+| Batch facts | Pass | Each receipt line preserves the order-line reference, product snapshot, exact quantity, batch number, production date, expiry date, receiver, location, and receipt time |
+| Date and quantity validation | Pass | Missing lines, duplicate line-and-batch pairs, future production dates, non-increasing or already expired expiry dates, and over-receipt fail before persistence |
+| Optimistic concurrency | Pass | Two concurrent full receipts using the same order version produce exactly one `201` winner and one `409` conflict under the race detector |
+| Transaction boundary | Pass | Receipt number allocation, order quantity/status mutation, receipt insertion, and high-risk audit execute through one public host gateway transaction |
+| Idempotency | Pass | Repeating a create request with the same current idempotency key returns the original receipt without changing order totals |
+| Private evidence | Pass | Receipt evidence is written as private plugin-owned files with scoped metadata; an injected order-mutation failure deletes newly written files and leaves the order and receipt store unchanged |
+| Scope isolation | Pass | Another organization lists zero receipts and receives `404` for direct receipt reads; tenant and organization scope are checked independently of the receiving employee |
+| Restart persistence | Pass | Rebuilding the handler over the same store retains both receipt facts and the terminal received order state |
+| DataStore and migration | Pass | `purchase_inbounds` is declared with typed fields and indexes; migration 008 applies, reverses, installs in the eight-record host ledger, and uninstalls cleanly |
+| Package boundary | Pass | Manifest, scripts, frontend package, lifecycle assertions, and acceptance map use only `0.10.0`; package verification produced SHA-256 `7c9608a5927fc66f4d105d2f0056300b11601c9e81a4ae429f43d6b72e5a934a` |
+| Regression gate | Pass | Focused race tests, all plugin tests, focused Go vet, full repository Go tests, five frontend files with 13 tests, production build, bundle budgets, and packaged host lifecycle pass |
+| Current-only rule | Pass | Only the current `0.10.0` contract, routes, schema, and public host services are present; no compatibility route, fallback, alias, dual write, or legacy migration path was added |
+
+The first compensation review incorrectly counted three pre-existing qualification evidence files as leaked inbound files. The assertion was corrected to compare the file-store delta around the failed receipt. The next review exposed failure injection in the query path instead of the mutation path; the fixture was repaired, and the focused race, plugin, packaged lifecycle, and full repository gates were rerun before acceptance.
+
+Receipt facts are append-only through the exposed plugin API: this task does not expose update or delete routes. Database-level immutable inventory movement and derived stock balances are intentionally not claimed here; those remain BF5-05.
+
+### Verification Commands
+
+```powershell
+go test -race ./plugins/pharma_oa/backend -run 'TestPurchaseInbound(PartialAndFinalReceiving|ConcurrentReceiptAllowsOneWinner)$' -count=1 -v
+go test ./plugins/pharma_oa/... -count=1
+go vet ./plugins/pharma_oa/... ./internal/plugin/...
+
+$env:SKOLL_PHARMA_OA_E2E='1'
+go test ./internal/plugin -run 'TestPharmaOA(PackagedMasterDataLifecycleE2E|PluginManifestCoversCurrentIndustryBoundary|PluginLifecycleUsesManifestAsSourceOfTruth)$' -count=1 -v
+go test ./... -count=1
+
+cd plugins/pharma_oa/frontend
+npm test
+npm run build
+
+cd ../../..
+./plugins/pharma_oa/plugin.ps1 -Action package -DistDir $env:TEMP/skoll-bf5-03b-package
+./plugins/pharma_oa/plugin.ps1 -Action verify -DistDir $env:TEMP/skoll-bf5-03b-package
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF5-03B passed. The independent medical OA plugin now supports exact, scope-isolated, qualification-backed purchase receiving with batch facts and private evidence through public host services.
+
+### Impact Review
+
+- Backend: added purchase inbound list/create/detail routes, exact receipt accumulation, optimistic order transitions, idempotent duplicate handling, and transactional audit.
+- Files: inbound evidence uses only the public private-file contract and compensates every newly written object when the database transaction fails.
+- Contracts: advanced the only current plugin version to `0.10.0`, added migration 008, and declared the inbound DataStore schema.
+- Concurrency: receipt writers contend on the order version; only one stale-version competitor can commit.
+- Inventory boundary: receipt facts and order state are complete for this task; warehouse masters, balances, and immutable movement ledger remain BF5-05.
+- Frontend: no purchasing or receiving workspace is claimed here; BF5-03C owns that user experience.
+- Compatibility: none; only the current plugin contract is implemented and accepted.
+
+### Commit
+
+`BF5-03B: build partial inbound receiving facts`
