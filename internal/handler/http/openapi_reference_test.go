@@ -19,6 +19,9 @@ func TestEmbeddedOpenAPIReferencesResolve(t *testing.T) {
 		if !strings.HasPrefix(path, "/") {
 			t.Fatalf("invalid OpenAPI path key %q", path)
 		}
+		if strings.HasPrefix(path, "/v1/plugins/pharma_oa/api/") {
+			t.Fatalf("embedded core OpenAPI owns Pharma OA business path %q", path)
+		}
 	}
 	components := openAPIMap(t, document["components"], "components")
 	securitySchemes := openAPIMap(t, components["securitySchemes"], "components.securitySchemes")
@@ -30,6 +33,9 @@ func TestEmbeddedOpenAPIReferencesResolve(t *testing.T) {
 	for name := range schemas {
 		if strings.HasPrefix(strings.TrimSpace(name), "+") {
 			t.Fatalf("invalid OpenAPI schema key %q", name)
+		}
+		if strings.HasPrefix(name, "Pharma") {
+			t.Fatalf("embedded core OpenAPI owns Pharma OA schema %q", name)
 		}
 	}
 	refs := make([]string, 0)
@@ -52,12 +58,6 @@ func TestEmbeddedOpenAPIReferencesResolve(t *testing.T) {
 		}
 		sort.Strings(items)
 		t.Fatalf("unresolved OpenAPI schema references: %s", strings.Join(items, ", "))
-	}
-	if _, ok := paths["/v1/plugins/pharma_oa/api/compliance-dashboard"]; !ok {
-		t.Fatal("compliance dashboard OpenAPI path is missing")
-	}
-	if _, ok := schemas["ComplianceDashboardAPIResponse"]; !ok {
-		t.Fatal("compliance dashboard OpenAPI response schema is missing")
 	}
 }
 

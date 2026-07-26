@@ -1831,3 +1831,49 @@ Result: BF5-03D1 passed. BF5-03D cannot close until BF5-03D2 through BF5-03D5 pr
 ### Commit
 
 `BF5-03D1: freeze Pharma OA extraction boundary`
+
+## BF5-03D2 Remove Built-In Pharma OA Backend Application And HTTP Surfaces
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Remove the host-owned Pharma OA plugin adapter, application services, HTTP handlers, embedded OpenAPI operations, and tests coupled to that implementation.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Application removal | Pass | Deleted the 57-file built-in application-service package; no production or test package imports `internal/service/pharmaoa` |
+| HTTP removal | Pass | Deleted the 45-file built-in handler package and the four-file host plugin adapter; no package imports either removed path |
+| Contract removal | Pass | Removed all 95 built-in Pharma OA business paths and 186 exclusively reachable schemas from the embedded core OpenAPI; the synchronized public copy has the same SHA-256 |
+| Obsolete test removal | Pass | Removed four integration and benchmark suites that instantiated the deleted host implementation; independent packaged-plugin tests remain authoritative |
+| Core regression | Pass | Embedded OpenAPI references resolve, both OpenAPI copies stay synchronized, and every package under `internal/...` passes |
+| Independent plugin | Pass | `go test ./plugins/pharma_oa/... -count=1` passes with the plugin using only current public host services |
+| Current-only rule | Pass | No route alias, adapter, fallback, copied service, or hidden built-in registration remains |
+
+The first review failed because the final removed OpenAPI path was also the last mapping entry, leaving its operation body attached to the preceding path. The structural residue was deleted, the reference test was changed from asserting a built-in Pharma path to forbidding one, and both OpenAPI copies were synchronized before the full task gate was rerun.
+
+### Verification Commands
+
+```powershell
+go test ./internal/handler/http -run 'Test(EmbeddedOpenAPIReferencesResolve|OpenAPIContractFilesStayInSync)$' -count=1 -v
+go test ./internal/... -count=1
+go test ./plugins/pharma_oa/... -count=1
+rg -n "internal/service/pharmaoa|internal/handler/http/v1/pharmaoa|internal/plugin/pharmaoa" --glob "*.go" --glob "!plugins/pharma_oa/contract_test.go"
+rg -n "^  /v1/plugins/pharma_oa/api/" internal/handler/http/openapi.yaml
+git diff --check
+```
+
+Result: BF5-03D2 passed. The core no longer owns a Pharma OA application or HTTP API; domain and SQL ownership remain isolated to BF5-03D3.
+
+### Impact Review
+
+- Backend: removed 106 files from the built-in service, handler, and plugin-adapter packages.
+- Tests: removed four suites whose subject was the deleted implementation.
+- API: core OpenAPI no longer advertises business-plugin operations or schemas.
+- Plugin runtime: generic route aggregation and the independent package are unchanged.
+- Compatibility: none; removed endpoints have no alias or fallback.
+
+### Commit
+
+`BF5-03D2: remove built-in Pharma OA backend`
