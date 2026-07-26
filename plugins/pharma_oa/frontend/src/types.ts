@@ -224,3 +224,106 @@ export type OARequestWriteInput = Scope & {
 
 export type OARequestDetail = { item: OARequest; workflow?: OAWorkflow };
 export type OARequestMutation = { item: OARequest; workflow?: OAWorkflow; duplicate?: boolean };
+
+export type PurchaseLine = {
+  id: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  specification: string;
+  unitId: string;
+  quantity: string;
+  unitPrice: string;
+  amount: string;
+  receivedQuantity: string;
+};
+
+export type PurchaseRequest = {
+  id: string;
+  number: string;
+  supplierId: string;
+  supplierCode: string;
+  supplierName: string;
+  requesterId: string;
+  approverId: string;
+  approverName: string;
+  reason: string;
+  currency: string;
+  lines: PurchaseLine[];
+  totalAmount: string;
+  status: "pending" | "approved" | "rejected";
+  workflowDefinitionId: string;
+  workflowInstanceId: string;
+  purchaseOrderId?: string;
+  decisionComment?: string;
+  decidedAt?: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PurchaseOrder = {
+  id: string;
+  number: string;
+  purchaseRequestId: string;
+  supplierId: string;
+  supplierCode: string;
+  supplierName: string;
+  currency: string;
+  lines: PurchaseLine[];
+  totalAmount: string;
+  status: "open" | "partial" | "received";
+  approvedBy: string;
+  approvedAt: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PurchaseInboundLine = {
+  orderLineId: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  quantity: string;
+  batchNo: string;
+  productionDate: string;
+  expiresAt: string;
+};
+
+export type PurchaseInbound = {
+  id: string;
+  number: string;
+  purchaseOrderId: string;
+  purchaseOrderNumber: string;
+  warehouseId: string;
+  areaId: string;
+  locationId: string;
+  lines: PurchaseInboundLine[];
+  attachments: Array<{ fileId: string; name: string; size: number; mime: string }>;
+  status: "completed";
+  receivedBy: string;
+  receivedAt: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PurchaseRequestWriteInput = Scope & {
+  supplierId: string;
+  reason: string;
+  currency: "CNY";
+  approverId: string;
+  approverName: string;
+  lines: Array<{ productId: string; quantity: string; unitPrice: string }>;
+};
+
+export type PurchaseInboundWriteInput = Scope & {
+  purchaseOrderId: string;
+  warehouseId: string;
+  areaId: string;
+  locationId: string;
+  orderVersion: number;
+  lines: Array<{ orderLineId: string; quantity: string; batchNo: string; productionDate: string; expiresAt: string }>;
+  attachments: Array<{ name: string; contentBase64: string }>;
+};

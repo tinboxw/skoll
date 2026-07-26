@@ -7,9 +7,15 @@ import type {
   OARequestMutation,
   OARequestType,
   OARequestWriteInput,
+  OAWorkflow,
   Page,
   Party,
   Product,
+  PurchaseInbound,
+  PurchaseInboundWriteInput,
+  PurchaseOrder,
+  PurchaseRequest,
+  PurchaseRequestWriteInput,
   Qualification,
   QualificationType,
   Scope,
@@ -95,7 +101,31 @@ export const api = {
   commentOARequest: (id: string, version: number, content: string) =>
     request<{ item: OARequest }>(`/oa-requests/${encodeURIComponent(id)}/comments`, "POST", { version, content }, true),
   remindOARequest: (id: string, version: number, runAt: string) =>
-    request<{ item: OARequest }>(`/oa-requests/${encodeURIComponent(id)}/reminders`, "POST", { version, runAt }, true)
+    request<{ item: OARequest }>(`/oa-requests/${encodeURIComponent(id)}/reminders`, "POST", { version, runAt }, true),
+  purchaseRequests: (keyword = "", status = "") =>
+    request<Page<PurchaseRequest>>(`/purchase-requests${query({ keyword, status })}`, "GET"),
+  purchaseRequest: (id: string) =>
+    request<{ item: PurchaseRequest; workflow: OAWorkflow }>(`/purchase-requests/${encodeURIComponent(id)}`, "GET"),
+  createPurchaseRequest: (body: PurchaseRequestWriteInput) =>
+    request<{ item: PurchaseRequest; workflow: OAWorkflow; duplicate: boolean }>("/purchase-requests", "POST", body, true),
+  approvePurchaseRequest: (id: string, taskId: string, version: number, comment: string) =>
+    request<{ item: PurchaseRequest; order: PurchaseOrder; workflow: OAWorkflow; duplicate: boolean }>(
+      `/purchase-requests/${encodeURIComponent(id)}/approve`, "POST", { taskId, version, comment }, true
+    ),
+  rejectPurchaseRequest: (id: string, taskId: string, version: number, comment: string) =>
+    request<{ item: PurchaseRequest; workflow: OAWorkflow; duplicate: boolean }>(
+      `/purchase-requests/${encodeURIComponent(id)}/reject`, "POST", { taskId, version, comment }, true
+    ),
+  purchaseOrders: (keyword = "", status = "") =>
+    request<Page<PurchaseOrder>>(`/purchase-orders${query({ keyword, status })}`, "GET"),
+  purchaseOrder: (id: string) =>
+    request<{ item: PurchaseOrder }>(`/purchase-orders/${encodeURIComponent(id)}`, "GET"),
+  purchaseInbounds: (purchaseOrderId = "") =>
+    request<Page<PurchaseInbound>>(`/purchase-inbounds${query({ purchaseOrderId })}`, "GET"),
+  purchaseInbound: (id: string) =>
+    request<{ item: PurchaseInbound }>(`/purchase-inbounds/${encodeURIComponent(id)}`, "GET"),
+  createPurchaseInbound: (body: PurchaseInboundWriteInput) =>
+    request<{ item: PurchaseInbound; order: PurchaseOrder; duplicate: boolean }>("/purchase-inbounds", "POST", body, true)
 };
 
 export type ListTypes = Employee | Party | Catalog | Product | Qualification | QualificationType;

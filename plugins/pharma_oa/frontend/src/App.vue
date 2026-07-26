@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from "vue";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import en from "element-plus/es/locale/lang/en";
 import { ElMessage } from "element-plus/es/components/message/index.mjs";
@@ -23,6 +23,7 @@ import {
   RefreshCw,
   ScanSearch,
   Search,
+  ShoppingCart,
   ShieldCheck,
   Tags,
   Truck,
@@ -39,6 +40,7 @@ type FieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox"
 type Option = { value: string; zh: string; en: string };
 type Field = { key: string; zh: string; en: string; type?: FieldType; required?: boolean; min?: number; max?: number; span?: 1 | 2; options?: Option[]; lookup?: "categories" | "units" | "manufacturers" | "qualificationTypes" };
 type DialogKind = "editor" | "status" | "review" | "attachment" | null;
+const PurchaseWorkspace = defineAsyncComponent(() => import("./components/PurchaseWorkspace.vue"));
 
 const nav = [
   { key: "employee", icon: UserRound },
@@ -135,7 +137,7 @@ function catalogFields(kind: "category" | "unit" | "manufacturer"): Field[] {
 }
 
 const activeModule = ref<ModuleKey>("employee");
-const workspaceArea = ref<OAWorkspaceMode | "master">("requests");
+const workspaceArea = ref<OAWorkspaceMode | "purchase" | "master">("requests");
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
@@ -379,6 +381,9 @@ window.addEventListener("skoll:host-ready", applyTheme);
         <button type="button" :class="{ active: workspaceArea === 'inbox' }" :aria-current="workspaceArea === 'inbox' ? 'page' : undefined" @click="workspaceArea = 'inbox'">
           <Inbox aria-hidden="true" /><span>{{ t("approvalInbox") }}</span>
         </button>
+        <button type="button" :class="{ active: workspaceArea === 'purchase' }" :aria-current="workspaceArea === 'purchase' ? 'page' : undefined" @click="workspaceArea = 'purchase'">
+          <ShoppingCart aria-hidden="true" /><span>{{ t("purchaseWorkspace") }}</span>
+        </button>
         <button type="button" :class="{ active: workspaceArea === 'master' }" :aria-current="workspaceArea === 'master' ? 'page' : undefined" @click="workspaceArea = 'master'">
           <Database aria-hidden="true" /><span>{{ t("masterData") }}</span>
         </button>
@@ -457,6 +462,7 @@ window.addEventListener("skoll:host-ready", applyTheme);
         </section>
       </template>
 
+      <PurchaseWorkspace v-else-if="workspaceArea === 'purchase'" :scope="{ tenantId: scope.tenantId, organizationId: scope.organizationId }" />
       <OAWorkspace v-else :mode="workspaceArea" :scope="{ tenantId: scope.tenantId, organizationId: scope.organizationId }" />
 
       <el-dialog v-if="workspaceArea === 'master'" v-model="dialogVisible" :title="dialogTitle" width="min(760px, calc(100vw - 32px))" destroy-on-close align-center>

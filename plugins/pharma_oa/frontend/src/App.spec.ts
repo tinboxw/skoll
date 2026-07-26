@@ -23,7 +23,7 @@ describe("medical master-data workspace", () => {
     const wrapper = mount(App, { attachTo: document.body });
     await flushPromises();
     const labels = wrapper.findAll(".primary-tabs button").map((button) => button.text());
-    expect(labels).toEqual(["申请中心", "待我审批", "主数据"]);
+    expect(labels).toEqual(["申请中心", "待我审批", "采购与入库", "主数据"]);
     expect(wrapper.get("h2").text()).toBe("OA 申请与审批");
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.dataset.density).toBe("compact");
@@ -42,5 +42,15 @@ describe("medical master-data workspace", () => {
     await flushPromises();
     expect(request.mock.calls.some(([path]) => path.includes("/v1/plugins/pharma_oa/api/customers"))).toBe(true);
     expect(wrapper.get("h2").text()).toBe("客户管理");
+  });
+
+  it("lazy-loads the Chinese purchasing workspace from the current routes", async () => {
+    const wrapper = mount(App);
+    await flushPromises();
+    const purchase = wrapper.findAll(".primary-tabs button").find((button) => button.text() === "采购与入库");
+    await purchase!.trigger("click");
+    await flushPromises();
+    await vi.waitFor(() => expect(wrapper.get("h2").text()).toBe("采购执行工作台"));
+    expect(request.mock.calls.some(([path]) => path.includes("/v1/plugins/pharma_oa/api/purchase-requests"))).toBe(true);
   });
 });
