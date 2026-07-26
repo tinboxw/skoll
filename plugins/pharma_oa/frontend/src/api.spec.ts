@@ -31,6 +31,19 @@ describe("pharma OA API", () => {
     expect(options?.method).toBe("POST");
   });
 
+  it("uses the public OA request routes for list and approval", async () => {
+    await api.oaRequests({ requestType: "leave", status: "pending" });
+    expect(request.mock.calls[0][0]).toBe(`${API_BASE}/oa-requests?requestType=leave&status=pending&limit=200`);
+
+    request.mockClear();
+    await api.approveOARequest("request/1", "task-1", 3, "同意");
+    expect(request.mock.calls[0][0]).toBe(`${API_BASE}/oa-requests/request%2F1/approve`);
+    expect(request.mock.calls[0][1]).toEqual(expect.objectContaining({
+      method: "POST",
+      body: { taskId: "task-1", version: 3, comment: "同意" }
+    }));
+  });
+
   it("fails closed outside the declared plugin host", async () => {
     window.__SKOLL_HOST__ = { ...window.__SKOLL_HOST__!, pluginId: "another_plugin" };
     expect(() => api.employeeReminders()).toThrow("SKOLL_HOST_UNAVAILABLE");

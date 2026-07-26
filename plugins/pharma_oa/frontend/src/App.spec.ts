@@ -19,11 +19,12 @@ beforeEach(() => {
 });
 
 describe("medical master-data workspace", () => {
-  it("renders nine Chinese modules and follows host theme", async () => {
+  it("renders Chinese OA navigation and follows host theme", async () => {
     const wrapper = mount(App, { attachTo: document.body });
     await flushPromises();
-    const labels = wrapper.findAll(".module-tabs button").map((button) => button.text());
-    expect(labels).toEqual(["员工管理", "客户管理", "供应商管理", "药品管理", "药品分类", "计量单位", "生产企业", "资质台账", "资质类型"]);
+    const labels = wrapper.findAll(".primary-tabs button").map((button) => button.text());
+    expect(labels).toEqual(["申请中心", "待我审批", "主数据"]);
+    expect(wrapper.get("h2").text()).toBe("OA 申请与审批");
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(document.documentElement.dataset.density).toBe("compact");
     wrapper.unmount();
@@ -32,7 +33,10 @@ describe("medical master-data workspace", () => {
   it("switches modules and requests the independent customer endpoint", async () => {
     const wrapper = mount(App);
     await flushPromises();
-    const customer = wrapper.findAll(".module-tabs button").find((button) => button.text() === "客户管理");
+    const master = wrapper.findAll(".primary-tabs button").find((button) => button.text() === "主数据");
+    await master!.trigger("click");
+    await flushPromises();
+    const customer = wrapper.findAll(".secondary-tabs button").find((button) => button.text() === "客户管理");
     expect(customer).toBeDefined();
     await customer!.trigger("click");
     await flushPromises();

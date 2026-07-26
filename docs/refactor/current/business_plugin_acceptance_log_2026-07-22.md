@@ -1465,3 +1465,61 @@ Result: BF4-04 passed. Medical OA now owns governed pharmaceutical catalogs and 
 ### Commit
 
 `BF4-04: implement pharmaceutical catalogs and products`
+
+## BF5-01C Build The Chinese-First OA Request And Approval Workspace
+
+- Date: 2026-07-26
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Deliver the plugin-owned request center, five request editors, approval inbox, detail collaboration, and responsive visual system over the current public OA routes.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Current navigation | Pass | The independent plugin opens on three Chinese-first work areas: request center, approval inbox, and master data; the existing nine master-data modules remain available without a duplicate route or renderer |
+| Five request forms | Pass | Leave, expense, procurement, contract, and custom editors have type-specific controls, deterministic validation, typed payload mapping, draft create/update, and create-or-update submission |
+| Repeated approval work | Pass | The inbox exposes pending rows, detail loading, current task resolution, approve, reject, and delegate actions through the current plugin API with optimistic versions and idempotency headers |
+| Requester collaboration | Pass | Draft edit/submit and pending withdraw/cancel, reminder scheduling, 5 MiB attachment upload, comments, attachment records, and workflow timeline are available from one detail surface |
+| Complete states | Pass | Loading, empty, backend failure, permission denied, saving, mutation failure, success, destructive confirmation, and no-activity states are explicit and never convert an error into success |
+| Chinese and locale | Pass | All new visible labels are Chinese-first with matching en-US keys; the existing host locale event and Element Plus locale provider remain authoritative |
+| Theme and density | Pass | Light/dark and comfortable/compact host modes pass; a failed dark review exposed unreadable Element Plus regular text and tags, which were repaired with current dark design tokens |
+| Desktop and mobile | Pass | Chrome checks at 1440x900 and 390x844 show no horizontal document overflow; desktop uses a stable table, mobile uses cards, the editor drawer is viewport-wide, and dense controls do not overlap |
+| Browser integrity | Pass | Fresh desktop and mobile runs report zero console errors, page errors, or HTTP 4xx/5xx resources; the page exposes all three Chinese work areas and the expected responsive renderer |
+| Component coverage | Pass | Five Vitest files and 13 tests cover navigation, independent endpoints, all five payload kinds, list/filter states, empty/denied states, detail task resolution, and approval mutation |
+| Production budget | Pass | Vite transforms 3,163 modules; entry is 496,388/512,000 bytes, total JavaScript is 197,902/204,800 bytes gzip, and CSS is 19,057/25,600 bytes gzip |
+| Package boundary | Pass | Plugin Go tests pass; package build and checksum verification produce the independent `pharma_oa-0.8.0.zip` artifact with SHA-256 `313a7f95c98224bcd8a796d962bf42ba04fa3a917ef30dcda7634eb0fd8895cf` |
+| Current-only rule | Pass | Only the current separated plugin frontend and `/v1/plugins/pharma_oa/api/oa-requests` route family are used; no host page, legacy alias, fallback endpoint, compatibility component, or demo-data path was added |
+
+The first production review failed on strict TypeScript null narrowing and an incomplete workflow timeline translation key; both were corrected before the build was rerun. The first dark-theme browser review then failed because Element Plus regular table text inherited a light-theme value. That evidence was rejected, dark text, table, placeholder, and status-tag tokens were repaired, and the complete desktop/mobile matrix was rerun before acceptance.
+
+### Verification Commands
+
+```powershell
+cd plugins/pharma_oa/frontend
+npm test
+npm run build
+
+cd ../../..
+go test ./plugins/pharma_oa/...
+./plugins/pharma_oa/plugin.ps1 -Action package -DistDir $env:TEMP/skoll-bf5-01c-package
+./plugins/pharma_oa/plugin.ps1 -Action verify -DistDir $env:TEMP/skoll-bf5-01c-package
+codegraph sync .
+codegraph status .
+git diff --check
+```
+
+Result: BF5-01C passed after strict type and dark-theme repair cycles. The independent medical OA plugin now provides a Chinese-first request and approval experience for all five general OA request kinds from mobile through wide desktop.
+
+### Impact Review
+
+- API: added only typed frontend clients for the existing current OA list, detail, draft, submit, approval, delegation, requester, attachment, comment, and reminder routes.
+- Frontend architecture: the new OA domain is isolated in its own workspace, request editor, typed form mapper, and tests instead of extending the master-data page logic.
+- Interaction: requesters and approvers use separate focused work areas while sharing one detail, workflow, and collaboration contract.
+- Visual quality: fixed current dark Element Plus tokens, narrow heading composition, scope action width, drawer overflow, and first-load favicon noise.
+- Performance: current fixed bundle budgets remain unchanged and pass with the complete OA workspace included.
+- Compatibility: none; the current plugin UI replaced the previous master-data-only entry as the sole Pharma OA workspace.
+
+### Commit
+
+`BF5-01C: build Chinese-first OA workspace`

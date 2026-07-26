@@ -1,4 +1,20 @@
-import type { Catalog, Employee, ModuleKey, Page, Party, Product, Qualification, QualificationType, Scope, WorkspaceRecord } from "./types";
+import type {
+  Catalog,
+  Employee,
+  ModuleKey,
+  OARequest,
+  OARequestDetail,
+  OARequestMutation,
+  OARequestType,
+  OARequestWriteInput,
+  Page,
+  Party,
+  Product,
+  Qualification,
+  QualificationType,
+  Scope,
+  WorkspaceRecord
+} from "./types";
 
 export const API_BASE = "/v1/plugins/pharma_oa/api";
 
@@ -57,7 +73,29 @@ export const api = {
   units: () => request<Page<Catalog>>("/units?status=active&limit=200"),
   manufacturers: () => request<Page<Catalog>>("/manufacturers?status=active&limit=200"),
   qualificationTypes: () => request<Page<QualificationType>>("/qualification-types?status=active&limit=200"),
-  scanQualificationExpiry: (days = 30) => request<{ item?: unknown; items?: Qualification[] }>("/qualifications/expiry-scan", "POST", { days }, true)
+  scanQualificationExpiry: (days = 30) => request<{ item?: unknown; items?: Qualification[] }>("/qualifications/expiry-scan", "POST", { days }, true),
+  oaRequests: (filters: { keyword?: string; requestType?: OARequestType | ""; status?: string; offset?: number; limit?: number } = {}) =>
+    request<Page<OARequest> & { offset: number; limit: number }>(`/oa-requests${query({ ...filters, limit: filters.limit ?? 200 })}`, "GET"),
+  oaRequest: (id: string) => request<OARequestDetail>(`/oa-requests/${encodeURIComponent(id)}`, "GET"),
+  createOARequest: (body: OARequestWriteInput) => request<{ item: OARequest }>("/oa-requests", "POST", body, true),
+  updateOARequest: (id: string, body: OARequestWriteInput) => request<{ item: OARequest }>(`/oa-requests/${encodeURIComponent(id)}`, "PUT", body, true),
+  submitOARequest: (id: string, version: number) => request<OARequestMutation>(`/oa-requests/${encodeURIComponent(id)}/submit`, "POST", { version }, true),
+  approveOARequest: (id: string, taskId: string, version: number, comment: string) =>
+    request<OARequestMutation>(`/oa-requests/${encodeURIComponent(id)}/approve`, "POST", { taskId, version, comment }, true),
+  rejectOARequest: (id: string, taskId: string, version: number, comment: string) =>
+    request<OARequestMutation>(`/oa-requests/${encodeURIComponent(id)}/reject`, "POST", { taskId, version, comment }, true),
+  withdrawOARequest: (id: string, version: number, comment: string) =>
+    request<OARequestMutation>(`/oa-requests/${encodeURIComponent(id)}/withdraw`, "POST", { version, comment }, true),
+  cancelOARequest: (id: string, version: number, comment: string) =>
+    request<OARequestMutation>(`/oa-requests/${encodeURIComponent(id)}/cancel`, "POST", { version, comment }, true),
+  delegateOARequest: (id: string, taskId: string, version: number, targetId: string, targetName: string, comment: string) =>
+    request<OARequestMutation>(`/oa-requests/${encodeURIComponent(id)}/delegate`, "POST", { taskId, version, targetId, targetName, comment }, true),
+  attachOARequest: (id: string, version: number, name: string, contentBase64: string) =>
+    request<{ item: OARequest }>(`/oa-requests/${encodeURIComponent(id)}/attachments`, "POST", { version, name, contentBase64 }, true),
+  commentOARequest: (id: string, version: number, content: string) =>
+    request<{ item: OARequest }>(`/oa-requests/${encodeURIComponent(id)}/comments`, "POST", { version, content }, true),
+  remindOARequest: (id: string, version: number, runAt: string) =>
+    request<{ item: OARequest }>(`/oa-requests/${encodeURIComponent(id)}/reminders`, "POST", { version, runAt }, true)
 };
 
 export type ListTypes = Employee | Party | Catalog | Product | Qualification | QualificationType;

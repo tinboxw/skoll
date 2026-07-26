@@ -10,10 +10,13 @@ import {
   Building2,
   CircleAlert,
   ClipboardCheck,
+  Database,
   Edit3,
   Eye,
   FileCheck2,
+  FileText,
   FileUp,
+  Inbox,
   Languages,
   PackageSearch,
   Plus,
@@ -27,9 +30,10 @@ import {
   UsersRound
 } from "lucide-vue-next";
 import { api } from "./api";
+import OAWorkspace from "./components/OAWorkspace.vue";
 import { language, setLocale, t } from "./i18n";
 import type { MessageKey } from "./i18n";
-import type { Catalog, Employee, ModuleKey, Party, Product, Qualification, QualificationType, WorkspaceRecord } from "./types";
+import type { Catalog, Employee, ModuleKey, OAWorkspaceMode, Party, Product, Qualification, QualificationType, WorkspaceRecord } from "./types";
 
 type FieldType = "text" | "textarea" | "number" | "date" | "select" | "checkbox";
 type Option = { value: string; zh: string; en: string };
@@ -131,6 +135,7 @@ function catalogFields(kind: "category" | "unit" | "manufacturer"): Field[] {
 }
 
 const activeModule = ref<ModuleKey>("employee");
+const workspaceArea = ref<OAWorkspaceMode | "master">("requests");
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
@@ -340,11 +345,14 @@ function statusActions(item: WorkspaceRecord): Array<{ key: string; label: strin
 }
 
 watch(activeModule, () => { keyword.value = ""; status.value = ""; selected.value = null; void loadCurrent(); });
+watch(workspaceArea, (value) => {
+  if (value === "master") void loadCurrent();
+});
 let searchTimer: number | undefined;
 watch([keyword, status], () => { window.clearTimeout(searchTimer); searchTimer = window.setTimeout(() => void loadCurrent(), 280); });
 onMounted(() => {
   try { Object.assign(scope, JSON.parse(localStorage.getItem("pharma_oa.scope") ?? "{}")); } catch { localStorage.removeItem("pharma_oa.scope"); }
-  applyTheme(); setLocale(window.__SKOLL_HOST__?.locale ?? "zh-CN"); void loadCurrent();
+  applyTheme(); setLocale(window.__SKOLL_HOST__?.locale ?? "zh-CN");
 });
 window.addEventListener("skoll:theme", applyTheme);
 window.addEventListener("skoll:host-ready", applyTheme);
@@ -356,7 +364,7 @@ window.addEventListener("skoll:host-ready", applyTheme);
       <header class="workspace-header">
         <div class="brand-lockup">
           <span class="brand-mark"><BadgeCheck aria-hidden="true" /></span>
-          <div><p>{{ t("brand") }}</p><h1>{{ t("workspace") }}</h1></div>
+          <div><p>{{ t("brand") }}</p><h1>{{ t("businessWorkspace") }}</h1></div>
         </div>
         <div class="header-actions">
           <el-tooltip :content="t('locale')"><el-button :icon="Languages" circle :aria-label="t('locale')" @click="setLocale(language === 'zh-CN' ? 'en-US' : 'zh-CN')" /></el-tooltip>
@@ -364,7 +372,19 @@ window.addEventListener("skoll:host-ready", applyTheme);
         </div>
       </header>
 
-      <nav class="module-tabs" :aria-label="t('workspace')">
+      <nav class="module-tabs primary-tabs" :aria-label="t('businessWorkspace')">
+        <button type="button" :class="{ active: workspaceArea === 'requests' }" :aria-current="workspaceArea === 'requests' ? 'page' : undefined" @click="workspaceArea = 'requests'">
+          <FileText aria-hidden="true" /><span>{{ t("requestCenter") }}</span>
+        </button>
+        <button type="button" :class="{ active: workspaceArea === 'inbox' }" :aria-current="workspaceArea === 'inbox' ? 'page' : undefined" @click="workspaceArea = 'inbox'">
+          <Inbox aria-hidden="true" /><span>{{ t("approvalInbox") }}</span>
+        </button>
+        <button type="button" :class="{ active: workspaceArea === 'master' }" :aria-current="workspaceArea === 'master' ? 'page' : undefined" @click="workspaceArea = 'master'">
+          <Database aria-hidden="true" /><span>{{ t("masterData") }}</span>
+        </button>
+      </nav>
+
+      <nav v-if="workspaceArea === 'master'" class="module-tabs secondary-tabs" :aria-label="t('workspace')">
         <button v-for="item in nav" :key="item.key" type="button" :class="{ active: activeModule === item.key }" :aria-current="activeModule === item.key ? 'page' : undefined" @click="activeModule = item.key">
           <component :is="item.icon" aria-hidden="true" /><span>{{ t(item.key) }}</span>
         </button>
@@ -377,35 +397,36 @@ window.addEventListener("skoll:host-ready", applyTheme);
         <el-button @click="saveScope">{{ t("apply") }}</el-button>
       </section>
 
-      <section class="module-heading">
-        <div><p>{{ t("brand") }} · {{ t("workspace") }}</p><h2>{{ moduleLabel }}</h2></div>
-        <div class="heading-actions">
-          <el-button v-if="activeModule === 'qualification'" :icon="ScanSearch" :loading="saving" @click="scanExpiry">{{ t("scan") }}</el-button>
-          <el-button type="primary" :icon="Plus" @click="openCreate">{{ t("create") }}</el-button>
-        </div>
-      </section>
+      <template v-if="workspaceArea === 'master'">
+        <section class="module-heading">
+          <div><p>{{ t("brand") }} · {{ t("workspace") }}</p><h2>{{ moduleLabel }}</h2></div>
+          <div class="heading-actions">
+            <el-button v-if="activeModule === 'qualification'" :icon="ScanSearch" :loading="saving" @click="scanExpiry">{{ t("scan") }}</el-button>
+            <el-button type="primary" :icon="Plus" @click="openCreate">{{ t("create") }}</el-button>
+          </div>
+        </section>
 
-      <section class="metrics" aria-label="Key metrics">
-        <article><span>{{ t("total") }}</span><strong>{{ items.length }}</strong><Boxes /></article>
-        <article><span>{{ t("enabled") }}</span><strong>{{ activeCount }}</strong><ClipboardCheck /></article>
-        <article><span>{{ t("attention") }}</span><strong>{{ attentionCount }}</strong><CircleAlert /></article>
-        <article><span>{{ t("compliance") }}</span><strong>{{ complianceRate }}%</strong><ShieldCheck /></article>
-      </section>
+        <section class="metrics" aria-label="Key metrics">
+          <article><span>{{ t("total") }}</span><strong>{{ items.length }}</strong><Boxes /></article>
+          <article><span>{{ t("enabled") }}</span><strong>{{ activeCount }}</strong><ClipboardCheck /></article>
+          <article><span>{{ t("attention") }}</span><strong>{{ attentionCount }}</strong><CircleAlert /></article>
+          <article><span>{{ t("compliance") }}</span><strong>{{ complianceRate }}%</strong><ShieldCheck /></article>
+        </section>
 
-      <section class="toolbar">
-        <el-input v-model="keyword" :prefix-icon="Search" :placeholder="t('search')" clearable aria-label="Search" />
-        <el-select v-model="status" :placeholder="t('all')" clearable aria-label="Status">
-          <el-option v-for="value in statusOptions" :key="value" :label="statusLabel(value)" :value="value" />
-        </el-select>
-      </section>
+        <section class="toolbar">
+          <el-input v-model="keyword" :prefix-icon="Search" :placeholder="t('search')" clearable aria-label="Search" />
+          <el-select v-model="status" :placeholder="t('all')" clearable aria-label="Status">
+            <el-option v-for="value in statusOptions" :key="value" :label="statusLabel(value)" :value="value" />
+          </el-select>
+        </section>
 
-      <section v-if="loading" class="state-panel" aria-live="polite"><el-skeleton :rows="6" animated /><span>{{ t("loading") }}</span></section>
-      <section v-else-if="error" class="state-panel state-error" role="alert">
-        <CircleAlert /><strong>{{ denied ? t("denied") : t("failed") }}</strong><p>{{ denied ? t("deniedHint") : error }}</p><el-button @click="loadCurrent">{{ t("retry") }}</el-button>
-      </section>
-      <section v-else-if="items.length === 0" class="state-panel"><el-empty :description="t('empty')" /><p>{{ t("emptyHint") }}</p><el-button type="primary" :icon="Plus" @click="openCreate">{{ t("create") }}</el-button></section>
+        <section v-if="loading" class="state-panel" aria-live="polite"><el-skeleton :rows="6" animated /><span>{{ t("loading") }}</span></section>
+        <section v-else-if="error" class="state-panel state-error" role="alert">
+          <CircleAlert /><strong>{{ denied ? t("denied") : t("failed") }}</strong><p>{{ denied ? t("deniedHint") : error }}</p><el-button @click="loadCurrent">{{ t("retry") }}</el-button>
+        </section>
+        <section v-else-if="items.length === 0" class="state-panel"><el-empty :description="t('empty')" /><p>{{ t("emptyHint") }}</p><el-button type="primary" :icon="Plus" @click="openCreate">{{ t("create") }}</el-button></section>
 
-      <section v-else class="data-region">
+        <section v-else class="data-region">
         <el-table :data="items" stripe class="desktop-table" row-key="id" @row-dblclick="showDetails">
           <el-table-column :label="t('identity')" min-width="220">
             <template #default="{ row }"><button class="identity-link" type="button" @click="showDetails(row)"><strong>{{ recordName(row) }}</strong><span>{{ recordCode(row) }}</span></button></template>
@@ -433,9 +454,12 @@ window.addEventListener("skoll:host-ready", applyTheme);
             <footer><el-button :icon="Edit3" @click="openEdit(item)">{{ t("edit") }}</el-button><el-button :icon="Eye" @click="showDetails(item)">{{ t("detail") }}</el-button></footer>
           </article>
         </div>
-      </section>
+        </section>
+      </template>
 
-      <el-dialog v-model="dialogVisible" :title="dialogTitle" width="min(760px, calc(100vw - 32px))" destroy-on-close align-center>
+      <OAWorkspace v-else :mode="workspaceArea" :scope="{ tenantId: scope.tenantId, organizationId: scope.organizationId }" />
+
+      <el-dialog v-if="workspaceArea === 'master'" v-model="dialogVisible" :title="dialogTitle" width="min(760px, calc(100vw - 32px))" destroy-on-close align-center>
         <el-form v-if="dialog === 'editor'" label-position="top" class="editor-grid" @submit.prevent="saveEditor">
           <el-form-item v-for="field in fields" :key="field.key" :label="label(field)" :required="field.required" :class="{ wide: field.span === 2 }">
             <el-input v-if="field.key !== 'evidenceName' && (!field.type || field.type === 'text')" v-model="form[field.key]" maxlength="255" clearable />
@@ -454,7 +478,7 @@ window.addEventListener("skoll:host-ready", applyTheme);
         <template #footer><el-button @click="dialog = null">{{ t("cancel") }}</el-button><el-button type="primary" :loading="saving" @click="dialog === 'editor' ? saveEditor() : dialog === 'attachment' ? uploadAttachment() : submitTransition()">{{ t("confirm") }}</el-button></template>
       </el-dialog>
 
-      <el-drawer v-model="detailVisible" :title="moduleLabel" size="min(520px, 92vw)" direction="rtl">
+      <el-drawer v-if="workspaceArea === 'master'" v-model="detailVisible" :title="moduleLabel" size="min(520px, 92vw)" direction="rtl">
         <div v-if="selected" class="detail-sheet">
           <div class="detail-title"><span>{{ recordCode(selected) }}</span><h3>{{ recordName(selected) }}</h3><el-tag :type="statusType(recordStatus(selected))">{{ statusLabel(recordStatus(selected)) }}</el-tag></div>
           <dl><template v-for="field in fields" :key="field.key"><dt>{{ label(field) }}</dt><dd>{{ String((selected as unknown as Record<string, unknown>)[field.key] ?? t('noData')) }}</dd></template></dl>

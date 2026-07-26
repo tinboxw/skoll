@@ -134,3 +134,93 @@ export type Qualification = {
 };
 
 export type WorkspaceRecord = Employee | Party | Catalog | Product | Qualification | QualificationType;
+
+export type OAWorkspaceMode = "requests" | "inbox";
+export type OARequestType = "leave" | "expense" | "procurement" | "contract" | "custom";
+export type OARequestStatus = "draft" | "pending" | "approved" | "rejected" | "withdrawn" | "canceled";
+
+export type OARequestAttachment = {
+  fileId: string;
+  name: string;
+  size: number;
+  mime: string;
+  requestKey: string;
+};
+
+export type OARequestComment = {
+  id: string;
+  actorId: string;
+  content: string;
+  createdAt: string;
+  requestKey: string;
+};
+
+export type OARequest = {
+  id: string;
+  requestType: OARequestType;
+  title: string;
+  description: string;
+  formData: Record<string, unknown>;
+  status: OARequestStatus;
+  approverId: string;
+  approverName: string;
+  workflowDefinitionId?: string;
+  workflowInstanceId?: string;
+  submittedAt?: string;
+  reminderAt?: string;
+  attachments: OARequestAttachment[];
+  comments: OARequestComment[];
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OAWorkflowActor = { id: string; name: string };
+export type OAWorkflowTask = {
+  id: string;
+  instanceId: string;
+  nodeId: string;
+  assignee: OAWorkflowActor;
+  status: "pending" | "approved" | "rejected" | "transferred" | "copied" | "canceled";
+  createdAt: string;
+  completedAt?: string;
+};
+export type OAWorkflowAction = {
+  id: string;
+  type: "start" | "approve" | "reject" | "withdraw" | "transfer" | "copy" | "cancel";
+  instanceId: string;
+  taskId: string;
+  nodeId: string;
+  actor: OAWorkflowActor;
+  target: OAWorkflowActor;
+  comment: string;
+  createdAt: string;
+};
+export type OAWorkflow = {
+  id: string;
+  definitionId: string;
+  definitionKey: string;
+  businessType: string;
+  businessId: string;
+  title: string;
+  status: "running" | "approved" | "rejected" | "withdrawn" | "canceled";
+  starter: OAWorkflowActor;
+  currentNode: string;
+  tasks: OAWorkflowTask[];
+  timeline: OAWorkflowAction[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OARequestWriteInput = Scope & {
+  requestType: OARequestType;
+  title: string;
+  description: string;
+  formData: Record<string, unknown>;
+  approverId: string;
+  approverName: string;
+  version?: number;
+};
+
+export type OARequestDetail = { item: OARequest; workflow?: OAWorkflow };
+export type OARequestMutation = { item: OARequest; workflow?: OAWorkflow; duplicate?: boolean };
