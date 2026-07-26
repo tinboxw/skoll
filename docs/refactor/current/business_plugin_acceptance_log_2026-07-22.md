@@ -1787,3 +1787,47 @@ Result: BF5-03C passed. Purchase staff, approvers, and warehouse receivers can c
 ### Commit
 
 `BF5-03C: build Chinese purchase operations workspace`
+
+## BF5-03D1 Map And Freeze The Pharma OA Extraction Boundary
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Inventory the built-in Pharma OA implementation, map every business capability to the independent plugin roadmap, and make host removal a blocking prerequisite for BF5-03D.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Host inventory | Pass | CodeGraph and exact source scans found 138 files in the five built-in backend business directories, 17 host frontend Pharma paths, plus Store, SQL adapter, OpenAPI, benchmark, and test coupling |
+| Boundary decision | Pass | Pharma OA is classified as plugin-owned business code; workflow, datastore, document number, file, job, notification, audit, permission, data-scope, secret, configuration, and frontend host services remain industry-neutral framework capabilities |
+| Capability disposition | Pass | Existing plugin capabilities map to BF4-02 through BF5-03; CRM, sales, inventory, quality, finance, operations UI, and reporting map explicitly to BF5-02 and BF5-04 through BF5-09 |
+| Removal sequence | Pass | Separate Work Items now cover backend surfaces, persistence ownership, frontend surfaces, architecture gates, and final lifecycle closure |
+| Current-only rule | Pass | The plan contains no compatibility layer, legacy bridge, fallback, copied dual path, or deferred host business implementation |
+
+The independent plugin is the only future Pharma OA owner. Existing host behavior is not treated as a contract: required behavior is implemented through current public plugin services, while obsolete host packages and screens are deleted.
+
+### Verification Commands
+
+```powershell
+codegraph sync .
+codegraph explore "How is the built-in Pharma OA implementation wired into the Skoll host at startup, persistence, HTTP routing, OpenAPI, and frontend navigation, and which files can be removed without affecting plugins/pharma_oa?"
+rg --files internal/domain/pharmaoa internal/service/pharmaoa internal/repository/pharmaoa internal/handler/http/v1/pharmaoa internal/plugin/pharmaoa
+rg --files web/src | rg "pharma|Pharma"
+rg -n "PharmaOA|pharmaoa|pharma_oa" internal/store internal/bootstrap cmd
+git diff --check
+```
+
+Result: BF5-03D1 passed. BF5-03D cannot close until BF5-03D2 through BF5-03D5 prove that the framework owns no Pharma OA business implementation.
+
+### Impact Review
+
+- Architecture: establishes one-way ownership from the industry plugin to public framework contracts.
+- Backend: schedules removal of built-in application, HTTP, domain, repository, SQL, and bootstrap coupling.
+- Frontend: schedules removal of host business views, API client, locale bundle, and navigation coupling.
+- Roadmap: preserves desired medical OA outcomes as plugin Work Items without preserving legacy code.
+- Compatibility: none; host business behavior is not retained as a fallback or migration source.
+
+### Commit
+
+`BF5-03D1: freeze Pharma OA extraction boundary`
