@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"regexp"
 	"sort"
 	"strconv"
@@ -360,7 +361,45 @@ const (
 	DataMutationUpdate DataMutationOperation = "update"
 	DataMutationUpsert DataMutationOperation = "upsert"
 	DataMutationDelete DataMutationOperation = "delete"
+	DataMutationAdjust DataMutationOperation = "adjust"
+
+	DataAdjustmentGuardConflictField = "adjustment.guard"
 )
+
+type DataAdjustment struct {
+	Field   string     `json:"field"`
+	Delta   DataValue  `json:"delta"`
+	Minimum *DataValue `json:"minimum,omitempty"`
+	Maximum *DataValue `json:"maximum,omitempty"`
+}
+
+func (a DataAdjustment) Validate() error {
+	if err := validateDataIdentifier("adjustment.field", a.Field); err != nil {
+		return err
+	}
+	if _, reserved := reservedDataScopeFields[a.Field]; reserved {
+		return invalidDataContract("adjustment.field", "trusted scope field cannot be adjusted")
+	}
+	delta, err := validateAdjustmentNumber("adjustment.delta", a.Delta, "")
+	if err != nil {
+		return err
+	}
+	if delta.Sign() == 0 {
+		return invalidDataContract("adjustment.delta", "adjustment delta must be non-zero")
+	}
+	minimum, err := validateOptionalAdjustmentBound("adjustment.minimum", a.Minimum, a.Delta.Type)
+	if err != nil {
+		return err
+	}
+	maximum, err := validateOptionalAdjustmentBound("adjustment.maximum", a.Maximum, a.Delta.Type)
+	if err != nil {
+		return err
+	}
+	if minimum != nil && maximum != nil && minimum.Cmp(maximum) > 0 {
+		return invalidDataContract("adjustment.minimum", "adjustment minimum cannot exceed maximum")
+	}
+	return nil
+}
 
 type DataMutation struct {
 	Table           string                `json:"table"`
@@ -368,6 +407,7 @@ type DataMutation struct {
 	Scope           DataScopeIntent       `json:"scope"`
 	Key             map[string]DataValue  `json:"key"`
 	Values          map[string]DataValue  `json:"values,omitempty"`
+	Adjustment      *DataAdjustment       `json:"adjustment,omitempty"`
 	Returning       []string              `json:"returning,omitempty"`
 	IdempotencyKey  string                `json:"idempotencyKey"`
 	ExpectedVersion *int64                `json:"expectedVersion,omitempty"`
@@ -391,12 +431,28 @@ func (m DataMutation) Validate() error {
 	}
 	switch m.Operation {
 	case DataMutationInsert, DataMutationUpdate, DataMutationUpsert:
+		if m.Adjustment != nil {
+			return invalidDataContract("adjustment", "record mutation does not accept an adjustment")
+		}
 		if err := validateDataValueMap("values", m.Values, 1, MaxDataMutationValues, true); err != nil {
 			return err
 		}
 	case DataMutationDelete:
 		if len(m.Values) > 0 {
 			return invalidDataContract("values", "delete mutation does not accept values")
+		}
+		if m.Adjustment != nil {
+			return invalidDataContract("adjustment", "delete mutation does not accept an adjustment")
+		}
+	case DataMutationAdjust:
+		if len(m.Values) > 0 {
+			return invalidDataContract("values", "adjust mutation does not accept replacement values")
+		}
+		if m.Adjustment == nil {
+			return invalidDataContract("adjustment", "adjust mutation requires one adjustment")
+		}
+		if err := m.Adjustment.Validate(); err != nil {
+			return err
 		}
 	default:
 		return invalidDataContract("operation", "mutation operation is unsupported")
@@ -415,6 +471,30 @@ func (m DataMutation) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validateOptionalAdjustmentBound(path string, value *DataValue, expected DataValueType) (*big.Rat, error) {
+	if value == nil {
+		return nil, nil
+	}
+	return validateAdjustmentNumber(path, *value, expected)
+}
+
+func validateAdjustmentNumber(path string, value DataValue, expected DataValueType) (*big.Rat, error) {
+	if value.Type != DataValueInteger && value.Type != DataValueDecimal {
+		return nil, invalidDataContract(path+".type", "adjustment number must be integer or decimal")
+	}
+	if expected != "" && value.Type != expected {
+		return nil, invalidDataContract(path+".type", "adjustment bounds must match delta type")
+	}
+	if err := value.Validate(); err != nil {
+		return nil, withDataErrorPath(path, err)
+	}
+	number, ok := new(big.Rat).SetString(value.Value)
+	if !ok {
+		return nil, invalidDataContract(path+".value", "adjustment number is invalid")
+	}
+	return number, nil
 }
 
 type DataMutationResult struct {

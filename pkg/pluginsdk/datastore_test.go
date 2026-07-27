@@ -109,11 +109,50 @@ func TestDataFilterValidationEnforcesShapeAndComplexity(t *testing.T) {
 }
 
 func TestDataMutationValidationAcceptsCurrentOperations(t *testing.T) {
-	for _, operation := range []DataMutationOperation{DataMutationInsert, DataMutationUpdate, DataMutationUpsert, DataMutationDelete} {
+	for _, operation := range []DataMutationOperation{DataMutationInsert, DataMutationUpdate, DataMutationUpsert, DataMutationDelete, DataMutationAdjust} {
 		mutation := validDataMutation(operation)
 		if err := mutation.Validate(); err != nil {
 			t.Fatalf("operation=%s: %v", operation, err)
 		}
+	}
+}
+
+func TestDataAdjustmentValidationRejectsUnsafeArithmetic(t *testing.T) {
+	tests := []struct {
+		name  string
+		alter func(*DataMutation)
+		field string
+	}{
+		{name: "missing adjustment", alter: func(m *DataMutation) { m.Adjustment = nil }, field: "adjustment"},
+		{name: "replacement values", alter: func(m *DataMutation) {
+			m.Values = map[string]DataValue{"amount": {Type: DataValueDecimal, Value: "12.30"}}
+		}, field: "values"},
+		{name: "scope field", alter: func(m *DataMutation) { m.Adjustment.Field = "tenant_id" }, field: "adjustment.field"},
+		{name: "raw expression", alter: func(m *DataMutation) {
+			m.Adjustment.Delta = DataValue{Type: DataValueDecimal, Value: "amount + 1"}
+		}, field: "adjustment.delta"},
+		{name: "float type", alter: func(m *DataMutation) {
+			m.Adjustment.Delta = DataValue{Type: "float", Value: "1.25"}
+		}, field: "adjustment.delta.type"},
+		{name: "zero delta", alter: func(m *DataMutation) {
+			m.Adjustment.Delta = DataValue{Type: DataValueDecimal, Value: "0.00"}
+		}, field: "adjustment.delta"},
+		{name: "mixed bound type", alter: func(m *DataMutation) {
+			m.Adjustment.Minimum = dataValue(DataValueInteger, "0")
+		}, field: "adjustment.minimum.type"},
+		{name: "reversed bounds", alter: func(m *DataMutation) {
+			m.Adjustment.Minimum = dataValue(DataValueDecimal, "10.00")
+			m.Adjustment.Maximum = dataValue(DataValueDecimal, "9.99")
+		}, field: "adjustment.minimum"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mutation := validDataMutation(DataMutationAdjust)
+			test.alter(&mutation)
+			if err := mutation.Validate(); !isDataContractError(err, test.field) {
+				t.Fatalf("error=%v want field=%s", err, test.field)
+			}
+		})
 	}
 }
 
@@ -177,6 +216,15 @@ func TestDataContractWireUsesCamelCase(t *testing.T) {
 			t.Fatalf("wire=%s missing=%s", wire, expected)
 		}
 	}
+	adjustmentRaw, err := json.Marshal(validDataMutation(DataMutationAdjust))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{`"operation":"adjust"`, `"adjustment":{"field":"amount"`, `"delta":{"type":"decimal","value":"1.25"}`, `"minimum":{"type":"decimal","value":"0.00"}`} {
+		if !strings.Contains(string(adjustmentRaw), expected) {
+			t.Fatalf("adjustment wire=%s missing=%s", adjustmentRaw, expected)
+		}
+	}
 	for _, forbidden := range []string{`"Resource"`, `"TenantIDs"`, `"OrganizationIDs"`} {
 		if strings.Contains(wire, forbidden) {
 			t.Fatalf("wire=%s contains=%s", wire, forbidden)
@@ -221,6 +269,14 @@ func validDataMutation(operation DataMutationOperation) DataMutation {
 	}
 	if operation == DataMutationDelete {
 		mutation.Values = nil
+	}
+	if operation == DataMutationAdjust {
+		mutation.Values = nil
+		mutation.Adjustment = &DataAdjustment{
+			Field: "amount", Delta: DataValue{Type: DataValueDecimal, Value: "1.25"},
+			Minimum: dataValue(DataValueDecimal, "0.00"),
+			Maximum: dataValue(DataValueDecimal, "999999.99"),
+		}
 	}
 	return mutation
 }

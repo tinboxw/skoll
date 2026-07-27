@@ -2268,3 +2268,38 @@ Result: FF1-01 passed. Plugin authors must make table mutability explicit, the h
 ### Commit
 
 `FF1-01: enforce append-only plugin tables`
+
+## FF1-02 Define Guarded Atomic Arithmetic Mutation Contracts
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Define one strict, current SDK contract for host-owned exact numeric adjustments without adding SQL execution or business-specific rules.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Current mutation operation | Pass | `adjust` is a first-class `DataMutationOperation` and cannot carry replacement values |
+| Single declared target | Pass | One `DataAdjustment` addresses exactly one validated field; trusted tenant, organization, owner, and user scope fields are rejected |
+| Exact arithmetic operands | Pass | Delta and optional bounds accept only validated integer or decimal strings; floats, raw expressions, invalid values, and zero deltas fail closed |
+| Guard consistency | Pass | Bounds must use the delta type and minimum cannot exceed maximum |
+| Concurrency contract | Pass | Adjustment mutations retain exact key, trusted scope, idempotency key, and optional positive expected version semantics from `DataMutation` |
+| Deterministic conflict | Pass | Host executors have the stable `adjustment.guard` field for a `DataStoreErrorConflict` caused by a failed lower or upper bound |
+| Wire contract | Pass | Strict camelCase JSON contains `operation`, `adjustment`, `delta`, and optional bounds with no expression or arbitrary SQL field |
+| Framework purity | Pass | The SDK is industry-neutral; dialect SQL remains owned by FF1-03 and no compatibility parser, fallback, or business rule was introduced |
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./pkg/pluginclient -count=1
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: FF1-02 passed. Plugin callers can now express one exact, guarded numeric adjustment while the host retains scope, idempotency, version, and deterministic error ownership.
+
+### Commit
+
+`FF1-02: define guarded atomic adjustments`
