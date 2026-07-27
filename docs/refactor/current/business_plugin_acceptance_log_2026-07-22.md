@@ -2880,3 +2880,55 @@ Result: FF3-03 passed. Core and independent plugins can require a fresh, audienc
 ### Commit
 
 `FF3-03: add immutable workflow signatures`
+
+## FF3-04 Close Governed Workflow Acceptance
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Prove the complete governed-workflow contract through a managed external plugin process, the public plugin client, the authenticated loopback gateway, real workflow services, and durable SQL stores.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Independent process boundary | Pass | The acceptance probe lives below `internal/bootstrap/testdata`, builds as a separate executable, imports only public plugin client/SDK contracts, and runs through `ManagedProcessLauncher` |
+| Real host path | Pass | Every plugin operation crosses the public HTTP probe, `pkg/pluginclient`, authenticated `HostGateway`, `hostservice.WorkflowService`, workflow application service, and GORM repository |
+| Parallel quorum | Pass | 32 concurrent remote approvals across two actors resolve a `2/3` quorum with exactly two approval actions |
+| Duplicate decisions | Pass | Repeated concurrent submissions for the same actor/task return the committed decision without adding timeline effects |
+| Stale decisions | Pass | The third quorum task and the original task after escalation are rejected after their decision windows close |
+| Authorization | Pass | A signed user token for an actor other than the current assignee cannot approve the task |
+| Delegation | Pass | The current assignee delegates one task, the replacement receives a traceable delegated assignment, and only that replacement completes it |
+| Durable timeout and escalation | Pass | A persisted one-minute timer becomes due under a deterministic job clock; 16 competing workers complete it exactly once and expose one escalation action through the public plugin service |
+| Electronic signature | Pass | An audience-bound password reverification proof, fixed meaning, and attachment evidence produce one correlated immutable receipt through the external process |
+| Proof replay denial | Pass | Reusing the consumed reverification proof on another workflow instance fails through the public service |
+| Restart recovery | Pass | The managed process, gateway, workflow/job services, and SQL connection are recreated; the external process restores the signed workflow and its receipt from the same database |
+| Tamper rejection | Pass | Directly changing a signed action comment causes public `GetInstance` to fail because receipt-to-action digest correlation is revalidated during SQL restoration |
+| Quorum property | Pass | All quorum thresholds for two through seven assignees converge with exactly the threshold number of effects despite triple duplicate submissions; every remaining task is stale |
+| Race safety | Pass | External process contention, timer workers, quorum properties, signature, restart, and persistence tests pass with the Go race detector |
+| Framework purity | Pass | The probe is test-only and generic; no medical-industry business route, model, field, or production plugin was added to the host |
+| Current-only boundary | Pass | The test exercises one current plugin client/gateway/workflow contract with no compatibility path, legacy format, fallback, or dual implementation |
+
+### Failed Runs And Re-Execution
+
+- The first external-process run reached the escalation assertion before the test had explicitly proved the persisted timer was due. The task was not accepted in that state. The fixture now asserts the durable job row and due timestamp, totals completion across every competing worker, requires exactly one completion, and then checks the public timeline.
+- The strengthened external-process test passed three consecutive executions, the focused race matrix, all affected packages, `go vet`, and the full repository Go gate.
+
+### Verification Commands
+
+```powershell
+go test ./internal/bootstrap -run TestIndependentPluginGovernedWorkflowProcessE2E -count=3
+go test -race ./internal/bootstrap ./internal/service/workflow ./internal/store/sql/gormrepo -run "IndependentPluginGovernedWorkflowProcessE2E|QuorumDecisions|GovernedWorkflowQuorumProperty|SubstitutionAndEscalationTimers|WorkflowAssignmentAndTimer|RequiredSignature|SignedDecision|WorkflowDecisionRecovers" -count=1
+go test ./internal/bootstrap ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/plugin/hostservice ./internal/plugin ./pkg/pluginclient ./pkg/pluginsdk -count=1
+go vet ./internal/bootstrap ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/plugin/hostservice ./internal/plugin ./pkg/pluginclient ./pkg/pluginsdk
+go test ./... -count=1
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF3-04 and milestone FF3 passed. Independent plugins can execute regulated parallel and quorum approvals, delegation, durable timeout escalation, and signed decisions through the current public process boundary, with deterministic denial for duplicate, stale, unauthorized, replayed, and tampered operations.
+
+### Commit
+
+`FF3-04: close governed workflow acceptance`
