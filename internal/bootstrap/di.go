@@ -107,6 +107,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	jobService := jobsvc.NewService(bundle.Jobs, nil)
 	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
 	documentWorkflowStore := gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB)
+	eventOutboxStore := gormrepo.NewPluginEventOutboxStore(bundle.PluginDataDB)
 	transactionService, err := hostservice.NewTransactionService(bundle.UnitOfWork)
 	if err != nil {
 		return nil, err
@@ -133,6 +134,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		hostservice.HostServicesDependencies{
 			Transactions: transactionService, DataScopes: dataScopeService, DataStore: dataStoreFactory, Files: fileService, Audit: auditService,
 			DocumentNumbers: documentNumberService, DocumentWorkflows: documentWorkflowStore, System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
+			EventOutbox: eventOutboxStore,
 		},
 	)
 	if err != nil {
@@ -231,6 +233,13 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		deps := hostDeps
 		deps.PluginID = pluginID
 		deps.ConfigStore = m
+		deps.EventPublications = func(requestedPluginID string) ([]pluginsdk.EventPublicationDeclaration, error) {
+			info, resolveErr := m.Get(requestedPluginID)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			return info.EventPublications(), nil
+		}
 		return hostservice.NewHostServices(deps)
 	}, jwtSecret, 30*time.Second)
 	if err != nil {

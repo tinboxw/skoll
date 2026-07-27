@@ -625,6 +625,12 @@ func (*generatedWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionI
 
 type generatedJobs struct{}
 
+type generatedEvents struct{}
+
+func (generatedEvents) Publish(context.Context, pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
+	return pluginsdk.EventEnvelope{}, nil
+}
+
 func (generatedJobs) Schedule(context.Context, pluginsdk.JobScheduleInput) (pluginsdk.Job, error) {
 	return pluginsdk.Job{}, nil
 }
@@ -645,6 +651,7 @@ func (generatedJobs) List(context.Context, pluginsdk.JobQuery) ([]pluginsdk.Job,
 func generatedHostServices(pluginID string, documents *generatedDocumentHost) pluginsdk.HostServices {
 	return pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: generatedTransactions{}, DataScopes: generatedScopes{}, DataStore: generatedDataStore{},
+		Events:          generatedEvents{},
 		DocumentNumbers: generatedDocumentNumbers{}, Documents: documents, Files: generatedFiles{}, Audit: generatedAudit{},
 		Config: generatedConfig{}, Secrets: generatedSecrets{}, Workflows: newGeneratedWorkflows(), Jobs: generatedJobs{},
 	}

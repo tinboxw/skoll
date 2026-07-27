@@ -83,6 +83,7 @@ func (c *Client) HostServices() (pluginsdk.HostServices, error) {
 		PluginID:     c.pluginID,
 		Transactions: transactionService{client: c}, DataScopes: dataScopeService{client: c},
 		DataStore:       dataStoreService{client: c},
+		Events:          eventService{client: c},
 		DocumentNumbers: documentNumberService{client: c},
 		Documents:       documentWorkflowService{client: c},
 		Files:           fileService{client: c}, Audit: auditService{client: c}, Config: configService{client: c},
@@ -144,6 +145,11 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 				return pluginsdk.NewDataStoreError(code, failure.Field, failure.Message, failure.Retryable)
 			}
 		}
+		if capability == "events" {
+			if code, ok := parseEventErrorCode(failure.Code); ok {
+				return pluginsdk.NewEventError(code, failure.Field, failure.Message, failure.Retryable)
+			}
+		}
 		if capability == "document-numbers" {
 			if code, ok := parseDocumentNumberErrorCode(failure.Code); ok {
 				return pluginsdk.NewDocumentNumberError(code, failure.Field, failure.Message, failure.Retryable)
@@ -163,6 +169,20 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 		return fmt.Errorf("decode plugin host response: %w", err)
 	}
 	return nil
+}
+
+func parseEventErrorCode(value string) (pluginsdk.EventErrorCode, bool) {
+	code := pluginsdk.EventErrorCode(strings.TrimSpace(value))
+	switch code {
+	case pluginsdk.EventErrorInvalidRequest, pluginsdk.EventErrorUndeclaredPublication,
+		pluginsdk.EventErrorUndeclaredSubscription, pluginsdk.EventErrorUnsupportedSchema,
+		pluginsdk.EventErrorScopeMismatch, pluginsdk.EventErrorPayloadLimit,
+		pluginsdk.EventErrorConflict, pluginsdk.EventErrorTransactionRequired,
+		pluginsdk.EventErrorUnavailable:
+		return code, true
+	default:
+		return "", false
+	}
 }
 
 func parseDocumentWorkflowErrorCode(value string) (pluginsdk.DocumentWorkflowErrorCode, bool) {

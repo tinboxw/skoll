@@ -83,6 +83,7 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 		}
 		return pluginsdk.HostServices{
 			PluginID: requestedPluginID, Transactions: transactions, DataScopes: scopes, DataStore: store,
+			Events:          dataStoreE2EEvents{},
 			DocumentNumbers: dataStoreE2EDocumentNumbers{}, Documents: dataStoreE2EDocuments{}, Files: dataStoreE2EFiles{}, Audit: audit, Config: configService, Secrets: secretService,
 			Workflows: dataStoreE2EWorkflows{}, Jobs: dataStoreE2EJobs{},
 		}, nil
@@ -385,6 +386,12 @@ func (a *dataStoreE2ESecrets) Set(_ context.Context, _ string, value string) err
 	a.secret = value
 	a.mu.Unlock()
 	return nil
+}
+
+type dataStoreE2EEvents struct{}
+
+func (dataStoreE2EEvents) Publish(context.Context, pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
+	return pluginsdk.EventEnvelope{}, nil
 }
 
 type dataStoreE2EWorkflows struct{}

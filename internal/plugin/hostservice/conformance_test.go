@@ -71,7 +71,14 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 		DataStore: func(string, pluginsdk.DataScopeService, pluginsdk.AuditService) (pluginsdk.DataStoreService, error) {
 			return dataStore, nil
 		},
-		Files: filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditsvc.NewService(bundle.Audit),
+		EventPublications: func(string) ([]pluginsdk.EventPublicationDeclaration, error) {
+			return []pluginsdk.EventPublicationDeclaration{{
+				Name: "conformance-event", SchemaVersion: 1,
+				PayloadType: "conformance.event", Scope: pluginsdk.EventScopeTenant,
+			}}, nil
+		},
+		EventOutbox: gormrepo.NewPluginEventOutboxStore(bundle.PluginDataDB),
+		Files:       filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditsvc.NewService(bundle.Audit),
 		DocumentNumbers:   documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
 		DocumentWorkflows: gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB),
 		ConfigStore:       configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
@@ -85,7 +92,7 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SDK conformance error: %v", err)
 	}
-	if !report.Transaction || !report.Scope || !report.DataStore || !report.Document || !report.Collaboration || !report.DocumentQuery || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
+	if !report.Transaction || !report.Scope || !report.DataStore || !report.Event || !report.Document || !report.Collaboration || !report.DocumentQuery || !report.File || !report.Audit || !report.Config || !report.Secret || !report.Workflow || !report.Job {
 		t.Fatalf("incomplete SDK conformance report: %+v", report)
 	}
 }

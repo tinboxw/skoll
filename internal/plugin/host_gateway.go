@@ -411,6 +411,27 @@ func writeHostCallError(w http.ResponseWriter, err error) {
 		writeHostError(w, http.StatusRequestEntityTooLarge, "host_request_too_large")
 		return
 	}
+	var eventErr *pluginsdk.EventError
+	if errors.As(err, &eventErr) {
+		status := http.StatusUnprocessableEntity
+		switch eventErr.Code {
+		case pluginsdk.EventErrorInvalidRequest:
+			status = http.StatusBadRequest
+		case pluginsdk.EventErrorUndeclaredPublication, pluginsdk.EventErrorUndeclaredSubscription:
+			status = http.StatusForbidden
+		case pluginsdk.EventErrorConflict, pluginsdk.EventErrorTransactionRequired:
+			status = http.StatusConflict
+		case pluginsdk.EventErrorPayloadLimit:
+			status = http.StatusRequestEntityTooLarge
+		case pluginsdk.EventErrorUnavailable:
+			status = http.StatusServiceUnavailable
+		}
+		writeHostJSON(w, status, pluginclient.ErrorResponse{
+			Code: string(eventErr.Code), Field: eventErr.Field,
+			Message: eventErr.Message, Retryable: eventErr.Retryable,
+		})
+		return
+	}
 	var datastoreErr *pluginsdk.DataStoreError
 	if errors.As(err, &datastoreErr) {
 		status := http.StatusUnprocessableEntity

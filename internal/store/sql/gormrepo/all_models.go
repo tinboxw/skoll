@@ -12,6 +12,7 @@ func AllModels() []any {
 		&PluginRouteModel{},
 		&PluginReleaseModel{},
 		&PluginDataMutationModel{},
+		&PluginEventOutboxModel{},
 		&DocumentNumberSequenceModel{},
 		&DocumentNumberIssueModel{},
 		&DocumentWorkflowBindingModel{},

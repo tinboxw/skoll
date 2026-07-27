@@ -54,6 +54,12 @@ func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capabili
 			return nil, err
 		}
 		return host.DataStore.Aggregate(ctx, in)
+	case "events.publish":
+		var in pluginsdk.EventPublication
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Events.Publish(ctx, in)
 	case "document-numbers.preview":
 		var in pluginsdk.DocumentNumberInput
 		if err := decodeHostInput(decoder, &in); err != nil {

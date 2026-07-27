@@ -149,6 +149,12 @@ func (hostTestWorkflows) Copy(context.Context, WorkflowTargetActionInput) (Workf
 
 type hostTestJobs struct{}
 
+type hostTestEvents struct{}
+
+func (hostTestEvents) Publish(context.Context, EventPublication) (EventEnvelope, error) {
+	return EventEnvelope{}, nil
+}
+
 func (hostTestJobs) Schedule(context.Context, JobScheduleInput) (Job, error) { return Job{}, nil }
 func (hostTestJobs) LeaseDue(context.Context, JobLeaseInput) ([]Job, error)  { return nil, nil }
 func (hostTestJobs) Complete(context.Context, JobCompleteInput) (Job, error) { return Job{}, nil }
@@ -159,7 +165,7 @@ func (hostTestJobs) List(context.Context, JobQuery) ([]Job, error)           { r
 func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 	valid := HostServices{
 		PluginID: "test", Transactions: hostTestTransactions{}, DataScopes: hostTestDataScopes{},
-		DataStore: hostTestDataStore{}, DocumentNumbers: hostTestDocumentNumbers{}, Documents: hostTestDocuments{},
+		DataStore: hostTestDataStore{}, Events: hostTestEvents{}, DocumentNumbers: hostTestDocumentNumbers{}, Documents: hostTestDocuments{},
 		Files: hostTestFiles{}, Audit: hostTestAudit{}, Config: hostTestConfig{}, Secrets: hostTestSecrets{},
 		Workflows: hostTestWorkflows{}, Jobs: hostTestJobs{},
 	}
@@ -174,6 +180,7 @@ func TestHostServicesValidateRequiresEveryPort(t *testing.T) {
 		{name: "transactions", mutate: func(host *HostServices) { host.Transactions = nil }},
 		{name: "data scopes", mutate: func(host *HostServices) { host.DataScopes = nil }},
 		{name: "datastore", mutate: func(host *HostServices) { host.DataStore = nil }},
+		{name: "events", mutate: func(host *HostServices) { host.Events = nil }},
 		{name: "document numbers", mutate: func(host *HostServices) { host.DocumentNumbers = nil }},
 		{name: "document workflows", mutate: func(host *HostServices) { host.Documents = nil }},
 		{name: "files", mutate: func(host *HostServices) { host.Files = nil }},

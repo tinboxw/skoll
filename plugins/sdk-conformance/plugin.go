@@ -13,6 +13,7 @@ type Report struct {
 	Transaction   bool
 	Scope         bool
 	DataStore     bool
+	Event         bool
 	Document      bool
 	Collaboration bool
 	DocumentQuery bool
@@ -69,6 +70,25 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 		return report, fmt.Errorf("datastore query contract returned an invalid page")
 	}
 	report.DataStore = true
+	if err = host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
+		envelope, publishErr := host.Events.Publish(tx.Context(), pluginsdk.EventPublication{
+			IdempotencyKey: "conformance-event-1", Name: "conformance-event", SchemaVersion: 1,
+			Scope:         pluginsdk.EventScope{TenantID: "tenant-conformance"},
+			CorrelationID: "conformance-run-1",
+			Subject:       pluginsdk.EventSubject{Type: "conformance.record", ID: "record-1"},
+			Payload:       pluginsdk.EventPayload{"record_id": {Type: pluginsdk.DataValueString, Value: "record-1"}},
+		})
+		if publishErr != nil {
+			return publishErr
+		}
+		if envelope.Publisher != host.PluginID || envelope.Name != "conformance-event" || envelope.SchemaVersion != 1 {
+			return fmt.Errorf("event publication returned an invalid envelope")
+		}
+		return nil
+	}); err != nil {
+		return report, fmt.Errorf("event publication contract: %w", err)
+	}
+	report.Event = true
 	file, err := host.Files.Store(ctx, pluginsdk.FileWrite{Key: "evidence/contract.txt", Name: "contract.txt", Content: []byte("sdk-conformance")})
 	if err != nil {
 		return report, fmt.Errorf("file store contract: %w", err)

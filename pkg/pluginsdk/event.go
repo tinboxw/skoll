@@ -1,6 +1,7 @@
 package pluginsdk
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -22,6 +23,10 @@ var (
 	eventPayloadTypePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]{2,127}$`)
 	eventIdentityPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 )
+
+type EventService interface {
+	Publish(ctx context.Context, publication EventPublication) (EventEnvelope, error)
+}
 
 type EventScopeMode string
 
@@ -259,6 +264,7 @@ const (
 	EventErrorScopeMismatch          EventErrorCode = "scope_mismatch"
 	EventErrorPayloadLimit           EventErrorCode = "payload_limit_exceeded"
 	EventErrorConflict               EventErrorCode = "conflict"
+	EventErrorTransactionRequired    EventErrorCode = "transaction_required"
 	EventErrorUnavailable            EventErrorCode = "unavailable"
 )
 

@@ -310,6 +310,24 @@ func (gatewayWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInpu
 
 type gatewayJobs struct{}
 
+type gatewayEvents struct{}
+
+func (gatewayEvents) Publish(_ context.Context, in pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
+	return pluginsdk.EventEnvelope{
+		ID: "event-1", Publisher: "equipment", Name: in.Name, SchemaVersion: in.SchemaVersion,
+		PayloadType: "equipment.event", Scope: in.Scope, CorrelationID: in.CorrelationID,
+		CausationID: in.CausationID, Subject: in.Subject, Payload: in.Payload, OccurredAt: time.Now().UTC(),
+	}, nil
+}
+
+type gatewayEventFailure struct{}
+
+func (gatewayEventFailure) Publish(context.Context, pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
+	return pluginsdk.EventEnvelope{}, pluginsdk.NewEventError(
+		pluginsdk.EventErrorConflict, "idempotencyKey", "event identity conflict", false,
+	)
+}
+
 func (gatewayJobs) Schedule(context.Context, pluginsdk.JobScheduleInput) (pluginsdk.Job, error) {
 	return pluginsdk.Job{ID: "job-1"}, nil
 }
@@ -332,7 +350,7 @@ func (gatewayJobs) List(context.Context, pluginsdk.JobQuery) ([]pluginsdk.Job, e
 func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	transactions := &gatewayTransactions{}
 	secrets := &gatewaySecrets{}
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Events: gatewayEvents{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(id string) (pluginsdk.HostServices, error) {
 		if id != "equipment" {
 			return pluginsdk.HostServices{}, errors.New("wrong identity")
@@ -372,6 +390,14 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	aggregatePage, err := services.DataStore.Aggregate(ctx, basicGatewayAggregateQuery())
 	if err != nil || len(aggregatePage.Rows) != 1 || aggregatePage.Rows[0].Values[0].Value != "1" {
 		t.Fatalf("datastore aggregate=%+v err=%v", aggregatePage, err)
+	}
+	eventEnvelope, err := services.Events.Publish(ctx, pluginsdk.EventPublication{
+		IdempotencyKey: "equipment-event-1", Name: "equipment-changed", SchemaVersion: 1,
+		Scope: pluginsdk.EventScope{TenantID: "tenant-a"}, CorrelationID: "request-1",
+		Payload: pluginsdk.EventPayload{"asset_id": {Type: pluginsdk.DataValueString, Value: "asset-1"}},
+	})
+	if err != nil || eventEnvelope.Publisher != "equipment" || eventEnvelope.Name != "equipment-changed" {
+		t.Fatalf("event envelope=%+v err=%v", eventEnvelope, err)
 	}
 	numberInput := pluginsdk.DocumentNumberInput{
 		Rule: pluginsdk.DocumentNumberRule{
@@ -551,7 +577,7 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 }
 
 func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *testing.T) {
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Events: gatewayEvents{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -615,6 +641,7 @@ func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *te
 func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
 		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		Events:          gatewayEvents{},
 		DocumentNumbers: gatewayDocumentNumberFailure{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
 	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
@@ -658,9 +685,46 @@ func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
 	}
 }
 
+func TestHostGatewayPreservesEventContractErrors(t *testing.T) {
+	host := pluginsdk.HostServices{
+		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{},
+		DataStore: gatewayDataStore{}, Events: gatewayEventFailure{},
+		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{},
+		Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{},
+		Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
+	}
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gateway.Close()
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := pluginclient.New(pluginclient.Options{PluginID: "equipment", HostURL: credential.HostURL, HostToken: credential.Token})
+	if err != nil {
+		t.Fatal(err)
+	}
+	services, err := client.HostServices()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = services.Events.Publish(context.Background(), pluginsdk.EventPublication{
+		IdempotencyKey: "event-1", Name: "equipment-changed", SchemaVersion: 1,
+		Scope: pluginsdk.EventScope{TenantID: "tenant-a"}, CorrelationID: "request-1",
+		Payload: pluginsdk.EventPayload{},
+	})
+	var eventErr *pluginsdk.EventError
+	if !errors.As(err, &eventErr) || eventErr.Code != pluginsdk.EventErrorConflict || eventErr.Field != "idempotencyKey" {
+		t.Fatalf("event error=%v", err)
+	}
+}
+
 func TestHostGatewayPreservesDocumentWorkflowContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
 		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		Events:          gatewayEvents{},
 		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocumentWorkflowFailure{}, Files: gatewayFiles{}, Audit: gatewayAudit{},
 		Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
@@ -696,6 +760,7 @@ func TestHostGatewayPreservesDocumentWorkflowContractErrors(t *testing.T) {
 func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
 		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		Events:          gatewayEvents{},
 		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
 	gateway, err := NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {

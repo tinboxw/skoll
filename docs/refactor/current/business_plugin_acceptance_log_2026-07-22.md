@@ -2526,3 +2526,51 @@ Result: FF2-01 passed. Plugins now declare exact current publication and subscri
 ### Commit
 
 `FF2-01: define current plugin event contracts`
+
+## FF2-02 Persist Plugin Events In A Transactional Outbox
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Publish declared plugin events through one transaction-required host service that persists current SDK envelopes without invoking delivery infrastructure.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public host port | Pass | `EventService.Publish` is required by `HostServices`, exposed through the authenticated loopback gateway, and implemented by the external-process client |
+| Declaration binding | Pass | Host construction resolves the enabled plugin's current publication declarations; the service binds publisher identity to the credential and rejects undeclared event/version pairs |
+| Transaction required | Pass | A declared publication without the host transaction context returns deterministic `transaction_required`; there is no implicit auto-commit publication path |
+| Atomic rollback | Pass | A business probe row and event are written through the same GORM transaction; a forced callback failure leaves neither record |
+| Atomic commit | Pass | The same business probe and event commit together and are both visible after transaction completion |
+| Idempotent identity | Pass | Event identity is deterministic from publisher plus idempotency key; replaying identical content returns the original envelope and timestamp without adding a row |
+| Conflict detection | Pass | Reusing the same identity with changed payload or publication content returns stable `conflict` and preserves the original row |
+| Restart durability | Pass | A newly constructed service/store over the same database returns the original envelope for the same publication |
+| Typed persistence | Pass | The full current envelope persists publisher, schema/payload type, scope, correlation/causation, subject, typed payload, occurrence time, request hash, status, and creation time |
+| Database support | Pass | GORM all-model migration, memory initialization, and explicit MySQL/PostgreSQL migration `000030` create the Outbox and its idempotency, pending-dispatch, and correlation indexes |
+| No direct delivery | Pass | The publication service has no broker, event bus, subscriber, or delivery-client dependency and only calls the Outbox store inside the transaction |
+| Error transport | Pass | Event errors retain code, field, message, retryability, and HTTP status across gateway/client boundaries |
+| SDK conformance | Pass | The independent conformance plugin publishes a declared event inside a transaction through the public `Events` port |
+| Regression | Pass | Focused transaction, gateway, persistence, SDK/client, bootstrap, generator, plugin suites, every Go package, and focused race gates pass |
+| Framework purity | Pass | The Outbox is industry-neutral and adds no compatibility table, direct-send fallback, dual publication route, or business-specific field |
+
+### Failed Runs And Re-Execution
+
+- The first transaction test passed its data assertions but failed Windows temporary-directory cleanup because the SQLite connection remained open. The test now closes the underlying connection explicitly and passes with clean resource teardown.
+- The first focused integration run rejected gateway and conformance fixtures because `Events` became a required current host port. Every fixture was updated to implement the current interface; no optional-port fallback was added.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/hostservice -run TestEventServicePersistsTransactionBoundIdempotentOutbox -count=1 -v
+go test ./plugins/pharma_oa/backend ./internal/plugin ./internal/service/generator ./internal/bootstrap ./internal/plugin/hostservice -count=1
+go test -race ./internal/plugin/hostservice ./internal/plugin -run 'Test(EventServicePersistsTransactionBoundIdempotentOutbox|HostGatewayPreservesEventContractErrors)' -count=1
+go test ./...
+git diff --check
+```
+
+Result: FF2-02 passed. Declared plugin events now enter a durable, idempotent Outbox only inside the same host transaction as the business mutation, with rollback suppression and no transaction-time delivery call.
+
+### Commit
+
+`FF2-02: persist transactional plugin event outbox`

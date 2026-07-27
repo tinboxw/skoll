@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tinboxw/skoll/internal/plugin/eventoutbox"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	documentnumbersvc "github.com/tinboxw/skoll/internal/service/documentnumber"
 	documentworkflowsvc "github.com/tinboxw/skoll/internal/service/documentworkflow"
@@ -20,6 +21,8 @@ type HostServicesDependencies struct {
 	Transactions      pluginsdk.TransactionService
 	DataScopes        pluginsdk.DataScopeService
 	DataStore         DataStoreFactory
+	EventPublications EventPublicationResolver
+	EventOutbox       eventoutbox.Store
 	DocumentNumbers   *documentnumbersvc.Service
 	DocumentWorkflows documentworkflowsvc.Repository
 	Files             fileBackend
@@ -47,6 +50,10 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 	dataStore, err := deps.DataStore(pluginID, deps.DataScopes, audit)
 	if err != nil {
 		return pluginsdk.HostServices{}, fmt.Errorf("build plugin datastore service: %w", err)
+	}
+	events, err := NewEventService(pluginID, deps.EventPublications, deps.EventOutbox, nil)
+	if err != nil {
+		return pluginsdk.HostServices{}, err
 	}
 	documentNumbers, err := NewDocumentNumberService(pluginID, deps.DocumentNumbers, deps.DataScopes, audit)
 	if err != nil {
@@ -77,7 +84,7 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 	}
 	host := pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: deps.Transactions, DataScopes: deps.DataScopes,
-		DataStore: dataStore, DocumentNumbers: documentNumbers, Documents: documents, Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
+		DataStore: dataStore, Events: events, DocumentNumbers: documentNumbers, Documents: documents, Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
 	}
 	if err := host.Validate(); err != nil {
 		return pluginsdk.HostServices{}, fmt.Errorf("build plugin host services: %w", err)

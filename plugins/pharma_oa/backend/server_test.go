@@ -492,6 +492,12 @@ type testAudit struct {
 	entries []pluginsdk.AuditEntry
 }
 
+type testEvents struct{}
+
+func (testEvents) Publish(context.Context, pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
+	return pluginsdk.EventEnvelope{}, nil
+}
+
 func (a *testAudit) Record(ctx context.Context, entry pluginsdk.AuditEntry) (pluginsdk.AuditReceipt, error) {
 	if ctx.Value(testTransactionKey{}) != true {
 		return pluginsdk.AuditReceipt{}, errors.New("audit escaped transaction")
@@ -531,7 +537,7 @@ func newTestRuntime(t *testing.T) testRuntime {
 	workflows := &testWorkflows{definitions: make(map[string]pluginsdk.WorkflowDefinition), instances: make(map[string]pluginsdk.WorkflowInstance)}
 	scopes := testScopes{predicate: predicate}
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, DocumentNumbers: numbers,
+		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Events: testEvents{}, DocumentNumbers: numbers,
 		Files: files, Audit: audit, Workflows: workflows, Jobs: jobs,
 	})
 	if err != nil {
@@ -785,7 +791,7 @@ func TestEmployeeCreateRejectsDeniedScope(t *testing.T) {
 	runtime := newTestRuntime(t)
 	handler, err := newHandler(pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")},
-		DataStore: runtime.store, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+		DataStore: runtime.store, Events: testEvents{}, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1010,7 +1016,7 @@ func TestQualificationLifecycleEligibilityAndExpiryIdempotency(t *testing.T) {
 		t.Fatalf("expiry scan duplicate was not skipped: response=%v calls=%d", secondScan, runtime.jobs.scheduleCalls)
 	}
 	restarted, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store,
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Events: testEvents{},
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1112,7 +1118,7 @@ func TestPurchaseRequestApprovalCreatesOneGovernedOrder(t *testing.T) {
 	}
 	runtime.store.scope = crossScope
 	crossHandler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store,
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: testEvents{},
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1216,7 +1222,7 @@ func TestPurchaseInboundPartialAndFinalReceiving(t *testing.T) {
 	}
 
 	restarted, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store,
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Events: testEvents{},
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1237,7 +1243,7 @@ func TestPurchaseInboundPartialAndFinalReceiving(t *testing.T) {
 	}
 	runtime.store.scope = crossScope
 	crossHandler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store,
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: testEvents{},
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {

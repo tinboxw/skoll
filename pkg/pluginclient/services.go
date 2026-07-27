@@ -55,6 +55,13 @@ func (s dataScopeService) Resolve(ctx context.Context, permission pluginsdk.Perm
 
 type dataStoreService struct{ client *Client }
 
+type eventService struct{ client *Client }
+
+func (s eventService) Publish(ctx context.Context, publication pluginsdk.EventPublication) (out pluginsdk.EventEnvelope, err error) {
+	err = s.client.call(ctx, "events", "publish", publication, &out)
+	return
+}
+
 func (s dataStoreService) Query(ctx context.Context, query pluginsdk.DataQuery) (out pluginsdk.DataPage, err error) {
 	if err = query.Validate(); err != nil {
 		return out, err
