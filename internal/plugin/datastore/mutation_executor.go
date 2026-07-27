@@ -38,6 +38,12 @@ type mutationScope struct {
 	ownerID        string
 }
 
+type adjustmentPlan struct {
+	updates map[string]any
+	where   string
+	args    []any
+}
+
 func NewMutationExecutor(db *gorm.DB, uow repository.UnitOfWork, registry *SchemaRegistry, scopes pluginsdk.DataScopeService, audit pluginsdk.AuditService, dialect SQLDialect) (*MutationExecutor, error) {
 	if db == nil || uow == nil {
 		return nil, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "database", "plugin datastore database is unavailable", true)
@@ -72,6 +78,9 @@ func (e *MutationExecutor) Mutate(ctx context.Context, pluginID string, mutation
 	}
 	if err = validateMutationSchema(table, mutation); err != nil {
 		return pluginsdk.DataMutationResult{}, err
+	}
+	if mutation.Adjustment != nil && e.dialect == DialectSQLite && table.Fields[mutation.Adjustment.Field].Type == pluginsdk.DataValueDecimal {
+		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, "adjustment.field", "sqlite cannot execute exact decimal adjustments", false)
 	}
 	trusted, err := e.scopes.Resolve(ctx, mutation.Scope.Permission)
 	if err != nil {
@@ -145,6 +154,8 @@ func (e *MutationExecutor) executeMutation(db *gorm.DB, table ResolvedTable, sco
 		return e.insert(db, table, scope, mutation, now)
 	case pluginsdk.DataMutationDelete:
 		return e.delete(db, table, scope, mutation)
+	case pluginsdk.DataMutationAdjust:
+		return e.adjust(db, table, scope, mutation, now)
 	default:
 		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, "operation", "mutation operation is unsupported", false)
 	}
@@ -252,6 +263,100 @@ func (e *MutationExecutor) delete(db *gorm.DB, table ResolvedTable, scope mutati
 	return result, nil
 }
 
+func (e *MutationExecutor) adjust(db *gorm.DB, table ResolvedTable, scope mutationScope, mutation pluginsdk.DataMutation, now time.Time) (pluginsdk.DataMutationResult, error) {
+	plan, err := buildAdjustmentPlan(e.dialect, table, scope, mutation, now)
+	if err != nil {
+		return pluginsdk.DataMutationResult{}, err
+	}
+	operation := db.Table(table.PhysicalName).Where(plan.where, plan.args...).Updates(plan.updates)
+	if operation.Error != nil {
+		return pluginsdk.DataMutationResult{}, mutationDatabaseError("adjustment", "record could not be adjusted", operation.Error)
+	}
+	if operation.RowsAffected != 1 {
+		return pluginsdk.DataMutationResult{}, adjustmentConflict(db, e.dialect, table, scope, mutation)
+	}
+	if len(mutation.Returning) == 0 {
+		return pluginsdk.DataMutationResult{RowsAffected: 1}, nil
+	}
+	row, exists, err := loadMutationRecord(db, e.dialect, table, scope, mutation.Key, mutation.Returning)
+	if err != nil {
+		return pluginsdk.DataMutationResult{}, err
+	}
+	if !exists {
+		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "key", "adjusted record could not be reloaded", false)
+	}
+	version, err := databaseVersion(row[FieldVersion])
+	if err != nil {
+		return pluginsdk.DataMutationResult{}, err
+	}
+	record, err := mutationRecord(table, row, mutation.Returning, version)
+	if err != nil {
+		return pluginsdk.DataMutationResult{}, err
+	}
+	return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
+}
+
+func buildAdjustmentPlan(dialect SQLDialect, table ResolvedTable, scope mutationScope, mutation pluginsdk.DataMutation, now time.Time) (adjustmentPlan, error) {
+	adjustment := mutation.Adjustment
+	if adjustment == nil {
+		return adjustmentPlan{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "adjustment", "adjustment is required", false)
+	}
+	field := table.Fields[adjustment.Field]
+	if dialect == DialectSQLite && field.Type == pluginsdk.DataValueDecimal {
+		return adjustmentPlan{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, "adjustment.field", "sqlite cannot execute exact decimal adjustments", false)
+	}
+	delta, err := convertMutationValue(field, adjustment.Delta, "adjustment.delta")
+	if err != nil {
+		return adjustmentPlan{}, err
+	}
+	quotedField := quoteSQLIdentifier(dialect, adjustment.Field)
+	expression := quotedField + " + ?"
+	updates := map[string]any{
+		adjustment.Field: gorm.Expr(expression, delta),
+		FieldUpdatedAt:   now,
+		FieldVersion:     gorm.Expr(quoteSQLIdentifier(dialect, FieldVersion) + " + 1"),
+	}
+	where, args := mutationWhere(dialect, table, scope, mutation.Key, mutation.ExpectedVersion)
+	guards := []string{where, quotedField + " IS NOT NULL"}
+	if adjustment.Minimum != nil {
+		minimum, convertErr := convertMutationValue(field, *adjustment.Minimum, "adjustment.minimum")
+		if convertErr != nil {
+			return adjustmentPlan{}, convertErr
+		}
+		guards = append(guards, "("+expression+") >= ?")
+		args = append(args, delta, minimum)
+	}
+	if adjustment.Maximum != nil {
+		maximum, convertErr := convertMutationValue(field, *adjustment.Maximum, "adjustment.maximum")
+		if convertErr != nil {
+			return adjustmentPlan{}, convertErr
+		}
+		guards = append(guards, "("+expression+") <= ?")
+		args = append(args, delta, maximum)
+	}
+	return adjustmentPlan{updates: updates, where: strings.Join(guards, " AND "), args: args}, nil
+}
+
+func adjustmentConflict(db *gorm.DB, dialect SQLDialect, table ResolvedTable, scope mutationScope, mutation pluginsdk.DataMutation) error {
+	row, exists, err := loadMutationRecord(db, dialect, table, scope, mutation.Key, nil)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, "key", "record does not exist in the trusted scope", false)
+	}
+	if mutation.ExpectedVersion != nil {
+		version, versionErr := databaseVersion(row[FieldVersion])
+		if versionErr != nil {
+			return versionErr
+		}
+		if version != *mutation.ExpectedVersion {
+			return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "expectedVersion", "record version is stale", false)
+		}
+	}
+	return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, pluginsdk.DataAdjustmentGuardConflictField, "adjustment guard rejected the resulting value", false)
+}
+
 func validateMutationSchema(table ResolvedTable, mutation pluginsdk.DataMutation) error {
 	if table.MutationPolicy == TableMutationAppendOnly && mutation.Operation != pluginsdk.DataMutationInsert {
 		return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, "operation", "append-only table accepts insert mutations only", false)
@@ -283,6 +388,32 @@ func validateMutationSchema(table ResolvedTable, mutation pluginsdk.DataMutation
 		}
 		if err := validateMutationValue(schema, mutation.Values[field], "values."+field); err != nil {
 			return err
+		}
+	}
+	if mutation.Adjustment != nil {
+		field := mutation.Adjustment.Field
+		schema, exists := table.Fields[field]
+		if !exists || schema.HostManaged {
+			return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "adjustment.field", "field is not plugin managed", false)
+		}
+		if !schema.Mutable {
+			return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "adjustment.field", "field is immutable", false)
+		}
+		if schema.Type != pluginsdk.DataValueInteger && schema.Type != pluginsdk.DataValueDecimal {
+			return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "adjustment.field", "field is not numeric", false)
+		}
+		if err := validateMutationValue(schema, mutation.Adjustment.Delta, "adjustment.delta"); err != nil {
+			return err
+		}
+		if mutation.Adjustment.Minimum != nil {
+			if err := validateMutationValue(schema, *mutation.Adjustment.Minimum, "adjustment.minimum"); err != nil {
+				return err
+			}
+		}
+		if mutation.Adjustment.Maximum != nil {
+			if err := validateMutationValue(schema, *mutation.Adjustment.Maximum, "adjustment.maximum"); err != nil {
+				return err
+			}
 		}
 	}
 	for index, field := range mutation.Returning {
@@ -456,6 +587,9 @@ func mutationAuditEntry(table ResolvedTable, mutation pluginsdk.DataMutation, re
 	}
 	if result.Record != nil {
 		detail["version"] = result.Record.Version
+	}
+	if mutation.Adjustment != nil {
+		detail["field"] = mutation.Adjustment.Field
 	}
 	return pluginsdk.AuditEntry{
 		Action: "datastore." + string(mutation.Operation), Resource: "data." + table.LogicalName,

@@ -2303,3 +2303,49 @@ Result: FF1-02 passed. Plugin callers can now express one exact, guarded numeric
 ### Commit
 
 `FF1-02: define guarded atomic adjustments`
+
+## FF1-03 Execute Guarded Atomic Arithmetic Across SQL Dialects
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Execute host-owned guarded adjustments atomically while preserving trusted scope, idempotency, optimistic versions, audit, and transaction rollback.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Atomic execution | Pass | One SQL update changes the declared field and increments the host version; callers without an expected version do not use a stale read/CAS cycle |
+| Trusted targeting | Pass | Tenant, organization, owner, complete primary key, optional expected version, non-null value, and lower/upper guards are bound in the same update predicate |
+| Concurrency | Pass | Twelve simultaneous SQLite integer increments complete without lost updates; final value and version reconcile, ten repeated contention runs pass |
+| Deterministic conflicts | Pass | Missing scoped records return `not_found`; stale explicit versions return `expectedVersion`; null or bound failures return `adjustment.guard` |
+| Idempotency and rollback | Pass | Replays return the stored result; guard, stale-version, and audit failures leave record, idempotency reservation, and audit counts unchanged |
+| Audit | Pass | Successful adjustments record `datastore.adjust`, the logical table, hashed idempotency key, affected field, rows, and returned version when present |
+| Dialect planning | Pass | SQLite, PostgreSQL, and MySQL integer plans use dialect-safe quoted identifiers and bound operands; no raw plugin expression enters SQL |
+| Decimal integrity | Pass | PostgreSQL/MySQL plans preserve decimal delta and bounds as strings; SQLite rejects decimal adjustment before scope resolution, reservation, SQL, or audit because its NUMERIC affinity cannot guarantee exact arithmetic |
+| Regression | Pass | Datastore repetition and race gates, focused SDK/client packages, and every Go package pass |
+| Framework purity | Pass | The executor is industry-neutral and introduces no inventory rule, compatibility parser, fallback, or dual execution path |
+
+### Failed Runs And Re-Execution
+
+- The first decimal integration exposed SQLite binary-float coercion and a text-bound comparison that could admit an invalid upper bound. The unsafe path was removed; SQLite now fails closed for decimal adjustments, while PostgreSQL/MySQL retain exact string bindings.
+- The combined contention/race command exceeded its shell budget while the race build continued. The process was terminated, contention was rerun ten times, and the race gate was rerun independently.
+- The first race run found a concurrent write in the test-only recording scope service. The mutation fixture now uses an immutable resolver; the race gate then passed.
+- The first package regression found that a shared mutation test helper had gained fixture-only fields. Those defaults moved into the FF1-03 table DDL, and focused plus full regressions then passed.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/datastore -run 'TestMutationExecutorConcurrentAdjustmentsNeverLoseUpdates' -count=10 -timeout=120s
+go test -race ./internal/plugin/datastore -run 'Test(MutationExecutorConcurrentAdjustmentsNeverLoseUpdates|MutationExecutorAdjustsWithBoundsVersionsIdempotencyAndAudit)' -count=1 -timeout=120s
+go test ./internal/plugin/datastore ./pkg/pluginsdk ./pkg/pluginclient -count=1
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: FF1-03 passed. Current plugins can perform lossless guarded integer adjustments on all supported SQL dialects and exact decimal adjustments on PostgreSQL/MySQL, with unsafe SQLite decimal arithmetic rejected explicitly.
+
+### Commit
+
+`FF1-03: execute guarded atomic adjustments`
