@@ -162,7 +162,7 @@ func openMemoryPluginDataDB() (*gorm.DB, error) {
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
 	if err = db.AutoMigrate(
-		&gormrepo.PluginDataMutationModel{}, &gormrepo.PluginEventOutboxModel{},
+		&gormrepo.PluginDataMutationModel{}, &gormrepo.PluginEventOutboxModel{}, &gormrepo.PluginEventInboxModel{},
 		&gormrepo.DocumentNumberSequenceModel{}, &gormrepo.DocumentNumberIssueModel{},
 		&gormrepo.DocumentWorkflowBindingModel{}, &gormrepo.DocumentWorkflowActionModel{},
 		&gormrepo.DocumentAttachmentModel{}, &gormrepo.DocumentCommentModel{}, &gormrepo.DocumentTimelineEventModel{},

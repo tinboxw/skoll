@@ -2621,3 +2621,54 @@ Result: FF2-03 passed. Committed plugin events now leave the Outbox through dura
 ### Commit
 
 `FF2-03: dispatch plugin events with durable retries`
+
+## FF2-04 Enforce Inter-Plugin Event Authorization And Idempotent Consumption
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Route current plugin event envelopes only to exact enabled subscriptions and durably deduplicate each consumer delivery before invoking plugin code.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| One current wire contract | Pass | `pluginsdk.EventDelivery` carries delivery identity, subscriber, handler, and one nested current `EventEnvelope`; the old flat delivery DTO and client signature were removed |
+| Publisher authorization | Pass | The router resolves the envelope publisher from the enabled catalog and validates the exact publication name, schema version, payload type, scope, subject, correlation, and typed payload |
+| Subscriber authorization | Pass | Only enabled plugins with an exact publisher/name/version declaration are considered; the declared handler is revalidated before inbox claim |
+| Forged identity denial | Pass | Unknown or disabled publishers and mismatched publisher identity fail before inbox creation or HTTP delivery |
+| Version denial | Pass | Undeclared publication versions fail at the router and unsupported delivery versions fail the public SDK consumption contract |
+| Tenant routing | Pass | Tenant publication validation requires the tenant identity, preserves organization/owner scope in the nested envelope, and rejects missing tenant scope before consumer invocation |
+| Durable inbox | Pass | `sk_plugin_event_inbox` persists the complete delivery, event/subscriber/handler identity, tenant, status, attempt, lease, error, and processed timestamps |
+| Concurrent dedupe | Pass | Two concurrent routes for one event/subscriber/handler compete on one deterministic delivery identity and invoke the consumer once |
+| Retry safety | Pass | Consumer failure records `failed`; the same delivery identity can be reclaimed, increments its attempt, and becomes permanently deduplicated after success |
+| Lease safety | Pass | Active processing leases suppress concurrent work; expired leases can be reclaimed and stale complete/fail transitions return `ErrLeaseLost` |
+| Disabled subscriber | Pass | Disabled plugins are excluded before inbox claim and receive no delivery |
+| HTTP boundary | Pass | Delivery headers bind subscriber, handler, publisher, and idempotency identity; redirects and non-2xx responses remain observable failures |
+| Plugin conformance | Pass | Equipment Maintenance and Pharma OA consume only the nested current delivery, validate publisher/name/version/handler, and reject the removed flat shape |
+| Database parity | Pass | GORM, in-memory bootstrap, MySQL, and PostgreSQL include the same `000031` inbox fields and indexes |
+| Regression | Pass | Focused security tests, 20 repeated concurrency runs, race detection, bootstrap lifecycle, and both plugin backend suites pass |
+| Framework purity | Pass | No compatibility decoder, legacy flat DTO, fallback subscriber, dual endpoint, or business-specific inbox field remains |
+
+### Failed Runs And Re-Execution
+
+- The first compile run exposed the expected old client test fixtures and one package-local time helper reference. Fixtures were switched to `pluginsdk.EventDelivery` and the inbox now owns its lease timestamp construction.
+- The first plugin backend run rejected old flat test payloads with `unknown field "eventName"`. Both plugin fixtures were replaced with the single nested current delivery contract; no compatibility decoder was added, and the suites passed.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin ./internal/store/sql/gormrepo ./pkg/pluginsdk -run 'Test(CurrentEventRouter|EventDelivery|AllModels)' -count=1
+go test ./internal/plugin -run TestCurrentEventRouter -count=20
+go test -race ./internal/plugin ./internal/store/sql/gormrepo ./pkg/pluginsdk -run 'Test(CurrentEventRouter|EventDelivery|AllModels)' -count=1
+go test ./internal/bootstrap ./plugins/equipment_maintenance/backend ./plugins/pharma_oa/backend -count=1
+go test ./...
+git diff --check
+codegraph sync .
+```
+
+Result: FF2-04 passed. Current events now cross plugin boundaries only through exact enabled capabilities, preserve tenant scope, and claim one durable consumer inbox identity before any plugin side effect.
+
+### Commit
+
+`FF2-04: enforce authorized idempotent event consumption`

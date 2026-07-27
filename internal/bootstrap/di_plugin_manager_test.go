@@ -22,6 +22,7 @@ import (
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/logging"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"gorm.io/gorm"
 )
 
@@ -30,10 +31,10 @@ type recordingPluginEventDelivery struct {
 	failEvents map[string]bool
 }
 
-func (d *recordingPluginEventDelivery) Deliver(_ context.Context, _ plugin.Info, subscription plugin.EventSubscription, evt event.BusinessEvent) error {
-	d.calls = append(d.calls, evt.ID+":"+subscription.Handler)
-	if d.failEvents[evt.ID] {
-		delete(d.failEvents, evt.ID)
+func (d *recordingPluginEventDelivery) Deliver(_ context.Context, _ plugin.Info, delivery pluginsdk.EventDelivery) error {
+	d.calls = append(d.calls, delivery.Envelope.ID+":"+delivery.Handler)
+	if d.failEvents[delivery.Envelope.ID] {
+		delete(d.failEvents, delivery.Envelope.ID)
 		return errors.New("temporary plugin event failure")
 	}
 	return nil

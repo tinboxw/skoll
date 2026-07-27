@@ -233,7 +233,19 @@ func TestEquipmentMaintenancePrimaryWorkflowsAndPersistence(t *testing.T) {
 	if nestedString(t, submitted, "item", "status") != "awaiting_approval" {
 		t.Fatalf("submit response=%v", submitted)
 	}
-	event := map[string]any{"deliveryId": "delivery-1", "pluginId": pluginID, "handler": "onApprovalCompleted", "eventName": "approval-completed", "subject": map[string]any{"id": orderID}, "payload": map[string]any{"businessId": orderID, "status": "approved"}}
+	event := map[string]any{
+		"deliveryId": "delivery-1", "subscriber": pluginID, "handler": "onApprovalCompleted",
+		"envelope": map[string]any{
+			"id": "event-1", "publisher": "skoll", "name": "approval-completed", "schemaVersion": 1,
+			"payloadType": "approval-completed", "correlationId": "event-1", "occurredAt": "2026-07-22T08:00:00Z",
+			"subject": map[string]any{"type": "work_order", "id": orderID},
+			"scope":   map[string]any{},
+			"payload": map[string]any{
+				"businessId": map[string]any{"type": "string", "value": orderID},
+				"status":     map[string]any{"type": "string", "value": "approved"},
+			},
+		},
+	}
 	performWithoutAuth(t, runtime.handler, http.MethodPost, "/_skoll/events", event, http.StatusNoContent)
 	performWithoutAuth(t, runtime.handler, http.MethodPost, "/_skoll/events", event, http.StatusNoContent)
 	perform(t, runtime.handler, http.MethodPost, apiBase+"/work-orders/"+orderID+"/complete", map[string]any{}, http.StatusOK)

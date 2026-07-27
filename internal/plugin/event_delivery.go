@@ -12,31 +12,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tinboxw/skoll/internal/event"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 const pluginEventEndpoint = "/_skoll/events"
 
 type EventDeliveryClient interface {
-	Deliver(ctx context.Context, info Info, subscription EventSubscription, evt event.BusinessEvent) error
-}
-
-type EventDeliveryEnvelope struct {
-	DeliveryID string            `json:"deliveryId"`
-	PluginID   string            `json:"pluginId"`
-	Handler    string            `json:"handler"`
-	EventID    string            `json:"eventId"`
-	EventName  string            `json:"eventName"`
-	Source     string            `json:"source,omitempty"`
-	Subject    EventSubject      `json:"subject"`
-	Payload    map[string]any    `json:"payload"`
-	Metadata   map[string]string `json:"metadata"`
-	OccurredAt time.Time         `json:"occurredAt"`
-}
-
-type EventSubject struct {
-	Type string `json:"type,omitempty"`
-	ID   string `json:"id,omitempty"`
+	Deliver(ctx context.Context, info Info, delivery pluginsdk.EventDelivery) error
 }
 
 type HTTPEventDeliveryClient struct {
@@ -60,36 +42,20 @@ func NewHTTPEventDeliveryClient(client *http.Client, timeout time.Duration) *HTT
 	return &HTTPEventDeliveryClient{client: &configured}
 }
 
-func (c *HTTPEventDeliveryClient) Deliver(ctx context.Context, info Info, subscription EventSubscription, evt event.BusinessEvent) error {
+func (c *HTTPEventDeliveryClient) Deliver(ctx context.Context, info Info, delivery pluginsdk.EventDelivery) error {
 	if c == nil || c.client == nil {
 		return errors.New("plugin event delivery client is not configured")
 	}
-	if err := evt.Validate(); err != nil {
-		return err
-	}
 	pluginID := strings.TrimSpace(info.ID)
-	handler := strings.TrimSpace(subscription.Handler)
-	if pluginID == "" || handler == "" {
+	if pluginID == "" || pluginID != strings.TrimSpace(delivery.Subscriber) ||
+		strings.TrimSpace(delivery.Handler) == "" || strings.TrimSpace(delivery.DeliveryID) == "" {
 		return ErrPluginManifestBroken
 	}
 	target, err := pluginEventURL(info.ServiceBaseURL)
 	if err != nil {
 		return err
 	}
-	handlerName := pluginID + ":" + handler
-	envelope := EventDeliveryEnvelope{
-		DeliveryID: event.BusinessDeliveryID(evt.ID, handlerName),
-		PluginID:   pluginID,
-		Handler:    handler,
-		EventID:    evt.ID,
-		EventName:  evt.EventName,
-		Source:     evt.Source,
-		Subject:    EventSubject{Type: evt.SubjectType, ID: evt.SubjectID},
-		Payload:    evt.Payload,
-		Metadata:   evt.Metadata,
-		OccurredAt: evt.OccurredAt.UTC(),
-	}
-	body, err := json.Marshal(envelope)
+	body, err := json.Marshal(delivery)
 	if err != nil {
 		return fmt.Errorf("encode plugin event delivery: %w", err)
 	}
@@ -101,9 +67,10 @@ func (c *HTTPEventDeliveryClient) Deliver(ctx context.Context, info Info, subscr
 		return fmt.Errorf("build plugin event delivery: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Idempotency-Key", envelope.DeliveryID)
+	req.Header.Set("Idempotency-Key", delivery.DeliveryID)
 	req.Header.Set("X-Skoll-Plugin-ID", pluginID)
-	req.Header.Set("X-Skoll-Event-Handler", handler)
+	req.Header.Set("X-Skoll-Event-Handler", delivery.Handler)
+	req.Header.Set("X-Skoll-Event-Publisher", delivery.Envelope.Publisher)
 
 	response, err := c.client.Do(req)
 	if err != nil {

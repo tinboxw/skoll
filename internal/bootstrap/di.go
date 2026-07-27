@@ -110,14 +110,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
 	documentWorkflowStore := gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB)
 	eventOutboxStore := gormrepo.NewPluginEventOutboxStore(bundle.PluginDataDB)
-	eventDispatcher, err := eventoutbox.NewDispatcher(eventOutboxStore, eventoutbox.DeliverySinkFunc(
-		func(ctx context.Context, envelope pluginsdk.EventEnvelope) error {
-			return bus.Publish(ctx, event.PluginEvent{Envelope: envelope})
-		},
-	), eventoutbox.DispatcherOptions{})
-	if err != nil {
-		return nil, err
-	}
+	eventInboxStore := gormrepo.NewPluginEventInboxStore(bundle.PluginDataDB)
 	transactionService, err := hostservice.NewTransactionService(bundle.UnitOfWork)
 	if err != nil {
 		return nil, err
@@ -147,6 +140,17 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 			EventOutbox: eventOutboxStore,
 		},
 	)
+	if err != nil {
+		return nil, err
+	}
+	currentEventRouter, err := plugin.NewCurrentEventRouter(
+		pluginManager, eventInboxStore, plugin.NewHTTPEventDeliveryClient(nil, 5*time.Second),
+		plugin.CurrentEventRouterOptions{WorkerID: fmt.Sprintf("runtime-router-%d", os.Getpid())},
+	)
+	if err != nil {
+		return nil, err
+	}
+	eventDispatcher, err := eventoutbox.NewDispatcher(eventOutboxStore, currentEventRouter, eventoutbox.DispatcherOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -1120,7 +1124,37 @@ func (m *pluginManagerWithExtensions) deliverPluginBusinessEvent(ctx context.Con
 	if err != nil || info.State != plugin.StateEnabled || !pluginEventSubscriptionDeclared(info, subscription) {
 		return nil
 	}
-	return m.eventDelivery.Deliver(ctx, info, subscription, businessEvent)
+	delivery, err := currentBusinessEventDelivery(pluginID, subscription, businessEvent)
+	if err != nil {
+		return err
+	}
+	return m.eventDelivery.Deliver(ctx, info, delivery)
+}
+
+func currentBusinessEventDelivery(pluginID string, subscription plugin.EventSubscription, businessEvent event.BusinessEvent) (pluginsdk.EventDelivery, error) {
+	if len(subscription.SchemaVersions) == 0 {
+		return pluginsdk.EventDelivery{}, plugin.ErrPluginManifestBroken
+	}
+	payload := make(pluginsdk.EventPayload, len(businessEvent.Payload))
+	for key, value := range businessEvent.Payload {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return pluginsdk.EventDelivery{}, err
+		}
+		payload[key] = pluginsdk.DataValue{Type: pluginsdk.DataValueJSON, Value: string(encoded)}
+	}
+	return pluginsdk.EventDelivery{
+		DeliveryID: event.BusinessDeliveryID(businessEvent.ID, pluginID+":"+subscription.Handler),
+		Subscriber: pluginID,
+		Handler:    subscription.Handler,
+		Envelope: pluginsdk.EventEnvelope{
+			ID: businessEvent.ID, Publisher: subscription.Publisher, Name: businessEvent.EventName,
+			SchemaVersion: subscription.SchemaVersions[0], PayloadType: businessEvent.EventName,
+			CorrelationID: businessEvent.ID,
+			Subject:       pluginsdk.EventSubject{Type: businessEvent.SubjectType, ID: businessEvent.SubjectID},
+			Payload:       payload, OccurredAt: businessEvent.OccurredAt,
+		},
+	}, nil
 }
 
 func pluginEventSubscriptionDeclared(info plugin.Info, expected plugin.EventSubscription) bool {

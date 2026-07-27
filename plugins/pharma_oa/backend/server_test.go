@@ -560,10 +560,22 @@ func TestFoundationEndpoints(t *testing.T) {
 
 func TestFoundationEventContract(t *testing.T) {
 	runtime := newTestRuntime(t)
-	for handler, eventName := range foundationEvents {
-		testRequest(t, runtime.handler, http.MethodPost, "/_skoll/events", map[string]any{"deliveryId": "delivery-1", "pluginId": pluginID, "handler": handler, "eventName": eventName}, "", false, http.StatusNoContent)
+	for handler, contract := range foundationEvents {
+		testRequest(t, runtime.handler, http.MethodPost, "/_skoll/events", testEventDelivery(handler, contract), "", false, http.StatusNoContent)
 	}
-	testRequest(t, runtime.handler, http.MethodPost, "/_skoll/events", map[string]any{"deliveryId": "delivery-2", "pluginId": pluginID, "handler": "privateHandler", "eventName": "approval-completed"}, "", false, http.StatusBadRequest)
+	invalid := testEventDelivery("privateHandler", foundationEventContract{Publisher: "skoll", Name: "approval-completed"})
+	testRequest(t, runtime.handler, http.MethodPost, "/_skoll/events", invalid, "", false, http.StatusBadRequest)
+}
+
+func testEventDelivery(handler string, contract foundationEventContract) map[string]any {
+	return map[string]any{
+		"deliveryId": "delivery-1", "subscriber": pluginID, "handler": handler,
+		"envelope": map[string]any{
+			"id": "event-1", "publisher": contract.Publisher, "name": contract.Name,
+			"schemaVersion": 1, "payloadType": contract.Name, "correlationId": "event-1",
+			"scope": map[string]any{}, "payload": map[string]any{}, "occurredAt": "2026-07-22T08:00:00Z",
+		},
+	}
 }
 
 func TestOARequestDraftUpdateAndSubmitUsesHostWorkflow(t *testing.T) {

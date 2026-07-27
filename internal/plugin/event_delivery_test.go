@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tinboxw/skoll/internal/event"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 func TestHTTPEventDeliveryClientSendsCurrentEnvelope(t *testing.T) {
-	var received EventDeliveryEnvelope
+	var received pluginsdk.EventDelivery
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost || r.URL.Path != "/plugin/_skoll/events" {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -28,18 +28,22 @@ func TestHTTPEventDeliveryClientSendsCurrentEnvelope(t *testing.T) {
 	}))
 	defer server.Close()
 
-	occurredAt := time.Date(2026, 7, 22, 8, 0, 0, 0, time.UTC)
-	evt := event.BusinessEvent{
-		ID: "event-approval-1", EventName: event.BusinessEventApprovalCompleted, Source: "workflow",
-		SubjectType: "approval", SubjectID: "approval-1", Payload: map[string]any{"result": "approved"},
-		Metadata: map[string]string{"traceId": "trace-1"}, OccurredAt: occurredAt,
+	delivery := pluginsdk.EventDelivery{
+		DeliveryID: "delivery-approval-1", Subscriber: "reports", Handler: "onApprovalCompleted",
+		Envelope: pluginsdk.EventEnvelope{
+			ID: "event-approval-1", Publisher: "workflow", Name: "approval-completed",
+			SchemaVersion: 1, PayloadType: "approval.completed", CorrelationID: "trace-1",
+			Subject:    pluginsdk.EventSubject{Type: "approval", ID: "approval-1"},
+			Payload:    pluginsdk.EventPayload{"result": {Type: pluginsdk.DataValueString, Value: "approved"}},
+			OccurredAt: time.Date(2026, 7, 22, 8, 0, 0, 0, time.UTC),
+		},
 	}
 	client := NewHTTPEventDeliveryClient(nil, time.Second)
-	if err := client.Deliver(context.Background(), Info{ID: "reports", ServiceBaseURL: server.URL + "/plugin/"}, EventSubscription{Handler: "onApprovalCompleted"}, evt); err != nil {
+	if err := client.Deliver(context.Background(), Info{ID: "reports", ServiceBaseURL: server.URL + "/plugin/"}, delivery); err != nil {
 		t.Fatalf("deliver event: %v", err)
 	}
-	wantDeliveryID := event.BusinessDeliveryID(evt.ID, "reports:onApprovalCompleted")
-	if received.DeliveryID != wantDeliveryID || received.PluginID != "reports" || received.EventID != evt.ID || received.Subject.ID != "approval-1" {
+	if received.DeliveryID != delivery.DeliveryID || received.Subscriber != "reports" ||
+		received.Envelope.ID != delivery.Envelope.ID || received.Envelope.Subject.ID != "approval-1" {
 		t.Fatalf("unexpected envelope: %+v", received)
 	}
 }
@@ -57,7 +61,7 @@ func TestHTTPEventDeliveryClientRejectsFailureAndRedirect(t *testing.T) {
 	defer server.Close()
 
 	client := NewHTTPEventDeliveryClient(nil, time.Second)
-	err := client.Deliver(context.Background(), Info{ID: "reports", ServiceBaseURL: server.URL}, EventSubscription{Handler: "handler"}, event.BusinessEvent{ID: "event-1", EventName: event.BusinessEventInboundCompleted})
+	err := client.Deliver(context.Background(), Info{ID: "reports", ServiceBaseURL: server.URL}, testCurrentDelivery())
 	if err == nil || !strings.Contains(err.Error(), "status 307") {
 		t.Fatalf("expected observable redirect failure, got %v", err)
 	}
@@ -68,8 +72,19 @@ func TestHTTPEventDeliveryClientRejectsFailureAndRedirect(t *testing.T) {
 
 func TestHTTPEventDeliveryClientRejectsInvalidServiceURL(t *testing.T) {
 	client := NewHTTPEventDeliveryClient(nil, time.Second)
-	err := client.Deliver(context.Background(), Info{ID: "reports", ServiceBaseURL: "file:///tmp/plugin"}, EventSubscription{Handler: "handler"}, event.BusinessEvent{ID: "event-1", EventName: event.BusinessEventInboundCompleted})
+	err := client.Deliver(context.Background(), Info{ID: "reports", ServiceBaseURL: "file:///tmp/plugin"}, testCurrentDelivery())
 	if err != ErrPluginManifestBroken {
 		t.Fatalf("expected broken manifest, got %v", err)
+	}
+}
+
+func testCurrentDelivery() pluginsdk.EventDelivery {
+	return pluginsdk.EventDelivery{
+		DeliveryID: "delivery-1", Subscriber: "reports", Handler: "handler",
+		Envelope: pluginsdk.EventEnvelope{
+			ID: "event-1", Publisher: "warehouse", Name: "inbound-completed",
+			SchemaVersion: 1, PayloadType: "inbound.completed", CorrelationID: "event-1",
+			Payload: pluginsdk.EventPayload{}, OccurredAt: time.Now().UTC(),
+		},
 	}
 }

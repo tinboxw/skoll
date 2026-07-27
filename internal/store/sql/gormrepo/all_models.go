@@ -13,6 +13,7 @@ func AllModels() []any {
 		&PluginReleaseModel{},
 		&PluginDataMutationModel{},
 		&PluginEventOutboxModel{},
+		&PluginEventInboxModel{},
 		&DocumentNumberSequenceModel{},
 		&DocumentNumberIssueModel{},
 		&DocumentWorkflowBindingModel{},

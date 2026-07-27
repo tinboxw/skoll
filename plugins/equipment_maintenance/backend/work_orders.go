@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -343,37 +344,29 @@ func (s *Server) ensureApprovalDefinition(ctx context.Context, assigneeID string
 	return err
 }
 
-type eventEnvelope struct {
-	DeliveryID string `json:"deliveryId"`
-	PluginID   string `json:"pluginId"`
-	Handler    string `json:"handler"`
-	EventName  string `json:"eventName"`
-	Subject    struct {
-		ID string `json:"id"`
-	} `json:"subject"`
-	Payload map[string]any `json:"payload"`
-}
-
 func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
-	var event eventEnvelope
-	if !decodeJSON(w, r, &event) {
+	var delivery pluginsdk.EventDelivery
+	if !decodeJSON(w, r, &delivery) {
 		return
 	}
-	if event.PluginID != pluginID || event.Handler != "onApprovalCompleted" || event.EventName != "approval-completed" || strings.TrimSpace(event.DeliveryID) == "" {
+	event := delivery.Envelope
+	if delivery.Subscriber != pluginID || delivery.Handler != "onApprovalCompleted" ||
+		event.Publisher != "skoll" || event.Name != "approval-completed" || event.SchemaVersion != 1 ||
+		strings.TrimSpace(delivery.DeliveryID) == "" {
 		writeError(w, http.StatusBadRequest, "invalid_event", "event contract does not match manifest")
 		return
 	}
-	status := strings.ToLower(strings.TrimSpace(fmt.Sprint(event.Payload["status"])))
+	status := strings.ToLower(eventPayloadString(event.Payload["status"]))
 	if status != "approved" && status != "rejected" {
 		writeError(w, http.StatusBadRequest, "invalid_event", "approval status is invalid")
 		return
 	}
-	businessID := strings.TrimSpace(fmt.Sprint(event.Payload["businessId"]))
+	businessID := eventPayloadString(event.Payload["businessId"])
 	if businessID == "" {
 		businessID = strings.TrimSpace(event.Subject.ID)
 	}
 	err := s.store.Update(func(state *State) error {
-		if _, duplicate := state.EventDeliveries[event.DeliveryID]; duplicate {
+		if _, duplicate := state.EventDeliveries[delivery.DeliveryID]; duplicate {
 			return nil
 		}
 		order, ok := state.WorkOrders[businessID]
@@ -382,7 +375,7 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 		}
 		order.Status, order.UpdatedAt = status, s.nowFn().UTC()
 		state.WorkOrders[businessID] = order
-		state.EventDeliveries[event.DeliveryID] = DeliveryRecord{DeliveryID: event.DeliveryID, HandledAt: s.nowFn().UTC()}
+		state.EventDeliveries[delivery.DeliveryID] = DeliveryRecord{DeliveryID: delivery.DeliveryID, HandledAt: s.nowFn().UTC()}
 		return nil
 	})
 	if err != nil {
@@ -390,4 +383,17 @@ func (s *Server) handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func eventPayloadString(value pluginsdk.DataValue) string {
+	switch value.Type {
+	case pluginsdk.DataValueString, pluginsdk.DataValueInteger, pluginsdk.DataValueDecimal, pluginsdk.DataValueBoolean:
+		return strings.TrimSpace(value.Value)
+	case pluginsdk.DataValueJSON:
+		var decoded any
+		if json.Unmarshal([]byte(value.Value), &decoded) == nil {
+			return strings.TrimSpace(fmt.Sprint(decoded))
+		}
+	}
+	return ""
 }

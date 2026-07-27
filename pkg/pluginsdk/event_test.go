@@ -99,3 +99,35 @@ func TestEventSubscriptionDeclarationRequiresExactCapabilities(t *testing.T) {
 		}
 	}
 }
+
+func TestEventDeliveryRejectsUndeclaredOrUnsupportedConsumption(t *testing.T) {
+	declaration := EventSubscriptionDeclaration{
+		Publisher: "warehouse", Name: "inventory.received", SchemaVersions: []uint32{1},
+		Handler: "onInventoryReceived", RetryPolicy: "standard",
+	}
+	delivery := EventDelivery{
+		DeliveryID: "delivery-1", Subscriber: "analytics", Handler: declaration.Handler,
+		Envelope: EventEnvelope{
+			ID: "event-1", Publisher: declaration.Publisher, Name: declaration.Name,
+			SchemaVersion: 1, PayloadType: "inventory.received", CorrelationID: "correlation-1",
+			Payload: EventPayload{}, OccurredAt: time.Now().UTC(),
+		},
+	}
+	if err := delivery.Validate(declaration); err != nil {
+		t.Fatalf("valid event delivery rejected: %v", err)
+	}
+	for name, alter := range map[string]func(*EventDelivery){
+		"publisher": func(item *EventDelivery) { item.Envelope.Publisher = "forged" },
+		"name":      func(item *EventDelivery) { item.Envelope.Name = "inventory.changed" },
+		"version":   func(item *EventDelivery) { item.Envelope.SchemaVersion = 2 },
+		"handler":   func(item *EventDelivery) { item.Handler = "privateHandler" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := delivery
+			alter(&invalid)
+			if err := invalid.Validate(declaration); err == nil {
+				t.Fatalf("invalid %s accepted", name)
+			}
+		})
+	}
+}

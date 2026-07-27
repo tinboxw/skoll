@@ -28,25 +28,23 @@ type foundationContract struct {
 	Events          []string `json:"events"`
 }
 
-type eventEnvelope struct {
-	DeliveryID string `json:"deliveryId"`
-	PluginID   string `json:"pluginId"`
-	Handler    string `json:"handler"`
-	EventName  string `json:"eventName"`
-}
-
 type server struct {
 	host  pluginsdk.HostServices
 	now   func() time.Time
 	newID func() string
 }
 
-var foundationEvents = map[string]string{
-	"onApprovalCompleted":     "approval-completed",
-	"onQualificationExpiring": "qualification-expiring",
-	"onInventoryChanged":      "inventory-changed",
-	"onQualityLotReleased":    "quality-lot-released",
-	"onQualityRecallStarted":  "quality-recall-started",
+type foundationEventContract struct {
+	Publisher string
+	Name      string
+}
+
+var foundationEvents = map[string]foundationEventContract{
+	"onApprovalCompleted":     {Publisher: "skoll", Name: "approval-completed"},
+	"onQualificationExpiring": {Publisher: pluginID, Name: "qualification-expiring"},
+	"onInventoryChanged":      {Publisher: pluginID, Name: "inventory-changed"},
+	"onQualityLotReleased":    {Publisher: pluginID, Name: "quality-lot-released"},
+	"onQualityRecallStarted":  {Publisher: pluginID, Name: "quality-recall-started"},
 }
 
 func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
@@ -141,12 +139,14 @@ func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *server) handleEvent(w http.ResponseWriter, r *http.Request) {
-	var event eventEnvelope
-	if !decodeJSON(w, r, &event) {
+	var delivery pluginsdk.EventDelivery
+	if !decodeJSON(w, r, &delivery) {
 		return
 	}
-	wantEvent, ok := foundationEvents[strings.TrimSpace(event.Handler)]
-	if !ok || event.PluginID != pluginID || event.EventName != wantEvent || strings.TrimSpace(event.DeliveryID) == "" {
+	wantEvent, ok := foundationEvents[strings.TrimSpace(delivery.Handler)]
+	event := delivery.Envelope
+	if !ok || delivery.Subscriber != pluginID || event.Publisher != wantEvent.Publisher || event.Name != wantEvent.Name ||
+		event.SchemaVersion != 1 || strings.TrimSpace(delivery.DeliveryID) == "" {
 		writeError(w, http.StatusBadRequest, "invalid_event", "event contract does not match the manifest")
 		return
 	}

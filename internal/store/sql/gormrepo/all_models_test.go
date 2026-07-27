@@ -23,6 +23,9 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 	if !containsModel[PluginEventOutboxModel](models) {
 		t.Fatal("AllModels() should include PluginEventOutboxModel")
 	}
+	if !containsModel[PluginEventInboxModel](models) {
+		t.Fatal("AllModels() should include PluginEventInboxModel")
+	}
 	if !containsModel[FileObjectModel](models) {
 		t.Fatal("AllModels() should include FileObjectModel")
 	}

@@ -233,6 +233,38 @@ type EventEnvelope struct {
 	OccurredAt    time.Time    `json:"occurredAt"`
 }
 
+type EventDelivery struct {
+	DeliveryID string        `json:"deliveryId"`
+	Subscriber string        `json:"subscriber"`
+	Handler    string        `json:"handler"`
+	Envelope   EventEnvelope `json:"envelope"`
+}
+
+func (d EventDelivery) Validate(declaration EventSubscriptionDeclaration) error {
+	if err := declaration.Validate(); err != nil {
+		return err
+	}
+	if !eventIdentityPattern.MatchString(strings.TrimSpace(d.DeliveryID)) {
+		return invalidEventContract("deliveryId", "event delivery identity is invalid")
+	}
+	if !eventPublisherPattern.MatchString(strings.TrimSpace(d.Subscriber)) {
+		return invalidEventContract("subscriber", "event subscriber is invalid")
+	}
+	if strings.TrimSpace(d.Handler) != strings.TrimSpace(declaration.Handler) {
+		return NewEventError(EventErrorUndeclaredSubscription, "handler", "event handler is not declared", false)
+	}
+	if strings.TrimSpace(d.Envelope.Publisher) != strings.TrimSpace(declaration.Publisher) ||
+		strings.TrimSpace(d.Envelope.Name) != strings.TrimSpace(declaration.Name) {
+		return NewEventError(EventErrorUndeclaredSubscription, "envelope", "event publisher or name is not declared", false)
+	}
+	for _, version := range declaration.SchemaVersions {
+		if d.Envelope.SchemaVersion == version {
+			return d.Envelope.Payload.Validate()
+		}
+	}
+	return NewEventError(EventErrorUnsupportedSchema, "envelope.schemaVersion", "event schema version is not accepted by subscriber", false)
+}
+
 func (e EventEnvelope) Validate(declaration EventPublicationDeclaration) error {
 	if !eventIdentityPattern.MatchString(strings.TrimSpace(e.ID)) {
 		return invalidEventContract("id", "event identity is invalid")

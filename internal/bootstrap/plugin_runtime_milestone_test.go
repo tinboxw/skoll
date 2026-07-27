@@ -22,6 +22,7 @@ import (
 	"github.com/tinboxw/skoll/internal/store/memory"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/logging"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
@@ -35,7 +36,7 @@ func TestPluginRuntimeMilestoneEndToEnd(t *testing.T) {
 
 	var businessCalls atomic.Int32
 	var eventCalls atomic.Int32
-	deliveries := make(chan plugin.EventDeliveryEnvelope, 2)
+	deliveries := make(chan pluginsdk.EventDelivery, 2)
 	pluginServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/health":
@@ -50,7 +51,7 @@ func TestPluginRuntimeMilestoneEndToEnd(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"source":"plugin","id":"item-1"}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/_skoll/events":
-			var envelope plugin.EventDeliveryEnvelope
+			var envelope pluginsdk.EventDelivery
 			if err := json.NewDecoder(r.Body).Decode(&envelope); err != nil {
 				http.Error(w, "invalid event", http.StatusBadRequest)
 				return
@@ -189,7 +190,7 @@ func TestPluginRuntimeMilestoneEndToEnd(t *testing.T) {
 	}
 	select {
 	case envelope := <-deliveries:
-		if envelope.PluginID != pluginID || envelope.Handler != "onApprovalCompleted" || envelope.EventID != evt.ID {
+		if envelope.Subscriber != pluginID || envelope.Handler != "onApprovalCompleted" || envelope.Envelope.ID != evt.ID {
 			t.Fatalf("unexpected event envelope: %+v", envelope)
 		}
 	case <-time.After(time.Second):
