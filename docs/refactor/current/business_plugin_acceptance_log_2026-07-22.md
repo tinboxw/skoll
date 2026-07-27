@@ -2127,3 +2127,47 @@ Result: BF5-05P passed. The executable order is now inbound receiving, inventory
 ### Commit
 
 `BF5-05P: sequence inventory before outbound`
+
+## BF5-05A1 Declare Warehouse Topology Schema And Migration
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Add only the independent plugin persistence contract for warehouse, area, and location topology before exposing behavior.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Schema contract | Pass | `datastore.yaml` declares `warehouses`, `warehouse_areas`, and `warehouse_locations` with typed identity, parent, status, temperature, location-type, and disable-reason fields |
+| Scope ownership | Pass | Physical tables include tenant, organization, owner, version, and timestamps; no host model or repository is introduced |
+| Reversible migration | Pass | Migration `009_warehouse_topology` creates all three tables in parent-first order and drops them in child-first order |
+| Warehouse uniqueness | Pass | Warehouse code is unique per tenant organization and reusable in another organization |
+| Area uniqueness | Pass | Area code is unique per warehouse and reusable in another warehouse |
+| Location uniqueness | Pass | Location code is unique per area and reusable in another area |
+| Manifest ownership | Pass | The plugin manifest records all three physical tables, columns, indexes, descriptions, and drop-on-uninstall ownership |
+| Regression | Pass | Package surface, schema loader, executable/reversible SQLite migration, framework purity, and all Pharma OA Go packages pass |
+| Current-only rule | Pass | No compatibility table, alias field, host persistence adapter, or dual schema exists |
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa -run 'TestMedicalOA(PackageSurfaceAndHostIndependence|PurchaseDataStoreContractIsRegistered|FoundationMigrationIsExecutableAndReversible)$' -count=1 -v
+go test ./plugins/pharma_oa/... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: BF5-05A1 passed. The plugin now owns one current, reversible warehouse topology schema ready for scoped behavior in BF5-05A2.
+
+### Impact Review
+
+- Persistence: adds three plugin-owned topology tables and no framework tables.
+- Data integrity: scoped unique indexes encode the intended warehouse hierarchy boundaries.
+- Lifecycle: automatic migration and drop uninstall policies include the new tables.
+- API: no route behavior changes in this Work Item.
+- Compatibility: none.
+
+### Commit
+
+`BF5-05A1: declare warehouse topology schema`

@@ -1664,6 +1664,21 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, number, purchase_order_id, purchase_order_number, warehouse_id, area_id, location_id, lines, attachments, status, received_by, received_at, last_operation_key, version, created_at, updated_at
       indexes: unique uq_pharma_oa_purchase_inbounds_number(tenant_id,number); unique uq_pharma_oa_purchase_inbounds_operation(tenant_id,last_operation_key); idx_pharma_oa_purchase_inbounds_scope(tenant_id,organization_id,owner_id,received_at); idx_pharma_oa_purchase_inbounds_order(tenant_id,purchase_order_id,received_at)
+    - name: pharma_oa_warehouses
+      description: Trusted-scope warehouse identities and lifecycle state.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, code, name, address, contact_name, contact_phone, status, disable_reason, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_warehouses_code(tenant_id,organization_id,code); idx_pharma_oa_warehouses_scope(tenant_id,organization_id,status,updated_at)
+    - name: pharma_oa_warehouse_areas
+      description: Temperature-aware areas owned by one warehouse.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, warehouse_id, code, name, temperature_min, temperature_max, status, disable_reason, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_warehouse_areas_code(tenant_id,warehouse_id,code); idx_pharma_oa_warehouse_areas_scope(tenant_id,organization_id,warehouse_id,status,updated_at)
+    - name: pharma_oa_warehouse_locations
+      description: Operational storage locations owned by one warehouse area.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, warehouse_id, area_id, code, name, location_type, status, disable_reason, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_warehouse_locations_code(tenant_id,area_id,code); idx_pharma_oa_warehouse_locations_scope(tenant_id,organization_id,warehouse_id,area_id,status,updated_at)
 
 events:
   subscriptions:

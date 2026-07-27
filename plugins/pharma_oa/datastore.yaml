@@ -265,3 +265,45 @@ tables:
       - {fields: [last_operation_key], unique: true}
       - {fields: [purchase_order_id, received_at]}
       - {fields: [received_at]}
+  - name: warehouses
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: address, type: string, mutable: true, filterable: true}
+      - {name: contact_name, type: string, mutable: true, filterable: true}
+      - {name: contact_phone, type: string, mutable: true, filterable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: disable_reason, type: string, nullable: true, mutable: true}
+    indexes:
+      - {fields: [code], unique: true}
+      - {fields: [status, updated_at]}
+  - name: warehouse_areas
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: warehouse_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: temperature_min, type: decimal, nullable: true, mutable: true, filterable: true}
+      - {name: temperature_max, type: decimal, nullable: true, mutable: true, filterable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: disable_reason, type: string, nullable: true, mutable: true}
+    indexes:
+      - {fields: [warehouse_id, code], unique: true}
+      - {fields: [warehouse_id, status, updated_at]}
+  - name: warehouse_locations
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: warehouse_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: area_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: code, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: name, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: location_type, type: string, mutable: true, filterable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: disable_reason, type: string, nullable: true, mutable: true}
+    indexes:
+      - {fields: [area_id, code], unique: true}
+      - {fields: [warehouse_id, area_id, status, updated_at]}

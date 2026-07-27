@@ -186,6 +186,7 @@ func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 		"migrations/006_oa_requests.up.sql", "migrations/006_oa_requests.down.sql",
 		"migrations/007_purchases.up.sql", "migrations/007_purchases.down.sql",
 		"migrations/008_purchase_inbounds.up.sql", "migrations/008_purchase_inbounds.down.sql",
+		"migrations/009_warehouse_topology.up.sql", "migrations/009_warehouse_topology.down.sql",
 	} {
 		if info, err := os.Stat(filepath.FromSlash(path)); err != nil || info.IsDir() {
 			t.Fatalf("required package file %q is unavailable: %v", path, err)
@@ -320,6 +321,18 @@ func TestMedicalOAPurchaseDataStoreContractIsRegistered(t *testing.T) {
 			"lines": pluginsdk.DataValueJSON, "attachments": pluginsdk.DataValueJSON,
 			"status": pluginsdk.DataValueString, "received_at": pluginsdk.DataValueTimestamp,
 		},
+		"warehouses": {
+			"code": pluginsdk.DataValueString, "name": pluginsdk.DataValueString,
+			"address": pluginsdk.DataValueString, "status": pluginsdk.DataValueString,
+		},
+		"warehouse_areas": {
+			"warehouse_id": pluginsdk.DataValueString, "code": pluginsdk.DataValueString,
+			"temperature_min": pluginsdk.DataValueDecimal, "temperature_max": pluginsdk.DataValueDecimal,
+		},
+		"warehouse_locations": {
+			"warehouse_id": pluginsdk.DataValueString, "area_id": pluginsdk.DataValueString,
+			"code": pluginsdk.DataValueString, "location_type": pluginsdk.DataValueString,
+		},
 	} {
 		table, ok := tables[tableName]
 		if !ok {
@@ -347,7 +360,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql", "migrations/006_oa_requests.up.sql", "migrations/007_purchases.up.sql", "migrations/008_purchase_inbounds.up.sql"} {
+	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql", "migrations/006_oa_requests.up.sql", "migrations/007_purchases.up.sql", "migrations/008_purchase_inbounds.up.sql", "migrations/009_warehouse_topology.up.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -362,6 +375,9 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:purchase_requests}}", "pharma_oa_purchase_requests")
 		sql = strings.ReplaceAll(sql, "{{table:purchase_orders}}", "pharma_oa_purchase_orders")
 		sql = strings.ReplaceAll(sql, "{{table:purchase_inbounds}}", "pharma_oa_purchase_inbounds")
+		sql = strings.ReplaceAll(sql, "{{table:warehouses}}", "pharma_oa_warehouses")
+		sql = strings.ReplaceAll(sql, "{{table:warehouse_areas}}", "pharma_oa_warehouse_areas")
+		sql = strings.ReplaceAll(sql, "{{table:warehouse_locations}}", "pharma_oa_warehouse_locations")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("apply %s: %v", path, err)
 		}
@@ -381,7 +397,8 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	for _, table := range loadPharmaAcceptanceMap(t).Migrations.Tables {
 		assertPharmaContains(t, wantTables, table, "contract migration table")
 	}
-	for _, path := range []string{"migrations/008_purchase_inbounds.down.sql", "migrations/007_purchases.down.sql", "migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
+	assertWarehouseTopologyScopedUniqueness(t, db)
+	for _, path := range []string{"migrations/009_warehouse_topology.down.sql", "migrations/008_purchase_inbounds.down.sql", "migrations/007_purchases.down.sql", "migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -396,6 +413,9 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:purchase_requests}}", "pharma_oa_purchase_requests")
 		sql = strings.ReplaceAll(sql, "{{table:purchase_orders}}", "pharma_oa_purchase_orders")
 		sql = strings.ReplaceAll(sql, "{{table:purchase_inbounds}}", "pharma_oa_purchase_inbounds")
+		sql = strings.ReplaceAll(sql, "{{table:warehouses}}", "pharma_oa_warehouses")
+		sql = strings.ReplaceAll(sql, "{{table:warehouse_areas}}", "pharma_oa_warehouse_areas")
+		sql = strings.ReplaceAll(sql, "{{table:warehouse_locations}}", "pharma_oa_warehouse_locations")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("rollback %s: %v", path, err)
 		}
@@ -404,6 +424,58 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		if db.Migrator().HasTable(table) {
 			t.Fatalf("rollback retained %s", table)
 		}
+	}
+}
+
+func assertWarehouseTopologyScopedUniqueness(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	const timestamp = "2026-07-27T00:00:00Z"
+	insertWarehouse := func(id, organization string) error {
+		return db.Exec(`INSERT INTO pharma_oa_warehouses
+			(id, code, name, address, contact_name, contact_phone, status, tenant_id, organization_id, owner_id, version, created_at, updated_at)
+			VALUES (?, 'WH-001', 'Main warehouse', '1 Storage Road', 'Owner', '13800000000', 'active', 'tenant-a', ?, 'owner-a', 1, ?, ?)`,
+			id, organization, timestamp, timestamp).Error
+	}
+	if err := insertWarehouse("warehouse-a", "org-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := insertWarehouse("warehouse-duplicate", "org-a"); err == nil {
+		t.Fatal("warehouse code must be unique inside one tenant organization")
+	}
+	if err := insertWarehouse("warehouse-b", "org-b"); err != nil {
+		t.Fatalf("warehouse code should be reusable in another organization: %v", err)
+	}
+
+	insertArea := func(id, warehouse string) error {
+		return db.Exec(`INSERT INTO pharma_oa_warehouse_areas
+			(id, warehouse_id, code, name, status, tenant_id, organization_id, owner_id, version, created_at, updated_at)
+			VALUES (?, ?, 'AREA-001', 'Qualified area', 'active', 'tenant-a', 'org-a', 'owner-a', 1, ?, ?)`,
+			id, warehouse, timestamp, timestamp).Error
+	}
+	if err := insertArea("area-a", "warehouse-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := insertArea("area-duplicate", "warehouse-a"); err == nil {
+		t.Fatal("area code must be unique inside one warehouse")
+	}
+	if err := insertArea("area-b", "warehouse-b"); err != nil {
+		t.Fatalf("area code should be reusable in another warehouse: %v", err)
+	}
+
+	insertLocation := func(id, warehouse, area string) error {
+		return db.Exec(`INSERT INTO pharma_oa_warehouse_locations
+			(id, warehouse_id, area_id, code, name, location_type, status, tenant_id, organization_id, owner_id, version, created_at, updated_at)
+			VALUES (?, ?, ?, 'LOC-001', 'Qualified location', 'standard', 'active', 'tenant-a', 'org-a', 'owner-a', 1, ?, ?)`,
+			id, warehouse, area, timestamp, timestamp).Error
+	}
+	if err := insertLocation("location-a", "warehouse-a", "area-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := insertLocation("location-duplicate", "warehouse-a", "area-a"); err == nil {
+		t.Fatal("location code must be unique inside one area")
+	}
+	if err := insertLocation("location-b", "warehouse-b", "area-b"); err != nil {
+		t.Fatalf("location code should be reusable in another area: %v", err)
 	}
 }
 
