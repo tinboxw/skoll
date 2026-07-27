@@ -3126,6 +3126,61 @@ components:
           type: array
           items:
             type: string
+        decision:
+          $ref: '#/components/schemas/WorkflowDecisionRule'
+    WorkflowDecisionRule:
+      type: object
+      required:
+        - strategy
+        - quorum
+      properties:
+        strategy:
+          type: string
+          enum: [any, all, quorum]
+        quorum:
+          type: integer
+          minimum: 1
+    WorkflowValue:
+      type: object
+      required:
+        - type
+        - value
+      properties:
+        type:
+          type: string
+          enum: [string, number, boolean]
+        value:
+          type: string
+          maxLength: 1024
+    WorkflowPredicate:
+      type: object
+      required:
+        - field
+        - operator
+      properties:
+        field:
+          type: string
+          pattern: '^[a-z][a-z0-9_.-]{0,127}$'
+        operator:
+          type: string
+          enum: [eq, ne, gt, gte, lt, lte, exists, not_exists]
+        value:
+          $ref: '#/components/schemas/WorkflowValue'
+    WorkflowCondition:
+      type: object
+      required:
+        - match
+        - predicates
+      properties:
+        match:
+          type: string
+          enum: [all, any]
+        predicates:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items:
+            $ref: '#/components/schemas/WorkflowPredicate'
     WorkflowTransition:
       type: object
       required:
@@ -3136,6 +3191,8 @@ components:
           type: string
         to:
           type: string
+        condition:
+          $ref: '#/components/schemas/WorkflowCondition'
     WorkflowDefinitionCreateRequest:
       type: object
       required:
@@ -3190,6 +3247,7 @@ components:
         - businessId
         - title
         - starter
+        - variables
       properties:
         id:
           type: string
@@ -3203,6 +3261,11 @@ components:
           type: string
         starter:
           $ref: '#/components/schemas/WorkflowActor'
+        variables:
+          type: object
+          maxProperties: 64
+          additionalProperties:
+            $ref: '#/components/schemas/WorkflowValue'
     WorkflowTaskActionRequest:
       type: object
       required:
@@ -3264,7 +3327,7 @@ components:
           type: string
         type:
           type: string
-          enum: [start, approve, reject, withdraw, transfer, copy]
+          enum: [start, approve, reject, withdraw, transfer, copy, cancel]
         instanceId:
           type: string
         taskId:
@@ -3292,6 +3355,8 @@ components:
         - status
         - starter
         - currentNode
+        - activeNodes
+        - variables
         - tasks
         - timeline
         - createdAt
@@ -3311,11 +3376,19 @@ components:
           type: string
         status:
           type: string
-          enum: [running, approved, rejected, withdrawn]
+          enum: [running, approved, rejected, withdrawn, canceled]
         starter:
           $ref: '#/components/schemas/WorkflowActor'
         currentNode:
           type: string
+        activeNodes:
+          type: array
+          items:
+            type: string
+        variables:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/WorkflowValue'
         tasks:
           type: array
           items:

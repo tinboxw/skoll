@@ -203,7 +203,7 @@ func (s *server) createPurchaseRequest(w http.ResponseWriter, r *http.Request) {
 			ID: item.WorkflowDefinitionID, Key: "purchase-request-" + item.ID, Name: item.Number + " purchase approval", Version: 1,
 			Nodes: []pluginsdk.WorkflowNode{
 				{ID: "start", Key: "start", Name: "Start", Type: pluginsdk.WorkflowNodeStart},
-				{ID: "approval", Key: "approval", Name: "Purchase approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{item.ApproverID}},
+				{ID: "approval", Key: "approval", Name: "Purchase approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{item.ApproverID}, Decision: &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionAny, Quorum: 1}},
 				{ID: "end", Key: "end", Name: "Complete", Type: pluginsdk.WorkflowNodeEnd},
 			},
 			Transitions: []pluginsdk.WorkflowTransition{{From: "start", To: "approval"}, {From: "approval", To: "end"}},

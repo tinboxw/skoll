@@ -295,7 +295,7 @@ func (s *server) submitOARequest(w http.ResponseWriter, r *http.Request) {
 			ID: definitionID, Key: "oa-request-" + item.ID, Name: item.Title + "审批", Version: 1,
 			Nodes: []pluginsdk.WorkflowNode{
 				{ID: "start", Key: "start", Name: "发起", Type: pluginsdk.WorkflowNodeStart},
-				{ID: "approval", Key: "approval", Name: "审批", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{item.ApproverID}},
+				{ID: "approval", Key: "approval", Name: "审批", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{item.ApproverID}, Decision: &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionAny, Quorum: 1}},
 				{ID: "end", Key: "end", Name: "完成", Type: pluginsdk.WorkflowNodeEnd},
 			},
 			Transitions: []pluginsdk.WorkflowTransition{{From: "start", To: "approval"}, {From: "approval", To: "end"}},

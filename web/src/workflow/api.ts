@@ -11,11 +11,34 @@ export type WorkflowNode = {
 	name: string;
 	type: "start" | "approval" | "cc" | "end";
 	assignees?: string[];
+	decision?: WorkflowDecisionRule;
 };
 
 export type WorkflowTransition = {
 	from: string;
 	to: string;
+	condition?: WorkflowCondition;
+};
+
+export type WorkflowDecisionRule = {
+	strategy: "any" | "all" | "quorum";
+	quorum: number;
+};
+
+export type WorkflowValue = {
+	type: "string" | "number" | "boolean";
+	value: string;
+};
+
+export type WorkflowPredicate = {
+	field: string;
+	operator: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "exists" | "not_exists";
+	value?: WorkflowValue;
+};
+
+export type WorkflowCondition = {
+	match: "all" | "any";
+	predicates: WorkflowPredicate[];
 };
 
 export type WorkflowDefinition = {
@@ -62,6 +85,8 @@ export type WorkflowInstance = {
 	status: "running" | "approved" | "rejected" | "withdrawn" | "canceled";
 	starter: WorkflowActor;
 	currentNode: string;
+	activeNodes: string[];
+	variables: Record<string, WorkflowValue>;
 	tasks: WorkflowTask[];
 	timeline: WorkflowAction[];
 	createdAt: string;
@@ -84,6 +109,7 @@ export type WorkflowStartRequest = {
 	businessId: string;
 	title: string;
 	starter: WorkflowActor;
+	variables: Record<string, WorkflowValue>;
 };
 
 export type WorkflowTaskActionRequest = {

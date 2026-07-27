@@ -100,7 +100,7 @@ func TestWorkflowMemoryRepositoryReturnsClones(t *testing.T) {
 	repo := NewMemoryRepository()
 	def, err := domainworkflow.NewDefinition("def-1", "leave", "Leave", 1, []domainworkflow.Node{
 		{ID: "start", Key: "start", Name: "Start", Type: domainworkflow.NodeStart},
-		{ID: "approval", Key: "approval", Name: "Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}},
+		{ID: "approval", Key: "approval", Name: "Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}, Decision: domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionAny, Quorum: 1}},
 		{ID: "end", Key: "end", Name: "End", Type: domainworkflow.NodeEnd},
 	}, []domainworkflow.Transition{{From: "start", To: "approval"}, {From: "approval", To: "end"}}, now)
 	if err != nil {
@@ -192,7 +192,7 @@ func sampleCreateDefinitionInput(now time.Time) CreateDefinitionInput {
 		Version: 1,
 		Nodes: []domainworkflow.Node{
 			{ID: "start", Key: "start", Name: "Start", Type: domainworkflow.NodeStart},
-			{ID: "approval", Key: "approval", Name: "Manager Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}},
+			{ID: "approval", Key: "approval", Name: "Manager Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}, Decision: domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionAny, Quorum: 1}},
 			{ID: "end", Key: "end", Name: "End", Type: domainworkflow.NodeEnd},
 		},
 		Transitions: []domainworkflow.Transition{{From: "start", To: "approval"}, {From: "approval", To: "end"}},

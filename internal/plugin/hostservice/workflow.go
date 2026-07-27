@@ -60,9 +60,14 @@ func (s *workflowService) CreateDefinition(ctx context.Context, input pluginsdk.
 			}
 			assignees = append(assignees, shared.ID(assignee))
 		}
+		decision := domainworkflow.DecisionRule{}
+		if item.Decision != nil {
+			decision = domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionStrategy(item.Decision.Strategy), Quorum: item.Decision.Quorum}
+		}
 		nodes = append(nodes, domainworkflow.Node{
 			ID: shared.ID(nodeID), Key: nodeKey, Name: strings.TrimSpace(item.Name),
 			Type: domainworkflow.NodeType(item.Type), Assignees: assignees,
+			Decision: decision,
 		})
 	}
 	transitions := make([]domainworkflow.Transition, 0, len(input.Transitions))
@@ -75,7 +80,11 @@ func (s *workflowService) CreateDefinition(ctx context.Context, input pluginsdk.
 		if bindErr != nil {
 			return pluginsdk.WorkflowDefinition{}, bindErr
 		}
-		transitions = append(transitions, domainworkflow.Transition{From: shared.ID(from), To: shared.ID(to)})
+		condition, bindErr := workflowConditionToDomain(item.Condition)
+		if bindErr != nil {
+			return pluginsdk.WorkflowDefinition{}, bindErr
+		}
+		transitions = append(transitions, domainworkflow.Transition{From: shared.ID(from), To: shared.ID(to), Condition: condition})
 	}
 	item, err := s.workflow.CreateDefinition(ctx, workflowsvc.CreateDefinitionInput{
 		ID: shared.ID(id), Key: key, Name: strings.TrimSpace(input.Name), Version: input.Version,
@@ -135,6 +144,7 @@ func (s *workflowService) Start(ctx context.Context, input pluginsdk.WorkflowSta
 		ID: shared.ID(id), DefinitionID: shared.ID(definitionID), BusinessType: businessType,
 		BusinessID: strings.TrimSpace(input.BusinessID), Title: strings.TrimSpace(input.Title),
 		Starter: domainworkflow.Actor{ID: shared.ID(actor.id), Name: actor.name}, Now: s.now(),
+		Variables: workflowVariablesToDomain(input.Variables),
 	})
 	if err != nil {
 		return pluginsdk.WorkflowInstance{}, err
@@ -324,7 +334,14 @@ func (s *workflowService) definition(item domainworkflow.Definition) (pluginsdk.
 		for index := range node.Assignees {
 			assignees[index] = node.Assignees[index].String()
 		}
-		nodes = append(nodes, pluginsdk.WorkflowNode{ID: nodeID, Key: nodeKey, Name: node.Name, Type: pluginsdk.WorkflowNodeType(node.Type), AssigneeIDs: assignees})
+		var decision *pluginsdk.WorkflowDecisionRule
+		if node.Type == domainworkflow.NodeApproval {
+			decision = &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionStrategy(node.Decision.Strategy), Quorum: node.Decision.Quorum}
+		}
+		nodes = append(nodes, pluginsdk.WorkflowNode{
+			ID: nodeID, Key: nodeKey, Name: node.Name, Type: pluginsdk.WorkflowNodeType(node.Type), AssigneeIDs: assignees,
+			Decision: decision,
+		})
 	}
 	transitions := make([]pluginsdk.WorkflowTransition, 0, len(item.Transitions))
 	for _, transition := range item.Transitions {
@@ -336,7 +353,7 @@ func (s *workflowService) definition(item domainworkflow.Definition) (pluginsdk.
 		if convertErr != nil {
 			return pluginsdk.WorkflowDefinition{}, convertErr
 		}
-		transitions = append(transitions, pluginsdk.WorkflowTransition{From: from, To: to})
+		transitions = append(transitions, pluginsdk.WorkflowTransition{From: from, To: to, Condition: workflowConditionFromDomain(transition.Condition)})
 	}
 	return pluginsdk.WorkflowDefinition{
 		ID: id, Key: key, Name: item.Name, Version: item.Version, Status: pluginsdk.WorkflowDefinitionStatus(item.Status),
@@ -402,9 +419,71 @@ func (s *workflowService) instance(item domainworkflow.Instance) (pluginsdk.Work
 	return pluginsdk.WorkflowInstance{
 		ID: id, DefinitionID: definitionID, DefinitionKey: definitionKey, BusinessType: businessType,
 		BusinessID: item.BusinessID, Title: item.Title, Status: pluginsdk.WorkflowInstanceStatus(item.Status),
-		Starter: workflowActor(item.Starter), CurrentNode: currentNode, Tasks: tasks, Timeline: timeline,
+		Starter: workflowActor(item.Starter), CurrentNode: currentNode, ActiveNodes: workflowIDs(item.ActiveNodes),
+		Variables: workflowVariablesFromDomain(item.Variables), Tasks: tasks, Timeline: timeline,
 		CreatedAt: item.Meta.CreatedAt, UpdatedAt: item.Meta.UpdatedAt,
 	}, nil
+}
+
+func workflowConditionToDomain(condition *pluginsdk.WorkflowCondition) (*domainworkflow.Condition, error) {
+	if condition == nil {
+		return nil, nil
+	}
+	out := &domainworkflow.Condition{Match: domainworkflow.ConditionMatch(condition.Match), Predicates: make([]domainworkflow.Predicate, 0, len(condition.Predicates))}
+	for _, predicate := range condition.Predicates {
+		var value *domainworkflow.Value
+		if predicate.Value != nil {
+			value = &domainworkflow.Value{Type: domainworkflow.ValueType(predicate.Value.Type), Value: predicate.Value.Value}
+		}
+		out.Predicates = append(out.Predicates, domainworkflow.Predicate{
+			Field: strings.TrimSpace(predicate.Field), Operator: domainworkflow.PredicateOperator(predicate.Operator), Value: value,
+		})
+	}
+	if err := out.Validate(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func workflowConditionFromDomain(condition *domainworkflow.Condition) *pluginsdk.WorkflowCondition {
+	if condition == nil {
+		return nil
+	}
+	out := &pluginsdk.WorkflowCondition{Match: pluginsdk.WorkflowConditionMatch(condition.Match), Predicates: make([]pluginsdk.WorkflowPredicate, 0, len(condition.Predicates))}
+	for _, predicate := range condition.Predicates {
+		var value *pluginsdk.WorkflowValue
+		if predicate.Value != nil {
+			value = &pluginsdk.WorkflowValue{Type: pluginsdk.WorkflowValueType(predicate.Value.Type), Value: predicate.Value.Value}
+		}
+		out.Predicates = append(out.Predicates, pluginsdk.WorkflowPredicate{
+			Field: predicate.Field, Operator: pluginsdk.WorkflowPredicateOperator(predicate.Operator), Value: value,
+		})
+	}
+	return out
+}
+
+func workflowVariablesToDomain(variables map[string]pluginsdk.WorkflowValue) map[string]domainworkflow.Value {
+	out := make(map[string]domainworkflow.Value, len(variables))
+	for key, value := range variables {
+		out[key] = domainworkflow.Value{Type: domainworkflow.ValueType(value.Type), Value: value.Value}
+	}
+	return out
+}
+
+func workflowVariablesFromDomain(variables map[string]domainworkflow.Value) map[string]pluginsdk.WorkflowValue {
+	out := make(map[string]pluginsdk.WorkflowValue, len(variables))
+	for key, value := range variables {
+		out[key] = pluginsdk.WorkflowValue{Type: pluginsdk.WorkflowValueType(value.Type), Value: value.Value}
+	}
+	return out
+}
+
+func workflowIDs(ids []shared.ID) []string {
+	out := make([]string, len(ids))
+	for index, id := range ids {
+		out[index] = id.String()
+	}
+	return out
 }
 
 func (s *workflowService) optionalLocalID(value, label string) (string, error) {

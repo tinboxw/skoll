@@ -64,6 +64,7 @@ func (s *serviceImpl) Start(ctx context.Context, in StartInput) (*domainworkflow
 		BusinessID:   in.BusinessID,
 		Title:        in.Title,
 		Starter:      in.Starter,
+		Variables:    in.Variables,
 		Now:          in.Now,
 	})
 	if err != nil {
@@ -86,8 +87,12 @@ func (s *serviceImpl) GetInstance(ctx context.Context, id shared.ID) (*domainwor
 }
 
 func (s *serviceImpl) Approve(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error) {
+	definition, err := s.definitionForInstance(ctx, in.InstanceID)
+	if err != nil {
+		return nil, err
+	}
 	return s.updateInstance(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionApprove, taskID: in.TaskID, actorID: in.Actor.ID}, func(instance *domainworkflow.Instance) error {
-		return instance.Approve(in.TaskID, in.Actor, in.Comment, in.Now)
+		return instance.Approve(*definition, in.TaskID, in.Actor, in.Comment, in.Now)
 	})
 }
 
@@ -129,6 +134,14 @@ func (s *serviceImpl) definition(ctx context.Context, id shared.ID) (*domainwork
 		return nil, fmt.Errorf("workflow definition id is required")
 	}
 	return s.repo.GetDefinition(ctx, id)
+}
+
+func (s *serviceImpl) definitionForInstance(ctx context.Context, id shared.ID) (*domainworkflow.Definition, error) {
+	instance, err := s.GetInstance(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return s.definition(ctx, instance.DefinitionID)
 }
 
 func (s *serviceImpl) updateInstance(ctx context.Context, id shared.ID, identity instanceActionIdentity, mutate func(*domainworkflow.Instance) error) (*domainworkflow.Instance, error) {

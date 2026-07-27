@@ -328,7 +328,7 @@ func (s *Server) ensureApprovalDefinition(ctx context.Context, assigneeID string
 		ID: approvalDefinitionID, Key: "work_order_cost_approval", Name: "Work order cost approval", Version: 1,
 		Nodes: []pluginsdk.WorkflowNode{
 			{ID: "start", Key: "start", Name: "Start", Type: pluginsdk.WorkflowNodeStart},
-			{ID: "approval", Key: "approval", Name: "Cost approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{assigneeID}},
+			{ID: "approval", Key: "approval", Name: "Cost approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{assigneeID}, Decision: &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionAny, Quorum: 1}},
 			{ID: "end", Key: "end", Name: "End", Type: pluginsdk.WorkflowNodeEnd},
 		},
 		Transitions: []pluginsdk.WorkflowTransition{{From: "start", To: "approval"}, {From: "approval", To: "end"}},

@@ -23,7 +23,7 @@ func TestWorkflowDefinitionValidationAndPublish(t *testing.T) {
 
 	_, err = NewDefinition("bad", "leave", "Leave", 1, []Node{
 		{ID: "start", Key: "start", Name: "Start", Type: NodeStart},
-		{ID: "approval", Key: "approval", Name: "Approval", Type: NodeApproval, Assignees: []shared.ID{"manager-1"}},
+		{ID: "approval", Key: "approval", Name: "Approval", Type: NodeApproval, Assignees: []shared.ID{"manager-1"}, Decision: DecisionRule{Strategy: DecisionAny, Quorum: 1}},
 	}, nil, now)
 	if err == nil || !strings.Contains(err.Error(), "one start and one end") {
 		t.Fatalf("expected missing end validation error, got %v", err)
@@ -52,7 +52,7 @@ func TestWorkflowStartApproveRejectAndWithdraw(t *testing.T) {
 		t.Fatalf("unexpected started instance: %+v", instance)
 	}
 	taskID := instance.Tasks[0].ID
-	if err := instance.Approve(taskID, Actor{ID: "manager-1"}, "ok", now.Add(time.Minute)); err != nil {
+	if err := instance.Approve(*def, taskID, Actor{ID: "manager-1"}, "ok", now.Add(time.Minute)); err != nil {
 		t.Fatalf("Approve error: %v", err)
 	}
 	if instance.Status != InstanceApproved || instance.Tasks[0].Status != TaskApproved || len(instance.Timeline) != 2 {
@@ -99,7 +99,7 @@ func TestWorkflowTransferAndCopy(t *testing.T) {
 	if len(instance.Tasks) != 3 || instance.Tasks[0].Status != TaskTransferred || instance.Tasks[2].Status != TaskPending || instance.Tasks[2].Assignee.ID != "manager-2" {
 		t.Fatalf("unexpected transfer result: %+v", instance.Tasks)
 	}
-	if err := instance.Approve(instance.Tasks[2].ID, Actor{ID: "manager-2"}, "ok", now.Add(3*time.Minute)); err != nil {
+	if err := instance.Approve(*def, instance.Tasks[2].ID, Actor{ID: "manager-2"}, "ok", now.Add(3*time.Minute)); err != nil {
 		t.Fatalf("Approve transferred task error: %v", err)
 	}
 	if instance.Status != InstanceApproved {
@@ -119,7 +119,7 @@ func TestWorkflowRejectsInvalidActorAndDefinitionStates(t *testing.T) {
 		t.Fatal("expected draft definition start to fail")
 	}
 	instance := mustStartInstance(t, *def, "wf-invalid", now)
-	if err := instance.Approve(instance.Tasks[0].ID, Actor{ID: "other-manager"}, "ok", now.Add(time.Minute)); err == nil {
+	if err := instance.Approve(*def, instance.Tasks[0].ID, Actor{ID: "other-manager"}, "ok", now.Add(time.Minute)); err == nil {
 		t.Fatal("expected assignee mismatch to fail")
 	}
 	if err := instance.Withdraw(Actor{ID: "other-user"}, "cancel", now.Add(time.Minute)); err == nil {
@@ -130,7 +130,7 @@ func TestWorkflowRejectsInvalidActorAndDefinitionStates(t *testing.T) {
 func sampleDefinition(now time.Time) (*Definition, error) {
 	def, err := NewDefinition("def-leave", "leave", "Leave Approval", 1, []Node{
 		{ID: "start", Key: "start", Name: "Start", Type: NodeStart},
-		{ID: "approval", Key: "approval", Name: "Manager Approval", Type: NodeApproval, Assignees: []shared.ID{"manager-1"}},
+		{ID: "approval", Key: "approval", Name: "Manager Approval", Type: NodeApproval, Assignees: []shared.ID{"manager-1"}, Decision: DecisionRule{Strategy: DecisionAny, Quorum: 1}},
 		{ID: "end", Key: "end", Name: "End", Type: NodeEnd},
 	}, []Transition{
 		{From: "start", To: "approval"},

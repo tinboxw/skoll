@@ -28,11 +28,19 @@ func TestWorkflowStorePersistsAggregateAcrossDatabaseRestart(t *testing.T) {
 		ID: "definition-purchase", Key: "purchase.approval", Name: "Purchase Approval", Version: 3,
 		Nodes: []domainworkflow.Node{
 			{ID: "node-start", Key: "start", Name: "Start", Type: domainworkflow.NodeStart},
-			{ID: "node-approve", Key: "approve", Name: "Manager Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}},
+			{ID: "node-approve", Key: "approve", Name: "Manager Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}, Decision: domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionAny, Quorum: 1}},
 			{ID: "node-end", Key: "end", Name: "End", Type: domainworkflow.NodeEnd},
 		},
-		Transitions: []domainworkflow.Transition{{From: "node-start", To: "node-approve"}, {From: "node-approve", To: "node-end"}},
-		Now:         now,
+		Transitions: []domainworkflow.Transition{
+			{
+				From: "node-start", To: "node-approve",
+				Condition: &domainworkflow.Condition{Match: domainworkflow.ConditionAll, Predicates: []domainworkflow.Predicate{
+					{Field: "risk.level", Operator: domainworkflow.PredicateEqual, Value: &domainworkflow.Value{Type: domainworkflow.ValueString, Value: "controlled"}},
+				}},
+			},
+			{From: "node-approve", To: "node-end"},
+		},
+		Now: now,
 	})
 	if err != nil {
 		t.Fatalf("CreateDefinition error: %v", err)
@@ -43,7 +51,9 @@ func TestWorkflowStorePersistsAggregateAcrossDatabaseRestart(t *testing.T) {
 	}
 	instance, err := service.Start(ctx, workflowsvc.StartInput{
 		ID: "instance-purchase-1", DefinitionID: definition.ID, BusinessType: "purchase_order", BusinessID: "PO-20260722-001",
-		Title: "Cold-chain Purchase", Starter: domainworkflow.Actor{ID: "employee-1", Name: "Alice Zhang"}, Now: now.Add(2 * time.Second),
+		Title: "Cold-chain Purchase", Starter: domainworkflow.Actor{ID: "employee-1", Name: "Alice Zhang"},
+		Variables: map[string]domainworkflow.Value{"risk.level": {Type: domainworkflow.ValueString, Value: "controlled"}},
+		Now:       now.Add(2 * time.Second),
 	})
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
@@ -91,8 +101,14 @@ func TestWorkflowStorePersistsAggregateAcrossDatabaseRestart(t *testing.T) {
 	if len(persistedDefinition.Nodes) != 3 || len(persistedDefinition.Nodes[1].Assignees) != 1 || persistedDefinition.Nodes[1].Assignees[0] != "manager-1" {
 		t.Fatalf("definition nodes and actors were not restored: %+v", persistedDefinition.Nodes)
 	}
+	if persistedDefinition.Nodes[1].Decision.Strategy != domainworkflow.DecisionAny || persistedDefinition.Nodes[1].Decision.Quorum != 1 {
+		t.Fatalf("definition decision rule was not restored: %+v", persistedDefinition.Nodes[1].Decision)
+	}
 	if len(persistedDefinition.Transitions) != 2 || persistedDefinition.Transitions[1].To != "node-end" {
 		t.Fatalf("definition transitions were not restored: %+v", persistedDefinition.Transitions)
+	}
+	if persistedDefinition.Transitions[0].Condition == nil || persistedDefinition.Transitions[0].Condition.Predicates[0].Field != "risk.level" {
+		t.Fatalf("definition condition was not restored: %+v", persistedDefinition.Transitions[0].Condition)
 	}
 
 	persistedInstance, err := restartedRepo.GetInstance(ctx, instance.ID)
@@ -101,6 +117,9 @@ func TestWorkflowStorePersistsAggregateAcrossDatabaseRestart(t *testing.T) {
 	}
 	if persistedInstance.Status != domainworkflow.InstanceApproved || persistedInstance.Starter.Name != "Alice Zhang" {
 		t.Fatalf("instance state and starter were not restored: %+v", persistedInstance)
+	}
+	if persistedInstance.Variables["risk.level"].Value != "controlled" || len(persistedInstance.ActiveNodes) != 0 {
+		t.Fatalf("instance routing state was not restored: variables=%+v active=%+v", persistedInstance.Variables, persistedInstance.ActiveNodes)
 	}
 	if len(persistedInstance.Tasks) != 3 || persistedInstance.Tasks[2].Assignee.Name != "Manager Two" || persistedInstance.Tasks[2].CompletedAt == nil {
 		t.Fatalf("tasks were not restored: %+v", persistedInstance.Tasks)
@@ -122,6 +141,7 @@ func TestWorkflowStoreRollsBackAggregateReplacement(t *testing.T) {
 		ID: "instance-rollback", DefinitionID: "definition-rollback", DefinitionKey: "rollback.approval",
 		BusinessType: "purchase", BusinessID: "PO-ROLLBACK", Title: "Original title", Status: domainworkflow.InstanceRunning,
 		Starter: domainworkflow.Actor{ID: "employee-1", Name: "Employee One"}, CurrentNode: "node-approve",
+		ActiveNodes: []shared.ID{"node-approve"}, Variables: map[string]domainworkflow.Value{},
 		Tasks: []domainworkflow.Task{{
 			ID: "task-rollback", InstanceID: "instance-rollback", NodeID: "node-approve",
 			Assignee: domainworkflow.Actor{ID: "manager-1", Name: "Manager One"}, Status: domainworkflow.TaskPending, CreatedAt: now,
@@ -185,6 +205,17 @@ func TestWorkflowMigrationScriptsCoverRelationalSchema(t *testing.T) {
 		}
 		if strings.Contains(text, "payload_json") {
 			t.Fatalf("%s workflow migration must persist queryable relations, not aggregate JSON", dialect)
+		}
+		routingPath := filepath.Join(root, dialect, "20260727_000032_add_governed_workflow_routing.sql")
+		routingBody, err := os.ReadFile(routingPath)
+		if err != nil {
+			t.Fatalf("read %s governed workflow migration: %v", dialect, err)
+		}
+		routingText := strings.ToLower(string(routingBody))
+		for _, token := range []string{"decision_strategy", "decision_quorum", "condition_json", "active_node_ids_json", "variables_json"} {
+			if !strings.Contains(routingText, token) {
+				t.Fatalf("%s governed workflow migration missing %q", dialect, token)
+			}
 		}
 	}
 }

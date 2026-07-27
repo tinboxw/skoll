@@ -2720,3 +2720,57 @@ Result: FF2-05 passed. Two independent process boundaries now prove transactiona
 ### Commit
 
 `FF2-05: close reliable plugin event interoperability`
+
+## FF3-01 Add Conditional, Parallel, And Quorum Workflow Decisions
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Replace the linear first-approval behavior with one current, bounded, atomic workflow-routing and decision model.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Explicit decision contract | Pass | Every approval node declares exactly one `any`, `all`, or `quorum` strategy and a valid threshold; missing, inconsistent, or out-of-range rules fail definition validation |
+| Bounded conditions | Pass | Conditions contain at most 16 flat predicates, use `all` or `any`, address validated variable names, and expose only typed `eq`, `ne`, ordered, and existence operators |
+| Typed values | Pass | String, boolean, and exact rational number values are explicit; numeric comparisons never convert through float |
+| Bounded input | Pass | Definitions cap nodes and transitions, conditions cap predicates, instances cap variables, and values cap length before execution or persistence |
+| Graph safety | Pass | Definitions require one start/end, known unique edges, acyclic reachable nodes, valid terminal paths, and no non-end branch convergence that could reactivate a resolved task |
+| Conditional routing | Pass | Start and post-decision routing evaluate only the immutable instance variable set; no matching route fails deterministically |
+| Failure atomicity | Pass | The next route is computed before a threshold decision mutates tasks or timeline, so an unmatched route leaves the direct domain aggregate unchanged |
+| Parallel execution | Pass | Every matching outgoing route activates one independent approval node; the instance remains running until every active branch reaches the end |
+| Quorum execution | Pass | `any`, `all`, and bounded quorum nodes count unique completed tasks, cancel surplus pending tasks once, and resolve the node once |
+| Duplicate safety | Pass | Repeated decisions with the same task and actor return the committed aggregate without appending another action |
+| Stale safety | Pass | A task canceled by quorum resolution cannot submit a late decision or reopen a terminal instance |
+| Atomic concurrency | Pass | 64 in-memory and 20 persisted competing decisions resolve a `2/3` quorum with exactly two approval actions under repository atomic update |
+| Durable state | Pass | MySQL, PostgreSQL, and GORM models persist decision rules, structured transition conditions, typed variables, and parallel active-node identities |
+| Restart recovery | Pass | A fresh GORM repository restores conditions, decision rules, variables, active state, tasks, actions, and final result from the same database |
+| Public contracts | Pass | Plugin SDK, process client transport, HTTP handlers, both OpenAPI copies, and Vue TypeScript models expose the same current decision and routing structures |
+| Current-only migration | Pass | Approval callers now declare explicit decisions; there is no empty-strategy default, legacy evaluator, compatibility decoder, dual state machine, or business-specific route |
+| Regression | Pass | Focused property and concurrency tests, 20 repeated runs, race detection, all Go packages, frontend type checks, and the production frontend build pass |
+
+### Failed Runs And Re-Execution
+
+- The first HTTP package run correctly rejected an old test fixture with no decision rule. The fixture was moved to the explicit current `any/1` contract and the package passed.
+- Final domain review found that route evaluation occurred after the task mutation. Routing is now precomputed before mutation, an unmatched-route no-partial-state test was added, and all focused and full gates passed again.
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo -run 'Test(ConditionalParallelQuorum|WorkflowConditionAndDecision|WorkflowDecisionLeavesNoPartialState|QuorumDecisions|WorkflowStoreResolvesConcurrentQuorum)' -count=20
+go test -race ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo -run 'Test(ConditionalParallelQuorum|WorkflowConditionAndDecision|WorkflowDecisionLeavesNoPartialState|QuorumDecisions|WorkflowStoreResolvesConcurrentQuorum)' -count=1
+go test ./...
+go vet ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/plugin/hostservice ./internal/handler/http/v1/workflow
+npm --prefix web run typecheck
+npm --prefix web run build
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF3-01 passed. Independent plugins can now define bounded conditional routes, execute multiple approval branches in parallel, and resolve explicit any/all/quorum decisions exactly once through durable current framework contracts.
+
+### Commit
+
+`FF3-01: add governed workflow decisions`

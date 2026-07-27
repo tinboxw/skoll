@@ -26,7 +26,7 @@ func TestWorkflowServiceBindsIdentityAndNamespace(t *testing.T) {
 		ID: "approval", Key: "approval", Name: "Approval", Version: 1,
 		Nodes: []pluginsdk.WorkflowNode{
 			{ID: "start", Key: "start", Name: "Start", Type: pluginsdk.WorkflowNodeStart},
-			{ID: "review", Key: "review", Name: "Review", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"approver-1"}},
+			{ID: "review", Key: "review", Name: "Review", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"approver-1"}, Decision: &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionAny, Quorum: 1}},
 			{ID: "end", Key: "end", Name: "End", Type: pluginsdk.WorkflowNodeEnd},
 		},
 		Transitions: []pluginsdk.WorkflowTransition{{From: "start", To: "review"}, {From: "review", To: "end"}},

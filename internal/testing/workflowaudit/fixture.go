@@ -34,7 +34,7 @@ func BuildApprovalChainFixture() (Fixture, error) {
 		1,
 		[]domainworkflow.Node{
 			{ID: "start", Key: "start", Name: "Start", Type: domainworkflow.NodeStart},
-			{ID: "approval", Key: "approval", Name: "Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"approver-1"}},
+			{ID: "approval", Key: "approval", Name: "Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"approver-1"}, Decision: domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionAny, Quorum: 1}},
 			{ID: "end", Key: "end", Name: "End", Type: domainworkflow.NodeEnd},
 		},
 		[]domainworkflow.Transition{
@@ -76,7 +76,7 @@ func BuildApprovalChainFixture() (Fixture, error) {
 	if secondTask.ID.IsZero() {
 		return Fixture{}, fmt.Errorf("fixture missing transferred pending task")
 	}
-	if err := instance.Approve(secondTask.ID, domainworkflow.Actor{ID: "approver-2", Name: "Approver Two"}, "approved with audit fixture", base.Add(5*time.Minute)); err != nil {
+	if err := instance.Approve(*definition, secondTask.ID, domainworkflow.Actor{ID: "approver-2", Name: "Approver Two"}, "approved with audit fixture", base.Add(5*time.Minute)); err != nil {
 		return Fixture{}, err
 	}
 

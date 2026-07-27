@@ -140,7 +140,7 @@ func ensureWorkflowDefinition(ctx context.Context, workflows pluginsdk.WorkflowS
 		ID: definitionID, Key: definitionID, Name: {{SCHEMA_NAME}}+" Approval", Version: 1,
 		Nodes: []pluginsdk.WorkflowNode{
 			{ID: "start", Key: "start", Name: "Start", Type: pluginsdk.WorkflowNodeStart},
-			{ID: "approval", Key: "approval", Name: "Approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"approver"}},
+			{ID: "approval", Key: "approval", Name: "Approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"approver"}, Decision: &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionAny, Quorum: 1}},
 			{ID: "end", Key: "end", Name: "End", Type: pluginsdk.WorkflowNodeEnd},
 		},
 		Transitions: []pluginsdk.WorkflowTransition{{From: "start", To: "approval"}, {From: "approval", To: "end"}},

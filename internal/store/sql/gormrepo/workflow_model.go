@@ -15,12 +15,14 @@ type WorkflowDefinitionModel struct {
 func (WorkflowDefinitionModel) TableName() string { return "sk_workflow_definitions" }
 
 type WorkflowNodeModel struct {
-	DefinitionID string `gorm:"size:64;primaryKey;index:idx_workflow_node_definition_position,priority:1"`
-	NodeID       string `gorm:"size:64;primaryKey"`
-	NodeKey      string `gorm:"size:128"`
-	Name         string `gorm:"size:255"`
-	NodeType     string `gorm:"size:32"`
-	Position     int    `gorm:"index:idx_workflow_node_definition_position,priority:2"`
+	DefinitionID     string `gorm:"size:64;primaryKey;index:idx_workflow_node_definition_position,priority:1"`
+	NodeID           string `gorm:"size:64;primaryKey"`
+	NodeKey          string `gorm:"size:128"`
+	Name             string `gorm:"size:255"`
+	NodeType         string `gorm:"size:32"`
+	DecisionStrategy string `gorm:"size:32"`
+	DecisionQuorum   int
+	Position         int `gorm:"index:idx_workflow_node_definition_position,priority:2"`
 }
 
 func (WorkflowNodeModel) TableName() string { return "sk_workflow_nodes" }
@@ -35,27 +37,30 @@ type WorkflowNodeAssigneeModel struct {
 func (WorkflowNodeAssigneeModel) TableName() string { return "sk_workflow_node_assignees" }
 
 type WorkflowTransitionModel struct {
-	DefinitionID string `gorm:"size:64;primaryKey"`
-	Position     int    `gorm:"primaryKey"`
-	FromNodeID   string `gorm:"size:64"`
-	ToNodeID     string `gorm:"size:64"`
+	DefinitionID  string `gorm:"size:64;primaryKey"`
+	Position      int    `gorm:"primaryKey"`
+	FromNodeID    string `gorm:"size:64"`
+	ToNodeID      string `gorm:"size:64"`
+	ConditionJSON string `gorm:"type:text"`
 }
 
 func (WorkflowTransitionModel) TableName() string { return "sk_workflow_transitions" }
 
 type WorkflowInstanceModel struct {
-	ID            string `gorm:"size:64;primaryKey"`
-	DefinitionID  string `gorm:"size:64;index:idx_workflow_instance_definition_status,priority:1"`
-	DefinitionKey string `gorm:"size:128"`
-	BusinessType  string `gorm:"size:128;index:idx_workflow_instance_business,priority:1"`
-	BusinessID    string `gorm:"size:128;index:idx_workflow_instance_business,priority:2"`
-	Title         string `gorm:"size:255"`
-	Status        string `gorm:"size:32;index:idx_workflow_instance_definition_status,priority:2;index:idx_workflow_instance_starter_status,priority:2;index:idx_workflow_instance_status_updated,priority:1"`
-	StarterID     string `gorm:"size:64;index:idx_workflow_instance_starter_status,priority:1"`
-	StarterName   string `gorm:"size:255"`
-	CurrentNodeID string `gorm:"size:64"`
-	CreatedAt     time.Time
-	UpdatedAt     time.Time `gorm:"index:idx_workflow_instance_status_updated,priority:2"`
+	ID                string `gorm:"size:64;primaryKey"`
+	DefinitionID      string `gorm:"size:64;index:idx_workflow_instance_definition_status,priority:1"`
+	DefinitionKey     string `gorm:"size:128"`
+	BusinessType      string `gorm:"size:128;index:idx_workflow_instance_business,priority:1"`
+	BusinessID        string `gorm:"size:128;index:idx_workflow_instance_business,priority:2"`
+	Title             string `gorm:"size:255"`
+	Status            string `gorm:"size:32;index:idx_workflow_instance_definition_status,priority:2;index:idx_workflow_instance_starter_status,priority:2;index:idx_workflow_instance_status_updated,priority:1"`
+	StarterID         string `gorm:"size:64;index:idx_workflow_instance_starter_status,priority:1"`
+	StarterName       string `gorm:"size:255"`
+	CurrentNodeID     string `gorm:"size:64"`
+	ActiveNodeIDsJSON string `gorm:"type:text"`
+	VariablesJSON     string `gorm:"type:text"`
+	CreatedAt         time.Time
+	UpdatedAt         time.Time `gorm:"index:idx_workflow_instance_status_updated,priority:2"`
 }
 
 func (WorkflowInstanceModel) TableName() string { return "sk_workflow_instances" }

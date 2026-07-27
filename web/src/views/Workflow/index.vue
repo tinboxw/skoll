@@ -160,7 +160,8 @@ async function launchWorkflow(): Promise<void> {
 			businessType: launchForm.businessType.trim(),
 			businessId: launchForm.businessId.trim(),
 			title: launchForm.title.trim(),
-			starter: currentActor.value
+			starter: currentActor.value,
+			variables: {}
 		});
 		upsertInstance(instance);
 		createWorkflowTodo({
@@ -327,7 +328,7 @@ async function ensureDemoDefinition(): Promise<void> {
 		version: 1,
 		nodes: [
 			{ id: "start", key: "start", name: t("workflow.node.start"), type: "start" },
-			{ id: "approval", key: "approval", name: t("workflow.node.approval"), type: "approval", assignees: [currentActor.value.id] },
+			{ id: "approval", key: "approval", name: t("workflow.node.approval"), type: "approval", assignees: [currentActor.value.id], decision: { strategy: "any", quorum: 1 } },
 			{ id: "end", key: "end", name: t("workflow.node.end"), type: "end" }
 		],
 		transitions: [

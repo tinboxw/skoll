@@ -59,6 +59,7 @@ type StartInput struct {
 	BusinessID   string
 	Title        string
 	Starter      domainworkflow.Actor
+	Variables    map[string]domainworkflow.Value
 	Now          time.Time
 }
 

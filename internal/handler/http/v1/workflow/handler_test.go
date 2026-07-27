@@ -155,7 +155,7 @@ func approvalDefinitionBody(id string) map[string]any {
 		"version": 1,
 		"nodes": []map[string]any{
 			{"id": "start", "key": "start", "name": "Start", "type": "start"},
-			{"id": "review", "key": "review", "name": "Review", "type": "approval", "assignees": []string{"approver-1"}},
+			{"id": "review", "key": "review", "name": "Review", "type": "approval", "assignees": []string{"approver-1"}, "decision": map[string]any{"strategy": "any", "quorum": 1}},
 			{"id": "end", "key": "end", "name": "End", "type": "end"},
 		},
 		"transitions": []map[string]string{
@@ -173,6 +173,7 @@ func startBody(id, businessType, businessID, title string) map[string]any {
 		"businessId":   businessID,
 		"title":        title,
 		"starter":      map[string]string{"id": "starter-1", "name": "Starter"},
+		"variables":    map[string]any{},
 	}
 }
 

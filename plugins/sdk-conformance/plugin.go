@@ -121,7 +121,7 @@ func Run(ctx context.Context, host pluginsdk.HostServices) (Report, error) {
 		ID: "approval", Key: "approval", Name: "SDK approval", Version: 1,
 		Nodes: []pluginsdk.WorkflowNode{
 			{ID: "start", Key: "start", Name: "Start", Type: pluginsdk.WorkflowNodeStart},
-			{ID: "review", Key: "review", Name: "Review", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"conformance-user"}},
+			{ID: "review", Key: "review", Name: "Review", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"conformance-user"}, Decision: &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionAny, Quorum: 1}},
 			{ID: "end", Key: "end", Name: "End", Type: pluginsdk.WorkflowNodeEnd},
 		},
 		Transitions: []pluginsdk.WorkflowTransition{{From: "start", To: "review"}, {From: "review", To: "end"}},

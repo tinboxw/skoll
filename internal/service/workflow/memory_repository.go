@@ -104,10 +104,31 @@ func cloneDefinition(definition domainworkflow.Definition) domainworkflow.Defini
 		definition.Nodes[idx].Assignees = append([]shared.ID(nil), definition.Nodes[idx].Assignees...)
 	}
 	definition.Transitions = append([]domainworkflow.Transition(nil), definition.Transitions...)
+	for index := range definition.Transitions {
+		condition := definition.Transitions[index].Condition
+		if condition == nil {
+			continue
+		}
+		cloned := *condition
+		cloned.Predicates = append([]domainworkflow.Predicate(nil), condition.Predicates...)
+		for predicateIndex := range cloned.Predicates {
+			if cloned.Predicates[predicateIndex].Value != nil {
+				value := *cloned.Predicates[predicateIndex].Value
+				cloned.Predicates[predicateIndex].Value = &value
+			}
+		}
+		definition.Transitions[index].Condition = &cloned
+	}
 	return definition
 }
 
 func cloneInstance(instance domainworkflow.Instance) domainworkflow.Instance {
+	instance.ActiveNodes = append([]shared.ID(nil), instance.ActiveNodes...)
+	variables := instance.Variables
+	instance.Variables = make(map[string]domainworkflow.Value, len(variables))
+	for key, value := range variables {
+		instance.Variables[key] = value
+	}
 	instance.Tasks = append([]domainworkflow.Task(nil), instance.Tasks...)
 	for idx := range instance.Tasks {
 		if instance.Tasks[idx].CompletedAt != nil {

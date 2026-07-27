@@ -2,6 +2,7 @@ package gormrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -59,7 +60,10 @@ func (s *WorkflowStore) SaveDefinition(ctx context.Context, definition domainwor
 				return err
 			}
 		}
-		transitions := workflowTransitionRows(definition)
+		transitions, err := workflowTransitionRows(definition)
+		if err != nil {
+			return err
+		}
 		if len(transitions) > 0 {
 			return tx.Create(&transitions).Error
 		}
@@ -93,7 +97,10 @@ func (s *WorkflowStore) GetDefinition(ctx context.Context, id shared.ID) (*domai
 		return nil, err
 	}
 
-	definition := workflowDefinitionFromRows(row, nodes, assignees, transitions)
+	definition, err := workflowDefinitionFromRows(row, nodes, assignees, transitions)
+	if err != nil {
+		return nil, fmt.Errorf("restore workflow definition: %w", err)
+	}
 	if err := definition.Validate(); err != nil {
 		return nil, fmt.Errorf("restore workflow definition: %w", err)
 	}
@@ -200,7 +207,10 @@ func loadWorkflowInstance(tx *gorm.DB, id shared.ID, lockStrength string) (*doma
 	if err := tx.Where("instance_id = ?", row.ID).Order("position ASC").Find(&actions).Error; err != nil {
 		return nil, err
 	}
-	instance := workflowInstanceFromRows(row, tasks, actions)
+	instance, err := workflowInstanceFromRows(row, tasks, actions)
+	if err != nil {
+		return nil, fmt.Errorf("restore workflow instance: %w", err)
+	}
 	if err := validateWorkflowInstanceForStorage(instance); err != nil {
 		return nil, fmt.Errorf("restore workflow instance: %w", err)
 	}
@@ -208,12 +218,15 @@ func loadWorkflowInstance(tx *gorm.DB, id shared.ID, lockStrength string) (*doma
 }
 
 func replaceWorkflowInstance(tx *gorm.DB, instance domainworkflow.Instance) error {
-	row := workflowInstanceRow(instance)
+	row, err := workflowInstanceRow(instance)
+	if err != nil {
+		return err
+	}
 	if err := tx.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"definition_id", "definition_key", "business_type", "business_id", "title", "status",
-			"starter_id", "starter_name", "current_node_id", "updated_at",
+			"starter_id", "starter_name", "current_node_id", "active_node_ids_json", "variables_json", "updated_at",
 		}),
 	}).Create(&row).Error; err != nil {
 		return err
@@ -250,7 +263,8 @@ func workflowNodeRows(definition domainworkflow.Definition) ([]WorkflowNodeModel
 	for position, node := range definition.Nodes {
 		nodes = append(nodes, WorkflowNodeModel{
 			DefinitionID: definition.ID.String(), NodeID: node.ID.String(), NodeKey: strings.TrimSpace(node.Key),
-			Name: strings.TrimSpace(node.Name), NodeType: string(node.Type), Position: position,
+			Name: strings.TrimSpace(node.Name), NodeType: string(node.Type),
+			DecisionStrategy: string(node.Decision.Strategy), DecisionQuorum: node.Decision.Quorum, Position: position,
 		})
 		for assigneePosition, assigneeID := range node.Assignees {
 			assignees = append(assignees, WorkflowNodeAssigneeModel{
@@ -261,17 +275,26 @@ func workflowNodeRows(definition domainworkflow.Definition) ([]WorkflowNodeModel
 	return nodes, assignees
 }
 
-func workflowTransitionRows(definition domainworkflow.Definition) []WorkflowTransitionModel {
+func workflowTransitionRows(definition domainworkflow.Definition) ([]WorkflowTransitionModel, error) {
 	rows := make([]WorkflowTransitionModel, 0, len(definition.Transitions))
 	for position, transition := range definition.Transitions {
+		conditionJSON := ""
+		if transition.Condition != nil {
+			payload, err := json.Marshal(transition.Condition)
+			if err != nil {
+				return nil, fmt.Errorf("encode workflow transition condition: %w", err)
+			}
+			conditionJSON = string(payload)
+		}
 		rows = append(rows, WorkflowTransitionModel{
-			DefinitionID: definition.ID.String(), Position: position, FromNodeID: transition.From.String(), ToNodeID: transition.To.String(),
+			DefinitionID: definition.ID.String(), Position: position, FromNodeID: transition.From.String(),
+			ToNodeID: transition.To.String(), ConditionJSON: conditionJSON,
 		})
 	}
-	return rows
+	return rows, nil
 }
 
-func workflowDefinitionFromRows(row WorkflowDefinitionModel, nodes []WorkflowNodeModel, assignees []WorkflowNodeAssigneeModel, transitions []WorkflowTransitionModel) domainworkflow.Definition {
+func workflowDefinitionFromRows(row WorkflowDefinitionModel, nodes []WorkflowNodeModel, assignees []WorkflowNodeAssigneeModel, transitions []WorkflowTransitionModel) (domainworkflow.Definition, error) {
 	assigneesByNode := make(map[string][]shared.ID, len(nodes))
 	for _, item := range assignees {
 		assigneesByNode[item.NodeID] = append(assigneesByNode[item.NodeID], shared.ID(item.AssigneeID))
@@ -285,21 +308,40 @@ func workflowDefinitionFromRows(row WorkflowDefinitionModel, nodes []WorkflowNod
 		definition.Nodes = append(definition.Nodes, domainworkflow.Node{
 			ID: shared.ID(node.NodeID), Key: node.NodeKey, Name: node.Name, Type: domainworkflow.NodeType(node.NodeType),
 			Assignees: assigneesByNode[node.NodeID],
+			Decision:  domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionStrategy(node.DecisionStrategy), Quorum: node.DecisionQuorum},
 		})
 	}
 	for _, transition := range transitions {
-		definition.Transitions = append(definition.Transitions, domainworkflow.Transition{From: shared.ID(transition.FromNodeID), To: shared.ID(transition.ToNodeID)})
+		var condition *domainworkflow.Condition
+		if strings.TrimSpace(transition.ConditionJSON) != "" {
+			condition = &domainworkflow.Condition{}
+			if err := json.Unmarshal([]byte(transition.ConditionJSON), condition); err != nil {
+				return domainworkflow.Definition{}, fmt.Errorf("decode workflow transition condition: %w", err)
+			}
+		}
+		definition.Transitions = append(definition.Transitions, domainworkflow.Transition{
+			From: shared.ID(transition.FromNodeID), To: shared.ID(transition.ToNodeID), Condition: condition,
+		})
 	}
-	return definition
+	return definition, nil
 }
 
-func workflowInstanceRow(instance domainworkflow.Instance) WorkflowInstanceModel {
+func workflowInstanceRow(instance domainworkflow.Instance) (WorkflowInstanceModel, error) {
+	activeNodes, err := json.Marshal(instance.ActiveNodes)
+	if err != nil {
+		return WorkflowInstanceModel{}, fmt.Errorf("encode workflow active nodes: %w", err)
+	}
+	variables, err := json.Marshal(instance.Variables)
+	if err != nil {
+		return WorkflowInstanceModel{}, fmt.Errorf("encode workflow variables: %w", err)
+	}
 	return WorkflowInstanceModel{
 		ID: instance.ID.String(), DefinitionID: instance.DefinitionID.String(), DefinitionKey: strings.TrimSpace(instance.DefinitionKey),
 		BusinessType: strings.TrimSpace(instance.BusinessType), BusinessID: strings.TrimSpace(instance.BusinessID), Title: strings.TrimSpace(instance.Title),
 		Status: string(instance.Status), StarterID: instance.Starter.ID.String(), StarterName: strings.TrimSpace(instance.Starter.Name),
-		CurrentNodeID: instance.CurrentNode.String(), CreatedAt: instance.Meta.CreatedAt, UpdatedAt: instance.Meta.UpdatedAt,
-	}
+		CurrentNodeID: instance.CurrentNode.String(), ActiveNodeIDsJSON: string(activeNodes), VariablesJSON: string(variables),
+		CreatedAt: instance.Meta.CreatedAt, UpdatedAt: instance.Meta.UpdatedAt,
+	}, nil
 }
 
 func workflowTaskRows(instance domainworkflow.Instance) []WorkflowTaskModel {
@@ -326,11 +368,20 @@ func workflowActionRows(instance domainworkflow.Instance) []WorkflowActionModel 
 	return rows
 }
 
-func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskModel, actions []WorkflowActionModel) domainworkflow.Instance {
+func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskModel, actions []WorkflowActionModel) (domainworkflow.Instance, error) {
+	activeNodes := make([]shared.ID, 0)
+	if err := json.Unmarshal([]byte(row.ActiveNodeIDsJSON), &activeNodes); err != nil {
+		return domainworkflow.Instance{}, fmt.Errorf("decode workflow active nodes: %w", err)
+	}
+	variables := make(map[string]domainworkflow.Value)
+	if err := json.Unmarshal([]byte(row.VariablesJSON), &variables); err != nil {
+		return domainworkflow.Instance{}, fmt.Errorf("decode workflow variables: %w", err)
+	}
 	instance := domainworkflow.Instance{
 		ID: shared.ID(row.ID), DefinitionID: shared.ID(row.DefinitionID), DefinitionKey: row.DefinitionKey,
 		BusinessType: row.BusinessType, BusinessID: row.BusinessID, Title: row.Title, Status: domainworkflow.InstanceStatus(row.Status),
 		Starter: domainworkflow.Actor{ID: shared.ID(row.StarterID), Name: row.StarterName}, CurrentNode: shared.ID(row.CurrentNodeID),
+		ActiveNodes: activeNodes, Variables: variables,
 		Tasks: make([]domainworkflow.Task, 0, len(tasks)), Timeline: make([]domainworkflow.Action, 0, len(actions)),
 		Meta: shared.AuditMeta{CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt},
 	}
@@ -348,7 +399,7 @@ func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskMod
 			Target: domainworkflow.Actor{ID: shared.ID(action.TargetID), Name: action.TargetName}, Comment: action.Comment, CreatedAt: action.CreatedAt,
 		})
 	}
-	return instance
+	return instance, nil
 }
 
 func validateWorkflowInstanceForStorage(instance domainworkflow.Instance) error {
@@ -361,9 +412,36 @@ func validateWorkflowInstanceForStorage(instance domainworkflow.Instance) error 
 	if instance.Starter.ID.IsZero() || instance.CurrentNode.IsZero() {
 		return fmt.Errorf("workflow instance actor or current node is incomplete")
 	}
+	if err := domainworkflow.ValidateVariables(instance.Variables); err != nil {
+		return err
+	}
+	if instance.Status == domainworkflow.InstanceRunning && len(instance.ActiveNodes) == 0 {
+		return fmt.Errorf("running workflow instance requires active nodes")
+	}
+	active := make(map[shared.ID]struct{}, len(instance.ActiveNodes))
+	for index, nodeID := range instance.ActiveNodes {
+		if nodeID.IsZero() {
+			return fmt.Errorf("workflow active node is required")
+		}
+		if _, exists := active[nodeID]; exists {
+			return fmt.Errorf("workflow active node is duplicated")
+		}
+		active[nodeID] = struct{}{}
+		if index == 0 && instance.Status == domainworkflow.InstanceRunning && instance.CurrentNode != nodeID {
+			return fmt.Errorf("workflow current node must be the first active node")
+		}
+	}
+	if instance.Status != domainworkflow.InstanceRunning && len(instance.ActiveNodes) != 0 {
+		return fmt.Errorf("terminal workflow instance cannot have active nodes")
+	}
 	for _, task := range instance.Tasks {
 		if task.ID.IsZero() || task.InstanceID != instance.ID || task.NodeID.IsZero() || task.Assignee.ID.IsZero() || task.CreatedAt.IsZero() {
 			return fmt.Errorf("workflow task is incomplete")
+		}
+		if task.Status == domainworkflow.TaskPending {
+			if _, exists := active[task.NodeID]; !exists {
+				return fmt.Errorf("pending workflow task must belong to an active node")
+			}
 		}
 	}
 	for _, action := range instance.Timeline {

@@ -76,6 +76,94 @@ func TestWorkflowStoreSerializesCompetingDecisions(t *testing.T) {
 	}
 }
 
+func TestWorkflowStoreResolvesConcurrentQuorumExactlyOnce(t *testing.T) {
+	ctx := context.Background()
+	db := openConcurrentWorkflowTestDB(t, "quorum-decisions")
+	service := workflowsvc.NewService(NewWorkflowStore(db))
+	now := workflowConcurrencyTime()
+	definition, err := service.CreateDefinition(ctx, workflowsvc.CreateDefinitionInput{
+		ID: "definition-quorum", Key: "quality.release", Name: "Quality Release", Version: 1,
+		Nodes: []domainworkflow.Node{
+			{ID: "start", Key: "start", Name: "Start", Type: domainworkflow.NodeStart},
+			{
+				ID: "quality", Key: "quality", Name: "Quality", Type: domainworkflow.NodeApproval,
+				Assignees: []shared.ID{"quality-1", "quality-2", "quality-3"},
+				Decision:  domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionQuorum, Quorum: 2},
+			},
+			{ID: "end", Key: "end", Name: "End", Type: domainworkflow.NodeEnd},
+		},
+		Transitions: []domainworkflow.Transition{{From: "start", To: "quality"}, {From: "quality", To: "end"}},
+		Now:         now,
+	})
+	if err != nil {
+		t.Fatalf("CreateDefinition error: %v", err)
+	}
+	if _, err = service.PublishDefinition(ctx, definition.ID, now); err != nil {
+		t.Fatalf("PublishDefinition error: %v", err)
+	}
+	instance, err := service.Start(ctx, workflowsvc.StartInput{
+		ID: "instance-quorum", DefinitionID: definition.ID, BusinessType: "quality", BusinessID: "batch-1",
+		Title: "Release batch", Starter: domainworkflow.Actor{ID: "quality-owner"},
+		Variables: map[string]domainworkflow.Value{}, Now: now,
+	})
+	if err != nil {
+		t.Fatalf("Start error: %v", err)
+	}
+	tasks := make(map[shared.ID]domainworkflow.Task)
+	for _, task := range instance.Tasks {
+		tasks[task.Assignee.ID] = task
+	}
+
+	const workers = 20
+	start := make(chan struct{})
+	results := make(chan error, workers)
+	var group sync.WaitGroup
+	for worker := 0; worker < workers; worker++ {
+		actorID := shared.ID("quality-1")
+		if worker%2 == 1 {
+			actorID = "quality-2"
+		}
+		group.Add(1)
+		go func(actorID shared.ID) {
+			defer group.Done()
+			<-start
+			_, actionErr := service.Approve(ctx, workflowsvc.TaskActionInput{
+				InstanceID: instance.ID, TaskID: tasks[actorID].ID,
+				Actor: domainworkflow.Actor{ID: actorID}, Comment: "approved", Now: now.Add(time.Minute),
+			})
+			results <- actionErr
+		}(actorID)
+	}
+	close(start)
+	group.Wait()
+	close(results)
+	for actionErr := range results {
+		if actionErr != nil {
+			t.Fatalf("duplicate quorum approval should return committed state: %v", actionErr)
+		}
+	}
+
+	persisted, err := service.GetInstance(ctx, instance.ID)
+	if err != nil {
+		t.Fatalf("GetInstance error: %v", err)
+	}
+	approvals := 0
+	for _, action := range persisted.Timeline {
+		if action.Type == domainworkflow.ActionApprove {
+			approvals++
+		}
+	}
+	if persisted.Status != domainworkflow.InstanceApproved || approvals != 2 || len(persisted.ActiveNodes) != 0 {
+		t.Fatalf("quorum was not committed exactly once: %+v", persisted)
+	}
+	if _, err := service.Approve(ctx, workflowsvc.TaskActionInput{
+		InstanceID: instance.ID, TaskID: tasks["quality-3"].ID,
+		Actor: domainworkflow.Actor{ID: "quality-3"}, Comment: "stale", Now: now.Add(2 * time.Minute),
+	}); err == nil {
+		t.Fatal("expected stale decision to fail after persisted quorum resolution")
+	}
+}
+
 func TestWorkflowStoreDeduplicatesConcurrentNonTerminalActions(t *testing.T) {
 	ctx := context.Background()
 	db := openConcurrentWorkflowTestDB(t, "duplicate-copy")
@@ -260,7 +348,7 @@ func createConcurrentWorkflowInstance(t *testing.T, ctx context.Context, service
 		ID: definitionID, Key: "approval." + suffix, Name: "Approval " + suffix, Version: 1,
 		Nodes: []domainworkflow.Node{
 			{ID: "node-start", Key: "start", Name: "Start", Type: domainworkflow.NodeStart},
-			{ID: "node-approval", Key: "approval", Name: "Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}},
+			{ID: "node-approval", Key: "approval", Name: "Approval", Type: domainworkflow.NodeApproval, Assignees: []shared.ID{"manager-1"}, Decision: domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionAny, Quorum: 1}},
 			{ID: "node-end", Key: "end", Name: "End", Type: domainworkflow.NodeEnd},
 		},
 		Transitions: []domainworkflow.Transition{{From: "node-start", To: "node-approval"}, {From: "node-approval", To: "node-end"}},

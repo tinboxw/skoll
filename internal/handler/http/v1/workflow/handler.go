@@ -114,25 +114,49 @@ type definitionInput struct {
 }
 
 type nodeInput struct {
-	ID        string   `json:"id"`
-	Key       string   `json:"key"`
-	Name      string   `json:"name"`
-	Type      string   `json:"type"`
-	Assignees []string `json:"assignees"`
+	ID        string        `json:"id"`
+	Key       string        `json:"key"`
+	Name      string        `json:"name"`
+	Type      string        `json:"type"`
+	Assignees []string      `json:"assignees"`
+	Decision  *decisionRule `json:"decision,omitempty"`
 }
 
 type transitionInput struct {
-	From string `json:"from"`
-	To   string `json:"to"`
+	From      string          `json:"from"`
+	To        string          `json:"to"`
+	Condition *conditionInput `json:"condition,omitempty"`
+}
+
+type decisionRule struct {
+	Strategy string `json:"strategy"`
+	Quorum   int    `json:"quorum"`
+}
+
+type workflowValue struct {
+	Type  string `json:"type"`
+	Value string `json:"value"`
+}
+
+type predicateInput struct {
+	Field    string         `json:"field"`
+	Operator string         `json:"operator"`
+	Value    *workflowValue `json:"value,omitempty"`
+}
+
+type conditionInput struct {
+	Match      string           `json:"match"`
+	Predicates []predicateInput `json:"predicates"`
 }
 
 type startInput struct {
-	ID           string     `json:"id"`
-	DefinitionID string     `json:"definitionId"`
-	BusinessType string     `json:"businessType"`
-	BusinessID   string     `json:"businessId"`
-	Title        string     `json:"title"`
-	Starter      actorInput `json:"starter"`
+	ID           string                   `json:"id"`
+	DefinitionID string                   `json:"definitionId"`
+	BusinessType string                   `json:"businessType"`
+	BusinessID   string                   `json:"businessId"`
+	Title        string                   `json:"title"`
+	Starter      actorInput               `json:"starter"`
+	Variables    map[string]workflowValue `json:"variables"`
 }
 
 type actorInput struct {
@@ -204,6 +228,7 @@ func (h *Handler) startInstance(w http.ResponseWriter, r *http.Request) {
 		BusinessID:   req.BusinessID,
 		Title:        req.Title,
 		Starter:      req.Starter.domain(),
+		Variables:    workflowVariables(req.Variables),
 		Now:          time.Now().UTC(),
 	})
 	if err != nil {
@@ -311,6 +336,7 @@ func (in definitionInput) nodes() []domainworkflow.Node {
 			Name:      node.Name,
 			Type:      domainworkflow.NodeType(strings.TrimSpace(node.Type)),
 			Assignees: assignees,
+			Decision:  node.Decision.domain(),
 		})
 	}
 	return nodes
@@ -320,11 +346,40 @@ func (in definitionInput) transitions() []domainworkflow.Transition {
 	transitions := make([]domainworkflow.Transition, 0, len(in.Transitions))
 	for _, transition := range in.Transitions {
 		transitions = append(transitions, domainworkflow.Transition{
-			From: shared.ID(strings.TrimSpace(transition.From)),
-			To:   shared.ID(strings.TrimSpace(transition.To)),
+			From:      shared.ID(strings.TrimSpace(transition.From)),
+			To:        shared.ID(strings.TrimSpace(transition.To)),
+			Condition: workflowCondition(transition.Condition),
 		})
 	}
 	return transitions
+}
+
+func workflowCondition(input *conditionInput) *domainworkflow.Condition {
+	if input == nil {
+		return nil
+	}
+	condition := &domainworkflow.Condition{
+		Match:      domainworkflow.ConditionMatch(strings.TrimSpace(input.Match)),
+		Predicates: make([]domainworkflow.Predicate, 0, len(input.Predicates)),
+	}
+	for _, predicate := range input.Predicates {
+		var value *domainworkflow.Value
+		if predicate.Value != nil {
+			value = &domainworkflow.Value{Type: domainworkflow.ValueType(strings.TrimSpace(predicate.Value.Type)), Value: predicate.Value.Value}
+		}
+		condition.Predicates = append(condition.Predicates, domainworkflow.Predicate{
+			Field: strings.TrimSpace(predicate.Field), Operator: domainworkflow.PredicateOperator(strings.TrimSpace(predicate.Operator)), Value: value,
+		})
+	}
+	return condition
+}
+
+func workflowVariables(input map[string]workflowValue) map[string]domainworkflow.Value {
+	out := make(map[string]domainworkflow.Value, len(input))
+	for key, value := range input {
+		out[strings.TrimSpace(key)] = domainworkflow.Value{Type: domainworkflow.ValueType(strings.TrimSpace(value.Type)), Value: value.Value}
+	}
+	return out
 }
 
 func (in actorInput) domain() domainworkflow.Actor {
@@ -344,32 +399,36 @@ type definitionRecord struct {
 }
 
 type nodeRecord struct {
-	ID        string   `json:"id"`
-	Key       string   `json:"key"`
-	Name      string   `json:"name"`
-	Type      string   `json:"type"`
-	Assignees []string `json:"assignees"`
+	ID        string        `json:"id"`
+	Key       string        `json:"key"`
+	Name      string        `json:"name"`
+	Type      string        `json:"type"`
+	Assignees []string      `json:"assignees"`
+	Decision  *decisionRule `json:"decision,omitempty"`
 }
 
 type transitionRecord struct {
-	From string `json:"from"`
-	To   string `json:"to"`
+	From      string          `json:"from"`
+	To        string          `json:"to"`
+	Condition *conditionInput `json:"condition,omitempty"`
 }
 
 type instanceRecord struct {
-	ID            string         `json:"id"`
-	DefinitionID  string         `json:"definitionId"`
-	DefinitionKey string         `json:"definitionKey"`
-	BusinessType  string         `json:"businessType"`
-	BusinessID    string         `json:"businessId"`
-	Title         string         `json:"title"`
-	Status        string         `json:"status"`
-	Starter       actorRecord    `json:"starter"`
-	CurrentNode   string         `json:"currentNode"`
-	Tasks         []taskRecord   `json:"tasks"`
-	Timeline      []actionRecord `json:"timeline"`
-	CreatedAt     time.Time      `json:"createdAt"`
-	UpdatedAt     time.Time      `json:"updatedAt"`
+	ID            string                   `json:"id"`
+	DefinitionID  string                   `json:"definitionId"`
+	DefinitionKey string                   `json:"definitionKey"`
+	BusinessType  string                   `json:"businessType"`
+	BusinessID    string                   `json:"businessId"`
+	Title         string                   `json:"title"`
+	Status        string                   `json:"status"`
+	Starter       actorRecord              `json:"starter"`
+	CurrentNode   string                   `json:"currentNode"`
+	ActiveNodes   []string                 `json:"activeNodes"`
+	Variables     map[string]workflowValue `json:"variables"`
+	Tasks         []taskRecord             `json:"tasks"`
+	Timeline      []actionRecord           `json:"timeline"`
+	CreatedAt     time.Time                `json:"createdAt"`
+	UpdatedAt     time.Time                `json:"updatedAt"`
 }
 
 type actorRecord struct {
@@ -406,17 +465,24 @@ func definitionRecordFromDomain(definition domainworkflow.Definition) definition
 		for _, assignee := range node.Assignees {
 			assignees = append(assignees, assignee.String())
 		}
+		var decision *decisionRule
+		if node.Type == domainworkflow.NodeApproval {
+			decision = &decisionRule{Strategy: string(node.Decision.Strategy), Quorum: node.Decision.Quorum}
+		}
 		nodes = append(nodes, nodeRecord{
 			ID:        node.ID.String(),
 			Key:       node.Key,
 			Name:      node.Name,
 			Type:      string(node.Type),
 			Assignees: assignees,
+			Decision:  decision,
 		})
 	}
 	transitions := make([]transitionRecord, 0, len(definition.Transitions))
 	for _, transition := range definition.Transitions {
-		transitions = append(transitions, transitionRecord{From: transition.From.String(), To: transition.To.String()})
+		transitions = append(transitions, transitionRecord{
+			From: transition.From.String(), To: transition.To.String(), Condition: conditionRecord(transition.Condition),
+		})
 	}
 	return definitionRecord{
 		ID:          definition.ID.String(),
@@ -429,6 +495,21 @@ func definitionRecordFromDomain(definition domainworkflow.Definition) definition
 		CreatedAt:   definition.Meta.CreatedAt,
 		UpdatedAt:   definition.Meta.UpdatedAt,
 	}
+}
+
+func conditionRecord(condition *domainworkflow.Condition) *conditionInput {
+	if condition == nil {
+		return nil
+	}
+	out := &conditionInput{Match: string(condition.Match), Predicates: make([]predicateInput, 0, len(condition.Predicates))}
+	for _, predicate := range condition.Predicates {
+		var value *workflowValue
+		if predicate.Value != nil {
+			value = &workflowValue{Type: string(predicate.Value.Type), Value: predicate.Value.Value}
+		}
+		out.Predicates = append(out.Predicates, predicateInput{Field: predicate.Field, Operator: string(predicate.Operator), Value: value})
+	}
+	return out
 }
 
 func instanceRecordFromDomain(instance domainworkflow.Instance) instanceRecord {
@@ -468,6 +549,8 @@ func instanceRecordFromDomain(instance domainworkflow.Instance) instanceRecord {
 		Status:        string(instance.Status),
 		Starter:       actorRecordFromDomain(instance.Starter),
 		CurrentNode:   instance.CurrentNode.String(),
+		ActiveNodes:   sharedIDs(instance.ActiveNodes),
+		Variables:     workflowValueRecords(instance.Variables),
 		Tasks:         tasks,
 		Timeline:      timeline,
 		CreatedAt:     instance.Meta.CreatedAt,
@@ -475,6 +558,32 @@ func instanceRecordFromDomain(instance domainworkflow.Instance) instanceRecord {
 	}
 }
 
+func sharedIDs(ids []shared.ID) []string {
+	out := make([]string, len(ids))
+	for index, id := range ids {
+		out[index] = id.String()
+	}
+	return out
+}
+
+func workflowValueRecords(values map[string]domainworkflow.Value) map[string]workflowValue {
+	out := make(map[string]workflowValue, len(values))
+	for key, value := range values {
+		out[key] = workflowValue{Type: string(value.Type), Value: value.Value}
+	}
+	return out
+}
+
 func actorRecordFromDomain(actor domainworkflow.Actor) actorRecord {
 	return actorRecord{ID: actor.ID.String(), Name: actor.Name}
+}
+
+func (input *decisionRule) domain() domainworkflow.DecisionRule {
+	if input == nil {
+		return domainworkflow.DecisionRule{}
+	}
+	return domainworkflow.DecisionRule{
+		Strategy: domainworkflow.DecisionStrategy(strings.TrimSpace(input.Strategy)),
+		Quorum:   input.Quorum,
+	}
 }

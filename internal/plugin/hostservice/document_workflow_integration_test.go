@@ -613,7 +613,7 @@ func newDocumentWorkflowFixtureWithScopes(t *testing.T, scopes pluginsdk.DataSco
 		ID: "document-approval", Key: "document_approval", Name: "Document Approval", Version: 1,
 		Nodes: []pluginsdk.WorkflowNode{
 			{ID: "start", Key: "start", Name: "Start", Type: pluginsdk.WorkflowNodeStart},
-			{ID: "approval", Key: "approval", Name: "Approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"user-1"}},
+			{ID: "approval", Key: "approval", Name: "Approval", Type: pluginsdk.WorkflowNodeApproval, AssigneeIDs: []string{"user-1"}, Decision: &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionAny, Quorum: 1}},
 			{ID: "end", Key: "end", Name: "End", Type: pluginsdk.WorkflowNodeEnd},
 		},
 		Transitions: []pluginsdk.WorkflowTransition{{From: "start", To: "approval"}, {From: "approval", To: "end"}},

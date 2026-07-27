@@ -84,11 +84,13 @@ type Node struct {
 	Name      string
 	Type      NodeType
 	Assignees []shared.ID
+	Decision  DecisionRule
 }
 
 type Transition struct {
-	From shared.ID
-	To   shared.ID
+	From      shared.ID
+	To        shared.ID
+	Condition *Condition
 }
 
 type Instance struct {
@@ -101,6 +103,8 @@ type Instance struct {
 	Status        InstanceStatus
 	Starter       Actor
 	CurrentNode   shared.ID
+	ActiveNodes   []shared.ID
+	Variables     map[string]Value
 	Tasks         []Task
 	Timeline      []Action
 	Meta          shared.AuditMeta
@@ -135,6 +139,7 @@ type StartInput struct {
 	BusinessID   string
 	Title        string
 	Starter      Actor
+	Variables    map[string]Value
 	Now          time.Time
 }
 
@@ -208,7 +213,7 @@ func (d Definition) Validate() error {
 			return fmt.Errorf("workflow transition references unknown to node: %s", edge.To)
 		}
 	}
-	return nil
+	return d.validateGraph()
 }
 
 func (n Node) Validate() error {
@@ -229,6 +234,12 @@ func (n Node) Validate() error {
 	if n.Type == NodeApproval && len(n.Assignees) == 0 {
 		return fmt.Errorf("workflow approval node requires assignees")
 	}
+	if n.Type == NodeApproval {
+		return n.Decision.Validate(len(n.Assignees))
+	}
+	if n.Decision.Strategy != "" || n.Decision.Quorum != 0 {
+		return fmt.Errorf("workflow non-approval node cannot declare a decision rule")
+	}
 	return nil
 }
 
@@ -247,9 +258,17 @@ func Start(in StartInput) (*Instance, error) {
 	if in.ID.IsZero() || strings.TrimSpace(in.BusinessType) == "" || strings.TrimSpace(in.BusinessID) == "" || strings.TrimSpace(in.Title) == "" || in.Starter.ID.IsZero() {
 		return nil, fmt.Errorf("workflow start input is incomplete")
 	}
-	first, err := def.firstApprovalNode()
+	if err := validateVariables(in.Variables); err != nil {
+		return nil, err
+	}
+	start, _ := def.nodeByType(NodeStart)
+	active, err := def.activateFrom(start.ID, in.Variables, nil)
 	if err != nil {
 		return nil, err
+	}
+	current := def.endNodeID()
+	if len(active) > 0 {
+		current = active[0]
 	}
 	instance := &Instance{
 		ID:            in.ID,
@@ -260,27 +279,84 @@ func Start(in StartInput) (*Instance, error) {
 		Title:         strings.TrimSpace(in.Title),
 		Status:        InstanceRunning,
 		Starter:       normalizeActor(in.Starter),
-		CurrentNode:   first.ID,
-		Tasks:         makeTasks(in.ID, first, now),
+		CurrentNode:   current,
+		ActiveNodes:   append([]shared.ID(nil), active...),
+		Variables:     cloneVariables(in.Variables),
+		Tasks:         makeTasksForNodes(in.ID, def, active, now),
 		Timeline: []Action{{
 			ID:         shared.ID(fmt.Sprintf("%s-start", in.ID)),
 			Type:       ActionStart,
 			InstanceID: in.ID,
-			NodeID:     first.ID,
+			NodeID:     current,
 			Actor:      normalizeActor(in.Starter),
 			CreatedAt:  now,
 		}},
+	}
+	if len(active) == 0 {
+		instance.Status = InstanceApproved
 	}
 	instance.Meta.Touch(now)
 	return instance, nil
 }
 
-func (i *Instance) Approve(taskID shared.ID, actor Actor, comment string, now time.Time) error {
-	return i.completeTask(taskID, actor, comment, now, TaskApproved, ActionApprove, InstanceApproved)
+func (i *Instance) Approve(definition Definition, taskID shared.ID, actor Actor, comment string, now time.Time) error {
+	if err := i.ensureRunning(); err != nil {
+		return err
+	}
+	if definition.ID != i.DefinitionID || definition.Status != DefinitionPublished {
+		return fmt.Errorf("workflow instance definition is invalid")
+	}
+	if err := definition.Validate(); err != nil {
+		return err
+	}
+	task, err := i.pendingTask(taskID, actor)
+	if err != nil {
+		return err
+	}
+	if !containsID(i.ActiveNodes, task.NodeID) {
+		return fmt.Errorf("workflow task node is not active")
+	}
+	node, ok := definition.nodeByID(task.NodeID)
+	if !ok || node.Type != NodeApproval {
+		return fmt.Errorf("workflow approval node is invalid")
+	}
+	willResolve := i.approvedCount(task.NodeID)+1 >= node.Decision.Quorum
+	nextActive := i.ActiveNodes
+	newNodes := []shared.ID(nil)
+	if willResolve {
+		remaining := removeID(i.ActiveNodes, task.NodeID)
+		nextActive, err = definition.activateFrom(task.NodeID, i.Variables, remaining)
+		if err != nil {
+			return err
+		}
+		newNodes = differenceIDs(nextActive, remaining)
+	}
+	now = normalizeNow(now)
+	task.Status = TaskApproved
+	task.CompletedAt = &now
+	i.appendAction(Action{ID: actionID(i.ID, ActionApprove, taskID.String(), actor.ID.String()), Type: ActionApprove, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	if willResolve {
+		i.cancelPendingNodeTasks(task.NodeID, now)
+		i.ActiveNodes = nextActive
+		i.Tasks = append(i.Tasks, makeTasksForNodes(i.ID, definition, newNodes, now)...)
+		if len(i.ActiveNodes) == 0 {
+			i.Status = InstanceApproved
+			i.CurrentNode = definition.endNodeID()
+		} else {
+			i.CurrentNode = i.ActiveNodes[0]
+		}
+	}
+	i.Meta.Touch(now)
+	return nil
 }
 
 func (i *Instance) Reject(taskID shared.ID, actor Actor, comment string, now time.Time) error {
-	return i.completeTask(taskID, actor, comment, now, TaskRejected, ActionReject, InstanceRejected)
+	if err := i.completeTask(taskID, actor, comment, now, TaskRejected, ActionReject, InstanceRejected); err != nil {
+		return err
+	}
+	i.cancelAllPendingTasks(normalizeNow(now))
+	i.ActiveNodes = nil
+	return nil
 }
 
 func (i *Instance) Withdraw(actor Actor, comment string, now time.Time) error {
@@ -298,6 +374,7 @@ func (i *Instance) Withdraw(actor Actor, comment string, now time.Time) error {
 		}
 	}
 	i.Status = InstanceWithdrawn
+	i.ActiveNodes = nil
 	i.appendAction(Action{ID: actionID(i.ID, ActionWithdraw, actor.ID.String()), Type: ActionWithdraw, InstanceID: i.ID, NodeID: i.CurrentNode, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
@@ -318,6 +395,7 @@ func (i *Instance) Cancel(actor Actor, comment string, now time.Time) error {
 		}
 	}
 	i.Status = InstanceCanceled
+	i.ActiveNodes = nil
 	i.appendAction(Action{ID: actionID(i.ID, ActionCancel, actor.ID.String()), Type: ActionCancel, InstanceID: i.ID, NodeID: i.CurrentNode, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
@@ -427,29 +505,6 @@ func (i *Instance) appendAction(action Action) {
 	i.Timeline = append(i.Timeline, action)
 }
 
-func (d Definition) firstApprovalNode() (Node, error) {
-	start := Node{}
-	for _, node := range d.Nodes {
-		if node.Type == NodeStart {
-			start = node
-			break
-		}
-	}
-	for _, edge := range d.Transitions {
-		if edge.From != start.ID {
-			continue
-		}
-		node, ok := d.nodeByID(edge.To)
-		if !ok {
-			continue
-		}
-		if node.Type == NodeApproval {
-			return node, nil
-		}
-	}
-	return Node{}, fmt.Errorf("workflow definition has no first approval node")
-}
-
 func (d Definition) nodeByID(id shared.ID) (Node, bool) {
 	for _, node := range d.Nodes {
 		if node.ID == id {
@@ -457,6 +512,20 @@ func (d Definition) nodeByID(id shared.ID) (Node, bool) {
 		}
 	}
 	return Node{}, false
+}
+
+func (d Definition) nodeByType(nodeType NodeType) (Node, bool) {
+	for _, node := range d.Nodes {
+		if node.Type == nodeType {
+			return node, true
+		}
+	}
+	return Node{}, false
+}
+
+func (d Definition) endNodeID() shared.ID {
+	node, _ := d.nodeByType(NodeEnd)
+	return node.ID
 }
 
 func normalizeNodes(nodes []Node) []Node {
@@ -487,19 +556,92 @@ func normalizeIDs(ids []shared.ID) []shared.ID {
 	return out
 }
 
-func makeTasks(instanceID shared.ID, node Node, now time.Time) []Task {
-	tasks := make([]Task, 0, len(node.Assignees))
-	for _, assignee := range node.Assignees {
-		tasks = append(tasks, Task{
-			ID:         shared.ID(fmt.Sprintf("%s-%s-%s", instanceID, node.ID, assignee)),
-			InstanceID: instanceID,
-			NodeID:     node.ID,
-			Assignee:   Actor{ID: assignee},
-			Status:     TaskPending,
-			CreatedAt:  now,
-		})
+func makeTasksForNodes(instanceID shared.ID, definition Definition, nodeIDs []shared.ID, now time.Time) []Task {
+	tasks := make([]Task, 0)
+	for _, nodeID := range nodeIDs {
+		node, ok := definition.nodeByID(nodeID)
+		if !ok {
+			continue
+		}
+		for _, assignee := range node.Assignees {
+			tasks = append(tasks, Task{
+				ID:         shared.ID(fmt.Sprintf("%s-%s-%s", instanceID, node.ID, assignee)),
+				InstanceID: instanceID,
+				NodeID:     node.ID,
+				Assignee:   Actor{ID: assignee},
+				Status:     TaskPending,
+				CreatedAt:  now,
+			})
+		}
 	}
 	return tasks
+}
+
+func cloneVariables(variables map[string]Value) map[string]Value {
+	cloned := make(map[string]Value, len(variables))
+	for key, value := range variables {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func containsID(ids []shared.ID, candidate shared.ID) bool {
+	for _, id := range ids {
+		if id == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+func removeID(ids []shared.ID, candidate shared.ID) []shared.ID {
+	out := make([]shared.ID, 0, len(ids))
+	for _, id := range ids {
+		if id != candidate {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func differenceIDs(left, right []shared.ID) []shared.ID {
+	out := make([]shared.ID, 0)
+	for _, id := range left {
+		if !containsID(right, id) {
+			out = append(out, id)
+		}
+	}
+	return out
+}
+
+func (i *Instance) approvedCount(nodeID shared.ID) int {
+	count := 0
+	for _, task := range i.Tasks {
+		if task.NodeID == nodeID && task.Status == TaskApproved {
+			count++
+		}
+	}
+	return count
+}
+
+func (i *Instance) cancelPendingNodeTasks(nodeID shared.ID, now time.Time) {
+	for index := range i.Tasks {
+		task := &i.Tasks[index]
+		if task.NodeID == nodeID && task.Status == TaskPending {
+			task.Status = TaskCanceled
+			task.CompletedAt = &now
+		}
+	}
+}
+
+func (i *Instance) cancelAllPendingTasks(now time.Time) {
+	for index := range i.Tasks {
+		task := &i.Tasks[index]
+		if task.Status == TaskPending {
+			task.Status = TaskCanceled
+			task.CompletedAt = &now
+		}
+	}
 }
 
 func normalizeActor(actor Actor) Actor {

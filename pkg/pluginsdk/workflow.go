@@ -18,6 +18,10 @@ type WorkflowDefinitionStatus string
 type WorkflowInstanceStatus string
 type WorkflowTaskStatus string
 type WorkflowActionType string
+type WorkflowDecisionStrategy string
+type WorkflowValueType string
+type WorkflowPredicateOperator string
+type WorkflowConditionMatch string
 
 const (
 	WorkflowDefinitionDraft     WorkflowDefinitionStatus = "draft"
@@ -44,6 +48,26 @@ const (
 	WorkflowActionTransfer WorkflowActionType = "transfer"
 	WorkflowActionCopy     WorkflowActionType = "copy"
 	WorkflowActionCancel   WorkflowActionType = "cancel"
+
+	WorkflowDecisionAny    WorkflowDecisionStrategy = "any"
+	WorkflowDecisionAll    WorkflowDecisionStrategy = "all"
+	WorkflowDecisionQuorum WorkflowDecisionStrategy = "quorum"
+
+	WorkflowValueString  WorkflowValueType = "string"
+	WorkflowValueNumber  WorkflowValueType = "number"
+	WorkflowValueBoolean WorkflowValueType = "boolean"
+
+	WorkflowPredicateEqual        WorkflowPredicateOperator = "eq"
+	WorkflowPredicateNotEqual     WorkflowPredicateOperator = "ne"
+	WorkflowPredicateGreaterThan  WorkflowPredicateOperator = "gt"
+	WorkflowPredicateGreaterEqual WorkflowPredicateOperator = "gte"
+	WorkflowPredicateLessThan     WorkflowPredicateOperator = "lt"
+	WorkflowPredicateLessEqual    WorkflowPredicateOperator = "lte"
+	WorkflowPredicateExists       WorkflowPredicateOperator = "exists"
+	WorkflowPredicateNotExists    WorkflowPredicateOperator = "not_exists"
+
+	WorkflowConditionAll WorkflowConditionMatch = "all"
+	WorkflowConditionAny WorkflowConditionMatch = "any"
 )
 
 type WorkflowActor struct {
@@ -57,11 +81,34 @@ type WorkflowNode struct {
 	Name        string
 	Type        WorkflowNodeType
 	AssigneeIDs []string
+	Decision    *WorkflowDecisionRule
 }
 
 type WorkflowTransition struct {
-	From string
-	To   string
+	From      string
+	To        string
+	Condition *WorkflowCondition
+}
+
+type WorkflowDecisionRule struct {
+	Strategy WorkflowDecisionStrategy
+	Quorum   int
+}
+
+type WorkflowValue struct {
+	Type  WorkflowValueType `json:"type"`
+	Value string            `json:"value"`
+}
+
+type WorkflowPredicate struct {
+	Field    string                    `json:"field"`
+	Operator WorkflowPredicateOperator `json:"operator"`
+	Value    *WorkflowValue            `json:"value,omitempty"`
+}
+
+type WorkflowCondition struct {
+	Match      WorkflowConditionMatch `json:"match"`
+	Predicates []WorkflowPredicate    `json:"predicates"`
 }
 
 type WorkflowDefinitionInput struct {
@@ -91,6 +138,7 @@ type WorkflowStartInput struct {
 	BusinessType string
 	BusinessID   string
 	Title        string
+	Variables    map[string]WorkflowValue
 }
 
 type WorkflowTaskActionInput struct {
@@ -143,6 +191,8 @@ type WorkflowInstance struct {
 	Status        WorkflowInstanceStatus
 	Starter       WorkflowActor
 	CurrentNode   string
+	ActiveNodes   []string
+	Variables     map[string]WorkflowValue
 	Tasks         []WorkflowTask
 	Timeline      []WorkflowAction
 	CreatedAt     time.Time
