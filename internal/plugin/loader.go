@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 type MetadataLoader interface {
@@ -21,6 +23,7 @@ type FileLoader struct{}
 const (
 	sectionRoot               = "root"
 	sectionDeps               = "deps"
+	sectionHostCapabilities   = "host_capabilities"
 	sectionPerm               = "perm"
 	sectionI18n               = "i18n"
 	sectionUIMenu             = "ui_menu"
@@ -182,6 +185,11 @@ func parseManifest(raw []byte) (Info, error) {
 			flushPermission()
 			section = sectionDeps
 			continue
+		case "host_capabilities:":
+			flushDependency()
+			flushPermission()
+			section = sectionHostCapabilities
+			continue
 		case "permissions:":
 			flushDependency()
 			flushPermission()
@@ -270,6 +278,8 @@ func parseManifest(raw []byte) (Info, error) {
 				} else {
 					currentDep.ID = parseScalar(item)
 				}
+			case sectionHostCapabilities:
+				info.HostCapabilities = append(info.HostCapabilities, pluginsdk.HostCapability(strings.ToLower(parseScalar(item))))
 			case sectionPerm:
 				flushPermission()
 				if strings.HasPrefix(item, "key:") {

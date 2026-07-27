@@ -353,10 +353,156 @@ func (gatewayJobs) List(context.Context, pluginsdk.JobQuery) ([]pluginsdk.Job, e
 	return []pluginsdk.Job{{ID: "job-1"}}, nil
 }
 
+func gatewayAllHostCapabilities() []pluginsdk.HostCapability {
+	return []pluginsdk.HostCapability{
+		pluginsdk.HostCapabilityTransactionsWithin,
+		pluginsdk.HostCapabilityScopesResolve,
+		pluginsdk.HostCapabilityDatastoreQuery,
+		pluginsdk.HostCapabilityDatastoreMutate,
+		pluginsdk.HostCapabilityDatastoreAggregate,
+		pluginsdk.HostCapabilityEventsPublish,
+		pluginsdk.HostCapabilityDocumentNumbersPreview,
+		pluginsdk.HostCapabilityDocumentNumbersIssue,
+		pluginsdk.HostCapabilityDocumentsSubmit,
+		pluginsdk.HostCapabilityDocumentsAct,
+		pluginsdk.HostCapabilityDocumentsGet,
+		pluginsdk.HostCapabilityDocumentsAddAttachment,
+		pluginsdk.HostCapabilityDocumentsRemoveAttachment,
+		pluginsdk.HostCapabilityDocumentsListAttachments,
+		pluginsdk.HostCapabilityDocumentsAddComment,
+		pluginsdk.HostCapabilityDocumentsListComments,
+		pluginsdk.HostCapabilityDocumentsTimeline,
+		pluginsdk.HostCapabilityDocumentsSearch,
+		pluginsdk.HostCapabilityDocumentsPrint,
+		pluginsdk.HostCapabilityDocumentsExport,
+		pluginsdk.HostCapabilityFilesStore,
+		pluginsdk.HostCapabilityFilesList,
+		pluginsdk.HostCapabilityFilesGet,
+		pluginsdk.HostCapabilityFilesDownload,
+		pluginsdk.HostCapabilityFilesDelete,
+		pluginsdk.HostCapabilityAuditRecord,
+		pluginsdk.HostCapabilityConfigGet,
+		pluginsdk.HostCapabilityConfigReplace,
+		pluginsdk.HostCapabilitySecretsGet,
+		pluginsdk.HostCapabilitySecretsSet,
+		pluginsdk.HostCapabilityWorkflowsCreateDefinition,
+		pluginsdk.HostCapabilityWorkflowsGetDefinition,
+		pluginsdk.HostCapabilityWorkflowsPublishDefinition,
+		pluginsdk.HostCapabilityWorkflowsStart,
+		pluginsdk.HostCapabilityWorkflowsGetInstance,
+		pluginsdk.HostCapabilityWorkflowsApprove,
+		pluginsdk.HostCapabilityWorkflowsReject,
+		pluginsdk.HostCapabilityWorkflowsWithdraw,
+		pluginsdk.HostCapabilityWorkflowsCancel,
+		pluginsdk.HostCapabilityWorkflowsDelegate,
+		pluginsdk.HostCapabilityWorkflowsCopy,
+		pluginsdk.HostCapabilityWorkflowsCreateSubstitution,
+		pluginsdk.HostCapabilityWorkflowsRevokeSubstitution,
+		pluginsdk.HostCapabilityJobsSchedule,
+		pluginsdk.HostCapabilityJobsLeaseDue,
+		pluginsdk.HostCapabilityJobsComplete,
+		pluginsdk.HostCapabilityJobsFail,
+		pluginsdk.HostCapabilityJobsGet,
+		pluginsdk.HostCapabilityJobsList,
+	}
+}
+
+func gatewayHostWithCapabilities(capabilities ...pluginsdk.HostCapability) pluginsdk.HostServices {
+	return pluginsdk.HostServices{
+		PluginID:        "equipment",
+		Capabilities:    append([]pluginsdk.HostCapability(nil), capabilities...),
+		Transactions:    &gatewayTransactions{},
+		DataScopes:      gatewayScopes{},
+		DataStore:       gatewayDataStore{},
+		Events:          gatewayEvents{},
+		DocumentNumbers: gatewayDocumentNumbers{},
+		Documents:       gatewayDocuments{},
+		Files:           gatewayFiles{},
+		Audit:           gatewayAudit{},
+		Config:          gatewayConfig{},
+		Secrets:         &gatewaySecrets{},
+		Workflows:       gatewayWorkflows{},
+		Jobs:            gatewayJobs{},
+	}
+}
+
+func TestHostGatewayDeniesUndeclaredCapabilitiesBeforeRequestDecode(t *testing.T) {
+	host := gatewayHostWithCapabilities(pluginsdk.HostCapabilityConfigGet)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gateway.Close()
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := pluginclient.New(pluginclient.Options{PluginID: "equipment", HostURL: credential.HostURL, HostToken: credential.Token})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientHost, err := client.HostServices()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := clientHost.Config.Get(context.Background()); err != nil {
+		t.Fatalf("declared capability was denied: %v", err)
+	}
+
+	deniedPaths := []string{
+		"/v1/transactions/start",
+		"/v1/scopes/resolve",
+		"/v1/datastore/query",
+		"/v1/events/publish",
+		"/v1/document-numbers/issue",
+		"/v1/documents/submit",
+		"/v1/files/delete",
+		"/v1/audit/record",
+		"/v1/config/replace",
+		"/v1/secrets/get",
+		"/v1/workflows/start",
+		"/v1/jobs/schedule",
+	}
+	for _, path := range deniedPaths {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{"))
+			request.RemoteAddr = "127.0.0.1:1234"
+			request.Header.Set(pluginclient.AuthorizationHeader, "Bearer "+credential.Token)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			gateway.ServeHTTP(response, request)
+			assertGatewayError(t, response, http.StatusForbidden, "host_capability_denied", "")
+		})
+	}
+}
+
+func TestHostGatewayCredentialCapturesImmutableCapabilitySnapshot(t *testing.T) {
+	capabilities := make([]pluginsdk.HostCapability, 1, 2)
+	capabilities[0] = pluginsdk.HostCapabilityConfigGet
+	host := gatewayHostWithCapabilities(capabilities...)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gateway.Close()
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	host.Capabilities[0] = pluginsdk.HostCapabilitySecretsGet
+
+	allowed := callGatewayJSON(t, gateway, credential.Token, "/v1/config/get", struct{}{})
+	if allowed.Code != http.StatusOK {
+		t.Fatalf("credential lost issued capability status=%d body=%s", allowed.Code, allowed.Body.String())
+	}
+	denied := callGatewayJSON(t, gateway, credential.Token, "/v1/secrets/get", map[string]string{"key": "private"})
+	assertGatewayError(t, denied, http.StatusForbidden, "host_capability_denied", "")
+}
+
 func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	transactions := &gatewayTransactions{}
 	secrets := &gatewaySecrets{}
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Events: gatewayEvents{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Capabilities: gatewayAllHostCapabilities(), Transactions: transactions, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Events: gatewayEvents{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: secrets, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(id string) (pluginsdk.HostServices, error) {
 		if id != "equipment" {
 			return pluginsdk.HostServices{}, errors.New("wrong identity")
@@ -589,7 +735,7 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 }
 
 func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *testing.T) {
-	host := pluginsdk.HostServices{PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Events: gatewayEvents{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
+	host := pluginsdk.HostServices{PluginID: "equipment", Capabilities: gatewayAllHostCapabilities(), Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Events: gatewayEvents{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
 	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
 	if err != nil {
 		t.Fatal(err)
@@ -652,7 +798,7 @@ func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *te
 
 func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
-		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		PluginID: "equipment", Capabilities: gatewayAllHostCapabilities(), Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
 		Events:          gatewayEvents{},
 		DocumentNumbers: gatewayDocumentNumberFailure{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
@@ -699,7 +845,7 @@ func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
 
 func TestHostGatewayPreservesEventContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
-		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{},
+		PluginID: "equipment", Capabilities: gatewayAllHostCapabilities(), Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{},
 		DataStore: gatewayDataStore{}, Events: gatewayEventFailure{},
 		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{},
 		Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{},
@@ -735,7 +881,7 @@ func TestHostGatewayPreservesEventContractErrors(t *testing.T) {
 
 func TestHostGatewayPreservesDocumentWorkflowContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
-		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		PluginID: "equipment", Capabilities: gatewayAllHostCapabilities(), Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
 		Events:          gatewayEvents{},
 		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocumentWorkflowFailure{}, Files: gatewayFiles{}, Audit: gatewayAudit{},
 		Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
@@ -771,7 +917,7 @@ func TestHostGatewayPreservesDocumentWorkflowContractErrors(t *testing.T) {
 
 func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T) {
 	host := pluginsdk.HostServices{
-		PluginID: "equipment", Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
+		PluginID: "equipment", Capabilities: gatewayAllHostCapabilities(), Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{},
 		Events:          gatewayEvents{},
 		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}

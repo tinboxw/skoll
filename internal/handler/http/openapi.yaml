@@ -2539,6 +2539,7 @@ components:
         migrationVersion: {type: string}
         hostServices:
           type: array
+          description: Exact manifest-granted host operations; an empty list means deny all.
           items: {type: string}
         permissions:
           type: array
@@ -4696,6 +4697,12 @@ components:
                   type: object
                 resources:
                   type: object
+                  properties:
+                    hostCapabilities:
+                      type: array
+                      description: Exact host operations requested by the plugin manifest.
+                      items:
+                        type: string
                 data:
                   type: object
                   properties:

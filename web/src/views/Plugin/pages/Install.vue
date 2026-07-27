@@ -55,9 +55,14 @@ async function install(): Promise<void> {
 				<el-alert v-if="preflight.warnings?.length" type="warning" show-icon :closable="false" :title="preflight.warnings.join('; ')" />
 				<el-descriptions class="responsive-descriptions" :column="3" border>
 					<el-descriptions-item :label="t('plugin.advanced.preflight.permissionDiff')">{{ permissionChanges }}</el-descriptions-item>
+					<el-descriptions-item :label="t('plugin.advanced.preflight.hostCapabilities')">{{ preflight.resources.hostCapabilities?.length ?? 0 }}</el-descriptions-item>
 					<el-descriptions-item :label="t('plugin.advanced.preflight.configFields')">{{ preflight.config.fieldCount }}</el-descriptions-item>
 					<el-descriptions-item :label="t('plugin.advanced.preflight.migrations')">{{ preflight.migration.pending?.length ?? 0 }}</el-descriptions-item>
 				</el-descriptions>
+				<div v-if="preflight.resources.hostCapabilities?.length" class="capability-list">
+					<strong>{{ t("plugin.advanced.preflight.hostCapabilities") }}</strong>
+					<div class="preflight-tags"><el-tag v-for="capability in preflight.resources.hostCapabilities" :key="capability" effect="plain">{{ capability }}</el-tag></div>
+				</div>
 				<div class="install-command"><el-button type="primary" :icon="PackagePlus" :disabled="!canInstall" @click="install">{{ t("plugin.action.install") }}</el-button></div>
 			</section>
 		</div>
@@ -71,6 +76,7 @@ async function install(): Promise<void> {
 .preflight-heading { display: flex; justify-content: space-between; gap: 16px; }
 .preflight-heading h3, .preflight-heading p { margin: 0; }
 .preflight-heading p { margin-top: 4px; color: var(--color-text-muted); }
+.capability-list { display: grid; gap: 8px; }
 .preflight-tags, .install-command { display: flex; gap: 8px; flex-wrap: wrap; }
 .install-command { justify-content: flex-end; }
 @media (max-width: 620px) { .install-input, .preflight-heading { grid-template-columns: 1fr; display: grid; } }

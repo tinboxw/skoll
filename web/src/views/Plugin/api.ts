@@ -201,6 +201,7 @@ export type PluginInstallPreflight = {
 	permissions: { add?: unknown[]; update?: unknown[]; conflict?: unknown[] };
 	menus: { add?: unknown[]; update?: unknown[]; conflict?: unknown[] };
 	config: { hasSchema: boolean; fieldCount: number };
+	resources: { hostCapabilities?: string[] };
 	migration: { version?: string; pending?: unknown[]; applied?: unknown[]; error?: string };
 	signature: { status: string; algorithm?: string; vendorId?: string };
 	risk: { level: string; summary?: string[] };

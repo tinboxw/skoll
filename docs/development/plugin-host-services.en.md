@@ -17,6 +17,22 @@ if err != nil {
 
 The host injects `SKOLL_PLUGIN_ID`, loopback-only `SKOLL_PLUGIN_HOST_URL`, and lifecycle-only `SKOLL_PLUGIN_HOST_TOKEN`. These bootstrap values must never be logged or returned. Disable, crash, uninstall, and host shutdown revoke the token and roll back active transactions. Re-enable always receives a new token.
 
+## Manifest Grants
+
+Every managed backend declares the exact host operations it needs. The current manifest has no wildcard, group alias, compatibility name, or implicit grant:
+
+```yaml
+host_capabilities:
+  - transactions.within
+  - datastore.query
+  - datastore.mutate
+  - events.publish
+```
+
+An absent or empty list means deny all. Unknown and duplicated operations make the manifest invalid. The issued process credential captures an immutable grant snapshot, so changing a manifest or an in-memory descriptor cannot expand a running process. A grant authorizes only gateway dispatch; plugin identity, user permission, trusted data scope, schema ownership, transaction, and service-specific policies are still enforced.
+
+Install preflight and the plugin control center publish this exact operation list for operator review. Plugin lifecycle control is deliberately not a host capability: a plugin process cannot install, enable, disable, or uninstall itself.
+
 ## User Identity And Scope
 
 The plugin credential identifies the plugin, not an end user. A business request must attach the forwarded Skoll access token:
@@ -56,8 +72,11 @@ The gateway validates public contracts again, binds the credential to one plugin
 ## Security Boundary
 
 - The gateway binds a random loopback address and accepts only declared v1 `POST` operations.
+- The gateway rejects an undeclared operation before decoding or dispatching its business payload.
 - Every request authenticates the lifecycle credential; data scope also verifies the user JWT.
 - Requests and responses are limited to 32 MiB. Unknown fields, operations, transactions, and non-loopback sources fail closed.
+- Secrets are encrypted and keyed by plugin identity; another plugin cannot read the value, key material, or plaintext audit detail.
+- Install, enable, disable, and uninstall require separate high-risk RBAC actions: `plugin.install`, `plugin.enable`, `plugin.disable`, and `plugin.uninstall`.
 - Datastore failures expose only stable `code`, `field`, `message`, and `retryable` fields, never database, secret, or infrastructure details.
 - There is one current host-service HTTP v1 path, with no remote database, old token, alternate URL, or fallback mode.
 

@@ -25,6 +25,7 @@ type DataScopeService interface {
 
 type HostServices struct {
 	PluginID        string
+	Capabilities    []HostCapability
 	Transactions    TransactionService
 	DataScopes      DataScopeService
 	DataStore       DataStoreService
@@ -42,6 +43,16 @@ type HostServices struct {
 func (s HostServices) Validate() error {
 	if strings.TrimSpace(s.PluginID) == "" {
 		return fmt.Errorf("plugin host identity is required")
+	}
+	seenCapabilities := make(map[HostCapability]struct{}, len(s.Capabilities))
+	for _, capability := range s.Capabilities {
+		if err := capability.Validate(); err != nil {
+			return err
+		}
+		if _, exists := seenCapabilities[capability]; exists {
+			return fmt.Errorf("plugin host capability %q is duplicated", capability)
+		}
+		seenCapabilities[capability] = struct{}{}
 	}
 	if s.Transactions == nil {
 		return fmt.Errorf("plugin host transaction service is required")
@@ -80,4 +91,13 @@ func (s HostServices) Validate() error {
 		return fmt.Errorf("plugin host job service is required")
 	}
 	return nil
+}
+
+func (s HostServices) HasCapability(capability HostCapability) bool {
+	for _, granted := range s.Capabilities {
+		if granted == capability {
+			return true
+		}
+	}
+	return false
 }

@@ -9,6 +9,36 @@ mount_policy: admin
 ui_nav_position: none
 ui_open_mode: integrated
 ui_tab_mode: disabled
+host_capabilities:
+  - transactions.within
+  - scopes.resolve
+  - datastore.query
+  - datastore.mutate
+  - events.publish
+  - documents.submit
+  - documents.act
+  - documents.add-attachment
+  - documents.list-attachments
+  - documents.add-comment
+  - documents.list-comments
+  - documents.timeline
+  - documents.search
+  - documents.print
+  - documents.export
+  - files.store
+  - files.get
+  - audit.record
+  - config.get
+  - config.replace
+  - secrets.get
+  - secrets.set
+  - workflows.create-definition
+  - workflows.publish-definition
+  - workflows.start
+  - workflows.approve
+  - jobs.schedule
+  - jobs.lease-due
+  - jobs.complete
 permissions:
   - key: sdk_conformance.run
     type: api

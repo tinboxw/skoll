@@ -82,7 +82,14 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 			return pluginsdk.HostServices{}, storeErr
 		}
 		return pluginsdk.HostServices{
-			PluginID: requestedPluginID, Transactions: transactions, DataScopes: scopes, DataStore: store,
+			PluginID: requestedPluginID,
+			Capabilities: []pluginsdk.HostCapability{
+				pluginsdk.HostCapabilityTransactionsWithin,
+				pluginsdk.HostCapabilityDatastoreQuery,
+				pluginsdk.HostCapabilityDatastoreMutate,
+				pluginsdk.HostCapabilityDatastoreAggregate,
+			},
+			Transactions: transactions, DataScopes: scopes, DataStore: store,
 			Events:          dataStoreE2EEvents{},
 			DocumentNumbers: dataStoreE2EDocumentNumbers{}, Documents: dataStoreE2EDocuments{}, Files: dataStoreE2EFiles{}, Audit: audit, Config: configService, Secrets: secretService,
 			Workflows: dataStoreE2EWorkflows{}, Jobs: dataStoreE2EJobs{},

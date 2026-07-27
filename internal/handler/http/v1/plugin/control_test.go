@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 type controlHealthManager struct {
@@ -35,6 +36,10 @@ func TestPluginControlSnapshotPublishesRuntimeAndCapabilities(t *testing.T) {
 					ID: "reports", Name: "Reports", Version: "2.1.0", APIVersion: "v1",
 					MigrationVersion: "2.0.0", State: pluginruntime.StateEnabled, InstalledAt: now,
 					ServiceBaseURL: "http://127.0.0.1:19090", ServiceHealthURL: "http://127.0.0.1:19090/health",
+					HostCapabilities: []pluginsdk.HostCapability{
+						pluginsdk.HostCapabilityDatastoreQuery,
+						pluginsdk.HostCapabilityEventsPublish,
+					},
 					Permissions: []string{"reports.read", "reports.export"},
 					PermissionResources: []pluginruntime.PermissionDeclaration{
 						{Key: "reports.read", Type: "api", Module: "reports", Name: "Read reports", Risk: "low"},
@@ -83,7 +88,10 @@ func TestPluginControlSnapshotPublishesRuntimeAndCapabilities(t *testing.T) {
 		t.Fatalf("snapshot must declare freshness: captured=%s stale=%s", response.Data.CapturedAt, response.Data.StaleAfter)
 	}
 	capabilities := response.Data.Capabilities
-	if len(capabilities.HostServices) != 11 || len(capabilities.Permissions) != 2 || len(capabilities.Routes) != 2 || len(capabilities.Dependencies) != 1 {
+	if len(capabilities.HostServices) != 2 ||
+		capabilities.HostServices[0] != string(pluginsdk.HostCapabilityDatastoreQuery) ||
+		capabilities.HostServices[1] != string(pluginsdk.HostCapabilityEventsPublish) ||
+		len(capabilities.Permissions) != 2 || len(capabilities.Routes) != 2 || len(capabilities.Dependencies) != 1 {
 		t.Fatalf("unexpected capabilities: %+v", capabilities)
 	}
 	if capabilities.Extensions.Routes != 1 || capabilities.Extensions.Events != 1 || capabilities.Extensions.Menus != 1 {

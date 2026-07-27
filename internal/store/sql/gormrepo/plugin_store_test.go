@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 func TestPluginStore_Get(t *testing.T) {
@@ -161,6 +162,43 @@ func TestPluginStorePersistsMigrationContract(t *testing.T) {
 	}
 	if updated == nil || updated.MigrationVersion != "v1.1.0" || updated.DataManifest == nil || updated.DataManifest.MigrationVersion != "v1.1.0" || updated.DataManifest.UninstallPolicy != plugin.DataUninstallRetain {
 		t.Fatalf("migration contract update was not persisted: %+v", updated)
+	}
+}
+
+func TestPluginStorePersistsCurrentHostCapabilities(t *testing.T) {
+	db := TestDB(t)
+	store := NewPluginStore(db)
+	ctx := context.Background()
+	info := plugin.Info{
+		ID: "capability-plugin", Name: "Capability Plugin", Version: "1.0.0", State: plugin.StateEnabled,
+		HostCapabilities: []pluginsdk.HostCapability{
+			pluginsdk.HostCapabilityDatastoreQuery,
+			pluginsdk.HostCapabilitySecretsGet,
+		},
+	}
+	if err := store.Save(ctx, info); err != nil {
+		t.Fatalf("save plugin capabilities: %v", err)
+	}
+	got, err := store.Get(ctx, info.ID)
+	if err != nil {
+		t.Fatalf("get plugin capabilities: %v", err)
+	}
+	if got == nil || len(got.HostCapabilities) != 2 ||
+		got.HostCapabilities[0] != pluginsdk.HostCapabilityDatastoreQuery ||
+		got.HostCapabilities[1] != pluginsdk.HostCapabilitySecretsGet {
+		t.Fatalf("host capabilities were not persisted: %+v", got)
+	}
+
+	info.HostCapabilities = []pluginsdk.HostCapability{pluginsdk.HostCapabilityEventsPublish}
+	if err := store.Save(ctx, info); err != nil {
+		t.Fatalf("update plugin capabilities: %v", err)
+	}
+	updated, err := store.Get(ctx, info.ID)
+	if err != nil {
+		t.Fatalf("get updated plugin capabilities: %v", err)
+	}
+	if updated == nil || len(updated.HostCapabilities) != 1 || updated.HostCapabilities[0] != pluginsdk.HostCapabilityEventsPublish {
+		t.Fatalf("host capability update was not persisted: %+v", updated)
 	}
 }
 

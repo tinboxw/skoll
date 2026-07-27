@@ -16,6 +16,18 @@ ui_tab_mode: fixed
 frontend_entry: /skoll/plugins/equipment-maintenance
 service_base_url: http://127.0.0.1:18092
 service_health_url: http://127.0.0.1:18092/health
+host_capabilities:
+  - transactions.within
+  - scopes.resolve
+  - files.get
+  - audit.record
+  - config.get
+  - workflows.create-definition
+  - workflows.get-definition
+  - workflows.publish-definition
+  - workflows.start
+  - jobs.schedule
+  - jobs.list
 vendor: Skoll Maintainers
 vendor_url: https://github.com/tinboxw/skoll
 i18n_locales:

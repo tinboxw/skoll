@@ -4,6 +4,11 @@ version: 1.0.0
 api_version: v1
 service_base_url: http://127.0.0.1:18093
 service_health_url: http://127.0.0.1:18093/health
+host_capabilities:
+  - transactions.within
+  - datastore.query
+  - datastore.mutate
+  - datastore.aggregate
 data:
   namespace: datastore_e2e
   migration_version: v1.0.0

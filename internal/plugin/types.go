@@ -234,6 +234,7 @@ type Info struct {
 	Description         string
 	ConfigJSON          string
 	Dependencies        []Dependency
+	HostCapabilities    []pluginsdk.HostCapability
 	Permissions         []string
 	PermissionResources []PermissionDeclaration
 	State               State
@@ -285,6 +286,16 @@ func (i Info) ValidateManifest() error {
 		if dep.ID == "" {
 			return ErrPluginManifestBroken
 		}
+	}
+	seenCapabilities := make(map[pluginsdk.HostCapability]struct{}, len(i.HostCapabilities))
+	for _, capability := range i.HostCapabilities {
+		if err := capability.Validate(); err != nil {
+			return ErrPluginManifestBroken
+		}
+		if _, exists := seenCapabilities[capability]; exists {
+			return ErrPluginManifestBroken
+		}
+		seenCapabilities[capability] = struct{}{}
 	}
 	if err := validatePermissionDeclarations(i.Permissions, i.PermissionResources); err != nil {
 		return err

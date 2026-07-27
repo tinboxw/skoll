@@ -58,7 +58,7 @@ func (s *PluginStore) Save(ctx context.Context, info plugin.Info) error {
 	return withDBRetry(func() error {
 		return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "plugin_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"name", "version", "migration_version", "description", "config_json", "data_manifest_json", "state", "source", "ui_mode", "plugin_level", "app_id", "mount_policy", "frontend_entry", "system_builtin", "permissions_json", "dependencies_json", "vendor", "vendor_url", "signature_json", "installed_at", "enabled_at", "updated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{"name", "version", "migration_version", "description", "config_json", "data_manifest_json", "state", "source", "ui_mode", "plugin_level", "app_id", "mount_policy", "frontend_entry", "system_builtin", "host_capabilities_json", "permissions_json", "dependencies_json", "vendor", "vendor_url", "signature_json", "installed_at", "enabled_at", "updated_at"}),
 		}).Create(&row).Error
 	})
 }

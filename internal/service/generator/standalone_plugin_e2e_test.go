@@ -169,7 +169,16 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 	}
 	documents := newGeneratedDocumentHost(fixtureClock.Now)
 	gateway, err := pluginruntime.NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
-		return services.Host(pluginID, plugintest.HostOverrides{Documents: documents})
+		pluginInfo, resolveErr := manager.Get(pluginID)
+		if resolveErr != nil {
+			return pluginsdk.HostServices{}, resolveErr
+		}
+		host, hostErr := services.Host(pluginID, plugintest.HostOverrides{Documents: documents})
+		if hostErr != nil {
+			return pluginsdk.HostServices{}, hostErr
+		}
+		host.Capabilities = append([]pluginsdk.HostCapability(nil), pluginInfo.HostCapabilities...)
+		return host, nil
 	}, "generated-plugin-e2e-secret", time.Minute)
 	if err != nil {
 		t.Fatalf("start generated host gateway: %v", err)

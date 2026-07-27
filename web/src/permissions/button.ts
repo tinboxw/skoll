@@ -6,6 +6,10 @@ import { canAccess, type AccessDirectiveValue } from "./access";
 export const BUTTON_ACCESS = {
 	pluginRead: "plugin.read",
 	pluginManage: "plugin.manage",
+	pluginInstall: "plugin.install",
+	pluginEnable: "plugin.enable",
+	pluginDisable: "plugin.disable",
+	pluginUninstall: "plugin.uninstall",
 	roleCreate: "role.create",
 	roleUpdate: "role.update",
 	roleDelete: "role.delete",

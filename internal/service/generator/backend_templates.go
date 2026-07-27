@@ -468,6 +468,10 @@ func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
 		fmt.Fprintf(&b, "service_base_url: %s\n", spec.Plugin.ServiceBaseURL)
 		fmt.Fprintf(&b, "service_health_url: %s\n", spec.Plugin.ServiceHealthURL)
 	}
+	fmt.Fprintf(&b, "host_capabilities:\n")
+	for _, capability := range pluginHostCapabilities(spec) {
+		fmt.Fprintf(&b, "  - %s\n", capability)
+	}
 	fmt.Fprintf(&b, "i18n_locales:\n  - zh-CN\n  - en-US\n")
 	fmt.Fprintf(&b, "permissions:\n")
 	for _, key := range pluginPermissionKeys(spec) {
@@ -509,6 +513,31 @@ func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
 		}
 	}
 	return b.String()
+}
+
+func pluginHostCapabilities(spec domaingenerator.GeneratorSpec) []string {
+	if spec.Document == nil {
+		return []string{
+			"transactions.within",
+			"datastore.query",
+			"datastore.mutate",
+		}
+	}
+	capabilities := []string{
+		"transactions.within",
+		"documents.submit",
+		"documents.act",
+		"documents.get",
+		"documents.search",
+		"documents.export",
+		"workflows.create-definition",
+		"workflows.get-definition",
+		"workflows.publish-definition",
+	}
+	if len(spec.Plugin.EventPublications) > 0 {
+		capabilities = append(capabilities, "events.publish")
+	}
+	return capabilities
 }
 
 func uint32List(items []uint32) string {

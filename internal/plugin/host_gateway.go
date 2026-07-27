@@ -118,6 +118,7 @@ func (g *HostGateway) Issue(pluginID string) (ProcessCredential, error) {
 	if host.PluginID != pluginID {
 		return ProcessCredential{}, errors.New("plugin host identity mismatch")
 	}
+	host.Capabilities = append([]pluginsdk.HostCapability(nil), host.Capabilities...)
 	token, err := randomHostSecret(32)
 	if err != nil {
 		return ProcessCredential{}, err
@@ -206,6 +207,15 @@ func (g *HostGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxHostRequestBytes)
+	requestedCapability := hostCapabilityForCall(parts[1], parts[2])
+	if err := requestedCapability.Validate(); err != nil {
+		writeHostError(w, http.StatusNotFound, "host_operation_not_found")
+		return
+	}
+	if !credential.host.HasCapability(requestedCapability) {
+		writeHostError(w, http.StatusForbidden, "host_capability_denied")
+		return
+	}
 
 	if parts[1] == "transactions" {
 		g.serveTransaction(w, r, credentialKey, credential, parts[2])
@@ -225,6 +235,13 @@ func (g *HostGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeHostJSON(w, http.StatusOK, result)
+}
+
+func hostCapabilityForCall(capability, operation string) pluginsdk.HostCapability {
+	if capability == "transactions" {
+		return pluginsdk.HostCapabilityTransactionsWithin
+	}
+	return pluginsdk.HostCapability(strings.TrimSpace(capability) + "." + strings.TrimSpace(operation))
 }
 
 func (g *HostGateway) callContext(r *http.Request, key [32]byte, pluginID string) (context.Context, func(), error) {

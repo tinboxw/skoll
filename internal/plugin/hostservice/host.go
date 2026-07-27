@@ -18,6 +18,7 @@ type DataStoreFactory func(string, pluginsdk.DataScopeService, pluginsdk.AuditSe
 
 type HostServicesDependencies struct {
 	PluginID          string
+	Capabilities      []pluginsdk.HostCapability
 	Transactions      pluginsdk.TransactionService
 	DataScopes        pluginsdk.DataScopeService
 	DataStore         DataStoreFactory
@@ -83,7 +84,8 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 		return pluginsdk.HostServices{}, err
 	}
 	host := pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: deps.Transactions, DataScopes: deps.DataScopes,
+		PluginID: pluginID, Capabilities: append([]pluginsdk.HostCapability(nil), deps.Capabilities...),
+		Transactions: deps.Transactions, DataScopes: deps.DataScopes,
 		DataStore: dataStore, Events: events, DocumentNumbers: documentNumbers, Documents: documents, Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
 	}
 	if err := host.Validate(); err != nil {

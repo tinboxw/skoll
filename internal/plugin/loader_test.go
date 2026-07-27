@@ -25,6 +25,9 @@ dependencies:
 permissions:
   - "user:read"
   - "role:manage"
+host_capabilities:
+  - "datastore.query"
+  - "events.publish"
 ui_mode: "separated"
 ui_nav_position: "sidebar"
 ui_open_mode: "integrated"
@@ -141,6 +144,9 @@ frontend_entry: "/plugins/sample-plugin"
 	if len(info.PermissionResources) != 2 || info.PermissionResources[0].Key != "user:read" || info.PermissionResources[0].Type != "api" {
 		t.Fatalf("unexpected permission resources: %+v", info.PermissionResources)
 	}
+	if len(info.HostCapabilities) != 2 || info.HostCapabilities[0] != "datastore.query" || info.HostCapabilities[1] != "events.publish" {
+		t.Fatalf("unexpected host capabilities: %+v", info.HostCapabilities)
+	}
 	if info.UIMode != UIModeSeparated {
 		t.Fatalf("unexpected ui mode: %s", info.UIMode)
 	}
@@ -225,6 +231,32 @@ frontend_entry: "/plugins/sample-plugin"
 	}
 	if info.EventContract.Subscriptions[1].Name != "qualification-expiring" || len(info.EventContract.Subscriptions[1].SchemaVersions) != 2 {
 		t.Fatalf("unexpected event subscription versions: %+v", info.EventContract.Subscriptions[1])
+	}
+}
+
+func TestFileLoaderRejectsInvalidHostCapabilities(t *testing.T) {
+	tests := map[string]string{
+		"wildcard": `
+host_capabilities:
+  - "datastore.*"
+`,
+		"duplicate": `
+host_capabilities:
+  - "secrets.get"
+  - "secrets.get"
+`,
+	}
+	for name, capabilities := range tests {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			manifest := "id: capability-test\nname: Capability Test\nversion: 1.0.0\n" + capabilities
+			if err := os.WriteFile(filepath.Join(dir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := NewFileLoader().Load(dir); err == nil {
+				t.Fatalf("expected invalid host capabilities to fail: %s", manifest)
+			}
+		})
 	}
 }
 

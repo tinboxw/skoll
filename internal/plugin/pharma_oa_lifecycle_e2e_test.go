@@ -91,7 +91,8 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	jobs := newPharmaLifecycleJobs()
 	workflows := newPharmaLifecycleWorkflows()
 	host := pluginsdk.HostServices{
-		PluginID: "pharma_oa", Transactions: transactions, DataScopes: pharmaLifecycleScopes{}, DataStore: store,
+		PluginID: "pharma_oa", Capabilities: append([]pluginsdk.HostCapability(nil), packageInfo.HostCapabilities...),
+		Transactions: transactions, DataScopes: pharmaLifecycleScopes{}, DataStore: store,
 		Events: gatewayEvents{},
 		Files:  files, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Audit: audit,
 		Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: workflows, Jobs: jobs,

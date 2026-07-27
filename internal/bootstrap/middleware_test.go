@@ -134,7 +134,8 @@ func TestAuthGuardMiddlewareValidatesJWT(t *testing.T) {
 func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	policy := AuthPolicy{Enabled: true, SkipPaths: map[string]struct{}{"/skoll/health": {}}}
 	checker := &fakePermissionChecker{allowed: map[string]bool{
-		"user:alice:user:read": true,
+		"user:alice:user:read":      true,
+		"user:alice:plugin:install": true,
 	}}
 	h := authGuardMiddleware(policy, "/skoll", "test-secret", checker, nil, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if claims, ok := security.JWTClaimsFromContext(r.Context()); !ok || claims.Subject == "" {
@@ -155,6 +156,13 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	if respAllowed.Code != http.StatusOK {
 		t.Fatalf("expected 200 for allowed permission, got %d", respAllowed.Code)
 	}
+	installAllowed := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/install", nil)
+	installAllowed.Header.Set("Authorization", "Bearer "+tokenAlice)
+	installAllowedResponse := httptest.NewRecorder()
+	h.ServeHTTP(installAllowedResponse, installAllowed)
+	if installAllowedResponse.Code != http.StatusOK {
+		t.Fatalf("expected lifecycle permission to allow install, got %d", installAllowedResponse.Code)
+	}
 
 	tokenBob, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "bob", Role: "editor", Roles: []string{"editor"}}, time.Hour, time.Now().UTC())
 	if err != nil {
@@ -167,6 +175,13 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	if respDenied.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 for denied permission, got %d", respDenied.Code)
 	}
+	installDenied := httptest.NewRequest(http.MethodPost, "/skoll/v1/plugins/install", nil)
+	installDenied.Header.Set("Authorization", "Bearer "+tokenBob)
+	installDeniedResponse := httptest.NewRecorder()
+	h.ServeHTTP(installDeniedResponse, installDenied)
+	if installDeniedResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for denied lifecycle permission, got %d", installDeniedResponse.Code)
+	}
 
 	tokenSuper, err := security.SignJWT("test-secret", security.JWTIdentity{Subject: "root", Role: "super_admin", Roles: []string{"super_admin"}}, time.Hour, time.Now().UTC())
 	if err != nil {
@@ -178,6 +193,20 @@ func TestAuthGuardMiddlewarePermissionChecks(t *testing.T) {
 	h.ServeHTTP(respBypass, reqBypass)
 	if respBypass.Code != http.StatusOK {
 		t.Fatalf("expected 200 for super_admin bypass, got %d", respBypass.Code)
+	}
+}
+
+func TestAuthGuardMiddlewareAlwaysProtectsPluginLifecycle(t *testing.T) {
+	policy := AuthPolicy{Enabled: false, SkipPaths: map[string]struct{}{}}
+	h := authGuardMiddleware(policy, "/skoll", "test-secret", &fakePermissionChecker{}, nil, nil, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	request := httptest.NewRequest(http.MethodDelete, "/skoll/v1/plugins/reports", nil)
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("plugin lifecycle must remain authenticated when global auth is disabled: status=%d", response.Code)
 	}
 }
 
@@ -268,6 +297,22 @@ func TestRequiredPermissionMapping(t *testing.T) {
 	resource, action, guarded = requiredPermission(http.MethodGet, "/skoll/v1/plugins", "/skoll")
 	if guarded || resource != "" || action != "" {
 		t.Fatalf("plugin endpoint should not be guarded by RBAC mapping")
+	}
+	lifecycle := []struct {
+		method string
+		path   string
+		action string
+	}{
+		{http.MethodPost, "/skoll/v1/plugins/install", "install"},
+		{http.MethodPost, "/skoll/v1/plugins/reports/enable", "enable"},
+		{http.MethodPost, "/skoll/v1/plugins/reports/disable", "disable"},
+		{http.MethodDelete, "/skoll/v1/plugins/reports", "uninstall"},
+	}
+	for _, operation := range lifecycle {
+		resource, action, guarded = requiredPermission(operation.method, operation.path, "/skoll")
+		if !guarded || resource != "plugin" || action != operation.action {
+			t.Fatalf("unexpected lifecycle mapping for %s %s: guarded=%v resource=%s action=%s", operation.method, operation.path, guarded, resource, action)
+		}
 	}
 
 	if len(defaultPermissionPolicies("/skoll")) < 3 {

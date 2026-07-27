@@ -86,4 +86,21 @@ func TestDocumentPluginTargetUsesOnlyPublicContracts(t *testing.T) {
 			t.Fatalf("generated manifest missing document route %q", route)
 		}
 	}
+	for _, capability := range []string{
+		"host_capabilities:",
+		"transactions.within",
+		"events.publish",
+		"documents.submit",
+		"documents.act",
+		"documents.get",
+		"documents.search",
+		"documents.export",
+		"workflows.create-definition",
+		"workflows.get-definition",
+		"workflows.publish-definition",
+	} {
+		if !strings.Contains(manifest, capability) {
+			t.Fatalf("generated manifest missing host capability %q", capability)
+		}
+	}
 }

@@ -16,6 +16,25 @@ ui_tab_mode: fixed
 frontend_entry: /skoll/plugins/pharma-oa
 service_base_url: http://127.0.0.1:18093
 service_health_url: http://127.0.0.1:18093/health
+host_capabilities:
+  - transactions.within
+  - scopes.resolve
+  - datastore.query
+  - datastore.mutate
+  - document-numbers.issue
+  - files.store
+  - files.delete
+  - audit.record
+  - workflows.create-definition
+  - workflows.publish-definition
+  - workflows.start
+  - workflows.get-instance
+  - workflows.approve
+  - workflows.reject
+  - workflows.withdraw
+  - workflows.cancel
+  - workflows.delegate
+  - jobs.schedule
 ui_menu:
   key: plugin.pharma_oa
   label: Pharma OA

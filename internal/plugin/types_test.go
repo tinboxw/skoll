@@ -1,6 +1,10 @@
 package plugin
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
+)
 
 func TestResolveFrontendEntry(t *testing.T) {
 	tests := []struct {
@@ -54,6 +58,40 @@ func TestInfoValidateManifestLevelConstraints(t *testing.T) {
 	systemWithAppID := Info{ID: "sys-plugin", Name: "System Plugin", Version: "1.0.0", Level: LevelSystem, AppID: "demo"}
 	if err := systemWithAppID.ValidateManifest(); err == nil {
 		t.Fatalf("expected validation error for system level with app_id")
+	}
+}
+
+func TestInfoValidateManifestHostCapabilities(t *testing.T) {
+	valid := Info{
+		ID: "least-privilege", Name: "Least Privilege", Version: "1.0.0",
+		HostCapabilities: []pluginsdk.HostCapability{
+			pluginsdk.HostCapabilityDatastoreQuery,
+			pluginsdk.HostCapabilityEventsPublish,
+		},
+	}
+	if err := valid.ValidateManifest(); err != nil {
+		t.Fatalf("expected valid host capabilities, got %v", err)
+	}
+
+	duplicate := valid
+	duplicate.HostCapabilities = []pluginsdk.HostCapability{
+		pluginsdk.HostCapabilityDatastoreQuery,
+		pluginsdk.HostCapabilityDatastoreQuery,
+	}
+	if err := duplicate.ValidateManifest(); err == nil {
+		t.Fatal("expected duplicate host capability to fail")
+	}
+
+	unknown := valid
+	unknown.HostCapabilities = []pluginsdk.HostCapability{"datastore.*"}
+	if err := unknown.ValidateManifest(); err == nil {
+		t.Fatal("expected wildcard host capability to fail")
+	}
+
+	denyAll := valid
+	denyAll.HostCapabilities = nil
+	if err := denyAll.ValidateManifest(); err != nil {
+		t.Fatalf("empty host capabilities must represent deny-all: %v", err)
 	}
 }
 

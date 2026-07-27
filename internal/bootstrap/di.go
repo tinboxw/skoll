@@ -258,6 +258,11 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		deps := hostDeps
 		deps.PluginID = pluginID
 		deps.ConfigStore = m
+		info, resolveErr := m.Get(pluginID)
+		if resolveErr != nil {
+			return pluginsdk.HostServices{}, resolveErr
+		}
+		deps.Capabilities = append([]pluginsdk.HostCapability(nil), info.HostCapabilities...)
 		deps.EventPublications = func(requestedPluginID string) ([]pluginsdk.EventPublicationDeclaration, error) {
 			info, resolveErr := m.Get(requestedPluginID)
 			if resolveErr != nil {

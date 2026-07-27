@@ -49,11 +49,21 @@ func NewRuntime(options RuntimeOptions) (*Runtime, error) {
 	if dataRoot == "" {
 		return nil, errors.New("fixture runtime data root is required")
 	}
+	manager := pluginruntime.NewRuntimeManager(pluginruntime.NewFileLoader(), pluginruntime.NewTopologicalResolver())
 	gateway, err := pluginruntime.NewHostGateway(func(requested string) (pluginsdk.HostServices, error) {
 		if requested != pluginID {
 			return pluginsdk.HostServices{}, fmt.Errorf("fixture runtime rejected plugin %q", requested)
 		}
-		return options.Services.Host(requested)
+		info, resolveErr := manager.Get(requested)
+		if resolveErr != nil {
+			return pluginsdk.HostServices{}, resolveErr
+		}
+		host, hostErr := options.Services.Host(requested)
+		if hostErr != nil {
+			return pluginsdk.HostServices{}, hostErr
+		}
+		host.Capabilities = append([]pluginsdk.HostCapability(nil), info.HostCapabilities...)
+		return host, nil
 	}, secret, time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("start fixture host gateway: %w", err)
@@ -68,7 +78,7 @@ func NewRuntime(options RuntimeOptions) (*Runtime, error) {
 	)
 	return &Runtime{
 		pluginID: pluginID, services: options.Services, jwtSecret: secret,
-		manager:    pluginruntime.NewRuntimeManager(pluginruntime.NewFileLoader(), pluginruntime.NewTopologicalResolver()),
+		manager:    manager,
 		gateway:    gateway,
 		supervisor: pluginruntime.NewServiceSupervisor(launcher, nil, options.StartTimeout, options.StopTimeout),
 	}, nil

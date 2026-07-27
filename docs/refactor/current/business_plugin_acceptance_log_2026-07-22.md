@@ -3421,3 +3421,52 @@ Result: FF5-04 and milestone FF5 passed. A clean current plugin specification no
 ### Commit
 
 `FF5-04: close zero-edit plugin quality gate`
+
+## FF6-01 Enforce Least-Privilege Plugin Capabilities And Secrets
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Todo -> Doing -> Review -> Done`
+- Scope: Bind every managed plugin credential to exact manifest-declared host operations, preserve grants across persistence and restart, keep secrets and owned material isolated, and protect lifecycle mutations with independent high-risk RBAC actions.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Exact manifest grants | `host_capabilities` accepts only current operation names; empty means deny all; duplicates, wildcards, legacy names, and lifecycle self-management are invalid | Pass |
+| Pre-dispatch denial | HostGateway authenticates the credential, resolves the exact operation, and returns `host_capability_denied` before transaction creation, request decoding, or service dispatch | Pass |
+| Immutable credentials | Issuance copies the declared capability set; later mutation of the manifest descriptor cannot expand or revoke an already-issued credential | Pass |
+| Production persistence | SQL plugin catalog stores and updates `host_capabilities_json`; the production factory reads the persisted exact grants after restart | Pass |
+| Generator and fixtures | Generated manifests, public process fixtures, datastore/workflow E2E fixtures, and packaged example plugins inject only their declared operations | Pass |
+| Secret and owner isolation | Existing encrypted secret, file, workflow, datastore, process-environment, and audit tests prove another plugin cannot read foreign material or plaintext evidence | Pass |
+| Destructive host calls | File deletion and configuration replacement are denied unless their exact operations are declared; plugin processes have no lifecycle host capability | Pass |
+| Lifecycle RBAC | Install, enable, disable, and uninstall map to separate `plugin.*` actions, remain authenticated when global auth is disabled, and are seeded as high-risk plugin permissions | Pass |
+| Operator review | Install preflight and the control center expose the exact declared operation list; lifecycle controls honor their corresponding frontend permissions | Pass |
+| API and schema | Both OpenAPI contracts and the manifest JSON Schema describe exact grants; JSON, Go, TypeScript, i18n, accessibility, theme, and large-list checks pass | Pass |
+| Current-only rule | No compatibility alias, wildcard grant, implicit full-access list, fallback authorization, dual manifest parser, or old capability path exists | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first combined Go run reached the workflow escalation E2E before its scheduled timer became due. No authorization code was implicated; the same package passed on the next complete run, so the first run was rejected as acceptance evidence.
+2. Production-path review found that the SQL plugin catalog did not yet persist the new grants. FF6-01 was not accepted in that state; persistence, update, control-snapshot, and restart-facing factory coverage were added before the gates were rerun.
+3. The first targeted race invocation was interrupted by the command runner time limit and produced no acceptance result. The unchanged command passed with an extended runner limit, so only the completed rerun is accepted as evidence.
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./internal/plugin ./internal/plugin/hostservice ./internal/store/sql/gormrepo ./internal/handler/http/v1/plugin ./internal/bootstrap ./internal/service/generator -count=1
+go test -race ./pkg/pluginsdk ./internal/plugin ./internal/plugin/hostservice ./internal/bootstrap -run "HostCapability|HostGateway|Secret|FileService|WorkflowService|Permission|PluginLifecycle" -count=1
+npm --prefix web run typecheck
+npm --prefix web run build
+go test -tags=pluginquality ./internal/service/generator -run '^TestGeneratedPluginZeroEditQualityGate$' -count=1 -v
+go test ./... -count=1
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF6-01 passed. Managed plugin processes now receive one immutable, persisted, exact operation grant set; undeclared and cross-plugin access fails closed, lifecycle mutations require distinct high-risk permissions, and operators can review the same grants before and after installation.
+
+### Commit
+
+`FF6-01: enforce plugin least privilege`

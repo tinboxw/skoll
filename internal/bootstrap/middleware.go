@@ -37,7 +37,9 @@ func buildMiddlewareChain(next http.Handler, logger logging.Logger, policy AuthP
 func authGuardMiddleware(policy AuthPolicy, apiPrefix, jwtSecret string, checker permissionChecker, routeResolver plugin.RoutePermissionResolver, auditSink auditmw.AuditEventSink, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pluginPath, pluginBusinessRoute := pluginBusinessRoutePath(r.URL.Path, apiPrefix)
-		if !pluginBusinessRoute && !policy.ShouldAuthenticate(r.URL.Path) {
+		lifecycleResource, _, lifecycleGuarded := requiredPermission(r.Method, r.URL.Path, apiPrefix)
+		pluginLifecycleRoute := lifecycleGuarded && lifecycleResource == "plugin"
+		if !pluginBusinessRoute && !pluginLifecycleRoute && !policy.ShouldAuthenticate(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -254,6 +256,18 @@ func requiredPermission(method, path, apiPrefix string) (resource, action string
 	normalizedPrefix := config.NormalizeAPIPrefix(apiPrefix)
 	if cleanMethod == http.MethodGet && cleanPath == normalizedPrefix+"/v1/rbac/data-scope" {
 		return "", "", false
+	}
+	pluginLifecyclePrefix := normalizedPrefix + "/v1/plugins/"
+	switch {
+	case cleanMethod == http.MethodPost && cleanPath == normalizedPrefix+"/v1/plugins/install":
+		return "plugin", "install", true
+	case cleanMethod == http.MethodPost && strings.HasPrefix(cleanPath, pluginLifecyclePrefix) && strings.HasSuffix(cleanPath, "/enable"):
+		return "plugin", "enable", true
+	case cleanMethod == http.MethodPost && strings.HasPrefix(cleanPath, pluginLifecyclePrefix) && strings.HasSuffix(cleanPath, "/disable"):
+		return "plugin", "disable", true
+	case cleanMethod == http.MethodDelete && strings.HasPrefix(cleanPath, pluginLifecyclePrefix) &&
+		!strings.Contains(strings.TrimPrefix(cleanPath, pluginLifecyclePrefix), "/"):
+		return "plugin", "uninstall", true
 	}
 
 	for _, policy := range defaultPermissionPolicies(normalizedPrefix) {

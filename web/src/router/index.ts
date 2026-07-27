@@ -84,7 +84,7 @@ const routes: RouteRecordRaw[] = [
 			path: `${ADMIN_PREFIX}/plugin-center/install`,
 			name: "plugin-center-install",
 			component: PluginInstallPage,
-			meta: { permissions: ["plugin.manage"] }
+			meta: { permissions: ["plugin.install"] }
 		},
 		{
 			path: `${ADMIN_PREFIX}/plugin-center/marketplace`,

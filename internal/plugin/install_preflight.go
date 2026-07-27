@@ -90,6 +90,7 @@ type InstallPreflightResources struct {
 	FrontendEntry    string   `json:"frontendEntry,omitempty"`
 	ServiceBaseURL   string   `json:"serviceBaseUrl,omitempty"`
 	ServiceHealthURL string   `json:"serviceHealthUrl,omitempty"`
+	HostCapabilities []string `json:"hostCapabilities,omitempty"`
 	Dependencies     []string `json:"dependencies,omitempty"`
 }
 
@@ -345,6 +346,10 @@ func buildInstallPreflightResources(info Info) InstallPreflightResources {
 		ServiceBaseURL:   strings.TrimSpace(info.ServiceBaseURL),
 		ServiceHealthURL: strings.TrimSpace(info.ServiceHealthURL),
 	}
+	for _, capability := range info.HostCapabilities {
+		out.HostCapabilities = append(out.HostCapabilities, string(capability))
+	}
+	sort.Strings(out.HostCapabilities)
 	for _, dep := range info.Dependencies {
 		id := strings.TrimSpace(dep.ID)
 		if id == "" {

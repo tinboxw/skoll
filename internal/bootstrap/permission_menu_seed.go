@@ -10,6 +10,26 @@ import (
 
 var systemPermissionCatalogSeeds = []permissionsvc.RegisterResourceInput{
 	{
+		Key: "plugin.install", Type: domainpermission.ResourceTypePlugin, Module: "plugin", Source: "system",
+		Name: "Install plugins", Risk: domainpermission.RiskLevelHigh,
+		Metadata: map[string]string{"routes": "POST /v1/plugins/install"},
+	},
+	{
+		Key: "plugin.enable", Type: domainpermission.ResourceTypePlugin, Module: "plugin", Source: "system",
+		Name: "Enable plugins", Risk: domainpermission.RiskLevelHigh,
+		Metadata: map[string]string{"routes": "POST /v1/plugins/{id}/enable"},
+	},
+	{
+		Key: "plugin.disable", Type: domainpermission.ResourceTypePlugin, Module: "plugin", Source: "system",
+		Name: "Disable plugins", Risk: domainpermission.RiskLevelHigh,
+		Metadata: map[string]string{"routes": "POST /v1/plugins/{id}/disable"},
+	},
+	{
+		Key: "plugin.uninstall", Type: domainpermission.ResourceTypePlugin, Module: "plugin", Source: "system",
+		Name: "Uninstall plugins", Risk: domainpermission.RiskLevelHigh,
+		Metadata: map[string]string{"routes": "DELETE /v1/plugins/{id}"},
+	},
+	{
 		Key:    "permission.manage",
 		Type:   domainpermission.ResourceTypeAPI,
 		Module: "permission",

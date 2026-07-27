@@ -398,7 +398,17 @@ func (r *workflowE2ERuntime) start() {
 			return pluginsdk.HostServices{}, workflowErr
 		}
 		return pluginsdk.HostServices{
-			PluginID: pluginID, Transactions: transactions, DataScopes: dataStoreE2EScopes{},
+			PluginID: pluginID,
+			Capabilities: []pluginsdk.HostCapability{
+				pluginsdk.HostCapabilityWorkflowsCreateDefinition,
+				pluginsdk.HostCapabilityWorkflowsPublishDefinition,
+				pluginsdk.HostCapabilityWorkflowsStart,
+				pluginsdk.HostCapabilityWorkflowsGetInstance,
+				pluginsdk.HostCapabilityWorkflowsApprove,
+				pluginsdk.HostCapabilityWorkflowsReject,
+				pluginsdk.HostCapabilityWorkflowsDelegate,
+			},
+			Transactions: transactions, DataScopes: dataStoreE2EScopes{},
 			DataStore: workflowE2EDataStore{}, Events: dataStoreE2EEvents{},
 			DocumentNumbers: dataStoreE2EDocumentNumbers{}, Documents: dataStoreE2EDocuments{},
 			Files: dataStoreE2EFiles{}, Audit: r.audit, Config: &dataStoreE2EConfig{},

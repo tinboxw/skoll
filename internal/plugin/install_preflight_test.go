@@ -50,6 +50,11 @@ func TestInstallPreflightServicePassesWithCompleteImpactSummary(t *testing.T) {
 	if !result.Config.HasSchema || result.Config.FieldCount != 1 || len(result.Config.RequiredFields) != 1 {
 		t.Fatalf("expected config schema summary, got %+v", result.Config)
 	}
+	if len(result.Resources.HostCapabilities) != 2 ||
+		result.Resources.HostCapabilities[0] != "datastore.query" ||
+		result.Resources.HostCapabilities[1] != "events.publish" {
+		t.Fatalf("expected exact host capability preview, got %+v", result.Resources)
+	}
 	if len(result.Migration.Pending) != 1 || result.Migration.Pending[0].Version != 1 {
 		t.Fatalf("expected pending migration, got %+v", result.Migration)
 	}
@@ -158,6 +163,9 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 		"ui_mode: frontend_only\n" +
 		"i18n_locales:\n" +
 		"  - zh-CN\n" +
+		"host_capabilities:\n" +
+		"  - events.publish\n" +
+		"  - datastore.query\n" +
 		"permissions:\n" +
 		"  - key: reports.export\n" +
 		"    type: api\n" +

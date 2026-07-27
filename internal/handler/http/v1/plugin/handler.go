@@ -701,17 +701,19 @@ func (h *PluginHandler) controlCapabilities(item plugin.Info) pluginControlCapab
 		dependencies = append(dependencies, pluginControlDependencyRecord{ID: dependency.ID, Version: dependency.Version})
 	}
 	sort.Slice(dependencies, func(i, j int) bool { return dependencies[i].ID < dependencies[j].ID })
+	hostServices := make([]string, 0, len(item.HostCapabilities))
+	for _, capability := range item.HostCapabilities {
+		hostServices = append(hostServices, string(capability))
+	}
+	sort.Strings(hostServices)
 
 	return pluginControlCapabilitiesRecord{
 		APIVersion:       item.APIVersion,
 		MigrationVersion: item.MigrationVersion,
-		HostServices: []string{
-			"transactions", "data-scopes", "datastore", "document-numbers", "documents",
-			"files", "audit", "config", "secrets", "workflows", "jobs",
-		},
-		Permissions:  permissions,
-		Routes:       routes,
-		Dependencies: dependencies,
+		HostServices:     hostServices,
+		Permissions:      permissions,
+		Routes:           routes,
+		Dependencies:     dependencies,
 		Extensions: pluginControlExtensionRecord{
 			Routes: len(extensions.Routes), Middlewares: len(extensions.Middlewares), Events: len(extensions.Events),
 			Menus: len(extensions.Menus), Widgets: len(extensions.Widgets), Settings: len(extensions.Settings),
