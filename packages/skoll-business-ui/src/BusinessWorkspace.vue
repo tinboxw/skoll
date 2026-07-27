@@ -49,7 +49,7 @@ withDefaults(defineProps<{
 </template>
 
 <style scoped>
-.business-workspace { display: grid; gap: var(--layout-gap, 16px); min-width: 0; }
+.business-workspace { display: grid; gap: var(--layout-gap); min-width: 0; }
 .business-workspace__header,
 .business-workspace__title,
 .business-workspace__actions {

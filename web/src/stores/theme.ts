@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { PLUGIN_HOST_THEME_TOKENS } from "@skoll/plugin-sdk";
 
 export type ThemeDensity = "comfortable" | "compact";
 export type ThemeColorScheme = "light" | "dark";
@@ -11,30 +12,6 @@ export type ThemeBridgePayload = {
 
 const COLOR_SCHEME_KEY = "skoll.ui.colorScheme";
 const DENSITY_KEY = "skoll.ui.density";
-const PLUGIN_THEME_TOKEN_NAMES = [
-	"--color-bg",
-	"--color-surface",
-	"--color-surface-soft",
-	"--color-border",
-	"--color-border-strong",
-	"--color-text",
-	"--color-text-muted",
-	"--color-primary",
-	"--color-primary-strong",
-	"--color-on-primary",
-	"--color-warning",
-	"--color-warning-soft",
-	"--color-warning-text",
-	"--color-danger",
-	"--color-success",
-	"--radius-sm",
-	"--radius-md",
-	"--radius-lg",
-	"--layout-gap",
-	"--content-padding",
-	"--control-height"
-] as const;
-
 type ThemeState = {
 	colorScheme: ThemeColorScheme;
 	density: ThemeDensity;
@@ -78,7 +55,7 @@ function readPluginThemeTokens(): Record<string, string> {
 	}
 	const styles = getComputedStyle(document.documentElement);
 	return Object.fromEntries(
-		PLUGIN_THEME_TOKEN_NAMES.map((name) => [name, styles.getPropertyValue(name).trim()]).filter(([, value]) => value !== "")
+		PLUGIN_HOST_THEME_TOKENS.map((name) => [name, styles.getPropertyValue(name).trim()]).filter(([, value]) => value !== "")
 	);
 }
 

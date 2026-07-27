@@ -44,5 +44,12 @@ export function installPharmaTestHost(request: TestRequest, options: TestHostOpt
 		config: { get: async () => ({}), update: async () => ({}) }
 	} satisfies PluginHostSDK;
 	window.__SKOLL_HOST__ = host;
+	document.documentElement.lang = host.locale;
+	document.documentElement.dataset.theme = host.theme.colorScheme;
+	document.documentElement.dataset.density = host.theme.density;
+	document.documentElement.style.colorScheme = host.theme.colorScheme;
+	Object.entries(host.theme.tokens).forEach(([name, value]) => {
+		if (typeof value === "string") document.documentElement.style.setProperty(name, value);
+	});
 	return host;
 }

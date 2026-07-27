@@ -4,6 +4,10 @@ Skoll 插件业务工作台的 Element Plus 组合组件。该包提供工作台
 
 业务插件直接组合这些组件，不在宿主 Web 中新增业务页面。
 
+插件入口必须导入 `@skoll/business-ui/style.css`。该样式只消费宿主通过
+`@skoll/plugin-sdk` 下发的当前设计令牌，并统一 Element Plus、亮暗主题、舒适/紧凑密度、
+焦点、窄屏和减少动效行为；插件不得再定义另一套根级主题变量。
+
 ## 使用
 
 ```vue

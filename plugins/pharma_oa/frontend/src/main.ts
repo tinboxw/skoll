@@ -25,6 +25,7 @@ import "element-plus/theme-chalk/el-skeleton.css";
 import "element-plus/theme-chalk/el-skeleton-item.css";
 import "element-plus/theme-chalk/el-message.css";
 import "element-plus/theme-chalk/el-message-box.css";
+import "@skoll/business-ui/style.css";
 import "./styles.css";
 
 createApp(App).mount("#app");

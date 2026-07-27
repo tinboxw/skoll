@@ -72,7 +72,7 @@ function reset(): void {
 <style scoped>
 .business-filter-bar {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) auto;
+	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 	gap: 10px;
 	align-items: end;
 }
@@ -80,9 +80,10 @@ function reset(): void {
 .business-filter-bar :deep(.el-form-item__content),
 .business-filter-bar :deep(.el-select),
 .business-filter-bar :deep(.el-date-editor) { width: 100%; }
-.business-filter-bar__actions { display: flex; gap: 8px; padding-bottom: 1px; }
+.business-filter-bar__actions { display: flex; justify-self: end; gap: 8px; padding-bottom: 1px; }
 @media (max-width: 680px) {
 	.business-filter-bar { grid-template-columns: 1fr; }
+	.business-filter-bar__actions { width: 100%; }
 	.business-filter-bar__actions :deep(.el-button) { flex: 1; }
 }
 </style>

@@ -197,16 +197,8 @@ function fieldOptions(field: Field): Array<Option | Catalog | QualificationType>
 function fieldOptionValue(option: Option | Catalog | QualificationType): string { return "value" in option ? option.value : option.id; }
 function fieldOptionLabel(option: Option | Catalog | QualificationType): string { return "value" in option ? optionLabel(option) : `${option.code} · ${option.name}`; }
 
-function applyTheme(): void {
-  const theme = host().theme;
-  document.documentElement.dataset.theme = theme.colorScheme;
-  document.documentElement.dataset.density = theme.density;
-  Object.entries(theme.tokens).forEach(([key, value]) => document.documentElement.style.setProperty(key.startsWith("--") ? key : `--${key}`, value));
-}
-
 function connectHost(): void {
   try {
-    applyTheme();
     setLocale(host().locale);
     hostError.value = "";
   } catch (reason) {
@@ -368,7 +360,6 @@ onMounted(() => {
   try { Object.assign(scope, JSON.parse(localStorage.getItem("pharma_oa.scope") ?? "{}")); } catch { localStorage.removeItem("pharma_oa.scope"); }
   connectHost();
 });
-window.addEventListener("skoll:theme", applyTheme);
 window.addEventListener("skoll:host-ready", connectHost);
 </script>
 

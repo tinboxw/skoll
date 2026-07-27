@@ -18,7 +18,43 @@ export const PLUGIN_HOST_CAPABILITIES = [
 	"config"
 ] as const;
 
+export const PLUGIN_HOST_THEME_TOKENS = [
+	"--color-bg",
+	"--color-surface",
+	"--color-surface-soft",
+	"--color-border",
+	"--color-border-strong",
+	"--color-text",
+	"--color-text-muted",
+	"--color-primary",
+	"--color-primary-strong",
+	"--color-on-primary",
+	"--color-tag-bg",
+	"--color-tag-text",
+	"--color-warning",
+	"--color-warning-soft",
+	"--color-warning-text",
+	"--color-warning-border",
+	"--color-danger",
+	"--color-success",
+	"--color-success-soft",
+	"--color-success-text",
+	"--color-success-border",
+	"--color-info",
+	"--color-shadow",
+	"--color-code-surface",
+	"--color-loading-surface",
+	"--radius-sm",
+	"--radius-md",
+	"--radius-lg",
+	"--layout-gap",
+	"--content-padding",
+	"--control-height",
+	"--font-size-base"
+] as const;
+
 export type PluginHostCapability = (typeof PLUGIN_HOST_CAPABILITIES)[number];
+export type PluginHostThemeToken = (typeof PLUGIN_HOST_THEME_TOKENS)[number];
 export type PluginHostMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 export type PluginHostThemeColorScheme = "light" | "dark";
 export type PluginHostThemeDensity = "comfortable" | "compact";
@@ -195,8 +231,8 @@ function isPluginHostShape(candidate: PluginHostSDK): boolean {
 		Array.isArray(candidate.identity.permissions) &&
 		typeof candidate.locale === "string" &&
 		Array.isArray(candidate.locales) &&
-		typeof candidate.theme === "object" &&
-		candidate.theme !== null &&
+		candidate.locales.includes(candidate.locale) &&
+		isPluginHostTheme(candidate.theme) &&
 		typeof candidate.lifecycle === "object" &&
 		candidate.lifecycle !== null &&
 		typeof candidate.hasCapability === "function" &&
@@ -209,6 +245,16 @@ function isPluginHostShape(candidate: PluginHostSDK): boolean {
 		typeof candidate.permissions?.has === "function" &&
 		typeof candidate.permissions?.require === "function"
 	);
+}
+
+function isPluginHostTheme(theme: PluginHostTheme): boolean {
+	if (!theme || (theme.colorScheme !== "light" && theme.colorScheme !== "dark") ||
+		(theme.density !== "comfortable" && theme.density !== "compact") ||
+		typeof theme.tokens !== "object" || theme.tokens === null) {
+		return false;
+	}
+	const allowed = new Set<string>(PLUGIN_HOST_THEME_TOKENS);
+	return Object.entries(theme.tokens).every(([name, value]) => allowed.has(name) && typeof value === "string" && value.trim() !== "");
 }
 
 function failure(

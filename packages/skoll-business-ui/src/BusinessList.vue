@@ -112,7 +112,7 @@ function display(value: unknown): string {
 		gap: 10px;
 		padding: 12px;
 		border: 1px solid var(--color-border);
-		border-radius: var(--radius-sm, 4px);
+		border-radius: var(--radius-sm);
 		background: var(--color-surface);
 	}
 	.business-list__record > button { display: grid; gap: 2px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; }

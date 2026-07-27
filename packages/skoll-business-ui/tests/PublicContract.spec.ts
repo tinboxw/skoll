@@ -13,7 +13,8 @@ import {
 	BusinessState,
 	BusinessTimeline,
 	BusinessWorkflowPanel,
-	BusinessWorkspace
+	BusinessWorkspace,
+	BUSINESS_THEME_TOKENS
 } from "../src";
 
 describe("business UI public contract", () => {
@@ -33,5 +34,7 @@ describe("business UI public contract", () => {
 			BusinessWorkflowPanel,
 			BusinessWorkspace
 		]).not.toContain(undefined);
+		expect(BUSINESS_THEME_TOKENS).toContain("--color-primary");
+		expect(BUSINESS_THEME_TOKENS).toContain("--control-height");
 	});
 });

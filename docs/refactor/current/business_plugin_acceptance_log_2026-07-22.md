@@ -3042,3 +3042,68 @@ Result: FF4-02 passed. Independent plugin frontends can compose dense list, filt
 ### Commit
 
 `FF4-02: add business workspace composition kit`
+
+## FF4-03 Inherit Tokens, Themes, Density, Locale, And Accessibility
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Make frontend plugins inherit one host-owned presentation contract across Element Plus, themes, density, locale, keyboard, assistive semantics, reduced motion, and responsive viewports.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public token contract | Pass | `@skoll/plugin-sdk` publishes the complete current `PLUGIN_HOST_THEME_TOKENS` allowlist; the host store reads the same list instead of maintaining a second contract |
+| Token integrity | Pass | The injected host bridge filters theme updates through the allowlist; forged token names fail SDK resolution and cannot become plugin root styles |
+| Element Plus inheritance | Pass | `@skoll/business-ui/style.css` maps host color, surface, border, text, radius, shadow, control-height, and font tokens to Element Plus variables |
+| Theme and density | Pass | Light/dark and comfortable/compact axes remain independent; button, input, select, date, table, overlay, and business primitives inherit the active host values |
+| Locale | Pass | zh-CN/en-US labels, root language, Element Plus locale, state copy, commands, filters, opening, paging, and confirmation render from the current plugin locale |
+| Keyboard and assistive semantics | Pass | Browser tests reach controls by keyboard with visible focus; toolbar, status, alert, icon action, and destructive confirmation semantics resolve by accessible role and name |
+| Reduced motion and forced colors | Pass | The public stylesheet disables non-essential motion under reduced-motion preference and preserves focus indication under forced colors |
+| Responsive matrix | Pass | Four theme/density/locale combinations pass in both 1440x1000 and 390x844 projects with no document or control overflow |
+| Visual review | Pass | Desktop and mobile screenshots were inspected; filters remain dense on desktop, commands and records reflow on mobile, and confirmation overlays do not occlude required actions |
+| Integrated plugins | Pass | Pharma OA and equipment maintenance import the public stylesheet; private root themes, duplicated Element mappings, manual theme application, and CSS variable fallbacks were removed |
+| Current-only boundary | Pass | There is one host token list and one plugin presentation stylesheet, with no legacy theme variables, compatibility mode, fallback palette, or dual styling path |
+| Packaging and regression | Pass | SDK, business UI, document UI, main Web, Pharma OA, and equipment typechecks, tests, browser matrix, package dry run, bundle gate, and production builds pass |
+
+### Failed Runs And Re-Execution
+
+- The first SDK check found its local TypeScript tool absent after dependency recovery. The package dependency was restored and SDK typecheck and build passed.
+- The first presentation contract test used `import.meta.url`, which jsdom exposed with a non-file scheme. The test now resolves from the package working directory and all 15 package tests pass.
+- The first Pharma OA regression still expected the removed plugin-owned theme function. The shared test host was corrected to reproduce the real bridge injection; all 20 plugin tests passed.
+- The first equipment build required explicit string narrowing for test token values. Both plugin test hosts now enforce that boundary and the equipment test/build chain passed.
+- The first browser matrix failed all eight cases because comfortable Element buttons remained 32 px and reduced-motion emulation was not explicit. Control-level density mapping and per-case media emulation were added.
+- The second browser run passed compact cases but exposed Element Plus selector precedence in four comfortable cases. The public selectors were strengthened; all eight cases passed.
+- Visual review then found the desktop filter grid stacking because of its intrinsic action track. The filter grid was changed to equal responsive tracks; the complete eight-case matrix passed again and the final desktop/mobile screenshots were re-inspected.
+
+### Verification Commands
+
+```powershell
+npm --prefix packages/skoll-plugin-sdk run typecheck
+npm --prefix packages/skoll-plugin-sdk run build
+npm --prefix packages/skoll-business-ui run typecheck
+npm --prefix packages/skoll-business-ui test
+npm --prefix packages/skoll-business-ui run build
+npm --prefix packages/skoll-business-ui pack --dry-run
+npm --prefix packages/skoll-document-ui run typecheck
+npm --prefix packages/skoll-document-ui test
+npm --prefix packages/skoll-document-ui run build
+npm --prefix web run typecheck
+npm --prefix web run test:components
+npm --prefix web run test:business-ui:browser
+npm --prefix web run build
+npm --prefix plugins/pharma_oa/frontend test
+npm --prefix plugins/pharma_oa/frontend run build
+npm --prefix plugins/equipment_maintenance/web test
+npm --prefix plugins/equipment_maintenance/web run build
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF4-03 passed. Frontend plugins now inherit one validated host presentation contract and one Element Plus styling surface across themes, density, locale, accessibility, reduced motion, and responsive viewports.
+
+### Commit
+
+`FF4-03: inherit plugin presentation contract`

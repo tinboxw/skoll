@@ -114,7 +114,7 @@ const text = computed(() => documentKitMessages(props.locale, props.messages));
 <style scoped>
 .document-list {
 	display: grid;
-	gap: var(--layout-gap, 16px);
+	gap: var(--layout-gap);
 	min-width: 0;
 }
 

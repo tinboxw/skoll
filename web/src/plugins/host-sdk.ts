@@ -1,6 +1,7 @@
 import {
 	PLUGIN_HOST_CAPABILITIES,
 	PLUGIN_HOST_CONTRACT,
+	PLUGIN_HOST_THEME_TOKENS,
 	PLUGIN_HOST_VERSION,
 	type PluginHostIdentity,
 	type PluginHostLifecycle,
@@ -50,8 +51,9 @@ export function buildPluginHostBridgeScript(input: PluginHostSDKInit): string {
 		version: PLUGIN_HOST_VERSION,
 		pluginId,
 		pluginVersion,
-		apiBasePrefix: normalizeAPIPrefix(input.apiBasePrefix),
-		capabilities: [...PLUGIN_HOST_CAPABILITIES],
+			apiBasePrefix: normalizeAPIPrefix(input.apiBasePrefix),
+			capabilities: [...PLUGIN_HOST_CAPABILITIES],
+			themeTokenNames: [...PLUGIN_HOST_THEME_TOKENS],
 		locale: input.locale.trim() || "zh-CN",
 		locales: compact(input.locales).length > 0 ? compact(input.locales) : ["zh-CN", "en-US"],
 		token: input.token,
@@ -67,8 +69,9 @@ export function buildPluginHostBridgeScript(input: PluginHostSDKInit): string {
 	return `<script>
 	(function () {
 		'use strict';
-		var ctx = ${JSON.stringify(payload)};
-		var allowedCapabilities = Object.freeze(ctx.capabilities.slice());
+			var ctx = ${JSON.stringify(payload)};
+			var allowedCapabilities = Object.freeze(ctx.capabilities.slice());
+			var allowedThemeTokens = Object.freeze(ctx.themeTokenNames.slice());
 
 		function freezeRecord(value) {
 			return Object.freeze(Object.assign({}, value || {}));
@@ -78,14 +81,19 @@ export function buildPluginHostBridgeScript(input: PluginHostSDKInit): string {
 			return Object.freeze(Array.isArray(value) ? value.slice() : []);
 		}
 
-		function normalizeTheme(value) {
-			var source = value || {};
-			return Object.freeze({
-				colorScheme: source.colorScheme === 'dark' ? 'dark' : 'light',
-				density: source.density === 'compact' ? 'compact' : 'comfortable',
-				tokens: freezeRecord(source.tokens)
-			});
-		}
+			function normalizeTheme(value) {
+				var source = value || {};
+				var sourceTokens = source.tokens || {};
+				var tokens = {};
+				allowedThemeTokens.forEach(function (name) {
+					if (typeof sourceTokens[name] === 'string' && sourceTokens[name].trim()) tokens[name] = sourceTokens[name].trim();
+				});
+				return Object.freeze({
+					colorScheme: source.colorScheme === 'dark' ? 'dark' : 'light',
+					density: source.density === 'compact' ? 'compact' : 'comfortable',
+					tokens: freezeRecord(tokens)
+				});
+			}
 
 		function normalizeIdentity(value) {
 			var source = value || {};

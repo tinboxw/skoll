@@ -1,0 +1,114 @@
+:root {
+	color-scheme: light;
+	font-family: Inter, "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+	font-size: var(--font-size-base);
+	color: var(--color-text);
+	background: var(--color-bg);
+	--el-color-primary: var(--color-primary);
+	--el-color-primary-dark-2: var(--color-primary-strong);
+	--el-color-success: var(--color-success);
+	--el-color-warning: var(--color-warning);
+	--el-color-danger: var(--color-danger);
+	--el-color-info: var(--color-info);
+	--el-bg-color: var(--color-surface);
+	--el-bg-color-page: var(--color-bg);
+	--el-bg-color-overlay: var(--color-surface);
+	--el-fill-color-blank: var(--color-surface);
+	--el-fill-color-light: var(--color-surface-soft);
+	--el-fill-color-lighter: var(--color-surface-soft);
+	--el-border-color: var(--color-border);
+	--el-border-color-light: var(--color-border);
+	--el-border-color-lighter: var(--color-border);
+	--el-text-color-primary: var(--color-text);
+	--el-text-color-regular: var(--color-text);
+	--el-text-color-secondary: var(--color-text-muted);
+	--el-border-radius-base: var(--radius-md);
+	--el-border-radius-small: var(--radius-sm);
+	--el-component-size: var(--control-height);
+	--el-font-size-base: var(--font-size-base);
+	--el-box-shadow-light: 0 10px 24px -20px var(--color-shadow);
+}
+
+:root[data-theme="dark"] {
+	color-scheme: dark;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	min-width: 320px;
+	margin: 0;
+	background: var(--color-bg);
+	color: var(--color-text);
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+}
+
+:root[data-density="compact"] {
+	--el-component-size-small: 24px;
+	--el-component-size-large: 36px;
+}
+
+.el-table {
+	--el-table-bg-color: var(--color-surface);
+	--el-table-tr-bg-color: var(--color-surface);
+	--el-table-header-bg-color: var(--color-surface-soft);
+	--el-table-row-hover-bg-color: var(--color-surface-soft);
+	--el-table-border-color: var(--color-border);
+	--el-table-text-color: var(--color-text);
+	--el-table-header-text-color: var(--color-text-muted);
+}
+
+:root .el-button {
+	--el-component-size: var(--control-height);
+	height: var(--control-height);
+}
+
+:root .el-input__wrapper,
+:root .el-select__wrapper,
+:root .el-date-editor.el-input__wrapper {
+	min-height: var(--control-height);
+}
+
+.el-overlay {
+	overflow-x: hidden;
+}
+
+@media (max-width: 480px) {
+	.el-dialog {
+		max-width: calc(100vw - 24px);
+	}
+
+	.el-message-box {
+		max-width: calc(100vw - 24px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto !important;
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+@media (forced-colors: active) {
+	:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+		outline-color: Highlight;
+	}
+}

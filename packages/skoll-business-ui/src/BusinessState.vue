@@ -48,7 +48,7 @@ const role = computed(() => props.state === "error" || props.state === "forbidde
 	padding: 18px;
 	border: 1px solid var(--color-border);
 	border-left: 3px solid var(--color-info);
-	border-radius: var(--radius-sm, 4px);
+	border-radius: var(--radius-sm);
 	background: var(--color-surface-soft);
 	color: var(--color-text);
 }

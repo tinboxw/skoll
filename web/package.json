@@ -15,6 +15,7 @@
 		"test:components": "vitest run && npm --prefix ../packages/skoll-document-ui test",
 		"test:documents": "npm --prefix ../packages/skoll-document-ui test",
 		"test:documents:browser": "playwright test --config playwright.config.ts business-document-kit.spec.ts",
+		"test:business-ui:browser": "playwright test --config playwright.config.ts business-ui-presentation.spec.ts",
 		"test:plugin-center": "playwright test --config playwright.config.ts plugin-control-center.spec.ts",
 		"test:plugin-center:visual": "playwright test --config playwright.config.ts plugin-control-center-visual.spec.ts",
 		"test:plugin-center:visual:update": "playwright test --config playwright.config.ts plugin-control-center-visual.spec.ts --update-snapshots",

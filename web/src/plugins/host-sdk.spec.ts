@@ -82,6 +82,7 @@ describe("plugin host bridge script", () => {
 		expect(script).toContain("Object.defineProperty(window, '__SKOLL_HOST__'");
 		expect(script).toContain("event.source !== window.parent");
 		expect(script).toContain("data.pluginId !== ctx.pluginId");
+		expect(script).toContain("allowedThemeTokens");
 		expect(script).not.toContain("__SKOLL_TOKEN");
 		expect(script).not.toContain("__SKOLL_PLUGIN_CONTEXT");
 		expect(script).not.toContain("data-theme-mode");
@@ -108,6 +109,7 @@ describe("plugin host SDK resolver", () => {
 		["wrong version", { ...validHost(), version: "9.0" }, "VERSION_UNSUPPORTED"],
 		["wrong identity", { ...validHost(), pluginId: "forged" }, "PLUGIN_IDENTITY_MISMATCH"],
 		["missing request shape", { ...validHost(), request: undefined }, "CONTRACT_MISMATCH"],
+		["forged theme token", { ...validHost(), theme: { ...validHost().theme, tokens: { "--forged-root": "1" } } }, "CONTRACT_MISMATCH"],
 		[
 			"forged capability",
 			{ ...validHost(), capabilities: [...PLUGIN_HOST_CAPABILITIES, "root"] as PluginHostCapability[] },
