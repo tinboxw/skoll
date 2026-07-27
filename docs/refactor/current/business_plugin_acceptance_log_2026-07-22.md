@@ -2349,3 +2349,40 @@ Result: FF1-03 passed. Current plugins can perform lossless guarded integer adju
 ### Commit
 
 `FF1-03: execute guarded atomic adjustments`
+
+## FF1-04 Define Scoped Aggregate Query Contracts
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Define the only current public contract for trusted count, sum, minimum, maximum, and bounded grouping before adding host SQL execution.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public capability | Pass | `DataAggregateService` accepts one typed query and returns one typed aggregate page inside the existing transaction context |
+| Metric safety | Pass | Count has no field; sum/min/max require one identifier; unknown operations, duplicates, expressions, aliases, and trusted scope fields fail validation |
+| Bounded grouping | Pass | At most four unique non-scope identifiers may group results and each page is limited to 100 rows |
+| Ungrouped determinism | Pass | Ungrouped queries require limit one with no cursor and responses require exactly one row |
+| Filter and scope reuse | Pass | Aggregate queries reuse the current structured filter and trusted `DataScopeIntent`; no query contract can supply raw SQL or broaden resolved scope |
+| Typed response | Pass | Metric order is stable, row values must match metric count, count is a non-negative integer, and numeric aggregates are integer, decimal, or null |
+| Group response | Pass | Every row contains exactly one validated value for every declared group field; cursor presence and continuation state remain consistent |
+| Wire contract | Pass | JSON uses strict camelCase `metrics`, `operation`, `field`, and `groupBy` fields with no alias surface |
+| Regression | Pass | Focused SDK/client tests and every Go package pass |
+| Framework purity | Pass | Contracts are industry-neutral; declared-field SQL authorization remains owned by FF1-05 and no compatibility shape was added |
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./pkg/pluginclient -count=1
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: FF1-04 passed. Plugin APIs can now describe bounded, scope-preserving numeric aggregates without exposing SQL expressions, aliases, or unbounded grouping.
+
+### Commit
+
+`FF1-04: define scoped aggregate contracts`

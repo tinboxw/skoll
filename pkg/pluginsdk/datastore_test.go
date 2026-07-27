@@ -205,6 +205,106 @@ func TestDataResponseValidation(t *testing.T) {
 	}
 }
 
+func TestDataAggregateQueryValidationAcceptsBoundedStructuredMetrics(t *testing.T) {
+	query := validDataAggregateQuery()
+	if err := query.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	ungrouped := query
+	ungrouped.GroupBy = nil
+	ungrouped.Page = DataPageRequest{Limit: 1}
+	if err := ungrouped.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDataAggregateQueryRejectsExpressionsScopeLeakageAndUnboundedGroups(t *testing.T) {
+	tests := []struct {
+		name  string
+		alter func(*DataAggregateQuery)
+		field string
+	}{
+		{name: "missing metrics", alter: func(q *DataAggregateQuery) { q.Metrics = nil }, field: "metrics"},
+		{name: "raw expression", alter: func(q *DataAggregateQuery) { q.Metrics[1].Field = "amount + tax" }, field: "metrics[1].field"},
+		{name: "alias", alter: func(q *DataAggregateQuery) { q.Metrics[1].Field = "amount AS total" }, field: "metrics[1].field"},
+		{name: "count field", alter: func(q *DataAggregateQuery) { q.Metrics[0].Field = "id" }, field: "metrics[0].field"},
+		{name: "unknown operation", alter: func(q *DataAggregateQuery) { q.Metrics[1].Operation = "average" }, field: "metrics[1].operation"},
+		{name: "duplicate metric", alter: func(q *DataAggregateQuery) { q.Metrics = append(q.Metrics, q.Metrics[1]) }, field: "metrics[3]"},
+		{name: "scope metric", alter: func(q *DataAggregateQuery) { q.Metrics[1].Field = "tenant_id" }, field: "metrics[1].field"},
+		{name: "scope group", alter: func(q *DataAggregateQuery) { q.GroupBy = []string{"tenant_id"} }, field: "groupBy[0]"},
+		{name: "duplicate group", alter: func(q *DataAggregateQuery) { q.GroupBy = []string{"status", "status"} }, field: "groupBy[1]"},
+		{name: "too many groups", alter: func(q *DataAggregateQuery) {
+			q.GroupBy = []string{"one", "two", "three", "four", "five"}
+		}, field: "groupBy"},
+		{name: "unbounded page", alter: func(q *DataAggregateQuery) { q.Page.Limit = MaxDataAggregateGroups + 1 }, field: "page.limit"},
+		{name: "ungrouped cursor", alter: func(q *DataAggregateQuery) {
+			q.GroupBy = nil
+			q.Page = DataPageRequest{Limit: 1, Cursor: "cursor"}
+		}, field: "page"},
+		{name: "ungrouped many rows", alter: func(q *DataAggregateQuery) {
+			q.GroupBy = nil
+			q.Page = DataPageRequest{Limit: 2}
+		}, field: "page"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			query := validDataAggregateQuery()
+			test.alter(&query)
+			if err := query.Validate(); !isDataContractError(err, test.field) {
+				t.Fatalf("error=%v want field=%s", err, test.field)
+			}
+		})
+	}
+}
+
+func TestDataAggregatePageValidationEnforcesMetricAndGroupShape(t *testing.T) {
+	page := DataAggregatePage{
+		Metrics: []DataAggregateMetric{
+			{Operation: DataAggregateCount},
+			{Operation: DataAggregateSum, Field: "amount"},
+			{Operation: DataAggregateMax, Field: "quantity"},
+		},
+		GroupBy: []string{"status"},
+		Rows: []DataAggregateRow{{
+			Group: map[string]DataValue{"status": {Type: DataValueString, Value: "active"}},
+			Values: []DataValue{
+				{Type: DataValueInteger, Value: "12"},
+				{Type: DataValueDecimal, Value: "1234.50"},
+				{Type: DataValueInteger, Value: "90"},
+			},
+		}},
+	}
+	if err := page.Validate(); err != nil {
+		t.Fatal(err)
+	}
+
+	invalid := page
+	invalid.Rows = append([]DataAggregateRow(nil), page.Rows...)
+	invalid.Rows[0].Values = append([]DataValue(nil), page.Rows[0].Values...)
+	invalid.Rows[0].Values[0] = DataValue{Type: DataValueInteger, Value: "-1"}
+	if err := invalid.Validate(); !isDataContractError(err, "rows[0].values[0]") {
+		t.Fatalf("negative count error=%v", err)
+	}
+
+	invalid = page
+	invalid.Rows = []DataAggregateRow{{Group: map[string]DataValue{}, Values: page.Rows[0].Values}}
+	if err := invalid.Validate(); !isDataContractError(err, "rows[0].group") {
+		t.Fatalf("group shape error=%v", err)
+	}
+
+	ungrouped := DataAggregatePage{
+		Metrics: []DataAggregateMetric{{Operation: DataAggregateCount}},
+		Rows:    []DataAggregateRow{{Group: map[string]DataValue{}, Values: []DataValue{{Type: DataValueInteger, Value: "0"}}}},
+	}
+	if err := ungrouped.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	ungrouped.Rows = nil
+	if err := ungrouped.Validate(); !isDataContractError(err, "rows") {
+		t.Fatalf("ungrouped row error=%v", err)
+	}
+}
+
 func TestDataContractWireUsesCamelCase(t *testing.T) {
 	raw, err := json.Marshal(validDataQuery())
 	if err != nil {
@@ -223,6 +323,15 @@ func TestDataContractWireUsesCamelCase(t *testing.T) {
 	for _, expected := range []string{`"operation":"adjust"`, `"adjustment":{"field":"amount"`, `"delta":{"type":"decimal","value":"1.25"}`, `"minimum":{"type":"decimal","value":"0.00"}`} {
 		if !strings.Contains(string(adjustmentRaw), expected) {
 			t.Fatalf("adjustment wire=%s missing=%s", adjustmentRaw, expected)
+		}
+	}
+	aggregateRaw, err := json.Marshal(validDataAggregateQuery())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{`"operation":"count"`, `"operation":"sum","field":"amount"`, `"groupBy":["status"]`} {
+		if !strings.Contains(string(aggregateRaw), expected) {
+			t.Fatalf("aggregate wire=%s missing=%s", aggregateRaw, expected)
 		}
 	}
 	for _, forbidden := range []string{`"Resource"`, `"TenantIDs"`, `"OrganizationIDs"`} {
@@ -279,6 +388,24 @@ func validDataMutation(operation DataMutationOperation) DataMutation {
 		}
 	}
 	return mutation
+}
+
+func validDataAggregateQuery() DataAggregateQuery {
+	return DataAggregateQuery{
+		Table: "stock",
+		Scope: DataScopeIntent{
+			Permission: Permission{Resource: "medical_oa.stock", Action: "read"},
+			Filter:     ScopeFilter{TenantIDs: []string{"tenant-1"}, OrganizationIDs: []string{"org-1"}},
+		},
+		Filter: &DataFilter{Field: "status", Operator: DataOperatorEqual, Value: dataValue(DataValueString, "active")},
+		Metrics: []DataAggregateMetric{
+			{Operation: DataAggregateCount},
+			{Operation: DataAggregateSum, Field: "amount"},
+			{Operation: DataAggregateMax, Field: "quantity"},
+		},
+		GroupBy: []string{"status"},
+		Page:    DataPageRequest{Limit: 50},
+	}
 }
 
 func dataValue(kind DataValueType, value string) *DataValue {

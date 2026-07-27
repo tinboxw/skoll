@@ -14,17 +14,20 @@ import (
 )
 
 const (
-	MaxDataQueryFields     = 64
-	MaxDataQuerySorts      = 8
-	MaxDataQueryLimit      = 200
-	MaxDataFilterDepth     = 8
-	MaxDataFilterNodes     = 64
-	MaxDataFilterValues    = 100
-	MaxDataMutationValues  = 128
-	MaxDataScopeIDs        = 64
-	MaxDataValueBytes      = 1 << 20
-	MaxDataCursorBytes     = 512
-	MaxDataIdempotencySize = 128
+	MaxDataQueryFields      = 64
+	MaxDataQuerySorts       = 8
+	MaxDataQueryLimit       = 200
+	MaxDataFilterDepth      = 8
+	MaxDataFilterNodes      = 64
+	MaxDataFilterValues     = 100
+	MaxDataMutationValues   = 128
+	MaxDataAggregateMetrics = 16
+	MaxDataAggregateGroups  = 100
+	MaxDataGroupFields      = 4
+	MaxDataScopeIDs         = 64
+	MaxDataValueBytes       = 1 << 20
+	MaxDataCursorBytes      = 512
+	MaxDataIdempotencySize  = 128
 )
 
 var (
@@ -42,6 +45,11 @@ type DataStoreService interface {
 	// Query and Mutate honor the transaction carried by a TransactionService callback context.
 	Query(ctx context.Context, query DataQuery) (DataPage, error)
 	Mutate(ctx context.Context, mutation DataMutation) (DataMutationResult, error)
+}
+
+type DataAggregateService interface {
+	// Aggregate honors the transaction carried by a TransactionService callback context.
+	Aggregate(ctx context.Context, query DataAggregateQuery) (DataAggregatePage, error)
 }
 
 type DataValueType string
@@ -352,6 +360,198 @@ func (p DataPage) Validate() error {
 		}
 	}
 	return nil
+}
+
+type DataAggregateOperation string
+
+const (
+	DataAggregateCount DataAggregateOperation = "count"
+	DataAggregateSum   DataAggregateOperation = "sum"
+	DataAggregateMin   DataAggregateOperation = "min"
+	DataAggregateMax   DataAggregateOperation = "max"
+)
+
+type DataAggregateMetric struct {
+	Operation DataAggregateOperation `json:"operation"`
+	Field     string                 `json:"field,omitempty"`
+}
+
+func (m DataAggregateMetric) Validate() error {
+	return m.validate("metric")
+}
+
+func (m DataAggregateMetric) validate(path string) error {
+	switch m.Operation {
+	case DataAggregateCount:
+		if m.Field != "" {
+			return invalidDataContract(path+".field", "count metric does not accept a field")
+		}
+	case DataAggregateSum, DataAggregateMin, DataAggregateMax:
+		if err := validateDataIdentifier(path+".field", m.Field); err != nil {
+			return err
+		}
+		if _, reserved := reservedDataScopeFields[m.Field]; reserved {
+			return invalidDataContract(path+".field", "trusted scope field cannot be aggregated")
+		}
+	default:
+		return invalidDataContract(path+".operation", "aggregate operation is unsupported")
+	}
+	return nil
+}
+
+type DataAggregateQuery struct {
+	Table   string                `json:"table"`
+	Scope   DataScopeIntent       `json:"scope"`
+	Filter  *DataFilter           `json:"filter,omitempty"`
+	Metrics []DataAggregateMetric `json:"metrics"`
+	GroupBy []string              `json:"groupBy,omitempty"`
+	Page    DataPageRequest       `json:"page"`
+}
+
+func (q DataAggregateQuery) Validate() error {
+	if err := validateDataIdentifier("table", q.Table); err != nil {
+		return err
+	}
+	if err := q.Scope.Validate(); err != nil {
+		return err
+	}
+	if q.Filter != nil {
+		if err := q.Filter.Validate(); err != nil {
+			return err
+		}
+	}
+	if len(q.Metrics) == 0 || len(q.Metrics) > MaxDataAggregateMetrics {
+		return invalidDataContract("metrics", "aggregate query requires a bounded metric list")
+	}
+	seenMetrics := make(map[string]struct{}, len(q.Metrics))
+	for index, metric := range q.Metrics {
+		if err := metric.validate(fmt.Sprintf("metrics[%d]", index)); err != nil {
+			return err
+		}
+		key := string(metric.Operation) + ":" + metric.Field
+		if _, exists := seenMetrics[key]; exists {
+			return invalidDataContract(fmt.Sprintf("metrics[%d]", index), "aggregate metric is duplicated")
+		}
+		seenMetrics[key] = struct{}{}
+	}
+	if len(q.GroupBy) > MaxDataGroupFields {
+		return invalidDataContract("groupBy", "aggregate group field limit exceeded")
+	}
+	seenGroups := make(map[string]struct{}, len(q.GroupBy))
+	for index, field := range q.GroupBy {
+		path := fmt.Sprintf("groupBy[%d]", index)
+		if err := validateDataIdentifier(path, field); err != nil {
+			return err
+		}
+		if _, reserved := reservedDataScopeFields[field]; reserved {
+			return invalidDataContract(path, "trusted scope field cannot be grouped")
+		}
+		if _, exists := seenGroups[field]; exists {
+			return invalidDataContract(path, "aggregate group field is duplicated")
+		}
+		seenGroups[field] = struct{}{}
+	}
+	if err := q.Page.Validate(); err != nil {
+		return err
+	}
+	if len(q.GroupBy) == 0 {
+		if q.Page.Cursor != "" || q.Page.Limit != 1 {
+			return invalidDataContract("page", "ungrouped aggregate query requires one non-cursor result")
+		}
+	} else if q.Page.Limit > MaxDataAggregateGroups {
+		return invalidDataContract("page.limit", "aggregate group page exceeds the supported limit")
+	}
+	return nil
+}
+
+type DataAggregateRow struct {
+	Group  map[string]DataValue `json:"group"`
+	Values []DataValue          `json:"values"`
+}
+
+type DataAggregatePage struct {
+	Metrics    []DataAggregateMetric `json:"metrics"`
+	GroupBy    []string              `json:"groupBy"`
+	Rows       []DataAggregateRow    `json:"rows"`
+	NextCursor string                `json:"nextCursor,omitempty"`
+	HasMore    bool                  `json:"hasMore"`
+}
+
+func (p DataAggregatePage) Validate() error {
+	query := DataAggregateQuery{
+		Table: "response", Scope: validDataResponseScope(), Metrics: p.Metrics, GroupBy: p.GroupBy,
+		Page: DataPageRequest{Limit: aggregateResponseLimit(p.GroupBy)},
+	}
+	if err := query.Validate(); err != nil {
+		return err
+	}
+	if len(p.Rows) > aggregateResponseLimit(p.GroupBy) {
+		return invalidDataContract("rows", "aggregate page exceeds the row limit")
+	}
+	if len(p.GroupBy) == 0 && len(p.Rows) != 1 {
+		return invalidDataContract("rows", "ungrouped aggregate page requires exactly one row")
+	}
+	if len(p.NextCursor) > MaxDataCursorBytes {
+		return invalidDataContract("nextCursor", "next cursor exceeds size limit")
+	}
+	if p.HasMore != (p.NextCursor != "") {
+		return invalidDataContract("nextCursor", "next cursor presence must match hasMore")
+	}
+	if len(p.GroupBy) == 0 && p.HasMore {
+		return invalidDataContract("nextCursor", "ungrouped aggregate page cannot continue")
+	}
+	for rowIndex, row := range p.Rows {
+		if err := validateAggregateRow(row, p.Metrics, p.GroupBy, rowIndex); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateAggregateRow(row DataAggregateRow, metrics []DataAggregateMetric, groupBy []string, rowIndex int) error {
+	path := fmt.Sprintf("rows[%d]", rowIndex)
+	if len(row.Group) != len(groupBy) {
+		return invalidDataContract(path+".group", "aggregate group values do not match group fields")
+	}
+	for _, field := range groupBy {
+		value, exists := row.Group[field]
+		if !exists {
+			return invalidDataContract(path+".group."+field, "aggregate group value is missing")
+		}
+		if err := value.Validate(); err != nil {
+			return withDataErrorPath(path+".group."+field, err)
+		}
+	}
+	if len(row.Values) != len(metrics) {
+		return invalidDataContract(path+".values", "aggregate values do not match metrics")
+	}
+	for index, value := range row.Values {
+		if err := value.Validate(); err != nil {
+			return withDataErrorPath(fmt.Sprintf("%s.values[%d]", path, index), err)
+		}
+		metric := metrics[index]
+		if metric.Operation == DataAggregateCount {
+			if value.Type != DataValueInteger || strings.HasPrefix(value.Value, "-") {
+				return invalidDataContract(fmt.Sprintf("%s.values[%d]", path, index), "count result must be a non-negative integer")
+			}
+			continue
+		}
+		if value.Type != DataValueNull && value.Type != DataValueInteger && value.Type != DataValueDecimal {
+			return invalidDataContract(fmt.Sprintf("%s.values[%d]", path, index), "numeric aggregate result has an invalid type")
+		}
+	}
+	return nil
+}
+
+func aggregateResponseLimit(groupBy []string) int {
+	if len(groupBy) == 0 {
+		return 1
+	}
+	return MaxDataAggregateGroups
+}
+
+func validDataResponseScope() DataScopeIntent {
+	return DataScopeIntent{Permission: Permission{Resource: "aggregate.response", Action: "validate"}}
 }
 
 type DataMutationOperation string
