@@ -42,13 +42,9 @@ var reservedDataScopeFields = map[string]struct{}{
 }
 
 type DataStoreService interface {
-	// Query and Mutate honor the transaction carried by a TransactionService callback context.
+	// Operations honor the transaction carried by a TransactionService callback context.
 	Query(ctx context.Context, query DataQuery) (DataPage, error)
 	Mutate(ctx context.Context, mutation DataMutation) (DataMutationResult, error)
-}
-
-type DataAggregateService interface {
-	// Aggregate honors the transaction carried by a TransactionService callback context.
 	Aggregate(ctx context.Context, query DataAggregateQuery) (DataAggregatePage, error)
 }
 

@@ -2386,3 +2386,49 @@ Result: FF1-04 passed. Plugin APIs can now describe bounded, scope-preserving nu
 ### Commit
 
 `FF1-04: define scoped aggregate contracts`
+
+## FF1-05 Execute Scoped Aggregation Across SQL Dialects
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Execute host-owned, declared-field aggregates through the current plugin SDK, gateway, trusted scope, transaction context, and SQL datastore.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| End-to-end capability | Pass | `DataStoreService.Aggregate` is available through SDK, plugin client, strict host gateway dispatch, datastore planner, and database executor |
+| Schema authorization | Pass | Plugin manifests must explicitly declare `aggregatable` and `groupable`; undeclared fields and unsupported bytes/JSON or non-numeric aggregate fields fail closed |
+| Trusted scope | Pass | Tenant, organization, and owner predicates are resolved by the host and bound into every aggregate statement; a foreign-tenant fixture cannot affect results |
+| SQL safety | Pass | Metrics and groups resolve only declared identifiers; host-owned aliases and bound values prevent caller expressions, aliases, raw SQL, or scope-field aggregation |
+| Dialect planning | Pass | SQLite, PostgreSQL, and MySQL golden plans use dialect-safe quoting and placeholders with the same filter, scope, grouping, order, cursor, and limit semantics |
+| Numeric integrity | Pass | Integer count/sum/min/max values are typed deterministically; PostgreSQL/MySQL decimal operands remain exact strings; SQLite decimal aggregation is rejected before execution because NUMERIC affinity cannot guarantee exactness |
+| Empty and null semantics | Pass | Empty ungrouped input returns count zero and null numeric aggregates; grouped input returns no synthetic rows |
+| Bounded pagination | Pass | Group ordering is deterministic, keyset cursors are strict, and 152 groups are returned as bounded 100 + 52 pages without duplicates |
+| Reconciliation | Pass | Grouped and ungrouped results reconcile with source rows, including repeated groups and excluded cross-scope rows |
+| Transaction behavior | Pass | Aggregates observe writes inside the current outer transaction and rolled-back rows disappear after transaction failure |
+| IPC contract | Pass | Plugin client and host gateway preserve typed aggregate requests and responses; mismatched descriptors, unknown fields, and invalid requests are rejected |
+| Regression | Pass | Focused datastore/SDK/client/gateway tests and every Go package pass |
+| Framework purity | Pass | The implementation is industry-neutral and adds no compatibility parser, fallback, legacy interface, or business-specific aggregate rule |
+
+### Failed Runs And Re-Execution
+
+- The first compile-only run exposed test fakes that no longer satisfied the current `DataStoreService` after aggregate became a first-class method. Every host-service fake was updated to the current interface, and the compile-only plus full regression gates then passed.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/datastore -run 'TestAggregate' -count=1 -v
+go test ./internal/plugin/datastore -run 'TestAggregateServiceBoundsLargeGroupPagesAndReconcilesTotals' -count=1 -v
+go test ./internal/plugin/datastore ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin -run 'Test(Aggregate|DataAggregate|LoadSchemaManifest|DataStoreClient|HostGateway)' -count=1 -v
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: FF1-05 passed. Current plugins can execute bounded, transaction-aware, scope-preserving integer aggregates on SQLite and dialect-safe exact-decimal plans on PostgreSQL/MySQL, while SQLite decimal aggregation fails closed.
+
+### Commit
+
+`FF1-05: execute scoped aggregate queries`

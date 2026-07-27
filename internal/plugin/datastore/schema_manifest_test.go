@@ -23,6 +23,11 @@ tables:
         type: decimal
         mutable: true
         filterable: true
+        aggregatable: true
+      - name: status
+        type: string
+        filterable: true
+        groupable: true
     indexes:
       - fields: [amount]
 `
@@ -33,7 +38,9 @@ tables:
 	if err != nil || !present {
 		t.Fatalf("load schema: present=%v err=%v", present, err)
 	}
-	if schema.PluginID != "medical_oa" || len(schema.Tables) != 1 || schema.Tables[0].MutationPolicy != TableMutationMutable || schema.Tables[0].Fields[1].Type != "decimal" {
+	if schema.PluginID != "medical_oa" || len(schema.Tables) != 1 || schema.Tables[0].MutationPolicy != TableMutationMutable ||
+		schema.Tables[0].Fields[1].Type != "decimal" || !schema.Tables[0].Fields[1].Aggregatable ||
+		!schema.Tables[0].Fields[2].Groupable {
 		t.Fatalf("unexpected schema: %+v", schema)
 	}
 

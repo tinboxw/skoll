@@ -674,6 +674,10 @@ func (s *pharmaLifecycleStore) Mutate(ctx context.Context, mutation pluginsdk.Da
 	return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
 }
 
+func (s *pharmaLifecycleStore) Aggregate(context.Context, pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	return pluginsdk.DataAggregatePage{}, nil
+}
+
 func pharmaLifecycleScopeFromContext(ctx context.Context) (pharmaLifecycleScope, error) {
 	claims, ok := security.JWTClaimsFromContext(ctx)
 	if !ok {

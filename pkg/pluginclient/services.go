@@ -3,6 +3,7 @@ package pluginclient
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"time"
 
@@ -62,6 +63,20 @@ func (s dataStoreService) Query(ctx context.Context, query pluginsdk.DataQuery) 
 	if err == nil {
 		if validateErr := validateDataPageResponse(query, out); validateErr != nil {
 			err = pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "response", "plugin host returned an invalid data page", true)
+		}
+	}
+	return
+}
+
+func (s dataStoreService) Aggregate(ctx context.Context, query pluginsdk.DataAggregateQuery) (out pluginsdk.DataAggregatePage, err error) {
+	if err = query.Validate(); err != nil {
+		return out, err
+	}
+	err = s.client.call(ctx, "datastore", "aggregate", query, &out)
+	if err == nil {
+		if validateErr := out.Validate(); validateErr != nil ||
+			!reflect.DeepEqual(out.Metrics, query.Metrics) || !reflect.DeepEqual(out.GroupBy, query.GroupBy) {
+			err = pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "response", "plugin host returned an invalid aggregate page", true)
 		}
 	}
 	return

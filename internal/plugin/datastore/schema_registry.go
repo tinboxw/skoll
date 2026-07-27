@@ -48,13 +48,15 @@ var (
 )
 
 type FieldSchema struct {
-	Name        string
-	Type        pluginsdk.DataValueType
-	Nullable    bool
-	Mutable     bool
-	Filterable  bool
-	Sortable    bool
-	HostManaged bool
+	Name         string
+	Type         pluginsdk.DataValueType
+	Nullable     bool
+	Mutable      bool
+	Filterable   bool
+	Sortable     bool
+	Aggregatable bool
+	Groupable    bool
+	HostManaged  bool
 }
 
 type IndexSchema struct {
@@ -303,8 +305,11 @@ func buildResolvedTable(pluginID, namespace string, table TableSchema, path stri
 		if !validStorageType(field.Type) {
 			return ResolvedTable{}, invalidSchema(fieldPath+".type", "field storage type is unsupported")
 		}
-		if (field.Type == pluginsdk.DataValueBytes || field.Type == pluginsdk.DataValueJSON) && (field.Filterable || field.Sortable) {
-			return ResolvedTable{}, invalidSchema(fieldPath, "bytes and json fields cannot be filterable or sortable")
+		if (field.Type == pluginsdk.DataValueBytes || field.Type == pluginsdk.DataValueJSON) && (field.Filterable || field.Sortable || field.Aggregatable || field.Groupable) {
+			return ResolvedTable{}, invalidSchema(fieldPath, "bytes and json fields cannot participate in queries")
+		}
+		if field.Aggregatable && field.Type != pluginsdk.DataValueInteger && field.Type != pluginsdk.DataValueDecimal {
+			return ResolvedTable{}, invalidSchema(fieldPath+".aggregatable", "aggregate fields must be integer or decimal")
 		}
 		if field.HostManaged {
 			return ResolvedTable{}, invalidSchema(fieldPath+".hostManaged", "plugin fields cannot be host managed")

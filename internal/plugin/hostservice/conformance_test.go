@@ -43,6 +43,9 @@ func (s *conformanceDataStore) Mutate(_ context.Context, mutation pluginsdk.Data
 	s.record = &record
 	return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
 }
+func (s *conformanceDataStore) Aggregate(context.Context, pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	return pluginsdk.DataAggregatePage{}, nil
+}
 
 func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	bundle, err := store.NewBundle(store.Options{Mode: store.ModeMemory})

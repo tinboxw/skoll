@@ -31,6 +31,9 @@ func (hostTestDataStore) Query(context.Context, DataQuery) (DataPage, error) {
 func (hostTestDataStore) Mutate(context.Context, DataMutation) (DataMutationResult, error) {
 	return DataMutationResult{}, nil
 }
+func (hostTestDataStore) Aggregate(context.Context, DataAggregateQuery) (DataAggregatePage, error) {
+	return DataAggregatePage{}, nil
+}
 
 type hostTestDocumentNumbers struct{}
 

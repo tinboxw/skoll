@@ -72,6 +72,28 @@ func (gatewayDataStore) Mutate(_ context.Context, mutation pluginsdk.DataMutatio
 	return pluginsdk.DataMutationResult{RowsAffected: 1}, nil
 }
 
+func (gatewayDataStore) Aggregate(_ context.Context, query pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	if query.Table != "assets" {
+		return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, "table", "table is not declared by the plugin", false)
+	}
+	page := pluginsdk.DataAggregatePage{
+		Metrics: append([]pluginsdk.DataAggregateMetric(nil), query.Metrics...),
+		GroupBy: append([]string(nil), query.GroupBy...),
+		Rows:    []pluginsdk.DataAggregateRow{},
+	}
+	if len(query.GroupBy) == 0 {
+		values := make([]pluginsdk.DataValue, len(query.Metrics))
+		for index, metric := range query.Metrics {
+			values[index] = pluginsdk.DataValue{Type: pluginsdk.DataValueNull}
+			if metric.Operation == pluginsdk.DataAggregateCount {
+				values[index] = pluginsdk.DataValue{Type: pluginsdk.DataValueInteger, Value: "1"}
+			}
+		}
+		page.Rows = append(page.Rows, pluginsdk.DataAggregateRow{Group: map[string]pluginsdk.DataValue{}, Values: values})
+	}
+	return page, nil
+}
+
 type gatewayDocumentNumbers struct{}
 
 func (gatewayDocumentNumbers) Preview(_ context.Context, input pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
@@ -346,6 +368,10 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	page, err := services.DataStore.Query(ctx, basicGatewayQuery())
 	if err != nil || len(page.Records) != 1 || page.Records[0].Values["id"].Value != "asset-1" {
 		t.Fatalf("datastore page=%+v err=%v", page, err)
+	}
+	aggregatePage, err := services.DataStore.Aggregate(ctx, basicGatewayAggregateQuery())
+	if err != nil || len(aggregatePage.Rows) != 1 || aggregatePage.Rows[0].Values[0].Value != "1" {
+		t.Fatalf("datastore aggregate=%+v err=%v", aggregatePage, err)
 	}
 	numberInput := pluginsdk.DocumentNumberInput{
 		Rule: pluginsdk.DocumentNumberRule{
@@ -703,6 +729,14 @@ func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T)
 	if err = json.Unmarshal(response.Body.Bytes(), &page); err != nil || len(page.Records) != 1 || page.Records[0].Values["id"].Value != "asset-1" {
 		t.Fatalf("page=%+v err=%v", page, err)
 	}
+	response = callGatewayJSON(t, gateway, credential.Token, "/v1/datastore/aggregate", basicGatewayAggregateQuery())
+	if response.Code != http.StatusOK {
+		t.Fatalf("aggregate status=%d body=%s", response.Code, response.Body.String())
+	}
+	var aggregatePage pluginsdk.DataAggregatePage
+	if err = json.Unmarshal(response.Body.Bytes(), &aggregatePage); err != nil || len(aggregatePage.Rows) != 1 || aggregatePage.Rows[0].Values[0].Value != "1" {
+		t.Fatalf("aggregate page=%+v err=%v", aggregatePage, err)
+	}
 
 	mutation := pluginsdk.DataMutation{
 		Table: "foreign_assets", Operation: pluginsdk.DataMutationDelete,
@@ -715,6 +749,10 @@ func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T)
 	query.Fields = nil
 	response = callGatewayJSON(t, gateway, credential.Token, "/v1/datastore/query", query)
 	assertGatewayError(t, response, http.StatusBadRequest, "invalid_request", "fields")
+	invalidAggregate := basicGatewayAggregateQuery()
+	invalidAggregate.Metrics = nil
+	response = callGatewayJSON(t, gateway, credential.Token, "/v1/datastore/aggregate", invalidAggregate)
+	assertGatewayError(t, response, http.StatusBadRequest, "invalid_request", "metrics")
 
 	request := httptest.NewRequest(http.MethodPost, "/v1/datastore/query", strings.NewReader(`{}`))
 	request.RemoteAddr = "127.0.0.1:1234"
@@ -737,6 +775,17 @@ func basicGatewayQuery() pluginsdk.DataQuery {
 		Table: "assets", Fields: []string{"id"},
 		Scope: pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "equipment.asset", Action: "read"}},
 		Sort:  []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 20},
+	}
+}
+
+func basicGatewayAggregateQuery() pluginsdk.DataAggregateQuery {
+	return pluginsdk.DataAggregateQuery{
+		Table: "assets",
+		Scope: pluginsdk.DataScopeIntent{Permission: pluginsdk.Permission{Resource: "equipment.asset", Action: "read"}},
+		Metrics: []pluginsdk.DataAggregateMetric{
+			{Operation: pluginsdk.DataAggregateCount},
+		},
+		Page: pluginsdk.DataPageRequest{Limit: 1},
 	}
 }
 

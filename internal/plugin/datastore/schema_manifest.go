@@ -28,12 +28,14 @@ type schemaManifestTable struct {
 }
 
 type schemaManifestField struct {
-	Name       string                  `yaml:"name"`
-	Type       pluginsdk.DataValueType `yaml:"type"`
-	Nullable   bool                    `yaml:"nullable"`
-	Mutable    bool                    `yaml:"mutable"`
-	Filterable bool                    `yaml:"filterable"`
-	Sortable   bool                    `yaml:"sortable"`
+	Name         string                  `yaml:"name"`
+	Type         pluginsdk.DataValueType `yaml:"type"`
+	Nullable     bool                    `yaml:"nullable"`
+	Mutable      bool                    `yaml:"mutable"`
+	Filterable   bool                    `yaml:"filterable"`
+	Sortable     bool                    `yaml:"sortable"`
+	Aggregatable bool                    `yaml:"aggregatable"`
+	Groupable    bool                    `yaml:"groupable"`
 }
 
 type schemaManifestIndex struct {
@@ -87,6 +89,7 @@ func LoadSchemaManifest(pluginID, pluginDir string) (PluginSchema, bool, error) 
 			table.Fields = append(table.Fields, FieldSchema{
 				Name: strings.TrimSpace(field.Name), Type: field.Type, Nullable: field.Nullable,
 				Mutable: field.Mutable, Filterable: field.Filterable, Sortable: field.Sortable,
+				Aggregatable: field.Aggregatable, Groupable: field.Groupable,
 			})
 		}
 		for _, index := range tableDocument.Indexes {

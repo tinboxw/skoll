@@ -157,6 +157,10 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 	return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
 }
 
+func (s *testDataStore) Aggregate(context.Context, pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	return pluginsdk.DataAggregatePage{}, nil
+}
+
 type testFiles struct {
 	mu      sync.Mutex
 	items   map[string]pluginsdk.FileObject

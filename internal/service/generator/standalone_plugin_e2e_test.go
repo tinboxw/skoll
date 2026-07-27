@@ -358,6 +358,9 @@ func (generatedDataStore) Query(context.Context, pluginsdk.DataQuery) (pluginsdk
 func (generatedDataStore) Mutate(context.Context, pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
 	return pluginsdk.DataMutationResult{}, nil
 }
+func (generatedDataStore) Aggregate(context.Context, pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	return pluginsdk.DataAggregatePage{}, nil
+}
 
 type generatedDocumentNumbers struct{}
 

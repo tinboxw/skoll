@@ -16,6 +16,7 @@ import (
 
 func TestDataStoreClientPreservesTypedContractsAndScope(t *testing.T) {
 	query := clientQuery()
+	aggregateQuery := clientAggregateQuery()
 	mutation := clientMutation()
 	page := pluginsdk.DataPage{
 		Records: []pluginsdk.DataRecord{{Values: map[string]pluginsdk.DataValue{
@@ -26,6 +27,17 @@ func TestDataStoreClientPreservesTypedContractsAndScope(t *testing.T) {
 		NextCursor: "cursor-next", HasMore: true,
 	}
 	mutationResult := pluginsdk.DataMutationResult{RowsAffected: 1, Record: &page.Records[0]}
+	aggregatePage := pluginsdk.DataAggregatePage{
+		Metrics: aggregateQuery.Metrics,
+		GroupBy: aggregateQuery.GroupBy,
+		Rows: []pluginsdk.DataAggregateRow{{
+			Group: map[string]pluginsdk.DataValue{"status": {Type: pluginsdk.DataValueString, Value: "active"}},
+			Values: []pluginsdk.DataValue{
+				{Type: pluginsdk.DataValueInteger, Value: "2"},
+				{Type: pluginsdk.DataValueDecimal, Value: "39.90"},
+			},
+		}},
+	}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get(AuthorizationHeader) != "Bearer host-token" || r.Header.Get(UserTokenHeader) != "user-token" {
 			t.Errorf("headers=%v", r.Header)
@@ -43,6 +55,12 @@ func TestDataStoreClientPreservesTypedContractsAndScope(t *testing.T) {
 				t.Errorf("mutation=%+v err=%v", received, err)
 			}
 			writeClientJSON(t, w, http.StatusOK, mutationResult)
+		case "/v1/datastore/aggregate":
+			var received pluginsdk.DataAggregateQuery
+			if err := json.NewDecoder(r.Body).Decode(&received); err != nil || !reflect.DeepEqual(received, aggregateQuery) {
+				t.Errorf("aggregate=%+v err=%v", received, err)
+			}
+			writeClientJSON(t, w, http.StatusOK, aggregatePage)
 		default:
 			http.NotFound(w, r)
 		}
@@ -58,6 +76,10 @@ func TestDataStoreClientPreservesTypedContractsAndScope(t *testing.T) {
 	gotMutation, err := host.DataStore.Mutate(ctx, mutation)
 	if err != nil || !reflect.DeepEqual(gotMutation, mutationResult) {
 		t.Fatalf("mutation=%+v err=%v", gotMutation, err)
+	}
+	gotAggregate, err := host.DataStore.Aggregate(ctx, aggregateQuery)
+	if err != nil || !reflect.DeepEqual(gotAggregate, aggregatePage) {
+		t.Fatalf("aggregate=%+v err=%v", gotAggregate, err)
 	}
 }
 
@@ -113,6 +135,23 @@ func TestDataStoreClientRestoresStableErrorsAndRejectsInvalidResponses(t *testin
 	defer strictServer.Close()
 	if _, err = newClientHost(t, strictServer).DataStore.Query(context.Background(), clientQuery()); err == nil {
 		t.Fatal("unknown success response field was accepted")
+	}
+
+	mismatchedAggregateServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		query := clientAggregateQuery()
+		query.GroupBy = []string{"category"}
+		writeClientJSON(t, w, http.StatusOK, pluginsdk.DataAggregatePage{
+			Metrics: query.Metrics,
+			GroupBy: query.GroupBy,
+			Rows: []pluginsdk.DataAggregateRow{{
+				Group:  map[string]pluginsdk.DataValue{"category": {Type: pluginsdk.DataValueString, Value: "device"}},
+				Values: []pluginsdk.DataValue{{Type: pluginsdk.DataValueInteger, Value: "1"}, {Type: pluginsdk.DataValueDecimal, Value: "19.95"}},
+			}},
+		})
+	}))
+	defer mismatchedAggregateServer.Close()
+	if _, err = newClientHost(t, mismatchedAggregateServer).DataStore.Aggregate(context.Background(), clientAggregateQuery()); err == nil {
+		t.Fatal("mismatched aggregate response descriptors were accepted")
 	}
 }
 
@@ -230,6 +269,22 @@ func clientMutation() pluginsdk.DataMutation {
 			"meta":   {Type: pluginsdk.DataValueJSON, Value: `{"coldChain":true}`},
 		},
 		Returning: []string{"id", "amount", "meta"}, IdempotencyKey: "update-product-1", ExpectedVersion: &version,
+	}
+}
+
+func clientAggregateQuery() pluginsdk.DataAggregateQuery {
+	return pluginsdk.DataAggregateQuery{
+		Table: "products",
+		Scope: pluginsdk.DataScopeIntent{
+			Permission: pluginsdk.Permission{Resource: "medical_oa.product", Action: "read"},
+			Filter:     pluginsdk.ScopeFilter{TenantIDs: []string{"tenant-a"}, OrganizationIDs: []string{"org-a"}},
+		},
+		Metrics: []pluginsdk.DataAggregateMetric{
+			{Operation: pluginsdk.DataAggregateCount},
+			{Operation: pluginsdk.DataAggregateSum, Field: "amount"},
+		},
+		GroupBy: []string{"status"},
+		Page:    pluginsdk.DataPageRequest{Limit: 25},
 	}
 }
 

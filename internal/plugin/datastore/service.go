@@ -3,6 +3,7 @@ package datastore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/tinboxw/skoll/internal/repository"
@@ -13,14 +14,19 @@ import (
 
 // Service binds the public datastore port to one plugin identity.
 type Service struct {
-	pluginID string
-	db       *gorm.DB
-	planner  *QueryPlanner
-	mutator  *MutationExecutor
+	pluginID   string
+	db         *gorm.DB
+	planner    *QueryPlanner
+	aggregator *AggregatePlanner
+	mutator    *MutationExecutor
 }
 
 func NewService(db *gorm.DB, uow repository.UnitOfWork, registry *SchemaRegistry, scopes pluginsdk.DataScopeService, audit pluginsdk.AuditService, dialect SQLDialect, pluginID string) (*Service, error) {
 	planner, err := NewQueryPlanner(registry, scopes, dialect)
+	if err != nil {
+		return nil, err
+	}
+	aggregator, err := NewAggregatePlanner(registry, scopes, dialect)
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +37,7 @@ func NewService(db *gorm.DB, uow repository.UnitOfWork, registry *SchemaRegistry
 	if _, err = PluginNamespace(pluginID); err != nil {
 		return nil, err
 	}
-	return &Service{pluginID: pluginID, db: db, planner: planner, mutator: mutator}, nil
+	return &Service{pluginID: pluginID, db: db, planner: planner, aggregator: aggregator, mutator: mutator}, nil
 }
 
 func (s *Service) Query(ctx context.Context, query pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
@@ -110,6 +116,80 @@ func (s *Service) Mutate(ctx context.Context, mutation pluginsdk.DataMutation) (
 		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "service", "plugin datastore service is unavailable", true)
 	}
 	return s.mutator.Mutate(ctx, s.pluginID, mutation)
+}
+
+func (s *Service) Aggregate(ctx context.Context, query pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	if s == nil || s.db == nil || s.aggregator == nil {
+		return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "service", "plugin aggregate service is unavailable", true)
+	}
+	plan, err := s.aggregator.Plan(ctx, s.pluginID, query)
+	if err != nil {
+		return pluginsdk.DataAggregatePage{}, err
+	}
+	db := storesql.ResolveDB(ctx, s.db)
+	if db == nil {
+		return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "database", "plugin datastore database is unavailable", true)
+	}
+	rows, err := db.WithContext(ctx).Raw(plan.SQL, plan.Args...).Rows()
+	if err != nil {
+		return pluginsdk.DataAggregatePage{}, queryDatabaseError(err)
+	}
+	defer rows.Close()
+
+	page := pluginsdk.DataAggregatePage{
+		Metrics: append([]pluginsdk.DataAggregateMetric(nil), plan.Metrics...),
+		GroupBy: append([]string(nil), plan.GroupBy...),
+		Rows:    make([]pluginsdk.DataAggregateRow, 0, plan.FetchLimit),
+	}
+	for rows.Next() {
+		raw := make([]any, len(plan.GroupBy)+len(plan.Metrics))
+		destinations := make([]any, len(raw))
+		for index := range raw {
+			destinations[index] = &raw[index]
+		}
+		if err = rows.Scan(destinations...); err != nil {
+			return pluginsdk.DataAggregatePage{}, queryDatabaseError(err)
+		}
+		row := pluginsdk.DataAggregateRow{
+			Group:  make(map[string]pluginsdk.DataValue, len(plan.GroupBy)),
+			Values: make([]pluginsdk.DataValue, len(plan.Metrics)),
+		}
+		for index, field := range plan.GroupBy {
+			value, convertErr := databaseDataValue(plan.table.Fields[field], raw[index], fmt.Sprintf("rows.group.%s", field))
+			if convertErr != nil {
+				return pluginsdk.DataAggregatePage{}, convertErr
+			}
+			row.Group[field] = value
+		}
+		for index, metric := range plan.Metrics {
+			schema := FieldSchema{Type: pluginsdk.DataValueInteger}
+			if metric.Operation != pluginsdk.DataAggregateCount {
+				schema = plan.table.Fields[metric.Field]
+				schema.Nullable = true
+			}
+			value, convertErr := databaseDataValue(schema, raw[len(plan.GroupBy)+index], fmt.Sprintf("rows.values[%d]", index))
+			if convertErr != nil {
+				return pluginsdk.DataAggregatePage{}, convertErr
+			}
+			row.Values[index] = value
+		}
+		page.Rows = append(page.Rows, row)
+	}
+	if err = rows.Err(); err != nil {
+		return pluginsdk.DataAggregatePage{}, queryDatabaseError(err)
+	}
+	if len(plan.GroupBy) > 0 && len(page.Rows) > plan.Limit {
+		page.Rows = page.Rows[:plan.Limit]
+		page.HasMore = true
+		page.NextCursor, err = plan.EncodeCursor(page.Rows[len(page.Rows)-1].Group)
+		if err != nil {
+			return pluginsdk.DataAggregatePage{}, err
+		}
+	}
+	if err = page.Validate(); err != nil {
+		return pluginsdk.DataAggregatePage{}, err
+	}
+	return page, nil
 }
 
 func queryDatabaseError(err error) error {
