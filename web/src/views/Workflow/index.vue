@@ -39,7 +39,7 @@ type WorkflowRow = Record<string, unknown> & {
 
 type ViewMode = "pending" | "approved" | "initiated" | "copied";
 
-const DEMO_DEFINITION_ID = "pharma-oa-demo-approval";
+const DEMO_DEFINITION_ID = "general-demo-approval";
 const STORAGE_KEY = "skoll.workflow.instanceIds";
 
 const { t } = useI18n();
@@ -322,7 +322,7 @@ function upsertInstance(instance: WorkflowInstance): void {
 async function ensureDemoDefinition(): Promise<void> {
 	const definition: WorkflowDefinitionRequest = {
 		id: DEMO_DEFINITION_ID,
-		key: "pharma.oa.demo.approval",
+		key: "workflow.demo.approval",
 		name: t("workflow.demoDefinition"),
 		version: 1,
 		nodes: [

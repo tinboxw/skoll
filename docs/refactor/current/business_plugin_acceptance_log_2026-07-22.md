@@ -1922,3 +1922,59 @@ Result: BF5-03D3 passed. Host persistence is industry-neutral; the installed plu
 ### Commit
 
 `BF5-03D3: remove Pharma OA persistence ownership`
+
+## BF5-03D4 Remove Built-In Pharma OA Frontend Surfaces
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Remove host-owned Pharma OA views, API client, locale bundle, static routes, redirects, reminders, and business-specific frontend quality assets while preserving platform-level quality gates.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Host UI ownership | Pass | Deleted 15 built-in Pharma views, the host Pharma API client, business locale bundle, and static integrated-route registry |
+| Routing boundary | Pass | Host routing now consumes only runtime plugin application and remote routes; no `/pharma-oa` redirect or hard-coded Pharma route remains |
+| Platform copy | Pass | Workflow demo, dictionary examples, and reminder targets use industry-neutral platform language and routes |
+| Locale gate | Pass | Replaced the Pharma inventory baseline with a platform baseline; 1,207 bilingual keys, 825 references, and 52 UI files pass with zero hard-coded visible copy |
+| Frontend quality assets | Pass | Large-list checks now validate reusable virtual tables, pagination, cancellation, and Element Plus locale binding; obsolete Pharma smoke, runtime, visual tests, and screenshots were removed |
+| Host regression | Pass | Typecheck, accessibility, theme, 29 component/document tests, and production build pass |
+| Independent plugin | Pass | The plugin-owned frontend passes 19 tests and its independent typecheck, build, lazy-chunk, and bundle budgets |
+| Current-only rule | Pass | No host view, route alias, locale fallback, API proxy, copied screen, or dual UI remains |
+
+The first command review rejected `npm test` because the host package deliberately exposes explicit test scripts instead of a generic alias. The task gate was corrected to `npm run test:components`. The first typecheck then rejected the old locale script because it still read the deleted Pharma locale and page inventory; the script was converted to a platform-wide locale and hard-coded-copy gate before all checks were rerun.
+
+### Verification Commands
+
+```powershell
+cd web
+npm run check:i18n
+npm run check:large-list
+npm run typecheck
+npm run test:components
+npm run build
+
+cd ../plugins/pharma_oa/frontend
+npm test
+npm run build
+
+cd ../../..
+rg -n -i "pharma-oa|pharma_oa|pharma\.|Pharma OA|医药 OA" web/src web/scripts web/tests/e2e web/i18n
+rg -n "src/pharma-oa|views/Pharma|integrated-routes|pharma.json|pharma-oa-baseline" web --glob "!node_modules/**"
+git diff --check
+```
+
+Result: BF5-03D4 passed. The host is a generic Element Plus platform shell; the independent plugin package is now the only medical OA frontend owner.
+
+### Impact Review
+
+- Frontend: removed all built-in medical business screens and their host API client.
+- Routing: plugin navigation is runtime-driven and contains no industry route registry.
+- Localization: platform and plugin dictionaries have separate ownership and independent tests.
+- Quality: reusable platform gates remain active, while business-specific checks live with the plugin package.
+- Compatibility: none; deleted host routes and screens have no aliases or fallback components.
+
+### Commit
+
+`BF5-03D4: remove built-in Pharma OA frontend`

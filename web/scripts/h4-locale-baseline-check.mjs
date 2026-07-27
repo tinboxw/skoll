@@ -8,10 +8,8 @@ import ts from "typescript";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(scriptDir, "..");
-const repoRoot = path.resolve(webRoot, "..");
-const baselinePath = path.join(webRoot, "i18n", "pharma-oa-baseline.json");
+const baselinePath = path.join(webRoot, "i18n", "platform-baseline.json");
 const localeSourcePath = path.join(webRoot, "src", "i18n", "index.ts");
-const pharmaLocalePath = path.join(webRoot, "src", "i18n", "pharma.json");
 const platformLocalePath = path.join(webRoot, "src", "i18n", "platform.json");
 const baseline = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
 const failures = [];
@@ -176,12 +174,10 @@ const localeSource = fs.readFileSync(localeSourcePath, "utf8");
 const localeMessages = extractMessages(localeSource);
 const actualLocales = [...localeMessages.keys()];
 compareLists("supported locale dictionaries", actualLocales, baseline.supportedLocales);
-const pharmaMessages = JSON.parse(fs.readFileSync(pharmaLocalePath, "utf8"));
 const platformMessages = JSON.parse(fs.readFileSync(platformLocalePath, "utf8"));
 for (const locale of baseline.supportedLocales) {
 	localeMessages.set(locale, [
 		...(localeMessages.get(locale) || []),
-		...Object.keys(pharmaMessages[locale] || {}),
 		...Object.keys(platformMessages[locale] || {})
 	]);
 }
@@ -206,26 +202,6 @@ for (const filePath of walkFiles(path.join(webRoot, "src"), new Set([".ts", ".vu
 const missingReferences = [...referencedKeys].filter((key) => !baselineKeys.has(key)).sort();
 if (missingReferences.length > 0) failures.push(`translation references missing from locale dictionaries: ${missingReferences.join(", ")}`);
 
-const actualViewPaths = fs.readdirSync(path.join(webRoot, "src", "views"), { withFileTypes: true })
-	.filter((entry) => entry.isDirectory() && entry.name.startsWith("Pharma"))
-	.map((entry) => `src/views/${entry.name}/index.vue`)
-	.filter((relativePath) => fs.existsSync(path.join(webRoot, relativePath)))
-	.sort();
-const baselineViewPaths = baseline.views.map((view) => view.path).sort();
-compareLists("Pharma OA view inventory", actualViewPaths, baselineViewPaths);
-
-for (const expected of baseline.views) {
-	const actual = inspectView(expected.path);
-	if (process.argv.includes("--details") && actual.hardcodedCopy.length > 0) {
-		console.log(`${expected.path}:\n- ${actual.hardcodedCopy.join("\n- ")}`);
-	}
-	if (actual.translationKeyCount !== expected.translationKeyCount || actual.hardcodedCopyCount !== expected.hardcodedCopyCount) {
-		failures.push(`${expected.path} inventory changed: expected keys/copy ${expected.translationKeyCount}/${expected.hardcodedCopyCount}, got ${actual.translationKeyCount}/${actual.hardcodedCopyCount}`);
-	}
-	if (expected.status === "hardcoded" && actual.translationKeyCount !== 0) failures.push(`${expected.path} is marked hardcoded but now references locale keys`);
-	if (expected.status === "localized" && actual.hardcodedCopyCount !== 0) failures.push(`${expected.path} is marked localized but still has hard-coded copy`);
-}
-
 const uiFiles = walkFiles(path.join(webRoot, "src"), new Set([".vue"]))
 	.filter((filePath) => !filePath.endsWith(".spec.vue"))
 	.sort();
@@ -237,12 +213,6 @@ for (const filePath of uiFiles) {
 	if (actual.hardcodedCopyCount > 0) {
 		failures.push(`${relativePath} contains hard-coded visible copy: ${actual.hardcodedCopy.join(" | ")}`);
 	}
-}
-
-const manifestPath = path.join(repoRoot, baseline.pluginManifest);
-const manifest = fs.readFileSync(manifestPath, "utf8");
-for (const required of ["name_zh_cn:", "name_en_us:", "label_zh_cn:", "label_en_us:", "  - zh-CN", "  - en-US"]) {
-	if (!manifest.includes(required)) failures.push(`${baseline.pluginManifest} is missing bilingual plugin bridge declaration: ${required}`);
 }
 
 if (failures.length > 0) {

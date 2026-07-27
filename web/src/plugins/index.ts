@@ -9,7 +9,6 @@ import { getToken } from "../utils/auth";
 import { API_BASE_PREFIX } from "../utils/api-base-prefix";
 import { builtinAuthPlugin } from "./builtin/auth";
 import { buildPluginHostBridgeScript } from "./host-sdk";
-import { createIntegratedPluginRoutes } from "./integrated-routes";
 import type { BackendPluginRecord, FrontendPlugin, FrontendPluginManifest } from "./types";
 
 type PluginStore = ReturnType<typeof usePluginStore>;
@@ -140,8 +139,7 @@ export async function syncBackendPlugins(
 			for (const record of records) {
 				const hasFrontend = record.uiMode !== "backend_only";
 				const enabled = record.enabled !== false;
-				const integratedRoutes = hasFrontend ? createIntegratedPluginRoutes(record.id) : [];
-				if (record.level === "app" && enabled && integratedRoutes.length === 0) {
+				if (record.level === "app" && enabled) {
 					const appId = (record.appId || "").trim();
 					if (appId !== "" && hasFrontend && record.uiOpenMode !== "standalone") {
 						appIds.add(appId);
@@ -170,7 +168,7 @@ export async function syncBackendPlugins(
 						configSchema: record.configSchema,
 						entryPath: typeof record.frontendEntry === "string" ? normalizePluginRoutePath(record.frontendEntry) : record.frontendEntry,
 						systemBuiltin: record.systemBuiltin,
-						route: enabled && integratedRoutes.length === 0 && hasFrontend && record.level !== "app" && record.uiOpenMode !== "standalone"
+						route: enabled && hasFrontend && record.level !== "app" && record.uiOpenMode !== "standalone"
 							? {
 								path: routePath,
 								name: `plugin-${record.id}`,
@@ -182,11 +180,6 @@ export async function syncBackendPlugins(
 					store,
 					true
 				);
-				if (enabled) {
-					for (const route of integratedRoutes) {
-						addRouteIfMissing(route, router, true);
-					}
-				}
 			}
 			for (const appId of appIds) {
 				addRouteIfMissing({

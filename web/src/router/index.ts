@@ -2,7 +2,6 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router"
 
 import { canAccessRoute, isPublicRoute } from "../permissions/route";
 import { waitForPluginBootstrap } from "../plugins";
-import { isIntegratedPluginRoutePath } from "../plugins/integrated-routes";
 import { clearDefaultHomePath, getDefaultHomePath, getSystemDefaultHomePath, resolveValidatedDefaultHomePath, usePluginStore } from "../stores/plugins";
 import { getStoredPermissions, getStoredUserRole } from "../stores/user";
 import { getToken } from "../utils/auth";
@@ -219,9 +218,6 @@ function isKnownStaticPath(path: string): boolean {
 }
 
 function isPluginHomePath(path: string): boolean {
-	if (isIntegratedPluginRoutePath(path)) {
-		return true;
-	}
 	if (path.startsWith(`${ADMIN_PREFIX}/plugins/`)) {
 		return true;
 	}
@@ -295,7 +291,6 @@ function normalizeRedirectPath(raw: string): string {
 		withSlash === "/workflow" || withSlash.startsWith("/workflow/") ||
 		withSlash === "/todo" || withSlash.startsWith("/todo/") ||
 		withSlash === "/form-builder" || withSlash.startsWith("/form-builder/") ||
-		withSlash === "/pharma-oa" || withSlash.startsWith("/pharma-oa/") ||
 		withSlash === "/setting" || withSlash.startsWith("/setting/") ||
 		withSlash === "/profile" || withSlash.startsWith("/profile/") ||
 		withSlash === "/login" || withSlash.startsWith("/login/")

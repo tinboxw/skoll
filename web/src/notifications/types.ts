@@ -135,7 +135,7 @@ export function seedNotificationDemo(actorId: string, copy: NotificationDemoCopy
 			title: copy.qualificationTitle,
 			body: copy.qualificationBody,
 			actorId,
-			target: { type: "supplier", id: "supplier-demo-001", path: "/skoll/pharma-oa/suppliers/supplier-demo-001" },
+			target: { type: "reminder", id: "qualification-demo-001", path: "/skoll/todo" },
 			dueAt: now
 		}),
 		upsertNotification({
