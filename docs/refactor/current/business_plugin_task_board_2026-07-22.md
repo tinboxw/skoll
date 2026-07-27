@@ -15,8 +15,8 @@
 | BF2 | Provide reusable business-document and approval primitives | Numbering, forms, documents, workflow, attachments, comments, timeline, search, and export are reusable by plugins | BF1 | Done |
 | BF3 | Deliver a complete plugin control-center experience | Runtime, capabilities, data, migrations, jobs, audit, errors, and lifecycle actions are understandable and responsive | BF1 | Done |
 | FF0 | Freeze the framework capability baseline | Current transaction, scope, idempotency, concurrency, data, event, workflow, frontend, generator, security, and performance capabilities have executable dispositions | BF1, BF2, BF3 | Done |
-| FF1 | Enforce transactional data invariants for business plugins | Append-only tables, atomic guarded arithmetic, scoped aggregation, exact decimals, and external-process conformance pass | FF0 | Doing |
-| FF2 | Provide reliable inter-plugin events | Transactional publication, outbox dispatch, idempotent consumption, authorization, versioned schemas, retry, and dead-letter behavior pass | FF1 | Todo |
+| FF1 | Enforce transactional data invariants for business plugins | Append-only tables, atomic guarded arithmetic, scoped aggregation, exact decimals, and external-process conformance pass | FF0 | Done |
+| FF2 | Provide reliable inter-plugin events | Transactional publication, outbox dispatch, idempotent consumption, authorization, versioned schemas, retry, and dead-letter behavior pass | FF1 | Done |
 | FF3 | Provide governed workflow evidence | Conditions, parallel/quorum decisions, delegation, escalation, timers, electronic signatures, and immutable evidence pass | FF2 | Todo |
 | FF4 | Deliver a complete frontend plugin SDK | Host bridge, composition kit, Element Plus tokens, themes, locale, accessibility, isolation, and performance gates pass | FF0 | Todo |
 | FF5 | Deliver generator and test-harness leverage | Generated full-stack plugins and reusable contract, failure, concurrency, browser, and package tests pass without hand edits | FF1, FF2, FF4 | Todo |

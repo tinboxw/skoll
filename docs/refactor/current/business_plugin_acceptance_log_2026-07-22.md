@@ -2672,3 +2672,51 @@ Result: FF2-04 passed. Current events now cross plugin boundaries only through e
 ### Commit
 
 `FF2-04: enforce authorized idempotent event consumption`
+
+## FF2-05 Close Reliable Event Interoperability Acceptance
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Prove the current reliable-event contracts as one reusable multi-plugin process boundary without adding business behavior to the host.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Independent plugins | Pass | A generic `warehouse` publisher and HTTP process-like `analytics` subscriber communicate through public SDK declarations, host services, the current router, and the current delivery client |
+| Transactional publication | Pass | Publication inside a real GORM Unit of Work becomes dispatchable only after commit and reaches the declared subscriber with the original tenant and correlation scope |
+| Rollback suppression | Pass | A publication followed by transaction rollback leaves no Outbox record and produces no subscriber side effect |
+| Duplicate suppression | Pass | Reusing one publication identity and delivery identity creates one durable Outbox/Inbox effect and invokes the subscriber once |
+| Subscriber outage | Pass | A stopped subscriber causes bounded delivery failures and transitions the durable Outbox record to `dead_letter` at the configured attempt limit |
+| Permissioned replay | Pass | Replay requires an authorized actor and audit sink, resets the same dead-letter identity, and preserves its delivery history |
+| Restart recovery | Pass | Fresh Outbox store, Inbox store, router, and dispatcher instances over the same database resume the replayed event and complete delivery after the subscriber returns |
+| Disable behavior | Pass | A disabled subscriber is excluded from routing; dispatch succeeds without invoking its process |
+| Uninstall behavior | Pass | A removed subscriber is absent from the current catalog; dispatch succeeds without retaining a hidden or fallback route |
+| Current-only boundary | Pass | The scenario uses only `pluginsdk.EventEnvelope`, `pluginsdk.EventDelivery`, exact manifest capabilities, the transactional Outbox, and the durable Inbox |
+| Concurrency | Pass | The complete scenario passes ten repeated runs and Go race detection without duplicate consumer effects or lease-state corruption |
+| Regression | Pass | The focused interoperability gate, all Go packages, vet, diff checks, and a synchronized CodeGraph index pass |
+| Framework purity | Pass | The acceptance fixture adds no core business service, industry field, compatibility decoder, legacy route, dual protocol, or fallback implementation |
+
+### Failed Runs And Re-Execution
+
+- No failed acceptance run occurred. The focused scenario, ten repeated runs, and race run passed on their first execution.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin -run TestReliableCurrentEventInteroperabilityEndToEnd -count=1 -v
+go test ./internal/plugin -run TestReliableCurrentEventInteroperabilityEndToEnd -count=10
+go test -race ./internal/plugin -run TestReliableCurrentEventInteroperabilityEndToEnd -count=1
+go vet ./internal/plugin
+go test ./...
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF2-05 passed. Two independent process boundaries now prove transactional publication, durable at-least-once dispatch, authorized idempotent consumption, outage recovery, dead-letter replay, restart, disable, and uninstall through current framework contracts only.
+
+### Commit
+
+`FF2-05: close reliable plugin event interoperability`
