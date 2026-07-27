@@ -305,6 +305,17 @@ func (s *EventService) Publish(_ context.Context, publication pluginsdk.EventPub
 	return envelope, nil
 }
 
+func (s *EventService) Snapshot() ([]pluginsdk.EventPublication, []pluginsdk.EventEnvelope) {
+	if s == nil {
+		return []pluginsdk.EventPublication{}, []pluginsdk.EventEnvelope{}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	publications := append([]pluginsdk.EventPublication(nil), s.Publications...)
+	envelopes := append([]pluginsdk.EventEnvelope(nil), s.Envelopes...)
+	return publications, envelopes
+}
+
 type DocumentNumberService struct {
 	mu       sync.Mutex
 	Clock    *Clock

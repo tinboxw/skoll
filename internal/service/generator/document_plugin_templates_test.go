@@ -27,7 +27,8 @@ func TestDocumentPluginTargetUsesOnlyPublicContracts(t *testing.T) {
 	for _, marker := range []string{
 		`"github.com/tinboxw/skoll/pkg/pluginclient"`,
 		`"github.com/tinboxw/skoll/pkg/pluginsdk"`,
-		"host.Documents.Submit", "host.Documents.Act", "host.Documents.Export", "ensureWorkflowDefinition", "pluginclient.WithUserToken",
+		"host.Documents.Submit", "host.Documents.Act", "host.Documents.Export", "host.Events.Publish",
+		"publishDocumentEvent", "ensureWorkflowDefinition", "pluginclient.WithUserToken",
 	} {
 		if !strings.Contains(backend, marker) {
 			t.Fatalf("generated backend missing %q", marker)
@@ -35,6 +36,18 @@ func TestDocumentPluginTargetUsesOnlyPublicContracts(t *testing.T) {
 	}
 	if strings.Contains(backend, "github.com/tinboxw/skoll/internal/") {
 		t.Fatal("generated plugin imports a host-internal package")
+	}
+	backendContract := findPlan(t, result.Files, "examples/plugins/pharma-oa/backend/contract.go").GeneratedContent
+	for _, marker := range []string{
+		"generatedEventPublications",
+		`Name: "product-request-changed"`,
+		`SchemaVersion: 1`,
+		`PayloadType: "product_request.changed"`,
+		`Scope: pluginsdk.EventScopeMode("tenant")`,
+	} {
+		if !strings.Contains(backendContract, marker) {
+			t.Fatalf("generated backend contract missing %q", marker)
+		}
 	}
 
 	var schema pluginsdk.DocumentSchema

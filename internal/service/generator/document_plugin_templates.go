@@ -71,6 +71,7 @@ func renderDocumentPluginBackendServer(spec domaingenerator.GeneratorSpec) strin
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -214,7 +215,8 @@ func (s *documentServer) submit(w http.ResponseWriter, r *http.Request, id strin
 			TenantID: tenantID, Permission: generatedPermissions["create"], Schema: s.schema, Draft: draft,
 			DefinitionID: definitionID, InstanceID: id+"-workflow", IdempotencyKey: id+"-submit-v1",
 		})
-		return err
+		if err != nil { return err }
+		return s.publishDocumentEvent(tx.Context(), "submitted", result.Document)
 	})
 	writeResult(w, result, err)
 }
@@ -233,9 +235,29 @@ func (s *documentServer) approve(w http.ResponseWriter, r *http.Request, id stri
 			Action: pluginsdk.DocumentWorkflowApprove, ExpectedVersion: current.Document.Version, TaskID: taskID,
 			IdempotencyKey: id+"-approve-v"+strconv.FormatInt(current.Document.Version, 10),
 		})
-		return actionErr
+		if actionErr != nil { return actionErr }
+		return s.publishDocumentEvent(tx.Context(), "approved", result.Document)
 	})
 	writeResult(w, result, err)
+}
+
+func (s *documentServer) publishDocumentEvent(ctx context.Context, operation string, document pluginsdk.DocumentRecord) error {
+	if len(generatedEventPublications) == 0 { return nil }
+	declaration := generatedEventPublications[0]
+	scope := pluginsdk.EventScope{}
+	if declaration.Scope == pluginsdk.EventScopeTenant { scope.TenantID = tenantID }
+	identity := fmt.Sprintf("%x", sha256.Sum256([]byte(document.ID+"."+operation+".v"+strconv.FormatInt(document.Version, 10))))
+	_, err := s.host.Events.Publish(ctx, pluginsdk.EventPublication{
+		IdempotencyKey: identity, Name: declaration.Name, SchemaVersion: declaration.SchemaVersion,
+		Scope: scope, CorrelationID: identity,
+		Payload: pluginsdk.EventPayload{
+			"operation": {Type: pluginsdk.DataValueString, Value: operation},
+			"document_id": {Type: pluginsdk.DataValueString, Value: document.ID},
+			"state": {Type: pluginsdk.DataValueString, Value: document.State},
+			"version": {Type: pluginsdk.DataValueInteger, Value: strconv.FormatInt(document.Version, 10)},
+		},
+	})
+	return err
 }
 
 func (s *documentServer) export(w http.ResponseWriter, r *http.Request) {

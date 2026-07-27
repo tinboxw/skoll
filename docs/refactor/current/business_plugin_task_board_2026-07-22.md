@@ -19,7 +19,7 @@
 | FF2 | Provide reliable inter-plugin events | Transactional publication, outbox dispatch, idempotent consumption, authorization, versioned schemas, retry, and dead-letter behavior pass | FF1 | Done |
 | FF3 | Provide governed workflow evidence | Conditions, parallel/quorum decisions, delegation, escalation, timers, electronic signatures, and immutable evidence pass | FF2 | Done |
 | FF4 | Deliver a complete frontend plugin SDK | Host bridge, composition kit, Element Plus tokens, themes, locale, accessibility, isolation, and performance gates pass | FF0 | Doing |
-| FF5 | Deliver generator and test-harness leverage | Generated full-stack plugins and reusable contract, failure, concurrency, browser, and package tests pass without hand edits | FF1, FF2, FF4 | Doing |
+| FF5 | Deliver generator and test-harness leverage | Generated full-stack plugins and reusable contract, failure, concurrency, browser, and package tests pass without hand edits | FF1, FF2, FF4 | Done |
 | FF6 | Harden plugin operations for business scale | Least privilege, secret boundaries, quotas, backpressure, audit correlation, load, and security gates pass | FF2, FF5 | Todo |
 | BF4 | Deliver medical OA master-data plugins | Employees, organization extensions, customers, suppliers, products, manufacturers, qualifications, and validity alerts pass | BF1, BF2 | Done |
 | BF5 | Deliver medical OA transaction and quality workflows | Approval, CRM, purchasing, sales, inventory, batches, quality, contracts, finance coordination, and dashboards pass E2E | BF2, BF3, BF4, FF1..FF6 as declared by each child | Doing |

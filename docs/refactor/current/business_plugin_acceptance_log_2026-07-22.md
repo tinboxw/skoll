@@ -3378,3 +3378,46 @@ Result: FF5-03 passed. External plugin authors now have one public, deterministi
 ### Commit
 
 `FF5-03: add public plugin quality harnesses`
+
+## FF5-04 Close Zero-Edit Generated Plugin Acceptance
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Close one executable quality gate from a clean plugin specification through current backend, frontend, package, host-service, event, workflow, lifecycle, browser, and performance contracts.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| One command | The `pluginquality` build-tag gate runs packaged lifecycle and frontend browser acceptance under one `go test` command | Pass |
+| Clean generation | Both sub-gates materialize fresh plugin output; source hashes are identical before and after builds | Pass |
+| Current public boundary | Generated backend imports `pluginclient` and `pluginsdk`; generated frontend imports the current SDK/UI packages; no host `internal` package is imported | Pass |
+| Build and package | Generated Go tests, TypeScript checks, Vite builds, bundle budgets, package checksum, verification, and installation pass | Pass |
+| Data and workflow | Generated create, list, detail, submit, approve, and export flows pass through current host services | Pass |
+| Transactional event | Submit and approve publish the declared `product-request-changed` event inside the host transaction with tenant scope, deterministic identity, operation, document, state, and version payload | Pass |
+| Restart recovery | The managed backend is stopped and restarted; list and approved detail remain observable from host-owned document/workflow state | Pass |
+| Disable and uninstall | Disabled generated code returns forbidden; service supervision stops; migrations uninstall and runtime state becomes uninstalled | Pass |
+| UI and permissions | Desktop, mobile, lifecycle, locale, theme, responsive, interaction, and restricted-user zero-request gates pass | Pass |
+| Performance | Package entry raw `468,399 B`, JS gzip `189,424 B`, CSS gzip `18,969 B`; browser entry raw `434,071 B`, JS gzip `179,240 B`, CSS gzip `18,705 B` | Pass |
+| Browser timing | Desktop ready `852ms`, interaction long task `54ms`; mobile ready `825ms`, interaction long task `0ms` | Pass |
+| Race and repository | Public fixture race suite and `go test ./... -count=1` pass | Pass |
+| Current-only rule | No compatibility adapter, legacy generated template, fallback host service, or parallel gate was added | Pass |
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/generator ./pkg/plugintest -count=1
+go test -tags=pluginquality ./internal/service/generator -run '^TestGeneratedPluginZeroEditQualityGate$' -count=1 -v
+go test -race ./pkg/plugintest -count=1
+go test ./... -count=1
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF5-04 and milestone FF5 passed. A clean current plugin specification now has one zero-edit executable gate proving generated code, package, data, workflow, event, UI, restart, disable, and uninstall behavior without core business code.
+
+### Commit
+
+`FF5-04: close zero-edit plugin quality gate`

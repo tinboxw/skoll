@@ -197,6 +197,18 @@ func renderPluginBackendContract(spec domaingenerator.GeneratorSpec) string {
 		resource, permissionAction := permissionParts(permission.key)
 		fmt.Fprintf(&b, "\t%q: {Resource: %q, Action: %q},\n", permission.action, resource, permissionAction)
 	}
+	fmt.Fprintf(&b, "}\n\n")
+	fmt.Fprintf(&b, "var generatedEventPublications = []pluginsdk.EventPublicationDeclaration{\n")
+	for _, publication := range contract.Events.Publications {
+		fmt.Fprintf(
+			&b,
+			"\t{Name: %q, SchemaVersion: %d, PayloadType: %q, Scope: pluginsdk.EventScopeMode(%q)},\n",
+			publication.Name,
+			publication.SchemaVersion,
+			publication.PayloadType,
+			publication.Scope,
+		)
+	}
 	fmt.Fprintf(&b, "}\n")
 	return b.String()
 }

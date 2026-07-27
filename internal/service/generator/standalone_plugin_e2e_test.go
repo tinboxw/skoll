@@ -211,6 +211,35 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 	if export.StatusCode != http.StatusOK || !bytes.Contains(export.Body, []byte(pluginsdk.DocumentExportJobKind)) {
 		t.Fatalf("generated export status=%d body=%s", export.StatusCode, export.Body)
 	}
+	publications, envelopes := services.Events.Snapshot()
+	if len(publications) != 2 || len(envelopes) != 2 {
+		t.Fatalf("generated event publications=%+v envelopes=%+v", publications, envelopes)
+	}
+	for index, operation := range []string{"submitted", "approved"} {
+		publication := publications[index]
+		if publication.Name != spec.Plugin.EventPublications[0].Name ||
+			publication.SchemaVersion != spec.Plugin.EventPublications[0].SchemaVersion ||
+			publication.Scope.TenantID != "tenant-demo" ||
+			publication.Payload["operation"].Value != operation ||
+			publication.Payload["document_id"].Value != id {
+			t.Fatalf("generated %s event=%+v", operation, publication)
+		}
+	}
+
+	if err := supervisor.Stop(context.Background(), info.ID); err != nil {
+		t.Fatalf("stop generated backend for restart: %v", err)
+	}
+	if err := supervisor.Start(context.Background(), mustGeneratedPluginInfo(t, manager, info.ID)); err != nil {
+		t.Fatalf("restart generated backend: %v", err)
+	}
+	restartedList := generatedRuntimeRequest(t, manager, info.ID, http.MethodGet, spec.Plugin.ServiceBaseURL+pluginAPIBasePath(*spec), nil)
+	if restartedList.StatusCode != http.StatusOK || !bytes.Contains(restartedList.Body, []byte("Aspirin")) {
+		t.Fatalf("generated list after restart status=%d body=%s", restartedList.StatusCode, restartedList.Body)
+	}
+	restartedDetail := generatedRuntimeRequest(t, manager, info.ID, http.MethodGet, spec.Plugin.ServiceBaseURL+pluginAPIBasePath(*spec)+"/"+id, nil)
+	if restartedDetail.StatusCode != http.StatusOK || !bytes.Contains(restartedDetail.Body, []byte(`"state":"approved"`)) {
+		t.Fatalf("generated detail after restart status=%d body=%s", restartedDetail.StatusCode, restartedDetail.Body)
+	}
 
 	if err := manager.Disable(info.ID); err != nil {
 		t.Fatalf("disable generated plugin: %v", err)

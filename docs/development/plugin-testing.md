@@ -65,6 +65,16 @@ if err := plugintest.CheckProperty(cases, checkInvariant); err != nil {
 
 包和真实进程验收使用 `PackageRunner` 与 `Runtime`，至少覆盖 `Install -> Enable -> Restart -> Disable -> Enable -> Uninstall`。每个测试使用独立插件根目录、数据根目录和回环端口。
 
+## 生成插件零手改门禁
+
+提交生成器、插件 SDK、业务 UI 或插件运行时变更前，必须执行一次完整零手改门禁：
+
+```powershell
+go test -tags=pluginquality ./internal/service/generator -run '^TestGeneratedPluginZeroEditQualityGate$' -count=1 -v
+```
+
+该命令从规范重新生成独立插件，不复用仓库中的业务插件源码。门禁会验证源码哈希在构建前后保持一致，并覆盖后端编译、前端构建、包校验与安装、数据读写、工作流提交与审批、事务内事件发布、进程重启、重启后状态恢复、禁用、卸载、桌面与移动端 UI、权限、主题、语言、响应式布局和性能预算。任一子阶段失败即整项失败，不允许手工修改临时生成物后重试。
+
 ## 前端状态与性能测试
 
 `@skoll/plugin-test` 提供六种标准 UI 状态：`loading`、`empty`、`error`、`forbidden`、`conflict`、`success`。插件可以扩展业务状态，但不能重命名或跳过适用的标准状态。
