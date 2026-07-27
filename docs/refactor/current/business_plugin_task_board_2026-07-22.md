@@ -14,8 +14,15 @@
 | BF1 | Provide a safe relational datastore to independent plugins | Public scoped data contracts, host SQL adapter, external client, lifecycle policy, and real E2E pass | BF0 | Done |
 | BF2 | Provide reusable business-document and approval primitives | Numbering, forms, documents, workflow, attachments, comments, timeline, search, and export are reusable by plugins | BF1 | Done |
 | BF3 | Deliver a complete plugin control-center experience | Runtime, capabilities, data, migrations, jobs, audit, errors, and lifecycle actions are understandable and responsive | BF1 | Done |
-| BF4 | Deliver medical OA master-data plugins | Employees, organization extensions, customers, suppliers, products, manufacturers, qualifications, and validity alerts pass | BF1, BF2 | Doing |
-| BF5 | Deliver medical OA transaction and quality workflows | Approval, CRM, purchasing, sales, inventory, batches, quality, contracts, finance coordination, and dashboards pass E2E | BF2, BF3, BF4 | Todo |
+| FF0 | Freeze the framework capability baseline | Current transaction, scope, idempotency, concurrency, data, event, workflow, frontend, generator, security, and performance capabilities have executable dispositions | BF1, BF2, BF3 | Done |
+| FF1 | Enforce transactional data invariants for business plugins | Append-only tables, atomic guarded arithmetic, scoped aggregation, exact decimals, and external-process conformance pass | FF0 | Doing |
+| FF2 | Provide reliable inter-plugin events | Transactional publication, outbox dispatch, idempotent consumption, authorization, versioned schemas, retry, and dead-letter behavior pass | FF1 | Todo |
+| FF3 | Provide governed workflow evidence | Conditions, parallel/quorum decisions, delegation, escalation, timers, electronic signatures, and immutable evidence pass | FF2 | Todo |
+| FF4 | Deliver a complete frontend plugin SDK | Host bridge, composition kit, Element Plus tokens, themes, locale, accessibility, isolation, and performance gates pass | FF0 | Todo |
+| FF5 | Deliver generator and test-harness leverage | Generated full-stack plugins and reusable contract, failure, concurrency, browser, and package tests pass without hand edits | FF1, FF2, FF4 | Todo |
+| FF6 | Harden plugin operations for business scale | Least privilege, secret boundaries, quotas, backpressure, audit correlation, load, and security gates pass | FF2, FF5 | Todo |
+| BF4 | Deliver medical OA master-data plugins | Employees, organization extensions, customers, suppliers, products, manufacturers, qualifications, and validity alerts pass | BF1, BF2 | Done |
+| BF5 | Deliver medical OA transaction and quality workflows | Approval, CRM, purchasing, sales, inventory, batches, quality, contracts, finance coordination, and dashboards pass E2E | BF2, BF3, BF4, FF1..FF6 as declared by each child | Doing |
 
 ## Milestone Acceptance
 
@@ -38,6 +45,43 @@
 - Destructive actions require explicit confirmation and show durable results; disabled plugins expose no active capability.
 - Light/dark themes, compact density, Chinese/English, keyboard use, mobile/desktop layouts, visual regression, and performance budgets pass.
 
+### FF1 Transactional Data Invariants
+
+- Plugin tables declare one current mutation policy; append-only tables reject update, upsert, and delete in the host before SQL execution.
+- Guarded integer and decimal adjustments are atomic, idempotent, scoped, bounded, and deterministic under contention.
+- Count, sum, minimum, maximum, and grouped aggregation use declared fields and trusted scope only; raw SQL and cross-plugin identifiers are impossible.
+- SQLite, PostgreSQL, MySQL, external-process transactions, restart, reconciliation, race, and failure rollback pass executable tests.
+
+### FF2 Reliable Events
+
+- A plugin publishes only declared, versioned events through a public host service inside its active transaction.
+- Host outbox persistence and business mutations commit together; dispatch is at-least-once and consumption is idempotent.
+- Publisher/subscriber capabilities, tenant scope, payload limits, retry, dead-letter, replay, and correlation are host enforced.
+
+### FF3 Governed Workflow Evidence
+
+- Workflow definitions support conditional branches, parallel work, quorum decisions, delegation, substitution, escalation, and bounded timers.
+- Regulated decisions can require identity re-verification, meaning, timestamp, evidence digest, and immutable audit linkage.
+- Duplicate, stale, unauthorized, expired, concurrent, restart, and tamper scenarios fail deterministically.
+
+### FF4 Frontend Plugin SDK
+
+- Plugins use one typed bridge and Element Plus composition kit for navigation, commands, forms, tables, detail, workflow, files, errors, and optimistic conflicts.
+- Theme, density, zh-CN/en-US, keyboard, screen reader, reduced motion, mobile, and desktop behavior are inherited without business UI entering the host.
+- A failing or slow plugin is isolated; route loading, long lists, interaction latency, memory, and bundle budgets are executable gates.
+
+### FF5 Generator And Test Harness
+
+- One schema generates a current backend, frontend, manifest, permissions, migrations, contracts, locale, and tests with no legacy template.
+- Reusable harnesses cover host services, scope, transactions, idempotency, events, workflow, browser states, packaging, restart, and uninstall.
+- Generated output builds and passes package acceptance without manual repair.
+
+### FF6 Business-Scale Hardening
+
+- Plugin capabilities, data scopes, secrets, event publication/subscription, jobs, and destructive operations are least-privilege and deny by default.
+- Quotas and backpressure bound requests, queries, exports, jobs, events, storage, and process resource use.
+- Correlation joins requests, transactions, events, jobs, workflows, audits, and plugin health; security and load tests prove isolation.
+
 ### BF4 Medical OA Master Data
 
 - The medical OA plugin owns employees, customer/supplier relationships, product and manufacturer catalogs, qualifications, and validity alerts through public contracts.
@@ -59,3 +103,4 @@
 5. After independent acceptance, set the item to `Done`, append evidence, and create exactly one commit named `<work-item-id>: <short summary>`.
 6. Do not reopen closed plugin-runtime tasks; new discoveries become atomic BF Work Items with explicit dependencies.
 7. Do not implement compatibility, legacy, dual-route, transition, or fallback behavior.
+8. Framework reinforcement uses `FF` Work Items; a BF item cannot bypass an unmet FF dependency with plugin-local infrastructure.

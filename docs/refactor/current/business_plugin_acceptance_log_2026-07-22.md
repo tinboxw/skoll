@@ -2171,3 +2171,54 @@ Result: BF5-05A1 passed. The plugin now owns one current, reversible warehouse t
 ### Commit
 
 `BF5-05A1: declare warehouse topology schema`
+
+## FF0-01 Audit And Freeze The Framework Capability Baseline
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Reconcile the current framework implementation against the capabilities required to deliver medical OA and future independent business plugins without plugin-local framework substitutes.
+
+### Capability Disposition
+
+| Capability | Result | Evidence / Next Owner |
+| --- | --- | --- |
+| External-process multi-call transaction | Pass | `pkg/pluginclient` starts a host transaction, propagates `X-Skoll-Transaction-ID`, and finishes with commit/rollback; `HostGateway` retains the real transaction context, serializes calls, applies TTL rollback, and binds user claims |
+| Trusted data scope and namespace isolation | Pass | Structured query/mutation contracts accept scope intent only; registry, planners, and executors inject trusted tenant/organization/owner predicates and deny reserved or cross-plugin identifiers |
+| Optimistic concurrency | Pass | Single-record update/delete/upsert support positive `ExpectedVersion`; SQL writes include the current version and return deterministic conflict on stale or concurrent changes |
+| Persistent idempotent mutations | Pass | `(plugin_id, idempotency_key)` reservation, request hash, and validated result are persisted in the same transaction as mutation and audit |
+| Exact decimal transport | Partial | Decimal values use validated base-10 strings and avoid JSON float conversion; no host-owned guarded arithmetic or aggregate execution exists |
+| Append-only data policy | Gap: FF1-01 | Schemas describe field mutability only; the host cannot declare a table insert-only, so an immutable stock ledger is not enforceable by the framework |
+| Atomic guarded arithmetic | Gap: FF1-02..FF1-03 | Mutations replace field values and cannot atomically increment/decrement exact numeric values with lower/upper guards under contention |
+| Scoped aggregation | Gap: FF1-04..FF1-05 | `DataQuery` returns records only and has no bounded count/sum/min/max/group contract or dialect executor |
+| Transactional plugin events | Gap: FF2 | Manifests declare subscriptions and the runtime can deliver host events, but plugins have no current public publication service, transactional outbox, inbox dedupe, or versioned inter-plugin authorization |
+| Regulated workflow evidence | Gap: FF3 | Current workflows cover ordinary actions; conditional/parallel/quorum decisions, durable escalation, electronic signatures, and tamper-evident evidence are not complete |
+| Frontend plugin SDK | Gap: FF4 | The shell and current plugin UI work, but reusable typed composition, inherited design tokens, failure isolation, and plugin-level visual/performance gates are not one complete public SDK |
+| Generator and test leverage | Gap: FF5 | Generators and fixtures exist but do not yet produce and prove the complete current datastore/event/workflow/frontend/package stack without hand edits |
+| Business-scale hardening | Gap: FF6 | Permission, audit, diagnostics, and limits exist in parts; least-privilege capability grants, full correlation, quotas/backpressure, and multi-plugin load/security acceptance are not closed |
+
+### Direction And Dependency Result
+
+- FF1 is the immediate blocking milestone because BF5-05B requires host-enforced immutable ledger behavior, exact guarded balance updates, and reconciliation aggregates.
+- BF5-05A topology may continue independently, but BF5-05B cannot start until FF1-06 passes.
+- Quality and recall work waits for reliable events and governed evidence through FF2-05 and FF3-04.
+- Medical operations UI waits for the reusable frontend SDK gate FF4-05; final acceptance waits for FF5-04 and FF6-04.
+- FF work is industry-neutral framework code. Medical rules, tables, pages, and workflows remain exclusively inside independent plugins.
+- No compatibility version, legacy parser, dual path, fallback implementation, release task, deployment task, or documentation-only milestone is introduced.
+
+### Verification
+
+```powershell
+codegraph status .
+codegraph node pkg/pluginclient/services.go
+codegraph node pkg/pluginclient/client.go
+codegraph node internal/plugin/host_gateway.go
+codegraph node pkg/pluginsdk/datastore.go
+git diff --check
+```
+
+Result: FF0-01 passed. The framework baseline is evidence-based, FF1 through FF6 are dependency-ordered and atomic, and the first executable gap is FF1-01 append-only datastore enforcement.
+
+### Commit
+
+`FF0-01: freeze framework capability gaps`
