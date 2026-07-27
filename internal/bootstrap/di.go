@@ -24,6 +24,7 @@ import (
 	builtinDashboard "github.com/tinboxw/skoll/internal/plugin/builtin/dashboard"
 	builtinLogger "github.com/tinboxw/skoll/internal/plugin/builtin/logger"
 	"github.com/tinboxw/skoll/internal/plugin/datastore"
+	"github.com/tinboxw/skoll/internal/plugin/eventoutbox"
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
@@ -58,6 +59,7 @@ type dependencies struct {
 	businessEventBus *event.BusinessEventBus
 	pluginRuntime    closeable
 	jobService       *jobsvc.Service
+	eventDispatcher  *eventoutbox.Dispatcher
 }
 
 func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
@@ -108,6 +110,14 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
 	documentWorkflowStore := gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB)
 	eventOutboxStore := gormrepo.NewPluginEventOutboxStore(bundle.PluginDataDB)
+	eventDispatcher, err := eventoutbox.NewDispatcher(eventOutboxStore, eventoutbox.DeliverySinkFunc(
+		func(ctx context.Context, envelope pluginsdk.EventEnvelope) error {
+			return bus.Publish(ctx, event.PluginEvent{Envelope: envelope})
+		},
+	), eventoutbox.DispatcherOptions{})
+	if err != nil {
+		return nil, err
+	}
 	transactionService, err := hostservice.NewTransactionService(bundle.UnitOfWork)
 	if err != nil {
 		return nil, err
@@ -182,7 +192,10 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	ensureSystemPermissionCatalog(context.Background(), logger, permissionService)
 
 	pluginRuntime, _ := pluginManager.(closeable)
-	return &dependencies{logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus, pluginRuntime: pluginRuntime, jobService: jobService}, nil
+	return &dependencies{
+		logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus,
+		pluginRuntime: pluginRuntime, jobService: jobService, eventDispatcher: eventDispatcher,
+	}, nil
 }
 
 func buildEventBus(cfg config.EventConfig) (event.Bus, error) {

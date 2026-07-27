@@ -2574,3 +2574,50 @@ Result: FF2-02 passed. Declared plugin events now enter a durable, idempotent Ou
 ### Commit
 
 `FF2-02: persist transactional plugin event outbox`
+
+## FF2-03 Dispatch Outbox Events With Retry And Dead-Letter Control
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Reliably move committed plugin events from the SQL Outbox to the configured event bus through one durable lease and retry state machine.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Durable state machine | Pass | Outbox records persist `pending`, `running`, `retry_wait`, `succeeded`, and `dead_letter` states together with attempt, lease, error, delivery, and terminal timestamps |
+| Competing workers | Pass | Candidate selection is followed by a conditional atomic update; 20 repeated two-worker tests deliver every event once within the active lease window |
+| At-least-once recovery | Pass | An unacknowledged running event becomes eligible after lease expiry; a newly constructed store and dispatcher over the same database leases and delivers it |
+| Acknowledgement safety | Pass | Ack and fail transitions require the current unexpired lease token; stale workers receive `ErrLeaseLost` and cannot overwrite a newer owner |
+| Bounded retry | Pass | Failed delivery clears the lease, records the error, and schedules bounded exponential backoff; attempt exhaustion transitions once to an observable dead letter |
+| Expired final lease | Pass | A final-attempt lease that expires without ack is moved to dead letter before new work is claimed |
+| Replay control | Pass | Only dead-letter records can be replayed; actor identity is mandatory, authorization runs before mutation, and successful replay requires an audit sink |
+| Replay behavior | Pass | Replay resets attempts and terminal error state on the same event identity, returns it to `pending`, and the dispatcher can subsequently deliver it |
+| Runtime integration | Pass | `Runner` starts one context-bound Outbox worker after dependencies are built; cancellation stops polling and no dispatch occurs inside the publication transaction |
+| Event transport | Pass | The dispatcher publishes the full current SDK envelope through an `event.PluginEvent` to the configured memory or Redis event bus |
+| Metrics | Pass | Thread-safe counters expose leases, successful deliveries, retries, dead letters, lost leases, and dispatcher errors |
+| Database parity | Pass | GORM, MySQL, and PostgreSQL models share the same delivery state, lease, retry, error, and terminal fields and indexes |
+| Regression | Pass | Focused tests, 20 repeated concurrency runs, race detection, and every Go package pass |
+| Framework purity | Pass | The dispatcher is business-neutral and adds no compatibility table, legacy event route, fallback delivery, dual state model, or industry-specific field |
+
+### Failed Runs And Re-Execution
+
+- The first focused test run exposed a Go test import cycle because the domain package test imported its SQL adapter. The test was converted to an external black-box package and deterministic clocks became explicit dispatcher/replayer options; the focused suites then passed.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/eventoutbox ./internal/plugin/hostservice ./internal/bootstrap ./internal/store/sql/gormrepo -run 'TestDispatcher|TestEventService|TestRun|TestAllModels' -count=1
+go test ./internal/plugin/eventoutbox -run TestDispatcher -count=20
+go test -race ./internal/plugin/eventoutbox ./internal/store/sql/gormrepo -run 'Test(Dispatcher|AllModels)' -count=1
+go test ./...
+git diff --check
+codegraph sync .
+```
+
+Result: FF2-03 passed. Committed plugin events now leave the Outbox through durable competing leases, survive process restart, retry with bounded backoff, become observable dead letters, and support permissioned audited replay.
+
+### Commit
+
+`FF2-03: dispatch plugin events with durable retries`

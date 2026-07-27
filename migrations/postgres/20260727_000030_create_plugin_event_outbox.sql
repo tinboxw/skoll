@@ -15,13 +15,26 @@ CREATE TABLE IF NOT EXISTS sk_plugin_event_outbox (
     payload_json TEXT NOT NULL,
     request_hash VARCHAR(64) NOT NULL,
     status VARCHAR(24) NOT NULL,
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    max_attempts INTEGER NOT NULL DEFAULT 5 CHECK (max_attempts > 0),
+    next_attempt_at TIMESTAMPTZ NOT NULL,
+    lease_owner VARCHAR(128) NOT NULL DEFAULT '',
+    lease_token VARCHAR(64) NOT NULL DEFAULT '',
+    lease_expires_at TIMESTAMPTZ NULL,
+    last_error TEXT NOT NULL DEFAULT '',
     occurred_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    delivered_at TIMESTAMPTZ NULL,
+    dead_lettered_at TIMESTAMPTZ NULL,
     CONSTRAINT uq_plugin_event_idempotency UNIQUE (publisher, idempotency_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_plugin_event_pending
-    ON sk_plugin_event_outbox (status, publisher, tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_plugin_event_dispatch
+    ON sk_plugin_event_outbox (status, next_attempt_at, publisher);
+
+CREATE INDEX IF NOT EXISTS idx_plugin_event_lease_expiry
+    ON sk_plugin_event_outbox (lease_expires_at);
 
 CREATE INDEX IF NOT EXISTS idx_plugin_event_correlation
     ON sk_plugin_event_outbox (correlation_id);

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 type closeable interface {
@@ -53,6 +54,14 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 			runErr = errors.Join(runErr, bus.Close())
 		}
 	}()
+	workerCtx, stopWorker := context.WithCancel(ctx)
+	defer stopWorker()
+	if r.deps.eventDispatcher != nil {
+		workerID := fmt.Sprintf("runtime-%d", os.Getpid())
+		go func() {
+			_ = r.deps.eventDispatcher.Run(workerCtx, workerID, 0, 50)
+		}()
+	}
 
 	errCh := make(chan error, 1)
 	go func() {

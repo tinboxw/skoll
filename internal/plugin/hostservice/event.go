@@ -67,7 +67,10 @@ func (s *eventService) Publish(ctx context.Context, publication pluginsdk.EventP
 		IdempotencyKey: publication.IdempotencyKey,
 		RequestHash:    hex.EncodeToString(requestHash[:]),
 		Status:         eventoutbox.StatusPending,
+		MaxAttempts:    eventoutbox.DefaultMaxAttempts,
+		NextAttemptAt:  now,
 		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	stored, _, err := s.store.Enqueue(ctx, record)
 	if errors.Is(err, eventoutbox.ErrIdentityConflict) {
