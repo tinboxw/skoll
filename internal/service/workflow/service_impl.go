@@ -105,14 +105,22 @@ func (s *serviceImpl) GetInstance(ctx context.Context, id shared.ID) (*domainwor
 }
 
 func (s *serviceImpl) Approve(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error) {
+	signature, err := s.prepareDecisionSignature(ctx, in, domainworkflow.ActionApprove)
+	if err != nil {
+		return nil, err
+	}
 	return s.updateInstanceWithTimers(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionApprove, taskID: in.TaskID, actorID: in.Actor.ID}, in.Now, func(instance *domainworkflow.Instance, definition domainworkflow.Definition) error {
-		return instance.Approve(definition, in.TaskID, in.Actor, in.Comment, in.Now)
+		return instance.Approve(definition, in.TaskID, in.Actor, in.Comment, signature, in.Now)
 	})
 }
 
 func (s *serviceImpl) Reject(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error) {
-	return s.updateInstanceWithTimers(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionReject, taskID: in.TaskID, actorID: in.Actor.ID}, in.Now, func(instance *domainworkflow.Instance, _ domainworkflow.Definition) error {
-		return instance.Reject(in.TaskID, in.Actor, in.Comment, in.Now)
+	signature, err := s.prepareDecisionSignature(ctx, in, domainworkflow.ActionReject)
+	if err != nil {
+		return nil, err
+	}
+	return s.updateInstanceWithTimers(ctx, in.InstanceID, instanceActionIdentity{actionType: domainworkflow.ActionReject, taskID: in.TaskID, actorID: in.Actor.ID}, in.Now, func(instance *domainworkflow.Instance, definition domainworkflow.Definition) error {
+		return instance.Reject(definition, in.TaskID, in.Actor, in.Comment, signature, in.Now)
 	})
 }
 

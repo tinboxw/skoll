@@ -28,6 +28,7 @@ MySQL 迁移脚本目录。
 - 20260722_000027_create_document_number_persistence.sql
 - 20260722_000028_create_document_workflow_persistence.sql
 - 20260722_000029_create_document_collaboration_persistence.sql
+- 20260727_000034_add_workflow_signature_receipts.sql
 
 ## 执行顺序
 
@@ -205,3 +206,9 @@ MySQL 迁移脚本目录。
 - 新增缺勤替岗窗口；本人创建、本人撤销，重叠窗口拒绝写入。
 - 升级计时器使用当前持久作业表，与工作流状态变化共享事务并通过租约和领域幂等保证只执行一次。
 - 当前规则：旧 `transfer` 路径不存在，委派只签发当前任务范围的 `delegate` 能力。
+
+### 20260727_000034_add_workflow_signature_receipts.sql
+
+- 为审批节点增加固定签署含义与附件证据要求，为审批动作保存唯一回执关联。
+- 新增只增电子签名回执，固化身份重验证、签署含义、附件哈希、评论摘要、时间戳和审计关联。
+- 当前规则：验证编号只能消费一次，持久化回读必须重新校验摘要，不提供跳过签名的兼容路径。

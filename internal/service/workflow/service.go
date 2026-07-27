@@ -8,6 +8,7 @@ import (
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
 	"github.com/tinboxw/skoll/internal/repository"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 type DefinitionRepository interface {
@@ -59,6 +60,8 @@ type Options struct {
 	Jobs       *jobsvc.Service
 	UnitOfWork repository.UnitOfWork
 	Now        func() time.Time
+	Proofs     security.ReverificationProofVerifier
+	Evidence   EvidenceResolver
 }
 
 type CreateDefinitionInput struct {
@@ -87,7 +90,19 @@ type TaskActionInput struct {
 	TaskID     shared.ID
 	Actor      domainworkflow.Actor
 	Comment    string
+	Signature  *DecisionSignatureInput
 	Now        time.Time
+}
+
+type DecisionSignatureInput struct {
+	Proof       string
+	Meaning     string
+	Audience    string
+	EvidenceIDs []shared.ID
+}
+
+type EvidenceResolver interface {
+	ResolveWorkflowEvidence(ctx context.Context, actor domainworkflow.Actor, fileIDs []shared.ID) ([]domainworkflow.EvidenceReference, error)
 }
 
 type InstanceActionInput struct {

@@ -158,7 +158,7 @@ func TestWorkflowDecisionLeavesNoPartialStateWhenRouteDoesNotMatch(t *testing.T)
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
 	}
-	err = instance.Approve(*definition, instance.Tasks[0].ID, Actor{ID: "approver"}, "approve", now.Add(time.Minute))
+	err = instance.Approve(*definition, instance.Tasks[0].ID, Actor{ID: "approver"}, "approve", nil, now.Add(time.Minute))
 	if err == nil || !strings.Contains(err.Error(), "no matching transition") {
 		t.Fatalf("expected unmatched route rejection, got %v", err)
 	}
@@ -179,7 +179,7 @@ func approveTask(t *testing.T, instance *Instance, definition Definition, nodeID
 	t.Helper()
 	for _, task := range instance.Tasks {
 		if task.NodeID == shared.ID(nodeID) && task.Assignee.ID == shared.ID(actorID) {
-			if err := instance.Approve(definition, task.ID, Actor{ID: shared.ID(actorID)}, "approved", now); err != nil {
+			if err := instance.Approve(definition, task.ID, Actor{ID: shared.ID(actorID)}, "approved", nil, now); err != nil {
 				t.Fatalf("approve %s/%s: %v", nodeID, actorID, err)
 			}
 			return

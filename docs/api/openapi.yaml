@@ -51,6 +51,31 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/ErrorResponse'}
+  /v1/auth/reverify:
+    post:
+      summary: Reverify the current user for an electronic workflow signature
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthReverifyRequest'
+      responses:
+        '200':
+          description: Short-lived proof bound to the authenticated user, audience, and workflow-signature purpose
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthReverifyResponse'}
+        '400':
+          description: Invalid reverification request or audience
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
+        '401':
+          description: Invalid session or password
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ErrorResponse'}
   /v1/auth/logout:
     post:
       summary: Logout current user
@@ -2810,6 +2835,28 @@ components:
           required: [data]
           properties:
             data: {$ref: '#/components/schemas/AuthLoginData'}
+    AuthReverifyRequest:
+      type: object
+      required: [password, audience]
+      additionalProperties: false
+      properties:
+        password: {type: string, minLength: 1, format: password}
+        audience: {type: string, minLength: 1, maxLength: 128}
+    AuthReverifyData:
+      type: object
+      required: [proof, verificationId, verifiedAt, expiresAt]
+      properties:
+        proof: {type: string, minLength: 1, maxLength: 4096}
+        verificationId: {type: string, minLength: 1}
+        verifiedAt: {type: string, format: date-time}
+        expiresAt: {type: string, format: date-time}
+    AuthReverifyResponse:
+      allOf:
+        - {$ref: '#/components/schemas/MessageResponse'}
+        - type: object
+          required: [data]
+          properties:
+            data: {$ref: '#/components/schemas/AuthReverifyData'}
     AuthProfileData:
       allOf:
         - {$ref: '#/components/schemas/AuthUserProfile'}
@@ -3176,6 +3223,8 @@ components:
           $ref: '#/components/schemas/WorkflowDecisionRule'
         escalation:
           $ref: '#/components/schemas/WorkflowEscalationRule'
+        signature:
+          $ref: '#/components/schemas/WorkflowSignaturePolicy'
     WorkflowDecisionRule:
       type: object
       required:
@@ -3200,6 +3249,18 @@ components:
           maximum: 7776000
         target:
           $ref: '#/components/schemas/WorkflowActor'
+    WorkflowSignaturePolicy:
+      type: object
+      required:
+        - meaning
+        - requireEvidence
+      properties:
+        meaning:
+          type: string
+          minLength: 1
+          maxLength: 512
+        requireEvidence:
+          type: boolean
     WorkflowValue:
       type: object
       required:
@@ -3335,6 +3396,30 @@ components:
           $ref: '#/components/schemas/WorkflowActor'
         comment:
           type: string
+        signature:
+          $ref: '#/components/schemas/WorkflowDecisionSignatureRequest'
+    WorkflowDecisionSignatureRequest:
+      type: object
+      required:
+        - proof
+        - meaning
+        - evidenceIds
+      properties:
+        proof:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        meaning:
+          type: string
+          minLength: 1
+          maxLength: 512
+        evidenceIds:
+          type: array
+          maxItems: 16
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
     WorkflowTaskTargetActionRequest:
       type: object
       required:
@@ -3411,9 +3496,70 @@ components:
           $ref: '#/components/schemas/WorkflowActor'
         comment:
           type: string
+        receiptId:
+          type: string
         createdAt:
           type: string
           format: date-time
+    WorkflowEvidenceReference:
+      type: object
+      required: [fileId, name, hash, size, mime]
+      properties:
+        fileId: {type: string, minLength: 1}
+        name: {type: string}
+        hash: {type: string, minLength: 1}
+        size: {type: integer, format: int64, minimum: 0}
+        mime: {type: string}
+    WorkflowSignatureReceipt:
+      type: object
+      required:
+        - id
+        - actionId
+        - instanceId
+        - definitionId
+        - definitionKey
+        - businessType
+        - businessId
+        - taskId
+        - nodeId
+        - action
+        - actor
+        - meaning
+        - verificationId
+        - verificationMethod
+        - verificationAt
+        - audience
+        - evidence
+        - commentDigest
+        - evidenceDigest
+        - auditCorrelationId
+        - signedAt
+      properties:
+        id: {type: string, minLength: 1}
+        actionId: {type: string, minLength: 1}
+        instanceId: {type: string, minLength: 1}
+        definitionId: {type: string, minLength: 1}
+        definitionKey: {type: string, minLength: 1}
+        businessType: {type: string, minLength: 1}
+        businessId: {type: string, minLength: 1}
+        taskId: {type: string, minLength: 1}
+        nodeId: {type: string, minLength: 1}
+        action: {type: string, enum: [approve, reject]}
+        actor: {$ref: '#/components/schemas/WorkflowActor'}
+        meaning: {type: string, minLength: 1, maxLength: 512}
+        verificationId: {type: string, minLength: 1}
+        verificationMethod: {type: string, enum: [password]}
+        verificationAt: {type: string, format: date-time}
+        audience: {type: string, minLength: 1, maxLength: 128}
+        evidence:
+          type: array
+          maxItems: 16
+          items:
+            $ref: '#/components/schemas/WorkflowEvidenceReference'
+        commentDigest: {type: string, minLength: 64, maxLength: 64}
+        evidenceDigest: {type: string, minLength: 64, maxLength: 64}
+        auditCorrelationId: {type: string, minLength: 1}
+        signedAt: {type: string, format: date-time}
     WorkflowInstance:
       type: object
       required:
@@ -3430,6 +3576,7 @@ components:
         - variables
         - tasks
         - timeline
+        - receipts
         - createdAt
         - updatedAt
       properties:
@@ -3468,6 +3615,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/WorkflowAction'
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkflowSignatureReceipt'
         createdAt:
           type: string
           format: date-time

@@ -74,10 +74,16 @@ func (s *workflowService) CreateDefinition(ctx context.Context, input pluginsdk.
 				Target: domainworkflow.Actor{ID: shared.ID(strings.TrimSpace(item.Escalation.Target.ID)), Name: strings.TrimSpace(item.Escalation.Target.Name)},
 			}
 		}
+		var signature *domainworkflow.SignaturePolicy
+		if item.Signature != nil {
+			signature = &domainworkflow.SignaturePolicy{
+				Meaning: strings.TrimSpace(item.Signature.Meaning), RequireEvidence: item.Signature.RequireEvidence,
+			}
+		}
 		nodes = append(nodes, domainworkflow.Node{
 			ID: shared.ID(nodeID), Key: nodeKey, Name: strings.TrimSpace(item.Name),
 			Type: domainworkflow.NodeType(item.Type), Assignees: assignees,
-			Decision: decision, Escalation: escalation,
+			Decision: decision, Escalation: escalation, Signature: signature,
 		})
 	}
 	transitions := make([]domainworkflow.Transition, 0, len(input.Transitions))
@@ -284,6 +290,16 @@ func (s *workflowService) taskAction(ctx context.Context, action string, input p
 		InstanceID: shared.ID(instanceID), TaskID: shared.ID(taskID),
 		Actor: domainworkflow.Actor{ID: shared.ID(actor.id), Name: actor.name}, Comment: strings.TrimSpace(input.Comment), Now: s.now(),
 	}
+	if input.Signature != nil {
+		evidenceIDs := make([]shared.ID, 0, len(input.Signature.EvidenceIDs))
+		for _, id := range input.Signature.EvidenceIDs {
+			evidenceIDs = append(evidenceIDs, shared.ID(strings.TrimSpace(id)))
+		}
+		serviceInput.Signature = &workflowsvc.DecisionSignatureInput{
+			Proof: input.Signature.Proof, Meaning: input.Signature.Meaning,
+			Audience: "plugin:" + s.pluginID, EvidenceIDs: evidenceIDs,
+		}
+	}
 	var item *domainworkflow.Instance
 	if action == "approve" {
 		item, err = s.workflow.Approve(ctx, serviceInput)
@@ -293,10 +309,25 @@ func (s *workflowService) taskAction(ctx context.Context, action string, input p
 	if err != nil {
 		return pluginsdk.WorkflowInstance{}, err
 	}
-	if err := s.record(ctx, "workflow.task."+action, input.InstanceID, map[string]any{"taskId": input.TaskID}); err != nil {
+	result, err := s.instance(*item)
+	if err != nil {
 		return pluginsdk.WorkflowInstance{}, err
 	}
-	return s.instance(*item)
+	detail := map[string]any{"taskId": input.TaskID}
+	for index := len(result.Receipts) - 1; index >= 0; index-- {
+		receipt := result.Receipts[index]
+		if receipt.TaskID != input.TaskID || string(receipt.Action) != action {
+			continue
+		}
+		detail["receiptId"] = receipt.ID
+		detail["evidenceDigest"] = receipt.EvidenceDigest
+		detail["auditCorrelationId"] = receipt.AuditCorrelationID
+		break
+	}
+	if err := s.record(ctx, "workflow.task."+action, input.InstanceID, detail); err != nil {
+		return pluginsdk.WorkflowInstance{}, err
+	}
+	return result, nil
 }
 
 func (s *workflowService) targetAction(ctx context.Context, action string, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
@@ -390,6 +421,7 @@ func (s *workflowService) definition(item domainworkflow.Definition) (pluginsdk.
 		}
 		var decision *pluginsdk.WorkflowDecisionRule
 		var escalation *pluginsdk.WorkflowEscalationRule
+		var signature *pluginsdk.WorkflowSignaturePolicy
 		if node.Type == domainworkflow.NodeApproval {
 			decision = &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionStrategy(node.Decision.Strategy), Quorum: node.Decision.Quorum}
 			if node.Escalation != nil {
@@ -397,10 +429,15 @@ func (s *workflowService) definition(item domainworkflow.Definition) (pluginsdk.
 					AfterSeconds: int64(node.Escalation.After / time.Second), Target: workflowActor(node.Escalation.Target),
 				}
 			}
+			if node.Signature != nil {
+				signature = &pluginsdk.WorkflowSignaturePolicy{
+					Meaning: node.Signature.Meaning, RequireEvidence: node.Signature.RequireEvidence,
+				}
+			}
 		}
 		nodes = append(nodes, pluginsdk.WorkflowNode{
 			ID: nodeID, Key: nodeKey, Name: node.Name, Type: pluginsdk.WorkflowNodeType(node.Type), AssigneeIDs: assignees,
-			Decision: decision, Escalation: escalation,
+			Decision: decision, Escalation: escalation, Signature: signature,
 		})
 	}
 	transitions := make([]pluginsdk.WorkflowTransition, 0, len(item.Transitions))
@@ -473,16 +510,52 @@ func (s *workflowService) instance(item domainworkflow.Instance) (pluginsdk.Work
 		if convertErr != nil {
 			return pluginsdk.WorkflowInstance{}, convertErr
 		}
+		receiptID, convertErr := s.optionalLocalID(action.ReceiptID.String(), "workflow signature receipt")
+		if convertErr != nil {
+			return pluginsdk.WorkflowInstance{}, convertErr
+		}
 		timeline = append(timeline, pluginsdk.WorkflowAction{
 			ID: actionID, Type: pluginsdk.WorkflowActionType(action.Type), InstanceID: id, TaskID: taskID, NodeID: nodeID,
-			Actor: workflowActor(action.Actor), Target: workflowActor(action.Target), Comment: action.Comment, CreatedAt: action.CreatedAt,
+			Actor: workflowActor(action.Actor), Target: workflowActor(action.Target), Comment: action.Comment,
+			ReceiptID: receiptID, CreatedAt: action.CreatedAt,
+		})
+	}
+	receipts := make([]pluginsdk.WorkflowSignatureReceipt, 0, len(item.Receipts))
+	for _, receipt := range item.Receipts {
+		receiptID, convertErr := s.localID(receipt.ID.String(), "workflow signature receipt")
+		if convertErr != nil {
+			return pluginsdk.WorkflowInstance{}, convertErr
+		}
+		receiptActionID, convertErr := s.localID(receipt.ActionID.String(), "workflow action")
+		if convertErr != nil {
+			return pluginsdk.WorkflowInstance{}, convertErr
+		}
+		receiptTaskID, convertErr := s.localID(receipt.TaskID.String(), "workflow task")
+		if convertErr != nil {
+			return pluginsdk.WorkflowInstance{}, convertErr
+		}
+		evidence := make([]pluginsdk.WorkflowEvidenceReference, 0, len(receipt.Evidence))
+		for _, reference := range receipt.Evidence {
+			evidence = append(evidence, pluginsdk.WorkflowEvidenceReference{
+				FileID: reference.FileID.String(), Name: reference.Name, Hash: reference.Hash, Size: reference.Size, MIME: reference.MIME,
+			})
+		}
+		receipts = append(receipts, pluginsdk.WorkflowSignatureReceipt{
+			ID: receiptID, ActionID: receiptActionID, InstanceID: id,
+			DefinitionID: definitionID, DefinitionKey: definitionKey, BusinessType: businessType, BusinessID: receipt.BusinessID,
+			TaskID: receiptTaskID, NodeID: receipt.NodeID.String(),
+			Action: pluginsdk.WorkflowActionType(receipt.Action), Actor: workflowActor(receipt.Actor), Meaning: receipt.Meaning,
+			VerificationID: receipt.VerificationID.String(), VerificationMethod: receipt.VerificationMethod,
+			VerificationAt: receipt.VerificationAt, Audience: receipt.Audience, Evidence: evidence,
+			CommentDigest: receipt.CommentDigest, EvidenceDigest: receipt.EvidenceDigest,
+			AuditCorrelationID: receiptID, SignedAt: receipt.SignedAt,
 		})
 	}
 	return pluginsdk.WorkflowInstance{
 		ID: id, DefinitionID: definitionID, DefinitionKey: definitionKey, BusinessType: businessType,
 		BusinessID: item.BusinessID, Title: item.Title, Status: pluginsdk.WorkflowInstanceStatus(item.Status),
 		Starter: workflowActor(item.Starter), CurrentNode: currentNode, ActiveNodes: workflowIDs(item.ActiveNodes),
-		Variables: workflowVariablesFromDomain(item.Variables), Tasks: tasks, Timeline: timeline,
+		Variables: workflowVariablesFromDomain(item.Variables), Tasks: tasks, Timeline: timeline, Receipts: receipts,
 		CreatedAt: item.Meta.CreatedAt, UpdatedAt: item.Meta.UpdatedAt,
 	}, nil
 }

@@ -91,6 +91,7 @@ type WorkflowNode struct {
 	AssigneeIDs []string
 	Decision    *WorkflowDecisionRule
 	Escalation  *WorkflowEscalationRule
+	Signature   *WorkflowSignaturePolicy
 }
 
 type WorkflowTransition struct {
@@ -107,6 +108,11 @@ type WorkflowDecisionRule struct {
 type WorkflowEscalationRule struct {
 	AfterSeconds int64
 	Target       WorkflowActor
+}
+
+type WorkflowSignaturePolicy struct {
+	Meaning         string
+	RequireEvidence bool
 }
 
 type WorkflowValue struct {
@@ -159,6 +165,13 @@ type WorkflowTaskActionInput struct {
 	InstanceID string
 	TaskID     string
 	Comment    string
+	Signature  *WorkflowDecisionSignature
+}
+
+type WorkflowDecisionSignature struct {
+	Proof       string
+	Meaning     string
+	EvidenceIDs []string
 }
 
 type WorkflowInstanceActionInput struct {
@@ -216,7 +229,40 @@ type WorkflowAction struct {
 	Actor      WorkflowActor
 	Target     WorkflowActor
 	Comment    string
+	ReceiptID  string
 	CreatedAt  time.Time
+}
+
+type WorkflowEvidenceReference struct {
+	FileID string
+	Name   string
+	Hash   string
+	Size   int64
+	MIME   string
+}
+
+type WorkflowSignatureReceipt struct {
+	ID                 string
+	ActionID           string
+	InstanceID         string
+	DefinitionID       string
+	DefinitionKey      string
+	BusinessType       string
+	BusinessID         string
+	TaskID             string
+	NodeID             string
+	Action             WorkflowActionType
+	Actor              WorkflowActor
+	Meaning            string
+	VerificationID     string
+	VerificationMethod string
+	VerificationAt     time.Time
+	Audience           string
+	Evidence           []WorkflowEvidenceReference
+	CommentDigest      string
+	EvidenceDigest     string
+	AuditCorrelationID string
+	SignedAt           time.Time
 }
 
 type WorkflowInstance struct {
@@ -233,6 +279,7 @@ type WorkflowInstance struct {
 	Variables     map[string]WorkflowValue
 	Tasks         []WorkflowTask
 	Timeline      []WorkflowAction
+	Receipts      []WorkflowSignatureReceipt
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }

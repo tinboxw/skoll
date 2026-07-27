@@ -300,7 +300,11 @@ func loadWorkflowInstance(tx *gorm.DB, id shared.ID, lockStrength string) (*doma
 	if err := tx.Where("instance_id = ?", row.ID).Order("position ASC").Find(&actions).Error; err != nil {
 		return nil, err
 	}
-	instance, err := workflowInstanceFromRows(row, tasks, actions)
+	var receipts []WorkflowSignatureReceiptModel
+	if err := tx.Where("instance_id = ?", row.ID).Order("signed_at ASC").Order("id ASC").Find(&receipts).Error; err != nil {
+		return nil, err
+	}
+	instance, err := workflowInstanceFromRows(row, tasks, actions, receipts)
 	if err != nil {
 		return nil, fmt.Errorf("restore workflow instance: %w", err)
 	}
@@ -324,9 +328,6 @@ func replaceWorkflowInstance(tx *gorm.DB, instance domainworkflow.Instance) erro
 	}).Create(&row).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("instance_id = ?", row.ID).Delete(&WorkflowActionModel{}).Error; err != nil {
-		return err
-	}
 	if err := tx.Where("instance_id = ?", row.ID).Delete(&WorkflowTaskModel{}).Error; err != nil {
 		return err
 	}
@@ -336,11 +337,10 @@ func replaceWorkflowInstance(tx *gorm.DB, instance domainworkflow.Instance) erro
 			return err
 		}
 	}
-	actions := workflowActionRows(instance)
-	if len(actions) > 0 {
-		return tx.Create(&actions).Error
+	if err := appendWorkflowActions(tx, workflowActionRows(instance)); err != nil {
+		return err
 	}
-	return nil
+	return appendWorkflowSignatureReceipts(tx, instance.Receipts)
 }
 
 func workflowDefinitionRow(definition domainworkflow.Definition) WorkflowDefinitionModel {
@@ -363,6 +363,10 @@ func workflowNodeRows(definition domainworkflow.Definition) ([]WorkflowNodeModel
 			nodes[len(nodes)-1].EscalationAfterSeconds = int64(node.Escalation.After / time.Second)
 			nodes[len(nodes)-1].EscalationTargetID = node.Escalation.Target.ID.String()
 			nodes[len(nodes)-1].EscalationTargetName = strings.TrimSpace(node.Escalation.Target.Name)
+		}
+		if node.Signature != nil {
+			nodes[len(nodes)-1].SignatureMeaning = strings.TrimSpace(node.Signature.Meaning)
+			nodes[len(nodes)-1].SignatureEvidence = node.Signature.RequireEvidence
 		}
 		for assigneePosition, assigneeID := range node.Assignees {
 			assignees = append(assignees, WorkflowNodeAssigneeModel{
@@ -410,11 +414,17 @@ func workflowDefinitionFromRows(row WorkflowDefinitionModel, nodes []WorkflowNod
 				Target: domainworkflow.Actor{ID: shared.ID(node.EscalationTargetID), Name: node.EscalationTargetName},
 			}
 		}
+		var signature *domainworkflow.SignaturePolicy
+		if strings.TrimSpace(node.SignatureMeaning) != "" || node.SignatureEvidence {
+			signature = &domainworkflow.SignaturePolicy{
+				Meaning: strings.TrimSpace(node.SignatureMeaning), RequireEvidence: node.SignatureEvidence,
+			}
+		}
 		definition.Nodes = append(definition.Nodes, domainworkflow.Node{
 			ID: shared.ID(node.NodeID), Key: node.NodeKey, Name: node.Name, Type: domainworkflow.NodeType(node.NodeType),
 			Assignees:  assigneesByNode[node.NodeID],
 			Decision:   domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionStrategy(node.DecisionStrategy), Quorum: node.DecisionQuorum},
-			Escalation: escalation,
+			Escalation: escalation, Signature: signature,
 		})
 	}
 	for _, transition := range transitions {
@@ -472,12 +482,13 @@ func workflowActionRows(instance domainworkflow.Instance) []WorkflowActionModel 
 			ID: action.ID.String(), InstanceID: instance.ID.String(), Position: position, ActionType: string(action.Type),
 			TaskID: action.TaskID.String(), NodeID: action.NodeID.String(), ActorID: action.Actor.ID.String(), ActorName: strings.TrimSpace(action.Actor.Name),
 			TargetID: action.Target.ID.String(), TargetName: strings.TrimSpace(action.Target.Name), Comment: strings.TrimSpace(action.Comment), CreatedAt: action.CreatedAt,
+			ReceiptID: action.ReceiptID.String(),
 		})
 	}
 	return rows
 }
 
-func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskModel, actions []WorkflowActionModel) (domainworkflow.Instance, error) {
+func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskModel, actions []WorkflowActionModel, receipts []WorkflowSignatureReceiptModel) (domainworkflow.Instance, error) {
 	activeNodes := make([]shared.ID, 0)
 	if err := json.Unmarshal([]byte(row.ActiveNodeIDsJSON), &activeNodes); err != nil {
 		return domainworkflow.Instance{}, fmt.Errorf("decode workflow active nodes: %w", err)
@@ -492,7 +503,8 @@ func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskMod
 		Starter: domainworkflow.Actor{ID: shared.ID(row.StarterID), Name: row.StarterName}, CurrentNode: shared.ID(row.CurrentNodeID),
 		ActiveNodes: activeNodes, Variables: variables,
 		Tasks: make([]domainworkflow.Task, 0, len(tasks)), Timeline: make([]domainworkflow.Action, 0, len(actions)),
-		Meta: shared.AuditMeta{CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt},
+		Receipts: make([]domainworkflow.SignatureReceipt, 0, len(receipts)),
+		Meta:     shared.AuditMeta{CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt},
 	}
 	for _, task := range tasks {
 		instance.Tasks = append(instance.Tasks, domainworkflow.Task{
@@ -509,8 +521,16 @@ func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskMod
 		instance.Timeline = append(instance.Timeline, domainworkflow.Action{
 			ID: shared.ID(action.ID), Type: domainworkflow.ActionType(action.ActionType), InstanceID: shared.ID(action.InstanceID),
 			TaskID: shared.ID(action.TaskID), NodeID: shared.ID(action.NodeID), Actor: domainworkflow.Actor{ID: shared.ID(action.ActorID), Name: action.ActorName},
-			Target: domainworkflow.Actor{ID: shared.ID(action.TargetID), Name: action.TargetName}, Comment: action.Comment, CreatedAt: action.CreatedAt,
+			Target: domainworkflow.Actor{ID: shared.ID(action.TargetID), Name: action.TargetName}, Comment: action.Comment,
+			ReceiptID: shared.ID(action.ReceiptID), CreatedAt: action.CreatedAt,
 		})
+	}
+	for _, receipt := range receipts {
+		item, err := workflowSignatureReceiptFromRow(receipt)
+		if err != nil {
+			return domainworkflow.Instance{}, err
+		}
+		instance.Receipts = append(instance.Receipts, item)
 	}
 	return instance, nil
 }
@@ -526,6 +546,9 @@ func validateWorkflowInstanceForStorage(instance domainworkflow.Instance) error 
 		return fmt.Errorf("workflow instance actor or current node is incomplete")
 	}
 	if err := domainworkflow.ValidateVariables(instance.Variables); err != nil {
+		return err
+	}
+	if err := instance.ValidateSignatureEvidence(); err != nil {
 		return err
 	}
 	if instance.Status == domainworkflow.InstanceRunning && len(instance.ActiveNodes) == 0 {
@@ -566,10 +589,46 @@ func validateWorkflowInstanceForStorage(instance domainworkflow.Instance) error 
 			}
 		}
 	}
+	receipts := make(map[shared.ID]domainworkflow.SignatureReceipt, len(instance.Receipts))
+	verificationIDs := make(map[shared.ID]struct{}, len(instance.Receipts))
+	for _, receipt := range instance.Receipts {
+		if receipt.ID.IsZero() || receipt.ActionID.IsZero() || receipt.InstanceID != instance.ID ||
+			receipt.DefinitionID != instance.DefinitionID || receipt.TaskID.IsZero() || receipt.NodeID.IsZero() ||
+			receipt.Actor.ID.IsZero() || receipt.VerificationID.IsZero() || receipt.AuditCorrelationID != receipt.ID ||
+			receipt.VerificationAt.IsZero() || receipt.SignedAt.IsZero() {
+			return fmt.Errorf("workflow signature receipt is incomplete")
+		}
+		if _, exists := receipts[receipt.ID]; exists {
+			return fmt.Errorf("workflow signature receipt is duplicated")
+		}
+		if _, exists := verificationIDs[receipt.VerificationID]; exists {
+			return fmt.Errorf("workflow signature verification is duplicated")
+		}
+		if err := receipt.VerifyDigest(); err != nil {
+			return err
+		}
+		receipts[receipt.ID] = receipt
+		verificationIDs[receipt.VerificationID] = struct{}{}
+	}
+	linkedReceipts := make(map[shared.ID]struct{}, len(receipts))
 	for _, action := range instance.Timeline {
 		if action.ID.IsZero() || action.InstanceID != instance.ID || action.NodeID.IsZero() || action.Actor.ID.IsZero() || action.CreatedAt.IsZero() {
 			return fmt.Errorf("workflow action is incomplete")
 		}
+		if action.ReceiptID.IsZero() {
+			continue
+		}
+		receipt, exists := receipts[action.ReceiptID]
+		if !exists {
+			return fmt.Errorf("workflow signature receipt correlation is invalid")
+		}
+		if err := receipt.VerifyAction(action); err != nil {
+			return err
+		}
+		linkedReceipts[receipt.ID] = struct{}{}
+	}
+	if len(linkedReceipts) != len(receipts) {
+		return fmt.Errorf("workflow signature receipt is not linked to an action")
 	}
 	return nil
 }

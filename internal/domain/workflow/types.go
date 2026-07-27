@@ -88,6 +88,7 @@ type Node struct {
 	Assignees  []shared.ID
 	Decision   DecisionRule
 	Escalation *EscalationRule
+	Signature  *SignaturePolicy
 }
 
 type Transition struct {
@@ -110,6 +111,7 @@ type Instance struct {
 	Variables     map[string]Value
 	Tasks         []Task
 	Timeline      []Action
+	Receipts      []SignatureReceipt
 	Meta          shared.AuditMeta
 }
 
@@ -136,6 +138,7 @@ type Action struct {
 	Actor      Actor
 	Target     Actor
 	Comment    string
+	ReceiptID  shared.ID
 	CreatedAt  time.Time
 }
 
@@ -246,7 +249,12 @@ func (n Node) Validate() error {
 			return err
 		}
 		if n.Escalation != nil {
-			return n.Escalation.Validate()
+			if err := n.Escalation.Validate(); err != nil {
+				return err
+			}
+		}
+		if n.Signature != nil {
+			return n.Signature.Validate()
 		}
 		return nil
 	}
@@ -255,6 +263,9 @@ func (n Node) Validate() error {
 	}
 	if n.Escalation != nil {
 		return fmt.Errorf("workflow non-approval node cannot declare escalation")
+	}
+	if n.Signature != nil {
+		return fmt.Errorf("workflow non-approval node cannot declare signature policy")
 	}
 	return nil
 }
@@ -315,7 +326,7 @@ func Start(in StartInput) (*Instance, error) {
 	return instance, nil
 }
 
-func (i *Instance) Approve(definition Definition, taskID shared.ID, actor Actor, comment string, now time.Time) error {
+func (i *Instance) Approve(definition Definition, taskID shared.ID, actor Actor, comment string, signature *DecisionSignature, now time.Time) error {
 	if err := i.ensureRunning(); err != nil {
 		return err
 	}
@@ -348,9 +359,20 @@ func (i *Instance) Approve(definition Definition, taskID shared.ID, actor Actor,
 		newNodes = differenceIDs(nextActive, remaining)
 	}
 	now = normalizeNow(now)
+	action := Action{ID: actionID(i.ID, ActionApprove, taskID.String(), actor.ID.String()), Type: ActionApprove, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now}
+	receipt, err := i.signatureReceipt(definition, node, action, signature)
+	if err != nil {
+		return err
+	}
+	if receipt != nil {
+		action.ReceiptID = receipt.ID
+	}
 	task.Status = TaskApproved
 	task.CompletedAt = &now
-	i.appendAction(Action{ID: actionID(i.ID, ActionApprove, taskID.String(), actor.ID.String()), Type: ActionApprove, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	i.appendAction(action)
+	if receipt != nil {
+		i.Receipts = append(i.Receipts, *receipt)
+	}
 	if willResolve {
 		i.cancelPendingNodeTasks(task.NodeID, now)
 		i.ActiveNodes = nextActive
@@ -366,11 +388,39 @@ func (i *Instance) Approve(definition Definition, taskID shared.ID, actor Actor,
 	return nil
 }
 
-func (i *Instance) Reject(taskID shared.ID, actor Actor, comment string, now time.Time) error {
-	if err := i.completeTask(taskID, actor, comment, now, TaskRejected, ActionReject, InstanceRejected); err != nil {
+func (i *Instance) Reject(definition Definition, taskID shared.ID, actor Actor, comment string, signature *DecisionSignature, now time.Time) error {
+	if definition.ID != i.DefinitionID || definition.Status != DefinitionPublished {
+		return fmt.Errorf("workflow instance definition is invalid")
+	}
+	if err := definition.Validate(); err != nil {
 		return err
 	}
-	i.cancelAllPendingTasks(normalizeNow(now))
+	task, err := i.pendingTask(taskID, actor)
+	if err != nil {
+		return err
+	}
+	node, ok := definition.nodeByID(task.NodeID)
+	if !ok || node.Type != NodeApproval {
+		return fmt.Errorf("workflow approval node is invalid")
+	}
+	now = normalizeNow(now)
+	action := Action{ID: actionID(i.ID, ActionReject, taskID.String(), actor.ID.String()), Type: ActionReject, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Comment: strings.TrimSpace(comment), CreatedAt: now}
+	receipt, err := i.signatureReceipt(definition, node, action, signature)
+	if err != nil {
+		return err
+	}
+	if receipt != nil {
+		action.ReceiptID = receipt.ID
+	}
+	task.Status = TaskRejected
+	task.CompletedAt = &now
+	i.Status = InstanceRejected
+	i.appendAction(action)
+	if receipt != nil {
+		i.Receipts = append(i.Receipts, *receipt)
+	}
+	i.Meta.Touch(now)
+	i.cancelAllPendingTasks(now)
 	i.ActiveNodes = nil
 	return nil
 }

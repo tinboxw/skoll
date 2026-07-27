@@ -103,6 +103,17 @@ func TestBuiltinAuthLoginSuccessWithSeededAdminCredentials(t *testing.T) {
 	}
 }
 
+type reverifyResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		Proof          string    `json:"proof"`
+		VerificationID string    `json:"verificationId"`
+		VerifiedAt     time.Time `json:"verifiedAt"`
+		ExpiresAt      time.Time `json:"expiresAt"`
+	} `json:"data"`
+}
+
 func TestBuiltinAuthLoginRejectsWrongPassword(t *testing.T) {
 	h, _ := newSeededAuthHandler(t)
 
@@ -110,6 +121,68 @@ func TestBuiltinAuthLoginRejectsWrongPassword(t *testing.T) {
 	resp := httptest.NewRecorder()
 
 	h.handleLogin(resp, req)
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d body=%s", resp.Code, resp.Body.String())
+	}
+}
+
+func TestBuiltinAuthReverifyIssuesBoundWorkflowSignatureProof(t *testing.T) {
+	h, users := newSeededAuthHandler(t)
+	admin, err := users.GetByAccount(context.Background(), "admin")
+	if err != nil || admin == nil {
+		t.Fatalf("load seeded admin: %v", err)
+	}
+	now := time.Date(2026, time.July, 27, 9, 30, 0, 0, time.UTC)
+	h.nowFn = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/reverify", bytes.NewBufferString(
+		`{"password":"Admin@123456","audience":"plugin:medical_oa"}`,
+	))
+	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{
+		Subject: admin.ID.String(),
+	}))
+	resp := httptest.NewRecorder()
+
+	h.handleReverify(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resp.Code, resp.Body.String())
+	}
+	var body reverifyResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode reverification response: %v", err)
+	}
+	claims, err := h.proofs.VerifyReverificationProof(body.Data.Proof, now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("verify reverification proof: %v", err)
+	}
+	if claims.ID != body.Data.VerificationID ||
+		claims.Subject != admin.ID.String() ||
+		claims.Audience != "plugin:medical_oa" ||
+		claims.Purpose != security.ReverificationPurposeWorkflowSignature ||
+		claims.Method != "password" ||
+		!claims.VerifiedAt.Equal(body.Data.VerifiedAt) ||
+		!claims.ExpiresAt.Equal(body.Data.ExpiresAt) {
+		t.Fatalf("unexpected reverification claims: %+v body=%+v", claims, body.Data)
+	}
+}
+
+func TestBuiltinAuthReverifyRejectsWrongPassword(t *testing.T) {
+	h, users := newSeededAuthHandler(t)
+	admin, err := users.GetByAccount(context.Background(), "admin")
+	if err != nil || admin == nil {
+		t.Fatalf("load seeded admin: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/reverify", bytes.NewBufferString(
+		`{"password":"wrong","audience":"core"}`,
+	))
+	req = req.WithContext(security.WithJWTClaimsContext(req.Context(), &security.JWTClaims{
+		Subject: admin.ID.String(),
+	}))
+	resp := httptest.NewRecorder()
+
+	h.handleReverify(resp, req)
 
 	if resp.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d body=%s", resp.Code, resp.Body.String())

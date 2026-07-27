@@ -581,7 +581,7 @@ func newDocumentWorkflowFixtureWithScopes(t *testing.T, scopes pluginsdk.DataSco
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	if err = db.AutoMigrate(
 		&gormrepo.WorkflowDefinitionModel{}, &gormrepo.WorkflowNodeModel{}, &gormrepo.WorkflowNodeAssigneeModel{}, &gormrepo.WorkflowTransitionModel{},
-		&gormrepo.WorkflowInstanceModel{}, &gormrepo.WorkflowTaskModel{}, &gormrepo.WorkflowActionModel{}, &gormrepo.WorkflowSubstitutionModel{},
+		&gormrepo.WorkflowInstanceModel{}, &gormrepo.WorkflowTaskModel{}, &gormrepo.WorkflowActionModel{}, &gormrepo.WorkflowSubstitutionModel{}, &gormrepo.WorkflowSignatureReceiptModel{},
 		&gormrepo.DocumentWorkflowBindingModel{}, &gormrepo.DocumentWorkflowActionModel{},
 		&gormrepo.DocumentAttachmentModel{}, &gormrepo.DocumentCommentModel{}, &gormrepo.DocumentTimelineEventModel{},
 		&gormrepo.JobModel{},

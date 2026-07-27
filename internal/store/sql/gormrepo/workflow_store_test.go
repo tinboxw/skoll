@@ -233,6 +233,22 @@ func TestWorkflowMigrationScriptsCoverRelationalSchema(t *testing.T) {
 				t.Fatalf("%s workflow assignment migration missing %q", dialect, token)
 			}
 		}
+		signaturePath := filepath.Join(root, dialect, "20260727_000034_add_workflow_signature_receipts.sql")
+		signatureBody, err := os.ReadFile(signaturePath)
+		if err != nil {
+			t.Fatalf("read %s workflow signature migration: %v", dialect, err)
+		}
+		signatureText := strings.ToLower(string(signatureBody))
+		for _, token := range []string{
+			"signature_meaning", "signature_evidence", "receipt_id", "sk_workflow_signature_receipts",
+			"verification_id", "evidence_digest", "audit_correlation_id",
+			"uk_workflow_signature_receipt_action", "uk_workflow_signature_receipt_verification",
+			"idx_workflow_receipt_instance_signed", "foreign key",
+		} {
+			if !strings.Contains(signatureText, token) {
+				t.Fatalf("%s workflow signature migration missing %q", dialect, token)
+			}
+		}
 	}
 }
 
@@ -247,7 +263,7 @@ func openWorkflowTestDB(t *testing.T, dsn string) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&WorkflowDefinitionModel{}, &WorkflowNodeModel{}, &WorkflowNodeAssigneeModel{}, &WorkflowTransitionModel{},
-		&WorkflowInstanceModel{}, &WorkflowTaskModel{}, &WorkflowActionModel{}, &WorkflowSubstitutionModel{}, &JobModel{},
+		&WorkflowInstanceModel{}, &WorkflowTaskModel{}, &WorkflowActionModel{}, &WorkflowSubstitutionModel{}, &WorkflowSignatureReceiptModel{}, &JobModel{},
 	); err != nil {
 		t.Fatalf("migrate workflow test database: %v", err)
 	}

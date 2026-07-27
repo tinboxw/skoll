@@ -13,6 +13,7 @@ import (
 	apiv1 "github.com/tinboxw/skoll/internal/handler/http/v1"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
+	"github.com/tinboxw/skoll/pkg/security"
 )
 
 const (
@@ -116,13 +117,14 @@ type definitionInput struct {
 }
 
 type nodeInput struct {
-	ID         string          `json:"id"`
-	Key        string          `json:"key"`
-	Name       string          `json:"name"`
-	Type       string          `json:"type"`
-	Assignees  []string        `json:"assignees"`
-	Decision   *decisionRule   `json:"decision,omitempty"`
-	Escalation *escalationRule `json:"escalation,omitempty"`
+	ID         string           `json:"id"`
+	Key        string           `json:"key"`
+	Name       string           `json:"name"`
+	Type       string           `json:"type"`
+	Assignees  []string         `json:"assignees"`
+	Decision   *decisionRule    `json:"decision,omitempty"`
+	Escalation *escalationRule  `json:"escalation,omitempty"`
+	Signature  *signaturePolicy `json:"signature,omitempty"`
 }
 
 type transitionInput struct {
@@ -139,6 +141,11 @@ type decisionRule struct {
 type escalationRule struct {
 	AfterSeconds int64      `json:"afterSeconds"`
 	Target       actorInput `json:"target"`
+}
+
+type signaturePolicy struct {
+	Meaning         string `json:"meaning"`
+	RequireEvidence bool   `json:"requireEvidence"`
 }
 
 type workflowValue struct {
@@ -173,8 +180,15 @@ type actorInput struct {
 }
 
 type taskActionInput struct {
-	Actor   actorInput `json:"actor"`
-	Comment string     `json:"comment"`
+	Actor     actorInput              `json:"actor"`
+	Comment   string                  `json:"comment"`
+	Signature *decisionSignatureInput `json:"signature,omitempty"`
+}
+
+type decisionSignatureInput struct {
+	Proof       string   `json:"proof"`
+	Meaning     string   `json:"meaning"`
+	EvidenceIDs []string `json:"evidenceIds"`
 }
 
 type targetActionInput struct {
@@ -340,13 +354,24 @@ func (h *Handler) taskAction(w http.ResponseWriter, r *http.Request, action func
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
 	}
-	instance, err := action(r.Context(), workflowsvc.TaskActionInput{
+	actor := req.Actor.domain()
+	if claims, ok := security.JWTClaimsFromContext(r.Context()); ok && strings.TrimSpace(claims.Subject) != "" {
+		actor.ID = shared.ID(strings.TrimSpace(claims.Subject))
+	}
+	input := workflowsvc.TaskActionInput{
 		InstanceID: shared.ID(strings.TrimSpace(r.PathValue("id"))),
 		TaskID:     shared.ID(strings.TrimSpace(r.PathValue("taskId"))),
-		Actor:      req.Actor.domain(),
+		Actor:      actor,
 		Comment:    req.Comment,
 		Now:        time.Now().UTC(),
-	})
+	}
+	if req.Signature != nil {
+		input.Signature = &workflowsvc.DecisionSignatureInput{
+			Proof: req.Signature.Proof, Meaning: req.Signature.Meaning, Audience: "core",
+			EvidenceIDs: stringIDs(req.Signature.EvidenceIDs),
+		}
+	}
+	instance, err := action(r.Context(), input)
 	if err != nil {
 		apiv1.WriteError(w, http.StatusBadRequest, err)
 		return
@@ -390,6 +415,7 @@ func (in definitionInput) nodes() []domainworkflow.Node {
 			Assignees:  assignees,
 			Decision:   node.Decision.domain(),
 			Escalation: node.Escalation.domain(),
+			Signature:  node.Signature.domain(),
 		})
 	}
 	return nodes
@@ -452,13 +478,14 @@ type definitionRecord struct {
 }
 
 type nodeRecord struct {
-	ID         string          `json:"id"`
-	Key        string          `json:"key"`
-	Name       string          `json:"name"`
-	Type       string          `json:"type"`
-	Assignees  []string        `json:"assignees"`
-	Decision   *decisionRule   `json:"decision,omitempty"`
-	Escalation *escalationRule `json:"escalation,omitempty"`
+	ID         string           `json:"id"`
+	Key        string           `json:"key"`
+	Name       string           `json:"name"`
+	Type       string           `json:"type"`
+	Assignees  []string         `json:"assignees"`
+	Decision   *decisionRule    `json:"decision,omitempty"`
+	Escalation *escalationRule  `json:"escalation,omitempty"`
+	Signature  *signaturePolicy `json:"signature,omitempty"`
 }
 
 type transitionRecord struct {
@@ -481,6 +508,7 @@ type instanceRecord struct {
 	Variables     map[string]workflowValue `json:"variables"`
 	Tasks         []taskRecord             `json:"tasks"`
 	Timeline      []actionRecord           `json:"timeline"`
+	Receipts      []signatureReceiptRecord `json:"receipts"`
 	CreatedAt     time.Time                `json:"createdAt"`
 	UpdatedAt     time.Time                `json:"updatedAt"`
 }
@@ -513,7 +541,40 @@ type actionRecord struct {
 	Actor      actorRecord `json:"actor"`
 	Target     actorRecord `json:"target"`
 	Comment    string      `json:"comment,omitempty"`
+	ReceiptID  string      `json:"receiptId,omitempty"`
 	CreatedAt  time.Time   `json:"createdAt"`
+}
+
+type signatureReceiptRecord struct {
+	ID                 string                    `json:"id"`
+	ActionID           string                    `json:"actionId"`
+	InstanceID         string                    `json:"instanceId"`
+	DefinitionID       string                    `json:"definitionId"`
+	DefinitionKey      string                    `json:"definitionKey"`
+	BusinessType       string                    `json:"businessType"`
+	BusinessID         string                    `json:"businessId"`
+	TaskID             string                    `json:"taskId"`
+	NodeID             string                    `json:"nodeId"`
+	Action             string                    `json:"action"`
+	Actor              actorRecord               `json:"actor"`
+	Meaning            string                    `json:"meaning"`
+	VerificationID     string                    `json:"verificationId"`
+	VerificationMethod string                    `json:"verificationMethod"`
+	VerificationAt     time.Time                 `json:"verificationAt"`
+	Audience           string                    `json:"audience"`
+	Evidence           []evidenceReferenceRecord `json:"evidence"`
+	CommentDigest      string                    `json:"commentDigest"`
+	EvidenceDigest     string                    `json:"evidenceDigest"`
+	AuditCorrelationID string                    `json:"auditCorrelationId"`
+	SignedAt           time.Time                 `json:"signedAt"`
+}
+
+type evidenceReferenceRecord struct {
+	FileID string `json:"fileId"`
+	Name   string `json:"name"`
+	Hash   string `json:"hash"`
+	Size   int64  `json:"size"`
+	MIME   string `json:"mime"`
 }
 
 func definitionRecordFromDomain(definition domainworkflow.Definition) definitionRecord {
@@ -535,6 +596,7 @@ func definitionRecordFromDomain(definition domainworkflow.Definition) definition
 			Assignees:  assignees,
 			Decision:   decision,
 			Escalation: escalationRecord(node.Escalation),
+			Signature:  signaturePolicyRecord(node.Signature),
 		})
 	}
 	transitions := make([]transitionRecord, 0, len(definition.Transitions))
@@ -598,7 +660,27 @@ func instanceRecordFromDomain(instance domainworkflow.Instance) instanceRecord {
 			Actor:      actorRecordFromDomain(action.Actor),
 			Target:     actorRecordFromDomain(action.Target),
 			Comment:    action.Comment,
+			ReceiptID:  action.ReceiptID.String(),
 			CreatedAt:  action.CreatedAt,
+		})
+	}
+	receipts := make([]signatureReceiptRecord, 0, len(instance.Receipts))
+	for _, receipt := range instance.Receipts {
+		evidence := make([]evidenceReferenceRecord, 0, len(receipt.Evidence))
+		for _, reference := range receipt.Evidence {
+			evidence = append(evidence, evidenceReferenceRecord{
+				FileID: reference.FileID.String(), Name: reference.Name, Hash: reference.Hash, Size: reference.Size, MIME: reference.MIME,
+			})
+		}
+		receipts = append(receipts, signatureReceiptRecord{
+			ID: receipt.ID.String(), ActionID: receipt.ActionID.String(), InstanceID: receipt.InstanceID.String(),
+			DefinitionID: receipt.DefinitionID.String(), DefinitionKey: receipt.DefinitionKey,
+			BusinessType: receipt.BusinessType, BusinessID: receipt.BusinessID, TaskID: receipt.TaskID.String(),
+			NodeID: receipt.NodeID.String(), Action: string(receipt.Action), Actor: actorRecordFromDomain(receipt.Actor),
+			Meaning: receipt.Meaning, VerificationID: receipt.VerificationID.String(), VerificationMethod: receipt.VerificationMethod,
+			VerificationAt: receipt.VerificationAt, Audience: receipt.Audience, Evidence: evidence,
+			CommentDigest: receipt.CommentDigest, EvidenceDigest: receipt.EvidenceDigest,
+			AuditCorrelationID: receipt.AuditCorrelationID.String(), SignedAt: receipt.SignedAt,
 		})
 	}
 	return instanceRecord{
@@ -615,6 +697,7 @@ func instanceRecordFromDomain(instance domainworkflow.Instance) instanceRecord {
 		Variables:     workflowValueRecords(instance.Variables),
 		Tasks:         tasks,
 		Timeline:      timeline,
+		Receipts:      receipts,
 		CreatedAt:     instance.Meta.CreatedAt,
 		UpdatedAt:     instance.Meta.UpdatedAt,
 	}
@@ -665,6 +748,28 @@ func escalationRecord(input *domainworkflow.EscalationRule) *escalationRule {
 		return nil
 	}
 	return &escalationRule{AfterSeconds: int64(input.After / time.Second), Target: actorInput{ID: input.Target.ID.String(), Name: input.Target.Name}}
+}
+
+func (input *signaturePolicy) domain() *domainworkflow.SignaturePolicy {
+	if input == nil {
+		return nil
+	}
+	return &domainworkflow.SignaturePolicy{Meaning: strings.TrimSpace(input.Meaning), RequireEvidence: input.RequireEvidence}
+}
+
+func signaturePolicyRecord(input *domainworkflow.SignaturePolicy) *signaturePolicy {
+	if input == nil {
+		return nil
+	}
+	return &signaturePolicy{Meaning: input.Meaning, RequireEvidence: input.RequireEvidence}
+}
+
+func stringIDs(input []string) []shared.ID {
+	out := make([]shared.ID, 0, len(input))
+	for _, value := range input {
+		out = append(out, shared.ID(strings.TrimSpace(value)))
+	}
+	return out
 }
 
 func substitutionRecordFromDomain(item domainworkflow.SubstitutionWindow) map[string]any {

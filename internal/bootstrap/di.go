@@ -99,9 +99,6 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
 	jobService := jobsvc.NewService(bundle.Jobs, nil)
-	workflowService := workflowsvc.NewService(bundle.Workflow, workflowsvc.Options{
-		Jobs: jobService, UnitOfWork: bundle.UnitOfWork, Now: func() time.Time { return time.Now().UTC() },
-	})
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err
@@ -109,6 +106,14 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	fileService := filesvc.NewService(bundle.Files, objectStore, filesvc.Options{
 		Permission: rbacService,
 		Audit:      auditEventService,
+	})
+	workflowProofs, err := newWorkflowProofService(cfg.AppConfig.Security.JWTSecret)
+	if err != nil {
+		return nil, err
+	}
+	workflowService := workflowsvc.NewService(bundle.Workflow, workflowsvc.Options{
+		Jobs: jobService, UnitOfWork: bundle.UnitOfWork, Now: func() time.Time { return time.Now().UTC() },
+		Proofs: workflowProofs, Evidence: workflowEvidenceResolver{files: fileService},
 	})
 	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
 	documentWorkflowStore := gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB)
@@ -1752,6 +1757,11 @@ func selectBuiltinRouteHandler(pluginID, method, path, jwtSecret string, authHan
 	case pluginRouteKey("builtin-auth", http.MethodPatch, "/v1/auth/me/password"):
 		if authHandler != nil {
 			return authHandler.handleUpdatePassword, true
+		}
+		return nil, false
+	case pluginRouteKey("builtin-auth", http.MethodPost, "/v1/auth/reverify"):
+		if authHandler != nil {
+			return authHandler.handleReverify, true
 		}
 		return nil, false
 	case pluginRouteKey("builtin-logger", http.MethodGet, "/v1/logs"):

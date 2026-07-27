@@ -39,6 +39,7 @@ func AllModels() []any {
 		&WorkflowTaskModel{},
 		&WorkflowActionModel{},
 		&WorkflowSubstitutionModel{},
+		&WorkflowSignatureReceiptModel{},
 		&NotificationItemModel{},
 		&NotificationReminderRuleModel{},
 		&NotificationDeliveryAttemptModel{},

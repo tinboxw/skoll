@@ -36,13 +36,14 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 		t.Fatal("AllModels() should include DictionaryItemModel")
 	}
 	for name, present := range map[string]bool{
-		"WorkflowDefinitionModel":   containsModel[WorkflowDefinitionModel](models),
-		"WorkflowNodeModel":         containsModel[WorkflowNodeModel](models),
-		"WorkflowNodeAssigneeModel": containsModel[WorkflowNodeAssigneeModel](models),
-		"WorkflowTransitionModel":   containsModel[WorkflowTransitionModel](models),
-		"WorkflowInstanceModel":     containsModel[WorkflowInstanceModel](models),
-		"WorkflowTaskModel":         containsModel[WorkflowTaskModel](models),
-		"WorkflowActionModel":       containsModel[WorkflowActionModel](models),
+		"WorkflowDefinitionModel":       containsModel[WorkflowDefinitionModel](models),
+		"WorkflowNodeModel":             containsModel[WorkflowNodeModel](models),
+		"WorkflowNodeAssigneeModel":     containsModel[WorkflowNodeAssigneeModel](models),
+		"WorkflowTransitionModel":       containsModel[WorkflowTransitionModel](models),
+		"WorkflowInstanceModel":         containsModel[WorkflowInstanceModel](models),
+		"WorkflowTaskModel":             containsModel[WorkflowTaskModel](models),
+		"WorkflowActionModel":           containsModel[WorkflowActionModel](models),
+		"WorkflowSignatureReceiptModel": containsModel[WorkflowSignatureReceiptModel](models),
 	} {
 		if !present {
 			t.Fatalf("AllModels() should include %s", name)

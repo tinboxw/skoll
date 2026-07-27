@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { Check, ClipboardList, Eye, GitPullRequest, Plus, RefreshCw, Send, X } from "lucide-vue-next";
+import { Check, ClipboardList, Eye, GitPullRequest, Plus, RefreshCw, Send, ShieldCheck, X } from "lucide-vue-next";
 import { ElMessage } from "element-plus";
 
 import { ConfirmAction, DataTable, DetailDrawer, FilterBar, PageShell, PageToolbar, type DataTableColumn } from "../../components/Common";
+import { listFiles, type FileObject } from "../../files/api";
 import { loadFormSchemas, type FormSchema } from "../../form-builder/types";
 import { useI18n } from "../../i18n";
 import { completeWorkflowNotifications, createWorkflowTodo, upsertNotification } from "../../notifications/types";
@@ -14,15 +15,19 @@ import {
 	approveWorkflowTask,
 	copyWorkflowTask,
 	createWorkflowDefinition,
+	getWorkflowDefinition,
 	getWorkflowInstance,
 	publishWorkflowDefinition,
 	rejectWorkflowTask,
+	requestWorkflowReverification,
 	startWorkflowInstance,
 	delegateWorkflowTask,
 	withdrawWorkflowInstance,
 	type WorkflowActor,
+	type WorkflowDefinition,
 	type WorkflowDefinitionRequest,
 	type WorkflowInstance,
+	type WorkflowSignatureReceipt,
 	type WorkflowTask
 } from "../../workflow/api";
 
@@ -59,6 +64,9 @@ const actionMode = ref<"approve" | "reject" | "delegate" | "copy">("approve");
 const actionInstance = ref<WorkflowInstance | null>(null);
 const actionTask = ref<WorkflowTask | null>(null);
 const formSchemas = ref<FormSchema[]>([]);
+const definitions = ref<Record<string, WorkflowDefinition>>({});
+const signatureFiles = ref<FileObject[]>([]);
+const signatureFilesLoading = ref(false);
 
 const launchForm = reactive({
 	title: t("workflow.defaultTitle"),
@@ -70,7 +78,10 @@ const launchForm = reactive({
 const actionForm = reactive({
 	comment: "",
 	targetId: "approver-2",
-	targetName: t("workflow.defaultTargetName")
+	targetName: t("workflow.defaultTargetName"),
+	password: "",
+	meaningConfirmed: false,
+	evidenceIds: [] as string[]
 });
 
 const canRead = computed(() => buttonAccess.can("workflow.instance.read"));
@@ -81,6 +92,13 @@ const currentActor = computed<WorkflowActor>(() => ({
 	name: userStore.profile?.name?.trim() || t("workflow.currentUser")
 }));
 const selectedLaunchSchema = computed(() => formSchemas.value.find((item) => item.id === launchForm.formSchemaId) || null);
+const actionSignaturePolicy = computed(() => {
+	if ((actionMode.value !== "approve" && actionMode.value !== "reject") || !actionInstance.value || !actionTask.value) {
+		return null;
+	}
+	const definition = definitions.value[actionInstance.value.definitionId];
+	return definition?.nodes.find((node) => node.id === actionTask.value?.nodeId)?.signature ?? null;
+});
 
 const columns = computed<DataTableColumn[]>(() => [
 	{ key: "title", label: t("workflow.column.title"), minWidth: 190 },
@@ -134,6 +152,7 @@ async function refreshInstances(): Promise<void> {
 			return;
 		}
 		instances.value = fulfilled.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+		await loadDefinitions(fulfilled);
 	} catch (e) {
 		error.value = toErrorMessage(e);
 	} finally {
@@ -194,11 +213,33 @@ async function submitAction(): Promise<void> {
 	error.value = "";
 	try {
 		const actor = currentActor.value;
+		let signature: { proof: string; meaning: string; evidenceIds: string[] } | undefined;
+		const policy = actionSignaturePolicy.value;
+		if (policy) {
+			if (actionForm.password.trim() === "") {
+				error.value = t("workflow.signature.passwordRequired");
+				return;
+			}
+			if (!actionForm.meaningConfirmed) {
+				error.value = t("workflow.signature.meaningRequired");
+				return;
+			}
+			if (policy.requireEvidence && actionForm.evidenceIds.length === 0) {
+				error.value = t("workflow.signature.evidenceRequired");
+				return;
+			}
+			const verification = await requestWorkflowReverification(actionForm.password);
+			signature = {
+				proof: verification.proof,
+				meaning: policy.meaning,
+				evidenceIds: [...actionForm.evidenceIds]
+			};
+		}
 		let updated: WorkflowInstance;
 		if (actionMode.value === "approve") {
-			updated = await approveWorkflowTask(instance.id, task.id, { actor, comment: actionForm.comment });
+			updated = await approveWorkflowTask(instance.id, task.id, { actor, comment: actionForm.comment, signature });
 		} else if (actionMode.value === "reject") {
-			updated = await rejectWorkflowTask(instance.id, task.id, { actor, comment: actionForm.comment });
+			updated = await rejectWorkflowTask(instance.id, task.id, { actor, comment: actionForm.comment, signature });
 		} else if (actionMode.value === "delegate") {
 			updated = await delegateWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
 			createWorkflowTodo({
@@ -222,6 +263,7 @@ async function submitAction(): Promise<void> {
 			completeWorkflowNotifications(updated.id, actor.id);
 		}
 		upsertInstance(updated);
+		actionForm.password = "";
 		actionOpen.value = false;
 		selected.value = updated;
 		ElMessage.success(t("workflow.updated"));
@@ -283,7 +325,13 @@ function openAction(mode: "approve" | "reject" | "delegate" | "copy", row: Workf
 	actionForm.comment = "";
 	actionForm.targetId = "approver-2";
 	actionForm.targetName = t("workflow.defaultTargetName");
+	actionForm.password = "";
+	actionForm.meaningConfirmed = false;
+	actionForm.evidenceIds = [];
 	actionOpen.value = true;
+	if (actionSignaturePolicy.value) {
+		void loadSignatureFiles();
+	}
 }
 
 function toRow(instance: WorkflowInstance): WorkflowRow {
@@ -328,7 +376,15 @@ async function ensureDemoDefinition(): Promise<void> {
 		version: 1,
 		nodes: [
 			{ id: "start", key: "start", name: t("workflow.node.start"), type: "start" },
-			{ id: "approval", key: "approval", name: t("workflow.node.approval"), type: "approval", assignees: [currentActor.value.id], decision: { strategy: "any", quorum: 1 } },
+			{
+				id: "approval",
+				key: "approval",
+				name: t("workflow.node.approval"),
+				type: "approval",
+				assignees: [currentActor.value.id],
+				decision: { strategy: "any", quorum: 1 },
+				signature: { meaning: t("workflow.signature.demoMeaning"), requireEvidence: false }
+			},
 			{ id: "end", key: "end", name: t("workflow.node.end"), type: "end" }
 		],
 		transitions: [
@@ -337,7 +393,43 @@ async function ensureDemoDefinition(): Promise<void> {
 		]
 	};
 	await createWorkflowDefinition(definition);
-	await publishWorkflowDefinition(DEMO_DEFINITION_ID);
+	const published = await publishWorkflowDefinition(DEMO_DEFINITION_ID);
+	definitions.value = { ...definitions.value, [published.id]: published };
+}
+
+async function loadDefinitions(items: WorkflowInstance[]): Promise<void> {
+	const ids = [...new Set(items.map((item) => item.definitionId).filter((id) => !definitions.value[id]))];
+	if (ids.length === 0) {
+		return;
+	}
+	const loaded = await Promise.allSettled(ids.map((id) => getWorkflowDefinition(id)));
+	const next = { ...definitions.value };
+	for (const result of loaded) {
+		if (result.status === "fulfilled") {
+			next[result.value.id] = result.value;
+		}
+	}
+	definitions.value = next;
+}
+
+async function loadSignatureFiles(): Promise<void> {
+	signatureFilesLoading.value = true;
+	try {
+		const result = await listFiles({ status: "available", limit: 100 });
+		signatureFiles.value = result.items;
+	} catch (e) {
+		error.value = toErrorMessage(e);
+		signatureFiles.value = [];
+	} finally {
+		signatureFilesLoading.value = false;
+	}
+}
+
+function signatureReceipt(receiptID?: string): WorkflowSignatureReceipt | undefined {
+	if (!receiptID) {
+		return undefined;
+	}
+	return selected.value?.receipts.find((item) => item.id === receiptID);
 }
 
 function targetActor(): WorkflowActor {
@@ -497,6 +589,40 @@ function formatDate(value: string): string {
 				<el-form-item :label="t('workflow.comment')">
 					<el-input v-model="actionForm.comment" type="textarea" :rows="3" />
 				</el-form-item>
+				<template v-if="actionSignaturePolicy">
+					<el-form-item :label="t('workflow.signature.meaning')">
+						<el-alert :title="actionSignaturePolicy.meaning" type="warning" :closable="false" show-icon />
+					</el-form-item>
+					<el-form-item :label="t('workflow.signature.password')">
+						<el-input
+							v-model="actionForm.password"
+							type="password"
+							show-password
+							autocomplete="current-password"
+							:placeholder="t('workflow.signature.passwordPlaceholder')"
+						/>
+					</el-form-item>
+					<el-form-item :label="t('workflow.signature.evidence')">
+						<el-select
+							v-model="actionForm.evidenceIds"
+							multiple
+							filterable
+							clearable
+							:loading="signatureFilesLoading"
+							:placeholder="actionSignaturePolicy.requireEvidence ? t('workflow.signature.evidenceRequiredPlaceholder') : t('workflow.signature.evidenceOptionalPlaceholder')"
+						>
+							<el-option
+								v-for="file in signatureFiles"
+								:key="file.id"
+								:label="file.name"
+								:value="file.id"
+							/>
+						</el-select>
+					</el-form-item>
+					<el-checkbox v-model="actionForm.meaningConfirmed">
+						{{ t("workflow.signature.confirmMeaning") }}
+					</el-checkbox>
+				</template>
 			</el-form>
 			<template #footer>
 				<el-button @click="actionOpen = false">{{ t("common.cancel") }}</el-button>
@@ -528,6 +654,16 @@ function formatDate(value: string): string {
 						<strong>{{ t(`workflow.event.${item.type}`) }}</strong>
 						<p>{{ item.actor.name || item.actor.id }} <span v-if="item.target?.id">-> {{ item.target.name || item.target.id }}</span></p>
 						<p v-if="item.comment">{{ item.comment }}</p>
+						<div v-if="signatureReceipt(item.receiptId)" class="signature-receipt">
+							<el-tag type="success" effect="plain">
+								<ShieldCheck class="signature-receipt__icon" aria-hidden="true" />
+								{{ t("workflow.signature.receipt") }}
+							</el-tag>
+							<span>{{ signatureReceipt(item.receiptId)?.meaning }}</span>
+							<el-tooltip :content="signatureReceipt(item.receiptId)?.evidenceDigest">
+								<code>{{ signatureReceipt(item.receiptId)?.evidenceDigest.slice(0, 12) }}</code>
+							</el-tooltip>
+						</div>
 					</el-timeline-item>
 				</el-timeline>
 				<div class="drawer-actions">
@@ -571,6 +707,31 @@ function formatDate(value: string): string {
 	height: 16px;
 	color: var(--color-primary);
 	flex-shrink: 0;
+}
+
+.signature-receipt {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-top: 8px;
+	color: var(--el-text-color-regular);
+}
+
+.signature-receipt :deep(.el-tag__content) {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.signature-receipt__icon {
+	width: 14px;
+	height: 14px;
+}
+
+.signature-receipt code {
+	font-family: var(--skoll-font-mono);
+	font-size: 12px;
 }
 
 .drawer-head {

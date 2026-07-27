@@ -25,7 +25,9 @@ type WorkflowNodeModel struct {
 	EscalationAfterSeconds int64
 	EscalationTargetID     string `gorm:"size:64"`
 	EscalationTargetName   string `gorm:"size:255"`
-	Position               int    `gorm:"index:idx_workflow_node_definition_position,priority:2"`
+	SignatureMeaning       string `gorm:"type:text"`
+	SignatureEvidence      bool
+	Position               int `gorm:"index:idx_workflow_node_definition_position,priority:2"`
 }
 
 func (WorkflowNodeModel) TableName() string { return "sk_workflow_nodes" }
@@ -100,6 +102,7 @@ type WorkflowActionModel struct {
 	TargetID   string    `gorm:"size:64"`
 	TargetName string    `gorm:"size:255"`
 	Comment    string    `gorm:"type:text"`
+	ReceiptID  string    `gorm:"size:128;index"`
 	CreatedAt  time.Time `gorm:"index:idx_workflow_action_instance_created,priority:2;index:idx_workflow_action_actor_created,priority:2"`
 }
 
@@ -121,3 +124,30 @@ type WorkflowSubstitutionModel struct {
 }
 
 func (WorkflowSubstitutionModel) TableName() string { return "sk_workflow_substitutions" }
+
+type WorkflowSignatureReceiptModel struct {
+	ID                 string `gorm:"size:128;primaryKey"`
+	ActionID           string `gorm:"size:128;uniqueIndex"`
+	InstanceID         string `gorm:"size:64;index:idx_workflow_receipt_instance_signed,priority:1"`
+	DefinitionID       string `gorm:"size:64"`
+	DefinitionKey      string `gorm:"size:128"`
+	BusinessType       string `gorm:"size:128"`
+	BusinessID         string `gorm:"size:128"`
+	TaskID             string `gorm:"size:128"`
+	NodeID             string `gorm:"size:64"`
+	ActionType         string `gorm:"size:32"`
+	ActorID            string `gorm:"size:64;index"`
+	ActorName          string `gorm:"size:255"`
+	Meaning            string `gorm:"type:text"`
+	VerificationID     string `gorm:"size:128;uniqueIndex"`
+	VerificationMethod string `gorm:"size:32"`
+	VerificationAt     time.Time
+	Audience           string    `gorm:"size:128"`
+	EvidenceJSON       string    `gorm:"type:text"`
+	CommentDigest      string    `gorm:"size:64"`
+	EvidenceDigest     string    `gorm:"size:64"`
+	AuditCorrelationID string    `gorm:"size:128;uniqueIndex"`
+	SignedAt           time.Time `gorm:"index:idx_workflow_receipt_instance_signed,priority:2"`
+}
+
+func (WorkflowSignatureReceiptModel) TableName() string { return "sk_workflow_signature_receipts" }

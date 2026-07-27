@@ -13,6 +13,7 @@ export type WorkflowNode = {
 	assignees?: string[];
 	decision?: WorkflowDecisionRule;
 	escalation?: WorkflowEscalationRule;
+	signature?: WorkflowSignaturePolicy;
 };
 
 export type WorkflowTransition = {
@@ -29,6 +30,11 @@ export type WorkflowDecisionRule = {
 export type WorkflowEscalationRule = {
 	afterSeconds: number;
 	target: WorkflowActor;
+};
+
+export type WorkflowSignaturePolicy = {
+	meaning: string;
+	requireEvidence: boolean;
 };
 
 export type WorkflowValue = {
@@ -82,7 +88,40 @@ export type WorkflowAction = {
 	actor: WorkflowActor;
 	target?: WorkflowActor;
 	comment?: string;
+	receiptId?: string;
 	createdAt: string;
+};
+
+export type WorkflowEvidenceReference = {
+	fileId: string;
+	name: string;
+	hash: string;
+	size: number;
+	mime: string;
+};
+
+export type WorkflowSignatureReceipt = {
+	id: string;
+	actionId: string;
+	instanceId: string;
+	definitionId: string;
+	definitionKey: string;
+	businessType: string;
+	businessId: string;
+	taskId: string;
+	nodeId: string;
+	action: "approve" | "reject";
+	actor: WorkflowActor;
+	meaning: string;
+	verificationId: string;
+	verificationMethod: "password";
+	verificationAt: string;
+	audience: string;
+	evidence: WorkflowEvidenceReference[];
+	commentDigest: string;
+	evidenceDigest: string;
+	auditCorrelationId: string;
+	signedAt: string;
 };
 
 export type WorkflowInstance = {
@@ -99,6 +138,7 @@ export type WorkflowInstance = {
 	variables: Record<string, WorkflowValue>;
 	tasks: WorkflowTask[];
 	timeline: WorkflowAction[];
+	receipts: WorkflowSignatureReceipt[];
 	createdAt: string;
 	updatedAt: string;
 };
@@ -125,6 +165,13 @@ export type WorkflowStartRequest = {
 export type WorkflowTaskActionRequest = {
 	actor: WorkflowActor;
 	comment?: string;
+	signature?: WorkflowDecisionSignatureRequest;
+};
+
+export type WorkflowDecisionSignatureRequest = {
+	proof: string;
+	meaning: string;
+	evidenceIds: string[];
 };
 
 export type WorkflowTaskTargetActionRequest = WorkflowTaskActionRequest & {
@@ -143,6 +190,26 @@ export async function createWorkflowDefinition(body: WorkflowDefinitionRequest):
 export async function publishWorkflowDefinition(id: string): Promise<WorkflowDefinition> {
 	const payload = await apiPost<ApiResponse<ItemPayload<WorkflowDefinition>>>(`/v1/workflows/definitions/${encodeURIComponent(id)}/publish`, {});
 	return payload.data.item;
+}
+
+export async function getWorkflowDefinition(id: string): Promise<WorkflowDefinition> {
+	const payload = await apiGet<ApiResponse<ItemPayload<WorkflowDefinition>>>(`/v1/workflows/definitions/${encodeURIComponent(id)}`);
+	return payload.data.item;
+}
+
+export async function requestWorkflowReverification(password: string): Promise<{
+	proof: string;
+	verificationId: string;
+	verifiedAt: string;
+	expiresAt: string;
+}> {
+	const payload = await apiPost<ApiResponse<{
+		proof: string;
+		verificationId: string;
+		verifiedAt: string;
+		expiresAt: string;
+	}>>("/v1/auth/reverify", { password, audience: "core" });
+	return payload.data;
 }
 
 export async function startWorkflowInstance(body: WorkflowStartRequest): Promise<WorkflowInstance> {

@@ -76,7 +76,7 @@ func BuildApprovalChainFixture() (Fixture, error) {
 	if secondTask.ID.IsZero() {
 		return Fixture{}, fmt.Errorf("fixture missing delegated pending task")
 	}
-	if err := instance.Approve(*definition, secondTask.ID, domainworkflow.Actor{ID: "approver-2", Name: "Approver Two"}, "approved with audit fixture", base.Add(5*time.Minute)); err != nil {
+	if err := instance.Approve(*definition, secondTask.ID, domainworkflow.Actor{ID: "approver-2", Name: "Approver Two"}, "approved with audit fixture", nil, base.Add(5*time.Minute)); err != nil {
 		return Fixture{}, err
 	}
 

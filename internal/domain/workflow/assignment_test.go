@@ -38,7 +38,7 @@ func TestSubstitutionAndDelegationRemainTaskScopedAndTraceable(t *testing.T) {
 	if len(instance.Timeline) != 2 || instance.Timeline[1].Type != ActionSubstitute {
 		t.Fatalf("substitution timeline is incomplete: %+v", instance.Timeline)
 	}
-	if err := instance.Approve(definition, instance.Tasks[1].ID, Actor{ID: "backup-1"}, "", now.Add(time.Minute)); err == nil ||
+	if err := instance.Approve(definition, instance.Tasks[1].ID, Actor{ID: "backup-1"}, "", nil, now.Add(time.Minute)); err == nil ||
 		!strings.Contains(err.Error(), "assignee mismatch") {
 		t.Fatalf("substitute broadened into another task: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestSubstitutionAndDelegationRemainTaskScopedAndTraceable(t *testing.T) {
 		delegated.AuthorizationID.IsZero() || delegated.AuthorizedBy.ID != original.Assignee.ID {
 		t.Fatalf("delegation provenance is incomplete: %+v", delegated)
 	}
-	if err := second.Approve(definition, second.Tasks[1].ID, Actor{ID: "delegate-1"}, "", now.Add(2*time.Minute)); err == nil ||
+	if err := second.Approve(definition, second.Tasks[1].ID, Actor{ID: "delegate-1"}, "", nil, now.Add(2*time.Minute)); err == nil ||
 		!strings.Contains(err.Error(), "assignee mismatch") {
 		t.Fatalf("delegate broadened into another task: %v", err)
 	}

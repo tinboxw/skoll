@@ -2827,3 +2827,56 @@ Result: FF3-02 passed. Plugins can now use permission-bounded delegation and abs
 ### Commit
 
 `FF3-02: govern workflow assignment timers`
+
+## FF3-03 Add Electronic Signatures And Immutable Decision Evidence
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Add current-only identity reverification, fixed signing meaning, attachment evidence, tamper detection, immutable receipts, and plugin audit correlation.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Identity reverification | Pass | The authenticated user must re-enter the current password; the host issues a two-minute HMAC proof bound to subject, audience, password method, and `workflow-signature` purpose |
+| Required signature | Pass | A signed approval or rejection cannot complete without a valid proof and the exact node-defined signing meaning |
+| Proof isolation | Pass | Core proofs use the `core` audience; plugin proofs use `plugin:<pluginId>`; wrong subject, audience, purpose, expiry, or reused verification identity fails closed |
+| Attachment evidence | Pass | The host file service resolves accessible current file metadata and content hash; required evidence rejects empty, duplicate, invalid, inaccessible, or oversized selections |
+| Immutable receipt | Pass | Each decision appends one receipt covering workflow identity, business identity, action, actor, meaning, verification, comment digest, evidence snapshot, timestamp, and audit correlation |
+| Workflow correlation | Pass | Receipt-to-action validation includes action identity, task, node, actor name and ID, comment digest, and signed timestamp; action or receipt tampering is detected on load |
+| Append-only persistence | Pass | Workflow action history and signature receipts are append-only; an existing action or receipt cannot be removed or changed |
+| Multi-approver continuation | Pass | An `all` decision persists its first signed action, restarts, appends the second signed action, and completes without deleting prior evidence |
+| Global single use | Pass | Verification identities are unique across workflow instances in memory and SQL persistence |
+| Restart recovery | Pass | Receipts, evidence snapshots, action links, and digests survive database restart and are revalidated during restoration |
+| Audit correlation | Pass | Plugin workflow audit details carry the receipt ID, evidence digest, and immutable audit correlation ID returned through the public SDK |
+| Public contracts | Pass | Plugin SDK, plugin host service, core HTTP handler, authentication route, both OpenAPI copies, and Vue API models expose one current signature contract |
+| Frontend experience | Pass | Element Plus approval/rejection dialogs collect password, fixed-meaning confirmation, and file-center evidence; the workflow timeline renders the resulting receipt in zh-CN and en-US |
+| Responsive UI | Pass | Browser checks at 1440x1000 and 390x844 show no horizontal overflow, clipped controls, or obscured receipt content |
+| Current-only boundary | Pass | No unsigned bypass, compatibility decoder, legacy endpoint, dual persistence path, or fallback signing flow was introduced |
+| Framework purity | Pass | All implementation is reusable workflow, security, file, audit, plugin, and UI infrastructure; no medicine-industry domain field was added to core |
+
+### Failed Runs And Re-Execution
+
+- The first full `go test ./...` run reached the 120-second command limit without a test failure. It was rerun with a 300-second limit and completed successfully.
+- Browser automation initially attempted to click the confirmation while the Element Plus multi-select remained open. The test was repeated with the normal `Escape` close interaction, then completed the signed decision and verified the receipt timeline.
+- Persistence review found that workflow actions were deleted and recreated before receipts were appended. The task was not accepted in that state; action persistence was changed to append-only, and restart plus multi-approver tests passed on re-execution.
+
+### Verification Commands
+
+```powershell
+go test ./...
+go test -race ./pkg/security ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/plugin/hostservice
+npm --prefix web run typecheck
+npm --prefix web run build
+npm --prefix plugins/pharma_oa/frontend run build
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF3-03 passed. Core and independent plugins can require a fresh, audience-bound identity proof, preserve fixed signing meaning and attachment hashes, and trace every regulated decision through an immutable workflow receipt and audit correlation.
+
+### Commit
+
+`FF3-03: add immutable workflow signatures`

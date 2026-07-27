@@ -125,6 +125,13 @@ func (r *MemoryRepository) SaveInstance(_ context.Context, instance domainworkfl
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	var prior *domainworkflow.Instance
+	if stored, exists := r.instances[instance.ID]; exists {
+		prior = &stored
+	}
+	if err := r.validateImmutableReceipts(instance, prior); err != nil {
+		return err
+	}
 	r.instances[instance.ID] = cloneInstance(instance)
 	return nil
 }
@@ -165,6 +172,9 @@ func (r *MemoryRepository) UpdateInstance(ctx context.Context, id shared.ID, mut
 		return nil, err
 	}
 	if changed {
+		if err := r.validateImmutableReceipts(instance, &stored); err != nil {
+			return nil, err
+		}
 		r.instances[id] = cloneInstance(instance)
 	}
 	result := cloneInstance(instance)
@@ -214,7 +224,46 @@ func cloneInstance(instance domainworkflow.Instance) domainworkflow.Instance {
 		}
 	}
 	instance.Timeline = append([]domainworkflow.Action(nil), instance.Timeline...)
+	instance.Receipts = append([]domainworkflow.SignatureReceipt(nil), instance.Receipts...)
+	for idx := range instance.Receipts {
+		instance.Receipts[idx].Evidence = append([]domainworkflow.EvidenceReference(nil), instance.Receipts[idx].Evidence...)
+	}
 	return instance
+}
+
+func (r *MemoryRepository) validateImmutableReceipts(candidate domainworkflow.Instance, prior *domainworkflow.Instance) error {
+	if err := candidate.ValidateSignatureEvidence(); err != nil {
+		return err
+	}
+	priorByID := make(map[shared.ID]domainworkflow.SignatureReceipt)
+	if prior != nil {
+		for _, receipt := range prior.Receipts {
+			priorByID[receipt.ID] = receipt
+		}
+	}
+	candidateByID := make(map[shared.ID]domainworkflow.SignatureReceipt, len(candidate.Receipts))
+	for _, receipt := range candidate.Receipts {
+		if err := receipt.VerifyDigest(); err != nil {
+			return err
+		}
+		if existing, exists := priorByID[receipt.ID]; exists && existing.EvidenceDigest != receipt.EvidenceDigest {
+			return fmt.Errorf("workflow signature receipt is immutable")
+		}
+		candidateByID[receipt.ID] = receipt
+		for instanceID, stored := range r.instances {
+			for _, other := range stored.Receipts {
+				if instanceID != candidate.ID && other.VerificationID == receipt.VerificationID {
+					return fmt.Errorf("workflow reverification proof was already consumed")
+				}
+			}
+		}
+	}
+	for id := range priorByID {
+		if _, exists := candidateByID[id]; !exists {
+			return fmt.Errorf("workflow signature receipt cannot be removed")
+		}
+	}
+	return nil
 }
 
 func cloneSubstitution(window domainworkflow.SubstitutionWindow) domainworkflow.SubstitutionWindow {

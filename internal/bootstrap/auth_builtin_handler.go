@@ -36,10 +36,15 @@ type builtinAuthHandler struct {
 	logger    logging.Logger
 	nowFn     func() time.Time
 	idFn      func(prefix string) shared.ID
+	proofs    *security.ReverificationProofService
 }
 
 func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, orgRepo organizationrepo.OrganizationRepository, auditSvc auditsvc.Service, eventSvc auditsvc.EventService, logger logging.Logger) *builtinAuthHandler {
 	if usersRepo == nil || rolesRepo == nil || rbacRepo == nil || orgRepo == nil {
+		return nil
+	}
+	proofs, err := newWorkflowProofService(jwtSecret)
+	if err != nil {
 		return nil
 	}
 	return &builtinAuthHandler{
@@ -51,11 +56,52 @@ func newBuiltinAuthHandler(jwtSecret string, usersRepo userrepo.UserRepository, 
 		auditSvc:  auditSvc,
 		eventSvc:  eventSvc,
 		logger:    logger,
+		proofs:    proofs,
 		nowFn:     func() time.Time { return time.Now().UTC() },
 		idFn: func(prefix string) shared.ID {
 			return shared.ID(prefix + "-" + strconv.FormatInt(time.Now().UTC().UnixNano(), 10))
 		},
 	}
+}
+
+func (h *builtinAuthHandler) handleReverify(w http.ResponseWriter, r *http.Request) {
+	entity, _, ok := h.userFromRequest(r)
+	if !ok || entity.Status != domainuser.StatusActive {
+		httpHandler.WriteMessage(w, http.StatusUnauthorized, "unauthorized", "invalid session")
+		return
+	}
+	var req struct {
+		Password string `json:"password"`
+		Audience string `json:"audience"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_reverification_request", "reverification request is invalid")
+		return
+	}
+	audience := strings.TrimSpace(req.Audience)
+	if audience == "" || len(audience) > 128 {
+		httpHandler.WriteMessage(w, http.StatusBadRequest, "invalid_reverification_audience", "reverification audience is invalid")
+		return
+	}
+	if !domainuser.VerifyPassword(req.Password, entity.Password) {
+		h.appendAuthAudit(r.Context(), entity.ID.String(), "reverify_failed", "workflow_signature", map[string]any{"audience": audience})
+		httpHandler.WriteMessage(w, http.StatusUnauthorized, "invalid_credentials", "password verification failed")
+		return
+	}
+	now := h.nowFn().UTC()
+	proof, claims, err := h.proofs.IssueReverificationProof(
+		entity.ID.String(), audience, security.ReverificationPurposeWorkflowSignature, "password", now, 2*time.Minute,
+	)
+	if err != nil {
+		httpHandler.WriteError(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.appendAuthAudit(r.Context(), entity.ID.String(), "reverify", "workflow_signature", map[string]any{
+		"audience": audience, "verificationId": claims.ID, "expiresAt": claims.ExpiresAt,
+	})
+	httpHandler.WriteJSON(w, http.StatusOK, map[string]any{
+		"proof": proof, "verificationId": claims.ID, "verifiedAt": claims.VerifiedAt, "expiresAt": claims.ExpiresAt,
+	})
 }
 
 func (h *builtinAuthHandler) handleLogin(w http.ResponseWriter, r *http.Request) {

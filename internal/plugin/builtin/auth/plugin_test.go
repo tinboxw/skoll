@@ -15,7 +15,7 @@ func TestBuiltinAuthPluginRegister(t *testing.T) {
 	}
 
 	snapshot := registry.Snapshot()
-	if len(snapshot.Routes) != 5 {
+	if len(snapshot.Routes) != 6 {
 		t.Fatalf("unexpected route count: %d", len(snapshot.Routes))
 	}
 	if len(snapshot.Middlewares) != 1 {
