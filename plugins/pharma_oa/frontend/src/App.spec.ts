@@ -1,21 +1,18 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PluginHostSDK } from "@skoll/plugin-sdk";
 import App from "./App.vue";
-import type { HostSDK } from "./types";
+import { installPharmaTestHost } from "./test-host";
 
-const request = vi.fn<HostSDK["request"]>();
+const request = vi.fn<PluginHostSDK["request"]>();
 
 beforeEach(() => {
   localStorage.clear();
   request.mockReset();
   request.mockResolvedValue({ items: [], total: 0 });
-  window.__SKOLL_HOST__ = {
-    pluginId: "pharma_oa",
-    locale: "zh-CN",
-    locales: ["zh-CN", "en-US"],
-    theme: { colorScheme: "dark", density: "compact", tokens: {} },
-    request: request as unknown as HostSDK["request"]
-  };
+  installPharmaTestHost(request, {
+    theme: { colorScheme: "dark", density: "compact", tokens: {} }
+  });
 });
 
 describe("medical master-data workspace", () => {
@@ -52,5 +49,24 @@ describe("medical master-data workspace", () => {
     await flushPromises();
     await vi.waitFor(() => expect(wrapper.get("h2").text()).toBe("采购执行工作台"));
     expect(request.mock.calls.some(([path]) => path.includes("/v1/plugins/pharma_oa/api/purchase-requests"))).toBe(true);
+  });
+
+  it("renders a controlled state for missing and forged host capabilities", async () => {
+    delete window.__SKOLL_HOST__;
+    const missing = mount(App);
+    await flushPromises();
+    expect(missing.get('[role="alert"]').text()).toContain("未连接 SKOLL 插件宿主");
+    missing.unmount();
+
+    const host = installPharmaTestHost(request);
+    window.__SKOLL_HOST__ = {
+      ...host,
+      capabilities: host.capabilities.filter((capability) => capability !== "request")
+    };
+    const forged = mount(App);
+    await flushPromises();
+    expect(forged.get('[role="alert"]').text()).toContain("未连接 SKOLL 插件宿主");
+    expect(request).not.toHaveBeenCalled();
+    forged.unmount();
   });
 });

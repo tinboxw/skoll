@@ -4,6 +4,9 @@ import AutoImport from "unplugin-auto-import/vite";
 import Components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
 
+const pluginSDKPath = decodeURIComponent(new URL("../packages/skoll-plugin-sdk/src/index.ts", import.meta.url).pathname)
+	.replace(/^\/([A-Za-z]:\/)/, "$1");
+
 function normalizeAPIPrefix(raw: string): string {
 	const trimmed = raw.trim();
 	if (trimmed === "") {
@@ -60,6 +63,11 @@ export default defineConfig(({ mode, command, isPreview }) => {
 
 	return {
 		base: effectiveBase,
+		resolve: {
+			alias: {
+				"@skoll/plugin-sdk": pluginSDKPath
+			}
+		},
 		define: {
 			__SKOLL_API_BASE_PREFIX__: JSON.stringify(apiBasePrefix),
 			__SKOLL_WEB_BASE_PATH__: JSON.stringify(webBasePath)

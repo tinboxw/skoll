@@ -1,0 +1,20 @@
+{
+	"name": "@skoll/plugin-sdk",
+	"version": "1.0.0",
+	"description": "Versioned frontend host bridge contract for integrated Skoll plugins.",
+	"type": "module",
+	"files": ["dist"],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"typecheck": "tsc -p tsconfig.json --noEmit"
+	},
+	"devDependencies": {
+		"typescript": "5.9.3"
+	}
+}

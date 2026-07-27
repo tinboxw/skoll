@@ -1,19 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { PluginHostError, type PluginHostSDK } from "@skoll/plugin-sdk";
 import { api, API_BASE, idempotencyKey, query } from "./api";
-import type { HostSDK } from "./types";
+import { installPharmaTestHost } from "./test-host";
 
-const request = vi.fn<HostSDK["request"]>();
+const request = vi.fn<PluginHostSDK["request"]>();
 
 beforeEach(() => {
   request.mockReset();
   request.mockResolvedValue({ items: [] });
-  window.__SKOLL_HOST__ = {
-    pluginId: "pharma_oa",
-    locale: "zh-CN",
-    locales: ["zh-CN", "en-US"],
-    theme: { colorScheme: "light", density: "comfortable", tokens: {} },
-    request: request as unknown as HostSDK["request"]
-  };
+  installPharmaTestHost(request);
 });
 
 describe("pharma OA API", () => {
@@ -80,8 +75,8 @@ describe("pharma OA API", () => {
   });
 
   it("fails closed outside the declared plugin host", async () => {
-    window.__SKOLL_HOST__ = { ...window.__SKOLL_HOST__!, pluginId: "another_plugin" };
-    expect(() => api.employeeReminders()).toThrow("SKOLL_HOST_UNAVAILABLE");
+    installPharmaTestHost(request, { pluginId: "another_plugin" });
+    expect(() => api.employeeReminders()).toThrow(PluginHostError);
     expect(idempotencyKey("qualification").length).toBeLessThan(96);
   });
 });

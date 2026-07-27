@@ -13,26 +13,22 @@
 - host-sdk.ts
 
 ## Host SDK
-远程插件页面加载时，宿主会注入 `window.__SKOLL_HOST__`。插件应通过该对象访问当前稳定宿主能力，不直接拼接旧接口或读取旧插件上下文。
+远程插件只通过 `@skoll/plugin-sdk` 解析当前宿主。SDK 会校验契约版本、插件身份和声明能力；校验失败时返回结构化错误并停止调用。业务代码不得直接读取宿主全局对象。
 
 ```ts
-const host = window.__SKOLL_HOST__;
+import { getPluginHost } from "@skoll/plugin-sdk";
 
-if (host) {
-	const me = await host.auth.me();
-	const dictionaries = await host.dictionary.list();
-	const departments = await host.organization.departments();
-	const config = await host.config.get();
+const host = getPluginHost({
+	pluginId: "example_plugin",
+	requiredCapabilities: ["auth", "dictionary", "organization", "config"]
+});
+const me = await host.auth.me();
+const dictionaries = await host.dictionary.list();
+const departments = await host.organization.departments();
+const config = await host.config.get();
 
-	await host.audit.list({ action: "plugin.enabled" });
-	await host.config.update({ ...config, compact: true });
-}
+await host.config.update({ ...config, compact: true });
 ```
 
-当前能力覆盖 `auth`、`user`、`organization`、`dictionary`、`file`、`audit`、`config`、`permission`，请求会自动使用宿主 API 前缀与当前登录 token。
-
-## 后续待补充实现
-- [ ] 按目录职责补齐核心实现代码。
-- [ ] 补充单元测试与必要的集成测试。
-- [ ] 完善示例、边界条件与错误处理说明。
+当前能力覆盖请求、导航、命令、权限、语言、主题、生命周期、认证、用户、组织、字典、文件、审计和插件配置。宿主请求会自动应用当前 API 前缀与登录凭据。
 

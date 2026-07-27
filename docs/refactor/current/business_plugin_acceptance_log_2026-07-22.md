@@ -2932,3 +2932,57 @@ Result: FF3-04 and milestone FF3 passed. Independent plugins can execute regulat
 ### Commit
 
 `FF3-04: close governed workflow acceptance`
+
+## FF4-01 Freeze The Typed Frontend Plugin Host Bridge
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Publish one current versioned frontend plugin SDK and move integrated plugin UI behind its validated host boundary.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public SDK | Pass | `@skoll/plugin-sdk` publishes typed context, request, navigation, commands, permissions, locale, theme, identity, lifecycle, services, structured errors, and resolver APIs |
+| Versioned contract | Pass | Host and plugin agree on the immutable `skoll.plugin-host` contract and version `1.0`; plugin version and identity are explicit |
+| Immutable injection | Pass | The shell injects one frozen, non-writable host object; old token, locale, theme, and plugin-context globals are absent |
+| Capability integrity | Pass | Unknown, duplicated, undeclared, missing, and falsely reported capabilities fail closed before a plugin operation executes |
+| Message boundary | Pass | Parent and iframe messages require the expected source, origin, contract, version, and plugin identity |
+| Navigation and commands | Pass | Validated shell navigation, back, reload, and home commands cross the bridge; external, traversal, and malformed targets are rejected |
+| Permission boundary | Pass | Plugins inspect and require current identity permissions through the SDK; denied access returns a structured error |
+| Locale, theme, and lifecycle | Pass | Locale, density, color scheme, tokens, plugin health, and lifecycle state are typed and propagated through validated messages |
+| Integrated plugins | Pass | Pharma OA and equipment maintenance import only `@skoll/plugin-sdk`; production plugin code contains no direct host-global access or duplicate host types |
+| Controlled failure state | Pass | Missing and forged Pharma OA host capabilities render an alert with retry and issue no business request |
+| Packaging | Pass | The SDK compiles declarations and JavaScript and produces a four-file npm package containing README, types, runtime, and package metadata |
+| Current-only boundary | Pass | No legacy global reader, compatibility decoder, dual bridge, fallback host, or old error-string path remains in production plugin code |
+| Regression | Pass | SDK, shell, document UI, Pharma OA, and equipment tests, typechecks, production builds, bundle budget, package dry run, and diff checks pass |
+
+### Failed Runs And Re-Execution
+
+- The first shell component run could not resolve the SDK because Vitest has an independent resolver. The same source alias was added to the test configuration; the focused 12-test bridge suite and complete shell component suite passed on re-execution.
+- The first Pharma OA production build rejected generic Vitest mocks and a Node-only alias helper. The test boundary now performs one explicit SDK request cast and all Vite configs resolve the source through `import.meta.url`; plugin tests and builds passed on re-execution.
+- Acceptance review found that a missing host still threw during Pharma OA initialization. The task was not accepted in that state. A controlled connection state, retry action, and missing/forged capability component test were added and passed.
+
+### Verification Commands
+
+```powershell
+node web/node_modules/typescript/bin/tsc -p packages/skoll-plugin-sdk/tsconfig.json --noEmit
+npm --prefix packages/skoll-plugin-sdk pack --dry-run
+npm --prefix web run typecheck
+npm --prefix web run test:components
+npm --prefix web run build
+npm --prefix plugins/pharma_oa/frontend test
+npm --prefix plugins/pharma_oa/frontend run build
+npm --prefix plugins/equipment_maintenance/web test
+npm --prefix plugins/equipment_maintenance/web run build
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF4-01 passed. Integrated frontend plugins now consume one typed, immutable, versioned host bridge and fail into controlled UI states when the host identity, structure, version, permissions, or capabilities are invalid.
+
+### Commit
+
+`FF4-01: freeze frontend plugin host bridge`

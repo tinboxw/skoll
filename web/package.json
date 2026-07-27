@@ -34,6 +34,7 @@
 		"smoke:all": "node scripts/run-smoke-suite.mjs"
 	},
 	"dependencies": {
+		"@skoll/plugin-sdk": "file:../packages/skoll-plugin-sdk",
 		"element-plus": "^2.14.1",
 		"lucide-vue-next": "^1.0.0",
 		"pinia": "^2.1.7",

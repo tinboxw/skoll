@@ -1,7 +1,9 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PluginHostSDK } from "@skoll/plugin-sdk";
 import PurchaseWorkspace from "./PurchaseWorkspace.vue";
-import type { HostSDK, PurchaseOrder, PurchaseRequest } from "../types";
+import { installPharmaTestHost } from "../test-host";
+import type { PurchaseOrder, PurchaseRequest } from "../types";
 
 const purchaseRequest: PurchaseRequest = {
   id: "request-1",
@@ -42,7 +44,7 @@ const purchaseOrder: PurchaseOrder = {
   updatedAt: "2026-07-26T08:10:00Z"
 };
 
-const request = vi.fn<HostSDK["request"]>();
+const request = vi.fn<PluginHostSDK["request"]>();
 
 beforeEach(() => {
   request.mockReset();
@@ -58,13 +60,7 @@ beforeEach(() => {
     if (path.includes("/purchase-inbounds")) return { items: [], total: 0 };
     return { items: [] };
   });
-  window.__SKOLL_HOST__ = {
-    pluginId: "pharma_oa",
-    locale: "zh-CN",
-    locales: ["zh-CN", "en-US"],
-    theme: { colorScheme: "light", density: "comfortable", tokens: {} },
-    request: request as unknown as HostSDK["request"]
-  };
+  installPharmaTestHost(request);
 });
 
 describe("purchase workspace", () => {

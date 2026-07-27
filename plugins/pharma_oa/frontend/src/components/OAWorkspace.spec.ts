@@ -1,7 +1,9 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PluginHostSDK } from "@skoll/plugin-sdk";
 import OAWorkspace from "./OAWorkspace.vue";
-import type { HostSDK, OARequest, OARequestDetail } from "../types";
+import { installPharmaTestHost } from "../test-host";
+import type { OARequest, OARequestDetail } from "../types";
 
 const pending: OARequest = {
   id: "request-1",
@@ -40,7 +42,7 @@ const detail: OARequestDetail = {
   }
 };
 
-const request = vi.fn<HostSDK["request"]>();
+const request = vi.fn<PluginHostSDK["request"]>();
 
 beforeEach(() => {
   request.mockReset();
@@ -52,13 +54,7 @@ beforeEach(() => {
     }
     return { items: [], total: 0 };
   });
-  window.__SKOLL_HOST__ = {
-    pluginId: "pharma_oa",
-    locale: "zh-CN",
-    locales: ["zh-CN", "en-US"],
-    theme: { colorScheme: "light", density: "comfortable", tokens: {} },
-    request: request as unknown as HostSDK["request"]
-  };
+  installPharmaTestHost(request);
 });
 
 describe("OA workspace", () => {

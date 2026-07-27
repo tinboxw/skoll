@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { resolvePluginHost } from "@skoll/plugin-sdk";
 import type { Locale } from "./types";
 
 const oaMessages = {
@@ -338,7 +339,12 @@ const messages = {
 } as const;
 
 export type MessageKey = keyof typeof messages["zh-CN"];
-export const language = ref<Locale>(window.__SKOLL_HOST__?.locale === "en-US" ? "en-US" : "zh-CN");
+function hostLocale(): string {
+  const resolution = resolvePluginHost({ pluginId: "pharma_oa", requiredCapabilities: ["locale"] });
+  return resolution.ok ? resolution.host.locale : "zh-CN";
+}
+
+export const language = ref<Locale>(hostLocale() === "en-US" ? "en-US" : "zh-CN");
 export const elementLanguage = computed(() => language.value);
 export function t(key: MessageKey): string { return messages[language.value][key]; }
 export function setLocale(value: string): void {
@@ -347,4 +353,4 @@ export function setLocale(value: string): void {
 }
 
 window.addEventListener("skoll:locale", (event) => setLocale((event as CustomEvent<{ locale?: string }>).detail?.locale ?? "zh-CN"));
-window.addEventListener("skoll:host-ready", () => setLocale(window.__SKOLL_HOST__?.locale ?? "zh-CN"));
+window.addEventListener("skoll:host-ready", () => setLocale(hostLocale()));

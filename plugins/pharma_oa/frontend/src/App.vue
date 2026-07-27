@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, reactive, ref, watch } from "vue";
+import { isPluginHostError } from "@skoll/plugin-sdk";
 import zhCn from "element-plus/es/locale/lang/zh-cn";
 import en from "element-plus/es/locale/lang/en";
 import { ElMessage } from "element-plus/es/components/message/index.mjs";
@@ -30,7 +31,7 @@ import {
   UserRound,
   UsersRound
 } from "lucide-vue-next";
-import { api } from "./api";
+import { api, host } from "./api";
 import OAWorkspace from "./components/OAWorkspace.vue";
 import { language, setLocale, t } from "./i18n";
 import type { MessageKey } from "./i18n";
@@ -141,6 +142,7 @@ const workspaceArea = ref<OAWorkspaceMode | "purchase" | "master">("requests");
 const loading = ref(false);
 const saving = ref(false);
 const error = ref("");
+const hostError = ref("");
 const denied = ref(false);
 const keyword = ref("");
 const status = ref("");
@@ -196,10 +198,20 @@ function fieldOptionValue(option: Option | Catalog | QualificationType): string 
 function fieldOptionLabel(option: Option | Catalog | QualificationType): string { return "value" in option ? optionLabel(option) : `${option.code} · ${option.name}`; }
 
 function applyTheme(): void {
-  const theme = window.__SKOLL_HOST__?.theme;
-  document.documentElement.dataset.theme = theme?.colorScheme ?? "light";
-  document.documentElement.dataset.density = theme?.density ?? "comfortable";
-  Object.entries(theme?.tokens ?? {}).forEach(([key, value]) => document.documentElement.style.setProperty(key.startsWith("--") ? key : `--${key}`, value));
+  const theme = host().theme;
+  document.documentElement.dataset.theme = theme.colorScheme;
+  document.documentElement.dataset.density = theme.density;
+  Object.entries(theme.tokens).forEach(([key, value]) => document.documentElement.style.setProperty(key.startsWith("--") ? key : `--${key}`, value));
+}
+
+function connectHost(): void {
+  try {
+    applyTheme();
+    setLocale(host().locale);
+    hostError.value = "";
+  } catch (reason) {
+    hostError.value = errorMessage(reason);
+  }
 }
 
 async function loadCurrent(): Promise<void> {
@@ -227,7 +239,7 @@ async function loadCurrent(): Promise<void> {
 }
 
 function errorMessage(reason: unknown): string {
-  if (reason instanceof Error && reason.message === "SKOLL_HOST_UNAVAILABLE") return isEnglish.value ? "SKOLL host context is unavailable" : "未连接 SKOLL 插件宿主";
+  if (isPluginHostError(reason)) return isEnglish.value ? "SKOLL plugin host is unavailable" : "未连接 SKOLL 插件宿主";
   return reason instanceof Error ? reason.message : t("failed");
 }
 
@@ -354,10 +366,10 @@ let searchTimer: number | undefined;
 watch([keyword, status], () => { window.clearTimeout(searchTimer); searchTimer = window.setTimeout(() => void loadCurrent(), 280); });
 onMounted(() => {
   try { Object.assign(scope, JSON.parse(localStorage.getItem("pharma_oa.scope") ?? "{}")); } catch { localStorage.removeItem("pharma_oa.scope"); }
-  applyTheme(); setLocale(window.__SKOLL_HOST__?.locale ?? "zh-CN");
+  connectHost();
 });
 window.addEventListener("skoll:theme", applyTheme);
-window.addEventListener("skoll:host-ready", applyTheme);
+window.addEventListener("skoll:host-ready", connectHost);
 </script>
 
 <template>
@@ -402,7 +414,11 @@ window.addEventListener("skoll:host-ready", applyTheme);
         <el-button @click="saveScope">{{ t("apply") }}</el-button>
       </section>
 
-      <template v-if="workspaceArea === 'master'">
+      <section v-if="hostError" class="state-panel state-error" role="alert">
+        <CircleAlert /><strong>{{ t("failed") }}</strong><p>{{ hostError }}</p><el-button @click="connectHost">{{ t("retry") }}</el-button>
+      </section>
+
+      <template v-else-if="workspaceArea === 'master'">
         <section class="module-heading">
           <div><p>{{ t("brand") }} · {{ t("workspace") }}</p><h2>{{ moduleLabel }}</h2></div>
           <div class="heading-actions">

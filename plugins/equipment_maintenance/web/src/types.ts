@@ -98,23 +98,3 @@ export type Dashboard = {
   generatedAt: string;
 };
 export type Trend = { month: string; closedWorkOrders: number; inspections: number };
-
-export type HostTheme = {
-  colorScheme: "light" | "dark";
-  density: "comfortable" | "compact";
-  tokens: Record<string, string>;
-};
-
-export type HostSDK = {
-  pluginId: string;
-  locale: string;
-  locales: string[];
-  theme: HostTheme;
-  request<T>(path: string, options?: { method?: "GET" | "POST" | "PUT"; body?: unknown }): Promise<T>;
-};
-
-declare global {
-  interface Window {
-    __SKOLL_HOST__?: HostSDK;
-  }
-}

@@ -1,3 +1,5 @@
+import { getPluginHost } from "@skoll/plugin-sdk";
+
 import type {
   Catalog,
   Employee,
@@ -36,10 +38,8 @@ const collections: Record<ModuleKey, string> = {
   qualificationType: "/qualification-types"
 };
 
-function host() {
-  const value = window.__SKOLL_HOST__;
-  if (!value || value.pluginId !== "pharma_oa") throw new Error("SKOLL_HOST_UNAVAILABLE");
-  return value;
+export function host() {
+  return getPluginHost({ pluginId: "pharma_oa", requiredCapabilities: ["request"] });
 }
 
 export function query(values: Record<string, string | number | undefined>): string {

@@ -2,26 +2,6 @@ export type Locale = "zh-CN" | "en-US";
 export type ModuleKey = "employee" | "customer" | "supplier" | "product" | "category" | "unit" | "manufacturer" | "qualification" | "qualificationType";
 export type RecordStatus = "active" | "disabled" | "on_leave" | "left" | "draft" | "pending" | "approved" | "rejected" | "revoked" | "expired";
 
-export type HostTheme = {
-  colorScheme: "light" | "dark";
-  density: "comfortable" | "compact";
-  tokens: Record<string, string>;
-};
-
-export type HostSDK = {
-  pluginId: string;
-  locale: string;
-  locales: string[];
-  theme: HostTheme;
-  request<T>(path: string, options?: { method?: "GET" | "POST" | "PUT"; body?: unknown; headers?: Record<string, string> }): Promise<T>;
-};
-
-declare global {
-  interface Window {
-    __SKOLL_HOST__?: HostSDK;
-  }
-}
-
 export type Page<T> = { items: T[]; total?: number; pageInfo?: { nextCursor?: string; hasMore?: boolean; limit?: number } };
 export type Scope = { tenantId: string; organizationId: string };
 export type Certificate = { id: string; name: string; number: string; expiresAt: string };

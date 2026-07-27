@@ -8,6 +8,10 @@
 		"resolveJsonModule": true,
 		"esModuleInterop": true,
 		"skipLibCheck": true,
+		"baseUrl": ".",
+		"paths": {
+			"@skoll/plugin-sdk": ["../packages/skoll-plugin-sdk/src/index.ts"]
+		},
 		"lib": ["ES2020", "DOM", "DOM.Iterable"],
 		"types": ["vite/client"]
 	},

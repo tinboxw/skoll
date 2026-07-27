@@ -1,3 +1,5 @@
+import { getPluginHost } from "@skoll/plugin-sdk";
+
 import type {
   Asset,
   Dashboard,
@@ -14,11 +16,7 @@ import type {
 const base = "/v1/plugins/equipment_maintenance/api";
 
 function host() {
-  const value = window.__SKOLL_HOST__;
-  if (!value || value.pluginId !== "equipment_maintenance") {
-    throw new Error("Skoll host context is unavailable");
-  }
-  return value;
+  return getPluginHost({ pluginId: "equipment_maintenance", requiredCapabilities: ["request"] });
 }
 
 function query(values: Record<string, string | number | undefined>): string {

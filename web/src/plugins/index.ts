@@ -1,10 +1,18 @@
 ﻿import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch } from "vue";
 import type { RouteRecordRaw, Router } from "vue-router";
 
+import {
+	PLUGIN_HOST_CONTRACT,
+	PLUGIN_HOST_VERSION,
+	type PluginHostIdentity,
+	type PluginHostLifecycle
+} from "@skoll/plugin-sdk";
+
 import { useI18n } from "../i18n";
 import { withRouteAccessMeta } from "../permissions/route";
 import { getDefaultHomeTarget, type DefaultHomeTarget, type usePluginStore } from "../stores/plugins";
 import { useThemeStore, type ThemeBridgePayload } from "../stores/theme";
+import { useUserStore } from "../stores/user";
 import { getToken } from "../utils/auth";
 import { API_BASE_PREFIX } from "../utils/api-base-prefix";
 import { builtinAuthPlugin } from "./builtin/auth";
@@ -51,14 +59,27 @@ function resolveActiveLocale(hostLocale: string, pluginLocales: string[]): strin
 	return pluginLocales[0] || "zh-CN";
 }
 
-function injectHostBridgeScript(content: string, pluginId: string, activeLocale: string, pluginLocales: string[], authToken: string, theme: ThemeBridgePayload): string {
+function injectHostBridgeScript(
+	content: string,
+	pluginId: string,
+	pluginVersion: string,
+	activeLocale: string,
+	pluginLocales: string[],
+	authToken: string,
+	theme: ThemeBridgePayload,
+	identity: PluginHostIdentity,
+	lifecycle: PluginHostLifecycle
+): string {
 	const bridgeScript = buildPluginHostBridgeScript({
 		pluginId,
+		pluginVersion,
 		apiBasePrefix: API_BASE_PREFIX,
 		locale: activeLocale,
 		locales: pluginLocales,
 		token: authToken,
-		theme
+		theme,
+		identity,
+		lifecycle
 	});
 	if (/<head>/i.test(content)) {
 		return content.replace(/<head>/i, `<head>\n${bridgeScript}`);
@@ -66,12 +87,15 @@ function injectHostBridgeScript(content: string, pluginId: string, activeLocale:
 	return `${bridgeScript}${content}`;
 }
 
-function pushLocaleToIframe(iframe: HTMLIFrameElement | null, locale: string, locales: string[]): void {
+function pushLocaleToIframe(iframe: HTMLIFrameElement | null, pluginId: string, locale: string, locales: string[]): void {
 	if (!iframe?.contentWindow) {
 		return;
 	}
 	iframe.contentWindow.postMessage({
 		type: "skoll:locale",
+		contract: PLUGIN_HOST_CONTRACT,
+		version: PLUGIN_HOST_VERSION,
+		pluginId,
 		locale,
 		locales
 	}, window.location.origin);
@@ -172,7 +196,7 @@ export async function syncBackendPlugins(
 							? {
 								path: routePath,
 								name: `plugin-${record.id}`,
-								component: createRemotePluginView(record)
+								component: createRemotePluginView(record, router)
 							}
 							: undefined
 					},
@@ -185,7 +209,7 @@ export async function syncBackendPlugins(
 				addRouteIfMissing({
 					path: `/${appId}`,
 					name: `app-home-${appId}`,
-					component: createAppHomeView(appId, store)
+					component: createAppHomeView(appId, store, router)
 				}, router, true);
 			}
 			store.finishSync(null, false);
@@ -224,14 +248,99 @@ function registerPlugin(manifest: FrontendPluginManifest, router: Router, store:
 	}
 }
 
-function pushThemeToIframe(iframe: HTMLIFrameElement | null, theme: ThemeBridgePayload): void {
+function pushThemeToIframe(iframe: HTMLIFrameElement | null, pluginId: string, theme: ThemeBridgePayload): void {
 	if (!iframe?.contentWindow) {
 		return;
 	}
 	iframe.contentWindow.postMessage({
 		type: "skoll:theme",
+		contract: PLUGIN_HOST_CONTRACT,
+		version: PLUGIN_HOST_VERSION,
+		pluginId,
 		theme
 	}, window.location.origin);
+}
+
+type PluginHostMessageContext = {
+	pluginId: string;
+	source: Window | null;
+	router: Router;
+	reload: () => void;
+	fail: (message: string) => void;
+};
+
+export function handlePluginHostMessage(event: MessageEvent, context: PluginHostMessageContext): boolean {
+	if (!context.source || event.source !== context.source || event.origin !== window.location.origin) {
+		return false;
+	}
+	const data = event.data as Record<string, unknown> | null;
+	if (
+		!data ||
+		data.contract !== PLUGIN_HOST_CONTRACT ||
+		data.version !== PLUGIN_HOST_VERSION ||
+		data.pluginId !== context.pluginId
+	) {
+		return false;
+	}
+	if (data.type === "skoll:plugin-error") {
+		const error = data.error as Record<string, unknown> | undefined;
+		const code = typeof error?.code === "string" ? error.code : "HOST_ERROR";
+		const message = typeof error?.message === "string" ? error.message : "Plugin host bridge failed";
+		context.fail(`${code}: ${message}`);
+		return true;
+	}
+	if (data.type === "skoll:command") {
+		if (data.command === "reload") {
+			context.reload();
+			return true;
+		}
+		if (data.command === "home") {
+			void context.router.push("/skoll");
+			return true;
+		}
+		return false;
+	}
+	if (data.type !== "skoll:navigation") {
+		return false;
+	}
+	if (data.mode === "back") {
+		context.router.back();
+		return true;
+	}
+	const path = typeof data.path === "string" ? data.path.trim() : "";
+	if ((path !== "/skoll" && !path.startsWith("/skoll/")) || path.includes("..") || path.includes("://")) {
+		context.fail("CONTRACT_MISMATCH: Plugin navigation target is invalid");
+		return true;
+	}
+	if (data.mode === "push") {
+		void context.router.push(path);
+		return true;
+	}
+	if (data.mode === "replace") {
+		void context.router.replace(path);
+		return true;
+	}
+	return false;
+}
+
+function pluginHostIdentity(userStore: ReturnType<typeof useUserStore>): PluginHostIdentity {
+	return {
+		subject: userStore.profile?.id?.trim() ?? "",
+		roles: [...(userStore.profile?.roles ?? [])],
+		permissions: [...userStore.permissions]
+	};
+}
+
+function pluginHostLifecycle(record: FrontendPluginManifest): PluginHostLifecycle {
+	const health = typeof record.health === "string"
+		? record.health
+		: record.health?.status ?? record.healthStatus ?? "";
+	if (record.enabled === false) {
+		return { state: "disabled", health };
+	}
+	const normalized = health.trim().toLowerCase();
+	const degraded = normalized !== "" && !["healthy", "ready", "ok", "running"].includes(normalized);
+	return { state: degraded ? "degraded" : "enabled", health };
 }
 
 function withPluginAccessMeta(route: RouteRecordRaw, manifest: FrontendPluginManifest): RouteRecordRaw {
@@ -285,12 +394,13 @@ async function syncPluginsFromBackend(fetcher: typeof fetch): Promise<BackendPlu
 	return Array.isArray(payload.data) ? payload.data : [];
 }
 
-function createRemotePluginView(record: BackendPluginRecord) {
+function createRemotePluginView(record: BackendPluginRecord, router: Router) {
 	return defineComponent({
 		name: `RemotePluginView_${record.id}`,
 		setup() {
 			const { locale } = useI18n();
 			const themeStore = useThemeStore();
+			const userStore = useUserStore();
 			const pageError = ref("");
 			const pageBroken = ref(false);
 			const pageLoading = ref(true);
@@ -307,7 +417,17 @@ function createRemotePluginView(record: BackendPluginRecord) {
 				const absoluteAssetsBase = `${absoluteBasePath}assets/`;
 				const authToken = getToken().trim();
 				let patched = content;
-				patched = injectHostBridgeScript(patched, record.id, resolvedLocale.value, pluginLocales, authToken, bridgeTheme.value);
+				patched = injectHostBridgeScript(
+					patched,
+					record.id,
+					record.version,
+					resolvedLocale.value,
+					pluginLocales,
+					authToken,
+					bridgeTheme.value,
+					pluginHostIdentity(userStore),
+					pluginHostLifecycle(record)
+				);
 				if (!/<base\s+/i.test(patched)) {
 					patched = patched.replace(/<head>/i, `<head>\n<base href="${absoluteBasePath}">`);
 				}
@@ -338,7 +458,21 @@ function createRemotePluginView(record: BackendPluginRecord) {
 				}
 			}
 
+			function onHostMessage(event: MessageEvent): void {
+				handlePluginHostMessage(event, {
+					pluginId: record.id,
+					source: iframeRef.value?.contentWindow ?? null,
+					router,
+					reload: () => void loadPluginPage(),
+					fail: (message) => {
+						pageBroken.value = true;
+						pageError.value = message;
+					}
+				});
+			}
+
 			onMounted(async () => {
+				window.addEventListener("message", onHostMessage);
 				await loadPluginPage();
 			});
 
@@ -352,11 +486,12 @@ function createRemotePluginView(record: BackendPluginRecord) {
 			watch(
 				() => bridgeTheme.value,
 				(theme) => {
-					pushThemeToIframe(iframeRef.value, theme);
+					pushThemeToIframe(iframeRef.value, record.id, theme);
 				}
 			);
 
 			onUnmounted(() => {
+				window.removeEventListener("message", onHostMessage);
 				if (frameURL.value) {
 					URL.revokeObjectURL(frameURL.value);
 				}
@@ -374,8 +509,8 @@ function createRemotePluginView(record: BackendPluginRecord) {
 								iframeRef.value = el as HTMLIFrameElement | null;
 							},
 							onLoad: () => {
-								pushLocaleToIframe(iframeRef.value, resolvedLocale.value, pluginLocales);
-								pushThemeToIframe(iframeRef.value, bridgeTheme.value);
+								pushLocaleToIframe(iframeRef.value, record.id, resolvedLocale.value, pluginLocales);
+								pushThemeToIframe(iframeRef.value, record.id, bridgeTheme.value);
 							},
 							onError: () => {
 								pageBroken.value = true;
@@ -417,12 +552,13 @@ function isAppDefaultTargetFor(target: DefaultHomeTarget | null, appId: string):
 	return Boolean(target && target.level === "app" && target.appId === appId);
 }
 
-function createAppHomeView(appId: string, store: PluginStore) {
+function createAppHomeView(appId: string, store: PluginStore, router: Router) {
 	return defineComponent({
 		name: `AppHomeView_${appId}`,
 		setup() {
 			const { locale } = useI18n();
 			const themeStore = useThemeStore();
+			const userStore = useUserStore();
 			const pageError = ref("");
 			const pageBroken = ref(false);
 			const pageLoading = ref(true);
@@ -438,8 +574,22 @@ function createAppHomeView(appId: string, store: PluginStore) {
 				const absoluteBasePath = `${window.location.origin}${basePath}`;
 				const absoluteAssetsBase = `${absoluteBasePath}assets/`;
 				const authToken = getToken().trim();
+				const plugin = selectedPlugin.value;
+				if (!plugin || plugin.id !== pluginID) {
+					throw new Error("selected plugin host identity changed");
+				}
 				let patched = content;
-				patched = injectHostBridgeScript(patched, pluginID, resolvedLocale.value, pluginLocales.value, authToken, bridgeTheme.value);
+				patched = injectHostBridgeScript(
+					patched,
+					pluginID,
+					plugin.version,
+					resolvedLocale.value,
+					pluginLocales.value,
+					authToken,
+					bridgeTheme.value,
+					pluginHostIdentity(userStore),
+					pluginHostLifecycle(plugin)
+				);
 				if (!/<base\s+/i.test(patched)) {
 					patched = patched.replace(/<head>/i, `<head>\n<base href="${absoluteBasePath}">`);
 				}
@@ -502,11 +652,36 @@ function createAppHomeView(appId: string, store: PluginStore) {
 			watch(
 				() => bridgeTheme.value,
 				(theme) => {
-					pushThemeToIframe(iframeRef.value, theme);
+					const pluginID = selectedPlugin.value?.id ?? "";
+					if (pluginID) {
+						pushThemeToIframe(iframeRef.value, pluginID, theme);
+					}
 				}
 			);
 
+			function onHostMessage(event: MessageEvent): void {
+				const pluginID = selectedPlugin.value?.id ?? "";
+				if (!pluginID) {
+					return;
+				}
+				handlePluginHostMessage(event, {
+					pluginId: pluginID,
+					source: iframeRef.value?.contentWindow ?? null,
+					router,
+					reload: () => void loadPluginPage(pluginID),
+					fail: (message) => {
+						pageBroken.value = true;
+						pageError.value = message;
+					}
+				});
+			}
+
+			onMounted(() => {
+				window.addEventListener("message", onHostMessage);
+			});
+
 			onUnmounted(() => {
+				window.removeEventListener("message", onHostMessage);
 				if (frameURL.value) {
 					URL.revokeObjectURL(frameURL.value);
 				}
@@ -524,8 +699,11 @@ function createAppHomeView(appId: string, store: PluginStore) {
 								iframeRef.value = el as HTMLIFrameElement | null;
 							},
 							onLoad: () => {
-								pushLocaleToIframe(iframeRef.value, resolvedLocale.value, pluginLocales.value);
-								pushThemeToIframe(iframeRef.value, bridgeTheme.value);
+								const pluginID = selectedPlugin.value?.id ?? "";
+								if (pluginID) {
+									pushLocaleToIframe(iframeRef.value, pluginID, resolvedLocale.value, pluginLocales.value);
+									pushThemeToIframe(iframeRef.value, pluginID, bridgeTheme.value);
+								}
 							},
 							onError: () => {
 								pageBroken.value = true;

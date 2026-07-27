@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "./api";
-import type { HostSDK } from "./types";
+import { installEquipmentTestHost } from "./test-host";
 
 describe("equipment maintenance host API", () => {
   const request = vi.fn();
@@ -8,13 +8,7 @@ describe("equipment maintenance host API", () => {
   beforeEach(() => {
     request.mockReset();
     request.mockResolvedValue({ items: [], total: 0, offset: 0, limit: 200 });
-    window.__SKOLL_HOST__ = {
-      pluginId: "equipment_maintenance",
-      locale: "zh-CN",
-      locales: ["zh-CN", "en-US"],
-      theme: { colorScheme: "light", density: "comfortable", tokens: {} },
-      request
-    } satisfies HostSDK;
+    installEquipmentTestHost(request);
   });
 
   it("uses the host bridge for scoped plugin routes", async () => {
@@ -32,6 +26,6 @@ describe("equipment maintenance host API", () => {
 
   it("fails closed when the current host identity is absent", () => {
     delete window.__SKOLL_HOST__;
-    expect(() => api.dashboard()).toThrow("Skoll host context is unavailable");
+    expect(() => api.dashboard()).toThrow("Skoll plugin host is unavailable");
   });
 });

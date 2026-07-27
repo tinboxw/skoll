@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { resolvePluginHost } from "@skoll/plugin-sdk";
 
 const messages = {
   "zh-CN": {
@@ -156,7 +157,8 @@ function normalizeLocale(value: string | undefined): Locale {
   return value === "en-US" ? "en-US" : "zh-CN";
 }
 
-export const locale = ref<Locale>(normalizeLocale(window.__SKOLL_HOST__?.locale));
+const hostResolution = resolvePluginHost({ pluginId: "equipment_maintenance", requiredCapabilities: ["locale"] });
+export const locale = ref<Locale>(normalizeLocale(hostResolution.ok ? hostResolution.host.locale : undefined));
 export const t = (key: MessageKey): string => messages[locale.value][key];
 export const language = computed(() => locale.value);
 
