@@ -59,6 +59,7 @@ type dependencies struct {
 	businessEventBus *event.BusinessEventBus
 	pluginRuntime    closeable
 	jobService       *jobsvc.Service
+	workflowService  workflowsvc.Service
 	eventDispatcher  *eventoutbox.Dispatcher
 }
 
@@ -97,7 +98,10 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	systemService := system.NewService(bundle.System)
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	menuService := menusvc.NewService(bundle.Menus)
-	workflowService := workflowsvc.NewService(bundle.Workflow)
+	jobService := jobsvc.NewService(bundle.Jobs, nil)
+	workflowService := workflowsvc.NewService(bundle.Workflow, workflowsvc.Options{
+		Jobs: jobService, UnitOfWork: bundle.UnitOfWork, Now: func() time.Time { return time.Now().UTC() },
+	})
 	objectStore, err := objectstore.NewLocalStore(filepath.Join("data", "objects"))
 	if err != nil {
 		return nil, err
@@ -106,7 +110,6 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 		Permission: rbacService,
 		Audit:      auditEventService,
 	})
-	jobService := jobsvc.NewService(bundle.Jobs, nil)
 	documentNumberService := documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB))
 	documentWorkflowStore := gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB)
 	eventOutboxStore := gormrepo.NewPluginEventOutboxStore(bundle.PluginDataDB)
@@ -198,7 +201,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 	pluginRuntime, _ := pluginManager.(closeable)
 	return &dependencies{
 		logger: logger, handler: h, server: server, eventBus: bus, businessEventBus: businessEventBus,
-		pluginRuntime: pluginRuntime, jobService: jobService, eventDispatcher: eventDispatcher,
+		pluginRuntime: pluginRuntime, jobService: jobService, workflowService: workflowService, eventDispatcher: eventDispatcher,
 	}, nil
 }
 

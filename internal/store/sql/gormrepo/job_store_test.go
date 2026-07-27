@@ -11,11 +11,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/repository"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
+	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+func TestJobStoreJoinsOuterTransaction(t *testing.T) {
+	ctx := context.Background()
+	db := openJobTestDB(t, filepath.Join(t.TempDir(), "job-outer-transaction.db"))
+	defer closeJobTestDB(t, db)
+	now := time.Date(2026, 7, 27, 15, 0, 0, 0, time.UTC)
+	service := jobsvc.NewService(NewJobStore(db), func() time.Time { return now })
+	uow := storesql.NewUnitOfWorkWithDB(db)
+	rollback := errors.New("rollback")
+	err := uow.Do(ctx, func(tx repository.Tx) error {
+		if _, scheduleErr := service.Schedule(tx.Context(), jobsvc.ScheduleInput{
+			ID: "transactional-job", Namespace: "system.workflow", Kind: "approval-escalation",
+			Payload: []byte(`{"instanceId":"instance-1"}`), RunAt: now, MaxAttempts: 3,
+		}); scheduleErr != nil {
+			return scheduleErr
+		}
+		return rollback
+	})
+	if !errors.Is(err, rollback) {
+		t.Fatalf("transaction rollback error=%v", err)
+	}
+	if _, err := service.Get(ctx, "transactional-job"); !errors.Is(err, jobsvc.ErrNotFound) {
+		t.Fatalf("job escaped outer rollback: %v", err)
+	}
+}
 
 func TestJobStorePersistsLeaseRetryAndDeadLetterAcrossRestart(t *testing.T) {
 	ctx := context.Background()

@@ -18,7 +18,7 @@ import {
 	publishWorkflowDefinition,
 	rejectWorkflowTask,
 	startWorkflowInstance,
-	transferWorkflowTask,
+	delegateWorkflowTask,
 	withdrawWorkflowInstance,
 	type WorkflowActor,
 	type WorkflowDefinitionRequest,
@@ -55,7 +55,7 @@ const selected = ref<WorkflowInstance | null>(null);
 const drawerOpen = ref(false);
 const launchOpen = ref(false);
 const actionOpen = ref(false);
-const actionMode = ref<"approve" | "reject" | "transfer" | "copy">("approve");
+const actionMode = ref<"approve" | "reject" | "delegate" | "copy">("approve");
 const actionInstance = ref<WorkflowInstance | null>(null);
 const actionTask = ref<WorkflowTask | null>(null);
 const formSchemas = ref<FormSchema[]>([]);
@@ -199,13 +199,13 @@ async function submitAction(): Promise<void> {
 			updated = await approveWorkflowTask(instance.id, task.id, { actor, comment: actionForm.comment });
 		} else if (actionMode.value === "reject") {
 			updated = await rejectWorkflowTask(instance.id, task.id, { actor, comment: actionForm.comment });
-		} else if (actionMode.value === "transfer") {
-			updated = await transferWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
+		} else if (actionMode.value === "delegate") {
+			updated = await delegateWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
 			createWorkflowTodo({
 				instanceId: updated.id,
-				title: t("workflow.transferredTitle", { title: updated.title }),
+				title: t("workflow.delegatedTitle", { title: updated.title }),
 				actorId: actionForm.targetId.trim(),
-				body: actionForm.comment || t("workflow.transferredBody")
+				body: actionForm.comment || t("workflow.delegatedBody")
 			});
 		} else {
 			updated = await copyWorkflowTask(instance.id, task.id, { actor, target: targetActor(), comment: actionForm.comment });
@@ -218,7 +218,7 @@ async function submitAction(): Promise<void> {
 				target: { type: "workflow", id: updated.id, path: `/skoll/workflow?instance=${encodeURIComponent(updated.id)}` }
 			});
 		}
-		if (actionMode.value === "approve" || actionMode.value === "reject" || actionMode.value === "transfer") {
+		if (actionMode.value === "approve" || actionMode.value === "reject" || actionMode.value === "delegate") {
 			completeWorkflowNotifications(updated.id, actor.id);
 		}
 		upsertInstance(updated);
@@ -271,7 +271,7 @@ function applyLaunchSchema(): void {
 	launchForm.businessType = schema.businessType;
 }
 
-function openAction(mode: "approve" | "reject" | "transfer" | "copy", row: WorkflowRow): void {
+function openAction(mode: "approve" | "reject" | "delegate" | "copy", row: WorkflowRow): void {
 	const task = row.raw.tasks.find((item) => item.status === "pending" && item.assignee.id === currentActor.value.id);
 	if (!task) {
 		error.value = t("workflow.noAssignedTask");
@@ -488,10 +488,10 @@ function formatDate(value: string): string {
 
 		<el-dialog v-model="actionOpen" :title="t(`workflow.actionTitle.${actionMode}`)" width="520px" class="workflow-dialog">
 			<el-form label-position="top">
-				<el-form-item v-if="actionMode === 'transfer' || actionMode === 'copy'" :label="t('workflow.targetUserId')">
+				<el-form-item v-if="actionMode === 'delegate' || actionMode === 'copy'" :label="t('workflow.targetUserId')">
 					<el-input v-model="actionForm.targetId" />
 				</el-form-item>
-				<el-form-item v-if="actionMode === 'transfer' || actionMode === 'copy'" :label="t('workflow.targetName')">
+				<el-form-item v-if="actionMode === 'delegate' || actionMode === 'copy'" :label="t('workflow.targetName')">
 					<el-input v-model="actionForm.targetName" />
 				</el-form-item>
 				<el-form-item :label="t('workflow.comment')">
@@ -531,7 +531,7 @@ function formatDate(value: string): string {
 					</el-timeline-item>
 				</el-timeline>
 				<div class="drawer-actions">
-					<el-button :icon="GitPullRequest" :disabled="!canAct || selected.status !== 'running'" @click="openAction('transfer', toRow(selected))">{{ t("workflow.transfer") }}</el-button>
+					<el-button :icon="GitPullRequest" :disabled="!canAct || selected.status !== 'running'" @click="openAction('delegate', toRow(selected))">{{ t("workflow.delegate") }}</el-button>
 					<el-button :icon="Send" :disabled="!canAct || selected.status !== 'running'" @click="openAction('copy', toRow(selected))">{{ t("workflow.copy") }}</el-button>
 					<ConfirmAction
 						:label="t('workflow.withdraw')"

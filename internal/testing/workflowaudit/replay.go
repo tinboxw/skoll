@@ -36,7 +36,7 @@ func ReplayApprovalChain(events []*domainaudit.Event) (ReplayResult, error) {
 		return ReplayResult{}, fmt.Errorf("workflow audit replay has no events")
 	}
 
-	expected := []string{"start", "copy", "transfer", "approve"}
+	expected := []string{"start", "copy", "delegate", "approve"}
 	if len(ordered) != len(expected) {
 		return ReplayResult{}, fmt.Errorf("workflow audit replay expected %d events, got %d", len(expected), len(ordered))
 	}

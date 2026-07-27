@@ -423,11 +423,17 @@ func (dataStoreE2EWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanc
 func (dataStoreE2EWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-e2e", Status: pluginsdk.WorkflowInstanceCanceled}, nil
 }
-func (dataStoreE2EWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+func (dataStoreE2EWorkflows) Delegate(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-e2e"}, nil
 }
 func (dataStoreE2EWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-e2e"}, nil
+}
+func (dataStoreE2EWorkflows) CreateSubstitution(context.Context, pluginsdk.WorkflowSubstitutionInput) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{}, nil
+}
+func (dataStoreE2EWorkflows) RevokeSubstitution(context.Context, string) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{}, nil
 }
 
 type dataStoreE2EJobs struct{}

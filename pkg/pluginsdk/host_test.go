@@ -140,11 +140,17 @@ func (hostTestWorkflows) Withdraw(context.Context, WorkflowInstanceActionInput) 
 func (hostTestWorkflows) Cancel(context.Context, WorkflowInstanceActionInput) (WorkflowInstance, error) {
 	return WorkflowInstance{}, nil
 }
-func (hostTestWorkflows) Transfer(context.Context, WorkflowTargetActionInput) (WorkflowInstance, error) {
+func (hostTestWorkflows) Delegate(context.Context, WorkflowTargetActionInput) (WorkflowInstance, error) {
 	return WorkflowInstance{}, nil
 }
 func (hostTestWorkflows) Copy(context.Context, WorkflowTargetActionInput) (WorkflowInstance, error) {
 	return WorkflowInstance{}, nil
+}
+func (hostTestWorkflows) CreateSubstitution(context.Context, WorkflowSubstitutionInput) (WorkflowSubstitution, error) {
+	return WorkflowSubstitution{}, nil
+}
+func (hostTestWorkflows) RevokeSubstitution(context.Context, string) (WorkflowSubstitution, error) {
+	return WorkflowSubstitution{}, nil
 }
 
 type hostTestJobs struct{}

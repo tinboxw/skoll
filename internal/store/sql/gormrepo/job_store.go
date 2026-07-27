@@ -10,6 +10,7 @@ import (
 	"time"
 
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
+	storesql "github.com/tinboxw/skoll/internal/store/sql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -29,20 +30,18 @@ func (s *JobStore) Schedule(ctx context.Context, item jobsvc.Job) (jobsvc.Job, b
 	row := jobRow(item)
 	var stored JobModel
 	created := false
-	err := withDBRetry(func() error {
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
-			if result.Error != nil {
-				return result.Error
-			}
-			created = result.RowsAffected == 1
-			if err := tx.Where("id = ?", row.ID).First(&stored).Error; err == nil {
-				return nil
-			} else if !errors.Is(err, gorm.ErrRecordNotFound) || row.IdempotencyKey == nil {
-				return err
-			}
-			return tx.Where("namespace = ? AND idempotency_key = ?", row.Namespace, *row.IdempotencyKey).First(&stored).Error
-		})
+	err := withJobTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
+		if result.Error != nil {
+			return result.Error
+		}
+		created = result.RowsAffected == 1
+		if err := tx.Where("id = ?", row.ID).First(&stored).Error; err == nil {
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) || row.IdempotencyKey == nil {
+			return err
+		}
+		return tx.Where("namespace = ? AND idempotency_key = ?", row.Namespace, *row.IdempotencyKey).First(&stored).Error
 	})
 	if err != nil {
 		return jobsvc.Job{}, false, err
@@ -55,56 +54,54 @@ func (s *JobStore) LeaseDue(ctx context.Context, namespace, workerID string, now
 		return nil, fmt.Errorf("job repository is required")
 	}
 	var leased []jobsvc.Job
-	err := withDBRetry(func() error {
+	err := withJobTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		leased = nil
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			if err := expireExhaustedJobs(tx, namespace, now); err != nil {
+		if err := expireExhaustedJobs(tx, namespace, now); err != nil {
+			return err
+		}
+		var ids []string
+		candidateLimit := limit * 4
+		if candidateLimit > 400 {
+			candidateLimit = 400
+		}
+		eligible := tx.Model(&JobModel{}).
+			Where("namespace = ?", namespace).
+			Where("attempt_count < max_attempts").
+			Where("((status IN ? AND run_at <= ?) OR (status = ? AND lease_expires_at <= ?))",
+				[]string{string(jobsvc.StatusScheduled), string(jobsvc.StatusRetryWait)}, now, string(jobsvc.StatusRunning), now).
+			Order("run_at ASC").Order("id ASC").Limit(candidateLimit)
+		if err := eligible.Pluck("id", &ids).Error; err != nil {
+			return err
+		}
+		for _, id := range ids {
+			if len(leased) >= limit {
+				break
+			}
+			token, err := newSQLLeaseToken()
+			if err != nil {
 				return err
 			}
-			var ids []string
-			candidateLimit := limit * 4
-			if candidateLimit > 400 {
-				candidateLimit = 400
-			}
-			eligible := tx.Model(&JobModel{}).
-				Where("namespace = ?", namespace).
-				Where("attempt_count < max_attempts").
+			result := tx.Model(&JobModel{}).
+				Where("id = ? AND namespace = ? AND attempt_count < max_attempts", id, namespace).
 				Where("((status IN ? AND run_at <= ?) OR (status = ? AND lease_expires_at <= ?))",
 					[]string{string(jobsvc.StatusScheduled), string(jobsvc.StatusRetryWait)}, now, string(jobsvc.StatusRunning), now).
-				Order("run_at ASC").Order("id ASC").Limit(candidateLimit)
-			if err := eligible.Pluck("id", &ids).Error; err != nil {
+				Updates(map[string]any{
+					"status": string(jobsvc.StatusRunning), "attempt_count": gorm.Expr("attempt_count + 1"),
+					"lease_owner": workerID, "lease_token": token, "lease_expires_at": leaseUntil, "updated_at": now,
+				})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				continue
+			}
+			var row JobModel
+			if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
 				return err
 			}
-			for _, id := range ids {
-				if len(leased) >= limit {
-					break
-				}
-				token, err := newSQLLeaseToken()
-				if err != nil {
-					return err
-				}
-				result := tx.Model(&JobModel{}).
-					Where("id = ? AND namespace = ? AND attempt_count < max_attempts", id, namespace).
-					Where("((status IN ? AND run_at <= ?) OR (status = ? AND lease_expires_at <= ?))",
-						[]string{string(jobsvc.StatusScheduled), string(jobsvc.StatusRetryWait)}, now, string(jobsvc.StatusRunning), now).
-					Updates(map[string]any{
-						"status": string(jobsvc.StatusRunning), "attempt_count": gorm.Expr("attempt_count + 1"),
-						"lease_owner": workerID, "lease_token": token, "lease_expires_at": leaseUntil, "updated_at": now,
-					})
-				if result.Error != nil {
-					return result.Error
-				}
-				if result.RowsAffected == 0 {
-					continue
-				}
-				var row JobModel
-				if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
-					return err
-				}
-				leased = append(leased, jobFromRow(row))
-			}
-			return nil
-		})
+			leased = append(leased, jobFromRow(row))
+		}
+		return nil
 	})
 	return leased, err
 }
@@ -114,23 +111,21 @@ func (s *JobStore) Complete(ctx context.Context, id, leaseToken string, result [
 		return jobsvc.Job{}, fmt.Errorf("job repository is required")
 	}
 	var stored JobModel
-	err := withDBRetry(func() error {
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			updates := map[string]any{
-				"status": string(jobsvc.StatusSucceeded), "result_json": string(result), "completed_at": now, "updated_at": now,
-				"lease_owner": "", "lease_token": "", "lease_expires_at": nil,
-			}
-			result := tx.Model(&JobModel{}).
-				Where("id = ? AND status = ? AND lease_token = ? AND lease_expires_at > ?", id, string(jobsvc.StatusRunning), leaseToken, now).
-				Updates(updates)
-			if result.Error != nil {
-				return result.Error
-			}
-			if result.RowsAffected == 0 {
-				return jobTransitionError(tx, id)
-			}
-			return tx.Where("id = ?", id).First(&stored).Error
-		})
+	err := withJobTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		updates := map[string]any{
+			"status": string(jobsvc.StatusSucceeded), "result_json": string(result), "completed_at": now, "updated_at": now,
+			"lease_owner": "", "lease_token": "", "lease_expires_at": nil,
+		}
+		result := tx.Model(&JobModel{}).
+			Where("id = ? AND status = ? AND lease_token = ? AND lease_expires_at > ?", id, string(jobsvc.StatusRunning), leaseToken, now).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return jobTransitionError(tx, id)
+		}
+		return tx.Where("id = ?", id).First(&stored).Error
 	})
 	if err != nil {
 		return jobsvc.Job{}, err
@@ -143,41 +138,39 @@ func (s *JobStore) Fail(ctx context.Context, id, leaseToken, message string, ret
 		return jobsvc.Job{}, fmt.Errorf("job repository is required")
 	}
 	var stored JobModel
-	err := withDBRetry(func() error {
-		return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			var current JobModel
-			if err := tx.Where("id = ?", id).First(&current).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return jobsvc.ErrNotFound
-				}
-				return err
+	err := withJobTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		var current JobModel
+		if err := tx.Where("id = ?", id).First(&current).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return jobsvc.ErrNotFound
 			}
-			if current.Status != string(jobsvc.StatusRunning) || current.LeaseToken != leaseToken || current.LeaseExpiresAt == nil || !current.LeaseExpiresAt.After(now) {
-				return jobsvc.ErrLeaseLost
-			}
-			status := jobsvc.StatusRetryWait
-			updates := map[string]any{
-				"status": string(status), "last_error": message, "updated_at": now,
-				"lease_owner": "", "lease_token": "", "lease_expires_at": nil,
-			}
-			if current.AttemptCount >= current.MaxAttempts {
-				status = jobsvc.StatusDeadLetter
-				updates["status"] = string(status)
-				updates["dead_lettered_at"] = now
-			} else {
-				updates["run_at"] = retryAt
-			}
-			result := tx.Model(&JobModel{}).
-				Where("id = ? AND status = ? AND lease_token = ? AND lease_expires_at > ?", id, string(jobsvc.StatusRunning), leaseToken, now).
-				Updates(updates)
-			if result.Error != nil {
-				return result.Error
-			}
-			if result.RowsAffected == 0 {
-				return jobsvc.ErrLeaseLost
-			}
-			return tx.Where("id = ?", id).First(&stored).Error
-		})
+			return err
+		}
+		if current.Status != string(jobsvc.StatusRunning) || current.LeaseToken != leaseToken || current.LeaseExpiresAt == nil || !current.LeaseExpiresAt.After(now) {
+			return jobsvc.ErrLeaseLost
+		}
+		status := jobsvc.StatusRetryWait
+		updates := map[string]any{
+			"status": string(status), "last_error": message, "updated_at": now,
+			"lease_owner": "", "lease_token": "", "lease_expires_at": nil,
+		}
+		if current.AttemptCount >= current.MaxAttempts {
+			status = jobsvc.StatusDeadLetter
+			updates["status"] = string(status)
+			updates["dead_lettered_at"] = now
+		} else {
+			updates["run_at"] = retryAt
+		}
+		result := tx.Model(&JobModel{}).
+			Where("id = ? AND status = ? AND lease_token = ? AND lease_expires_at > ?", id, string(jobsvc.StatusRunning), leaseToken, now).
+			Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return jobsvc.ErrLeaseLost
+		}
+		return tx.Where("id = ?", id).First(&stored).Error
 	})
 	if err != nil {
 		return jobsvc.Job{}, err
@@ -281,6 +274,17 @@ func newSQLLeaseToken() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(raw[:]), nil
+}
+
+func withJobTransaction(ctx context.Context, db *gorm.DB, operation func(*gorm.DB) error) error {
+	resolved := storesql.ResolveDB(ctx, db)
+	if resolved == nil {
+		return fmt.Errorf("job repository is required")
+	}
+	if storesql.DBFromContext(ctx) != nil {
+		return operation(resolved)
+	}
+	return withDBRetry(func() error { return resolved.Transaction(operation) })
 }
 
 var _ jobsvc.Repository = (*JobStore)(nil)

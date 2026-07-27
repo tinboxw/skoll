@@ -79,13 +79,13 @@ func TestWorkflowStartApproveRejectAndWithdraw(t *testing.T) {
 	}
 }
 
-func TestWorkflowTransferAndCopy(t *testing.T) {
+func TestWorkflowDelegateAndCopy(t *testing.T) {
 	now := fixedWorkflowTime()
 	def, err := sampleDefinition(now)
 	if err != nil {
 		t.Fatalf("sampleDefinition error: %v", err)
 	}
-	instance := mustStartInstance(t, *def, "wf-transfer", now)
+	instance := mustStartInstance(t, *def, "wf-delegate", now)
 	originalTask := instance.Tasks[0].ID
 	if err := instance.Copy(originalTask, Actor{ID: "manager-1"}, Actor{ID: "observer-1"}, "FYI", now.Add(time.Minute)); err != nil {
 		t.Fatalf("Copy error: %v", err)
@@ -93,17 +93,17 @@ func TestWorkflowTransferAndCopy(t *testing.T) {
 	if len(instance.Tasks) != 2 || instance.Tasks[1].Status != TaskCopied || instance.Tasks[0].Status != TaskPending {
 		t.Fatalf("unexpected copy result: %+v", instance.Tasks)
 	}
-	if err := instance.Transfer(originalTask, Actor{ID: "manager-1"}, Actor{ID: "manager-2"}, "delegate", now.Add(2*time.Minute)); err != nil {
+	if err := instance.Delegate(originalTask, Actor{ID: "manager-1"}, Actor{ID: "manager-2"}, "delegate", now.Add(2*time.Minute)); err != nil {
 		t.Fatalf("Transfer error: %v", err)
 	}
-	if len(instance.Tasks) != 3 || instance.Tasks[0].Status != TaskTransferred || instance.Tasks[2].Status != TaskPending || instance.Tasks[2].Assignee.ID != "manager-2" {
-		t.Fatalf("unexpected transfer result: %+v", instance.Tasks)
+	if len(instance.Tasks) != 3 || instance.Tasks[0].Status != TaskDelegated || instance.Tasks[2].Status != TaskPending || instance.Tasks[2].Assignee.ID != "manager-2" {
+		t.Fatalf("unexpected delegation result: %+v", instance.Tasks)
 	}
 	if err := instance.Approve(*def, instance.Tasks[2].ID, Actor{ID: "manager-2"}, "ok", now.Add(3*time.Minute)); err != nil {
-		t.Fatalf("Approve transferred task error: %v", err)
+		t.Fatalf("Approve delegated task error: %v", err)
 	}
 	if instance.Status != InstanceApproved {
-		t.Fatalf("expected transferred task approval to finish instance, got %+v", instance)
+		t.Fatalf("expected delegated task approval to finish instance, got %+v", instance)
 	}
 }
 

@@ -356,7 +356,7 @@ func (w *testWorkflows) instanceAction(input pluginsdk.WorkflowInstanceActionInp
 	w.instances[item.ID] = item
 	return item, nil
 }
-func (w *testWorkflows) Transfer(_ context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+func (w *testWorkflows) Delegate(_ context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	item, ok := w.instances[input.InstanceID]
@@ -368,7 +368,7 @@ func (w *testWorkflows) Transfer(_ context.Context, input pluginsdk.WorkflowTarg
 	for index := range item.Tasks {
 		if item.Tasks[index].ID == input.TaskID && item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
 			found = true
-			item.Tasks[index].Status = pluginsdk.WorkflowTaskTransferred
+			item.Tasks[index].Status = pluginsdk.WorkflowTaskDelegated
 			item.Tasks[index].CompletedAt = &now
 			break
 		}
@@ -377,7 +377,7 @@ func (w *testWorkflows) Transfer(_ context.Context, input pluginsdk.WorkflowTarg
 		return pluginsdk.WorkflowInstance{}, errors.New("pending workflow task not found")
 	}
 	item.Tasks = append(item.Tasks, pluginsdk.WorkflowTask{ID: input.TaskID + "-delegated", InstanceID: item.ID, NodeID: item.CurrentNode, Assignee: input.Target, Status: pluginsdk.WorkflowTaskPending, CreatedAt: now})
-	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{ID: item.ID + "-transfer", Type: pluginsdk.WorkflowActionTransfer, InstanceID: item.ID, TaskID: input.TaskID, Actor: pluginsdk.WorkflowActor{ID: "actor-1"}, Target: input.Target, Comment: input.Comment, CreatedAt: now})
+	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{ID: item.ID + "-delegate", Type: pluginsdk.WorkflowActionDelegate, InstanceID: item.ID, TaskID: input.TaskID, Actor: pluginsdk.WorkflowActor{ID: "actor-1"}, Target: input.Target, Comment: input.Comment, CreatedAt: now})
 	item.UpdatedAt = now
 	w.instances[item.ID] = item
 	return item, nil

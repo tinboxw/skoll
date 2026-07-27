@@ -39,8 +39,10 @@ func RegisterWorkflowRoutes(mux *http.ServeMux, service workflowsvc.Service) {
 	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/approve", h.approveTask)
 	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/reject", h.rejectTask)
 	mux.HandleFunc("POST /v1/workflows/instances/{id}/withdraw", h.withdrawInstance)
-	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/transfer", h.transferTask)
+	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/delegate", h.delegateTask)
 	mux.HandleFunc("POST /v1/workflows/instances/{id}/tasks/{taskId}/copy", h.copyTask)
+	mux.HandleFunc("POST /v1/workflows/substitutions", h.createSubstitution)
+	mux.HandleFunc("POST /v1/workflows/substitutions/{id}/revoke", h.revokeSubstitution)
 }
 
 func RegisterWorkflowPermissions(service permissionsvc.Service) error {
@@ -98,7 +100,7 @@ func WorkflowPermissionResources() []permissionsvc.RegisterResourceInput {
 			Name:   "Act on workflow tasks",
 			Risk:   domainpermission.RiskLevelMedium,
 			Metadata: map[string]string{
-				"routes": "POST /v1/workflows/instances/{id}/tasks/{taskId}/approve;POST /v1/workflows/instances/{id}/tasks/{taskId}/reject;POST /v1/workflows/instances/{id}/withdraw;POST /v1/workflows/instances/{id}/tasks/{taskId}/transfer;POST /v1/workflows/instances/{id}/tasks/{taskId}/copy",
+				"routes": "POST /v1/workflows/instances/{id}/tasks/{taskId}/approve;POST /v1/workflows/instances/{id}/tasks/{taskId}/reject;POST /v1/workflows/instances/{id}/withdraw;POST /v1/workflows/instances/{id}/tasks/{taskId}/delegate;POST /v1/workflows/instances/{id}/tasks/{taskId}/copy;POST /v1/workflows/substitutions;POST /v1/workflows/substitutions/{id}/revoke",
 			},
 		},
 	}
@@ -114,12 +116,13 @@ type definitionInput struct {
 }
 
 type nodeInput struct {
-	ID        string        `json:"id"`
-	Key       string        `json:"key"`
-	Name      string        `json:"name"`
-	Type      string        `json:"type"`
-	Assignees []string      `json:"assignees"`
-	Decision  *decisionRule `json:"decision,omitempty"`
+	ID         string          `json:"id"`
+	Key        string          `json:"key"`
+	Name       string          `json:"name"`
+	Type       string          `json:"type"`
+	Assignees  []string        `json:"assignees"`
+	Decision   *decisionRule   `json:"decision,omitempty"`
+	Escalation *escalationRule `json:"escalation,omitempty"`
 }
 
 type transitionInput struct {
@@ -131,6 +134,11 @@ type transitionInput struct {
 type decisionRule struct {
 	Strategy string `json:"strategy"`
 	Quorum   int    `json:"quorum"`
+}
+
+type escalationRule struct {
+	AfterSeconds int64      `json:"afterSeconds"`
+	Target       actorInput `json:"target"`
 }
 
 type workflowValue struct {
@@ -173,6 +181,15 @@ type targetActionInput struct {
 	Actor   actorInput `json:"actor"`
 	Target  actorInput `json:"target"`
 	Comment string     `json:"comment"`
+}
+
+type substitutionInput struct {
+	ID         string     `json:"id"`
+	Principal  actorInput `json:"principal"`
+	Substitute actorInput `json:"substitute"`
+	StartsAt   time.Time  `json:"startsAt"`
+	EndsAt     time.Time  `json:"endsAt"`
+	Reason     string     `json:"reason"`
 }
 
 func (h *Handler) createDefinition(w http.ResponseWriter, r *http.Request) {
@@ -274,12 +291,47 @@ func (h *Handler) withdrawInstance(w http.ResponseWriter, r *http.Request) {
 	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": instanceRecordFromDomain(*instance)})
 }
 
-func (h *Handler) transferTask(w http.ResponseWriter, r *http.Request) {
-	h.targetAction(w, r, h.service.Transfer)
+func (h *Handler) delegateTask(w http.ResponseWriter, r *http.Request) {
+	h.targetAction(w, r, h.service.Delegate)
 }
 
 func (h *Handler) copyTask(w http.ResponseWriter, r *http.Request) {
 	h.targetAction(w, r, h.service.Copy)
+}
+
+func (h *Handler) createSubstitution(w http.ResponseWriter, r *http.Request) {
+	var req substitutionInput
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	item, err := h.service.CreateSubstitution(r.Context(), workflowsvc.CreateSubstitutionInput{
+		ID: shared.ID(strings.TrimSpace(req.ID)), Principal: req.Principal.domain(), Substitute: req.Substitute.domain(),
+		StartsAt: req.StartsAt, EndsAt: req.EndsAt, CreatedBy: req.Principal.domain(), Reason: req.Reason, Now: time.Now().UTC(),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusCreated, map[string]any{"item": substitutionRecordFromDomain(*item)})
+}
+
+func (h *Handler) revokeSubstitution(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Principal actorInput `json:"principal"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	item, err := h.service.RevokeSubstitution(r.Context(), workflowsvc.RevokeSubstitutionInput{
+		ID: shared.ID(strings.TrimSpace(r.PathValue("id"))), Principal: req.Principal.domain(), Now: time.Now().UTC(),
+	})
+	if err != nil {
+		apiv1.WriteError(w, http.StatusBadRequest, err)
+		return
+	}
+	apiv1.WriteJSON(w, http.StatusOK, map[string]any{"item": substitutionRecordFromDomain(*item)})
 }
 
 func (h *Handler) taskAction(w http.ResponseWriter, r *http.Request, action func(context.Context, workflowsvc.TaskActionInput) (*domainworkflow.Instance, error)) {
@@ -331,12 +383,13 @@ func (in definitionInput) nodes() []domainworkflow.Node {
 			assignees = append(assignees, shared.ID(strings.TrimSpace(assignee)))
 		}
 		nodes = append(nodes, domainworkflow.Node{
-			ID:        shared.ID(strings.TrimSpace(node.ID)),
-			Key:       node.Key,
-			Name:      node.Name,
-			Type:      domainworkflow.NodeType(strings.TrimSpace(node.Type)),
-			Assignees: assignees,
-			Decision:  node.Decision.domain(),
+			ID:         shared.ID(strings.TrimSpace(node.ID)),
+			Key:        node.Key,
+			Name:       node.Name,
+			Type:       domainworkflow.NodeType(strings.TrimSpace(node.Type)),
+			Assignees:  assignees,
+			Decision:   node.Decision.domain(),
+			Escalation: node.Escalation.domain(),
 		})
 	}
 	return nodes
@@ -399,12 +452,13 @@ type definitionRecord struct {
 }
 
 type nodeRecord struct {
-	ID        string        `json:"id"`
-	Key       string        `json:"key"`
-	Name      string        `json:"name"`
-	Type      string        `json:"type"`
-	Assignees []string      `json:"assignees"`
-	Decision  *decisionRule `json:"decision,omitempty"`
+	ID         string          `json:"id"`
+	Key        string          `json:"key"`
+	Name       string          `json:"name"`
+	Type       string          `json:"type"`
+	Assignees  []string        `json:"assignees"`
+	Decision   *decisionRule   `json:"decision,omitempty"`
+	Escalation *escalationRule `json:"escalation,omitempty"`
 }
 
 type transitionRecord struct {
@@ -437,13 +491,17 @@ type actorRecord struct {
 }
 
 type taskRecord struct {
-	ID          string      `json:"id"`
-	InstanceID  string      `json:"instanceId"`
-	NodeID      string      `json:"nodeId"`
-	Assignee    actorRecord `json:"assignee"`
-	Status      string      `json:"status"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	CompletedAt *time.Time  `json:"completedAt,omitempty"`
+	ID               string      `json:"id"`
+	InstanceID       string      `json:"instanceId"`
+	NodeID           string      `json:"nodeId"`
+	Assignee         actorRecord `json:"assignee"`
+	OriginalAssignee actorRecord `json:"originalAssignee"`
+	Assignment       string      `json:"assignment"`
+	AuthorizedBy     actorRecord `json:"authorizedBy"`
+	AuthorizationID  string      `json:"authorizationId,omitempty"`
+	Status           string      `json:"status"`
+	CreatedAt        time.Time   `json:"createdAt"`
+	CompletedAt      *time.Time  `json:"completedAt,omitempty"`
 }
 
 type actionRecord struct {
@@ -470,12 +528,13 @@ func definitionRecordFromDomain(definition domainworkflow.Definition) definition
 			decision = &decisionRule{Strategy: string(node.Decision.Strategy), Quorum: node.Decision.Quorum}
 		}
 		nodes = append(nodes, nodeRecord{
-			ID:        node.ID.String(),
-			Key:       node.Key,
-			Name:      node.Name,
-			Type:      string(node.Type),
-			Assignees: assignees,
-			Decision:  decision,
+			ID:         node.ID.String(),
+			Key:        node.Key,
+			Name:       node.Name,
+			Type:       string(node.Type),
+			Assignees:  assignees,
+			Decision:   decision,
+			Escalation: escalationRecord(node.Escalation),
 		})
 	}
 	transitions := make([]transitionRecord, 0, len(definition.Transitions))
@@ -516,13 +575,16 @@ func instanceRecordFromDomain(instance domainworkflow.Instance) instanceRecord {
 	tasks := make([]taskRecord, 0, len(instance.Tasks))
 	for _, task := range instance.Tasks {
 		tasks = append(tasks, taskRecord{
-			ID:          task.ID.String(),
-			InstanceID:  task.InstanceID.String(),
-			NodeID:      task.NodeID.String(),
-			Assignee:    actorRecordFromDomain(task.Assignee),
-			Status:      string(task.Status),
-			CreatedAt:   task.CreatedAt,
-			CompletedAt: task.CompletedAt,
+			ID:               task.ID.String(),
+			InstanceID:       task.InstanceID.String(),
+			NodeID:           task.NodeID.String(),
+			Assignee:         actorRecordFromDomain(task.Assignee),
+			OriginalAssignee: actorRecordFromDomain(task.OriginalAssignee),
+			Assignment:       string(task.Assignment), AuthorizedBy: actorRecordFromDomain(task.AuthorizedBy),
+			AuthorizationID: task.AuthorizationID.String(),
+			Status:          string(task.Status),
+			CreatedAt:       task.CreatedAt,
+			CompletedAt:     task.CompletedAt,
 		})
 	}
 	timeline := make([]actionRecord, 0, len(instance.Timeline))
@@ -585,5 +647,30 @@ func (input *decisionRule) domain() domainworkflow.DecisionRule {
 	return domainworkflow.DecisionRule{
 		Strategy: domainworkflow.DecisionStrategy(strings.TrimSpace(input.Strategy)),
 		Quorum:   input.Quorum,
+	}
+}
+
+func (input *escalationRule) domain() *domainworkflow.EscalationRule {
+	if input == nil {
+		return nil
+	}
+	return &domainworkflow.EscalationRule{
+		After:  time.Duration(input.AfterSeconds) * time.Second,
+		Target: input.Target.domain(),
+	}
+}
+
+func escalationRecord(input *domainworkflow.EscalationRule) *escalationRule {
+	if input == nil {
+		return nil
+	}
+	return &escalationRule{AfterSeconds: int64(input.After / time.Second), Target: actorInput{ID: input.Target.ID.String(), Name: input.Target.Name}}
+}
+
+func substitutionRecordFromDomain(item domainworkflow.SubstitutionWindow) map[string]any {
+	return map[string]any{
+		"id": item.ID.String(), "principal": actorRecordFromDomain(item.Principal), "substitute": actorRecordFromDomain(item.Substitute),
+		"startsAt": item.StartsAt, "endsAt": item.EndsAt, "createdBy": actorRecordFromDomain(item.CreatedBy),
+		"reason": item.Reason, "createdAt": item.CreatedAt, "revokedAt": item.RevokedAt,
 	}
 }

@@ -495,7 +495,7 @@ func (s *server) delegateOARequest(w http.ResponseWriter, r *http.Request) {
 	var workflow pluginsdk.WorkflowInstance
 	err = s.transaction(ctx, func(tx context.Context) error {
 		var workflowErr error
-		workflow, workflowErr = s.host.Workflows.Transfer(tx, pluginsdk.WorkflowTargetActionInput{InstanceID: item.WorkflowInstanceID, TaskID: input.TaskID, Target: pluginsdk.WorkflowActor{ID: input.TargetID, Name: input.TargetName}, Comment: input.Comment})
+		workflow, workflowErr = s.host.Workflows.Delegate(tx, pluginsdk.WorkflowTargetActionInput{InstanceID: item.WorkflowInstanceID, TaskID: input.TaskID, Target: pluginsdk.WorkflowActor{ID: input.TargetID, Name: input.TargetName}, Comment: input.Comment})
 		if workflowErr != nil {
 			return workflowErr
 		}

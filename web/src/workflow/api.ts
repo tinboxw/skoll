@@ -12,6 +12,7 @@ export type WorkflowNode = {
 	type: "start" | "approval" | "cc" | "end";
 	assignees?: string[];
 	decision?: WorkflowDecisionRule;
+	escalation?: WorkflowEscalationRule;
 };
 
 export type WorkflowTransition = {
@@ -23,6 +24,11 @@ export type WorkflowTransition = {
 export type WorkflowDecisionRule = {
 	strategy: "any" | "all" | "quorum";
 	quorum: number;
+};
+
+export type WorkflowEscalationRule = {
+	afterSeconds: number;
+	target: WorkflowActor;
 };
 
 export type WorkflowValue = {
@@ -58,14 +64,18 @@ export type WorkflowTask = {
 	instanceId: string;
 	nodeId: string;
 	assignee: WorkflowActor;
-	status: "pending" | "approved" | "rejected" | "transferred" | "copied" | "canceled";
+	originalAssignee: WorkflowActor;
+	assignment: "direct" | "delegated" | "substituted" | "escalated";
+	authorizedBy?: WorkflowActor;
+	authorizationId?: string;
+	status: "pending" | "approved" | "rejected" | "delegated" | "copied" | "canceled";
 	createdAt: string;
 	completedAt?: string;
 };
 
 export type WorkflowAction = {
 	id: string;
-	type: "start" | "approve" | "reject" | "withdraw" | "transfer" | "copy" | "cancel";
+	type: "start" | "approve" | "reject" | "withdraw" | "delegate" | "substitute" | "escalate" | "copy" | "cancel";
 	instanceId: string;
 	taskId?: string;
 	nodeId?: string;
@@ -153,8 +163,8 @@ export async function rejectWorkflowTask(instanceId: string, taskId: string, bod
 	return taskAction("reject", instanceId, taskId, body);
 }
 
-export async function transferWorkflowTask(instanceId: string, taskId: string, body: WorkflowTaskTargetActionRequest): Promise<WorkflowInstance> {
-	return targetTaskAction("transfer", instanceId, taskId, body);
+export async function delegateWorkflowTask(instanceId: string, taskId: string, body: WorkflowTaskTargetActionRequest): Promise<WorkflowInstance> {
+	return targetTaskAction("delegate", instanceId, taskId, body);
 }
 
 export async function copyWorkflowTask(instanceId: string, taskId: string, body: WorkflowTaskTargetActionRequest): Promise<WorkflowInstance> {
@@ -174,7 +184,7 @@ async function taskAction(action: "approve" | "reject", instanceId: string, task
 	return payload.data.item;
 }
 
-async function targetTaskAction(action: "transfer" | "copy", instanceId: string, taskId: string, body: WorkflowTaskTargetActionRequest): Promise<WorkflowInstance> {
+async function targetTaskAction(action: "delegate" | "copy", instanceId: string, taskId: string, body: WorkflowTaskTargetActionRequest): Promise<WorkflowInstance> {
 	const payload = await apiPost<ApiResponse<ItemPayload<WorkflowInstance>>>(
 		`/v1/workflows/instances/${encodeURIComponent(instanceId)}/tasks/${encodeURIComponent(taskId)}/${action}`,
 		body

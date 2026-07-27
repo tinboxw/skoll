@@ -6,6 +6,8 @@ import (
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
+	"github.com/tinboxw/skoll/internal/repository"
+	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 )
 
 type DefinitionRepository interface {
@@ -19,6 +21,12 @@ type InstanceRepository interface {
 	UpdateInstance(ctx context.Context, id shared.ID, mutate InstanceMutation) (*domainworkflow.Instance, error)
 }
 
+type SubstitutionRepository interface {
+	CreateSubstitution(ctx context.Context, window domainworkflow.SubstitutionWindow) (*domainworkflow.SubstitutionWindow, bool, error)
+	RevokeSubstitution(ctx context.Context, id, principalID shared.ID, now time.Time) (*domainworkflow.SubstitutionWindow, error)
+	ListActiveSubstitutions(ctx context.Context, principalIDs []shared.ID, at time.Time) ([]domainworkflow.SubstitutionWindow, error)
+}
+
 // InstanceMutation runs inside the repository's atomic update boundary.
 // Implementations may retry it, so the callback must not perform external side effects.
 type InstanceMutation func(instance *domainworkflow.Instance) (changed bool, err error)
@@ -26,6 +34,7 @@ type InstanceMutation func(instance *domainworkflow.Instance) (changed bool, err
 type Repository interface {
 	DefinitionRepository
 	InstanceRepository
+	SubstitutionRepository
 }
 
 type Service interface {
@@ -38,8 +47,18 @@ type Service interface {
 	Reject(ctx context.Context, in TaskActionInput) (*domainworkflow.Instance, error)
 	Withdraw(ctx context.Context, in InstanceActionInput) (*domainworkflow.Instance, error)
 	Cancel(ctx context.Context, in InstanceActionInput) (*domainworkflow.Instance, error)
-	Transfer(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error)
+	Delegate(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error)
 	Copy(ctx context.Context, in TaskTargetActionInput) (*domainworkflow.Instance, error)
+	CreateSubstitution(ctx context.Context, in CreateSubstitutionInput) (*domainworkflow.SubstitutionWindow, error)
+	RevokeSubstitution(ctx context.Context, in RevokeSubstitutionInput) (*domainworkflow.SubstitutionWindow, error)
+	ProcessDueTimers(ctx context.Context, workerID string, limit int, leaseDuration time.Duration) (int, error)
+	RunTimerWorker(ctx context.Context, workerID string, pollInterval time.Duration, batchSize int) error
+}
+
+type Options struct {
+	Jobs       *jobsvc.Service
+	UnitOfWork repository.UnitOfWork
+	Now        func() time.Time
 }
 
 type CreateDefinitionInput struct {
@@ -85,4 +104,21 @@ type TaskTargetActionInput struct {
 	Target     domainworkflow.Actor
 	Comment    string
 	Now        time.Time
+}
+
+type CreateSubstitutionInput struct {
+	ID         shared.ID
+	Principal  domainworkflow.Actor
+	Substitute domainworkflow.Actor
+	StartsAt   time.Time
+	EndsAt     time.Time
+	CreatedBy  domainworkflow.Actor
+	Reason     string
+	Now        time.Time
+}
+
+type RevokeSubstitutionInput struct {
+	ID        shared.ID
+	Principal domainworkflow.Actor
+	Now       time.Time
 }

@@ -22,6 +22,7 @@ type WorkflowDecisionStrategy string
 type WorkflowValueType string
 type WorkflowPredicateOperator string
 type WorkflowConditionMatch string
+type WorkflowAssignmentKind string
 
 const (
 	WorkflowDefinitionDraft     WorkflowDefinitionStatus = "draft"
@@ -34,20 +35,22 @@ const (
 	WorkflowInstanceWithdrawn WorkflowInstanceStatus = "withdrawn"
 	WorkflowInstanceCanceled  WorkflowInstanceStatus = "canceled"
 
-	WorkflowTaskPending     WorkflowTaskStatus = "pending"
-	WorkflowTaskApproved    WorkflowTaskStatus = "approved"
-	WorkflowTaskRejected    WorkflowTaskStatus = "rejected"
-	WorkflowTaskTransferred WorkflowTaskStatus = "transferred"
-	WorkflowTaskCopied      WorkflowTaskStatus = "copied"
-	WorkflowTaskCanceled    WorkflowTaskStatus = "canceled"
+	WorkflowTaskPending   WorkflowTaskStatus = "pending"
+	WorkflowTaskApproved  WorkflowTaskStatus = "approved"
+	WorkflowTaskRejected  WorkflowTaskStatus = "rejected"
+	WorkflowTaskDelegated WorkflowTaskStatus = "delegated"
+	WorkflowTaskCopied    WorkflowTaskStatus = "copied"
+	WorkflowTaskCanceled  WorkflowTaskStatus = "canceled"
 
-	WorkflowActionStart    WorkflowActionType = "start"
-	WorkflowActionApprove  WorkflowActionType = "approve"
-	WorkflowActionReject   WorkflowActionType = "reject"
-	WorkflowActionWithdraw WorkflowActionType = "withdraw"
-	WorkflowActionTransfer WorkflowActionType = "transfer"
-	WorkflowActionCopy     WorkflowActionType = "copy"
-	WorkflowActionCancel   WorkflowActionType = "cancel"
+	WorkflowActionStart      WorkflowActionType = "start"
+	WorkflowActionApprove    WorkflowActionType = "approve"
+	WorkflowActionReject     WorkflowActionType = "reject"
+	WorkflowActionWithdraw   WorkflowActionType = "withdraw"
+	WorkflowActionDelegate   WorkflowActionType = "delegate"
+	WorkflowActionSubstitute WorkflowActionType = "substitute"
+	WorkflowActionEscalate   WorkflowActionType = "escalate"
+	WorkflowActionCopy       WorkflowActionType = "copy"
+	WorkflowActionCancel     WorkflowActionType = "cancel"
 
 	WorkflowDecisionAny    WorkflowDecisionStrategy = "any"
 	WorkflowDecisionAll    WorkflowDecisionStrategy = "all"
@@ -68,6 +71,11 @@ const (
 
 	WorkflowConditionAll WorkflowConditionMatch = "all"
 	WorkflowConditionAny WorkflowConditionMatch = "any"
+
+	WorkflowAssignmentDirect      WorkflowAssignmentKind = "direct"
+	WorkflowAssignmentDelegated   WorkflowAssignmentKind = "delegated"
+	WorkflowAssignmentSubstituted WorkflowAssignmentKind = "substituted"
+	WorkflowAssignmentEscalated   WorkflowAssignmentKind = "escalated"
 )
 
 type WorkflowActor struct {
@@ -82,6 +90,7 @@ type WorkflowNode struct {
 	Type        WorkflowNodeType
 	AssigneeIDs []string
 	Decision    *WorkflowDecisionRule
+	Escalation  *WorkflowEscalationRule
 }
 
 type WorkflowTransition struct {
@@ -93,6 +102,11 @@ type WorkflowTransition struct {
 type WorkflowDecisionRule struct {
 	Strategy WorkflowDecisionStrategy
 	Quorum   int
+}
+
+type WorkflowEscalationRule struct {
+	AfterSeconds int64
+	Target       WorkflowActor
 }
 
 type WorkflowValue struct {
@@ -159,14 +173,38 @@ type WorkflowTargetActionInput struct {
 	Comment    string
 }
 
+type WorkflowSubstitutionInput struct {
+	ID         string
+	Substitute WorkflowActor
+	StartsAt   time.Time
+	EndsAt     time.Time
+	Reason     string
+}
+
+type WorkflowSubstitution struct {
+	ID         string
+	Principal  WorkflowActor
+	Substitute WorkflowActor
+	StartsAt   time.Time
+	EndsAt     time.Time
+	CreatedBy  WorkflowActor
+	Reason     string
+	CreatedAt  time.Time
+	RevokedAt  *time.Time
+}
+
 type WorkflowTask struct {
-	ID          string
-	InstanceID  string
-	NodeID      string
-	Assignee    WorkflowActor
-	Status      WorkflowTaskStatus
-	CreatedAt   time.Time
-	CompletedAt *time.Time
+	ID               string
+	InstanceID       string
+	NodeID           string
+	Assignee         WorkflowActor
+	OriginalAssignee WorkflowActor
+	Assignment       WorkflowAssignmentKind
+	AuthorizedBy     WorkflowActor
+	AuthorizationID  string
+	Status           WorkflowTaskStatus
+	CreatedAt        time.Time
+	CompletedAt      *time.Time
 }
 
 type WorkflowAction struct {
@@ -209,6 +247,8 @@ type WorkflowService interface {
 	Reject(ctx context.Context, input WorkflowTaskActionInput) (WorkflowInstance, error)
 	Withdraw(ctx context.Context, input WorkflowInstanceActionInput) (WorkflowInstance, error)
 	Cancel(ctx context.Context, input WorkflowInstanceActionInput) (WorkflowInstance, error)
-	Transfer(ctx context.Context, input WorkflowTargetActionInput) (WorkflowInstance, error)
+	Delegate(ctx context.Context, input WorkflowTargetActionInput) (WorkflowInstance, error)
 	Copy(ctx context.Context, input WorkflowTargetActionInput) (WorkflowInstance, error)
+	CreateSubstitution(ctx context.Context, input WorkflowSubstitutionInput) (WorkflowSubstitution, error)
+	RevokeSubstitution(ctx context.Context, id string) (WorkflowSubstitution, error)
 }

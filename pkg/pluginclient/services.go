@@ -484,12 +484,20 @@ func (s workflowService) Cancel(ctx context.Context, in pluginsdk.WorkflowInstan
 	err = s.client.call(ctx, "workflows", "cancel", in, &out)
 	return
 }
-func (s workflowService) Transfer(ctx context.Context, in pluginsdk.WorkflowTargetActionInput) (out pluginsdk.WorkflowInstance, err error) {
-	err = s.client.call(ctx, "workflows", "transfer", in, &out)
+func (s workflowService) Delegate(ctx context.Context, in pluginsdk.WorkflowTargetActionInput) (out pluginsdk.WorkflowInstance, err error) {
+	err = s.client.call(ctx, "workflows", "delegate", in, &out)
 	return
 }
 func (s workflowService) Copy(ctx context.Context, in pluginsdk.WorkflowTargetActionInput) (out pluginsdk.WorkflowInstance, err error) {
 	err = s.client.call(ctx, "workflows", "copy", in, &out)
+	return
+}
+func (s workflowService) CreateSubstitution(ctx context.Context, in pluginsdk.WorkflowSubstitutionInput) (out pluginsdk.WorkflowSubstitution, err error) {
+	err = s.client.call(ctx, "workflows", "create-substitution", in, &out)
+	return
+}
+func (s workflowService) RevokeSubstitution(ctx context.Context, id string) (out pluginsdk.WorkflowSubstitution, err error) {
+	err = s.client.call(ctx, "workflows", "revoke-substitution", idRequest{ID: id}, &out)
 	return
 }
 

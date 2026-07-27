@@ -350,7 +350,7 @@ func (s *Service) applyWorkflowAction(ctx context.Context, instanceID string, in
 	case pluginsdk.DocumentWorkflowWithdraw:
 		return s.workflow.Withdraw(ctx, pluginsdk.WorkflowInstanceActionInput{InstanceID: instanceID, Comment: input.Comment})
 	case pluginsdk.DocumentWorkflowDelegate:
-		return s.workflow.Transfer(ctx, pluginsdk.WorkflowTargetActionInput{InstanceID: instanceID, TaskID: input.TaskID, Target: input.Target, Comment: input.Comment})
+		return s.workflow.Delegate(ctx, pluginsdk.WorkflowTargetActionInput{InstanceID: instanceID, TaskID: input.TaskID, Target: input.Target, Comment: input.Comment})
 	case pluginsdk.DocumentWorkflowCancel:
 		return s.workflow.Cancel(ctx, pluginsdk.WorkflowInstanceActionInput{InstanceID: instanceID, Comment: input.Comment})
 	default:

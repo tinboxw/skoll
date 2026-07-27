@@ -42,24 +42,26 @@ const (
 type TaskStatus string
 
 const (
-	TaskPending     TaskStatus = "pending"
-	TaskApproved    TaskStatus = "approved"
-	TaskRejected    TaskStatus = "rejected"
-	TaskTransferred TaskStatus = "transferred"
-	TaskCopied      TaskStatus = "copied"
-	TaskCanceled    TaskStatus = "canceled"
+	TaskPending   TaskStatus = "pending"
+	TaskApproved  TaskStatus = "approved"
+	TaskRejected  TaskStatus = "rejected"
+	TaskDelegated TaskStatus = "delegated"
+	TaskCopied    TaskStatus = "copied"
+	TaskCanceled  TaskStatus = "canceled"
 )
 
 type ActionType string
 
 const (
-	ActionStart    ActionType = "start"
-	ActionApprove  ActionType = "approve"
-	ActionReject   ActionType = "reject"
-	ActionWithdraw ActionType = "withdraw"
-	ActionTransfer ActionType = "transfer"
-	ActionCopy     ActionType = "copy"
-	ActionCancel   ActionType = "cancel"
+	ActionStart      ActionType = "start"
+	ActionApprove    ActionType = "approve"
+	ActionReject     ActionType = "reject"
+	ActionWithdraw   ActionType = "withdraw"
+	ActionDelegate   ActionType = "delegate"
+	ActionSubstitute ActionType = "substitute"
+	ActionEscalate   ActionType = "escalate"
+	ActionCopy       ActionType = "copy"
+	ActionCancel     ActionType = "cancel"
 )
 
 type Actor struct {
@@ -79,12 +81,13 @@ type Definition struct {
 }
 
 type Node struct {
-	ID        shared.ID
-	Key       string
-	Name      string
-	Type      NodeType
-	Assignees []shared.ID
-	Decision  DecisionRule
+	ID         shared.ID
+	Key        string
+	Name       string
+	Type       NodeType
+	Assignees  []shared.ID
+	Decision   DecisionRule
+	Escalation *EscalationRule
 }
 
 type Transition struct {
@@ -111,13 +114,17 @@ type Instance struct {
 }
 
 type Task struct {
-	ID          shared.ID
-	InstanceID  shared.ID
-	NodeID      shared.ID
-	Assignee    Actor
-	Status      TaskStatus
-	CreatedAt   time.Time
-	CompletedAt *time.Time
+	ID               shared.ID
+	InstanceID       shared.ID
+	NodeID           shared.ID
+	Assignee         Actor
+	OriginalAssignee Actor
+	Assignment       AssignmentKind
+	AuthorizedBy     Actor
+	AuthorizationID  shared.ID
+	Status           TaskStatus
+	CreatedAt        time.Time
+	CompletedAt      *time.Time
 }
 
 type Action struct {
@@ -235,10 +242,19 @@ func (n Node) Validate() error {
 		return fmt.Errorf("workflow approval node requires assignees")
 	}
 	if n.Type == NodeApproval {
-		return n.Decision.Validate(len(n.Assignees))
+		if err := n.Decision.Validate(len(n.Assignees)); err != nil {
+			return err
+		}
+		if n.Escalation != nil {
+			return n.Escalation.Validate()
+		}
+		return nil
 	}
 	if n.Decision.Strategy != "" || n.Decision.Quorum != 0 {
 		return fmt.Errorf("workflow non-approval node cannot declare a decision rule")
+	}
+	if n.Escalation != nil {
+		return fmt.Errorf("workflow non-approval node cannot declare escalation")
 	}
 	return nil
 }
@@ -401,29 +417,37 @@ func (i *Instance) Cancel(actor Actor, comment string, now time.Time) error {
 	return nil
 }
 
-func (i *Instance) Transfer(taskID shared.ID, actor Actor, target Actor, comment string, now time.Time) error {
+func (i *Instance) Delegate(taskID shared.ID, actor Actor, target Actor, comment string, now time.Time) error {
 	if err := i.ensureRunning(); err != nil {
 		return err
 	}
 	if target.ID.IsZero() {
-		return fmt.Errorf("workflow transfer target is required")
+		return fmt.Errorf("workflow delegation target is required")
 	}
 	task, err := i.pendingTask(taskID, actor)
 	if err != nil {
 		return err
 	}
+	if target.ID == actor.ID {
+		return fmt.Errorf("workflow delegation target must differ from assignee")
+	}
 	now = normalizeNow(now)
-	task.Status = TaskTransferred
+	task.Status = TaskDelegated
 	task.CompletedAt = &now
+	authorizationID := actionID(i.ID, ActionDelegate, taskID.String(), actor.ID.String(), target.ID.String())
 	i.Tasks = append(i.Tasks, Task{
-		ID:         shared.ID(fmt.Sprintf("%s-transfer-%s", task.ID, target.ID)),
-		InstanceID: i.ID,
-		NodeID:     task.NodeID,
-		Assignee:   normalizeActor(target),
-		Status:     TaskPending,
-		CreatedAt:  now,
+		ID:               shared.ID(fmt.Sprintf("%s-delegate-%s", task.ID, target.ID)),
+		InstanceID:       i.ID,
+		NodeID:           task.NodeID,
+		Assignee:         normalizeActor(target),
+		OriginalAssignee: task.OriginalAssignee,
+		Assignment:       AssignmentDelegated,
+		AuthorizedBy:     normalizeActor(actor),
+		AuthorizationID:  authorizationID,
+		Status:           TaskPending,
+		CreatedAt:        now,
 	})
-	i.appendAction(Action{ID: actionID(i.ID, ActionTransfer, taskID.String(), actor.ID.String(), target.ID.String()), Type: ActionTransfer, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Target: normalizeActor(target), Comment: strings.TrimSpace(comment), CreatedAt: now})
+	i.appendAction(Action{ID: authorizationID, Type: ActionDelegate, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Target: normalizeActor(target), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
 	return nil
 }
@@ -441,13 +465,16 @@ func (i *Instance) Copy(taskID shared.ID, actor Actor, target Actor, comment str
 	}
 	now = normalizeNow(now)
 	i.Tasks = append(i.Tasks, Task{
-		ID:          shared.ID(fmt.Sprintf("%s-copy-%s", task.ID, target.ID)),
-		InstanceID:  i.ID,
-		NodeID:      task.NodeID,
-		Assignee:    normalizeActor(target),
-		Status:      TaskCopied,
-		CreatedAt:   now,
-		CompletedAt: &now,
+		ID:               shared.ID(fmt.Sprintf("%s-copy-%s", task.ID, target.ID)),
+		InstanceID:       i.ID,
+		NodeID:           task.NodeID,
+		Assignee:         normalizeActor(target),
+		OriginalAssignee: task.OriginalAssignee,
+		Assignment:       task.Assignment,
+		AuthorizedBy:     normalizeActor(actor),
+		Status:           TaskCopied,
+		CreatedAt:        now,
+		CompletedAt:      &now,
 	})
 	i.appendAction(Action{ID: actionID(i.ID, ActionCopy, taskID.String(), actor.ID.String(), target.ID.String()), Type: ActionCopy, InstanceID: i.ID, TaskID: taskID, NodeID: task.NodeID, Actor: normalizeActor(actor), Target: normalizeActor(target), Comment: strings.TrimSpace(comment), CreatedAt: now})
 	i.Meta.Touch(now)
@@ -565,12 +592,14 @@ func makeTasksForNodes(instanceID shared.ID, definition Definition, nodeIDs []sh
 		}
 		for _, assignee := range node.Assignees {
 			tasks = append(tasks, Task{
-				ID:         shared.ID(fmt.Sprintf("%s-%s-%s", instanceID, node.ID, assignee)),
-				InstanceID: instanceID,
-				NodeID:     node.ID,
-				Assignee:   Actor{ID: assignee},
-				Status:     TaskPending,
-				CreatedAt:  now,
+				ID:               shared.ID(fmt.Sprintf("%s-%s-%s", instanceID, node.ID, assignee)),
+				InstanceID:       instanceID,
+				NodeID:           node.ID,
+				Assignee:         Actor{ID: assignee},
+				OriginalAssignee: Actor{ID: assignee},
+				Assignment:       AssignmentDirect,
+				Status:           TaskPending,
+				CreatedAt:        now,
 			})
 		}
 	}

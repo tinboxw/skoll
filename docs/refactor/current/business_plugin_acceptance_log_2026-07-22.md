@@ -2774,3 +2774,56 @@ Result: FF3-01 passed. Independent plugins can now define bounded conditional ro
 ### Commit
 
 `FF3-01: add governed workflow decisions`
+
+## FF3-02 Add Delegation, Substitution, Escalation, And Timers
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Add one permission-bounded assignment model and durable escalation execution path to the current workflow platform.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Delegation boundary | Pass | A pending task can be delegated only by its current assignee; the delegated actor receives authority for that task only and cannot act on another task |
+| Provenance | Pass | Every direct, delegated, substituted, or escalated task records its original assignee, assignment kind, authorizing actor, and authorization identity |
+| Substitution ownership | Pass | A principal can create and revoke only its own bounded absence windows; forged principals, overlapping windows, self-substitution, and windows beyond 366 days fail closed |
+| Substitution scope | Pass | Substitution applies only to pending tasks originally assigned to the absent principal and never copies unrelated permission or tenant authority |
+| Escalation policy | Pass | Approval nodes declare a bounded delay and exact target actor; invalid delays and self-escalation are rejected during definition validation |
+| Durable timer | Pass | Pending escalation jobs are persisted in the shared job store and restored with workflow state after a database restart |
+| Transactional timer creation | Pass | Workflow mutation and timer scheduling join the same outer Unit of Work; rollback leaves neither partial workflow state nor an escaped job |
+| Execute once | Pass | Competing workers lease one durable timer identity; escalation is domain-idempotent and job completion is committed with the workflow mutation |
+| Restart recovery | Pass | Fresh workflow and job stores over the same database execute the due timer once, preserve its timeline evidence, and do not replay it after a second restart |
+| Traceability | Pass | Delegation, substitution, and escalation append explicit workflow actions and cross the plugin host boundary with tenant, actor, and authorization provenance |
+| Public contracts | Pass | Plugin SDK, process client, host gateway, HTTP handlers, both OpenAPI copies, and Vue models expose the same current assignment and timer contract |
+| Current-only boundary | Pass | The public operation is `delegate`; the old transfer operation and endpoint are absent, with no compatibility route, decoder, alias, or fallback |
+| Frontend integration | Pass | Platform and Pharma OA timelines render delegate, substitute, escalate, and cancel actions in zh-CN and en-US; both production builds pass |
+| Regression | Pass | Focused repeated and race tests, restart tests, affected-package vet, all Go packages, frontend checks, production builds, OpenAPI parsing, and diff checks pass |
+| Framework purity | Pass | The implementation adds workflow platform primitives only and introduces no medicine-industry field or host-owned business process |
+
+### Failed Runs And Re-Execution
+
+- The first Pharma OA frontend build rejected the expanded workflow action union because its local timeline dictionary lacked `substitute` and `escalate`. Both locale entries were added and the complete typecheck, build, and bundle-budget gate passed on re-execution.
+- Early parallel test commands left two timed-out Go processes. They were terminated before the final serial quality gates; the full repository run completed successfully and no Go process remained.
+
+### Verification Commands
+
+```powershell
+go test ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/plugin/hostservice -run 'Substitution|Escalation|JobStoreJoinsOuterTransaction|WorkflowServiceBindsIdentityAndNamespace' -count=20
+go test -race ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/plugin/hostservice -run 'Substitution|Escalation|JobStoreJoinsOuterTransaction|WorkflowServiceBindsIdentityAndNamespace' -count=1
+go vet ./internal/domain/workflow ./internal/service/workflow ./internal/store/sql/gormrepo ./internal/plugin/... ./internal/handler/http/v1/workflow ./internal/bootstrap ./pkg/pluginclient ./pkg/pluginsdk ./plugins/pharma_oa/backend
+go test -timeout 240s ./...
+npm --prefix web run typecheck
+npm --prefix web run build
+npm --prefix plugins/pharma_oa/frontend run build
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF3-02 passed. Plugins can now use permission-bounded delegation and absence substitution, declare durable escalation policies, and recover exactly-once timer effects after restart through current framework contracts.
+
+### Commit
+
+`FF3-02: govern workflow assignment timers`

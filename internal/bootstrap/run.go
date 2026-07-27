@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 )
 
 type closeable interface {
@@ -60,6 +61,12 @@ func (r *Runner) Run(ctx context.Context) (runErr error) {
 		workerID := fmt.Sprintf("runtime-%d", os.Getpid())
 		go func() {
 			_ = r.deps.eventDispatcher.Run(workerCtx, workerID, 0, 50)
+		}()
+	}
+	if r.deps.workflowService != nil {
+		workerID := fmt.Sprintf("workflow-runtime-%d", os.Getpid())
+		go func() {
+			_ = r.deps.workflowService.RunTimerWorker(workerCtx, workerID, time.Second, 50)
 		}()
 	}
 

@@ -33,9 +33,9 @@ func TestWorkflowAuditFixtureQueryableAndReplayable(t *testing.T) {
 		t.Fatalf("approval event missing replay source data: %+v", approvals[0].SourceData)
 	}
 
-	transfers := FindEvents(fixture.Events, Query{Action: domainaudit.AuditAction("workflow.task.transfer")})
-	if len(transfers) != 1 || transfers[0].Metadata["targetActorId"] != "approver-2" {
-		t.Fatalf("expected transfer event to target approver-2, got %+v", transfers)
+	delegations := FindEvents(fixture.Events, Query{Action: domainaudit.AuditAction("workflow.task.delegate")})
+	if len(delegations) != 1 || delegations[0].Metadata["targetActorId"] != "approver-2" {
+		t.Fatalf("expected delegation event to target approver-2, got %+v", delegations)
 	}
 
 	replay, err := ReplayApprovalChain(fixture.Events)
@@ -49,7 +49,7 @@ func TestWorkflowAuditFixtureQueryableAndReplayable(t *testing.T) {
 	for _, record := range replay.Records {
 		gotActions = append(gotActions, record.Action)
 	}
-	want := []string{"start", "copy", "transfer", "approve"}
+	want := []string{"start", "copy", "delegate", "approve"}
 	for idx := range want {
 		if gotActions[idx] != want[idx] {
 			t.Fatalf("expected replay action %s at %d, got %s", want[idx], idx, gotActions[idx])

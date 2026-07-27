@@ -616,11 +616,17 @@ func (*generatedWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceA
 func (*generatedWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, nil
 }
-func (*generatedWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+func (*generatedWorkflows) Delegate(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, nil
 }
 func (*generatedWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, nil
+}
+func (*generatedWorkflows) CreateSubstitution(context.Context, pluginsdk.WorkflowSubstitutionInput) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{}, nil
+}
+func (*generatedWorkflows) RevokeSubstitution(context.Context, string) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{}, nil
 }
 
 type generatedJobs struct{}

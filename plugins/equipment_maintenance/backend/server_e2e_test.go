@@ -138,11 +138,17 @@ func (w *testWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActi
 func (w *testWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, errors.New("not used")
 }
-func (w *testWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+func (w *testWorkflows) Delegate(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, errors.New("not used")
 }
 func (w *testWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{}, errors.New("not used")
+}
+func (w *testWorkflows) CreateSubstitution(context.Context, pluginsdk.WorkflowSubstitutionInput) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{}, errors.New("not used")
+}
+func (w *testWorkflows) RevokeSubstitution(context.Context, string) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{}, errors.New("not used")
 }
 
 type testJobs struct {

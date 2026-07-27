@@ -1783,9 +1783,9 @@ paths:
                 $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
         '400':
           description: Bad Request
-  /v1/workflows/instances/{id}/tasks/{taskId}/transfer:
+  /v1/workflows/instances/{id}/tasks/{taskId}/delegate:
     post:
-      summary: Transfer workflow task
+      summary: Delegate workflow task
       parameters:
         - name: id
           in: path
@@ -1839,6 +1839,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowInstanceAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/substitutions:
+    post:
+      summary: Create a bounded workflow substitution window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSubstitutionCreateRequest'
+      responses:
+        '201':
+          description: Created workflow substitution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSubstitutionAPIResponse'
+        '400':
+          description: Bad Request
+  /v1/workflows/substitutions/{id}/revoke:
+    post:
+      summary: Revoke a workflow substitution window
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [principal]
+              properties:
+                principal:
+                  $ref: '#/components/schemas/WorkflowActor'
+      responses:
+        '200':
+          description: Revoked workflow substitution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSubstitutionAPIResponse'
         '400':
           description: Bad Request
   /v1/menus/tree:
@@ -3128,6 +3174,8 @@ components:
             type: string
         decision:
           $ref: '#/components/schemas/WorkflowDecisionRule'
+        escalation:
+          $ref: '#/components/schemas/WorkflowEscalationRule'
     WorkflowDecisionRule:
       type: object
       required:
@@ -3140,6 +3188,18 @@ components:
         quorum:
           type: integer
           minimum: 1
+    WorkflowEscalationRule:
+      type: object
+      required:
+        - afterSeconds
+        - target
+      properties:
+        afterSeconds:
+          type: integer
+          minimum: 60
+          maximum: 7776000
+        target:
+          $ref: '#/components/schemas/WorkflowActor'
     WorkflowValue:
       type: object
       required:
@@ -3294,6 +3354,8 @@ components:
         - instanceId
         - nodeId
         - assignee
+        - originalAssignee
+        - assignment
         - status
         - createdAt
       properties:
@@ -3305,9 +3367,18 @@ components:
           type: string
         assignee:
           $ref: '#/components/schemas/WorkflowActor'
+        originalAssignee:
+          $ref: '#/components/schemas/WorkflowActor'
+        assignment:
+          type: string
+          enum: [direct, delegated, substituted, escalated]
+        authorizedBy:
+          $ref: '#/components/schemas/WorkflowActor'
+        authorizationId:
+          type: string
         status:
           type: string
-          enum: [pending, approved, rejected, transferred, copied, canceled]
+          enum: [pending, approved, rejected, delegated, copied, canceled]
         createdAt:
           type: string
           format: date-time
@@ -3327,7 +3398,7 @@ components:
           type: string
         type:
           type: string
-          enum: [start, approve, reject, withdraw, transfer, copy, cancel]
+          enum: [start, approve, reject, withdraw, delegate, substitute, escalate, copy, cancel]
         instanceId:
           type: string
         taskId:
@@ -3403,6 +3474,51 @@ components:
         updatedAt:
           type: string
           format: date-time
+    WorkflowSubstitutionCreateRequest:
+      type: object
+      required: [id, principal, substitute, startsAt, endsAt, reason]
+      properties:
+        id:
+          type: string
+        principal:
+          $ref: '#/components/schemas/WorkflowActor'
+        substitute:
+          $ref: '#/components/schemas/WorkflowActor'
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+          maxLength: 1024
+    WorkflowSubstitution:
+      allOf:
+        - $ref: '#/components/schemas/WorkflowSubstitutionCreateRequest'
+        - type: object
+          required: [createdBy, createdAt]
+          properties:
+            createdBy:
+              $ref: '#/components/schemas/WorkflowActor'
+            createdAt:
+              type: string
+              format: date-time
+            revokedAt:
+              type: string
+              format: date-time
+    WorkflowSubstitutionAPIResponse:
+      allOf:
+        - $ref: '#/components/schemas/MessageResponse'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              required: [item]
+              properties:
+                item:
+                  $ref: '#/components/schemas/WorkflowSubstitution'
     WorkflowDefinitionData:
       type: object
       required:

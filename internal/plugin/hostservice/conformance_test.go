@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"testing"
+	"time"
 
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
@@ -66,6 +67,7 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 	}
 	configStore := &hostConfigStore{info: pluginruntime.Info{ID: "sdk_conformance"}}
 	dataStore := &conformanceDataStore{}
+	jobs := jobsvc.NewService(bundle.Jobs, nil)
 	host, err := NewHostServices(HostServicesDependencies{
 		PluginID: "sdk_conformance", Transactions: transactions, DataScopes: scopes,
 		DataStore: func(string, pluginsdk.DataScopeService, pluginsdk.AuditService) (pluginsdk.DataStoreService, error) {
@@ -82,7 +84,9 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 		DocumentNumbers:   documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
 		DocumentWorkflows: gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB),
 		ConfigStore:       configStore, System: systemsvc.NewService(bundle.System), MasterSecret: "sdk-conformance-master-secret",
-		Workflow: workflowsvc.NewService(bundle.Workflow), Jobs: jobsvc.NewService(bundle.Jobs, nil),
+		Workflow: workflowsvc.NewService(bundle.Workflow, workflowsvc.Options{
+			Jobs: jobs, UnitOfWork: bundle.UnitOfWork, Now: func() time.Time { return time.Now().UTC() },
+		}), Jobs: jobs,
 	})
 	if err != nil {
 		t.Fatalf("NewHostServices error: %v", err)

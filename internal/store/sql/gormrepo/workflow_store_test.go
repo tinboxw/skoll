@@ -21,7 +21,7 @@ func TestWorkflowStorePersistsAggregateAcrossDatabaseRestart(t *testing.T) {
 	dsn := filepath.Join(t.TempDir(), "workflow.db")
 	db := openWorkflowTestDB(t, dsn)
 	repo := NewWorkflowStore(db)
-	service := workflowsvc.NewService(repo)
+	service := newWorkflowTestService(repo, db)
 	now := time.Date(2026, 7, 22, 9, 30, 0, 0, time.UTC)
 
 	definition, err := service.CreateDefinition(ctx, workflowsvc.CreateDefinitionInput{
@@ -68,7 +68,7 @@ func TestWorkflowStorePersistsAggregateAcrossDatabaseRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Copy error: %v", err)
 	}
-	instance, err = service.Transfer(ctx, workflowsvc.TaskTargetActionInput{
+	instance, err = service.Delegate(ctx, workflowsvc.TaskTargetActionInput{
 		InstanceID: instance.ID, TaskID: initialTaskID,
 		Actor:   domainworkflow.Actor{ID: "manager-1", Name: "Manager One"},
 		Target:  domainworkflow.Actor{ID: "manager-2", Name: "Manager Two"},
@@ -77,9 +77,9 @@ func TestWorkflowStorePersistsAggregateAcrossDatabaseRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Transfer error: %v", err)
 	}
-	transferredTaskID := instance.Tasks[len(instance.Tasks)-1].ID
+	delegatedTaskID := instance.Tasks[len(instance.Tasks)-1].ID
 	if _, err := service.Approve(ctx, workflowsvc.TaskActionInput{
-		InstanceID: instance.ID, TaskID: transferredTaskID,
+		InstanceID: instance.ID, TaskID: delegatedTaskID,
 		Actor:   domainworkflow.Actor{ID: "manager-2", Name: "Manager Two"},
 		Comment: "approved", Now: now.Add(5 * time.Second),
 	}); err != nil {
@@ -144,7 +144,9 @@ func TestWorkflowStoreRollsBackAggregateReplacement(t *testing.T) {
 		ActiveNodes: []shared.ID{"node-approve"}, Variables: map[string]domainworkflow.Value{},
 		Tasks: []domainworkflow.Task{{
 			ID: "task-rollback", InstanceID: "instance-rollback", NodeID: "node-approve",
-			Assignee: domainworkflow.Actor{ID: "manager-1", Name: "Manager One"}, Status: domainworkflow.TaskPending, CreatedAt: now,
+			Assignee:         domainworkflow.Actor{ID: "manager-1", Name: "Manager One"},
+			OriginalAssignee: domainworkflow.Actor{ID: "manager-1", Name: "Manager One"},
+			Assignment:       domainworkflow.AssignmentDirect, Status: domainworkflow.TaskPending, CreatedAt: now,
 		}},
 		Timeline: []domainworkflow.Action{{
 			ID: "action-rollback", Type: domainworkflow.ActionStart, InstanceID: "instance-rollback", NodeID: "node-approve",
@@ -217,6 +219,20 @@ func TestWorkflowMigrationScriptsCoverRelationalSchema(t *testing.T) {
 				t.Fatalf("%s governed workflow migration missing %q", dialect, token)
 			}
 		}
+		assignmentPath := filepath.Join(root, dialect, "20260727_000033_add_workflow_assignment_governance.sql")
+		assignmentBody, err := os.ReadFile(assignmentPath)
+		if err != nil {
+			t.Fatalf("read %s workflow assignment migration: %v", dialect, err)
+		}
+		assignmentText := strings.ToLower(string(assignmentBody))
+		for _, token := range []string{
+			"escalation_after_seconds", "original_assignee_id", "assignment", "authorization_id",
+			"sk_workflow_substitutions", "idx_workflow_substitution_principal_window",
+		} {
+			if !strings.Contains(assignmentText, token) {
+				t.Fatalf("%s workflow assignment migration missing %q", dialect, token)
+			}
+		}
 	}
 }
 
@@ -231,7 +247,7 @@ func openWorkflowTestDB(t *testing.T, dsn string) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&WorkflowDefinitionModel{}, &WorkflowNodeModel{}, &WorkflowNodeAssigneeModel{}, &WorkflowTransitionModel{},
-		&WorkflowInstanceModel{}, &WorkflowTaskModel{}, &WorkflowActionModel{},
+		&WorkflowInstanceModel{}, &WorkflowTaskModel{}, &WorkflowActionModel{}, &WorkflowSubstitutionModel{}, &JobModel{},
 	); err != nil {
 		t.Fatalf("migrate workflow test database: %v", err)
 	}

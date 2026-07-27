@@ -181,13 +181,13 @@ export type OAWorkflowTask = {
   instanceId: string;
   nodeId: string;
   assignee: OAWorkflowActor;
-  status: "pending" | "approved" | "rejected" | "transferred" | "copied" | "canceled";
+  status: "pending" | "approved" | "rejected" | "delegated" | "copied" | "canceled";
   createdAt: string;
   completedAt?: string;
 };
 export type OAWorkflowAction = {
   id: string;
-  type: "start" | "approve" | "reject" | "withdraw" | "transfer" | "copy" | "cancel";
+  type: "start" | "approve" | "reject" | "withdraw" | "delegate" | "substitute" | "escalate" | "copy" | "cancel";
   instanceId: string;
   taskId: string;
   nodeId: string;

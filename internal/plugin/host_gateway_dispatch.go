@@ -275,18 +275,30 @@ func dispatchHostCall(ctx context.Context, host pluginsdk.HostServices, capabili
 			return nil, err
 		}
 		return host.Workflows.Cancel(ctx, in)
-	case "workflows.transfer":
+	case "workflows.delegate":
 		var in pluginsdk.WorkflowTargetActionInput
 		if err := decodeHostInput(decoder, &in); err != nil {
 			return nil, err
 		}
-		return host.Workflows.Transfer(ctx, in)
+		return host.Workflows.Delegate(ctx, in)
 	case "workflows.copy":
 		var in pluginsdk.WorkflowTargetActionInput
 		if err := decodeHostInput(decoder, &in); err != nil {
 			return nil, err
 		}
 		return host.Workflows.Copy(ctx, in)
+	case "workflows.create-substitution":
+		var in pluginsdk.WorkflowSubstitutionInput
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Workflows.CreateSubstitution(ctx, in)
+	case "workflows.revoke-substitution":
+		var in hostIDRequest
+		if err := decodeHostInput(decoder, &in); err != nil {
+			return nil, err
+		}
+		return host.Workflows.RevokeSubstitution(ctx, in.ID)
 	case "jobs.schedule":
 		var in pluginsdk.JobScheduleInput
 		if err := decodeHostInput(decoder, &in); err != nil {

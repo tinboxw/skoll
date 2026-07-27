@@ -19,7 +19,7 @@ import (
 func TestWorkflowStoreSerializesCompetingDecisions(t *testing.T) {
 	ctx := context.Background()
 	db := openConcurrentWorkflowTestDB(t, "competing-decisions")
-	service := workflowsvc.NewService(NewWorkflowStore(db))
+	service := newWorkflowTestService(NewWorkflowStore(db), db)
 	instance := createConcurrentWorkflowInstance(t, ctx, service, "competing")
 	taskID := instance.Tasks[0].ID
 	start := make(chan struct{})
@@ -79,7 +79,7 @@ func TestWorkflowStoreSerializesCompetingDecisions(t *testing.T) {
 func TestWorkflowStoreResolvesConcurrentQuorumExactlyOnce(t *testing.T) {
 	ctx := context.Background()
 	db := openConcurrentWorkflowTestDB(t, "quorum-decisions")
-	service := workflowsvc.NewService(NewWorkflowStore(db))
+	service := newWorkflowTestService(NewWorkflowStore(db), db)
 	now := workflowConcurrencyTime()
 	definition, err := service.CreateDefinition(ctx, workflowsvc.CreateDefinitionInput{
 		ID: "definition-quorum", Key: "quality.release", Name: "Quality Release", Version: 1,
@@ -167,7 +167,7 @@ func TestWorkflowStoreResolvesConcurrentQuorumExactlyOnce(t *testing.T) {
 func TestWorkflowStoreDeduplicatesConcurrentNonTerminalActions(t *testing.T) {
 	ctx := context.Background()
 	db := openConcurrentWorkflowTestDB(t, "duplicate-copy")
-	service := workflowsvc.NewService(NewWorkflowStore(db))
+	service := newWorkflowTestService(NewWorkflowStore(db), db)
 	instance := createConcurrentWorkflowInstance(t, ctx, service, "duplicate-copy")
 	taskID := instance.Tasks[0].ID
 
@@ -256,12 +256,12 @@ func TestWorkflowDecisionRecoversAfterCommittedResponseInterruption(t *testing.T
 	dsn := filepath.Join(t.TempDir(), "workflow-recovery.db")
 	db := openWorkflowTestDB(t, dsn)
 	repository := NewWorkflowStore(db)
-	service := workflowsvc.NewService(repository)
+	service := newWorkflowTestService(repository, db)
 	instance := createConcurrentWorkflowInstance(t, ctx, service, "response-interruption")
 	taskID := instance.Tasks[0].ID
 	commitTime := workflowConcurrencyTime().Add(time.Minute)
 	interrupted := &interruptAfterCommitRepository{Repository: repository}
-	interruptedService := workflowsvc.NewService(interrupted)
+	interruptedService := newWorkflowTestService(interrupted, db)
 
 	_, err := interruptedService.Approve(ctx, workflowsvc.TaskActionInput{
 		InstanceID: instance.ID, TaskID: taskID, Actor: domainworkflow.Actor{ID: "manager-1", Name: "Manager One"},
@@ -274,7 +274,7 @@ func TestWorkflowDecisionRecoversAfterCommittedResponseInterruption(t *testing.T
 
 	restartedDB := openWorkflowTestDB(t, dsn)
 	t.Cleanup(func() { closeWorkflowTestDB(t, restartedDB) })
-	restartedService := workflowsvc.NewService(NewWorkflowStore(restartedDB))
+	restartedService := newWorkflowTestService(NewWorkflowStore(restartedDB), restartedDB)
 	recovered, err := restartedService.Approve(ctx, workflowsvc.TaskActionInput{
 		InstanceID: instance.ID, TaskID: taskID, Actor: domainworkflow.Actor{ID: "manager-1", Name: "Manager One"},
 		Comment: "retry after restart", Now: commitTime.Add(time.Hour),
@@ -300,7 +300,7 @@ func TestWorkflowStoreFailedAtomicUpdateLeavesCommittedState(t *testing.T) {
 	ctx := context.Background()
 	db := openConcurrentWorkflowTestDB(t, "failed-update")
 	repository := NewWorkflowStore(db)
-	service := workflowsvc.NewService(repository)
+	service := newWorkflowTestService(repository, db)
 	instance := createConcurrentWorkflowInstance(t, ctx, service, "failed-update")
 
 	_, err := repository.UpdateInstance(ctx, instance.ID, func(candidate *domainworkflow.Instance) (bool, error) {

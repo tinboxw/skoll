@@ -1141,7 +1141,7 @@ func (w *pharmaLifecycleWorkflows) instanceAction(ctx context.Context, input plu
 	return item, nil
 }
 
-func (w *pharmaLifecycleWorkflows) Transfer(ctx context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+func (w *pharmaLifecycleWorkflows) Delegate(ctx context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	if err := pharmaLifecycleRequireTransaction(ctx); err != nil {
 		return pluginsdk.WorkflowInstance{}, err
 	}
@@ -1156,7 +1156,7 @@ func (w *pharmaLifecycleWorkflows) Transfer(ctx context.Context, input pluginsdk
 	for index := range item.Tasks {
 		if item.Tasks[index].ID == input.TaskID && item.Tasks[index].Status == pluginsdk.WorkflowTaskPending {
 			found = true
-			item.Tasks[index].Status = pluginsdk.WorkflowTaskTransferred
+			item.Tasks[index].Status = pluginsdk.WorkflowTaskDelegated
 			item.Tasks[index].CompletedAt = &now
 			break
 		}
@@ -1169,7 +1169,7 @@ func (w *pharmaLifecycleWorkflows) Transfer(ctx context.Context, input pluginsdk
 		Assignee: input.Target, Status: pluginsdk.WorkflowTaskPending, CreatedAt: now,
 	})
 	item.Timeline = append(item.Timeline, pluginsdk.WorkflowAction{
-		ID: fmt.Sprintf("%s-action-%d", item.ID, len(item.Timeline)+1), Type: pluginsdk.WorkflowActionTransfer,
+		ID: fmt.Sprintf("%s-action-%d", item.ID, len(item.Timeline)+1), Type: pluginsdk.WorkflowActionDelegate,
 		InstanceID: item.ID, TaskID: input.TaskID, NodeID: item.CurrentNode, Actor: pharmaLifecycleWorkflowActor(ctx),
 		Target: input.Target, Comment: input.Comment, CreatedAt: now,
 	})

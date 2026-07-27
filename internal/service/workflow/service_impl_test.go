@@ -14,7 +14,7 @@ func TestWorkflowServiceStartApproveAndPersist(t *testing.T) {
 	ctx := context.Background()
 	now := fixedServiceWorkflowTime()
 	repo := NewMemoryRepository()
-	svc := NewService(repo)
+	svc := newTestService(repo)
 
 	definition, err := svc.CreateDefinition(ctx, sampleCreateDefinitionInput(now))
 	if err != nil {
@@ -66,23 +66,23 @@ func TestWorkflowServiceStartApproveAndPersist(t *testing.T) {
 	}
 }
 
-func TestWorkflowServiceTransferCopyRejectAndWithdraw(t *testing.T) {
+func TestWorkflowServiceDelegateCopyRejectAndWithdraw(t *testing.T) {
 	ctx := context.Background()
 	now := fixedServiceWorkflowTime()
-	svc := NewService(NewMemoryRepository())
+	svc := newTestService(NewMemoryRepository())
 	definition := mustPublishedDefinition(t, ctx, svc, now)
-	instance := mustStartServiceInstance(t, ctx, svc, definition.ID, "wf-transfer", now)
+	instance := mustStartServiceInstance(t, ctx, svc, definition.ID, "wf-delegate", now)
 	taskID := instance.Tasks[0].ID
 
 	if _, err := svc.Copy(ctx, TaskTargetActionInput{InstanceID: instance.ID, TaskID: taskID, Actor: domainworkflow.Actor{ID: "manager-1"}, Target: domainworkflow.Actor{ID: "observer-1"}, Comment: "FYI", Now: now.Add(time.Minute)}); err != nil {
 		t.Fatalf("Copy error: %v", err)
 	}
-	instance, err := svc.Transfer(ctx, TaskTargetActionInput{InstanceID: instance.ID, TaskID: taskID, Actor: domainworkflow.Actor{ID: "manager-1"}, Target: domainworkflow.Actor{ID: "manager-2"}, Comment: "delegate", Now: now.Add(2 * time.Minute)})
+	instance, err := svc.Delegate(ctx, TaskTargetActionInput{InstanceID: instance.ID, TaskID: taskID, Actor: domainworkflow.Actor{ID: "manager-1"}, Target: domainworkflow.Actor{ID: "manager-2"}, Comment: "delegate", Now: now.Add(2 * time.Minute)})
 	if err != nil {
 		t.Fatalf("Transfer error: %v", err)
 	}
 	if len(instance.Tasks) != 3 || instance.Tasks[2].Assignee.ID != "manager-2" {
-		t.Fatalf("unexpected transferred instance: %+v", instance.Tasks)
+		t.Fatalf("unexpected delegated instance: %+v", instance.Tasks)
 	}
 	if _, err := svc.Reject(ctx, TaskActionInput{InstanceID: instance.ID, TaskID: instance.Tasks[2].ID, Actor: domainworkflow.Actor{ID: "manager-2"}, Comment: "no", Now: now.Add(3 * time.Minute)}); err != nil {
 		t.Fatalf("Reject error: %v", err)
@@ -126,7 +126,7 @@ func TestWorkflowMemoryRepositoryReturnsClones(t *testing.T) {
 func TestWorkflowServiceDeduplicatesConcurrentDecision(t *testing.T) {
 	ctx := context.Background()
 	now := fixedServiceWorkflowTime()
-	svc := NewService(NewMemoryRepository())
+	svc := newTestService(NewMemoryRepository())
 	definition := mustPublishedDefinition(t, ctx, svc, now)
 	instance := mustStartServiceInstance(t, ctx, svc, definition.ID, "wf-concurrent-approve", now)
 	taskID := instance.Tasks[0].ID

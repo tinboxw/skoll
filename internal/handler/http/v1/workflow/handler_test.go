@@ -16,9 +16,11 @@ import (
 	workflowhttp "github.com/tinboxw/skoll/internal/handler/http/v1/workflow"
 	"github.com/tinboxw/skoll/internal/handler/middleware"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
+	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	permissionsvc "github.com/tinboxw/skoll/internal/service/permission"
 	workflowsvc "github.com/tinboxw/skoll/internal/service/workflow"
 	"github.com/tinboxw/skoll/internal/store"
+	storesql "github.com/tinboxw/skoll/internal/store/sql"
 )
 
 func TestWorkflowAPIRunsThreeScenariosWithPermissionAndAuditRecords(t *testing.T) {
@@ -26,7 +28,7 @@ func TestWorkflowAPIRunsThreeScenariosWithPermissionAndAuditRecords(t *testing.T
 	if err != nil {
 		t.Fatalf("store.NewBundle error: %v", err)
 	}
-	workflowService := workflowsvc.NewService(workflowsvc.NewMemoryRepository())
+	workflowService := newHTTPWorkflowTestService()
 	permissionService := permissionsvc.NewService(bundle.Permissions)
 	auditEventService := auditsvc.NewEventService(bundle.AuditEvents)
 	router := skollhttp.NewRouter(
@@ -61,17 +63,17 @@ func TestWorkflowAPIRunsThreeScenariosWithPermissionAndAuditRecords(t *testing.T
 		t.Fatalf("expected rejected scenario to finish rejected, got %q", got)
 	}
 
-	transferred := workflowPost(t, router, "/skoll/v1/workflows/instances", startBody("inst-transferred", "oa.inbound", "inbound-1", "Inbound approval"))
-	originalTask := firstTaskID(t, transferred)
-	_ = workflowPost(t, router, "/skoll/v1/workflows/instances/inst-transferred/tasks/"+originalTask+"/copy", targetBody("approver-1", "observer-1", "copied"))
-	transferred = workflowPost(t, router, "/skoll/v1/workflows/instances/inst-transferred/tasks/"+originalTask+"/transfer", targetBody("approver-1", "approver-2", "transferred"))
-	transferTask := pendingTaskFor(t, transferred, "approver-2")
-	transferred = workflowPost(t, router, "/skoll/v1/workflows/instances/inst-transferred/tasks/"+transferTask+"/approve", actionBody("approver-2", "approved by transfer target"))
-	if got := itemString(transferred, "status"); got != "approved" {
-		t.Fatalf("expected transfer scenario to finish approved, got %q", got)
+	delegated := workflowPost(t, router, "/skoll/v1/workflows/instances", startBody("inst-delegated", "oa.inbound", "inbound-1", "Inbound approval"))
+	originalTask := firstTaskID(t, delegated)
+	_ = workflowPost(t, router, "/skoll/v1/workflows/instances/inst-delegated/tasks/"+originalTask+"/copy", targetBody("approver-1", "observer-1", "copied"))
+	delegated = workflowPost(t, router, "/skoll/v1/workflows/instances/inst-delegated/tasks/"+originalTask+"/delegate", targetBody("approver-1", "approver-2", "delegated"))
+	delegateTask := pendingTaskFor(t, delegated, "approver-2")
+	delegated = workflowPost(t, router, "/skoll/v1/workflows/instances/inst-delegated/tasks/"+delegateTask+"/approve", actionBody("approver-2", "approved by delegate"))
+	if got := itemString(delegated, "status"); got != "approved" {
+		t.Fatalf("expected delegation scenario to finish approved, got %q", got)
 	}
-	if !timelineContains(transferred, "copy") || !timelineContains(transferred, "transfer") {
-		t.Fatalf("expected copy and transfer actions in timeline: %+v", transferred["item"])
+	if !timelineContains(delegated, "copy") || !timelineContains(delegated, "delegate") {
+		t.Fatalf("expected copy and delegate actions in timeline: %+v", delegated["item"])
 	}
 
 	for _, key := range []string{
@@ -102,19 +104,27 @@ func TestWorkflowAPIRunsThreeScenariosWithPermissionAndAuditRecords(t *testing.T
 	if !auditContains(events, http.MethodPost+" /skoll/v1/workflows/instances/inst-rejected/tasks/"+rejectedTask+"/reject") {
 		t.Fatalf("expected reject request audit event, events=%+v", events)
 	}
-	if !auditContains(events, http.MethodPost+" /skoll/v1/workflows/instances/inst-transferred/tasks/"+originalTask+"/transfer") {
-		t.Fatalf("expected transfer request audit event, events=%+v", events)
+	if !auditContains(events, http.MethodPost+" /skoll/v1/workflows/instances/inst-delegated/tasks/"+originalTask+"/delegate") {
+		t.Fatalf("expected delegation request audit event, events=%+v", events)
 	}
 }
 
 func TestWorkflowAPIRejectsInvalidPayload(t *testing.T) {
-	router := skollhttp.NewRouter(skollhttp.Dependencies{WorkflowService: workflowsvc.NewService(workflowsvc.NewMemoryRepository())})
+	router := skollhttp.NewRouter(skollhttp.Dependencies{WorkflowService: newHTTPWorkflowTestService()})
 	req := httptest.NewRequest(http.MethodPost, "/skoll/v1/workflows/definitions", strings.NewReader("{"))
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusBadRequest {
 		t.Fatalf("invalid definition status=%d body=%s", resp.Code, resp.Body.String())
 	}
+}
+
+func newHTTPWorkflowTestService() workflowsvc.Service {
+	return workflowsvc.NewService(workflowsvc.NewMemoryRepository(), workflowsvc.Options{
+		Jobs:       jobsvc.NewService(jobsvc.NewMemoryRepository(), func() time.Time { return time.Now().UTC() }),
+		UnitOfWork: storesql.NewUnitOfWork(),
+		Now:        func() time.Time { return time.Now().UTC() },
+	})
 }
 
 func workflowPost(t *testing.T, router http.Handler, path string, body any) map[string]any {

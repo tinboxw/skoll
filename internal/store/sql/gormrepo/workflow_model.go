@@ -15,14 +15,17 @@ type WorkflowDefinitionModel struct {
 func (WorkflowDefinitionModel) TableName() string { return "sk_workflow_definitions" }
 
 type WorkflowNodeModel struct {
-	DefinitionID     string `gorm:"size:64;primaryKey;index:idx_workflow_node_definition_position,priority:1"`
-	NodeID           string `gorm:"size:64;primaryKey"`
-	NodeKey          string `gorm:"size:128"`
-	Name             string `gorm:"size:255"`
-	NodeType         string `gorm:"size:32"`
-	DecisionStrategy string `gorm:"size:32"`
-	DecisionQuorum   int
-	Position         int `gorm:"index:idx_workflow_node_definition_position,priority:2"`
+	DefinitionID           string `gorm:"size:64;primaryKey;index:idx_workflow_node_definition_position,priority:1"`
+	NodeID                 string `gorm:"size:64;primaryKey"`
+	NodeKey                string `gorm:"size:128"`
+	Name                   string `gorm:"size:255"`
+	NodeType               string `gorm:"size:32"`
+	DecisionStrategy       string `gorm:"size:32"`
+	DecisionQuorum         int
+	EscalationAfterSeconds int64
+	EscalationTargetID     string `gorm:"size:64"`
+	EscalationTargetName   string `gorm:"size:255"`
+	Position               int    `gorm:"index:idx_workflow_node_definition_position,priority:2"`
 }
 
 func (WorkflowNodeModel) TableName() string { return "sk_workflow_nodes" }
@@ -66,15 +69,21 @@ type WorkflowInstanceModel struct {
 func (WorkflowInstanceModel) TableName() string { return "sk_workflow_instances" }
 
 type WorkflowTaskModel struct {
-	ID           string `gorm:"size:128;primaryKey"`
-	InstanceID   string `gorm:"size:64;index:idx_workflow_task_instance_position,priority:1;index:idx_workflow_task_instance_status,priority:1"`
-	Position     int    `gorm:"index:idx_workflow_task_instance_position,priority:2"`
-	NodeID       string `gorm:"size:64"`
-	AssigneeID   string `gorm:"size:64;index:idx_workflow_task_assignee_status,priority:1"`
-	AssigneeName string `gorm:"size:255"`
-	Status       string `gorm:"size:32;index:idx_workflow_task_instance_status,priority:2;index:idx_workflow_task_assignee_status,priority:2"`
-	CreatedAt    time.Time
-	CompletedAt  *time.Time
+	ID                   string `gorm:"size:128;primaryKey"`
+	InstanceID           string `gorm:"size:64;index:idx_workflow_task_instance_position,priority:1;index:idx_workflow_task_instance_status,priority:1"`
+	Position             int    `gorm:"index:idx_workflow_task_instance_position,priority:2"`
+	NodeID               string `gorm:"size:64"`
+	AssigneeID           string `gorm:"size:64;index:idx_workflow_task_assignee_status,priority:1"`
+	AssigneeName         string `gorm:"size:255"`
+	OriginalAssigneeID   string `gorm:"size:64"`
+	OriginalAssigneeName string `gorm:"size:255"`
+	Assignment           string `gorm:"size:32"`
+	AuthorizedByID       string `gorm:"size:64"`
+	AuthorizedByName     string `gorm:"size:255"`
+	AuthorizationID      string `gorm:"size:128"`
+	Status               string `gorm:"size:32;index:idx_workflow_task_instance_status,priority:2;index:idx_workflow_task_assignee_status,priority:2"`
+	CreatedAt            time.Time
+	CompletedAt          *time.Time
 }
 
 func (WorkflowTaskModel) TableName() string { return "sk_workflow_tasks" }
@@ -95,3 +104,20 @@ type WorkflowActionModel struct {
 }
 
 func (WorkflowActionModel) TableName() string { return "sk_workflow_actions" }
+
+type WorkflowSubstitutionModel struct {
+	ID             string    `gorm:"size:128;primaryKey"`
+	PrincipalID    string    `gorm:"size:64;index:idx_workflow_substitution_principal_window,priority:1"`
+	PrincipalName  string    `gorm:"size:255"`
+	SubstituteID   string    `gorm:"size:64;index"`
+	SubstituteName string    `gorm:"size:255"`
+	StartsAt       time.Time `gorm:"index:idx_workflow_substitution_principal_window,priority:2"`
+	EndsAt         time.Time `gorm:"index:idx_workflow_substitution_principal_window,priority:3"`
+	CreatedByID    string    `gorm:"size:64"`
+	CreatedByName  string    `gorm:"size:255"`
+	Reason         string    `gorm:"type:text"`
+	CreatedAt      time.Time
+	RevokedAt      *time.Time
+}
+
+func (WorkflowSubstitutionModel) TableName() string { return "sk_workflow_substitutions" }

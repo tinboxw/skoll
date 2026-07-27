@@ -44,7 +44,7 @@ The host verifies signature, expiry, subject, role, and organization claims agai
 | `Audit` | Record redacted evidence bound to plugin and trusted caller identity |
 | `Config` | Read or replace Manifest-Schema-validated plugin configuration |
 | `Secrets` | Read or set values in a private encrypted plugin namespace |
-| `Workflows` | Create, publish, and execute namespaced approval workflows |
+| `Workflows` | Execute namespaced conditional and parallel approvals with quorum decisions, task-scoped delegation, absence substitution, and durable escalation timers |
 | `Jobs` | Schedule, lease, complete, fail, and query namespaced durable jobs |
 
 The gateway validates public contracts again, binds the credential to one plugin identity, injects trusted scope, and maps failures to stable HTTP status and error fields. `pkg/pluginclient` validates requests and responses, restores public typed errors, and propagates transaction, cancellation, and deadline contexts. Plugin business code never uses private HTTP paths. Schema declaration and lifecycle rules are defined in [Plugin Datastore Schema And Lifecycle](plugin-datastore-schema.en.md); document approval rules are defined in [Plugin Document Workflow](plugin-document-workflows.en.md).

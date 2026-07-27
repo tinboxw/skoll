@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
@@ -179,6 +180,98 @@ func (s *WorkflowStore) UpdateInstance(ctx context.Context, id shared.ID, mutate
 	return result, nil
 }
 
+func (s *WorkflowStore) CreateSubstitution(ctx context.Context, window domainworkflow.SubstitutionWindow) (*domainworkflow.SubstitutionWindow, bool, error) {
+	if s == nil || s.db == nil {
+		return nil, false, fmt.Errorf("workflow repository is required")
+	}
+	if err := window.Validate(); err != nil {
+		return nil, false, err
+	}
+	row := workflowSubstitutionRow(window)
+	var stored WorkflowSubstitutionModel
+	created := false
+	err := withWorkflowTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", row.ID).First(&stored).Error; err == nil {
+			return nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		var overlap int64
+		if err := tx.Model(&WorkflowSubstitutionModel{}).
+			Where("principal_id = ? AND revoked_at IS NULL AND starts_at < ? AND ends_at > ?", row.PrincipalID, row.EndsAt, row.StartsAt).
+			Count(&overlap).Error; err != nil {
+			return err
+		}
+		if overlap > 0 {
+			return fmt.Errorf("workflow principal has overlapping substitution windows")
+		}
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
+		if result.Error != nil {
+			return result.Error
+		}
+		created = result.RowsAffected == 1
+		return tx.Where("id = ?", row.ID).First(&stored).Error
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	result := workflowSubstitutionFromRow(stored)
+	return &result, created, nil
+}
+
+func (s *WorkflowStore) RevokeSubstitution(ctx context.Context, id, principalID shared.ID, now time.Time) (*domainworkflow.SubstitutionWindow, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("workflow repository is required")
+	}
+	var stored WorkflowSubstitutionModel
+	err := withWorkflowTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND principal_id = ?", id.String(), principalID.String()).First(&stored).Error; err != nil {
+			return err
+		}
+		window := workflowSubstitutionFromRow(stored)
+		if err := window.Revoke(domainworkflow.Actor{ID: principalID}, now); err != nil {
+			return err
+		}
+		stored.RevokedAt = window.RevokedAt
+		return tx.Model(&WorkflowSubstitutionModel{}).Where("id = ?", stored.ID).Update("revoked_at", stored.RevokedAt).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("workflow substitution not found")
+		}
+		return nil, err
+	}
+	result := workflowSubstitutionFromRow(stored)
+	return &result, nil
+}
+
+func (s *WorkflowStore) ListActiveSubstitutions(ctx context.Context, principalIDs []shared.ID, at time.Time) ([]domainworkflow.SubstitutionWindow, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("workflow repository is required")
+	}
+	if len(principalIDs) == 0 {
+		return []domainworkflow.SubstitutionWindow{}, nil
+	}
+	ids := make([]string, 0, len(principalIDs))
+	for _, id := range principalIDs {
+		if !id.IsZero() {
+			ids = append(ids, id.String())
+		}
+	}
+	var rows []WorkflowSubstitutionModel
+	resolved := storesql.ResolveDB(ctx, s.db)
+	if err := resolved.Where("principal_id IN ? AND revoked_at IS NULL AND starts_at <= ? AND ends_at > ?", ids, at.UTC(), at.UTC()).
+		Order("principal_id ASC").Order("starts_at ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]domainworkflow.SubstitutionWindow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, workflowSubstitutionFromRow(row))
+	}
+	return out, nil
+}
+
 func withWorkflowTransaction(ctx context.Context, db *gorm.DB, operation func(*gorm.DB) error) error {
 	resolved := storesql.ResolveDB(ctx, db)
 	if resolved == nil {
@@ -266,6 +359,11 @@ func workflowNodeRows(definition domainworkflow.Definition) ([]WorkflowNodeModel
 			Name: strings.TrimSpace(node.Name), NodeType: string(node.Type),
 			DecisionStrategy: string(node.Decision.Strategy), DecisionQuorum: node.Decision.Quorum, Position: position,
 		})
+		if node.Escalation != nil {
+			nodes[len(nodes)-1].EscalationAfterSeconds = int64(node.Escalation.After / time.Second)
+			nodes[len(nodes)-1].EscalationTargetID = node.Escalation.Target.ID.String()
+			nodes[len(nodes)-1].EscalationTargetName = strings.TrimSpace(node.Escalation.Target.Name)
+		}
 		for assigneePosition, assigneeID := range node.Assignees {
 			assignees = append(assignees, WorkflowNodeAssigneeModel{
 				DefinitionID: definition.ID.String(), NodeID: node.ID.String(), Position: assigneePosition, AssigneeID: assigneeID.String(),
@@ -305,10 +403,18 @@ func workflowDefinitionFromRows(row WorkflowDefinitionModel, nodes []WorkflowNod
 		Meta: shared.AuditMeta{CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt},
 	}
 	for _, node := range nodes {
+		var escalation *domainworkflow.EscalationRule
+		if node.EscalationAfterSeconds > 0 || strings.TrimSpace(node.EscalationTargetID) != "" {
+			escalation = &domainworkflow.EscalationRule{
+				After:  time.Duration(node.EscalationAfterSeconds) * time.Second,
+				Target: domainworkflow.Actor{ID: shared.ID(node.EscalationTargetID), Name: node.EscalationTargetName},
+			}
+		}
 		definition.Nodes = append(definition.Nodes, domainworkflow.Node{
 			ID: shared.ID(node.NodeID), Key: node.NodeKey, Name: node.Name, Type: domainworkflow.NodeType(node.NodeType),
-			Assignees: assigneesByNode[node.NodeID],
-			Decision:  domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionStrategy(node.DecisionStrategy), Quorum: node.DecisionQuorum},
+			Assignees:  assigneesByNode[node.NodeID],
+			Decision:   domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionStrategy(node.DecisionStrategy), Quorum: node.DecisionQuorum},
+			Escalation: escalation,
 		})
 	}
 	for _, transition := range transitions {
@@ -350,6 +456,9 @@ func workflowTaskRows(instance domainworkflow.Instance) []WorkflowTaskModel {
 		rows = append(rows, WorkflowTaskModel{
 			ID: task.ID.String(), InstanceID: instance.ID.String(), Position: position, NodeID: task.NodeID.String(),
 			AssigneeID: task.Assignee.ID.String(), AssigneeName: strings.TrimSpace(task.Assignee.Name), Status: string(task.Status),
+			OriginalAssigneeID: task.OriginalAssignee.ID.String(), OriginalAssigneeName: strings.TrimSpace(task.OriginalAssignee.Name),
+			Assignment: string(task.Assignment), AuthorizedByID: task.AuthorizedBy.ID.String(),
+			AuthorizedByName: strings.TrimSpace(task.AuthorizedBy.Name), AuthorizationID: task.AuthorizationID.String(),
 			CreatedAt: task.CreatedAt, CompletedAt: task.CompletedAt,
 		})
 	}
@@ -389,7 +498,11 @@ func workflowInstanceFromRows(row WorkflowInstanceModel, tasks []WorkflowTaskMod
 		instance.Tasks = append(instance.Tasks, domainworkflow.Task{
 			ID: shared.ID(task.ID), InstanceID: shared.ID(task.InstanceID), NodeID: shared.ID(task.NodeID),
 			Assignee: domainworkflow.Actor{ID: shared.ID(task.AssigneeID), Name: task.AssigneeName}, Status: domainworkflow.TaskStatus(task.Status),
-			CreatedAt: task.CreatedAt, CompletedAt: task.CompletedAt,
+			OriginalAssignee: domainworkflow.Actor{ID: shared.ID(task.OriginalAssigneeID), Name: task.OriginalAssigneeName},
+			Assignment:       domainworkflow.AssignmentKind(task.Assignment),
+			AuthorizedBy:     domainworkflow.Actor{ID: shared.ID(task.AuthorizedByID), Name: task.AuthorizedByName},
+			AuthorizationID:  shared.ID(task.AuthorizationID),
+			CreatedAt:        task.CreatedAt, CompletedAt: task.CompletedAt,
 		})
 	}
 	for _, action := range actions {
@@ -435,8 +548,17 @@ func validateWorkflowInstanceForStorage(instance domainworkflow.Instance) error 
 		return fmt.Errorf("terminal workflow instance cannot have active nodes")
 	}
 	for _, task := range instance.Tasks {
-		if task.ID.IsZero() || task.InstanceID != instance.ID || task.NodeID.IsZero() || task.Assignee.ID.IsZero() || task.CreatedAt.IsZero() {
+		if task.ID.IsZero() || task.InstanceID != instance.ID || task.NodeID.IsZero() || task.Assignee.ID.IsZero() || task.OriginalAssignee.ID.IsZero() || task.CreatedAt.IsZero() {
 			return fmt.Errorf("workflow task is incomplete")
+		}
+		switch task.Assignment {
+		case domainworkflow.AssignmentDirect, domainworkflow.AssignmentDelegated, domainworkflow.AssignmentSubstituted, domainworkflow.AssignmentEscalated:
+		default:
+			return fmt.Errorf("workflow task assignment is invalid")
+		}
+		if task.Status == domainworkflow.TaskPending && task.Assignment != domainworkflow.AssignmentDirect &&
+			(task.AuthorizedBy.ID.IsZero() || task.AuthorizationID.IsZero()) {
+			return fmt.Errorf("workflow assigned task authorization is incomplete")
 		}
 		if task.Status == domainworkflow.TaskPending {
 			if _, exists := active[task.NodeID]; !exists {
@@ -450,6 +572,27 @@ func validateWorkflowInstanceForStorage(instance domainworkflow.Instance) error 
 		}
 	}
 	return nil
+}
+
+func workflowSubstitutionRow(window domainworkflow.SubstitutionWindow) WorkflowSubstitutionModel {
+	return WorkflowSubstitutionModel{
+		ID: window.ID.String(), PrincipalID: window.Principal.ID.String(), PrincipalName: strings.TrimSpace(window.Principal.Name),
+		SubstituteID: window.Substitute.ID.String(), SubstituteName: strings.TrimSpace(window.Substitute.Name),
+		StartsAt: window.StartsAt.UTC(), EndsAt: window.EndsAt.UTC(),
+		CreatedByID: window.CreatedBy.ID.String(), CreatedByName: strings.TrimSpace(window.CreatedBy.Name),
+		Reason: strings.TrimSpace(window.Reason), CreatedAt: window.CreatedAt.UTC(), RevokedAt: window.RevokedAt,
+	}
+}
+
+func workflowSubstitutionFromRow(row WorkflowSubstitutionModel) domainworkflow.SubstitutionWindow {
+	return domainworkflow.SubstitutionWindow{
+		ID:         shared.ID(row.ID),
+		Principal:  domainworkflow.Actor{ID: shared.ID(row.PrincipalID), Name: row.PrincipalName},
+		Substitute: domainworkflow.Actor{ID: shared.ID(row.SubstituteID), Name: row.SubstituteName},
+		StartsAt:   row.StartsAt.UTC(), EndsAt: row.EndsAt.UTC(),
+		CreatedBy: domainworkflow.Actor{ID: shared.ID(row.CreatedByID), Name: row.CreatedByName},
+		Reason:    row.Reason, CreatedAt: row.CreatedAt.UTC(), RevokedAt: row.RevokedAt,
+	}
 }
 
 var _ workflowsvc.Repository = (*WorkflowStore)(nil)

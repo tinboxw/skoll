@@ -64,10 +64,20 @@ func (s *workflowService) CreateDefinition(ctx context.Context, input pluginsdk.
 		if item.Decision != nil {
 			decision = domainworkflow.DecisionRule{Strategy: domainworkflow.DecisionStrategy(item.Decision.Strategy), Quorum: item.Decision.Quorum}
 		}
+		var escalation *domainworkflow.EscalationRule
+		if item.Escalation != nil {
+			if strings.TrimSpace(item.Escalation.Target.ID) == "" {
+				return pluginsdk.WorkflowDefinition{}, fmt.Errorf("workflow escalation target is required")
+			}
+			escalation = &domainworkflow.EscalationRule{
+				After:  time.Duration(item.Escalation.AfterSeconds) * time.Second,
+				Target: domainworkflow.Actor{ID: shared.ID(strings.TrimSpace(item.Escalation.Target.ID)), Name: strings.TrimSpace(item.Escalation.Target.Name)},
+			}
+		}
 		nodes = append(nodes, domainworkflow.Node{
 			ID: shared.ID(nodeID), Key: nodeKey, Name: strings.TrimSpace(item.Name),
 			Type: domainworkflow.NodeType(item.Type), Assignees: assignees,
-			Decision: decision,
+			Decision: decision, Escalation: escalation,
 		})
 	}
 	transitions := make([]domainworkflow.Transition, 0, len(input.Transitions))
@@ -208,12 +218,56 @@ func (s *workflowService) instanceAction(ctx context.Context, action string, inp
 	return s.instance(*item)
 }
 
-func (s *workflowService) Transfer(ctx context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
-	return s.targetAction(ctx, "transfer", input)
+func (s *workflowService) Delegate(ctx context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+	return s.targetAction(ctx, "delegate", input)
 }
 
 func (s *workflowService) Copy(ctx context.Context, input pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return s.targetAction(ctx, "copy", input)
+}
+
+func (s *workflowService) CreateSubstitution(ctx context.Context, input pluginsdk.WorkflowSubstitutionInput) (pluginsdk.WorkflowSubstitution, error) {
+	id, err := s.boundID(input.ID, "workflow substitution")
+	if err != nil {
+		return pluginsdk.WorkflowSubstitution{}, err
+	}
+	actor := trustedHostActor(ctx, s.pluginID)
+	if strings.TrimSpace(input.Substitute.ID) == "" {
+		return pluginsdk.WorkflowSubstitution{}, fmt.Errorf("workflow substitute is required")
+	}
+	item, err := s.workflow.CreateSubstitution(ctx, workflowsvc.CreateSubstitutionInput{
+		ID:         shared.ID(id),
+		Principal:  domainworkflow.Actor{ID: shared.ID(actor.id), Name: actor.name},
+		Substitute: domainworkflow.Actor{ID: shared.ID(strings.TrimSpace(input.Substitute.ID)), Name: strings.TrimSpace(input.Substitute.Name)},
+		StartsAt:   input.StartsAt, EndsAt: input.EndsAt,
+		CreatedBy: domainworkflow.Actor{ID: shared.ID(actor.id), Name: actor.name},
+		Reason:    strings.TrimSpace(input.Reason), Now: s.now(),
+	})
+	if err != nil {
+		return pluginsdk.WorkflowSubstitution{}, err
+	}
+	if err := s.record(ctx, "workflow.substitution.create", input.ID, map[string]any{"substituteId": input.Substitute.ID}); err != nil {
+		return pluginsdk.WorkflowSubstitution{}, err
+	}
+	return s.substitution(*item)
+}
+
+func (s *workflowService) RevokeSubstitution(ctx context.Context, id string) (pluginsdk.WorkflowSubstitution, error) {
+	bound, err := s.boundID(id, "workflow substitution")
+	if err != nil {
+		return pluginsdk.WorkflowSubstitution{}, err
+	}
+	actor := trustedHostActor(ctx, s.pluginID)
+	item, err := s.workflow.RevokeSubstitution(ctx, workflowsvc.RevokeSubstitutionInput{
+		ID: shared.ID(bound), Principal: domainworkflow.Actor{ID: shared.ID(actor.id), Name: actor.name}, Now: s.now(),
+	})
+	if err != nil {
+		return pluginsdk.WorkflowSubstitution{}, err
+	}
+	if err := s.record(ctx, "workflow.substitution.revoke", id, nil); err != nil {
+		return pluginsdk.WorkflowSubstitution{}, err
+	}
+	return s.substitution(*item)
 }
 
 func (s *workflowService) taskAction(ctx context.Context, action string, input pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
@@ -265,8 +319,8 @@ func (s *workflowService) targetAction(ctx context.Context, action string, input
 		Comment: strings.TrimSpace(input.Comment), Now: s.now(),
 	}
 	var item *domainworkflow.Instance
-	if action == "transfer" {
-		item, err = s.workflow.Transfer(ctx, serviceInput)
+	if action == "delegate" {
+		item, err = s.workflow.Delegate(ctx, serviceInput)
 	} else {
 		item, err = s.workflow.Copy(ctx, serviceInput)
 	}
@@ -335,12 +389,18 @@ func (s *workflowService) definition(item domainworkflow.Definition) (pluginsdk.
 			assignees[index] = node.Assignees[index].String()
 		}
 		var decision *pluginsdk.WorkflowDecisionRule
+		var escalation *pluginsdk.WorkflowEscalationRule
 		if node.Type == domainworkflow.NodeApproval {
 			decision = &pluginsdk.WorkflowDecisionRule{Strategy: pluginsdk.WorkflowDecisionStrategy(node.Decision.Strategy), Quorum: node.Decision.Quorum}
+			if node.Escalation != nil {
+				escalation = &pluginsdk.WorkflowEscalationRule{
+					AfterSeconds: int64(node.Escalation.After / time.Second), Target: workflowActor(node.Escalation.Target),
+				}
+			}
 		}
 		nodes = append(nodes, pluginsdk.WorkflowNode{
 			ID: nodeID, Key: nodeKey, Name: node.Name, Type: pluginsdk.WorkflowNodeType(node.Type), AssigneeIDs: assignees,
-			Decision: decision,
+			Decision: decision, Escalation: escalation,
 		})
 	}
 	transitions := make([]pluginsdk.WorkflowTransition, 0, len(item.Transitions))
@@ -394,6 +454,8 @@ func (s *workflowService) instance(item domainworkflow.Instance) (pluginsdk.Work
 		}
 		tasks = append(tasks, pluginsdk.WorkflowTask{
 			ID: taskID, InstanceID: id, NodeID: nodeID, Assignee: workflowActor(task.Assignee),
+			OriginalAssignee: workflowActor(task.OriginalAssignee), Assignment: pluginsdk.WorkflowAssignmentKind(task.Assignment),
+			AuthorizedBy: workflowActor(task.AuthorizedBy), AuthorizationID: task.AuthorizationID.String(),
 			Status: pluginsdk.WorkflowTaskStatus(task.Status), CreatedAt: task.CreatedAt, CompletedAt: cloneTime(task.CompletedAt),
 		})
 	}
@@ -422,6 +484,18 @@ func (s *workflowService) instance(item domainworkflow.Instance) (pluginsdk.Work
 		Starter: workflowActor(item.Starter), CurrentNode: currentNode, ActiveNodes: workflowIDs(item.ActiveNodes),
 		Variables: workflowVariablesFromDomain(item.Variables), Tasks: tasks, Timeline: timeline,
 		CreatedAt: item.Meta.CreatedAt, UpdatedAt: item.Meta.UpdatedAt,
+	}, nil
+}
+
+func (s *workflowService) substitution(item domainworkflow.SubstitutionWindow) (pluginsdk.WorkflowSubstitution, error) {
+	id, err := s.localID(item.ID.String(), "workflow substitution")
+	if err != nil {
+		return pluginsdk.WorkflowSubstitution{}, err
+	}
+	return pluginsdk.WorkflowSubstitution{
+		ID: id, Principal: workflowActor(item.Principal), Substitute: workflowActor(item.Substitute),
+		StartsAt: item.StartsAt, EndsAt: item.EndsAt, CreatedBy: workflowActor(item.CreatedBy),
+		Reason: item.Reason, CreatedAt: item.CreatedAt, RevokedAt: cloneTime(item.RevokedAt),
 	}, nil
 }
 

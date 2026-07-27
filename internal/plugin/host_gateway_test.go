@@ -301,11 +301,17 @@ func (gatewayWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActi
 func (gatewayWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-1", Status: pluginsdk.WorkflowInstanceCanceled}, nil
 }
-func (gatewayWorkflows) Transfer(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
+func (gatewayWorkflows) Delegate(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-1"}, nil
 }
 func (gatewayWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
 	return pluginsdk.WorkflowInstance{ID: "instance-1"}, nil
+}
+func (gatewayWorkflows) CreateSubstitution(context.Context, pluginsdk.WorkflowSubstitutionInput) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{ID: "substitution-1"}, nil
+}
+func (gatewayWorkflows) RevokeSubstitution(context.Context, string) (pluginsdk.WorkflowSubstitution, error) {
+	return pluginsdk.WorkflowSubstitution{ID: "substitution-1"}, nil
 }
 
 type gatewayJobs struct{}
@@ -512,7 +518,13 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	if _, err = services.Workflows.Withdraw(ctx, pluginsdk.WorkflowInstanceActionInput{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = services.Workflows.Transfer(ctx, pluginsdk.WorkflowTargetActionInput{}); err != nil {
+	if _, err = services.Workflows.Delegate(ctx, pluginsdk.WorkflowTargetActionInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = services.Workflows.CreateSubstitution(ctx, pluginsdk.WorkflowSubstitutionInput{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = services.Workflows.RevokeSubstitution(ctx, "substitution-1"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = services.Workflows.Copy(ctx, pluginsdk.WorkflowTargetActionInput{}); err != nil {

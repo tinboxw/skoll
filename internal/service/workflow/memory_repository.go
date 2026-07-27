@@ -4,22 +4,95 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/tinboxw/skoll/internal/domain/shared"
 	domainworkflow "github.com/tinboxw/skoll/internal/domain/workflow"
 )
 
 type MemoryRepository struct {
-	mu          sync.RWMutex
-	definitions map[shared.ID]domainworkflow.Definition
-	instances   map[shared.ID]domainworkflow.Instance
+	mu            sync.RWMutex
+	definitions   map[shared.ID]domainworkflow.Definition
+	instances     map[shared.ID]domainworkflow.Instance
+	substitutions map[shared.ID]domainworkflow.SubstitutionWindow
 }
 
 func NewMemoryRepository() *MemoryRepository {
 	return &MemoryRepository{
-		definitions: map[shared.ID]domainworkflow.Definition{},
-		instances:   map[shared.ID]domainworkflow.Instance{},
+		definitions:   map[shared.ID]domainworkflow.Definition{},
+		instances:     map[shared.ID]domainworkflow.Instance{},
+		substitutions: map[shared.ID]domainworkflow.SubstitutionWindow{},
 	}
+}
+
+func (r *MemoryRepository) CreateSubstitution(ctx context.Context, window domainworkflow.SubstitutionWindow) (*domainworkflow.SubstitutionWindow, bool, error) {
+	if r == nil {
+		return nil, false, fmt.Errorf("workflow repository is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, false, err
+	}
+	if err := window.Validate(); err != nil {
+		return nil, false, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if stored, exists := r.substitutions[window.ID]; exists {
+		cloned := cloneSubstitution(stored)
+		return &cloned, false, nil
+	}
+	for _, stored := range r.substitutions {
+		if stored.Principal.ID == window.Principal.ID && stored.RevokedAt == nil &&
+			window.StartsAt.Before(stored.EndsAt) && stored.StartsAt.Before(window.EndsAt) {
+			return nil, false, fmt.Errorf("workflow principal has overlapping substitution windows")
+		}
+	}
+	r.substitutions[window.ID] = cloneSubstitution(window)
+	cloned := cloneSubstitution(window)
+	return &cloned, true, nil
+}
+
+func (r *MemoryRepository) RevokeSubstitution(ctx context.Context, id, principalID shared.ID, now time.Time) (*domainworkflow.SubstitutionWindow, error) {
+	if r == nil {
+		return nil, fmt.Errorf("workflow repository is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	window, exists := r.substitutions[id]
+	if !exists {
+		return nil, fmt.Errorf("workflow substitution not found")
+	}
+	if err := window.Revoke(domainworkflow.Actor{ID: principalID}, now); err != nil {
+		return nil, err
+	}
+	r.substitutions[id] = cloneSubstitution(window)
+	cloned := cloneSubstitution(window)
+	return &cloned, nil
+}
+
+func (r *MemoryRepository) ListActiveSubstitutions(ctx context.Context, principalIDs []shared.ID, at time.Time) ([]domainworkflow.SubstitutionWindow, error) {
+	if r == nil {
+		return nil, fmt.Errorf("workflow repository is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	wanted := make(map[shared.ID]struct{}, len(principalIDs))
+	for _, id := range principalIDs {
+		wanted[id] = struct{}{}
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]domainworkflow.SubstitutionWindow, 0)
+	for _, window := range r.substitutions {
+		if _, exists := wanted[window.Principal.ID]; exists && window.Active(at) {
+			out = append(out, cloneSubstitution(window))
+		}
+	}
+	return out, nil
 }
 
 func (r *MemoryRepository) SaveDefinition(_ context.Context, definition domainworkflow.Definition) error {
@@ -102,6 +175,10 @@ func cloneDefinition(definition domainworkflow.Definition) domainworkflow.Defini
 	definition.Nodes = append([]domainworkflow.Node(nil), definition.Nodes...)
 	for idx := range definition.Nodes {
 		definition.Nodes[idx].Assignees = append([]shared.ID(nil), definition.Nodes[idx].Assignees...)
+		if definition.Nodes[idx].Escalation != nil {
+			escalation := *definition.Nodes[idx].Escalation
+			definition.Nodes[idx].Escalation = &escalation
+		}
 	}
 	definition.Transitions = append([]domainworkflow.Transition(nil), definition.Transitions...)
 	for index := range definition.Transitions {
@@ -138,4 +215,12 @@ func cloneInstance(instance domainworkflow.Instance) domainworkflow.Instance {
 	}
 	instance.Timeline = append([]domainworkflow.Action(nil), instance.Timeline...)
 	return instance
+}
+
+func cloneSubstitution(window domainworkflow.SubstitutionWindow) domainworkflow.SubstitutionWindow {
+	if window.RevokedAt != nil {
+		revokedAt := *window.RevokedAt
+		window.RevokedAt = &revokedAt
+	}
+	return window
 }

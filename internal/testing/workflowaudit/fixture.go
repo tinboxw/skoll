@@ -69,12 +69,12 @@ func BuildApprovalChainFixture() (Fixture, error) {
 	if err := instance.Copy(firstTask.ID, domainworkflow.Actor{ID: "approver-1", Name: "Approver One"}, domainworkflow.Actor{ID: "observer-1", Name: "Observer One"}, "copy for awareness", base.Add(3*time.Minute)); err != nil {
 		return Fixture{}, err
 	}
-	if err := instance.Transfer(firstTask.ID, domainworkflow.Actor{ID: "approver-1", Name: "Approver One"}, domainworkflow.Actor{ID: "approver-2", Name: "Approver Two"}, "transfer to backup approver", base.Add(4*time.Minute)); err != nil {
+	if err := instance.Delegate(firstTask.ID, domainworkflow.Actor{ID: "approver-1", Name: "Approver One"}, domainworkflow.Actor{ID: "approver-2", Name: "Approver Two"}, "delegate to backup approver", base.Add(4*time.Minute)); err != nil {
 		return Fixture{}, err
 	}
 	secondTask := pendingTask(*instance, "approver-2")
 	if secondTask.ID.IsZero() {
-		return Fixture{}, fmt.Errorf("fixture missing transferred pending task")
+		return Fixture{}, fmt.Errorf("fixture missing delegated pending task")
 	}
 	if err := instance.Approve(*definition, secondTask.ID, domainworkflow.Actor{ID: "approver-2", Name: "Approver Two"}, "approved with audit fixture", base.Add(5*time.Minute)); err != nil {
 		return Fixture{}, err
@@ -183,8 +183,8 @@ func auditActionForWorkflow(action domainworkflow.ActionType) domainaudit.AuditA
 		return domainaudit.AuditAction("workflow.task.reject")
 	case domainworkflow.ActionWithdraw:
 		return domainaudit.AuditAction("workflow.instance.withdraw")
-	case domainworkflow.ActionTransfer:
-		return domainaudit.AuditAction("workflow.task.transfer")
+	case domainworkflow.ActionDelegate:
+		return domainaudit.AuditAction("workflow.task.delegate")
 	case domainworkflow.ActionCopy:
 		return domainaudit.AuditAction("workflow.task.copy")
 	default:
@@ -194,7 +194,7 @@ func auditActionForWorkflow(action domainworkflow.ActionType) domainaudit.AuditA
 
 func riskForWorkflow(action domainworkflow.ActionType) domainaudit.EventRisk {
 	switch action {
-	case domainworkflow.ActionReject, domainworkflow.ActionWithdraw, domainworkflow.ActionTransfer:
+	case domainworkflow.ActionReject, domainworkflow.ActionWithdraw, domainworkflow.ActionDelegate:
 		return domainaudit.EventRiskMedium
 	default:
 		return domainaudit.EventRiskLow

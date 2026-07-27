@@ -581,7 +581,7 @@ func newDocumentWorkflowFixtureWithScopes(t *testing.T, scopes pluginsdk.DataSco
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	if err = db.AutoMigrate(
 		&gormrepo.WorkflowDefinitionModel{}, &gormrepo.WorkflowNodeModel{}, &gormrepo.WorkflowNodeAssigneeModel{}, &gormrepo.WorkflowTransitionModel{},
-		&gormrepo.WorkflowInstanceModel{}, &gormrepo.WorkflowTaskModel{}, &gormrepo.WorkflowActionModel{},
+		&gormrepo.WorkflowInstanceModel{}, &gormrepo.WorkflowTaskModel{}, &gormrepo.WorkflowActionModel{}, &gormrepo.WorkflowSubstitutionModel{},
 		&gormrepo.DocumentWorkflowBindingModel{}, &gormrepo.DocumentWorkflowActionModel{},
 		&gormrepo.DocumentAttachmentModel{}, &gormrepo.DocumentCommentModel{}, &gormrepo.DocumentTimelineEventModel{},
 		&gormrepo.JobModel{},
@@ -589,11 +589,15 @@ func newDocumentWorkflowFixtureWithScopes(t *testing.T, scopes pluginsdk.DataSco
 		t.Fatal(err)
 	}
 	audit := &documentWorkflowAudit{}
-	workflow, err := NewWorkflowService("medical_oa", workflowsvc.NewService(gormrepo.NewWorkflowStore(db)), audit)
+	jobBackend := jobsvc.NewService(gormrepo.NewJobStore(db), func() time.Time { return time.Now().UTC() })
+	workflowService := workflowsvc.NewService(gormrepo.NewWorkflowStore(db), workflowsvc.Options{
+		Jobs: jobBackend, UnitOfWork: storesql.NewUnitOfWorkWithDB(db), Now: func() time.Time { return time.Now().UTC() },
+	})
+	workflow, err := NewWorkflowService("medical_oa", workflowService, audit)
 	if err != nil {
 		t.Fatal(err)
 	}
-	jobs, err := NewJobService("medical_oa", jobsvc.NewService(gormrepo.NewJobStore(db), nil), audit)
+	jobs, err := NewJobService("medical_oa", jobBackend, audit)
 	if err != nil {
 		t.Fatal(err)
 	}

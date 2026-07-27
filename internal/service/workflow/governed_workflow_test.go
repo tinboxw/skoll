@@ -13,7 +13,7 @@ import (
 func TestQuorumDecisionsAreAtomicIdempotentAndRejectStaleTasks(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 27, 12, 0, 0, 0, time.UTC)
-	service := NewService(NewMemoryRepository())
+	service := newTestService(NewMemoryRepository())
 	definition, err := service.CreateDefinition(ctx, CreateDefinitionInput{
 		ID: "quorum-definition", Key: "medical.quality.release", Name: "Quality Release", Version: 1,
 		Nodes: []domainworkflow.Node{

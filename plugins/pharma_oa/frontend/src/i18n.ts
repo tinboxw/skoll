@@ -94,10 +94,12 @@ const oaMessages = {
     withdrawn: "已撤回",
     canceled: "已取消",
     running: "审批中",
-    transferred: "已转交",
+    delegated: "已委派",
     start: "发起申请",
     withdraw: "撤回",
-    transfer: "转交",
+    delegate: "委派",
+    substitute: "代办",
+    escalate: "升级",
     copy: "抄送",
     openDetail: "查看详情"
     ,purchaseWorkspace: "采购与入库"
@@ -253,10 +255,12 @@ const oaMessages = {
     withdrawn: "Withdrawn",
     canceled: "Canceled",
     running: "Running",
-    transferred: "Transferred",
+    delegated: "Delegated",
     start: "Started",
     withdraw: "Withdrawn",
-    transfer: "Transferred",
+    delegate: "Delegate",
+    substitute: "Substitute",
+    escalate: "Escalate",
     copy: "Copied",
     openDetail: "View details"
     ,purchaseWorkspace: "Purchasing & Receiving"
