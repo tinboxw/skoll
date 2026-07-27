@@ -103,12 +103,14 @@ func TestNewGeneratorSpecDefinesBusinessPluginTarget(t *testing.T) {
 		ID:            "pharma-oa",
 		Name:          "Pharma OA",
 		DataNamespace: "pharma-oa",
+		EventPublications: []PluginEventPublicationSpec{
+			{Name: "product-changed", SchemaVersion: 1, PayloadType: "product.changed", Scope: "tenant"},
+		},
 		EventSubscriptions: []PluginEventSubscriptionSpec{
-			{Name: "approval-completed", Handler: "onApprovalCompleted"},
-			{Name: "qualification-expiring", Handler: "onQualificationExpiring", RetryPolicy: "aggressive"},
+			{Publisher: "workflow", Name: "approval-completed", SchemaVersions: []uint32{1}, Handler: "onApprovalCompleted"},
+			{Publisher: "qualification", Name: "qualification-expiring", SchemaVersions: []uint32{1, 2}, Handler: "onQualificationExpiring", RetryPolicy: "aggressive"},
 		},
 	}
-	in.Table.Name = "pharma_oa_products"
 	in.Indexes[0].Name = "idx_pharma_oa_products_name"
 	namespacePluginSpecInput(&in, "pharma_oa")
 	spec, err := NewGeneratorSpec(in)
@@ -127,13 +129,15 @@ func TestNewGeneratorSpecDefinesBusinessPluginTarget(t *testing.T) {
 	if spec.Plugin.EventSubscriptions[0].RetryPolicy != "standard" || spec.Plugin.EventSubscriptions[1].RetryPolicy != "aggressive" {
 		t.Fatalf("unexpected plugin event defaults: %+v", spec.Plugin.EventSubscriptions)
 	}
+	if spec.Plugin.EventPublications[0].Name != "product-changed" || spec.Plugin.EventSubscriptions[1].Publisher != "qualification" {
+		t.Fatalf("unexpected plugin event contracts: publications=%+v subscriptions=%+v", spec.Plugin.EventPublications, spec.Plugin.EventSubscriptions)
+	}
 }
 
 func TestNewGeneratorSpecDefinesDocumentPluginTarget(t *testing.T) {
 	in := validGeneratorSpecInput()
 	in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA"}
 	in.Document = &DocumentSpec{Enabled: true, TitleField: "name"}
-	in.Table.Name = "pharma_oa_products"
 	in.Indexes[0].Name = "idx_pharma_oa_products_name"
 	namespacePluginSpecInput(&in, "pharma_oa")
 	spec, err := NewGeneratorSpec(in)
@@ -273,25 +277,53 @@ func TestNewGeneratorSpecValidationRules(t *testing.T) {
 		{
 			name: "invalid plugin event",
 			mutate: func(in *GeneratorSpecInput) {
-				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", EventSubscriptions: []PluginEventSubscriptionSpec{{Name: "bad event", Handler: "onBadEvent"}}}
-				in.Table.Name = "pharma_oa_products"
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", EventSubscriptions: []PluginEventSubscriptionSpec{{Publisher: "workflow", Name: "bad event", SchemaVersions: []uint32{1}, Handler: "onBadEvent"}}}
 				in.Indexes[0].Name = "idx_pharma_oa_products_name"
 				namespacePluginSpecInput(in, "pharma_oa")
 			},
 			wantErr: "event name",
 		},
 		{
-			name: "plugin table outside namespace",
+			name: "plugin event publisher required",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", EventSubscriptions: []PluginEventSubscriptionSpec{{Name: "approval-completed", SchemaVersions: []uint32{1}, Handler: "onApprovalCompleted"}}}
+				in.Indexes[0].Name = "idx_pharma_oa_products_name"
+				namespacePluginSpecInput(in, "pharma_oa")
+			},
+			wantErr: "event publisher",
+		},
+		{
+			name: "plugin event schema versions required",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", EventSubscriptions: []PluginEventSubscriptionSpec{{Publisher: "workflow", Name: "approval-completed", Handler: "onApprovalCompleted"}}}
+				in.Indexes[0].Name = "idx_pharma_oa_products_name"
+				namespacePluginSpecInput(in, "pharma_oa")
+			},
+			wantErr: "schema versions",
+		},
+		{
+			name: "plugin event publication scope required",
+			mutate: func(in *GeneratorSpecInput) {
+				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", EventPublications: []PluginEventPublicationSpec{{Name: "product-changed", SchemaVersion: 1, PayloadType: "product.changed"}}}
+				in.Indexes[0].Name = "idx_pharma_oa_products_name"
+				namespacePluginSpecInput(in, "pharma_oa")
+			},
+			wantErr: "publication scope",
+		},
+		{
+			name: "plugin physical table name",
 			mutate: func(in *GeneratorSpecInput) {
 				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA"}
+				in.Table.Name = "pharma_oa_products"
+				in.Indexes[0].Name = "idx_pharma_oa_products_name"
+				namespacePluginSpecInput(in, "pharma_oa")
 			},
-			wantErr: "data namespace prefix",
+			wantErr: "logical table",
 		},
 		{
 			name: "plugin index outside namespace",
 			mutate: func(in *GeneratorSpecInput) {
 				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA"}
-				in.Table.Name = "pharma_oa_products"
 				namespacePluginSpecInput(in, "pharma_oa")
 			},
 			wantErr: "index",
@@ -300,7 +332,6 @@ func TestNewGeneratorSpecValidationRules(t *testing.T) {
 			name: "invalid plugin uninstall policy",
 			mutate: func(in *GeneratorSpecInput) {
 				in.Plugin = PluginSpec{Enabled: true, ID: "pharma-oa", Name: "Pharma OA", UninstallPolicy: "erase"}
-				in.Table.Name = "pharma_oa_products"
 				in.Indexes[0].Name = "idx_pharma_oa_products_name"
 				namespacePluginSpecInput(in, "pharma_oa")
 			},
@@ -324,6 +355,9 @@ func TestNewGeneratorSpecValidationRules(t *testing.T) {
 }
 
 func namespacePluginSpecInput(in *GeneratorSpecInput, namespace string) {
+	for index := range in.Fields {
+		in.Fields[index].ColumnName = in.Fields[index].Name
+	}
 	in.Permissions = PermissionSpec{
 		Resource:  namespace + ".product",
 		ReadKey:   namespace + ".product.read",

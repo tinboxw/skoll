@@ -10,6 +10,7 @@ const pluginId = String(process.argv[3] || "").trim();
 if (!pluginWebRoot || !pluginId) {
 	throw new Error("usage: node ff4-generated-plugin-browser.mjs <plugin-web-root> <plugin-id>");
 }
+const permissionNamespace = pluginId.replaceAll("-", "_");
 
 const port = await reservePort();
 const server = await preview({
@@ -33,7 +34,7 @@ try {
 		const context = await browser.newContext({ viewport: target.viewport });
 		await context.addInitScript(pluginHostFixture, {
 			pluginId,
-			permissions: ["pharma_oa.product.read", "pharma_oa.product.create", "pharma_oa.product.update", "pharma_oa.product.delete"]
+			permissions: ["read", "create", "update", "delete"].map((action) => `${permissionNamespace}.product.${action}`)
 		});
 		const warmup = await context.newPage();
 		await warmup.goto(baseURL, { waitUntil: "domcontentloaded" });
@@ -215,7 +216,7 @@ function pluginHostFixture({ pluginId, permissions }) {
 		const method = options.method || "GET";
 		const item = { id: "product-1", name: "Aspirin" };
 		if (method === "GET" && /\/products\/[^/?]+/.test(path)) return { code: "ok", message: "", data: { item } };
-		if (method === "GET") return { code: "ok", message: "", data: { items: [item], offset: 0, limit: 20 } };
+		if (method === "GET") return { code: "ok", message: "", data: { items: [item], nextCursor: "", hasMore: false, limit: 20 } };
 		if (method === "DELETE") return { code: "ok", message: "", data: null };
 		return { code: "ok", message: "", data: { item: { ...item, ...(options.body || {}) } } };
 	};

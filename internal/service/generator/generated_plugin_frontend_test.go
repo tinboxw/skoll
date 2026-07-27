@@ -87,6 +87,7 @@ func TestGeneratedPluginFrontendBuildAndBrowserMatrix(t *testing.T) {
 	}
 	pluginDir := materializeGeneratedPlugin(t, result, "pharma-oa")
 	linkGeneratedFrontendWorkspace(t, repoRoot, pluginDir)
+	runGeneratedGoTests(t, pluginDir, generatedGoWorkspace(t, repoRoot, pluginDir))
 	pluginWeb := filepath.Join(pluginDir, "web")
 	linkNodeModules(t, webModules, filepath.Join(pluginWeb, "node_modules"))
 	before := generatedSourceHashes(t, pluginDir)

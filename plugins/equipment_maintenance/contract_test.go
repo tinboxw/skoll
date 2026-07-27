@@ -252,9 +252,11 @@ func TestProofPluginMigrationIsExecutableAndReversible(t *testing.T) {
 	if err := db.Exec(string(up)).Error; err != nil {
 		t.Fatalf("apply equipment maintenance migration: %v", err)
 	}
-	for _, table := range loadManifest(t).Data.Tables {
-		if !db.Migrator().HasTable(table.Name) {
-			t.Fatalf("migration did not create %s", table.Name)
+	manifest := loadManifest(t)
+	for _, table := range manifest.Data.Tables {
+		physicalTable := manifest.Data.Namespace + "_" + table.Name
+		if !db.Migrator().HasTable(physicalTable) {
+			t.Fatalf("migration did not create %s for logical table %s", physicalTable, table.Name)
 		}
 	}
 	down, err := os.ReadFile("migrations/001_initial.down.sql")
@@ -264,9 +266,10 @@ func TestProofPluginMigrationIsExecutableAndReversible(t *testing.T) {
 	if err := db.Exec(string(down)).Error; err != nil {
 		t.Fatalf("rollback equipment maintenance migration: %v", err)
 	}
-	for _, table := range loadManifest(t).Data.Tables {
-		if db.Migrator().HasTable(table.Name) {
-			t.Fatalf("rollback retained %s", table.Name)
+	for _, table := range manifest.Data.Tables {
+		physicalTable := manifest.Data.Namespace + "_" + table.Name
+		if db.Migrator().HasTable(physicalTable) {
+			t.Fatalf("rollback retained %s", physicalTable)
 		}
 	}
 }

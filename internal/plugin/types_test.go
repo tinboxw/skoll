@@ -254,7 +254,7 @@ func TestInfoValidateManifestDataContract(t *testing.T) {
 			RollbackPolicy:     DataRollbackManual,
 			Tables: []DataTable{
 				{
-					Name:       "reports_orders",
+					Name:       "orders",
 					PrimaryKey: "id",
 					Columns:    []string{"id", "code", "status"},
 					Indexes: []DataIndex{
@@ -287,17 +287,17 @@ func TestInfoValidateManifestDataContract(t *testing.T) {
 		t.Fatal("expected validation error for reserved data namespace")
 	}
 
-	outsideNamespace := valid
-	outsideNamespace.DataManifest = &DataManifest{Namespace: "reports", Tables: []DataTable{{Name: "orders", Columns: []string{"id"}}}}
-	if err := outsideNamespace.ValidateManifest(); err == nil {
-		t.Fatal("expected validation error for table outside namespace")
+	physicalTableName := valid
+	physicalTableName.DataManifest = &DataManifest{Namespace: "reports", Tables: []DataTable{{Name: "reports_orders", Columns: []string{"id"}}}}
+	if err := physicalTableName.ValidateManifest(); err == nil {
+		t.Fatal("expected validation error for physical table name")
 	}
 
 	unknownIndexColumn := valid
 	unknownIndexColumn.DataManifest = &DataManifest{
 		Namespace: "reports",
 		Tables: []DataTable{
-			{Name: "reports_orders", Columns: []string{"id"}, Indexes: []DataIndex{{Name: "idx_reports_orders_status", Columns: []string{"status"}}}},
+			{Name: "orders", Columns: []string{"id"}, Indexes: []DataIndex{{Name: "idx_reports_orders_status", Columns: []string{"status"}}}},
 		},
 	}
 	if err := unknownIndexColumn.ValidateManifest(); err == nil {

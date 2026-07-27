@@ -197,7 +197,7 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 			"  uninstall_policy: retain\n" +
 			"  rollback_policy: manual\n" +
 			"  tables:\n" +
-			"    - name: reports_orders\n" +
+			"    - name: orders\n" +
 			"      primary_key: id\n" +
 			"      columns: id, code, status\n" +
 			"      indexes: idx_reports_orders_status(status)\n"

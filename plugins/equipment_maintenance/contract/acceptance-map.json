@@ -22,7 +22,7 @@
   "domains": [
     {
       "id": "assets",
-      "tables": ["equipment_maintenance_assets"],
+      "tables": ["assets"],
       "permissions": [
         "equipment_maintenance.asset.read",
         "equipment_maintenance.asset.create",
@@ -40,7 +40,7 @@
     },
     {
       "id": "work_orders",
-      "tables": ["equipment_maintenance_work_orders"],
+      "tables": ["work_orders"],
       "permissions": [
         "equipment_maintenance.work_order.read",
         "equipment_maintenance.work_order.create",
@@ -66,8 +66,8 @@
     {
       "id": "inspections",
       "tables": [
-        "equipment_maintenance_plans",
-        "equipment_maintenance_inspections"
+        "plans",
+        "inspections"
       ],
       "permissions": [
         "equipment_maintenance.inspection.read",
@@ -88,8 +88,8 @@
     {
       "id": "spare_parts",
       "tables": [
-        "equipment_maintenance_spare_parts",
-        "equipment_maintenance_spare_movements"
+        "spare_parts",
+        "spare_movements"
       ],
       "permissions": [
         "equipment_maintenance.spare_part.read",

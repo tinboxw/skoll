@@ -3227,3 +3227,53 @@ Result: FF4-05 passed. A generated frontend plugin now consumes only current pub
 ### Commit
 
 `FF4-05: prove generated plugin frontend`
+
+## FF5-01 Generate One Current Full-Stack Plugin Contract
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Generate one current-only plugin boundary from one normalized input across manifest, datastore, migration, backend, frontend, permissions, events, workflow, locale, tests, package, and lifecycle surfaces.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| One current input | Plugin generation accepts logical table and field names, rejects host-owned fields and physical namespace table inputs, and emits only `examples/plugins/{id}` files | Pass |
+| Machine-readable contract | Fresh output contains deterministic `contract.json`, `datastore.yaml`, backend constants/types, frontend contract, and package metadata | Pass |
+| Data agreement | `plugin.yaml`, `datastore.yaml`, `contract.json`, backend datastore calls, and tokenized migrations agree on the logical table; the host owns physical table resolution | Pass |
+| API and permission agreement | Generated routes, UI guards, backend authorization, audit actions, and sorted permission declarations share the same resource contract | Pass |
+| Event agreement | Publications include name, schema version, payload type, and scope; subscriptions include publisher, accepted schema versions, handler, and retry policy | Pass |
+| Workflow agreement | Document plugins share generated definition ID, schema key, business type, backend workflow calls, and frontend document schema | Pass |
+| Host-backed backend | Generated CRUD uses public `pluginclient` host services, datastore, transactions, cursor pagination, typed mutations, and no in-memory business store | Pass |
+| Frontend build and browser | Untouched CRUD output compiles and builds; desktop, mobile, restricted-permission, locale, theme, responsive, interaction, and authorization gates pass | Pass |
+| Frontend performance | Entry raw `434,071 B`, initial and total JS gzip `179,240 B`, CSS gzip `18,705 B`; ready desktop `859ms`, mobile `829ms`; interaction long task desktop `52ms`, mobile `0ms` | Pass |
+| Package and lifecycle | Untouched document output compiles, builds, packages, verifies, installs, exercises API/workflow/lifecycle, disables, and uninstalls | Pass |
+| Package performance | Entry raw `468,399 B`, initial and total JS gzip `189,424 B`, CSS gzip `18,969 B` | Pass |
+| Repository regression | `go test ./... -count=1` passes after current logical-table declarations were applied to generated and proof plugins | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first generated browser build exposed unsafe dynamic TypeScript form indexing. The template now resets declared fields through a typed key boundary, and the complete browser matrix was re-executed.
+2. The first repository run found a medical-business permission literal in the generic browser fixture and a business-plugin test that expected direct host-global access. The fixture now derives permissions from the generated plugin ID, and the plugin test requires the public SDK.
+3. Contract alignment then exposed that `plugin.yaml` validation still required namespace-prefixed table names while the current datastore owns physical isolation. Manifest validation, proof plugins, generator input, acceptance maps, and migration assertions now use logical names only; namespace-prefixed table inputs are rejected.
+4. The next repository run found the same physical-name assumption in the equipment proof-plugin tests. Its acceptance map and executable migration checks were corrected, then targeted and complete repository suites were re-executed and passed.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin ./internal/domain/generator ./internal/service/generator ./plugins/pharma_oa -count=1
+$env:SKOLL_GENERATOR_PLUGIN_FRONTEND_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginFrontendBuildAndBrowserMatrix$' -count=1 -v
+$env:SKOLL_GENERATOR_PLUGIN_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits$' -count=1 -v
+go test ./plugins/equipment_maintenance -count=1
+go test ./... -count=1
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF5-01 passed. One normalized plugin input now generates a compilable, installable, current-only full-stack contract whose data, API, permission, event, workflow, locale, UI, and lifecycle declarations agree without emitting business code into the platform core.
+
+### Commit
+
+`FF5-01: generate current full-stack plugin contract`

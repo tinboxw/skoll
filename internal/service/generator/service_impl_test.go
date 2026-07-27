@@ -276,11 +276,15 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		t.Fatalf("DryRun() error = %v", err)
 	}
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/plugin.yaml", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/contract.json", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/datastore.yaml", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/go.mod", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/backend/contract.go", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/backend/main.go", FileStatusCreate)
-	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_pharma_oa_products.up.sql", FileStatusCreate)
-	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_pharma_oa_products.down.sql", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_products.up.sql", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/migrations/001_create_products.down.sql", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/contract.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/stores/product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/i18n/generated_product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/skoll-host.ts", FileStatusCreate)
@@ -300,12 +304,15 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		"ui_menu:",
 		"data:",
 		"namespace: pharma_oa",
-		"name: pharma_oa_products",
+		"name: products",
 		"uninstall_policy: retain",
 		"rollback_policy: automatic",
 		"path: /v1/plugins/pharma-oa/api/products",
 		"permission: pharma_oa.product.read",
 		"audit_action: pharma_oa.product.create",
+		"name: product-changed",
+		"publisher: workflow",
+		"schema_versions: [1]",
 		"name: approval-completed",
 	} {
 		if !strings.Contains(manifest, value) {
@@ -313,7 +320,7 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		}
 	}
 	api := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts").GeneratedContent
-	if !strings.Contains(api, `const basePath = "/v1/plugins/pharma-oa/api/products"`) || !strings.Contains(api, "createProduct") {
+	if !strings.Contains(api, `const basePath = pluginContract.api.basePath`) || !strings.Contains(api, "createProduct") || !strings.Contains(api, "cursor?: string") {
 		t.Fatalf("plugin frontend api content = %q", api)
 	}
 	locale := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/i18n/generated_product.ts").GeneratedContent
@@ -321,7 +328,7 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		t.Fatalf("plugin frontend locale content = %q", locale)
 	}
 	host := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/skoll-host.ts").GeneratedContent
-	if !strings.Contains(host, `getPluginHost`) || !strings.Contains(host, `pluginId: "pharma-oa"`) || !strings.Contains(host, `"skoll:theme"`) {
+	if !strings.Contains(host, `getPluginHost`) || !strings.Contains(host, `pluginId: pluginContract.plugin.id`) || !strings.Contains(host, `"skoll:theme"`) {
 		t.Fatalf("plugin frontend host content = %q", host)
 	}
 	view := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue").GeneratedContent
@@ -339,8 +346,9 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 		t.Fatalf("plugin shell command does not use package-backed dev flow\n%s", shell)
 	}
 	backend := findPlan(t, result.Files, "examples/plugins/pharma-oa/backend/main.go").GeneratedContent
-	for _, marker := range []string{`apiPath`, `"/v1/plugins/pharma-oa/api/products"`, `GET /health`, "http.ListenAndServe"} {
-		if !strings.Contains(backend, marker) {
+	backendContract := findPlan(t, result.Files, "examples/plugins/pharma-oa/backend/contract.go").GeneratedContent
+	for _, marker := range []string{`generatedAPIBasePath`, `"/v1/plugins/pharma-oa/api/products"`, `GET /health`, "host.DataStore.Query", "host.DataStore.Mutate"} {
+		if !strings.Contains(backend+backendContract, marker) {
 			t.Fatalf("plugin backend missing %q\n%s", marker, backend)
 		}
 	}
@@ -372,7 +380,7 @@ func TestGeneratorGoldenSnapshotAndIdempotency(t *testing.T) {
 	if firstSnapshot != secondSnapshot {
 		t.Fatalf("dry-run is not idempotent\nfirst=%s\nsecond=%s", firstSnapshot, secondSnapshot)
 	}
-	const expectedSnapshotHash = "419c206932d2f6928e89752962d3e7f87186ec634006c20e3c96008f10575f4a"
+	const expectedSnapshotHash = "6efe86a4918740e263a543197f29fb29e7704cd521754cbde355e797aa139a87"
 	if got := sha256Hex(firstSnapshot); got != expectedSnapshotHash {
 		t.Fatalf("golden snapshot hash = %s, want %s\n%s", got, expectedSnapshotHash, firstSnapshot)
 	}
@@ -656,11 +664,13 @@ func mustPluginSpec(t *testing.T) *domaingenerator.GeneratorSpec {
 		Name:          "Pharma OA",
 		Description:   "Generated pharma OA business plugin",
 		DataNamespace: "pharma-oa",
+		EventPublications: []domaingenerator.PluginEventPublicationSpec{
+			{Name: "product-changed", SchemaVersion: 1, PayloadType: "product.changed", Scope: "tenant"},
+		},
 		EventSubscriptions: []domaingenerator.PluginEventSubscriptionSpec{
-			{Name: "approval-completed", Handler: "onApprovalCompleted"},
+			{Publisher: "workflow", Name: "approval-completed", SchemaVersions: []uint32{1}, Handler: "onApprovalCompleted"},
 		},
 	}
-	in.Table.Name = "pharma_oa_products"
 	in.Indexes[0].Name = "idx_pharma_oa_products_name"
 	namespaceServicePluginInput(&in, "pharma_oa")
 	spec, err := domaingenerator.NewGeneratorSpec(in)
@@ -671,6 +681,9 @@ func mustPluginSpec(t *testing.T) *domaingenerator.GeneratorSpec {
 }
 
 func namespaceServicePluginInput(in *domaingenerator.GeneratorSpecInput, namespace string) {
+	for index := range in.Fields {
+		in.Fields[index].ColumnName = in.Fields[index].Name
+	}
 	in.Permissions = domaingenerator.PermissionSpec{
 		Resource:  namespace + ".product",
 		ReadKey:   namespace + ".product.read",

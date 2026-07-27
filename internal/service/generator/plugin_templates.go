@@ -11,134 +11,238 @@ import (
 )
 
 func renderPluginGoMod(spec domaingenerator.GeneratorSpec) string {
-	if spec.Document != nil {
-		return fmt.Sprintf("module example.com/skoll-plugins/%s\n\ngo 1.24\n\nrequire github.com/tinboxw/skoll v0.0.0\n\nreplace github.com/tinboxw/skoll => ../../..\n", spec.Plugin.ID)
-	}
-	return fmt.Sprintf("module example.com/skoll-plugins/%s\n\ngo 1.24\n", spec.Plugin.ID)
+	return fmt.Sprintf("module example.com/skoll-plugins/%s\n\ngo 1.24\n\nrequire github.com/tinboxw/skoll v0.0.0\n\nreplace github.com/tinboxw/skoll => ../../..\n", spec.Plugin.ID)
 }
 
 func renderPluginBackendServer(spec domaingenerator.GeneratorSpec) string {
 	template := `package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
-	"sync"
+
+	"github.com/tinboxw/skoll/pkg/pluginclient"
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
-const (
-	apiPath = {{API_PATH}}
-	defaultAddress = {{DEFAULT_ADDRESS}}
-)
-
-type memoryStore struct {
-	mu sync.RWMutex
-	sequence uint64
-	items map[string]map[string]any
-}
+const defaultAddress = {{DEFAULT_ADDRESS}}
 
 func main() {
-	store := &memoryStore{items: make(map[string]map[string]any)}
+	client, err := pluginclient.FromEnvironment()
+	if err != nil { log.Fatal(err) }
+	host, err := client.HostServices()
+	if err != nil { log.Fatal(err) }
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ready", "plugin": {{PLUGIN_ID}}})
+		writeJSON(w, http.StatusOK, map[string]any{"status": "ready", "plugin": generatedPluginID})
 	})
-	mux.HandleFunc(apiPath, store.collection)
-	mux.HandleFunc(apiPath+"/", store.item)
-	address := strings.TrimSpace(os.Getenv("SKOLL_PLUGIN_ADDRESS"))
+	mux.HandleFunc(generatedAPIBasePath, func(w http.ResponseWriter, r *http.Request) { collection(w, r, host) })
+	mux.HandleFunc(generatedAPIBasePath+"/", func(w http.ResponseWriter, r *http.Request) { item(w, r, host) })
+	address := strings.TrimSpace(os.Getenv(pluginclient.EnvironmentPluginAddress))
 	if address == "" { address = defaultAddress }
-	log.Printf("%s listening on %s", {{PLUGIN_ID}}, address)
+	log.Printf("%s listening on %s", generatedPluginID, address)
 	log.Fatal(http.ListenAndServe(address, mux))
 }
 
-func (s *memoryStore) collection(w http.ResponseWriter, r *http.Request) {
+func collection(w http.ResponseWriter, r *http.Request, host pluginsdk.HostServices) {
 	switch r.Method {
 	case http.MethodGet:
-		offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-		if offset < 0 { offset = 0 }
 		if limit <= 0 { limit = 20 }
-		keyword := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("keyword")))
-		s.mu.RLock()
-		ids := make([]string, 0, len(s.items))
-		for id, item := range s.items {
-			if keyword == "" || strings.Contains(strings.ToLower(fmt.Sprint(item)), keyword) { ids = append(ids, id) }
+		if limit > pluginsdk.MaxDataQueryLimit { limit = pluginsdk.MaxDataQueryLimit }
+		query := pluginsdk.DataQuery{
+			Table: generatedLogicalTable, Fields: generatedFields,
+			Scope: pluginsdk.DataScopeIntent{Permission: generatedPermissions["read"]},
+			Sort: []pluginsdk.DataSort{{Field: generatedPrimaryField, Direction: pluginsdk.DataSortAscending}},
+			Page: pluginsdk.DataPageRequest{Cursor: strings.TrimSpace(r.URL.Query().Get("cursor")), Limit: limit},
 		}
-		sort.Strings(ids)
-		items := make([]map[string]any, 0, limit)
-		for index := offset; index < len(ids) && len(items) < limit; index++ { items = append(items, cloneItem(s.items[ids[index]])) }
-		s.mu.RUnlock()
-		writeOK(w, map[string]any{"items": items, "offset": offset, "limit": limit})
+		if keyword := strings.TrimSpace(r.URL.Query().Get("keyword")); keyword != "" && {{SEARCH_FIELD}} != "" {
+			value := pluginsdk.DataValue{Type: pluginsdk.DataValueString, Value: keyword}
+			query.Filter = &pluginsdk.DataFilter{Field: {{SEARCH_FIELD}}, Operator: pluginsdk.DataOperatorContains, Value: &value}
+		}
+		page, err := host.DataStore.Query(requestContext(r), query)
+		if err != nil { writeError(w, err); return }
+		items := make([]map[string]any, 0, len(page.Records))
+		for _, record := range page.Records { items = append(items, recordJSON(record)) }
+		writeOK(w, map[string]any{"items": items, "nextCursor": page.NextCursor, "hasMore": page.HasMore, "limit": limit})
 	case http.MethodPost:
-		input, ok := decodeItem(w, r)
-		if !ok { return }
-		s.mu.Lock()
-		id := strings.TrimSpace(fmt.Sprint(input[{{PRIMARY_FIELD}}]))
-		if id == "" || id == "<nil>" { s.sequence++; id = fmt.Sprintf("generated-%d", s.sequence); input[{{PRIMARY_FIELD}}] = id }
-		if _, exists := s.items[id]; exists { s.mu.Unlock(); writeError(w, http.StatusConflict, "already_exists"); return }
-		s.items[id] = cloneItem(input)
-		item := cloneItem(input)
-		s.mu.Unlock()
-		writeJSON(w, http.StatusCreated, envelope(map[string]any{"item": item}))
+		input, err := decodeItem(r)
+		if err != nil { writeError(w, err); return }
+		key, values, err := mutationValues(input)
+		if err != nil { writeError(w, err); return }
+		var result pluginsdk.DataMutationResult
+		err = host.Transactions.Within(requestContext(r), func(tx pluginsdk.Transaction) error {
+			var mutationErr error
+			result, mutationErr = host.DataStore.Mutate(tx.Context(), pluginsdk.DataMutation{
+				Table: generatedLogicalTable, Operation: pluginsdk.DataMutationInsert,
+				Scope: pluginsdk.DataScopeIntent{Permission: generatedPermissions["create"]},
+				Key: key, Values: values, Returning: generatedFields,
+				IdempotencyKey: key[generatedPrimaryField].Value + ".create",
+			})
+			return mutationErr
+		})
+		if err != nil { writeError(w, err); return }
+		writeJSON(w, http.StatusCreated, envelope(map[string]any{"item": mutationRecord(result)}))
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *memoryStore) item(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, apiPath+"/"))
+func item(w http.ResponseWriter, r *http.Request, host pluginsdk.HostServices) {
+	id := strings.TrimSpace(strings.TrimPrefix(r.URL.Path, generatedAPIBasePath+"/"))
 	if id == "" || strings.Contains(id, "/") { http.NotFound(w, r); return }
 	switch r.Method {
 	case http.MethodGet:
-		s.mu.RLock(); item, exists := s.items[id]; item = cloneItem(item); s.mu.RUnlock()
-		if !exists { writeError(w, http.StatusNotFound, "not_found"); return }
-		writeOK(w, map[string]any{"item": item})
+		value := pluginsdk.DataValue{Type: generatedFieldTypes[generatedPrimaryField], Value: id}
+		page, err := host.DataStore.Query(requestContext(r), pluginsdk.DataQuery{
+			Table: generatedLogicalTable, Fields: generatedFields,
+			Scope: pluginsdk.DataScopeIntent{Permission: generatedPermissions["read"]},
+			Filter: &pluginsdk.DataFilter{Field: generatedPrimaryField, Operator: pluginsdk.DataOperatorEqual, Value: &value},
+			Sort: []pluginsdk.DataSort{{Field: generatedPrimaryField, Direction: pluginsdk.DataSortAscending}},
+			Page: pluginsdk.DataPageRequest{Limit: 1},
+		})
+		if err != nil { writeError(w, err); return }
+		if len(page.Records) == 0 { writeError(w, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, generatedPrimaryField, "record not found", false)); return }
+		writeOK(w, map[string]any{"item": recordJSON(page.Records[0])})
 	case http.MethodPut:
-		input, ok := decodeItem(w, r); if !ok { return }
-		s.mu.Lock()
-		current, exists := s.items[id]
-		if !exists { s.mu.Unlock(); writeError(w, http.StatusNotFound, "not_found"); return }
-		for key, value := range input { current[key] = value }
-		current[{{PRIMARY_FIELD}}] = id
-		item := cloneItem(current); s.mu.Unlock()
-		writeOK(w, map[string]any{"item": item})
+		input, err := decodeItem(r)
+		if err != nil { writeError(w, err); return }
+		input[generatedPrimaryField] = id
+		key, values, err := mutationValues(input)
+		if err != nil { writeError(w, err); return }
+		result, err := host.DataStore.Mutate(requestContext(r), pluginsdk.DataMutation{
+			Table: generatedLogicalTable, Operation: pluginsdk.DataMutationUpdate,
+			Scope: pluginsdk.DataScopeIntent{Permission: generatedPermissions["update"]},
+			Key: key, Values: values, Returning: generatedFields,
+			IdempotencyKey: id + ".update." + requestIdempotencySuffix(r),
+		})
+		if err != nil { writeError(w, err); return }
+		writeOK(w, map[string]any{"item": mutationRecord(result)})
 	case http.MethodDelete:
-		s.mu.Lock(); _, exists := s.items[id]; delete(s.items, id); s.mu.Unlock()
-		if !exists { writeError(w, http.StatusNotFound, "not_found"); return }
+		key := map[string]pluginsdk.DataValue{generatedPrimaryField: {Type: generatedFieldTypes[generatedPrimaryField], Value: id}}
+		_, err := host.DataStore.Mutate(requestContext(r), pluginsdk.DataMutation{
+			Table: generatedLogicalTable, Operation: pluginsdk.DataMutationDelete,
+			Scope: pluginsdk.DataScopeIntent{Permission: generatedPermissions["delete"]},
+			Key: key, IdempotencyKey: id + ".delete." + requestIdempotencySuffix(r),
+		})
+		if err != nil { writeError(w, err); return }
 		writeOK(w, nil)
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
 }
 
-func decodeItem(w http.ResponseWriter, r *http.Request) (map[string]any, bool) {
+func decodeItem(r *http.Request) (map[string]any, error) {
 	var input map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil { writeError(w, http.StatusBadRequest, "invalid_request"); return nil, false }
-	if input == nil { input = make(map[string]any) }
-	return input, true
+	decoder := json.NewDecoder(r.Body)
+	decoder.UseNumber()
+	if err := decoder.Decode(&input); err != nil { return nil, fmt.Errorf("decode request: %w", err) }
+	if input == nil { return nil, errors.New("request body is required") }
+	for field := range input {
+		if _, declared := generatedFieldTypes[field]; !declared { return nil, fmt.Errorf("field %s is not declared", field) }
+	}
+	return input, nil
 }
 
-func cloneItem(item map[string]any) map[string]any {
-	if item == nil { return nil }
-	out := make(map[string]any, len(item)); for key, value := range item { out[key] = value }; return out
+func mutationValues(input map[string]any) (map[string]pluginsdk.DataValue, map[string]pluginsdk.DataValue, error) {
+	key := make(map[string]pluginsdk.DataValue, 1)
+	values := make(map[string]pluginsdk.DataValue, len(input))
+	for field, raw := range input {
+		value, err := dataValue(field, raw)
+		if err != nil { return nil, nil, err }
+		if field == generatedPrimaryField { key[field] = value } else { values[field] = value }
+	}
+	if key[generatedPrimaryField].Value == "" { return nil, nil, fmt.Errorf("%s is required", generatedPrimaryField) }
+	if len(values) == 0 { return nil, nil, errors.New("at least one mutable field is required") }
+	return key, values, nil
+}
+
+func dataValue(field string, raw any) (pluginsdk.DataValue, error) {
+	valueType, exists := generatedFieldTypes[field]
+	if !exists { return pluginsdk.DataValue{}, fmt.Errorf("field %s is not declared", field) }
+	var value string
+	switch valueType {
+	case pluginsdk.DataValueBoolean:
+		boolean, ok := raw.(bool); if !ok { return pluginsdk.DataValue{}, fmt.Errorf("%s must be boolean", field) }
+		value = strconv.FormatBool(boolean)
+	case pluginsdk.DataValueJSON:
+		encoded, err := json.Marshal(raw); if err != nil { return pluginsdk.DataValue{}, fmt.Errorf("%s: %w", field, err) }; value = string(encoded)
+	default:
+		value = strings.TrimSpace(fmt.Sprint(raw))
+	}
+	out := pluginsdk.DataValue{Type: valueType, Value: value}
+	if err := out.Validate(); err != nil { return pluginsdk.DataValue{}, fmt.Errorf("%s: %w", field, err) }
+	return out, nil
+}
+
+func recordJSON(record pluginsdk.DataRecord) map[string]any {
+	out := make(map[string]any, len(record.Values)+1)
+	for field, value := range record.Values { out[field] = jsonValue(value) }
+	out["version"] = record.Version
+	return out
+}
+
+func mutationRecord(result pluginsdk.DataMutationResult) map[string]any {
+	if result.Record == nil { return map[string]any{} }
+	return recordJSON(*result.Record)
+}
+
+func jsonValue(value pluginsdk.DataValue) any {
+	switch value.Type {
+	case pluginsdk.DataValueInteger:
+		parsed, _ := strconv.ParseInt(value.Value, 10, 64); return parsed
+	case pluginsdk.DataValueDecimal:
+		return json.Number(value.Value)
+	case pluginsdk.DataValueBoolean:
+		parsed, _ := strconv.ParseBool(value.Value); return parsed
+	case pluginsdk.DataValueJSON:
+		var parsed any
+		if json.Unmarshal([]byte(value.Value), &parsed) == nil { return parsed }
+	}
+	return value.Value
+}
+
+func requestContext(r *http.Request) context.Context {
+	if r == nil { return context.Background() }
+	return pluginclient.WithUserToken(r.Context(), strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")))
+}
+
+func requestIdempotencySuffix(r *http.Request) string {
+	value := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if value == "" { value = "request" }
+	return value
 }
 
 func envelope(data any) map[string]any { return map[string]any{"code": "ok", "message": "", "data": data} }
 func writeOK(w http.ResponseWriter, data any) { writeJSON(w, http.StatusOK, envelope(data)) }
-func writeError(w http.ResponseWriter, status int, code string) { writeJSON(w, status, map[string]any{"code": code, "message": code, "data": nil}) }
+func writeError(w http.ResponseWriter, err error) {
+	status, code := http.StatusBadRequest, "invalid_request"
+	var datastoreErr *pluginsdk.DataStoreError
+	if errors.As(err, &datastoreErr) {
+		code = string(datastoreErr.Code)
+		switch datastoreErr.Code {
+		case pluginsdk.DataStoreErrorForbidden: status = http.StatusForbidden
+		case pluginsdk.DataStoreErrorNotFound: status = http.StatusNotFound
+		case pluginsdk.DataStoreErrorConflict: status = http.StatusConflict
+		case pluginsdk.DataStoreErrorLimitExceeded: status = http.StatusRequestEntityTooLarge
+		case pluginsdk.DataStoreErrorUnsupported: status = http.StatusUnprocessableEntity
+		case pluginsdk.DataStoreErrorUnavailable: status = http.StatusServiceUnavailable
+		}
+	}
+	writeJSON(w, status, map[string]any{"code": code, "message": err.Error(), "data": nil})
+}
 func writeJSON(w http.ResponseWriter, status int, payload any) { w.Header().Set("Content-Type", "application/json"); w.WriteHeader(status); _ = json.NewEncoder(w).Encode(payload) }
 `
 	return strings.NewReplacer(
-		"{{API_PATH}}", fmt.Sprintf("%q", pluginAPIBasePath(spec)),
 		"{{DEFAULT_ADDRESS}}", fmt.Sprintf("%q", pluginServiceAddress(spec.Plugin.ServiceBaseURL)),
-		"{{PLUGIN_ID}}", fmt.Sprintf("%q", spec.Plugin.ID),
-		"{{PRIMARY_FIELD}}", fmt.Sprintf("%q", primaryField(spec).Name),
+		"{{SEARCH_FIELD}}", fmt.Sprintf("%q", pluginSearchField(spec)),
 	).Replace(template)
 }
 
@@ -148,6 +252,154 @@ func pluginServiceAddress(raw string) string {
 		return parsed.Host
 	}
 	return "127.0.0.1:19090"
+}
+
+func pluginSearchField(spec domaingenerator.GeneratorSpec) string {
+	for _, name := range spec.Page.List.Filters {
+		field, ok := spec.FieldByName(name)
+		if ok && (field.Type == domaingenerator.FieldTypeString || field.Type == domaingenerator.FieldTypeText) {
+			return field.Name
+		}
+	}
+	return ""
+}
+
+func renderPluginFrontendStore(spec domaingenerator.GeneratorSpec) string {
+	module := spec.Module.Package
+	typeName := spec.Table.DomainName
+	storeName := exportedName(module)
+	return fmt.Sprintf(`import { defineStore } from "pinia";
+import {
+  create%s,
+  delete%s,
+  get%s,
+  list%s,
+  update%s,
+  type %s,
+  type %sInput,
+  type %sListQuery
+} from "../api/%s";
+import { toErrorMessage } from "../utils/common";
+
+type LoadStatus = "idle" | "loading" | "success" | "error";
+
+export const use%sStore = defineStore("%s", {
+  state: () => ({
+    items: [] as %s[],
+    selected: null as %s | null,
+    listStatus: "idle" as LoadStatus,
+    detailStatus: "idle" as LoadStatus,
+    mutationStatus: "idle" as LoadStatus,
+    listError: "",
+    detailError: "",
+    mutationError: "",
+    keyword: "",
+    cursor: "",
+    cursorHistory: [] as string[],
+    nextCursor: "",
+    limit: 20,
+    hasMore: false
+  }),
+  getters: {
+    isLoading: (state): boolean => state.listStatus === "loading" || state.detailStatus === "loading" || state.mutationStatus === "loading",
+    canPrevious: (state): boolean => state.cursorHistory.length > 0
+  },
+  actions: {
+    async load(query: %sListQuery = {}): Promise<void> {
+      this.listStatus = "loading";
+      this.listError = "";
+      try {
+        const page = await list%s({ keyword: query.keyword, cursor: query.cursor, limit: query.limit ?? this.limit });
+        this.items = page.items;
+        this.keyword = query.keyword ?? "";
+        this.cursor = query.cursor ?? "";
+        this.nextCursor = page.nextCursor;
+        this.limit = page.limit;
+        this.hasMore = page.hasMore;
+        this.listStatus = "success";
+      } catch (error) {
+        this.listStatus = "error";
+        this.listError = toErrorMessage(error);
+        throw error;
+      }
+    },
+    async search(keyword: string): Promise<void> {
+      this.cursorHistory = [];
+      await this.load({ keyword, cursor: "", limit: this.limit });
+    },
+    async refresh(): Promise<void> {
+      await this.load({ keyword: this.keyword, cursor: this.cursor, limit: this.limit });
+    },
+    async next(): Promise<void> {
+      if (!this.hasMore || !this.nextCursor) return;
+      this.cursorHistory.push(this.cursor);
+      await this.load({ keyword: this.keyword, cursor: this.nextCursor, limit: this.limit });
+    },
+    async previous(): Promise<void> {
+      const cursor = this.cursorHistory.pop();
+      if (cursor === undefined) return;
+      await this.load({ keyword: this.keyword, cursor, limit: this.limit });
+    },
+    async loadOne(id: string): Promise<%s> {
+      this.detailStatus = "loading";
+      this.detailError = "";
+      try {
+        const item = await get%s(id);
+        this.selected = item;
+        this.detailStatus = "success";
+        return item;
+      } catch (error) {
+        this.detailStatus = "error";
+        this.detailError = toErrorMessage(error);
+        throw error;
+      }
+    },
+    async create(input: %sInput): Promise<%s> {
+      return this.runMutation(() => create%s(input));
+    },
+    async update(id: string, input: %sInput): Promise<%s> {
+      return this.runMutation(() => update%s(id, input));
+    },
+    async remove(id: string): Promise<void> {
+      this.mutationStatus = "loading";
+      this.mutationError = "";
+      try {
+        await delete%s(id);
+        this.items = this.items.filter((item) => String(item.%s) !== id);
+        if (this.selected && String(this.selected.%s) === id) this.selected = null;
+        this.mutationStatus = "success";
+      } catch (error) {
+        this.mutationStatus = "error";
+        this.mutationError = toErrorMessage(error);
+        throw error;
+      }
+    },
+    async runMutation(operation: () => Promise<%s>): Promise<%s> {
+      this.mutationStatus = "loading";
+      this.mutationError = "";
+      try {
+        const item = await operation();
+        const index = this.items.findIndex((current) => String(current.%s) === String(item.%s));
+        if (index >= 0) this.items.splice(index, 1, item); else this.items.unshift(item);
+        this.selected = item;
+        this.mutationStatus = "success";
+        return item;
+      } catch (error) {
+        this.mutationStatus = "error";
+        this.mutationError = toErrorMessage(error);
+        throw error;
+      }
+    },
+    clearMutationState(): void {
+      this.mutationStatus = "idle";
+      this.mutationError = "";
+    }
+  }
+});
+`, typeName, typeName, typeName, typeName, typeName, typeName, typeName, typeName, module,
+		storeName, module, typeName, typeName, typeName, typeName, typeName, typeName, typeName, typeName,
+		typeName, typeName, typeName, typeName, typeName, primaryField(spec).Name, primaryField(spec).Name,
+		typeName, typeName, primaryField(spec).Name, primaryField(spec).Name)
 }
 
 func renderPluginFrontendPackage(spec domaingenerator.GeneratorSpec) string {
@@ -302,18 +554,19 @@ button, input, textarea { font: inherit; }
 `
 }
 
-func renderPluginFrontendAPISupport(spec domaingenerator.GeneratorSpec) string {
-	return fmt.Sprintf(`import { getPluginHost, type PluginHostRequestOptions } from "@skoll/plugin-sdk";
+func renderPluginFrontendAPISupport(_ domaingenerator.GeneratorSpec) string {
+	return `import { getPluginHost, type PluginHostRequestOptions } from "@skoll/plugin-sdk";
+import { pluginContract } from "../contract";
 
 export type ApiResponse<T> = { code: string; message: string; data: T };
-const host = () => getPluginHost({ pluginId: %q, requiredCapabilities: ["request"] });
+const host = () => getPluginHost({ pluginId: pluginContract.plugin.id, requiredCapabilities: ["request"] });
 const request = <T>(path: string, options: PluginHostRequestOptions): Promise<T> => host().request<T>(path, options);
 
 export const apiGet = <T>(path: string): Promise<T> => request<T>(path, { method: "GET" });
 export const apiPost = <T>(path: string, body?: unknown): Promise<T> => request<T>(path, { method: "POST", body });
 export const apiPut = <T>(path: string, body?: unknown): Promise<T> => request<T>(path, { method: "PUT", body });
 export const apiDelete = <T>(path: string): Promise<T> => request<T>(path, { method: "DELETE" });
-`, spec.Plugin.ID)
+`
 }
 
 func renderPluginFrontendCommonSupport() string {
@@ -330,14 +583,14 @@ func renderBusinessPluginFrontendView(spec domaingenerator.GeneratorSpec) string
 	fmt.Fprintf(&b, "<template>\n")
 	fmt.Fprintf(&b, "\t<BusinessWorkspace\n\t\tclass=\"plugin-generated-page\"\n\t\t:title=\"t('%s.title')\"\n\t\t:description=\"t('%s.description')\"\n\t\t:locale=\"locale\"\n\t\t:state=\"workspaceState\"\n\t\t:state-description=\"workspaceStateDescription\"\n\t>\n", prefix, prefix)
 	fmt.Fprintf(&b, "\t\t<template #actions>\n\t\t\t<BusinessCommandBar :commands=\"commands\" :locale=\"locale\" @command=\"runCommand\" />\n\t\t</template>\n")
-	fmt.Fprintf(&b, "\t\t<template #filters>\n\t\t\t<BusinessFilterBar v-model=\"filters\" :fields=\"filterFields\" :locale=\"locale\" :busy=\"store.listStatus === 'loading'\" @search=\"loadPage(0)\" @reset=\"loadPage(0)\" />\n\t\t</template>\n")
-	fmt.Fprintf(&b, "\t\t<template #stateActions>\n\t\t\t<el-button v-if=\"canRead && lifecycle.state === 'enabled'\" :icon=\"RefreshCw\" @click=\"loadPage(0)\">{{ t('%s.retry') }}</el-button>\n\t\t</template>\n", prefix)
-	fmt.Fprintf(&b, "\t\t<BusinessList\n\t\t\t:items=\"store.items\"\n\t\t\t:columns=\"columns\"\n\t\t\t:state=\"listState\"\n\t\t\t:state-description=\"tableError\"\n\t\t\t:can-previous=\"store.offset > 0\"\n\t\t\t:can-next=\"store.hasMore\"\n\t\t\t:action-width=\"132\"\n\t\t\t:locale=\"locale\"\n\t\t\t@open=\"openDetail\"\n\t\t\t@previous=\"loadPage(Math.max(0, store.offset - store.limit))\"\n\t\t\t@next=\"loadPage(store.offset + store.limit)\"\n\t\t>\n")
+	fmt.Fprintf(&b, "\t\t<template #filters>\n\t\t\t<BusinessFilterBar v-model=\"filters\" :fields=\"filterFields\" :locale=\"locale\" :busy=\"store.listStatus === 'loading'\" @search=\"searchFirst\" @reset=\"searchFirst\" />\n\t\t</template>\n")
+	fmt.Fprintf(&b, "\t\t<template #stateActions>\n\t\t\t<el-button v-if=\"canRead && lifecycle.state === 'enabled'\" :icon=\"RefreshCw\" @click=\"searchFirst\">{{ t('%s.retry') }}</el-button>\n\t\t</template>\n", prefix)
+	fmt.Fprintf(&b, "\t\t<BusinessList\n\t\t\t:items=\"store.items\"\n\t\t\t:columns=\"columns\"\n\t\t\t:state=\"listState\"\n\t\t\t:state-description=\"tableError\"\n\t\t\t:can-previous=\"store.canPrevious\"\n\t\t\t:can-next=\"store.hasMore\"\n\t\t\t:action-width=\"132\"\n\t\t\t:locale=\"locale\"\n\t\t\t@open=\"openDetail\"\n\t\t\t@previous=\"previousPage\"\n\t\t\t@next=\"nextPage\"\n\t\t>\n")
 	fmt.Fprintf(&b, "\t\t\t<template #actions=\"{ row }\">\n\t\t\t\t<div class=\"plugin-generated-row-actions\">\n")
 	fmt.Fprintf(&b, "\t\t\t\t\t<el-tooltip :content=\"t('%s.view')\"><el-button link :icon=\"Eye\" :aria-label=\"t('%s.view')\" @click=\"openDetail(row)\" /></el-tooltip>\n", prefix, prefix)
 	fmt.Fprintf(&b, "\t\t\t\t\t<el-tooltip v-if=\"canUpdate\" :content=\"t('%s.edit')\"><el-button link type=\"primary\" :icon=\"Pencil\" :aria-label=\"t('%s.edit')\" @click=\"openEdit(row)\" /></el-tooltip>\n", prefix, prefix)
-	fmt.Fprintf(&b, "\t\t\t\t\t<el-popconfirm v-if=\"canDelete\" :title=\"t('%s.deleteConfirm')\" :confirm-button-text=\"t('%s.delete')\" :cancel-button-text=\"t('%s.cancel')\" @confirm=\"remove(String(row.id))\">\n", prefix, prefix, prefix)
-	fmt.Fprintf(&b, "\t\t\t\t\t\t<template #reference><el-button link type=\"danger\" :icon=\"Trash2\" :loading=\"deletingId === String(row.id)\" :aria-label=\"t('%s.delete')\" /></template>\n", prefix)
+	fmt.Fprintf(&b, "\t\t\t\t\t<el-popconfirm v-if=\"canDelete\" :title=\"t('%s.deleteConfirm')\" :confirm-button-text=\"t('%s.delete')\" :cancel-button-text=\"t('%s.cancel')\" @confirm=\"remove(recordID(row))\">\n", prefix, prefix, prefix)
+	fmt.Fprintf(&b, "\t\t\t\t\t\t<template #reference><el-button link type=\"danger\" :icon=\"Trash2\" :loading=\"deletingId === recordID(row)\" :aria-label=\"t('%s.delete')\" /></template>\n", prefix)
 	fmt.Fprintf(&b, "\t\t\t\t\t</el-popconfirm>\n\t\t\t\t</div>\n\t\t\t</template>\n\t\t</BusinessList>\n\t</BusinessWorkspace>\n\n")
 	fmt.Fprintf(&b, "\t<el-drawer v-model=\"detailOpen\" :title=\"t('%s.detail')\" size=\"min(560px, 100%%)\">\n", prefix)
 	fmt.Fprintf(&b, "\t\t<el-alert v-if=\"store.detailError\" type=\"error\" :title=\"store.detailError\" show-icon :closable=\"false\" />\n\t\t<el-descriptions v-else-if=\"store.selected\" :column=\"1\" border>\n")
@@ -360,12 +613,14 @@ func renderBusinessPluginFrontendView(spec domaingenerator.GeneratorSpec) string
 	fmt.Fprintf(&b, "import { Eye, Pencil, Plus, RefreshCw, Save, Trash2 } from \"lucide-vue-next\";\n")
 	fmt.Fprintf(&b, "import { computed, onMounted, reactive, ref, watch } from \"vue\";\n\n")
 	fmt.Fprintf(&b, "import { translate%s } from \"../../i18n/generated_%s\";\n", typeName, module)
+	fmt.Fprintf(&b, "import { pluginContract } from \"../../contract\";\n")
 	fmt.Fprintf(&b, "import { useSkollHost } from \"../../skoll-host\";\n")
 	fmt.Fprintf(&b, "import { use%sStore } from \"../../stores/%s\";\n", storeName, module)
 	fmt.Fprintf(&b, "import type { %sInput } from \"../../api/%s\";\n\n", typeName, module)
 	fmt.Fprintf(&b, "const store = use%sStore();\n", storeName)
 	fmt.Fprintf(&b, "const { locale, lifecycle, can } = useSkollHost();\n")
-	fmt.Fprintf(&b, "const readPermission = %q;\nconst createPermission = %q;\nconst updatePermission = %q;\nconst deletePermission = %q;\n", spec.Permissions.ReadKey, spec.Permissions.CreateKey, spec.Permissions.UpdateKey, spec.Permissions.DeleteKey)
+	fmt.Fprintf(&b, "const { readKey: readPermission, createKey: createPermission, updateKey: updatePermission, deleteKey: deletePermission } = pluginContract.permissions;\n")
+	fmt.Fprintf(&b, "const primaryField = pluginContract.data.primaryField;\n")
 	fmt.Fprintf(&b, "const canRead = computed(() => can(readPermission));\nconst canCreate = computed(() => can(createPermission));\nconst canUpdate = computed(() => can(updatePermission));\nconst canDelete = computed(() => can(deletePermission));\n")
 	fmt.Fprintf(&b, "const filters = ref<BusinessFilterModel>({ keyword: \"\" });\nconst detailOpen = ref(false);\nconst formOpen = ref(false);\nconst editingId = ref<string | null>(null);\nconst deletingId = ref(\"\");\nconst formRef = ref<FormInstance>();\nconst form = reactive<%sInput>({});\n", typeName)
 	fmt.Fprintf(&b, "const t = (key: string): string => translate%s(locale.value, key);\n", typeName)
@@ -402,37 +657,44 @@ func renderBusinessPluginFrontendView(spec domaingenerator.GeneratorSpec) string
 		}
 	}
 	fmt.Fprintf(&b, "};\n\n")
-	fmt.Fprintf(&b, "function runCommand(command: BusinessCommand): void {\n\tif (command.id === \"create\") openCreate();\n\tif (command.id === \"refresh\") void loadPage(store.offset);\n}\n\n")
-	fmt.Fprintf(&b, "async function loadPage(offset: number): Promise<void> {\n\tif (!canRead.value || lifecycle.value.state !== \"enabled\") return;\n\ttry {\n\t\tawait store.load({ keyword: String(filters.value.keyword || \"\").trim() || undefined, offset, limit: store.limit });\n\t} catch {\n\t\t// Shared business states render the store error.\n\t}\n}\n\n")
-	fmt.Fprintf(&b, "async function openDetail(row: BusinessRecord): Promise<void> {\n\tdetailOpen.value = true;\n\ttry { await store.loadOne(String(row.id)); } catch { /* The drawer renders the store error. */ }\n}\n\n")
+	fmt.Fprintf(&b, "function runCommand(command: BusinessCommand): void {\n\tif (command.id === \"create\") openCreate();\n\tif (command.id === \"refresh\") void refreshPage();\n}\n\n")
+	fmt.Fprintf(&b, "const searchKeyword = (): string => String(filters.value.keyword || \"\").trim();\n")
+	fmt.Fprintf(&b, "async function searchFirst(): Promise<void> {\n\tif (!canLoad()) return;\n\ttry { await store.search(searchKeyword()); } catch { /* Shared business states render the store error. */ }\n}\n")
+	fmt.Fprintf(&b, "async function refreshPage(): Promise<void> {\n\tif (!canLoad()) return;\n\ttry { await store.refresh(); } catch { /* Shared business states render the store error. */ }\n}\n")
+	fmt.Fprintf(&b, "async function nextPage(): Promise<void> {\n\tif (!canLoad()) return;\n\ttry { await store.next(); } catch { /* Shared business states render the store error. */ }\n}\n")
+	fmt.Fprintf(&b, "async function previousPage(): Promise<void> {\n\tif (!canLoad()) return;\n\ttry { await store.previous(); } catch { /* Shared business states render the store error. */ }\n}\n")
+	fmt.Fprintf(&b, "function canLoad(): boolean { return canRead.value && lifecycle.value.state === \"enabled\"; }\n")
+	fmt.Fprintf(&b, "function recordID(row: BusinessRecord): string { return String((row as Record<string, unknown>)[primaryField] ?? \"\"); }\n\n")
+	fmt.Fprintf(&b, "async function openDetail(row: BusinessRecord): Promise<void> {\n\tdetailOpen.value = true;\n\ttry { await store.loadOne(recordID(row)); } catch { /* The drawer renders the store error. */ }\n}\n\n")
 	fmt.Fprintf(&b, "function openCreate(): void {\n\teditingId.value = null;\n\tresetForm();\n\tstore.clearMutationState();\n\tformOpen.value = true;\n}\n\n")
-	fmt.Fprintf(&b, "function openEdit(row: BusinessRecord): void {\n\teditingId.value = String(row.id);\n\tresetForm();\n\tObject.assign(form, row);\n\tstore.clearMutationState();\n\tformOpen.value = true;\n}\n\n")
+	fmt.Fprintf(&b, "function openEdit(row: BusinessRecord): void {\n\teditingId.value = recordID(row);\n\tresetForm();\n\tObject.assign(form, row);\n\tstore.clearMutationState();\n\tformOpen.value = true;\n}\n\n")
 	fmt.Fprintf(&b, "async function save(): Promise<void> {\n\tif (!await formRef.value?.validate().catch(() => false)) return;\n\ttry {\n\t\tif (editingId.value) await store.update(editingId.value, { ...form }); else await store.create({ ...form });\n\t\tformOpen.value = false;\n\t\tElMessage.success(t(%q));\n\t} catch { /* The form keeps the backend error visible. */ }\n}\n\n", prefix+".saved")
 	fmt.Fprintf(&b, "async function remove(id: string): Promise<void> {\n\tdeletingId.value = id;\n\ttry { await store.remove(id); ElMessage.success(t(%q)); } catch { ElMessage.error(store.mutationError); } finally { deletingId.value = \"\"; }\n}\n\n", prefix+".deleted")
-	fmt.Fprintf(&b, "function resetForm(): void {\n\tfor (const key of Object.keys(form)) delete form[key];\n")
+	fmt.Fprintf(&b, "function resetForm(): void {\n\tconst mutableForm = form as Record<string, unknown>;\n\tfor (const key of Object.keys(mutableForm)) delete mutableForm[key];\n")
 	for _, fieldName := range spec.Page.Form.Fields {
 		if field, ok := spec.FieldByName(fieldName); ok {
 			fmt.Fprintf(&b, "\tform.%s = %s;\n", field.Name, tsFieldDefault(field))
 		}
 	}
 	fmt.Fprintf(&b, "}\n\nfunction displayValue(value: unknown): string {\n\tif (value === null || value === undefined || value === \"\") return \"-\";\n\tif (typeof value === \"object\") return JSON.stringify(value);\n\treturn String(value);\n}\n\n")
-	fmt.Fprintf(&b, "watch(() => lifecycle.value.state, (state) => { if (state === \"enabled\" && canRead.value && store.listStatus === \"idle\") void loadPage(0); });\n")
-	fmt.Fprintf(&b, "onMounted(() => { if (canRead.value && lifecycle.value.state === \"enabled\") void loadPage(0); });\n")
+	fmt.Fprintf(&b, "watch(() => lifecycle.value.state, (state) => { if (state === \"enabled\" && canRead.value && store.listStatus === \"idle\") void searchFirst(); });\n")
+	fmt.Fprintf(&b, "onMounted(() => { if (canRead.value && lifecycle.value.state === \"enabled\") void searchFirst(); });\n")
 	fmt.Fprintf(&b, "</script>\n\n<style scoped>\n.plugin-generated-row-actions { display: flex; align-items: center; gap: 4px; }\n:deep(.el-drawer__body) { padding: 16px; }\n:deep(.el-input-number), :deep(.el-date-editor) { width: 100%%; }\n@media (max-width: 560px) { .plugin-generated-row-actions { flex-wrap: wrap; } }\n</style>\n")
 	return b.String()
 }
 
-func renderPluginFrontendHostSupport(spec domaingenerator.GeneratorSpec) string {
-	return fmt.Sprintf(`import type { BusinessLocale } from "@skoll/business-ui/core";
+func renderPluginFrontendHostSupport(_ domaingenerator.GeneratorSpec) string {
+	return `import type { BusinessLocale } from "@skoll/business-ui/core";
 import {
   getPluginHost,
   type PluginHostLifecycle,
   type PluginHostTheme
 } from "@skoll/plugin-sdk";
 import { readonly, ref } from "vue";
+import { pluginContract } from "./contract";
 
 const host = getPluginHost({
-  pluginId: %q,
+  pluginId: pluginContract.plugin.id,
   requiredCapabilities: ["request", "permissions", "locale", "theme", "lifecycle"]
 });
 const locale = ref<BusinessLocale>(host.locale === "en-US" ? "en-US" : "zh-CN");
@@ -475,5 +737,5 @@ export function useSkollHost() {
     can: (permission: string): boolean => host.permissions.has(permission)
   };
 }
-`, spec.Plugin.ID)
+`
 }

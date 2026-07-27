@@ -71,7 +71,7 @@ data:
   uninstall_policy: "archive"
   rollback_policy: "manual"
   tables:
-    - name: "sample_plugin_reports"
+    - name: "reports"
       description: "Report cache"
       primary_key: "id"
       columns: "id, report_code, status"
@@ -205,7 +205,7 @@ frontend_entry: "/plugins/sample-plugin"
 	if info.DataManifest == nil || info.DataManifest.Namespace != "sample_plugin" || info.DataManifest.UninstallPolicy != DataUninstallArchive {
 		t.Fatalf("expected data manifest parsed, got %+v", info.DataManifest)
 	}
-	if len(info.DataManifest.Tables) != 1 || info.DataManifest.Tables[0].Name != "sample_plugin_reports" {
+	if len(info.DataManifest.Tables) != 1 || info.DataManifest.Tables[0].Name != "reports" {
 		t.Fatalf("unexpected data tables: %+v", info.DataManifest.Tables)
 	}
 	if len(info.DataManifest.Tables[0].Indexes) != 2 || !info.DataManifest.Tables[0].Indexes[0].Unique {
@@ -326,16 +326,16 @@ func TestFileLoaderRejectsInvalidDataManifest(t *testing.T) {
     - name: "sk_core_items"
       columns: "id"
 `,
-		"table outside namespace": `data:
+		"physical table name": `data:
   namespace: "reports"
   tables:
-    - name: "orders"
+    - name: "reports_orders"
       columns: "id"
 `,
 		"index unknown column": `data:
   namespace: "reports"
   tables:
-    - name: "reports_orders"
+    - name: "orders"
       columns: "id, code"
       indexes: "idx_reports_orders_status(status)"
 `,
@@ -343,7 +343,7 @@ func TestFileLoaderRejectsInvalidDataManifest(t *testing.T) {
   namespace: "reports"
   uninstall_policy: "delete"
   tables:
-    - name: "reports_orders"
+    - name: "orders"
       columns: "id"
 `,
 	}

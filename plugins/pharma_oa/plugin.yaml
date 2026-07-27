@@ -1604,77 +1604,77 @@ data:
   uninstall_policy: drop
   rollback_policy: automatic
   tables:
-    - name: pharma_oa_module_registry
+    - name: module_registry
       description: Tenant-scoped registry for the medical OA domain modules delivered by this plugin family.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, module_key, status, contract_version, created_at, updated_at
       indexes: unique uq_pharma_oa_modules_tenant_key(tenant_id,module_key); idx_pharma_oa_modules_scope(tenant_id,organization_id,status)
-    - name: pharma_oa_document_type_registry
+    - name: document_type_registry
       description: Tenant-scoped binding between medical business documents, modules, and host workflows.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, document_type, module_key, workflow_key, status, created_at, updated_at
       indexes: unique uq_pharma_oa_documents_tenant_type(tenant_id,document_type); idx_pharma_oa_documents_scope(tenant_id,organization_id,status)
-    - name: pharma_oa_employees
+    - name: employees
       description: Trusted-scope employee profiles, organization assignments, employment state, certificates, and owned attachments.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, code, name, department_id, position_id, employment_status, phone, email, hire_date, left_at, leave_reason, attachments, certificates, version, created_at, updated_at
       indexes: unique uq_pharma_oa_employees_tenant_code(tenant_id,code); idx_pharma_oa_employees_scope(tenant_id,organization_id,employment_status); idx_pharma_oa_employees_name(tenant_id,name)
-    - name: pharma_oa_parties
+    - name: parties
       description: Trusted-scope customer and supplier identity, contacts, addresses, settlement, and lifecycle state.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, party_type, code, name, unified_social_credit_code, region, rating, status, disable_reason, contacts, addresses, settlement_terms, version, created_at, updated_at
       indexes: unique uq_pharma_oa_parties_tenant_type_code(tenant_id,party_type,code); unique uq_pharma_oa_parties_tenant_type_credit(tenant_id,party_type,unified_social_credit_code); idx_pharma_oa_parties_scope(tenant_id,organization_id,party_type,status)
-    - name: pharma_oa_catalogs
+    - name: catalogs
       description: Trusted-scope categories, units, manufacturers, hierarchy, identity, and lifecycle state.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, catalog_type, code, name, description, parent_id, symbol, decimal_places, unified_social_credit_code, license_number, status, disable_reason, version, created_at, updated_at
       indexes: unique uq_pharma_oa_catalogs_tenant_type_code(tenant_id,catalog_type,code); unique uq_pharma_oa_catalogs_tenant_type_credit(tenant_id,catalog_type,unified_social_credit_code); idx_pharma_oa_catalogs_scope(tenant_id,organization_id,catalog_type,status)
-    - name: pharma_oa_products
+    - name: products
       description: Trusted-scope pharmaceutical products and SKUs with governed catalog references and storage requirements.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, code, sku, name, generic_name, category_id, unit_id, manufacturer_id, dosage_form, specification, approval_number, barcode, storage_condition, temperature_min, temperature_max, status, disable_reason, version, created_at, updated_at
       indexes: unique uq_pharma_oa_products_tenant_code(tenant_id,code); unique uq_pharma_oa_products_tenant_sku(tenant_id,sku); unique uq_pharma_oa_products_tenant_approval(tenant_id,approval_number); idx_pharma_oa_products_scope(tenant_id,organization_id,status)
-    - name: pharma_oa_qualification_types
+    - name: qualification_types
       description: Trusted-scope qualification policies bound to one subject type and business gate.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, code, name, subject_type, business_gate, description, validity_days, alert_days, evidence_required, business_required, status, disable_reason, version, created_at, updated_at
       indexes: unique uq_pharma_oa_qualification_types_tenant_code(tenant_id,code); idx_pharma_oa_qualification_types_scope(tenant_id,organization_id,subject_type,business_gate,status)
-    - name: pharma_oa_qualifications
+    - name: qualifications
       description: Trusted-scope qualification evidence, review lifecycle, validity, and expiry alert state.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, type_id, subject_type, subject_id, certificate_number, issuer, valid_from, valid_to, status, evidence_file_id, evidence_file_name, evidence_file_hash, review_comment, submitted_at, reviewed_at, reviewed_by, revoked_at, last_alert_key, version, created_at, updated_at
       indexes: unique uq_pharma_oa_qualifications_tenant_type_subject_certificate(tenant_id,type_id,subject_id,certificate_number); idx_pharma_oa_qualifications_scope(tenant_id,organization_id,subject_type,subject_id,status); idx_pharma_oa_qualifications_expiry(tenant_id,status,valid_to)
-    - name: pharma_oa_oa_requests
+    - name: oa_requests
       description: Trusted-scope general OA request drafts bound to public host workflow instances.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, request_type, title, description, form_data, status, approver_id, approver_name, workflow_definition_id, workflow_instance_id, submitted_at, last_operation_key, attachments, comments, reminder_at, version, created_at, updated_at
       indexes: idx_pharma_oa_requests_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_requests_type(tenant_id,request_type,updated_at); idx_pharma_oa_requests_workflow(workflow_instance_id)
-    - name: pharma_oa_purchase_requests
+    - name: purchase_requests
       description: Trusted-scope purchase requests with governed supplier/product references and public host workflow approval.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, number, supplier_id, supplier_code, supplier_name, requester_id, approver_id, approver_name, reason, currency, lines, total_amount, status, workflow_definition_id, workflow_instance_id, purchase_order_id, decision_comment, decided_at, last_operation_key, version, created_at, updated_at
       indexes: unique uq_pharma_oa_purchase_requests_number(tenant_id,number); unique uq_pharma_oa_purchase_requests_operation(tenant_id,last_operation_key); idx_pharma_oa_purchase_requests_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_purchase_requests_supplier(tenant_id,supplier_id,updated_at); idx_pharma_oa_purchase_requests_workflow(workflow_instance_id)
-    - name: pharma_oa_purchase_orders
+    - name: purchase_orders
       description: Trusted-scope purchase orders created atomically from approved purchase requests.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, number, purchase_request_id, supplier_id, supplier_code, supplier_name, currency, lines, total_amount, status, approved_by, approved_at, last_operation_key, version, created_at, updated_at
       indexes: unique uq_pharma_oa_purchase_orders_number(tenant_id,number); unique uq_pharma_oa_purchase_orders_request(tenant_id,purchase_request_id); idx_pharma_oa_purchase_orders_scope(tenant_id,organization_id,owner_id,status); idx_pharma_oa_purchase_orders_supplier(tenant_id,supplier_id,updated_at)
-    - name: pharma_oa_purchase_inbounds
+    - name: purchase_inbounds
       description: Trusted-scope immutable receiving facts with lot dates, owned attachments, and order quantity reconciliation.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, number, purchase_order_id, purchase_order_number, warehouse_id, area_id, location_id, lines, attachments, status, received_by, received_at, last_operation_key, version, created_at, updated_at
       indexes: unique uq_pharma_oa_purchase_inbounds_number(tenant_id,number); unique uq_pharma_oa_purchase_inbounds_operation(tenant_id,last_operation_key); idx_pharma_oa_purchase_inbounds_scope(tenant_id,organization_id,owner_id,received_at); idx_pharma_oa_purchase_inbounds_order(tenant_id,purchase_order_id,received_at)
-    - name: pharma_oa_warehouses
+    - name: warehouses
       description: Trusted-scope warehouse identities and lifecycle state.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, code, name, address, contact_name, contact_phone, status, disable_reason, version, created_at, updated_at
       indexes: unique uq_pharma_oa_warehouses_code(tenant_id,organization_id,code); idx_pharma_oa_warehouses_scope(tenant_id,organization_id,status,updated_at)
-    - name: pharma_oa_warehouse_areas
+    - name: warehouse_areas
       description: Temperature-aware areas owned by one warehouse.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, warehouse_id, code, name, temperature_min, temperature_max, status, disable_reason, version, created_at, updated_at
       indexes: unique uq_pharma_oa_warehouse_areas_code(tenant_id,warehouse_id,code); idx_pharma_oa_warehouse_areas_scope(tenant_id,organization_id,warehouse_id,status,updated_at)
-    - name: pharma_oa_warehouse_locations
+    - name: warehouse_locations
       description: Operational storage locations owned by one warehouse area.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, warehouse_id, area_id, code, name, location_type, status, disable_reason, version, created_at, updated_at

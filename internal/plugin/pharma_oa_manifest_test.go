@@ -31,11 +31,11 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 		t.Fatalf("unexpected plugin data lifecycle: %+v", info.DataManifest)
 	}
 	expectedTables := map[string]struct{}{
-		"pharma_oa_module_registry": {}, "pharma_oa_document_type_registry": {},
-		"pharma_oa_employees": {}, "pharma_oa_parties": {}, "pharma_oa_catalogs": {}, "pharma_oa_products": {},
-		"pharma_oa_qualification_types": {}, "pharma_oa_qualifications": {}, "pharma_oa_oa_requests": {},
-		"pharma_oa_purchase_requests": {}, "pharma_oa_purchase_orders": {}, "pharma_oa_purchase_inbounds": {},
-		"pharma_oa_warehouses": {}, "pharma_oa_warehouse_areas": {}, "pharma_oa_warehouse_locations": {},
+		"module_registry": {}, "document_type_registry": {},
+		"employees": {}, "parties": {}, "catalogs": {}, "products": {},
+		"qualification_types": {}, "qualifications": {}, "oa_requests": {},
+		"purchase_requests": {}, "purchase_orders": {}, "purchase_inbounds": {},
+		"warehouses": {}, "warehouse_areas": {}, "warehouse_locations": {},
 	}
 	for _, table := range info.DataManifest.Tables {
 		if _, exists := expectedTables[table.Name]; !exists {

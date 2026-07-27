@@ -184,32 +184,32 @@ data:
   uninstall_policy: drop
   rollback_policy: automatic
   tables:
-    - name: equipment_maintenance_assets
+    - name: assets
       description: Tenant-scoped equipment asset registry.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, code, name, category, model, serial_number, location, status, next_maintenance_at, created_at, updated_at
       indexes: unique uq_equipment_assets_tenant_code(tenant_id,code); idx_equipment_assets_scope(tenant_id,organization_id,status); idx_equipment_assets_due(tenant_id,next_maintenance_at)
-    - name: equipment_maintenance_work_orders
+    - name: work_orders
       description: Work-order lifecycle and workflow binding.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, asset_id, number, title, priority, status, assignee_id, workflow_instance_id, estimated_cost, started_at, completed_at, closed_at, created_at, updated_at
       indexes: unique uq_equipment_work_orders_tenant_number(tenant_id,number); idx_equipment_work_orders_scope(tenant_id,organization_id,status); idx_equipment_work_orders_asset(asset_id,status)
-    - name: equipment_maintenance_plans
+    - name: plans
       description: Preventive maintenance and inspection plans.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, asset_id, name, interval_days, next_run_at, status, created_at, updated_at
       indexes: idx_equipment_plans_scope(tenant_id,organization_id,status); idx_equipment_plans_due(tenant_id,next_run_at)
-    - name: equipment_maintenance_inspections
+    - name: inspections
       description: Inspection execution evidence and findings.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, plan_id, asset_id, work_order_id, status, result, finding, attachment_ids, inspected_at, created_at, updated_at
       indexes: idx_equipment_inspections_scope(tenant_id,organization_id,inspected_at); idx_equipment_inspections_asset(asset_id,inspected_at)
-    - name: equipment_maintenance_spare_parts
+    - name: spare_parts
       description: Spare-part catalog and current balance.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, sku, name, unit, quantity, minimum_quantity, status, created_at, updated_at
       indexes: unique uq_equipment_spares_tenant_sku(tenant_id,sku); idx_equipment_spares_scope(tenant_id,organization_id,status)
-    - name: equipment_maintenance_spare_movements
+    - name: spare_movements
       description: Idempotent inbound, outbound, adjustment, and work-order usage ledger.
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, spare_part_id, work_order_id, movement_type, quantity, idempotency_key, occurred_at, created_at

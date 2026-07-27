@@ -60,9 +60,9 @@ func TestGeneratedPluginLifecycleArtifacts(t *testing.T) {
 			if err != nil || len(installed) != 1 || len(store.records) != 1 || len(store.executed) != 1 {
 				t.Fatalf("fresh install = steps:%+v records:%+v sql:%+v err:%v", installed, store.records, store.executed, err)
 			}
-			if !strings.Contains(store.executed[0], "CREATE TABLE IF NOT EXISTS pharma_oa_products") ||
-				!strings.Contains(store.executed[0], "PRIMARY KEY (id)") ||
-				!strings.Contains(store.executed[0], "created_at TIMESTAMP NOT NULL") {
+			if !strings.Contains(store.executed[0], "CREATE TABLE {{table:products}}") ||
+				!strings.Contains(store.executed[0], "id TEXT PRIMARY KEY") ||
+				!strings.Contains(store.executed[0], "created_at DATETIME NOT NULL") {
 				t.Fatalf("generated migration SQL = %q", store.executed[0])
 			}
 
@@ -98,7 +98,7 @@ func TestGeneratedPluginLifecycleArtifacts(t *testing.T) {
 					FromVersion:        info.DataManifest.MigrationVersion,
 					RollbackPolicy:     info.DataManifest.RollbackPolicy,
 				})
-				if err != nil || len(rolledBack) != 1 || len(store.records) != 0 || !strings.Contains(store.executed[1], "DROP TABLE IF EXISTS pharma_oa_products") {
+				if err != nil || len(rolledBack) != 1 || len(store.records) != 0 || !strings.Contains(store.executed[1], "DROP TABLE IF EXISTS {{table:products}}") {
 					t.Fatalf("automatic rollback = steps:%+v records:%+v sql:%+v err:%v", rolledBack, store.records, store.executed, err)
 				}
 				return
@@ -112,7 +112,7 @@ func TestGeneratedPluginLifecycleArtifacts(t *testing.T) {
 				FromVersion:        info.DataManifest.MigrationVersion,
 				UninstallPolicy:    info.DataManifest.UninstallPolicy,
 			})
-			if err != nil || len(dropped) != 1 || len(store.records) != 0 || !strings.Contains(store.executed[1], "DROP TABLE IF EXISTS pharma_oa_products") {
+			if err != nil || len(dropped) != 1 || len(store.records) != 0 || !strings.Contains(store.executed[1], "DROP TABLE IF EXISTS {{table:products}}") {
 				t.Fatalf("drop uninstall = steps:%+v records:%+v sql:%+v err:%v", dropped, store.records, store.executed, err)
 			}
 		})
@@ -206,7 +206,6 @@ func TestGeneratedMigrationExecutesAndRollsBack(t *testing.T) {
 func mustPluginLifecycleSpec(t *testing.T, uninstallPolicy string) *domaingenerator.GeneratorSpec {
 	t.Helper()
 	in := validServiceGeneratorSpecInput()
-	in.Table.Name = "pharma_oa_products"
 	in.Indexes[0].Name = "idx_pharma_oa_products_name"
 	namespaceServicePluginInput(&in, "pharma_oa")
 	in.Plugin = domaingenerator.PluginSpec{
@@ -260,7 +259,7 @@ func assertGeneratedDataManifest(t *testing.T, info pluginruntime.Info, spec *do
 		data.RollbackPolicy != pluginruntime.DataRollbackAutomatic {
 		t.Fatalf("generated data manifest = %+v", data)
 	}
-	if len(data.Tables) != 1 || data.Tables[0].Name != "pharma_oa_products" || data.Tables[0].PrimaryKey != "id" {
+	if len(data.Tables) != 1 || data.Tables[0].Name != "products" || data.Tables[0].PrimaryKey != "id" {
 		t.Fatalf("generated data tables = %+v", data.Tables)
 	}
 }

@@ -94,12 +94,17 @@ func generatedPluginE2ESpec(t *testing.T, baseURL string) *domaingenerator.Gener
 		Enabled: true, ID: "pharma-oa", Name: "Pharma OA", Description: "Generated pharma OA business plugin",
 		DataNamespace: "pharma-oa", UninstallPolicy: "drop", RollbackPolicy: "automatic",
 		ServiceBaseURL: baseURL, ServiceHealthURL: baseURL + "/health",
+		EventPublications: []domaingenerator.PluginEventPublicationSpec{
+			{Name: "product-request-changed", SchemaVersion: 1, PayloadType: "product_request.changed", Scope: "tenant"},
+		},
+		EventSubscriptions: []domaingenerator.PluginEventSubscriptionSpec{
+			{Publisher: "workflow", Name: "approval-completed", SchemaVersions: []uint32{1}, Handler: "onApprovalCompleted", RetryPolicy: "standard"},
+		},
 	}
 	in.Document = &domaingenerator.DocumentSpec{
 		Enabled: true, SchemaKey: "product_request", SchemaName: "Product Request",
 		DefinitionID: "product-request-approval", NumberPrefix: "PR", TitleField: "name",
 	}
-	in.Table.Name = "pharma_oa_products"
 	in.Indexes[0].Name = "idx_pharma_oa_products_name"
 	namespaceServicePluginInput(&in, "pharma_oa")
 	spec, err := domaingenerator.NewGeneratorSpec(in)

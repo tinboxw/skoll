@@ -179,13 +179,23 @@ type PluginSpec struct {
 	UIMode             string
 	ServiceBaseURL     string
 	ServiceHealthURL   string
+	EventPublications  []PluginEventPublicationSpec
 	EventSubscriptions []PluginEventSubscriptionSpec
 }
 
+type PluginEventPublicationSpec struct {
+	Name          string
+	SchemaVersion uint32
+	PayloadType   string
+	Scope         string
+}
+
 type PluginEventSubscriptionSpec struct {
-	Name        string
-	Handler     string
-	RetryPolicy string
+	Publisher      string
+	Name           string
+	SchemaVersions []uint32
+	Handler        string
+	RetryPolicy    string
 }
 
 type DocumentSpec struct {
@@ -427,9 +437,19 @@ func normalizePluginSpec(in PluginSpec, spec GeneratorSpecInput) PluginSpec {
 	}
 	in.ServiceBaseURL = strings.TrimRight(strings.TrimSpace(in.ServiceBaseURL), "/")
 	in.ServiceHealthURL = strings.TrimSpace(in.ServiceHealthURL)
+	publications := make([]PluginEventPublicationSpec, 0, len(in.EventPublications))
+	for _, item := range in.EventPublications {
+		item.Name = strings.TrimSpace(strings.ToLower(item.Name))
+		item.PayloadType = strings.TrimSpace(strings.ToLower(item.PayloadType))
+		item.Scope = strings.TrimSpace(strings.ToLower(item.Scope))
+		publications = append(publications, item)
+	}
+	in.EventPublications = publications
 	out := make([]PluginEventSubscriptionSpec, 0, len(in.EventSubscriptions))
 	for _, item := range in.EventSubscriptions {
+		item.Publisher = strings.TrimSpace(strings.ToLower(item.Publisher))
 		item.Name = strings.TrimSpace(strings.ToLower(item.Name))
+		item.SchemaVersions = append([]uint32(nil), item.SchemaVersions...)
 		item.Handler = strings.TrimSpace(item.Handler)
 		item.RetryPolicy = strings.TrimSpace(strings.ToLower(item.RetryPolicy))
 		if item.RetryPolicy == "" {
@@ -552,7 +572,7 @@ func validateGeneratorSpecInput(in GeneratorSpecInput) error {
 	if err := validatePluginSpec(in.Plugin); err != nil {
 		return err
 	}
-	if err := validatePluginDataOwnership(in.Plugin, in.Table, in.Indexes, in.Permissions, in.Menu); err != nil {
+	if err := validatePluginDataOwnership(in.Plugin, in.Table, in.Fields, in.Indexes, in.Permissions, in.Menu); err != nil {
 		return err
 	}
 	if err := validateDocumentSpec(in.Document, in.Plugin, fieldNames); err != nil {
@@ -752,15 +772,51 @@ func validatePluginSpec(spec PluginSpec) error {
 			return fmt.Errorf("generator plugin service %s URL is invalid", label)
 		}
 	}
+	publications := map[string]struct{}{}
+	for _, publication := range spec.EventPublications {
+		if !generatorKeyPattern.MatchString(publication.Name) {
+			return fmt.Errorf("generator plugin event publication name is invalid: %s", publication.Name)
+		}
+		if publication.SchemaVersion == 0 {
+			return fmt.Errorf("generator plugin event publication schema version must be positive")
+		}
+		if !generatorKeyPattern.MatchString(publication.PayloadType) {
+			return fmt.Errorf("generator plugin event publication payload type is invalid: %s", publication.PayloadType)
+		}
+		if publication.Scope != "tenant" && publication.Scope != "global" {
+			return fmt.Errorf("generator plugin event publication scope is invalid: %s", publication.Scope)
+		}
+		key := fmt.Sprintf("%s::%d", publication.Name, publication.SchemaVersion)
+		if _, ok := publications[key]; ok {
+			return fmt.Errorf("generator plugin event publication conflict: %s", key)
+		}
+		publications[key] = struct{}{}
+	}
 	seen := map[string]struct{}{}
 	for _, subscription := range spec.EventSubscriptions {
+		if !generatorPluginIDPattern.MatchString(subscription.Publisher) {
+			return fmt.Errorf("generator plugin event publisher is invalid: %s", subscription.Publisher)
+		}
 		if !generatorKeyPattern.MatchString(subscription.Name) {
 			return fmt.Errorf("generator plugin event name is invalid: %s", subscription.Name)
+		}
+		if len(subscription.SchemaVersions) == 0 || len(subscription.SchemaVersions) > 16 {
+			return fmt.Errorf("generator plugin event schema versions are required and bounded")
+		}
+		versions := make(map[uint32]struct{}, len(subscription.SchemaVersions))
+		for _, version := range subscription.SchemaVersions {
+			if version == 0 {
+				return fmt.Errorf("generator plugin event schema version must be positive")
+			}
+			if _, ok := versions[version]; ok {
+				return fmt.Errorf("generator plugin event schema version is duplicated: %d", version)
+			}
+			versions[version] = struct{}{}
 		}
 		if strings.TrimSpace(subscription.Handler) == "" {
 			return fmt.Errorf("generator plugin event handler is required")
 		}
-		key := subscription.Name + "::" + subscription.Handler
+		key := subscription.Publisher + "::" + subscription.Name + "::" + subscription.Handler
 		if _, ok := seen[key]; ok {
 			return fmt.Errorf("generator plugin event subscription conflict: %s", key)
 		}
@@ -774,13 +830,24 @@ func validatePluginSpec(spec PluginSpec) error {
 	return nil
 }
 
-func validatePluginDataOwnership(plugin PluginSpec, table TableSpec, indexes []IndexSpec, permissions PermissionSpec, menu MenuSpec) error {
+func validatePluginDataOwnership(plugin PluginSpec, table TableSpec, fields []FieldSpec, indexes []IndexSpec, permissions PermissionSpec, menu MenuSpec) error {
 	if !plugin.Enabled {
 		return nil
 	}
-	prefix := plugin.DataNamespace + "_"
-	if !strings.HasPrefix(table.Name, prefix) {
-		return fmt.Errorf("generator plugin table %s must use data namespace prefix %s", table.Name, prefix)
+	if len(table.Name) > 42 || !generatorNamePattern.MatchString(table.Name) ||
+		strings.HasPrefix(table.Name, plugin.DataNamespace+"_") {
+		return fmt.Errorf("generator plugin logical table is invalid: %s", table.Name)
+	}
+	reservedFields := map[string]struct{}{
+		"tenant_id": {}, "organization_id": {}, "owner_id": {}, "version": {}, "created_at": {}, "updated_at": {},
+	}
+	for _, field := range fields {
+		if field.Name != field.ColumnName {
+			return fmt.Errorf("generator plugin field %s must use the same logical and storage name", field.Name)
+		}
+		if _, reserved := reservedFields[field.Name]; reserved {
+			return fmt.Errorf("generator plugin field is reserved by the host: %s", field.Name)
+		}
 	}
 	for _, index := range indexes {
 		if !strings.HasPrefix(index.Name, "idx_"+plugin.DataNamespace+"_") {

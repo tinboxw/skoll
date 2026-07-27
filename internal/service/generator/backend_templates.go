@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"strconv"
 	"strings"
 
 	domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
@@ -61,24 +62,32 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderFrontendView(spec)
 	case "plugin.manifest":
 		return renderPluginManifest(spec)
+	case "plugin.contract":
+		return renderPluginContractJSON(spec)
+	case "plugin.datastore.schema":
+		return renderPluginDatastoreSchema(spec)
 	case "plugin.go.mod":
 		return renderPluginGoMod(spec)
+	case "plugin.backend.contract":
+		return formatGoTemplate(renderPluginBackendContract(spec))
 	case "plugin.backend.server":
 		if spec.Document != nil {
 			return formatGoTemplate(renderDocumentPluginBackendServer(spec))
 		}
 		return formatGoTemplate(renderPluginBackendServer(spec))
 	case "plugin.migration.up":
-		return renderMigration(spec, "postgres")
+		return renderPluginDatastoreMigration(spec)
 	case "plugin.migration.down":
-		return renderPluginMigrationDown(spec)
+		return renderPluginDatastoreMigrationDown(spec)
 	case "plugin.frontend.api":
 		return renderPluginFrontendAPI(spec)
+	case "plugin.frontend.contract":
+		return renderPluginFrontendContract(spec)
 	case "plugin.frontend.store":
 		if spec.Document != nil {
 			return renderDocumentPluginFrontendStore(spec)
 		}
-		return renderFrontendStore(spec)
+		return renderPluginFrontendStore(spec)
 	case "plugin.frontend.locale":
 		return renderFrontendLocale(spec)
 	case "plugin.frontend.view":
@@ -476,7 +485,7 @@ func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
 	}
 	fmt.Fprintf(&b, "data:\n")
 	fmt.Fprintf(&b, "  namespace: %s\n  migration_version: %s\n  migration_directory: %s\n  uninstall_policy: %s\n  rollback_policy: %s\n", spec.Plugin.DataNamespace, spec.Plugin.Version, spec.Plugin.MigrationDirectory, spec.Plugin.UninstallPolicy, spec.Plugin.RollbackPolicy)
-	fmt.Fprintf(&b, "  tables:\n    - name: %s\n      description: %s\n      primary_key: %s\n      columns: %s\n", spec.Table.Name, spec.Table.Comment, primaryColumn(spec), strings.Join(fieldColumns(spec), ", "))
+	fmt.Fprintf(&b, "  tables:\n    - name: %s\n      description: %s\n      primary_key: %s\n      columns: %s\n", pluginLogicalTable(spec), spec.Table.Comment, primaryColumn(spec), strings.Join(fieldColumns(spec), ", "))
 	if len(spec.Indexes) > 0 {
 		fmt.Fprintf(&b, "      indexes: %s\n", pluginIndexList(spec))
 	}
@@ -484,13 +493,30 @@ func renderPluginManifest(spec domaingenerator.GeneratorSpec) string {
 	for _, route := range pluginAPIRoutes(spec) {
 		fmt.Fprintf(&b, "    - method: %s\n      path: %s\n      summary: %s\n      permission: %s\n      audit_action: %s\n", route.method, route.path, route.summary, route.permission, route.auditAction)
 	}
+	if len(spec.Plugin.EventPublications) > 0 || len(spec.Plugin.EventSubscriptions) > 0 {
+		fmt.Fprintf(&b, "events:\n")
+	}
+	if len(spec.Plugin.EventPublications) > 0 {
+		fmt.Fprintf(&b, "  publications:\n")
+		for _, publication := range spec.Plugin.EventPublications {
+			fmt.Fprintf(&b, "    - name: %s\n      schema_version: %d\n      payload_type: %s\n      scope: %s\n", publication.Name, publication.SchemaVersion, publication.PayloadType, publication.Scope)
+		}
+	}
 	if len(spec.Plugin.EventSubscriptions) > 0 {
-		fmt.Fprintf(&b, "events:\n  subscriptions:\n")
+		fmt.Fprintf(&b, "  subscriptions:\n")
 		for _, subscription := range spec.Plugin.EventSubscriptions {
-			fmt.Fprintf(&b, "    - name: %s\n      handler: %s\n      retry_policy: %s\n", subscription.Name, subscription.Handler, subscription.RetryPolicy)
+			fmt.Fprintf(&b, "    - publisher: %s\n      name: %s\n      schema_versions: %s\n      handler: %s\n      retry_policy: %s\n", subscription.Publisher, subscription.Name, uint32List(subscription.SchemaVersions), subscription.Handler, subscription.RetryPolicy)
 		}
 	}
 	return b.String()
+}
+
+func uint32List(items []uint32) string {
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		values = append(values, strconv.FormatUint(uint64(item), 10))
+	}
+	return "[" + strings.Join(values, ", ") + "]"
 }
 
 type pluginRoute struct {
@@ -578,8 +604,30 @@ func renderPluginFrontendAPI(spec domaingenerator.GeneratorSpec) string {
 	if spec.Document != nil {
 		return renderDocumentPluginFrontendAPI(spec)
 	}
-	content := renderFrontendAPI(spec)
-	return strings.Replace(content, fmt.Sprintf("const basePath = %q;", spec.Menu.Path), fmt.Sprintf("const basePath = %q;", pluginAPIBasePath(spec)), 1)
+	typeName := spec.Table.DomainName
+	var b bytes.Buffer
+	fmt.Fprintf(&b, "import { pluginContract } from \"../contract\";\n")
+	fmt.Fprintf(&b, "import { apiDelete, apiGet, apiPost, apiPut, type ApiResponse } from \"../utils/api\";\n\n")
+	fmt.Fprintf(&b, "export type %s = {\n", typeName)
+	for _, field := range spec.Fields {
+		optional := ""
+		if !field.Required && !field.PrimaryKey {
+			optional = "?"
+		}
+		fmt.Fprintf(&b, "\t%s%s: %s;\n", field.Name, optional, tsFieldType(field))
+	}
+	fmt.Fprintf(&b, "\tversion?: number;\n};\n\n")
+	fmt.Fprintf(&b, "export type %sInput = Partial<Omit<%s, \"version\">>;\n", typeName, typeName)
+	fmt.Fprintf(&b, "export type %sListQuery = { keyword?: string; cursor?: string; limit?: number };\n", typeName)
+	fmt.Fprintf(&b, "export type %sListPage = { items: %s[]; nextCursor: string; hasMore: boolean; limit: number };\n\n", typeName, typeName)
+	fmt.Fprintf(&b, "const basePath = pluginContract.api.basePath;\n\n")
+	fmt.Fprintf(&b, "export async function list%s(query: %sListQuery = {}): Promise<%sListPage> {\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "\tconst params = new URLSearchParams();\n\tif (query.keyword) params.set(\"keyword\", query.keyword);\n\tif (query.cursor) params.set(\"cursor\", query.cursor);\n\tif (query.limit !== undefined) params.set(\"limit\", String(query.limit));\n\tconst suffix = params.toString();\n\tconst response = await apiGet<ApiResponse<%sListPage>>(`${basePath}${suffix ? `?${suffix}` : \"\"}`);\n\treturn response.data;\n}\n\n", typeName)
+	fmt.Fprintf(&b, "export async function get%s(id: string): Promise<%s> {\n\tconst response = await apiGet<ApiResponse<{ item: %s }>>(`${basePath}/${encodeURIComponent(id)}`);\n\treturn response.data.item;\n}\n\n", typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export async function create%s(input: %sInput): Promise<%s> {\n\tconst response = await apiPost<ApiResponse<{ item: %s }>>(basePath, input);\n\treturn response.data.item;\n}\n\n", typeName, typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export async function update%s(id: string, input: %sInput): Promise<%s> {\n\tconst response = await apiPut<ApiResponse<{ item: %s }>>(`${basePath}/${encodeURIComponent(id)}`, input);\n\treturn response.data.item;\n}\n\n", typeName, typeName, typeName, typeName)
+	fmt.Fprintf(&b, "export async function delete%s(id: string): Promise<void> {\n\tawait apiDelete<ApiResponse<null>>(`${basePath}/${encodeURIComponent(id)}`);\n}\n", typeName)
+	return b.String()
 }
 
 func renderPluginFrontendView(spec domaingenerator.GeneratorSpec) string {
@@ -619,7 +667,7 @@ func TestGeneratedPluginManifestContract(t *testing.T) {
 }
 
 const generatedManifest = %q
-`, pkg, spec.Plugin.ID, spec.Plugin.DataNamespace, spec.Table.Name, spec.Plugin.UninstallPolicy, spec.Plugin.RollbackPolicy, spec.Permissions.ReadKey, pluginAuditResource(spec), renderPluginManifest(spec))
+`, pkg, spec.Plugin.ID, spec.Plugin.DataNamespace, pluginLogicalTable(spec), spec.Plugin.UninstallPolicy, spec.Plugin.RollbackPolicy, spec.Permissions.ReadKey, pluginAuditResource(spec), renderPluginManifest(spec))
 }
 
 func renderPluginREADME(spec domaingenerator.GeneratorSpec) string {
@@ -630,7 +678,7 @@ Generated business plugin for %s.
 ## Generated Surface
 
 - Manifest: permissions, menu, data manifest, API routes, audit actions, and event subscriptions.
-- Migration: creates and drops the namespaced %s table under the plugin migration directory.
+- Migration: creates and drops the logical %s table through host-owned namespace binding.
 - Lifecycle: %s rollback and %s uninstall policies are declared in the current manifest.
 - UI: API client, Pinia store, responsive list/form page, loading/error/save states, and permission-gated actions.
 - Acceptance: plugin manifest contract test.
@@ -651,7 +699,7 @@ sh ./plugin.sh dev
 `+"```"+`
 
 Both `+"`dev`"+` and `+"`install`"+` verify and extract the same current package before the runtime loader installs it.
-`, spec.Plugin.Name, spec.Table.CollectionName, spec.Table.Name, spec.Plugin.RollbackPolicy, spec.Plugin.UninstallPolicy)
+`, spec.Plugin.Name, spec.Table.CollectionName, pluginLogicalTable(spec), spec.Plugin.RollbackPolicy, spec.Plugin.UninstallPolicy)
 }
 
 func renderPluginPowerShellCommand(spec domaingenerator.GeneratorSpec) string {
@@ -1217,6 +1265,21 @@ func renderFrontendLocale(spec domaingenerator.GeneratorSpec) string {
 		for _, field := range spec.Fields {
 			fmt.Fprintf(&b, "\t\t%q: %q,\n", prefix+".field."+field.Name, field.Label)
 			fmt.Fprintf(&b, "\t\t%q: %q,\n", prefix+".validation."+field.Name, field.Label+" is invalid")
+		}
+		extras := [][2]string{
+			{"submitted", spec.Table.DomainName + " submitted"},
+			{"approved", spec.Table.DomainName + " approved"},
+			{"exportScheduled", "Export scheduled"},
+		}
+		if locale == "zh-CN" {
+			extras = [][2]string{
+				{"submitted", spec.Table.DomainName + "已提交"},
+				{"approved", spec.Table.DomainName + "已审批"},
+				{"exportScheduled", "导出任务已创建"},
+			}
+		}
+		for _, label := range extras {
+			fmt.Fprintf(&b, "\t\t%q: %q,\n", prefix+"."+label[0], label[1])
 		}
 		fmt.Fprintf(&b, "\t},\n")
 	}

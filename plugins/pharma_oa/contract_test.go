@@ -385,9 +385,10 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 	manifest := loadPharmaManifest(t)
 	wantTables := make(map[string]struct{}, len(manifest.Data.Tables))
 	for _, table := range manifest.Data.Tables {
-		wantTables[table.Name] = struct{}{}
-		if !db.Migrator().HasTable(table.Name) {
-			t.Fatalf("migration did not create %s", table.Name)
+		physicalTable := manifest.Data.Namespace + "_" + table.Name
+		wantTables[physicalTable] = struct{}{}
+		if !db.Migrator().HasTable(physicalTable) {
+			t.Fatalf("migration did not create %s for logical table %s", physicalTable, table.Name)
 		}
 		columns := pharmaCSVSet(table.Columns)
 		for _, column := range []string{"tenant_id", "organization_id", "owner_id"} {
@@ -499,17 +500,20 @@ func TestMedicalOAWorkspaceIsElementNativeChineseFirstAndComplete(t *testing.T) 
 			t.Fatalf("Element Plus workspace is missing %q", value)
 		}
 	}
-	for _, value := range []string{"window.__SKOLL_HOST__", `"Idempotency-Key"`, `customer: "/customers"`, `supplier: "/suppliers"`, `product: "/products"`, `qualification: "/qualifications"`, `qualificationType: "/qualification-types"`, "scanQualificationExpiry"} {
+	for _, value := range []string{`import { getPluginHost } from "@skoll/plugin-sdk"`, `getPluginHost({ pluginId: "pharma_oa"`, `"Idempotency-Key"`, `customer: "/customers"`, `supplier: "/suppliers"`, `product: "/products"`, `qualification: "/qualifications"`, `qualificationType: "/qualification-types"`, "scanQualificationExpiry"} {
 		if !strings.Contains(api, value) {
 			t.Fatalf("host-native API workflow is missing %q", value)
 		}
+	}
+	if strings.Contains(api, "window.__SKOLL_HOST__") {
+		t.Fatal("business plugin must use the current plugin SDK instead of reading the host global directly")
 	}
 	for _, value := range []string{"skoll:locale", "skoll:host-ready", "Master Data Workspace", "主数据工作台"} {
 		if !strings.Contains(i18n, value) {
 			t.Fatalf("runtime locale contract is missing %q", value)
 		}
 	}
-	for _, value := range []string{"--color-surface", "--color-primary", `[data-density="compact"]`, `[data-theme="dark"]`, "@media (max-width: 900px)", "@media (max-width: 620px)", "prefers-reduced-motion", ":focus-visible"} {
+	for _, value := range []string{"--color-surface", "--color-primary", `[data-density="compact"]`, "var(--color-bg)", "@media (max-width: 900px)", "@media (max-width: 620px)", "prefers-reduced-motion", ":focus-visible"} {
 		if !strings.Contains(styles, value) {
 			t.Fatalf("responsive theme contract is missing %q", value)
 		}

@@ -57,8 +57,9 @@ func TestDocumentPluginTargetUsesOnlyPublicContracts(t *testing.T) {
 	view := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue").GeneratedContent
 	hostAPI := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/utils/api.ts").GeneratedContent
 	hostContext := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/skoll-host.ts").GeneratedContent
-	for _, marker := range []string{"@skoll/document-ui", "@skoll/business-ui", "@skoll/plugin-sdk", "DocumentList", "DocumentForm", "DocumentDetail", "approveDocument", "exportDocuments", "getPluginHost", `pluginId: "pharma-oa"`} {
-		if !strings.Contains(packageJSON+view+hostAPI+hostContext, marker) {
+	frontendContract := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/contract.ts").GeneratedContent
+	for _, marker := range []string{"@skoll/document-ui", "@skoll/business-ui", "@skoll/plugin-sdk", "DocumentList", "DocumentForm", "DocumentDetail", "approveDocument", "exportDocuments", "getPluginHost", `pluginId: pluginContract.plugin.id`, `"id": "pharma-oa"`} {
+		if !strings.Contains(packageJSON+view+hostAPI+hostContext+frontendContract, marker) {
 			t.Fatalf("generated frontend missing %q", marker)
 		}
 	}

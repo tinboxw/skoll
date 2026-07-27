@@ -36,7 +36,7 @@ data:
   uninstall_policy: drop
   rollback_policy: manual
   tables:
-    - name: demo_exports
+    - name: exports
       primary_key: id
       columns: id, code
       indexes: idx_demo_exports_code(code)

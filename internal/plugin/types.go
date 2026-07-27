@@ -600,7 +600,8 @@ func (i Info) ValidateDataManifest() error {
 	seenTables := map[string]struct{}{}
 	for _, table := range data.Tables {
 		name := strings.TrimSpace(table.Name)
-		if !dataIdentifierPattern.MatchString(name) || strings.HasPrefix(name, "sk_") || !strings.HasPrefix(name, namespace+"_") {
+		if !dataIdentifierPattern.MatchString(name) || strings.HasPrefix(name, "sk_") ||
+			strings.HasPrefix(name, namespace+"_") {
 			return ErrPluginManifestBroken
 		}
 		if _, ok := seenTables[name]; ok {
