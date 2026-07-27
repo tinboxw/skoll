@@ -49,5 +49,19 @@
 			"totalLongTaskMs": 600,
 			"heapGrowthBytes": 33554432
 		}
+	},
+	"pluginRuntime": {
+		"bundle": {
+			"routeSource": "src/plugins/RemotePluginRuntime.vue",
+			"maxRouteGzipBytes": 8192
+		},
+		"runtime": {
+			"routeReadyMs": 2500,
+			"interactionMs": 1000,
+			"failureReadyMs": 6000,
+			"maxLongTaskMs": 200,
+			"totalLongTaskMs": 600,
+			"heapGrowthBytes": 33554432
+		}
 	}
 }

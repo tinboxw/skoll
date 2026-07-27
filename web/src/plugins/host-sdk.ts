@@ -116,9 +116,9 @@ export function buildPluginHostBridgeScript(input: PluginHostSDKInit): string {
 		ctx.lifecycle = normalizeLifecycle(ctx.lifecycle);
 		ctx.locales = freezeList(ctx.locales);
 
-		function bridgeError(code, message, detail, report) {
-			var error = new Error(message);
-			error.name = 'PluginHostError';
+			function bridgeError(code, message, detail, report) {
+				var error = new Error(message);
+				error.name = 'PluginHostError';
 			error.code = code;
 			error.detail = freezeRecord(detail);
 			if (report !== false && window.parent && window.parent !== window) {
@@ -130,8 +130,19 @@ export function buildPluginHostBridgeScript(input: PluginHostSDKInit): string {
 					error: { code: code, message: message, detail: error.detail }
 				}, window.location.origin);
 			}
-			return error;
-		}
+				return error;
+			}
+
+			window.addEventListener('error', function (event) {
+				var message = event && event.message ? String(event.message) : 'Plugin runtime failed';
+				bridgeError('PLUGIN_RUNTIME_ERROR', message, {}, true);
+			});
+
+			window.addEventListener('unhandledrejection', function (event) {
+				var reason = event && event.reason;
+				var message = reason && reason.message ? String(reason.message) : String(reason || 'Plugin promise rejected');
+				bridgeError('PLUGIN_RUNTIME_REJECTION', message, {}, true);
+			});
 
 		function hasCapability(capability) {
 			return allowedCapabilities.indexOf(String(capability || '').trim()) >= 0;

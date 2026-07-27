@@ -191,6 +191,47 @@ textarea {
 	background: transparent;
 }
 
+.remote-plugin-state {
+	display: grid;
+	align-content: center;
+	justify-items: center;
+	gap: var(--space-3);
+	min-height: 320px;
+	height: 100%;
+	padding: var(--space-6);
+	color: var(--color-text-muted);
+	text-align: center;
+}
+
+.remote-plugin-state h2,
+.remote-plugin-state p {
+	margin: 0;
+}
+
+.remote-plugin-state h2 {
+	color: var(--color-text);
+	font-size: 1.1rem;
+}
+
+.remote-plugin-state p {
+	max-width: 640px;
+	overflow-wrap: anywhere;
+	line-height: 1.6;
+}
+
+.remote-plugin-state--error svg {
+	color: var(--color-danger);
+}
+
+.remote-plugin-state__pulse {
+	width: 32px;
+	height: 32px;
+	border: 3px solid var(--color-border);
+	border-top-color: var(--color-primary);
+	border-radius: 50%;
+	animation: skoll-plugin-spin 0.8s linear infinite;
+}
+
 @media (max-width: 900px) {
 	.remote-plugin-fullpage {
 		min-height: 100%;
@@ -203,15 +244,6 @@ textarea {
 	}
 }
 
-.plugin-detail-error {
-	margin: 0;
-	padding: 18px;
-	color: var(--color-danger);
-	font-weight: 600;
-	background: var(--color-warning-soft);
-	border-bottom: 1px solid var(--color-border);
-}
-
 @keyframes skoll-plugin-loading {
 	50% {
 		opacity: 0.8;
@@ -220,6 +252,12 @@ textarea {
 	100% {
 		transform: translateX(100%);
 		opacity: 0.45;
+	}
+}
+
+@keyframes skoll-plugin-spin {
+	to {
+		transform: rotate(360deg);
 	}
 }
 

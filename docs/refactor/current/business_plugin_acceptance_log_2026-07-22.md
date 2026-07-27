@@ -3107,3 +3107,68 @@ Result: FF4-03 passed. Frontend plugins now inherit one validated host presentat
 ### Commit
 
 `FF4-03: inherit plugin presentation contract`
+
+## FF4-04 Isolate Plugin UI Failures And Enforce Runtime Budgets
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Replace duplicate remote-plugin renderers with one lazy runtime boundary and enforce loading, authorization, resource, interaction, memory, long-task, and bundle limits.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| One current runtime path | System plugin routes and application homes render the same lazy `RemotePluginRuntime` component; duplicate iframe implementations were removed | Pass |
+| Failure isolation | HTTP failure, invalid HTML, iframe failure, host render failure, plugin runtime error, and unhandled rejection enter one controlled state without replacing the shell | Pass |
+| Slow and stale work | Page fetches abort on route/plugin/locale changes, time out at `5000ms`, discard stale generations, and expose an explicit retry command | Pass |
+| Oversized page | Declared and measured plugin HTML above `1,048,576` bytes is rejected before iframe creation | Pass |
+| Authorization | Dynamic-route rematching checks declared access before rendering; the runtime repeats the access decision and never requests unauthorized plugin HTML | Pass |
+| Lazy loading | `RemotePluginRuntime.vue` is a Vite dynamic entry and loads only when an integrated plugin route is opened | Pass |
+| Runtime browser matrix | Broken, oversized, slow/retry, unauthorized, route, interaction, long-task, memory, desktop `1440x1000`, and mobile `390x844` scenarios | `6/6` Playwright tests passed |
+| Runtime bundle | Runtime dynamic chunk gzip `7,099 B <= 8,192 B` | Pass |
+| Host bundle | Initial gzip `166,320 B <= 205,000 B`; total JS gzip `537,895 B <= 655,000 B`; `78` async chunks | Pass |
+| Plugin-control bundle | `13/13` control-center routes are dynamic; max route gzip `2,784 B`; total `23,201 B` | Pass |
+| Integrated plugin budgets | Medical OA initial JS gzip `202,402 B`; equipment maintenance `191,991 B`; both below `204,800 B`, with CSS and total JS inside common limits | Pass |
+| Existing control center | Functional/theme/permission matrix `6/6`; route/list/interaction/long-task/memory performance matrix `2/2` | Pass |
+| Component and package regression | Web `40/40`, document UI `5/5`, business UI `15/15`, medical OA `20/20`, equipment maintenance `5/5` | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first plugin-runtime browser run failed because dynamic route rematching did not re-check access, mobile expected a permanently visible sidebar, and development chunk compilation polluted the stable performance sample.
+2. Route rematching now denies unauthorized targets before rendering, shell survival uses the responsive header, and runtime measurements warm the lazy chunk before collecting stable long tasks.
+3. The next performance-only run exposed that menu URLs use `/plugins/{id}` while plugin-route recognition only normalized `/skoll/plugins/{id}`. The current route recognizer now normalizes both declared menu and canonical paths.
+4. The complete runtime matrix was re-executed and passed `6/6`.
+5. The first existing control-center rerun failed at login because no backend was listening on port `8080`. After starting the current Skoll server, the unchanged suite was re-executed and passed `6/6`; its performance suite passed `2/2`.
+
+### Verification Commands
+
+```powershell
+npm --prefix packages/skoll-plugin-sdk run typecheck
+npm --prefix packages/skoll-plugin-sdk run build
+npm --prefix packages/skoll-business-ui run typecheck
+npm --prefix packages/skoll-business-ui test
+npm --prefix packages/skoll-business-ui run build
+npm --prefix plugins/pharma_oa/frontend test
+npm --prefix plugins/pharma_oa/frontend run build
+npm --prefix plugins/equipment_maintenance/web test
+npm --prefix plugins/equipment_maintenance/web run build
+npm --prefix web run test:components
+npm --prefix web run typecheck
+npm --prefix web run build
+npm --prefix web run check:bundle
+npm --prefix web run check:plugin-center:bundle
+npm --prefix web run check:plugin-runtime:bundle
+npm --prefix web run test:plugin-runtime
+npm --prefix web run test:plugin-center
+npm --prefix web run test:plugin-center:performance
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF4-04 passed. Broken, slow, oversized, stale, and unauthorized frontend plugins now terminate inside one lazy controlled runtime boundary while the shell, navigation, permissions, and executable performance budgets remain intact.
+
+### Commit
+
+`FF4-04: isolate plugin UI runtime`

@@ -4,8 +4,8 @@
   "version": "0.10.0",
   "type": "module",
   "scripts": {
-    "build": "vue-tsc --noEmit && vite build && node scripts/check-bundle.mjs",
-    "check:bundle": "node scripts/check-bundle.mjs",
+    "build": "vue-tsc --noEmit && vite build && node ../../../scripts/check-plugin-frontend-bundle.mjs dist",
+    "check:bundle": "node ../../../scripts/check-plugin-frontend-bundle.mjs dist",
     "test": "vitest run"
   },
   "dependencies": {

@@ -218,7 +218,7 @@ function isKnownStaticPath(path: string): boolean {
 }
 
 function isPluginHomePath(path: string): boolean {
-	if (path.startsWith(`${ADMIN_PREFIX}/plugins/`)) {
+	if (path.startsWith(`${ADMIN_PREFIX}/plugins/`) || path.startsWith("/plugins/")) {
 		return true;
 	}
 	return /^\/(?!skoll(?:\/|$))[^/]+\/?$/.test(path);
@@ -323,11 +323,18 @@ router.beforeEach(async (to) => {
 		if (safePath !== to.path) {
 			return safePath;
 		}
-		// If the target plugin route was added during bootstrap, rematch the same URL once.
-		if (to.matched.length === 0 && router.resolve(to.path).matched.length > 0) {
-			return {
-				path: to.fullPath,
-				replace: true
+			// If the target plugin route was added during bootstrap, rematch the same URL once.
+			if (to.matched.length === 0 && router.resolve(to.path).matched.length > 0) {
+				const rematched = router.resolve(to.fullPath);
+				if (!canAccessRoute(rematched, getStoredUserRole(), getStoredPermissions())) {
+					return {
+						path: ADMIN_FORBIDDEN_PATH,
+						query: { from: to.fullPath }
+					};
+				}
+				return {
+					path: to.fullPath,
+					replace: true
 			};
 		}
 	}

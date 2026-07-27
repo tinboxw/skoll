@@ -83,6 +83,8 @@ describe("plugin host bridge script", () => {
 		expect(script).toContain("event.source !== window.parent");
 		expect(script).toContain("data.pluginId !== ctx.pluginId");
 		expect(script).toContain("allowedThemeTokens");
+		expect(script).toContain("PLUGIN_RUNTIME_ERROR");
+		expect(script).toContain("PLUGIN_RUNTIME_REJECTION");
 		expect(script).not.toContain("__SKOLL_TOKEN");
 		expect(script).not.toContain("__SKOLL_PLUGIN_CONTEXT");
 		expect(script).not.toContain("data-theme-mode");
