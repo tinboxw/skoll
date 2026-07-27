@@ -27,10 +27,9 @@ func TestNewBundleModes(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewBundle error: %v", err)
 			}
-			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.Permissions == nil || b.Menus == nil || b.UnitOfWork == nil || b.Workflow == nil || b.Notifications == nil || b.Jobs == nil || b.PharmaOA == nil {
+			if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.Audit == nil || b.Permissions == nil || b.Menus == nil || b.UnitOfWork == nil || b.Workflow == nil || b.Notifications == nil || b.Jobs == nil {
 				t.Fatalf("bundle has nil repositories")
 			}
-			assertPharmaOARepositories(t, b)
 
 			assertUserRepoContract(t, b)
 			assertRoleRepoContract(t, b)
@@ -49,10 +48,9 @@ func TestNewBundleMySQLIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewBundle mysql error: %v", err)
 	}
-	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil || b.Permissions == nil || b.Menus == nil || b.Workflow == nil || b.Notifications == nil || b.Jobs == nil || b.PharmaOA == nil {
+	if b.Users == nil || b.Roles == nil || b.RBAC == nil || b.System == nil || b.Permissions == nil || b.Menus == nil || b.Workflow == nil || b.Notifications == nil || b.Jobs == nil {
 		t.Fatalf("mysql bundle has nil repositories")
 	}
-	assertPharmaOARepositories(t, b)
 
 	assertUserRepoContract(t, b)
 	assertRoleRepoContract(t, b)
@@ -62,19 +60,6 @@ func TestNewBundleMySQLIntegration(t *testing.T) {
 func TestNewBundleUnsupportedMode(t *testing.T) {
 	if _, err := NewBundle(Options{Mode: Mode("bad")}); err == nil {
 		t.Fatalf("expected unsupported mode error")
-	}
-}
-
-func assertPharmaOARepositories(t *testing.T, b *Bundle) {
-	t.Helper()
-	first := b.PharmaOA()
-	second := b.PharmaOA()
-	if first == nil || first != second {
-		t.Fatal("Pharma OA repositories must be lazy and stable")
-	}
-	if first.Employees == nil || first.Products == nil || first.Suppliers == nil || first.Customers == nil || first.Warehouses == nil || first.Inventory == nil || first.Purchases == nil || first.Inbounds == nil || first.Sales == nil || first.Stocktakes == nil || first.Transfers == nil ||
-		first.Contracts == nil || first.Complaints == nil || first.Recalls == nil || first.FollowUps == nil || first.Opportunities == nil || first.PaymentPlans == nil || first.Invoices == nil || first.PaymentReminderJobs == nil || first.InventoryAlerts == nil || first.ReportExports == nil {
-		t.Fatal("Pharma OA repository set is incomplete")
 	}
 }
 

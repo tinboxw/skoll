@@ -1877,3 +1877,48 @@ Result: BF5-03D2 passed. The core no longer owns a Pharma OA application or HTTP
 ### Commit
 
 `BF5-03D2: remove built-in Pharma OA backend`
+
+## BF5-03D3 Remove Built-In Pharma OA Domain And Persistence Ownership
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Remove host-owned Pharma OA domain models, repository contracts and implementations, GORM persistence, SQL adapter exposure, Bundle construction, automatic schema migration, and the old table-specific benchmark command.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Domain ownership | Pass | Deleted the 24-file built-in Pharma OA domain package; framework domain packages contain no industry entity model |
+| Repository ownership | Pass | Deleted the eight-file Pharma OA repository package and all memory repository construction |
+| SQL ownership | Pass | Deleted 13 Pharma GORM model/store files and removed every Pharma model from `AllModels()` |
+| Adapter boundary | Pass | MySQL and PostgreSQL adapters no longer import, construct, store, or expose 21 Pharma repository groups |
+| Bundle boundary | Pass | `store.Bundle` no longer exposes `PharmaOA`; its lazy factory, provider interface, memory assembly, and tests are removed |
+| Benchmark ownership | Pass | Deleted the host command that seeded and queried four removed `pharma_oa_*` tables |
+| Generic plugin persistence | Pass | Plugin datastore DB, migration ledger, document number, workflow binding, attachment, comment, and timeline models remain unchanged |
+| Regression gate | Pass | All store packages pass, followed by the complete repository `go test ./... -count=1` gate |
+| Current-only rule | Pass | No host table, repository, adapter, migration, fallback store, or dual persistence path remains |
+
+### Verification Commands
+
+```powershell
+go test ./internal/store/... -count=1
+go test ./... -count=1
+rg -n "internal/domain/pharmaoa|internal/repository/pharmaoa|PharmaOA|NewPharma|Pharma[A-Z].*Repository" internal cmd --glob "*.go"
+rg -n "pharma_oa_" internal cmd --glob "*.go"
+git diff --check
+```
+
+Result: BF5-03D3 passed. Host persistence is industry-neutral; the installed plugin owns medical data exclusively through declared plugin schemas and public DataStore services.
+
+### Impact Review
+
+- Domain: removed all built-in medical entities and invariants.
+- Persistence: removed 21 repository groups, 29 automatic GORM model registrations, and four host benchmark tables.
+- Runtime: Bundle, MySQL, and PostgreSQL now assemble only framework repositories.
+- Plugin data: packaged plugin schemas and migrations are untouched and continue to pass the full repository gate.
+- Compatibility: none; old tables and repository APIs are not retained.
+
+### Commit
+
+`BF5-03D3: remove Pharma OA persistence ownership`

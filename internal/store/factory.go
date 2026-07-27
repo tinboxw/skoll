@@ -3,7 +3,6 @@ package store
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
 	"github.com/tinboxw/skoll/internal/repository"
@@ -12,7 +11,6 @@ import (
 	menurepo "github.com/tinboxw/skoll/internal/repository/menu"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	permissionrepo "github.com/tinboxw/skoll/internal/repository/permission"
-	pharmaoarepo "github.com/tinboxw/skoll/internal/repository/pharmaoa"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
 	rolerepo "github.com/tinboxw/skoll/internal/repository/role"
@@ -63,7 +61,6 @@ type Bundle struct {
 	Workflow          workflowsvc.Repository
 	Notifications     notificationsvc.Repository
 	Jobs              jobsvc.Repository
-	PharmaOA          func() *pharmaoarepo.Repositories
 	PluginDataDB      *gorm.DB
 	PluginDataDialect string
 }
@@ -92,7 +89,6 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Workflow:      workflowsvc.NewMemoryRepository(),
 			Notifications: notificationsvc.NewMemoryRepository(),
 			Jobs:          jobsvc.NewMemoryRepository(),
-			PharmaOA:      lazyPharmaOARepositories(newMemoryPharmaOARepositories),
 			PluginDataDB:  pluginDataDB, PluginDataDialect: "sqlite",
 		}, nil
 	case ModeMySQL:
@@ -119,7 +115,6 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Workflow:         primary.WorkflowRepository(),
 			Notifications:    primary.NotificationRepository(),
 			Jobs:             primary.JobRepository(),
-			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 			PluginDataDB:     primary.DB(), PluginDataDialect: "mysql",
 		}, nil
 	case ModePostgres:
@@ -148,7 +143,6 @@ func NewBundle(opts Options) (*Bundle, error) {
 			Workflow:         primary.WorkflowRepository(),
 			Notifications:    primary.NotificationRepository(),
 			Jobs:             primary.JobRepository(),
-			PharmaOA:         lazyPharmaOARepositories(func() *pharmaoarepo.Repositories { return newSQLPharmaOARepositories(primary) }),
 			PluginDataDB:     primary.DB(), PluginDataDialect: "postgresql",
 		}, nil
 	default:
@@ -175,89 +169,4 @@ func openMemoryPluginDataDB() (*gorm.DB, error) {
 		return nil, fmt.Errorf("migrate memory plugin datastore: %w", err)
 	}
 	return db, nil
-}
-
-type pharmaOARepositoryProvider interface {
-	PharmaEmployeeRepository() pharmaoarepo.EmployeeRepository
-	PharmaProductRepository() pharmaoarepo.ProductRepository
-	PharmaSupplierRepository() pharmaoarepo.SupplierRepository
-	PharmaCustomerRepository() pharmaoarepo.CustomerRepository
-	PharmaWarehouseRepository() pharmaoarepo.WarehouseRepository
-	PharmaInventoryRepository() pharmaoarepo.InventoryRepository
-	PharmaPurchaseRepository() pharmaoarepo.PurchaseRepository
-	PharmaPurchaseInboundRepository() pharmaoarepo.PurchaseInboundRepository
-	PharmaSalesRepository() pharmaoarepo.SalesRepository
-	PharmaStocktakeRepository() pharmaoarepo.StocktakeRepository
-	PharmaTransferRepository() pharmaoarepo.TransferRepository
-	PharmaContractRepository() pharmaoarepo.ContractRepository
-	PharmaQualityComplaintRepository() pharmaoarepo.QualityComplaintRepository
-	PharmaDrugRecallRepository() pharmaoarepo.DrugRecallRepository
-	PharmaCustomerFollowUpRepository() pharmaoarepo.CustomerFollowUpRepository
-	PharmaSalesOpportunityRepository() pharmaoarepo.SalesOpportunityRepository
-	PharmaPaymentPlanRepository() pharmaoarepo.PaymentPlanRepository
-	PharmaInvoiceRecordRepository() pharmaoarepo.InvoiceRecordRepository
-	PharmaPaymentReminderJobRepository() pharmaoarepo.PaymentReminderJobRepository
-	PharmaInventoryAlertRepository() pharmaoarepo.InventoryAlertRepository
-	PharmaReportExportJobRepository() pharmaoarepo.ReportExportJobRepository
-}
-
-func lazyPharmaOARepositories(factory func() *pharmaoarepo.Repositories) func() *pharmaoarepo.Repositories {
-	var once sync.Once
-	var repositories *pharmaoarepo.Repositories
-	return func() *pharmaoarepo.Repositories {
-		once.Do(func() { repositories = factory() })
-		return repositories
-	}
-}
-
-func newMemoryPharmaOARepositories() *pharmaoarepo.Repositories {
-	return &pharmaoarepo.Repositories{
-		Employees:           pharmaoarepo.NewMemoryEmployeeRepository(),
-		Products:            pharmaoarepo.NewMemoryProductRepository(),
-		Suppliers:           pharmaoarepo.NewMemorySupplierRepository(),
-		Customers:           pharmaoarepo.NewMemoryCustomerRepository(),
-		Warehouses:          pharmaoarepo.NewMemoryWarehouseRepository(),
-		Inventory:           pharmaoarepo.NewMemoryInventoryRepository(),
-		Purchases:           pharmaoarepo.NewMemoryPurchaseRepository(),
-		Inbounds:            pharmaoarepo.NewMemoryPurchaseInboundRepository(),
-		Sales:               pharmaoarepo.NewMemorySalesRepository(),
-		Stocktakes:          pharmaoarepo.NewMemoryStocktakeRepository(),
-		Transfers:           pharmaoarepo.NewMemoryTransferRepository(),
-		Contracts:           pharmaoarepo.NewMemoryContractRepository(),
-		Complaints:          pharmaoarepo.NewMemoryQualityComplaintRepository(),
-		Recalls:             pharmaoarepo.NewMemoryDrugRecallRepository(),
-		FollowUps:           pharmaoarepo.NewMemoryCustomerFollowUpRepository(),
-		Opportunities:       pharmaoarepo.NewMemorySalesOpportunityRepository(),
-		PaymentPlans:        pharmaoarepo.NewMemoryPaymentPlanRepository(),
-		Invoices:            pharmaoarepo.NewMemoryInvoiceRecordRepository(),
-		PaymentReminderJobs: pharmaoarepo.NewMemoryPaymentReminderJobRepository(),
-		InventoryAlerts:     pharmaoarepo.NewMemoryInventoryAlertRepository(),
-		ReportExports:       pharmaoarepo.NewMemoryReportExportJobRepository(),
-	}
-}
-
-func newSQLPharmaOARepositories(provider pharmaOARepositoryProvider) *pharmaoarepo.Repositories {
-	return &pharmaoarepo.Repositories{
-		Employees:           provider.PharmaEmployeeRepository(),
-		Products:            provider.PharmaProductRepository(),
-		Suppliers:           provider.PharmaSupplierRepository(),
-		Customers:           provider.PharmaCustomerRepository(),
-		Warehouses:          provider.PharmaWarehouseRepository(),
-		Inventory:           provider.PharmaInventoryRepository(),
-		Purchases:           provider.PharmaPurchaseRepository(),
-		Inbounds:            provider.PharmaPurchaseInboundRepository(),
-		Sales:               provider.PharmaSalesRepository(),
-		Stocktakes:          provider.PharmaStocktakeRepository(),
-		Transfers:           provider.PharmaTransferRepository(),
-		Contracts:           provider.PharmaContractRepository(),
-		Complaints:          provider.PharmaQualityComplaintRepository(),
-		Recalls:             provider.PharmaDrugRecallRepository(),
-		FollowUps:           provider.PharmaCustomerFollowUpRepository(),
-		Opportunities:       provider.PharmaSalesOpportunityRepository(),
-		PaymentPlans:        provider.PharmaPaymentPlanRepository(),
-		Invoices:            provider.PharmaInvoiceRecordRepository(),
-		PaymentReminderJobs: provider.PharmaPaymentReminderJobRepository(),
-		InventoryAlerts:     provider.PharmaInventoryAlertRepository(),
-		ReportExports:       provider.PharmaReportExportJobRepository(),
-	}
 }

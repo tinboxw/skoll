@@ -54,40 +54,6 @@ func TestAllModelsIncludesPermissionAndMenuModels(t *testing.T) {
 			t.Fatalf("AllModels() should include %s", name)
 		}
 	}
-	for name, present := range map[string]bool{
-		"PharmaEmployeeModel":           containsModel[PharmaEmployeeModel](models),
-		"PharmaProductModel":            containsModel[PharmaProductModel](models),
-		"PharmaSupplierModel":           containsModel[PharmaSupplierModel](models),
-		"PharmaCustomerModel":           containsModel[PharmaCustomerModel](models),
-		"PharmaWarehouseModel":          containsModel[PharmaWarehouseModel](models),
-		"PharmaStockBatchModel":         containsModel[PharmaStockBatchModel](models),
-		"PharmaStockBalanceModel":       containsModel[PharmaStockBalanceModel](models),
-		"PharmaStockLedgerModel":        containsModel[PharmaStockLedgerModel](models),
-		"PharmaPurchaseRequestModel":    containsModel[PharmaPurchaseRequestModel](models),
-		"PharmaPurchaseOrderModel":      containsModel[PharmaPurchaseOrderModel](models),
-		"PharmaPurchaseInboundModel":    containsModel[PharmaPurchaseInboundModel](models),
-		"PharmaSalesOrderModel":         containsModel[PharmaSalesOrderModel](models),
-		"PharmaSalesOutboundModel":      containsModel[PharmaSalesOutboundModel](models),
-		"PharmaStocktakeModel":          containsModel[PharmaStocktakeModel](models),
-		"PharmaTransferModel":           containsModel[PharmaTransferModel](models),
-		"PharmaAnnouncementModel":       containsModel[PharmaAnnouncementModel](models),
-		"PharmaColdChainRecordModel":    containsModel[PharmaColdChainRecordModel](models),
-		"PharmaContractModel":           containsModel[PharmaContractModel](models),
-		"PharmaQualityComplaintModel":   containsModel[PharmaQualityComplaintModel](models),
-		"PharmaDrugRecallModel":         containsModel[PharmaDrugRecallModel](models),
-		"PharmaCustomerFollowUpModel":   containsModel[PharmaCustomerFollowUpModel](models),
-		"PharmaSalesOpportunityModel":   containsModel[PharmaSalesOpportunityModel](models),
-		"PharmaPaymentPlanModel":        containsModel[PharmaPaymentPlanModel](models),
-		"PharmaInvoiceRecordModel":      containsModel[PharmaInvoiceRecordModel](models),
-		"PharmaPaymentReminderJobModel": containsModel[PharmaPaymentReminderJobModel](models),
-		"PharmaInventoryAlertModel":     containsModel[PharmaInventoryAlertModel](models),
-		"PharmaInventoryAlertJobModel":  containsModel[PharmaInventoryAlertJobModel](models),
-		"PharmaReportExportJobModel":    containsModel[PharmaReportExportJobModel](models),
-	} {
-		if !present {
-			t.Fatalf("AllModels() should include %s", name)
-		}
-	}
 }
 
 func containsModel[T any](models []any) bool {
