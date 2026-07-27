@@ -1681,19 +1681,46 @@ data:
       indexes: unique uq_pharma_oa_warehouse_locations_code(tenant_id,area_id,code); idx_pharma_oa_warehouse_locations_scope(tenant_id,organization_id,warehouse_id,area_id,status,updated_at)
 
 events:
+  publications:
+    - name: qualification-expiring
+      schema_version: 1
+      payload_type: qualification.expiry
+      scope: tenant
+    - name: inventory-changed
+      schema_version: 1
+      payload_type: inventory.change
+      scope: tenant
+    - name: quality-lot-released
+      schema_version: 1
+      payload_type: quality.lot.release
+      scope: tenant
+    - name: quality-recall-started
+      schema_version: 1
+      payload_type: quality.recall.start
+      scope: tenant
   subscriptions:
-    - name: approval-completed
+    - publisher: skoll
+      name: approval-completed
+      schema_versions: [1]
       handler: onApprovalCompleted
       retry_policy: standard
-    - name: qualification-expiring
+    - publisher: pharma_oa
+      name: qualification-expiring
+      schema_versions: [1]
       handler: onQualificationExpiring
       retry_policy: standard
-    - name: inventory-changed
+    - publisher: pharma_oa
+      name: inventory-changed
+      schema_versions: [1]
       handler: onInventoryChanged
       retry_policy: standard
-    - name: quality-lot-released
+    - publisher: pharma_oa
+      name: quality-lot-released
+      schema_versions: [1]
       handler: onQualityLotReleased
       retry_policy: standard
-    - name: quality-recall-started
+    - publisher: pharma_oa
+      name: quality-recall-started
+      schema_versions: [1]
       handler: onQualityRecallStarted
       retry_policy: standard

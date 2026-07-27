@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
 var (
@@ -87,7 +89,6 @@ var permissionModulePattern = regexp.MustCompile(`^[a-z][a-z0-9_.\-]{0,63}$`)
 var dataNamespacePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,63}$`)
 var dataIdentifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,127}$`)
 var auditActionPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}\.[a-z][a-z0-9_-]{0,63}$`)
-var eventNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_.-]{2,127}$`)
 
 type SignatureAlgorithm string
 
@@ -212,14 +213,13 @@ type APIRoute struct {
 }
 
 type EventContract struct {
+	Publications  []EventPublication
 	Subscriptions []EventSubscription
 }
 
-type EventSubscription struct {
-	Name        string
-	Handler     string
-	RetryPolicy string
-}
+type EventPublication = pluginsdk.EventPublicationDeclaration
+type EventSubscription = pluginsdk.EventSubscriptionDeclaration
+type EventScopeMode = pluginsdk.EventScopeMode
 
 type Info struct {
 	ID                  string
@@ -467,29 +467,68 @@ func (i Info) ValidateEventContract() error {
 	if i.EventContract == nil {
 		return nil
 	}
-	seen := map[string]struct{}{}
+	if len(i.EventContract.Publications) == 0 && len(i.EventContract.Subscriptions) == 0 {
+		return ErrPluginManifestBroken
+	}
+	publications := map[string]struct{}{}
+	for _, publication := range i.EventContract.Publications {
+		if err := publication.Validate(); err != nil {
+			return fmt.Errorf("%w: %v", ErrPluginManifestBroken, err)
+		}
+		key := strings.TrimSpace(publication.Name) + "::" + fmt.Sprint(publication.SchemaVersion)
+		if _, ok := publications[key]; ok {
+			return ErrPluginManifestBroken
+		}
+		publications[key] = struct{}{}
+	}
+	subscriptions := map[string]struct{}{}
 	for _, subscription := range i.EventContract.Subscriptions {
-		name := strings.TrimSpace(strings.ToLower(subscription.Name))
-		if !eventNamePattern.MatchString(name) {
+		if err := subscription.Validate(); err != nil {
+			return fmt.Errorf("%w: %v", ErrPluginManifestBroken, err)
+		}
+		key := strings.TrimSpace(subscription.Publisher) + "::" +
+			strings.TrimSpace(subscription.Name) + "::" + strings.TrimSpace(subscription.Handler)
+		if _, ok := subscriptions[key]; ok {
 			return ErrPluginManifestBroken
 		}
-		handler := strings.TrimSpace(subscription.Handler)
-		if handler == "" {
-			return ErrPluginManifestBroken
-		}
-		key := name + "::" + handler
-		if _, ok := seen[key]; ok {
-			return ErrPluginManifestBroken
-		}
-		seen[key] = struct{}{}
-		retryPolicy := strings.TrimSpace(strings.ToLower(subscription.RetryPolicy))
-		switch retryPolicy {
-		case "", "none", "standard", "aggressive":
-		default:
-			return ErrPluginManifestBroken
-		}
+		subscriptions[key] = struct{}{}
 	}
 	return nil
+}
+
+func (i Info) AuthorizeEventPublication(name string, schemaVersion uint32) (EventPublication, error) {
+	for _, declaration := range i.EventPublications() {
+		if declaration.Name == strings.TrimSpace(strings.ToLower(name)) && declaration.SchemaVersion == schemaVersion {
+			return declaration, nil
+		}
+	}
+	return EventPublication{}, pluginsdk.NewEventError(
+		pluginsdk.EventErrorUndeclaredPublication,
+		"name",
+		"plugin did not declare this event publication and schema version",
+		false,
+	)
+}
+
+func (i Info) AuthorizeEventSubscription(publisher, name string, schemaVersion uint32) (EventSubscription, error) {
+	publisher = strings.TrimSpace(strings.ToLower(publisher))
+	name = strings.TrimSpace(strings.ToLower(name))
+	for _, declaration := range i.EventSubscriptions() {
+		if declaration.Publisher != publisher || declaration.Name != name {
+			continue
+		}
+		for _, version := range declaration.SchemaVersions {
+			if version == schemaVersion {
+				return declaration, nil
+			}
+		}
+	}
+	return EventSubscription{}, pluginsdk.NewEventError(
+		pluginsdk.EventErrorUndeclaredSubscription,
+		"name",
+		"plugin did not declare this event subscription and schema version",
+		false,
+	)
 }
 
 func (i Info) ValidateAPIContract() error {

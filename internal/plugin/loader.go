@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,7 @@ const (
 	sectionAPI                = "api"
 	sectionAPIRoutes          = "api_routes"
 	sectionEvents             = "events"
+	sectionEventPublications  = "event_publications"
 	sectionEventSubscriptions = "event_subscriptions"
 )
 
@@ -94,6 +96,7 @@ func parseManifest(raw []byte) (Info, error) {
 	var currentConfigOption *ConfigOption
 	var currentDataTable *DataTable
 	var currentAPIRoute *APIRoute
+	var currentEventPublication *EventPublication
 	var currentEventSubscription *EventSubscription
 
 	flushPermission := func() {
@@ -152,6 +155,16 @@ func parseManifest(raw []byte) (Info, error) {
 		}
 		info.EventContract.Subscriptions = append(info.EventContract.Subscriptions, *currentEventSubscription)
 		currentEventSubscription = nil
+	}
+	flushEventPublication := func() {
+		if currentEventPublication == nil {
+			return
+		}
+		if info.EventContract == nil {
+			info.EventContract = &EventContract{}
+		}
+		info.EventContract.Publications = append(info.EventContract.Publications, *currentEventPublication)
+		currentEventPublication = nil
 	}
 
 	scanner := bufio.NewScanner(strings.NewReader(string(raw)))
@@ -222,6 +235,7 @@ func parseManifest(raw []byte) (Info, error) {
 			flushConfigField()
 			flushDataTable()
 			flushAPIRoute()
+			flushEventPublication()
 			flushEventSubscription()
 			if info.APIContract == nil {
 				info.APIContract = &APIContract{}
@@ -234,6 +248,7 @@ func parseManifest(raw []byte) (Info, error) {
 			flushConfigField()
 			flushDataTable()
 			flushAPIRoute()
+			flushEventPublication()
 			flushEventSubscription()
 			if info.EventContract == nil {
 				info.EventContract = &EventContract{}
@@ -330,10 +345,20 @@ func parseManifest(raw []byte) (Info, error) {
 				} else {
 					currentAPIRoute.Method = parseScalar(item)
 				}
+			case sectionEventPublications:
+				flushEventPublication()
+				currentEventPublication = &EventPublication{}
+				if strings.HasPrefix(item, "name:") {
+					currentEventPublication.Name = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "name:")))
+				} else {
+					currentEventPublication.Name = parseScalar(item)
+				}
 			case sectionEventSubscriptions:
 				flushEventSubscription()
 				currentEventSubscription = &EventSubscription{}
-				if strings.HasPrefix(item, "name:") {
+				if strings.HasPrefix(item, "publisher:") {
+					currentEventSubscription.Publisher = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "publisher:")))
+				} else if strings.HasPrefix(item, "name:") {
 					currentEventSubscription.Name = parseScalar(strings.TrimSpace(strings.TrimPrefix(item, "name:")))
 				} else {
 					currentEventSubscription.Name = parseScalar(item)
@@ -349,6 +374,11 @@ func parseManifest(raw []byte) (Info, error) {
 
 		key = strings.TrimSpace(key)
 		value = parseScalar(strings.TrimSpace(value))
+		if section == sectionEventPublications && key == "subscriptions" {
+			flushEventPublication()
+			section = sectionEventSubscriptions
+			continue
+		}
 		if section == sectionPerm {
 			if !isTopLevel && applyPermissionField(currentPermission, key, value) {
 				continue
@@ -393,11 +423,12 @@ func parseManifest(raw []byte) (Info, error) {
 				section = sectionRoot
 			}
 		}
-		if section == sectionEvents || section == sectionEventSubscriptions {
-			if !isTopLevel && applyEventContractField(info.EventContract, currentEventSubscription, key, value, &section) {
+		if section == sectionEvents || section == sectionEventPublications || section == sectionEventSubscriptions {
+			if !isTopLevel && applyEventContractField(info.EventContract, currentEventPublication, currentEventSubscription, key, value, &section) {
 				continue
 			}
 			if isTopLevel {
+				flushEventPublication()
 				flushEventSubscription()
 				section = sectionRoot
 			}
@@ -513,6 +544,7 @@ func parseManifest(raw []byte) (Info, error) {
 	flushConfigField()
 	flushDataTable()
 	flushAPIRoute()
+	flushEventPublication()
 	flushEventSubscription()
 	if info.UIMode == "" {
 		info.UIMode = UIModeBackendOnly
@@ -817,15 +849,33 @@ func applyAPIContractField(contract *APIContract, route *APIRoute, key, value st
 	return true
 }
 
-func applyEventContractField(contract *EventContract, subscription *EventSubscription, key, value string, section *string) bool {
+func applyEventContractField(contract *EventContract, publication *EventPublication, subscription *EventSubscription, key, value string, section *string) bool {
 	if contract == nil {
 		return false
 	}
 	switch *section {
 	case sectionEvents:
 		switch key {
+		case "publications":
+			*section = sectionEventPublications
 		case "subscriptions":
 			*section = sectionEventSubscriptions
+		default:
+			return false
+		}
+	case sectionEventPublications:
+		if publication == nil {
+			return false
+		}
+		switch key {
+		case "name":
+			publication.Name = value
+		case "schema_version":
+			publication.SchemaVersion = parseUint32Scalar(value)
+		case "payload_type":
+			publication.PayloadType = value
+		case "scope":
+			publication.Scope = EventScopeMode(strings.ToLower(strings.TrimSpace(value)))
 		default:
 			return false
 		}
@@ -834,8 +884,12 @@ func applyEventContractField(contract *EventContract, subscription *EventSubscri
 			return false
 		}
 		switch key {
+		case "publisher":
+			subscription.Publisher = value
 		case "name":
 			subscription.Name = value
+		case "schema_versions":
+			subscription.SchemaVersions = parseUint32List(value)
 		case "handler":
 			subscription.Handler = value
 		case "retry_policy":
@@ -867,14 +921,21 @@ func normalizeEventContract(info *Info) {
 	if info == nil || info.EventContract == nil {
 		return
 	}
+	for i := range info.EventContract.Publications {
+		publication := &info.EventContract.Publications[i]
+		publication.Name = strings.TrimSpace(strings.ToLower(publication.Name))
+		publication.PayloadType = strings.TrimSpace(strings.ToLower(publication.PayloadType))
+		publication.Scope = EventScopeMode(strings.TrimSpace(strings.ToLower(string(publication.Scope))))
+	}
 	for i := range info.EventContract.Subscriptions {
 		subscription := &info.EventContract.Subscriptions[i]
+		subscription.Publisher = strings.TrimSpace(strings.ToLower(subscription.Publisher))
 		subscription.Name = strings.TrimSpace(strings.ToLower(subscription.Name))
+		sort.Slice(subscription.SchemaVersions, func(a, b int) bool {
+			return subscription.SchemaVersions[a] < subscription.SchemaVersions[b]
+		})
 		subscription.Handler = strings.TrimSpace(subscription.Handler)
 		subscription.RetryPolicy = strings.TrimSpace(strings.ToLower(subscription.RetryPolicy))
-		if subscription.RetryPolicy == "" {
-			subscription.RetryPolicy = "standard"
-		}
 	}
 }
 
@@ -1025,6 +1086,28 @@ func splitScalarList(value string) []string {
 		}
 	}
 	return out
+}
+
+func parseUint32List(value string) []uint32 {
+	value = strings.TrimSpace(value)
+	value = strings.TrimPrefix(value, "[")
+	value = strings.TrimSuffix(value, "]")
+	parts := strings.Split(value, ",")
+	out := make([]uint32, 0, len(parts))
+	for _, part := range parts {
+		if parsed := parseUint32Scalar(parseScalar(part)); parsed > 0 {
+			out = append(out, parsed)
+		}
+	}
+	return out
+}
+
+func parseUint32Scalar(value string) uint32 {
+	parsed, err := strconv.ParseUint(strings.TrimSpace(value), 10, 32)
+	if err != nil {
+		return 0
+	}
+	return uint32(parsed)
 }
 
 func parseScalar(v string) string {

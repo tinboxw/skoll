@@ -151,10 +151,16 @@ api:
       audit_action: "reports.items.read"
 events:
   subscriptions:
-    - name: "approval-completed"
+    - publisher: "skoll"
+      name: "approval-completed"
+      schema_versions: [1]
       handler: "onApprovalCompleted"
-    - name: "inbound-completed"
+      retry_policy: "standard"
+    - publisher: "warehouse"
+      name: "inbound-completed"
+      schema_versions: [1]
       handler: "onInboundCompleted"
+      retry_policy: "standard"
 `
 	if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)

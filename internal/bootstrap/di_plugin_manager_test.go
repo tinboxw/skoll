@@ -1043,7 +1043,9 @@ func TestPluginManagerDeliversEventsOnlyAcrossEnabledDeclaredLifecycle(t *testin
 			"version: " + version + "\n" +
 			"events:\n" +
 			"  subscriptions:\n" +
-			"    - name: approval-completed\n" +
+			"    - publisher: skoll\n" +
+			"      name: approval-completed\n" +
+			"      schema_versions: [1]\n" +
 			"      handler: " + handler + "\n" +
 			"      retry_policy: standard\n"
 		if err := os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte(manifest), 0o600); err != nil {

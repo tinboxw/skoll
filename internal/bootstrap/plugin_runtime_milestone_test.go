@@ -265,7 +265,9 @@ api:
       audit_action: milestone_plugin.items.read
 events:
   subscriptions:
-    - name: approval-completed
+    - publisher: skoll
+      name: approval-completed
+      schema_versions: [1]
       handler: onApprovalCompleted
       retry_policy: standard
 data:

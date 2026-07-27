@@ -2481,3 +2481,48 @@ Result: FF1-06 passed. The current public plugin boundary now has a repeatable e
 ### Commit
 
 `FF1-06: close datastore invariant conformance`
+
+## FF2-01 Define Current Event Publication And Subscription Contracts
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Establish one public, versioned, typed event contract for plugin publication and subscription before durable delivery is introduced.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public SDK | Pass | `pkg/pluginsdk/event.go` defines publication declarations, subscription declarations, publications, delivery envelopes, subjects, scope, correlation/causation identities, and stable event errors |
+| Exact publication capability | Pass | A publication is authorized only by exact event name and positive schema version; an undeclared name or version returns `undeclared_publication` |
+| Exact subscription capability | Pass | A subscription declares publisher, name, accepted schema versions, handler, and retry policy; an undeclared publisher/name/version returns `undeclared_subscription` |
+| Typed payload | Pass | Payload fields use explicit lossless `DataValue` wire types; malformed integer, decimal, boolean, timestamp, bytes, and JSON values fail validation |
+| Payload bounds | Pass | Event payloads are limited to 64 fields and 64 KiB, with bounded identifiers and deterministic `payload_limit_exceeded` errors |
+| Scope | Pass | Publications declare tenant or global scope; tenant events require tenant identity and global events reject tenant dimensions with `scope_mismatch` |
+| Correlation | Pass | Correlation identity is mandatory, causation identity is optional, and both are bounded and validated together with subject identity |
+| Manifest contract | Pass | The current manifest schema and loader require publication schema/payload/scope fields and subscription publisher/schema/handler/retry fields; no old-shape defaults or parser branch remain |
+| Installation visibility | Pass | Install preflight exposes publication and subscription capabilities, including versions, payload type, scope, publisher, and retry policy |
+| Runtime declaration check | Pass | Runtime revalidation compares publisher, event name, handler, and every declared schema version before delivery |
+| Independent manifests | Pass | Equipment Maintenance and Pharma OA manifests use only the current event contract and pass manifest CI |
+| Fail closed | Pass | Missing publisher, version, handler, retry policy, invalid scope, duplicate declaration, unsupported schema, and undeclared access are rejected by contract tests |
+| Regression | Pass | SDK, plugin, bootstrap, manifest, and every Go package pass |
+| Framework purity | Pass | The contract is business-neutral and adds no compatibility parser, fallback value, dual envelope, or Pharma-specific framework logic |
+
+### Failed Runs And Re-Execution
+
+- The first focused run exposed two parser-state defects: list items assumed `name` was first and the parser did not flush publications before entering subscriptions. The state transitions were corrected and the focused suites passed.
+- The first full-suite run exceeded the 120-second shell budget without reporting a test failure. The identical command was rerun with a 300-second budget and returned exit code zero.
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk/... ./internal/plugin/... ./internal/bootstrap/...
+go test ./...
+git diff --check
+```
+
+Result: FF2-01 passed. Plugins now declare exact current publication and subscription capabilities with typed bounded payloads, explicit schema versions and scope, deterministic correlation data, and fail-closed authorization.
+
+### Commit
+
+`FF2-01: define current plugin event contracts`

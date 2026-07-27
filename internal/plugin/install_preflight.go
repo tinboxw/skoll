@@ -132,14 +132,24 @@ type InstallPreflightAPIRoute struct {
 }
 
 type InstallPreflightEvents struct {
+	Publications  []InstallPreflightEventPublication  `json:"publications,omitempty"`
 	Subscriptions []InstallPreflightEventSubscription `json:"subscriptions,omitempty"`
 	RetryPolicies []string                            `json:"retryPolicies,omitempty"`
 }
 
+type InstallPreflightEventPublication struct {
+	Name          string `json:"name"`
+	SchemaVersion uint32 `json:"schemaVersion"`
+	PayloadType   string `json:"payloadType"`
+	Scope         string `json:"scope"`
+}
+
 type InstallPreflightEventSubscription struct {
-	Name        string `json:"name"`
-	Handler     string `json:"handler"`
-	RetryPolicy string `json:"retryPolicy"`
+	Publisher      string   `json:"publisher"`
+	Name           string   `json:"name"`
+	SchemaVersions []uint32 `json:"schemaVersions"`
+	Handler        string   `json:"handler"`
+	RetryPolicy    string   `json:"retryPolicy"`
 }
 
 type InstallPreflightMigration struct {
@@ -426,14 +436,21 @@ func buildInstallPreflightAPI(info Info) InstallPreflightAPI {
 func buildInstallPreflightEvents(info Info) InstallPreflightEvents {
 	subscriptions := info.EventSubscriptions()
 	out := InstallPreflightEvents{
+		Publications:  make([]InstallPreflightEventPublication, 0, len(info.EventPublications())),
 		Subscriptions: make([]InstallPreflightEventSubscription, 0, len(subscriptions)),
+	}
+	for _, publication := range info.EventPublications() {
+		out.Publications = append(out.Publications, InstallPreflightEventPublication{
+			Name: publication.Name, SchemaVersion: publication.SchemaVersion,
+			PayloadType: publication.PayloadType, Scope: string(publication.Scope),
+		})
 	}
 	policies := map[string]struct{}{}
 	for _, subscription := range subscriptions {
 		out.Subscriptions = append(out.Subscriptions, InstallPreflightEventSubscription{
-			Name:        subscription.Name,
-			Handler:     subscription.Handler,
-			RetryPolicy: subscription.RetryPolicy,
+			Publisher: subscription.Publisher, Name: subscription.Name,
+			SchemaVersions: append([]uint32(nil), subscription.SchemaVersions...),
+			Handler:        subscription.Handler, RetryPolicy: subscription.RetryPolicy,
 		})
 		if subscription.RetryPolicy != "" {
 			policies[subscription.RetryPolicy] = struct{}{}
@@ -530,11 +547,11 @@ func buildInstallPreflightRisk(result InstallPreflightResult) InstallPreflightRi
 	if len(result.API.AuditActions) > 0 {
 		summary = append(summary, "audit actions")
 	}
-	if len(result.Events.Subscriptions) > 0 {
+	if len(result.Events.Publications) > 0 || len(result.Events.Subscriptions) > 0 {
 		if rank < 1 {
 			rank = 1
 		}
-		summary = append(summary, "business event subscriptions")
+		summary = append(summary, "business event capabilities")
 	}
 	if result.Resources.ServiceBaseURL != "" || result.Resources.ServiceHealthURL != "" {
 		if rank < 2 {

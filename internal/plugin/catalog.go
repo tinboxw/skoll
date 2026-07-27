@@ -235,17 +235,38 @@ func (i Info) EventSubscriptions() []EventSubscription {
 	}
 	out := make([]EventSubscription, 0, len(i.EventContract.Subscriptions))
 	for _, subscription := range i.EventContract.Subscriptions {
+		subscription.Publisher = strings.TrimSpace(strings.ToLower(subscription.Publisher))
 		subscription.Name = strings.TrimSpace(strings.ToLower(subscription.Name))
+		subscription.SchemaVersions = append([]uint32(nil), subscription.SchemaVersions...)
 		subscription.Handler = strings.TrimSpace(subscription.Handler)
 		subscription.RetryPolicy = strings.TrimSpace(strings.ToLower(subscription.RetryPolicy))
-		if subscription.RetryPolicy == "" {
-			subscription.RetryPolicy = "standard"
-		}
 		out = append(out, subscription)
 	}
 	sort.Slice(out, func(a, b int) bool {
+		if out[a].Publisher != out[b].Publisher {
+			return out[a].Publisher < out[b].Publisher
+		}
 		if out[a].Name == out[b].Name {
 			return out[a].Handler < out[b].Handler
+		}
+		return out[a].Name < out[b].Name
+	})
+	return out
+}
+
+func (i Info) EventPublications() []EventPublication {
+	if i.EventContract == nil {
+		return []EventPublication{}
+	}
+	out := append([]EventPublication(nil), i.EventContract.Publications...)
+	for index := range out {
+		out[index].Name = strings.TrimSpace(strings.ToLower(out[index].Name))
+		out[index].PayloadType = strings.TrimSpace(strings.ToLower(out[index].PayloadType))
+		out[index].Scope = EventScopeMode(strings.TrimSpace(strings.ToLower(string(out[index].Scope))))
+	}
+	sort.Slice(out, func(a, b int) bool {
+		if out[a].Name == out[b].Name {
+			return out[a].SchemaVersion < out[b].SchemaVersion
 		}
 		return out[a].Name < out[b].Name
 	})

@@ -1103,11 +1103,26 @@ func (m *pluginManagerWithExtensions) deliverPluginBusinessEvent(ctx context.Con
 
 func pluginEventSubscriptionDeclared(info plugin.Info, expected plugin.EventSubscription) bool {
 	for _, subscription := range info.EventSubscriptions() {
-		if subscription.Name == expected.Name && subscription.Handler == expected.Handler {
+		if subscription.Publisher == expected.Publisher &&
+			subscription.Name == expected.Name &&
+			subscription.Handler == expected.Handler &&
+			equalEventSchemaVersions(subscription.SchemaVersions, expected.SchemaVersions) {
 			return true
 		}
 	}
 	return false
+}
+
+func equalEventSchemaVersions(left, right []uint32) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func (m *pluginManagerWithExtensions) runEnableMigrations(ctx context.Context, pluginID string) error {

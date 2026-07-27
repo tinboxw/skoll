@@ -351,33 +351,52 @@ func TestInfoValidateManifestEventContract(t *testing.T) {
 		Name:    "Reports",
 		Version: "1.0.0",
 		EventContract: &EventContract{
+			Publications: []EventPublication{
+				{Name: "report-generated", SchemaVersion: 1, PayloadType: "report.generated", Scope: "tenant"},
+			},
 			Subscriptions: []EventSubscription{
-				{Name: "approval-completed", Handler: "onApprovalCompleted", RetryPolicy: "standard"},
-				{Name: "inbound-completed", Handler: "onInboundCompleted", RetryPolicy: "aggressive"},
-				{Name: "qualification-expiring", Handler: "onQualificationExpiring", RetryPolicy: "none"},
+				{Publisher: "skoll", Name: "approval-completed", SchemaVersions: []uint32{1}, Handler: "onApprovalCompleted", RetryPolicy: "standard"},
+				{Publisher: "warehouse", Name: "inbound-completed", SchemaVersions: []uint32{1, 2}, Handler: "onInboundCompleted", RetryPolicy: "aggressive"},
+				{Publisher: "compliance", Name: "qualification-expiring", SchemaVersions: []uint32{1}, Handler: "onQualificationExpiring", RetryPolicy: "none"},
 			},
 		},
 	}
 	if err := valid.ValidateManifest(); err != nil {
 		t.Fatalf("expected valid event contract, got %v", err)
 	}
+	if _, err := valid.AuthorizeEventPublication("report-generated", 1); err != nil {
+		t.Fatalf("expected declared publication, got %v", err)
+	}
+	if _, err := valid.AuthorizeEventPublication("report-generated", 2); err == nil {
+		t.Fatal("expected undeclared publication version to fail closed")
+	}
+	if _, err := valid.AuthorizeEventSubscription("warehouse", "inbound-completed", 2); err != nil {
+		t.Fatalf("expected declared subscription, got %v", err)
+	}
+	if _, err := valid.AuthorizeEventSubscription("warehouse", "inbound-completed", 3); err == nil {
+		t.Fatal("expected undeclared subscription version to fail closed")
+	}
 
 	invalidName := valid
-	invalidName.EventContract = &EventContract{Subscriptions: []EventSubscription{{Name: "bad event", Handler: "onBadEvent"}}}
+	invalidName.EventContract = &EventContract{Subscriptions: []EventSubscription{{
+		Publisher: "skoll", Name: "bad event", SchemaVersions: []uint32{1}, Handler: "onBadEvent", RetryPolicy: "standard",
+	}}}
 	if err := invalidName.ValidateManifest(); err == nil {
 		t.Fatal("expected validation error for invalid event name")
 	}
 
 	missingHandler := valid
-	missingHandler.EventContract = &EventContract{Subscriptions: []EventSubscription{{Name: "approval-completed"}}}
+	missingHandler.EventContract = &EventContract{Subscriptions: []EventSubscription{{
+		Publisher: "skoll", Name: "approval-completed", SchemaVersions: []uint32{1}, RetryPolicy: "standard",
+	}}}
 	if err := missingHandler.ValidateManifest(); err == nil {
 		t.Fatal("expected validation error for missing event handler")
 	}
 
 	duplicate := valid
 	duplicate.EventContract = &EventContract{Subscriptions: []EventSubscription{
-		{Name: "approval-completed", Handler: "onApprovalCompleted"},
-		{Name: "approval-completed", Handler: "onApprovalCompleted"},
+		{Publisher: "skoll", Name: "approval-completed", SchemaVersions: []uint32{1}, Handler: "onApprovalCompleted", RetryPolicy: "standard"},
+		{Publisher: "skoll", Name: "approval-completed", SchemaVersions: []uint32{1}, Handler: "onApprovalCompleted", RetryPolicy: "standard"},
 	}}
 	if err := duplicate.ValidateManifest(); err == nil {
 		t.Fatal("expected validation error for duplicate event subscription")

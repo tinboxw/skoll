@@ -84,12 +84,22 @@ api:
       permission: "sample-plugin.reports.read"
       audit_action: "sample_plugin.reports.read"
 events:
+  publications:
+    - name: "report-generated"
+      schema_version: 1
+      payload_type: "report.generated"
+      scope: tenant
   subscriptions:
-    - name: "approval-completed"
+    - publisher: "skoll"
+      name: "approval-completed"
+      schema_versions: [1]
       handler: "onApprovalCompleted"
       retry_policy: "standard"
-    - name: "qualification-expiring"
+    - publisher: "compliance"
+      name: "qualification-expiring"
+      schema_versions: [1, 2]
       handler: "onQualificationExpiring"
+      retry_policy: "standard"
 i18n_locales:
 	- "zh-CN"
 	- "en-US"
@@ -207,11 +217,14 @@ frontend_entry: "/plugins/sample-plugin"
 	if info.APIContract.Routes[0].Method != "GET" || info.APIContract.Routes[0].Permission != "sample-plugin.reports.read" {
 		t.Fatalf("unexpected api route: %+v", info.APIContract.Routes[0])
 	}
-	if info.EventContract == nil || len(info.EventContract.Subscriptions) != 2 {
+	if info.EventContract == nil || len(info.EventContract.Publications) != 1 || len(info.EventContract.Subscriptions) != 2 {
 		t.Fatalf("expected event subscriptions parsed, got %+v", info.EventContract)
 	}
-	if info.EventContract.Subscriptions[1].Name != "qualification-expiring" || info.EventContract.Subscriptions[1].RetryPolicy != "standard" {
-		t.Fatalf("unexpected event subscription defaults: %+v", info.EventContract.Subscriptions[1])
+	if info.EventContract.Publications[0].SchemaVersion != 1 || info.EventContract.Publications[0].PayloadType != "report.generated" {
+		t.Fatalf("unexpected event publication: %+v", info.EventContract.Publications[0])
+	}
+	if info.EventContract.Subscriptions[1].Name != "qualification-expiring" || len(info.EventContract.Subscriptions[1].SchemaVersions) != 2 {
+		t.Fatalf("unexpected event subscription versions: %+v", info.EventContract.Subscriptions[1])
 	}
 }
 
@@ -396,16 +409,24 @@ func TestFileLoaderRejectsInvalidEventContract(t *testing.T) {
 	cases := map[string]string{
 		"invalid event": `events:
   subscriptions:
-    - name: "bad event"
+    - publisher: "skoll"
+      name: "bad event"
+      schema_versions: [1]
       handler: "onBadEvent"
+      retry_policy: "standard"
 `,
 		"missing handler": `events:
   subscriptions:
-    - name: "approval-completed"
+    - publisher: "skoll"
+      name: "approval-completed"
+      schema_versions: [1]
+      retry_policy: "standard"
 `,
 		"invalid retry policy": `events:
   subscriptions:
-    - name: "approval-completed"
+    - publisher: "skoll"
+      name: "approval-completed"
+      schema_versions: [1]
       handler: "onApprovalCompleted"
       retry_policy: "forever"
 `,

@@ -214,11 +214,16 @@ func writePreflightPlugin(t *testing.T, fixture preflightPluginFixture) string {
 	if fixture.withEvents {
 		manifest += "events:\n" +
 			"  subscriptions:\n" +
-			"    - name: approval-completed\n" +
+			"    - publisher: skoll\n" +
+			"      name: approval-completed\n" +
+			"      schema_versions: [1]\n" +
 			"      handler: onApprovalCompleted\n" +
 			"      retry_policy: standard\n" +
-			"    - name: inbound-completed\n" +
-			"      handler: onInboundCompleted\n"
+			"    - publisher: warehouse\n" +
+			"      name: inbound-completed\n" +
+			"      schema_versions: [1]\n" +
+			"      handler: onInboundCompleted\n" +
+			"      retry_policy: standard\n"
 	}
 	if fixture.withSignature {
 		manifest += "sign_algo: RSA-SHA256\n" +
