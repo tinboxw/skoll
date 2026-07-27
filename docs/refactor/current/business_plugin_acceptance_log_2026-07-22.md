@@ -2095,3 +2095,35 @@ Result: BF5-03D and parent BF5-03 passed. Purchasing and inbound receiving now e
 ### Commit
 
 `BF5-03D: close packaged purchase lifecycle`
+
+## BF5-05P Correct Inventory And Outbound Delivery Order
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Remove the circular product dependency in the medical OA roadmap and freeze an atomic inventory delivery sequence before implementation.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Direction | Pass | Purchasing and inbound now feed inventory; lot-aware inventory becomes a prerequisite for sales allocation and outbound delivery |
+| Dependency graph | Pass | BF5-05 depends on completed BF5-03, product catalogs, and qualifications; BF5-04 depends on completed BF5-05 |
+| Atomic sequence | Pass | Topology, immutable ledger, operational movements, frontend workspace, and packaged acceptance are separate BF5-05A through BF5-05E Work Items |
+| Ownership | Pass | Every child declares backend, database, workflow, frontend, UX, accessibility, testing, or quality-gate Skills explicitly |
+| Acceptance | Pass | Every child has concrete deliverables, failure conditions, verification categories, and one commit after acceptance |
+| Current-only rule | Pass | Inventory is implemented only inside the independent medical OA plugin; no host model, compatibility adapter, or parallel ledger is planned |
+
+Result: BF5-05P passed. The executable order is now inbound receiving, inventory ledger and warehouse operations, then sales allocation and outbound delivery.
+
+### Impact Review
+
+- Roadmap: removes a dependency inversion that would otherwise force fake allocation or temporary stock behavior.
+- Backend: warehouse and ledger contracts become authoritative before sales consumes them.
+- Frontend: inventory operations receive their own complete workflow rather than being embedded in sales pages.
+- Quality: reconciliation, concurrency, restart, cross-scope, and uninstall gates are explicit.
+- Compatibility: none; no temporary bridge or deferred dual model is allowed.
+
+### Commit
+
+`BF5-05P: sequence inventory before outbound`
