@@ -1978,3 +1978,58 @@ Result: BF5-03D4 passed. The host is a generic Element Plus platform shell; the 
 ### Commit
 
 `BF5-03D4: remove built-in Pharma OA frontend`
+
+## BF5-03D5 Enforce Framework Purity And Independent-Plugin Gates
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Turn the extraction boundary into an executable architecture rule and prove the independent package across artifact, process lifecycle, backend, and frontend gates.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Architecture gate | Pass | `TestMedicalOAProductionCoreOwnsNoBusinessImplementation` scans core Go, OpenAPI, Vue, TypeScript, JSON, and frontend quality scripts and rejects medical package, route, table, menu, locale, or view ownership |
+| Removed-path gate | Pass | The five former backend business package roots, host Pharma frontend roots, locale file, and integrated route registry must remain absent |
+| Allowed-reference policy | Pass | Production core references are forbidden; independent `plugins/pharma_oa` sources, packaged lifecycle tests, and generic platform tests using an opaque plugin ID remain allowed |
+| Artifact gate | Pass | Version `0.10.0` frontend and backend package successfully; generated ZIP and checksum verify at SHA-256 `6306a8fd1c8585d19b432feaf01e7b7aa918f8721d343c3122131639e447e5b3` |
+| Real-process lifecycle | Pass | Packaged backend installs, starts as an external process, persists across restart, enforces scopes, disables, re-enables, and uninstalls without restoring host business code |
+| Backend regression | Pass | `go test ./... -count=1` passes across the complete repository |
+| Host frontend gate | Pass | Typecheck, locale, accessibility, large-list, theme, and 29 component/document tests pass |
+| Independent frontend gate | Pass | Plugin build, lazy chunks, and bundle budgets pass during packaging; its 19 focused frontend tests passed in BF5-03D4 |
+| Current-only rule | Pass | The gate recognizes one current plugin implementation and rejects aliases, fallbacks, copied host paths, and dual ownership |
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa -run 'TestMedicalOAProductionCoreOwnsNoBusinessImplementation$' -count=1 -v
+$env:SKOLL_PHARMA_OA_E2E='1'
+go test ./internal/plugin -run 'TestPharmaOAPackagedMasterDataLifecycleE2E$' -count=1 -v
+go test ./... -count=1
+
+./plugins/pharma_oa/plugin.ps1 -Action package -DistDir 'D:\workspace\.codex-temp\skoll-bf5-03d5-package'
+./plugins/pharma_oa/plugin.ps1 -Action verify -DistDir 'D:\workspace\.codex-temp\skoll-bf5-03d5-package'
+
+cd web
+npm run typecheck
+npm run test:components
+
+cd ..
+codegraph sync .
+git diff --check
+```
+
+Result: BF5-03D5 passed. Framework purity is now executable rather than documentary, and the medical OA package remains independently buildable and operable.
+
+### Impact Review
+
+- Architecture: future commits cannot silently recreate a host medical package, route, schema, menu, locale bundle, or view.
+- Plugin boundary: business code remains fully owned by the installable package and current public host contracts.
+- Tests: generic plugin-platform tests may retain opaque IDs without becoming an implementation owner.
+- Operations: artifact checksum and real external-process lifecycle prove package integrity and isolation.
+- Compatibility: none; the gate explicitly rejects retained legacy ownership and dual paths.
+
+### Commit
+
+`BF5-03D5: enforce framework purity gate`

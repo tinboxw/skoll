@@ -227,6 +227,71 @@ func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	}
 }
 
+func TestMedicalOAProductionCoreOwnsNoBusinessImplementation(t *testing.T) {
+	root := filepath.Clean(filepath.Join("..", ".."))
+	for _, relativePath := range []string{
+		"internal/domain/pharmaoa",
+		"internal/service/pharmaoa",
+		"internal/repository/pharmaoa",
+		"internal/handler/http/v1/pharmaoa",
+		"internal/plugin/pharmaoa",
+		"web/src/pharma-oa",
+		"web/src/i18n/pharma.json",
+		"web/src/plugins/integrated-routes.ts",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(relativePath))
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("production core still owns medical OA path %q: %v", relativePath, err)
+		}
+	}
+
+	viewsRoot := filepath.Join(root, "web", "src", "views")
+	views, err := os.ReadDir(viewsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, view := range views {
+		if view.IsDir() && strings.HasPrefix(strings.ToLower(view.Name()), "pharma") {
+			t.Fatalf("production core still owns medical OA view %q", view.Name())
+		}
+	}
+
+	for _, relativeRoot := range []string{"cmd", "internal", "pkg", "web/src", "web/scripts", "web/i18n"} {
+		scanRoot := filepath.Join(root, filepath.FromSlash(relativeRoot))
+		if err := filepath.WalkDir(scanRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			name := strings.ToLower(entry.Name())
+			if strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, ".spec.ts") || strings.HasSuffix(name, ".test.ts") {
+				return nil
+			}
+			switch filepath.Ext(name) {
+			case ".go", ".ts", ".vue", ".json", ".mjs", ".yaml", ".yml":
+			default:
+				return nil
+			}
+			raw, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			source := strings.ToLower(string(raw))
+			for _, forbidden := range []string{"pharma_oa", "pharmaoa", "pharma-oa", "pharma oa", "医药 oa"} {
+				if strings.Contains(source, forbidden) {
+					relative, _ := filepath.Rel(root, path)
+					t.Fatalf("production core contains medical OA ownership marker %q in %s", forbidden, filepath.ToSlash(relative))
+				}
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestMedicalOAPurchaseDataStoreContractIsRegistered(t *testing.T) {
 	schema, present, err := datastore.LoadSchemaManifest("pharma_oa", ".")
 	if err != nil {
