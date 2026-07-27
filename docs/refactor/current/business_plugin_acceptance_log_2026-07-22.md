@@ -2986,3 +2986,59 @@ Result: FF4-01 passed. Integrated frontend plugins now consume one typed, immuta
 ### Commit
 
 `FF4-01: freeze frontend plugin host bridge`
+
+## FF4-02 Build Reusable Business Workspace Composition Primitives
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Publish one current Element Plus composition package for dense plugin business workspaces without adding business pages to the host.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Public composition package | Pass | `@skoll/business-ui` publishes workspace, command bar, filter bar, list, controlled state, and typed model APIs |
+| Business document composition | Pass | The package re-exports document form, field input, line editor schema, list, detail, approval, timeline, comments, and files through business-facing names |
+| Host independence | Pass | Components receive records, schemas, commands, locale, and state through public props and events; package source contains no host page, router, store, or plugin-specific import |
+| Complete states | Pass | Loading, empty, error, forbidden, conflict, destructive, and success states have stable semantics, localized copy, state-specific visuals, and optional actions |
+| Safe commands | Pass | Direct commands emit immediately; destructive commands emit only after explicit confirmation |
+| Dense responsive workflow | Pass | Desktop uses a fixed-layout Element Plus table; narrow viewports use stable record layouts and preserve paging and row actions |
+| Locale behavior | Pass | zh-CN and en-US labels cover filtering, paging, opening, confirmation, and state copy; runtime locale changes update rendered controls |
+| Accessibility | Pass | State severity maps to status or alert semantics, icon actions have localized accessible names, focus remains visible, and reduced motion is honored |
+| Public export contract | Pass | A dedicated contract test resolves every workspace, document, workflow, timeline, file, and comment primitive from the package entry point |
+| Packaging | Pass | Type declarations and production assets build; npm dry run contains 12 public files and excludes sources, tests, and dependencies |
+| Current-only boundary | Pass | The package defines one current API with no legacy component aliases, compatibility mode, fallback styling system, or dual implementation |
+| Regression | Pass | Business UI, document UI, and main Web typechecks, component tests, static frontend gates, and production builds pass |
+
+### Failed Runs And Re-Execution
+
+- The initial dependency install timed out and left incomplete native packages. The package dependency tree was rebuilt from its lockfile; no incomplete dependency output was accepted.
+- The first interaction run exposed recursive select test behavior and a brittle desktop table proxy assertion. The tests were corrected to exercise public user interactions; all component tests passed on re-execution.
+- The first build bundled Element Plus internals and exceeded the intended library surface. Peer-dependency subpaths were externalized; the accepted package build is 17.35 kB JavaScript and 4.62 kB CSS before gzip.
+- The first declaration output followed a local source alias into `@skoll/document-ui`. The package now consumes the built public dependency contract and emits a flat declaration surface.
+- During dependency recovery, a Windows junction traversal removed tracked document package metadata locally. The five clean tracked files were restored from the current commit, document dependencies were rebuilt, and document typecheck, tests, build, and main Web regression all passed before acceptance.
+
+### Verification Commands
+
+```powershell
+npm --prefix packages/skoll-business-ui run typecheck
+npm --prefix packages/skoll-business-ui test
+npm --prefix packages/skoll-business-ui run build
+npm --prefix packages/skoll-business-ui pack --dry-run
+npm --prefix packages/skoll-document-ui run typecheck
+npm --prefix packages/skoll-document-ui test
+npm --prefix packages/skoll-document-ui run build
+npm --prefix web run typecheck
+npm --prefix web run test:components
+npm --prefix web run build
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF4-02 passed. Independent plugin frontends can compose dense list, filter, command, form, detail, line, workflow, timeline, comment, and file experiences through one Element Plus package without creating host business pages.
+
+### Commit
+
+`FF4-02: add business workspace composition kit`

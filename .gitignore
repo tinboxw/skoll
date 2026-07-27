@@ -18,6 +18,7 @@
 node_modules
 package-lock.json
 !packages/skoll-document-ui/package-lock.json
+!packages/skoll-business-ui/package-lock.json
 packages/*/dist
 web/dist
 web/test-results/
