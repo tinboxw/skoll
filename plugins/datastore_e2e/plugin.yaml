@@ -27,3 +27,28 @@ api:
       summary: Prove cross-tenant scope rejection
       permission: datastore_e2e.record.read
       audit_action: datastore_e2e.record.scope_probe
+    - method: POST
+      path: /v1/plugins/datastore_e2e/api/records/adjust
+      summary: Atomically adjust a scoped record
+      permission: datastore_e2e.record.write
+      audit_action: datastore_e2e.record.adjust
+    - method: GET
+      path: /v1/plugins/datastore_e2e/api/records/aggregate
+      summary: Aggregate scoped records
+      permission: datastore_e2e.record.read
+      audit_action: datastore_e2e.record.aggregate
+    - method: POST
+      path: /v1/plugins/datastore_e2e/api/records/rollback
+      summary: Exercise remote transaction rollback
+      permission: datastore_e2e.record.write
+      audit_action: datastore_e2e.record.rollback_probe
+    - method: POST
+      path: /v1/plugins/datastore_e2e/api/ledger
+      summary: Append a scoped ledger entry
+      permission: datastore_e2e.ledger.write
+      audit_action: datastore_e2e.ledger.append
+    - method: DELETE
+      path: /v1/plugins/datastore_e2e/api/ledger
+      summary: Prove append-only mutation denial
+      permission: datastore_e2e.ledger.write
+      audit_action: datastore_e2e.ledger.delete_probe

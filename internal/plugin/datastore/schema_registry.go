@@ -105,10 +105,14 @@ type SchemaRegistry struct {
 	mu         sync.RWMutex
 	plugins    map[string]RegisteredSchema
 	namespaces map[string]string
+	mutations  map[string]*sync.Mutex
 }
 
 func NewSchemaRegistry() *SchemaRegistry {
-	return &SchemaRegistry{plugins: make(map[string]RegisteredSchema), namespaces: make(map[string]string)}
+	return &SchemaRegistry{
+		plugins: make(map[string]RegisteredSchema), namespaces: make(map[string]string),
+		mutations: make(map[string]*sync.Mutex),
+	}
 }
 
 func (r *SchemaRegistry) Register(schema PluginSchema) (RegisteredSchema, error) {
@@ -228,6 +232,20 @@ func (r *SchemaRegistry) Unregister(pluginID string) bool {
 	delete(r.plugins, pluginID)
 	delete(r.namespaces, registered.Namespace)
 	return true
+}
+
+func (r *SchemaRegistry) mutationLock(pluginID string) *sync.Mutex {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.mutations == nil {
+		r.mutations = make(map[string]*sync.Mutex)
+	}
+	lock := r.mutations[pluginID]
+	if lock == nil {
+		lock = &sync.Mutex{}
+		r.mutations[pluginID] = lock
+	}
+	return lock
 }
 
 func PluginNamespace(pluginID string) (string, error) {

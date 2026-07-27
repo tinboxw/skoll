@@ -13,5 +13,31 @@ tables:
         mutable: true
         filterable: true
         sortable: true
+      - name: status
+        type: string
+        mutable: true
+        filterable: true
+        sortable: true
+        groupable: true
+      - name: quantity
+        type: integer
+        mutable: true
+        filterable: true
+        aggregatable: true
     indexes:
       - fields: [name]
+      - fields: [status]
+  - name: ledger_entries
+    mutation_policy: append_only
+    primary_key: [id]
+    fields:
+      - name: id
+        type: string
+        filterable: true
+        sortable: true
+      - name: record_id
+        type: string
+        mutable: true
+        filterable: true
+    indexes:
+      - fields: [record_id]

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -117,9 +118,67 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 
 	token := signDataStoreE2EUser(t, jwtSecret, "employee-1", "tenant-a", "org-a")
 	baseURL := "http://" + address + "/v1/plugins/" + pluginID + "/api"
-	created := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/records", token, map[string]string{"id": "record-1", "name": "Stable record"})
+	createdPayload := map[string]any{"id": "record-1", "name": "Stable record", "status": "active", "quantity": 10}
+	created := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/records", token, createdPayload)
 	if created.status != http.StatusCreated || !bytes.Contains(created.body, []byte("Stable record")) {
 		t.Fatalf("create status=%d body=%s", created.status, created.body)
+	}
+	replayed := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/records", token, createdPayload)
+	if replayed.status != http.StatusCreated || !bytes.Equal(replayed.body, created.body) {
+		t.Fatalf("idempotent replay status=%d body=%s first=%s", replayed.status, replayed.body, created.body)
+	}
+	inactive := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/records", token, map[string]any{
+		"id": "record-2", "name": "Inactive record", "status": "inactive", "quantity": 3,
+	})
+	if inactive.status != http.StatusCreated {
+		t.Fatalf("create inactive status=%d body=%s", inactive.status, inactive.body)
+	}
+
+	const adjustments = 8
+	adjustmentErrors := make(chan error, adjustments)
+	var adjustmentsDone sync.WaitGroup
+	for index := 0; index < adjustments; index++ {
+		adjustmentsDone.Add(1)
+		go func(index int) {
+			defer adjustmentsDone.Done()
+			response, requestErr := dataStoreE2EDo(http.MethodPost, baseURL+"/records/adjust", token, map[string]any{
+				"id": "record-1", "delta": 1, "idempotencyKey": fmt.Sprintf("record-1.adjust.%d", index),
+			})
+			if requestErr != nil {
+				adjustmentErrors <- requestErr
+				return
+			}
+			if response.status != http.StatusOK {
+				adjustmentErrors <- fmt.Errorf("adjust %d status=%d body=%s", index, response.status, response.body)
+			}
+		}(index)
+	}
+	adjustmentsDone.Wait()
+	close(adjustmentErrors)
+	for adjustmentErr := range adjustmentErrors {
+		t.Fatal(adjustmentErr)
+	}
+	aggregate := dataStoreE2ERequest(t, http.MethodGet, baseURL+"/records/aggregate", token, nil)
+	assertDataStoreE2EAggregate(t, aggregate, map[string][]string{
+		"active":   {"1", "18"},
+		"inactive": {"1", "3"},
+	})
+
+	ledger := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/ledger", token, map[string]string{"id": "ledger-1", "recordId": "record-1"})
+	if ledger.status != http.StatusCreated {
+		t.Fatalf("append ledger status=%d body=%s", ledger.status, ledger.body)
+	}
+	deniedDelete := dataStoreE2ERequest(t, http.MethodDelete, baseURL+"/ledger", token, map[string]string{"id": "ledger-1"})
+	if deniedDelete.status != http.StatusUnprocessableEntity || !bytes.Contains(deniedDelete.body, []byte("append-only")) {
+		t.Fatalf("append-only denial status=%d body=%s", deniedDelete.status, deniedDelete.body)
+	}
+	rollback := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/records/rollback", token, map[string]string{"id": "rolled-back", "name": "Must disappear"})
+	if rollback.status != http.StatusInternalServerError {
+		t.Fatalf("rollback probe status=%d body=%s", rollback.status, rollback.body)
+	}
+	afterRollback := dataStoreE2ERequest(t, http.MethodGet, baseURL+"/records", token, nil)
+	if bytes.Contains(afterRollback.body, []byte("rolled-back")) {
+		t.Fatalf("remote rollback retained row: %s", afterRollback.body)
 	}
 	forged := dataStoreE2ERequest(t, http.MethodGet, baseURL+"/records/forged", token, nil)
 	if forged.status != http.StatusForbidden || !bytes.Contains(forged.body, []byte("forbidden")) {
@@ -137,16 +196,22 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 	if listed.status != http.StatusOK || !bytes.Contains(listed.body, []byte("Stable record")) {
 		t.Fatalf("restart list status=%d body=%s", listed.status, listed.body)
 	}
+	restartedAggregate := dataStoreE2ERequest(t, http.MethodGet, baseURL+"/records/aggregate", token, nil)
+	assertDataStoreE2EAggregate(t, restartedAggregate, map[string][]string{
+		"active":   {"1", "18"},
+		"inactive": {"1", "3"},
+	})
 
-	physicalTable := dataStoreE2EPhysicalTable(t, registry, pluginID)
+	recordsTable := dataStoreE2EPhysicalTable(t, registry, pluginID, "records")
+	ledgerTable := dataStoreE2EPhysicalTable(t, registry, pluginID, "ledger_entries")
 	if err = manager.Disable(pluginID); err != nil {
 		t.Fatal(err)
 	}
 	if err = manager.RollbackPluginData(pluginID, 1); err != nil {
 		t.Fatalf("explicit datastore rollback: %v", err)
 	}
-	if db.Migrator().HasTable(physicalTable) {
-		t.Fatal("explicit rollback retained datastore table")
+	if db.Migrator().HasTable(recordsTable) || db.Migrator().HasTable(ledgerTable) {
+		t.Fatal("explicit rollback retained datastore tables")
 	}
 	if err = manager.Enable(pluginID); err != nil {
 		t.Fatalf("enable after explicit rollback: %v", err)
@@ -155,7 +220,7 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 	if empty.status != http.StatusOK || bytes.Contains(empty.body, []byte("Stable record")) {
 		t.Fatalf("rollback did not recreate a clean datastore: status=%d body=%s", empty.status, empty.body)
 	}
-	second := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/records", token, map[string]string{"id": "record-2", "name": "Disposable record"})
+	second := dataStoreE2ERequest(t, http.MethodPost, baseURL+"/records", token, map[string]string{"id": "record-after-rollback", "name": "Disposable record"})
 	if second.status != http.StatusCreated {
 		t.Fatalf("create after rollback status=%d body=%s", second.status, second.body)
 	}
@@ -164,8 +229,8 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 		t.Fatalf("uninstall independent plugin: %v", err)
 	}
 	waitDataStoreE2EUnavailable(t, baseURL+"/records")
-	if db.Migrator().HasTable(physicalTable) {
-		t.Fatal("drop uninstall retained physical datastore table")
+	if db.Migrator().HasTable(recordsTable) || db.Migrator().HasTable(ledgerTable) {
+		t.Fatal("drop uninstall retained physical datastore tables")
 	}
 	if _, exists := registry.Snapshot(pluginID); exists {
 		t.Fatal("drop uninstall retained schema registry entry")
@@ -386,30 +451,38 @@ type dataStoreE2EResponse struct {
 
 func dataStoreE2ERequest(t *testing.T, method, target, token string, payload any) dataStoreE2EResponse {
 	t.Helper()
+	response, err := dataStoreE2EDo(method, target, token, payload)
+	if err != nil {
+		t.Fatalf("request %s %s: %v", method, target, err)
+	}
+	return response
+}
+
+func dataStoreE2EDo(method, target, token string, payload any) (dataStoreE2EResponse, error) {
 	var body io.Reader
 	if payload != nil {
 		raw, err := json.Marshal(payload)
 		if err != nil {
-			t.Fatal(err)
+			return dataStoreE2EResponse{}, err
 		}
 		body = bytes.NewReader(raw)
 	}
 	request, err := http.NewRequest(method, target, body)
 	if err != nil {
-		t.Fatal(err)
+		return dataStoreE2EResponse{}, err
 	}
 	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := (&http.Client{Timeout: 3 * time.Second}).Do(request)
 	if err != nil {
-		t.Fatalf("request %s %s: %v", method, target, err)
+		return dataStoreE2EResponse{}, err
 	}
 	defer response.Body.Close()
 	raw, err := io.ReadAll(response.Body)
 	if err != nil {
-		t.Fatal(err)
+		return dataStoreE2EResponse{}, err
 	}
-	return dataStoreE2EResponse{status: response.StatusCode, body: raw}
+	return dataStoreE2EResponse{status: response.StatusCode, body: raw}, nil
 }
 
 func buildDataStoreE2EBackend(t *testing.T, repositoryRoot, pluginDir, pluginID string) {
@@ -512,13 +585,45 @@ func waitDataStoreE2EUnavailable(t *testing.T, target string) {
 	t.Fatalf("disabled plugin endpoint remained reachable: %s", target)
 }
 
-func dataStoreE2EPhysicalTable(t *testing.T, registry *datastore.SchemaRegistry, pluginID string) string {
+func dataStoreE2EPhysicalTable(t *testing.T, registry *datastore.SchemaRegistry, pluginID, logicalName string) string {
 	t.Helper()
 	snapshot, exists := registry.Snapshot(pluginID)
-	if !exists || len(snapshot.Tables) != 1 {
+	if !exists {
 		t.Fatalf("plugin schema is not active: %+v exists=%v", snapshot, exists)
 	}
-	return snapshot.Tables[0].PhysicalName
+	for _, table := range snapshot.Tables {
+		if table.LogicalName == logicalName {
+			return table.PhysicalName
+		}
+	}
+	t.Fatalf("plugin table %q is not active: %+v", logicalName, snapshot)
+	return ""
+}
+
+func assertDataStoreE2EAggregate(t *testing.T, response dataStoreE2EResponse, expected map[string][]string) {
+	t.Helper()
+	if response.status != http.StatusOK {
+		t.Fatalf("aggregate status=%d body=%s", response.status, response.body)
+	}
+	var page pluginsdk.DataAggregatePage
+	if err := json.Unmarshal(response.body, &page); err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Rows) != len(expected) {
+		t.Fatalf("aggregate rows=%+v", page.Rows)
+	}
+	for _, row := range page.Rows {
+		status := row.Group["status"].Value
+		values, exists := expected[status]
+		if !exists || len(row.Values) != len(values) {
+			t.Fatalf("unexpected aggregate row=%+v", row)
+		}
+		for index, value := range values {
+			if row.Values[index].Value != value {
+				t.Fatalf("aggregate row=%+v expected=%v", row, values)
+			}
+		}
+	}
 }
 
 func cloneDataStoreE2EMap(values map[string]any) map[string]any {

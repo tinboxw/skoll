@@ -98,32 +98,47 @@ func (e *MutationExecutor) Mutate(ctx context.Context, pluginID string, mutation
 	if err != nil {
 		return pluginsdk.DataMutationResult{}, err
 	}
+	if e.dialect == DialectSQLite {
+		lock := e.registry.mutationLock(pluginID)
+		lock.Lock()
+		defer lock.Unlock()
+	}
 
 	var result pluginsdk.DataMutationResult
-	err = e.uow.Do(ctx, func(tx repository.Tx) error {
-		db := storesql.ResolveDB(tx.Context(), e.db)
-		if db == nil {
-			return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "database", "transaction database is unavailable", true)
-		}
-		now := e.now().UTC()
-		replayed, stored, reserveErr := reserveMutation(db, pluginID, mutation.IdempotencyKey, requestHash, now)
-		if reserveErr != nil {
-			return reserveErr
-		}
-		if replayed {
-			result = stored
-			return nil
-		}
+	for attempt := 0; ; attempt++ {
+		err = e.uow.Do(ctx, func(tx repository.Tx) error {
+			db := storesql.ResolveDB(tx.Context(), e.db)
+			if db == nil {
+				return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "database", "transaction database is unavailable", true)
+			}
+			now := e.now().UTC()
+			replayed, stored, reserveErr := reserveMutation(db, pluginID, mutation.IdempotencyKey, requestHash, now)
+			if reserveErr != nil {
+				return reserveErr
+			}
+			if replayed {
+				result = stored
+				return nil
+			}
 
-		result, err = e.executeMutation(db, table, scope, mutation, now)
-		if err != nil {
-			return err
+			result, err = e.executeMutation(db, table, scope, mutation, now)
+			if err != nil {
+				return err
+			}
+			if _, err = e.audit.Record(tx.Context(), mutationAuditEntry(table, mutation, result)); err != nil {
+				return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "audit", "mutation audit could not be recorded", true)
+			}
+			return completeMutation(db, pluginID, mutation.IdempotencyKey, requestHash, result, now)
+		})
+		if err == nil || e.dialect != DialectSQLite || attempt >= 5 || !isSQLiteContention(err) {
+			break
 		}
-		if _, err = e.audit.Record(tx.Context(), mutationAuditEntry(table, mutation, result)); err != nil {
-			return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, "audit", "mutation audit could not be recorded", true)
+		select {
+		case <-ctx.Done():
+			return pluginsdk.DataMutationResult{}, ctx.Err()
+		case <-time.After(time.Duration(attempt+1) * 25 * time.Millisecond):
 		}
-		return completeMutation(db, pluginID, mutation.IdempotencyKey, requestHash, result, now)
-	})
+	}
 	if err != nil {
 		var storeErr *pluginsdk.DataStoreError
 		if errors.As(err, &storeErr) {
@@ -761,7 +776,15 @@ func mutationDatabaseError(field, message string, err error) error {
 	if errors.Is(err, gorm.ErrDuplicatedKey) || strings.Contains(lower, "duplicate") || strings.Contains(lower, "unique constraint") || strings.Contains(lower, "violates unique") {
 		return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, field, message, false)
 	}
-	return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, field, message, true)
+	return fmt.Errorf("%w: %v", pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, field, message, true), err)
+}
+
+func isSQLiteContention(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "database is locked") ||
+		strings.Contains(message, "database table is locked") ||
+		strings.Contains(message, "sqlite_busy") ||
+		strings.Contains(message, "sqlite_locked")
 }
 
 func sortedMutationKeys(values map[string]pluginsdk.DataValue) []string {

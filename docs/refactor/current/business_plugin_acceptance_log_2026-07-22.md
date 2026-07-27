@@ -2432,3 +2432,52 @@ Result: FF1-05 passed. Current plugins can execute bounded, transaction-aware, s
 ### Commit
 
 `FF1-05: execute scoped aggregate queries`
+
+## FF1-06 Close Transactional Data-Invariant Conformance
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Turn the independent datastore reference plugin into one reusable real-process gate for current transactional data invariants.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Independent boundary | Pass | The packaged backend imports only public plugin client/SDK contracts and runs as a managed external process through the authenticated host gateway |
+| Remote transactions | Pass | Record creation and forced failure execute through remote transaction identities; the forced rollback leaves neither the row nor its idempotency reservation |
+| Idempotency | Pass | Repeating the same remote insert returns the byte-identical stored mutation result without a duplicate row |
+| Guarded contention | Pass | Eight simultaneous external HTTP adjustments with unique idempotency keys increase one integer from 10 to 18 with no lost update |
+| SQLite concurrency | Pass | SQLite writes are serialized per plugin through the shared schema registry; different plugins and non-SQLite dialects remain independent, with bounded lock retry retained for external contention |
+| Aggregate reconciliation | Pass | Grouped count and sum reconcile active `1/18` and inactive `1/3` source facts before restart and again after restart |
+| Append-only policy | Pass | A ledger entry can be appended, while its remote delete receives deterministic `unsupported`/422 and the policy is not bypassed |
+| Scope isolation | Pass | A plugin-supplied tenant-b filter cannot broaden the employee's tenant-a trusted scope and receives a forbidden response |
+| Restart durability | Pass | Disable/enable restarts the packaged process; records, adjusted quantities, idempotency state, append-only facts, and aggregate results remain durable |
+| Migration lifecycle | Pass | Explicit rollback drops and recreates both declared tables; uninstall drops both tables, unregisters the schema, and clears mutation reservations |
+| Race and repetition | Pass | The focused mutation race gate passes and the complete real-process lifecycle passes three consecutive runs |
+| Regression | Pass | Datastore/SDK/client focused suites and every Go package pass |
+| Framework purity | Pass | The conformance fixture is generic, uses only current contracts, and introduces no compatibility adapter, fallback route, or industry rule |
+
+### Failed Runs And Re-Execution
+
+- The first real-process run returned 503 when concurrent writers collided while reserving idempotency keys. The executor gained bounded SQLite lock retry with the original database cause retained internally.
+- The second run proved retry alone was insufficient under simultaneous connections. SQLite mutations are now serialized per plugin through the shared registry, preserving cross-plugin concurrency and leaving PostgreSQL/MySQL unchanged.
+- The third run reached the append-only fixture and rejected `record_id` during insert because it lacked the required value capability. The field was declared mutable for insertion; the table-level append-only policy still denies every update and delete.
+- The first full-suite command printed passing package results but exceeded the 120-second shell budget before the post-check completed. It was rerun with a 180-second budget and returned exit code zero together with `git diff --check`.
+
+### Verification Commands
+
+```powershell
+go test ./internal/bootstrap -run TestIndependentPluginDataStoreProcessLifecycleE2E -count=3 -timeout=120s
+go test ./internal/plugin/datastore ./pkg/pluginsdk ./pkg/pluginclient -count=1
+go test -race ./internal/plugin/datastore -run 'Test(MutationExecutorConcurrentAdjustmentsNeverLoseUpdates|MutationExecutorAdjustsWithBoundsVersionsIdempotencyAndAudit)' -count=1 -timeout=120s
+go test ./... -count=1
+codegraph sync .
+git diff --check
+```
+
+Result: FF1-06 passed. The current public plugin boundary now has a repeatable external-process proof for transaction rollback, idempotency, append-only enforcement, concurrent guarded arithmetic, scoped aggregation, restart durability, and lifecycle cleanup.
+
+### Commit
+
+`FF1-06: close datastore invariant conformance`
