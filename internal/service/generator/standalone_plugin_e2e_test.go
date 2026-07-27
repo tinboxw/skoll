@@ -20,6 +20,7 @@ import (
 
 	domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/internal/testing/pluginfixture"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
@@ -69,13 +70,11 @@ func TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits(t *testing.T) {
 	if _, err := os.Stat(checksum); err != nil {
 		t.Fatalf("generated checksum not found at %s: %v; package files=%v\n%s", checksum, err, findGeneratedPackageFiles(pluginDir), output)
 	}
-	if _, err := pluginruntime.VerifyPackage(artifact, checksum); err != nil {
-		t.Fatalf("verify generated package: %v", err)
-	}
-	installedDir, info, err := pluginruntime.InstallPackage(artifact, checksum, filepath.Join(t.TempDir(), "plugins"), pluginruntime.NewFileLoader())
+	installed, err := pluginfixture.NewPackageRunner().Install(artifact, checksum, filepath.Join(t.TempDir(), "plugins"))
 	if err != nil {
 		t.Fatalf("install generated package: %v", err)
 	}
+	installedDir, info := installed.Directory, installed.Info
 	if info.ID != "pharma-oa" {
 		t.Fatalf("installed plugin = %+v", info)
 	}
@@ -158,9 +157,19 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 	if err != nil {
 		t.Fatal(err)
 	}
-	documents := newGeneratedDocumentHost()
+	fixtureClock := pluginfixture.NewClock(time.Now().UTC())
+	services, err := pluginfixture.NewServices(pluginfixture.ServicesOptions{
+		Clock: fixtureClock,
+		Identity: pluginfixture.Identity{
+			Subject: "generated-user", TenantID: "tenant-demo", OrganizationID: "generated-organization",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create generated host fixtures: %v", err)
+	}
+	documents := newGeneratedDocumentHost(fixtureClock.Now)
 	gateway, err := pluginruntime.NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
-		return generatedHostServices(pluginID, documents), nil
+		return services.Host(pluginID, pluginfixture.HostOverrides{Documents: documents})
 	}, "generated-plugin-e2e-secret", time.Minute)
 	if err != nil {
 		t.Fatalf("start generated host gateway: %v", err)
@@ -341,43 +350,6 @@ func linkGeneratedDirectory(t *testing.T, source, target string) {
 	}
 }
 
-type generatedTransaction struct{ ctx context.Context }
-
-func (t generatedTransaction) Context() context.Context { return t.ctx }
-
-type generatedTransactions struct{}
-
-func (generatedTransactions) Within(ctx context.Context, fn func(pluginsdk.Transaction) error) error {
-	return fn(generatedTransaction{ctx: ctx})
-}
-
-type generatedScopes struct{}
-
-func (generatedScopes) Resolve(context.Context, pluginsdk.Permission) (pluginsdk.ScopePredicate, error) {
-	return pluginsdk.NewScopePredicate(pluginsdk.TrustedScope{SubjectID: "generated-user", TenantIDs: []string{"tenant-demo"}, AllOwners: true, AllOrganizations: true})
-}
-
-type generatedDataStore struct{}
-
-func (generatedDataStore) Query(context.Context, pluginsdk.DataQuery) (pluginsdk.DataPage, error) {
-	return pluginsdk.DataPage{}, nil
-}
-func (generatedDataStore) Mutate(context.Context, pluginsdk.DataMutation) (pluginsdk.DataMutationResult, error) {
-	return pluginsdk.DataMutationResult{}, nil
-}
-func (generatedDataStore) Aggregate(context.Context, pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
-	return pluginsdk.DataAggregatePage{}, nil
-}
-
-type generatedDocumentNumbers struct{}
-
-func (generatedDocumentNumbers) Preview(context.Context, pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
-	return pluginsdk.DocumentNumberResult{Number: "PR-000001", Sequence: 1}, nil
-}
-func (generatedDocumentNumbers) Issue(context.Context, pluginsdk.DocumentNumberInput) (pluginsdk.DocumentNumberResult, error) {
-	return pluginsdk.DocumentNumberResult{Number: "PR-000001", Sequence: 1}, nil
-}
-
 type generatedDocumentBinding struct {
 	schema pluginsdk.DocumentSchema
 	result pluginsdk.DocumentWorkflowResult
@@ -386,10 +358,11 @@ type generatedDocumentBinding struct {
 type generatedDocumentHost struct {
 	mu    sync.RWMutex
 	items map[string]generatedDocumentBinding
+	now   func() time.Time
 }
 
-func newGeneratedDocumentHost() *generatedDocumentHost {
-	return &generatedDocumentHost{items: make(map[string]generatedDocumentBinding)}
+func newGeneratedDocumentHost(now func() time.Time) *generatedDocumentHost {
+	return &generatedDocumentHost{items: make(map[string]generatedDocumentBinding), now: now}
 }
 
 func (h *generatedDocumentHost) Submit(_ context.Context, input pluginsdk.DocumentWorkflowSubmitInput) (pluginsdk.DocumentWorkflowResult, error) {
@@ -400,7 +373,7 @@ func (h *generatedDocumentHost) Submit(_ context.Context, input pluginsdk.Docume
 	if err != nil {
 		return pluginsdk.DocumentWorkflowResult{}, err
 	}
-	now := time.Now().UTC()
+	now := h.now()
 	result := pluginsdk.DocumentWorkflowResult{
 		Document: pluginsdk.DocumentRecord{
 			ID: input.Draft.ID, Type: input.Draft.Type, SchemaVersion: input.Draft.SchemaVersion,
@@ -443,7 +416,7 @@ func (h *generatedDocumentHost) Act(_ context.Context, input pluginsdk.DocumentW
 	if err != nil {
 		return pluginsdk.DocumentWorkflowResult{}, err
 	}
-	now := time.Now().UTC()
+	now := h.now()
 	binding.result.Document.State = next
 	binding.result.Document.Version++
 	binding.result.Document.Metadata.UpdatedAt = now
@@ -496,12 +469,12 @@ func (h *generatedDocumentHost) Print(_ context.Context, input pluginsdk.Documen
 	if err != nil {
 		return pluginsdk.DocumentPrintPayload{}, err
 	}
-	return pluginsdk.DocumentPrintPayload{Schema: binding.schema, Document: binding.result.Document, Workflow: binding.result.Workflow, GeneratedAt: time.Now().UTC()}, nil
+	return pluginsdk.DocumentPrintPayload{Schema: binding.schema, Document: binding.result.Document, Workflow: binding.result.Workflow, GeneratedAt: h.now()}, nil
 }
 
 func (h *generatedDocumentHost) Export(_ context.Context, input pluginsdk.DocumentExportInput) (pluginsdk.Job, error) {
 	payload, _ := json.Marshal(pluginsdk.DocumentExportPlan{Version: 1, Search: input.Search, Format: input.Format, MaxRows: input.MaxRows, Actor: pluginsdk.WorkflowActor{ID: "generated-user"}})
-	now := time.Now().UTC()
+	now := h.now()
 	return pluginsdk.Job{ID: input.JobID, Kind: pluginsdk.DocumentExportJobKind, IdempotencyKey: input.IdempotencyKey, Payload: payload, Status: pluginsdk.JobStatusScheduled, RunAt: now, MaxAttempts: 3, CreatedAt: now, UpdatedAt: now}, nil
 }
 
@@ -532,142 +505,6 @@ func (*generatedDocumentHost) ListComments(context.Context, pluginsdk.DocumentCo
 }
 func (*generatedDocumentHost) Timeline(context.Context, pluginsdk.DocumentTimelineQueryInput) (pluginsdk.DocumentTimelinePage, error) {
 	return pluginsdk.DocumentTimelinePage{}, nil
-}
-
-type generatedFiles struct{}
-
-func (generatedFiles) Store(context.Context, pluginsdk.FileWrite) (pluginsdk.FileObject, error) {
-	return pluginsdk.FileObject{}, nil
-}
-func (generatedFiles) List(context.Context, pluginsdk.FileQuery) ([]pluginsdk.FileObject, error) {
-	return nil, nil
-}
-func (generatedFiles) Get(context.Context, string) (pluginsdk.FileObject, error) {
-	return pluginsdk.FileObject{}, nil
-}
-func (generatedFiles) Download(context.Context, string) (pluginsdk.FileDownload, error) {
-	return pluginsdk.FileDownload{}, nil
-}
-func (generatedFiles) Delete(context.Context, string) error { return nil }
-
-type generatedAudit struct{}
-
-func (generatedAudit) Record(context.Context, pluginsdk.AuditEntry) (pluginsdk.AuditReceipt, error) {
-	return pluginsdk.AuditReceipt{}, nil
-}
-
-type generatedConfig struct{}
-
-func (generatedConfig) Get(context.Context) (map[string]any, error) { return map[string]any{}, nil }
-func (generatedConfig) Replace(_ context.Context, values map[string]any) (map[string]any, error) {
-	return values, nil
-}
-
-type generatedSecrets struct{}
-
-func (generatedSecrets) Get(context.Context, string) (string, error) { return "", nil }
-func (generatedSecrets) Set(context.Context, string, string) error   { return nil }
-
-type generatedWorkflows struct {
-	mu          sync.Mutex
-	definitions map[string]pluginsdk.WorkflowDefinition
-}
-
-func newGeneratedWorkflows() *generatedWorkflows {
-	return &generatedWorkflows{definitions: make(map[string]pluginsdk.WorkflowDefinition)}
-}
-func (w *generatedWorkflows) CreateDefinition(_ context.Context, input pluginsdk.WorkflowDefinitionInput) (pluginsdk.WorkflowDefinition, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	now := time.Now().UTC()
-	item := pluginsdk.WorkflowDefinition{ID: input.ID, Key: input.Key, Name: input.Name, Version: input.Version, Status: pluginsdk.WorkflowDefinitionDraft, Nodes: input.Nodes, Transitions: input.Transitions, CreatedAt: now, UpdatedAt: now}
-	w.definitions[item.ID] = item
-	return item, nil
-}
-func (w *generatedWorkflows) GetDefinition(_ context.Context, id string) (pluginsdk.WorkflowDefinition, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	item, ok := w.definitions[id]
-	if !ok {
-		return pluginsdk.WorkflowDefinition{}, fmt.Errorf("definition not found")
-	}
-	return item, nil
-}
-func (w *generatedWorkflows) PublishDefinition(_ context.Context, id string) (pluginsdk.WorkflowDefinition, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	item, ok := w.definitions[id]
-	if !ok {
-		return pluginsdk.WorkflowDefinition{}, fmt.Errorf("definition not found")
-	}
-	item.Status = pluginsdk.WorkflowDefinitionPublished
-	item.UpdatedAt = time.Now().UTC()
-	w.definitions[id] = item
-	return item, nil
-}
-func (*generatedWorkflows) Start(context.Context, pluginsdk.WorkflowStartInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) GetInstance(context.Context, string) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) Approve(context.Context, pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) Reject(context.Context, pluginsdk.WorkflowTaskActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) Withdraw(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) Cancel(context.Context, pluginsdk.WorkflowInstanceActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) Delegate(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) Copy(context.Context, pluginsdk.WorkflowTargetActionInput) (pluginsdk.WorkflowInstance, error) {
-	return pluginsdk.WorkflowInstance{}, nil
-}
-func (*generatedWorkflows) CreateSubstitution(context.Context, pluginsdk.WorkflowSubstitutionInput) (pluginsdk.WorkflowSubstitution, error) {
-	return pluginsdk.WorkflowSubstitution{}, nil
-}
-func (*generatedWorkflows) RevokeSubstitution(context.Context, string) (pluginsdk.WorkflowSubstitution, error) {
-	return pluginsdk.WorkflowSubstitution{}, nil
-}
-
-type generatedJobs struct{}
-
-type generatedEvents struct{}
-
-func (generatedEvents) Publish(context.Context, pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
-	return pluginsdk.EventEnvelope{}, nil
-}
-
-func (generatedJobs) Schedule(context.Context, pluginsdk.JobScheduleInput) (pluginsdk.Job, error) {
-	return pluginsdk.Job{}, nil
-}
-func (generatedJobs) LeaseDue(context.Context, pluginsdk.JobLeaseInput) ([]pluginsdk.Job, error) {
-	return nil, nil
-}
-func (generatedJobs) Complete(context.Context, pluginsdk.JobCompleteInput) (pluginsdk.Job, error) {
-	return pluginsdk.Job{}, nil
-}
-func (generatedJobs) Fail(context.Context, pluginsdk.JobFailInput) (pluginsdk.Job, error) {
-	return pluginsdk.Job{}, nil
-}
-func (generatedJobs) Get(context.Context, string) (pluginsdk.Job, error) { return pluginsdk.Job{}, nil }
-func (generatedJobs) List(context.Context, pluginsdk.JobQuery) ([]pluginsdk.Job, error) {
-	return nil, nil
-}
-
-func generatedHostServices(pluginID string, documents *generatedDocumentHost) pluginsdk.HostServices {
-	return pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: generatedTransactions{}, DataScopes: generatedScopes{}, DataStore: generatedDataStore{},
-		Events:          generatedEvents{},
-		DocumentNumbers: generatedDocumentNumbers{}, Documents: documents, Files: generatedFiles{}, Audit: generatedAudit{},
-		Config: generatedConfig{}, Secrets: generatedSecrets{}, Workflows: newGeneratedWorkflows(), Jobs: generatedJobs{},
-	}
 }
 
 func generatedSourceHashes(t *testing.T, root string) []string {

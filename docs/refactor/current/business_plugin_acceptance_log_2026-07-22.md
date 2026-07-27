@@ -3277,3 +3277,50 @@ Result: FF5-01 passed. One normalized plugin input now generates a compilable, i
 ### Commit
 
 `FF5-01: generate current full-stack plugin contract`
+
+## FF5-02 Build Reusable Plugin Host-Service And Package Fixtures
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Provide one current-only fixture package for deterministic host services, identity and scope, failure injection, package installation, and real managed-process lifecycle tests.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Current host contract | `pluginfixture.Services.Host` supplies every current `pluginsdk.HostServices` port and validates the assembled host before use | Pass |
+| Deterministic context | Tests control clock, JWT identity, tenant/organization/owner scope, workflow actor, identifiers, event timestamps, job leases, and audit timestamps | Pass |
+| Failure injection | Shared `FailurePlan` supports queued and sticky failures for transaction, scope, datastore, event, numbering, file, audit, configuration, secret, workflow, and job operations | Pass |
+| Stateful services | Events, document numbers, files, audit records, configuration, secrets, workflow definitions/instances/substitutions, and durable job lifecycle are observable in memory | Pass |
+| Package runner | One runner builds, verifies, installs, and cross-checks package identity/version/checksum through current runtime package APIs | Pass |
+| Process lifecycle | A packaged fixture backend starts with an isolated host gateway and data root, reaches health, restarts, disables, re-enables, uninstalls, and releases the loopback endpoint | Pass |
+| Generated-plugin adoption | The untouched full-stack generated-plugin E2E uses the reusable package runner and host services while retaining its document-workflow-specific assertion double as one explicit override | Pass |
+| Concurrency | `go test -race ./internal/testing/pluginfixture -count=1` passes | Pass |
+| Repository regression | `go test ./... -count=1` passes | Pass |
+| Current-only rule | No compatibility adapter, legacy fixture, fallback service path, or dual contract was added | Pass |
+
+### Failed Gates And Re-execution
+
+1. The initial fixture compile check rejected one unused import, and the PowerShell invocation exposed that native `gofmt` does not expand the supplied wildcard. The import was removed, formatting was changed to enumerate Go files explicitly, and the fixture suite was rerun successfully.
+2. The complete fixture self-test, race suite, generated-package E2E, and repository regression then passed without further acceptance retries.
+
+### Verification Commands
+
+```powershell
+Get-ChildItem internal/testing/pluginfixture -Recurse -Filter *.go | ForEach-Object { gofmt -w $_.FullName }
+go test ./internal/testing/pluginfixture -count=1 -v
+go test -race ./internal/testing/pluginfixture -count=1
+go test ./internal/service/generator -count=1
+$env:SKOLL_GENERATOR_PLUGIN_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits$' -count=1 -v
+go test ./... -count=1
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF5-02 passed. Plugin tests now share one deterministic current-contract host, package, and managed-process harness that proves restart, disable, and uninstall behavior without private business code or compatibility paths.
+
+### Commit
+
+`FF5-02: add reusable plugin test fixtures`
