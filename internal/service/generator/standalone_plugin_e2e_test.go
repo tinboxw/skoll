@@ -45,7 +45,7 @@ func TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits(t *testing.T) {
 		t.Fatalf("DryRun() error = %v", err)
 	}
 	pluginDir := materializeGeneratedPlugin(t, result, "pharma-oa")
-	linkDocumentUIPackage(t, repoRoot, pluginDir)
+	linkGeneratedFrontendWorkspace(t, repoRoot, pluginDir)
 	linkNodeModules(t, webModules, filepath.Join(pluginDir, "web", "node_modules"))
 	goWork := generatedGoWorkspace(t, repoRoot, pluginDir)
 	before := generatedSourceHashes(t, pluginDir)
@@ -293,14 +293,16 @@ func linkNodeModules(t *testing.T, source, target string) {
 	linkGeneratedDirectory(t, source, target)
 }
 
-func linkDocumentUIPackage(t *testing.T, repoRoot, pluginDir string) {
+func linkGeneratedFrontendWorkspace(t *testing.T, repoRoot, pluginDir string) {
 	t.Helper()
 	workspace := filepath.Clean(filepath.Join(pluginDir, "..", "..", ".."))
-	target := filepath.Join(workspace, "packages", "skoll-document-ui")
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(workspace, "packages"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	linkGeneratedDirectory(t, filepath.Join(repoRoot, "packages", "skoll-document-ui"), target)
+	for _, name := range []string{"skoll-business-ui", "skoll-document-ui", "skoll-plugin-sdk"} {
+		linkGeneratedDirectory(t, filepath.Join(repoRoot, "packages", name), filepath.Join(workspace, "packages", name))
+	}
+	linkGeneratedDirectory(t, filepath.Join(repoRoot, "scripts"), filepath.Join(workspace, "scripts"))
 }
 
 func generatedGoWorkspace(t *testing.T, repoRoot, pluginDir string) string {

@@ -81,8 +81,6 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderFrontendStore(spec)
 	case "plugin.frontend.locale":
 		return renderFrontendLocale(spec)
-	case "plugin.frontend.route":
-		return renderPluginFrontendRoute(spec)
 	case "plugin.frontend.view":
 		return renderPluginFrontendView(spec)
 	case "plugin.frontend.package":
@@ -101,12 +99,8 @@ func renderCandidateContent(templateID string, spec domaingenerator.GeneratorSpe
 		return renderPluginFrontendAPISupport(spec)
 	case "plugin.frontend.common-support":
 		return renderPluginFrontendCommonSupport()
-	case "plugin.frontend.i18n-support":
-		return renderPluginFrontendI18nSupport()
-	case "plugin.frontend.permission-support":
-		return renderPluginFrontendPermissionSupport()
-	case "plugin.frontend.ui-support":
-		return renderPluginFrontendUISupport()
+	case "plugin.frontend.host-support":
+		return renderPluginFrontendHostSupport(spec)
 	case "plugin.document.schema":
 		return renderDocumentSchemaJSON(spec)
 	case "plugin.frontend.document-schema":
@@ -592,16 +586,7 @@ func renderPluginFrontendView(spec domaingenerator.GeneratorSpec) string {
 	if spec.Document != nil {
 		return renderDocumentPluginFrontendView(spec)
 	}
-	content := renderFrontendView(spec)
-	content = strings.ReplaceAll(content, "generated-page", "plugin-generated-page")
-	content = strings.ReplaceAll(content, "generated-toolbar", "plugin-generated-toolbar")
-	content = strings.ReplaceAll(content, "generated-filters", "plugin-generated-filters")
-	return content
-}
-
-func renderPluginFrontendRoute(spec domaingenerator.GeneratorSpec) string {
-	content := renderFrontendRoute(spec)
-	return strings.Replace(content, fmt.Sprintf("\t\tpath: %q,", spec.Menu.Path), fmt.Sprintf("\t\tpath: %q,", spec.Plugin.FrontendEntry), 1)
+	return renderBusinessPluginFrontendView(spec)
 }
 
 func renderPluginAcceptanceTest(spec domaingenerator.GeneratorSpec) string {

@@ -294,47 +294,6 @@ export const exportDocuments = () => apiGet<ApiResponse<{ ID: string; Kind: stri
 `, base)
 }
 
-func renderDocumentPluginFrontendAPISupport(spec domaingenerator.GeneratorSpec) string {
-	return fmt.Sprintf(`export type ApiResponse<T> = { code: string; message: string; data: T };
-type HostRequest = { method?: "GET" | "POST" | "PUT" | "DELETE"; body?: unknown };
-type SkollHost = { pluginId: string; request<T>(path: string, options?: HostRequest): Promise<T> };
-
-declare global { interface Window { __SKOLL_HOST__?: SkollHost } }
-
-function host(): SkollHost {
-  const current = window.__SKOLL_HOST__;
-  if (!current || current.pluginId !== %q) throw new Error("Skoll plugin host context is unavailable");
-  return current;
-}
-
-export const apiGet = <T>(path: string): Promise<T> => host().request<T>(path);
-export const apiPost = <T>(path: string, body?: unknown): Promise<T> => host().request<T>(path, { method: "POST", body });
-export const apiPut = <T>(path: string, body?: unknown): Promise<T> => host().request<T>(path, { method: "PUT", body });
-export const apiDelete = <T>(path: string): Promise<T> => host().request<T>(path, { method: "DELETE" });
-`, spec.Plugin.ID)
-}
-
-func renderDocumentPluginFrontendMain(spec domaingenerator.GeneratorSpec) string {
-	return fmt.Sprintf(`import { createApp } from "vue";
-import { createPinia } from "pinia";
-import {
-  ElAlert, ElButton, ElDatePicker, ElDrawer, ElEmpty, ElForm, ElFormItem, ElInput, ElOption,
-  ElSelect, ElSkeleton, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs, ElTag, ElTimeline,
-  ElTimelineItem, ElTooltip
-} from "element-plus";
-import "element-plus/dist/index.css";
-import Page from "./views/%s/index.vue";
-import "./styles.css";
-
-const app = createApp(Page);
-app.use(createPinia());
-for (const component of [ElAlert, ElButton, ElDatePicker, ElDrawer, ElEmpty, ElForm, ElFormItem, ElInput, ElOption, ElSelect, ElSkeleton, ElSwitch, ElTabPane, ElTable, ElTableColumn, ElTabs, ElTag, ElTimeline, ElTimelineItem, ElTooltip]) {
-  app.component(component.name!, component);
-}
-app.mount("#app");
-`, spec.Table.DomainName)
-}
-
 func renderDocumentPluginFrontendStore(spec domaingenerator.GeneratorSpec) string {
 	return fmt.Sprintf(`import { defineStore } from "pinia";
 import type { DocumentSearchPage, DocumentWorkflowResult } from "@skoll/document-ui";

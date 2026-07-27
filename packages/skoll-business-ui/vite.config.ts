@@ -15,9 +15,12 @@ export default defineConfig({
 	},
 	build: {
 		lib: {
-			entry: "src/index.ts",
+			entry: {
+				index: "src/index.ts",
+				core: "src/core.ts"
+			},
 			formats: ["es"],
-			fileName: "index"
+			fileName: (_format, entryName) => `${entryName}.js`
 		},
 		rollupOptions: {
 			external: (id) => ["@skoll/document-ui", "vue", "element-plus", "lucide-vue-next"]

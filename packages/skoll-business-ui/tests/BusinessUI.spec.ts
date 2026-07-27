@@ -53,10 +53,12 @@ describe("business workspace composition primitives", () => {
 					{ key: "status", label: "Status" }
 				],
 				canNext: true,
+				actionWidth: 132,
 				locale: "en-US"
 			}
 		});
 		expect(wrapper.text()).toContain("PO-001");
+		expect(wrapper.findAllComponents({ name: "ElTableColumn" }).at(-1)?.props("width")).toBe(132);
 		await wrapper.get(".business-list__record > button").trigger("click");
 		expect(wrapper.emitted("open")?.[0]?.[0]).toMatchObject({ id: "1" });
 		await wrapper.findAll("button").at(-1)?.trigger("click");

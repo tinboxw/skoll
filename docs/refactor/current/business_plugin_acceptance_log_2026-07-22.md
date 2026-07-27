@@ -3172,3 +3172,58 @@ Result: FF4-04 passed. Broken, slow, oversized, stale, and unauthorized frontend
 ### Commit
 
 `FF4-04: isolate plugin UI runtime`
+
+## FF4-05 Prove A Generated Frontend Plugin Against The SDK
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Replace generator-owned frontend shims with the current public plugin SDK and business UI contracts, then prove untouched generated output through build, package, lifecycle, browser, accessibility, responsive, authorization, locale, theme, and performance gates.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Current public contract | Generated API and host context use `@skoll/plugin-sdk`; generated workspaces use `@skoll/business-ui/core`; document targets continue through the public document UI package | Pass |
+| No private bridge | Generator no longer emits `window.__SKOLL_HOST__`, `__SKOLL_PLUGIN_PERMISSIONS__`, `components/Common`, local permission directives, local locale state, or a plugin-owned router | Pass |
+| Build without edits | A fresh generated CRUD plugin typechecks and builds without source changes; source hashes remain identical before and after build | Pass |
+| Shared package gate | Generated builds invoke `scripts/check-plugin-frontend-bundle.mjs`; entry raw `432,884 B`, initial and total JS gzip `178,921 B`, CSS gzip `18,703 B` | Pass |
+| Desktop and mobile | Production-preview browser matrix passes at `1440x900` and `390x844`; the responsive record view replaces the desktop table on narrow screens | Pass |
+| Locale and theme | The generated host context applies and reacts to `zh-CN/en-US`, light/dark, density, and all validated host tokens | Pass |
+| Lifecycle | `enabled -> degraded -> enabled` transitions replace and restore business content through controlled shared states | Pass |
+| Authorization | A role without read permission renders the forbidden state and performs `0` business API requests | Pass |
+| Interaction and accessibility | Create drawer, search, list, row commands, labels, focusable controls, viewport bounds, and document overflow checks pass | Pass |
+| Runtime performance | Warm production route ready: desktop `877ms`, mobile `824ms`; maximum interaction long task: desktop `52ms`, mobile `0ms` | Pass |
+| Public UI stability | Business UI supports a declared action-column width; its typecheck, `16/16` component/contract tests, and multi-entry package build pass | Pass |
+| Document plugin regression | Generated document plugin builds, passes the shared bundle gate, compiles/tests its backend, packages deterministically, verifies, installs, runs lifecycle/API acceptance, disables, and uninstalls without source edits | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first generated build failed because the Vite template required Node URL types. The template now resolves workspace source URLs through the standard `URL` API and was re-executed.
+2. The next CRUD build exposed a public value/type name collision and duplicate dependencies across linked workspaces. The generated type boundary was made explicit and Vite now deduplicates Vue, Element Plus, and VueUse.
+3. The first passing build failed the browser layout gate because three row commands were placed in the business list's default `64px` action column. The public list now accepts a stable `actionWidth`, and generated CRUD pages declare `132px`.
+4. Browser reruns then exposed strict-locator, early init-script, cold-browser, and hidden mobile-table assumptions in the test fixture. The fixture now uses the installed Chrome channel, initializes the formal host before application code, warms production assets, targets visible responsive content, and separates startup from interaction long-task samples.
+5. The complete build and browser matrix was re-executed after every correction and passed.
+
+### Verification Commands
+
+```powershell
+go test ./internal/service/generator -count=1
+$env:SKOLL_GENERATOR_PLUGIN_FRONTEND_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginFrontendBuildAndBrowserMatrix$' -count=1 -v
+$env:SKOLL_GENERATOR_PLUGIN_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits$' -count=1 -v
+npm --prefix packages/skoll-business-ui run typecheck
+npm --prefix packages/skoll-business-ui test
+npm --prefix packages/skoll-business-ui run build
+npm --prefix web run typecheck
+npm --prefix web run test:components
+npm --prefix web run build
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF4-05 passed. A generated frontend plugin now consumes only current public platform contracts, builds and packages without edits, inherits presentation and lifecycle state, fails closed for restricted users, and passes executable desktop/mobile quality and performance gates.
+
+### Commit
+
+`FF4-05: prove generated plugin frontend`

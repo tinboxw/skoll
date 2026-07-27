@@ -15,6 +15,7 @@ const props = withDefaults(defineProps<{
 	stateDescription?: string;
 	canPrevious?: boolean;
 	canNext?: boolean;
+	actionWidth?: string | number;
 	locale?: BusinessLocale;
 }>(), {
 	rowKey: "id",
@@ -23,6 +24,7 @@ const props = withDefaults(defineProps<{
 	stateDescription: "",
 	canPrevious: false,
 	canNext: false,
+	actionWidth: 64,
 	locale: "zh-CN"
 });
 
@@ -68,7 +70,7 @@ function display(value: unknown): string {
 							<slot :name="`cell-${column.key}`" :row="row" :value="row[column.key]">{{ display(row[column.key]) }}</slot>
 						</template>
 					</el-table-column>
-					<el-table-column width="64" fixed="right">
+					<el-table-column :width="actionWidth" fixed="right">
 						<template #default="{ row }: { row: BusinessRecord }">
 							<slot name="actions" :row="row">
 								<el-button link type="primary" :icon="Eye" :aria-label="copy.open" @click="emit('open', row)" />

@@ -56,10 +56,14 @@ func TestDocumentPluginTargetUsesOnlyPublicContracts(t *testing.T) {
 	packageJSON := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/package.json").GeneratedContent
 	view := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue").GeneratedContent
 	hostAPI := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/utils/api.ts").GeneratedContent
-	for _, marker := range []string{"@skoll/document-ui", "DocumentList", "DocumentForm", "DocumentDetail", "approveDocument", "exportDocuments", "window.__SKOLL_HOST__", `pluginId !== "pharma-oa"`} {
-		if !strings.Contains(packageJSON+view+hostAPI, marker) {
+	hostContext := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/skoll-host.ts").GeneratedContent
+	for _, marker := range []string{"@skoll/document-ui", "@skoll/business-ui", "@skoll/plugin-sdk", "DocumentList", "DocumentForm", "DocumentDetail", "approveDocument", "exportDocuments", "getPluginHost", `pluginId: "pharma-oa"`} {
+		if !strings.Contains(packageJSON+view+hostAPI+hostContext, marker) {
 			t.Fatalf("generated frontend missing %q", marker)
 		}
+	}
+	if strings.Contains(hostAPI+hostContext, "window.__SKOLL_HOST__") {
+		t.Fatal("generated frontend bypasses the public plugin SDK")
 	}
 
 	manifest := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin.yaml").GeneratedContent

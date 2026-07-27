@@ -283,7 +283,7 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/api/product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/stores/product.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/i18n/generated_product.ts", FileStatusCreate)
-	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/router/generated_product.ts", FileStatusCreate)
+	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/skoll-host.ts", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/package.json", FileStatusCreate)
 	assertPlanPath(t, result.Files, "examples/plugins/pharma-oa/web/src/main.ts", FileStatusCreate)
@@ -320,12 +320,12 @@ func TestDryRunRendersBusinessPluginTemplates(t *testing.T) {
 	if !strings.Contains(locale, "translateProduct") || !strings.Contains(locale, `"generated.product.field.name"`) {
 		t.Fatalf("plugin frontend locale content = %q", locale)
 	}
-	route := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/router/generated_product.ts").GeneratedContent
-	if !strings.Contains(route, "productRoutes") || !strings.Contains(route, `path: "/skoll/plugins/pharma-oa"`) || !strings.Contains(route, `permissions: ["pharma_oa.product.read"]`) {
-		t.Fatalf("plugin frontend route content = %q", route)
+	host := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/skoll-host.ts").GeneratedContent
+	if !strings.Contains(host, `getPluginHost`) || !strings.Contains(host, `pluginId: "pharma-oa"`) || !strings.Contains(host, `"skoll:theme"`) {
+		t.Fatalf("plugin frontend host content = %q", host)
 	}
 	view := findPlan(t, result.Files, "examples/plugins/pharma-oa/web/src/views/Product/index.vue").GeneratedContent
-	if !strings.Contains(view, "plugin-generated-page") || !strings.Contains(view, "v-permission=\"createPermission\"") {
+	if !strings.Contains(view, "plugin-generated-page") || !strings.Contains(view, `from "@skoll/business-ui/core"`) || strings.Contains(view, "v-permission") {
 		t.Fatalf("plugin frontend view content = %q", view)
 	}
 	powerShell := findPlan(t, result.Files, "examples/plugins/pharma-oa/plugin.ps1").GeneratedContent
