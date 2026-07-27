@@ -23,9 +23,9 @@ import (
 	"github.com/tinboxw/skoll/pkg/security"
 )
 
-func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
+func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	if testing.Short() || os.Getenv("SKOLL_PHARMA_OA_E2E") != "1" {
-		t.Skip("set SKOLL_PHARMA_OA_E2E=1 to run the packaged pharma-OA lifecycle E2E")
+		t.Skip("set SKOLL_PHARMA_OA_E2E=1 to run the packaged Pharma OA business lifecycle E2E")
 	}
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -71,7 +71,10 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		t.Fatalf("install package: %v", err)
 	}
 	required := []string{"plugin.yaml", "frontend/dist/index.html", managedBackendRelativePath("pharma_oa")}
-	for version, name := range map[string]string{"001": "foundation", "002": "employees", "003": "parties", "004": "catalogs", "005": "qualifications", "006": "oa_requests"} {
+	for version, name := range map[string]string{
+		"001": "foundation", "002": "employees", "003": "parties", "004": "catalogs",
+		"005": "qualifications", "006": "oa_requests", "007": "purchases", "008": "purchase_inbounds",
+	} {
 		required = append(required, "migrations/"+version+"_"+name+".up.sql", "migrations/"+version+"_"+name+".down.sql")
 	}
 	for _, path := range required {
@@ -269,12 +272,84 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 	}, http.StatusOK)
 	pharmaLifecycleAssertOAStatus(t, customApproved, "approved")
 
+	supplierID, productID, manufacturerID := pharmaLifecycleCreatePurchaseMasterData(t, baseURL, actorAToken)
+	pharmaLifecycleApprovePurchaseQualification(t, baseURL, actorAToken, "supplier", supplierID, "purchase", "supplier")
+	pharmaLifecycleApprovePurchaseQualification(t, baseURL, actorAToken, "product", productID, "purchase", "product")
+	pharmaLifecycleApprovePurchaseQualification(t, baseURL, actorAToken, "manufacturer", manufacturerID, "supply", "manufacturer")
+	purchaseBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "supplierId": supplierID,
+		"reason": "Packaged purchase and receiving acceptance", "currency": "CNY", "approverId": "actor-a-approver", "approverName": "Purchase approver",
+		"lines": []map[string]any{{"productId": productID, "quantity": "2.5", "unitPrice": "10.20"}},
+	}
+	purchaseCreated := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-requests", actorAToken, "e2e-purchase-create", purchaseBody, http.StatusCreated)
+	purchaseItem := pharmaLifecycleMap(t, purchaseCreated, "item")
+	purchaseID := pharmaLifecycleString(t, purchaseItem, "id")
+	purchaseDuplicate := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-requests", actorAToken, "e2e-purchase-create", purchaseBody, http.StatusOK)
+	if duplicate, ok := purchaseDuplicate["duplicate"].(bool); !ok || !duplicate ||
+		pharmaLifecycleString(t, pharmaLifecycleMap(t, purchaseDuplicate, "item"), "id") != purchaseID {
+		t.Fatalf("purchase create was not idempotent: %v", purchaseDuplicate)
+	}
+	purchaseApproved := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-requests/"+purchaseID+"/approve", actorAToken, "e2e-purchase-approve", map[string]any{
+		"taskId": pharmaLifecyclePendingTaskID(t, purchaseCreated), "comment": "Qualifications and budget confirmed", "version": 1,
+	}, http.StatusOK)
+	purchaseOrder := pharmaLifecycleMap(t, purchaseApproved, "order")
+	purchaseOrderID := pharmaLifecycleString(t, purchaseOrder, "id")
+	purchaseOrderLine := pharmaLifecycleArrayMap(t, purchaseOrder, "lines", 0)
+	purchaseOrderLineID := pharmaLifecycleString(t, purchaseOrderLine, "id")
+	if pharmaLifecycleString(t, purchaseOrder, "status") != "open" || pharmaLifecycleString(t, purchaseOrder, "totalAmount") != "25.50" {
+		t.Fatalf("approved purchase did not create exact open order: %v", purchaseApproved)
+	}
+
+	rejectedPurchase := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-requests", actorAToken, "e2e-purchase-reject-create", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "supplierId": supplierID,
+		"reason": "Duplicate replenishment request", "currency": "CNY", "approverId": "actor-a-approver", "approverName": "Purchase approver",
+		"lines": []map[string]any{{"productId": productID, "quantity": "1", "unitPrice": "10.20"}},
+	}, http.StatusCreated)
+	rejectedPurchaseItem := pharmaLifecycleMap(t, rejectedPurchase, "item")
+	rejectedPurchaseID := pharmaLifecycleString(t, rejectedPurchaseItem, "id")
+	rejectedDecision := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-requests/"+rejectedPurchaseID+"/reject", actorAToken, "e2e-purchase-reject", map[string]any{
+		"taskId": pharmaLifecyclePendingTaskID(t, rejectedPurchase), "comment": "Duplicate request", "version": 1,
+	}, http.StatusOK)
+	if pharmaLifecycleString(t, pharmaLifecycleMap(t, rejectedDecision, "item"), "status") != "rejected" {
+		t.Fatalf("purchase rejection did not close request: %v", rejectedDecision)
+	}
+
+	partialInboundBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": purchaseOrderID,
+		"warehouseId": "WH-E2E", "areaId": "AREA-A", "locationId": "LOC-001", "orderVersion": 1,
+		"lines": []map[string]any{{
+			"orderLineId": purchaseOrderLineID, "quantity": "1.25", "batchNo": "LOT-E2E-001",
+			"productionDate": now.AddDate(0, -1, 0).Format("2006-01-02"), "expiresAt": now.AddDate(2, 0, 0).Format("2006-01-02"),
+		}},
+		"attachments": []map[string]any{{
+			"name": "receipt-evidence.txt", "contentBase64": base64.StdEncoding.EncodeToString([]byte("packaged inbound evidence")),
+		}},
+	}
+	partialInbound := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-inbounds", actorAToken, "e2e-inbound-partial", partialInboundBody, http.StatusCreated)
+	partialInboundItem := pharmaLifecycleMap(t, partialInbound, "item")
+	partialInboundID := pharmaLifecycleString(t, partialInboundItem, "id")
+	partialOrder := pharmaLifecycleMap(t, partialInbound, "order")
+	if pharmaLifecycleString(t, partialOrder, "status") != "partial" ||
+		pharmaLifecycleString(t, pharmaLifecycleArrayMap(t, partialOrder, "lines", 0), "receivedQuantity") != "1.25" {
+		t.Fatalf("partial inbound did not retain exact order progress: %v", partialInbound)
+	}
+
 	isolatedOARequests := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/oa-requests?limit=20", actorBToken, "", nil, http.StatusOK)
 	if pharmaLifecycleInt(t, isolatedOARequests, "total") != 0 {
 		t.Fatalf("cross-scope OA requests leaked: %v", isolatedOARequests)
 	}
 	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/oa-requests/"+leaveID, actorBToken, "", nil, http.StatusNotFound)
-	if files.count() != 2 || jobs.count() != 2 || workflows.instanceCount() != 5 {
+	isolatedPurchaseRequests := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-requests", actorBToken, "", nil, http.StatusOK)
+	isolatedPurchaseOrders := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-orders", actorBToken, "", nil, http.StatusOK)
+	isolatedInbounds := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-inbounds", actorBToken, "", nil, http.StatusOK)
+	if pharmaLifecycleInt(t, isolatedPurchaseRequests, "total") != 0 || pharmaLifecycleInt(t, isolatedPurchaseOrders, "total") != 0 ||
+		pharmaLifecycleInt(t, isolatedInbounds, "total") != 0 {
+		t.Fatalf("cross-scope purchase records leaked: requests=%v orders=%v inbounds=%v", isolatedPurchaseRequests, isolatedPurchaseOrders, isolatedInbounds)
+	}
+	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-requests/"+purchaseID, actorBToken, "", nil, http.StatusNotFound)
+	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-orders/"+purchaseOrderID, actorBToken, "", nil, http.StatusNotFound)
+	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-inbounds/"+partialInboundID, actorBToken, "", nil, http.StatusNotFound)
+	if files.count() != 6 || jobs.count() != 2 || workflows.instanceCount() != 7 {
 		t.Fatalf("unexpected OA host resources: files=%d jobs=%d workflows=%d", files.count(), jobs.count(), workflows.instanceCount())
 	}
 	for _, action := range []string{
@@ -283,12 +358,13 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		"pharma_oa.oa_request.create", "pharma_oa.oa_request.submit", "pharma_oa.oa_request.attach", "pharma_oa.oa_request.comment",
 		"pharma_oa.oa_request.remind", "pharma_oa.oa_request.delegate", "pharma_oa.oa_request.approve", "pharma_oa.oa_request.reject",
 		"pharma_oa.oa_request.withdraw", "pharma_oa.oa_request.cancel",
+		"pharma_oa.purchase.create", "pharma_oa.purchase.approve", "pharma_oa.purchase.reject", "pharma_oa.inbound.create",
 	} {
 		if !audit.hasAction(action) {
 			t.Fatalf("missing audit action %q; actions=%v", action, audit.actions())
 		}
 	}
-	if transactions.commits < 28 || transactions.rollbacks != 0 {
+	if transactions.commits < 40 || transactions.rollbacks != 0 {
 		t.Fatalf("unexpected transaction results: %+v", transactions)
 	}
 
@@ -305,6 +381,9 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := equipmentEndpointClosed(baseURL + "/oa-requests"); err != nil {
+		t.Fatal(err)
+	}
+	if err := equipmentEndpointClosed(baseURL + "/purchase-requests"); err != nil {
 		t.Fatal(err)
 	}
 	if err := manager.Enable(installed.ID); err != nil {
@@ -341,8 +420,39 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		len(pharmaLifecycleArray(t, restartedWorkflow, "timeline")) != 3 {
 		t.Fatalf("restart lost OA workflow timeline: %v", restartedWorkflow)
 	}
-	if files.count() != 2 || jobs.count() != 2 || workflows.instanceCount() != 5 {
+	if files.count() != 6 || jobs.count() != 2 || workflows.instanceCount() != 7 {
 		t.Fatalf("restart changed host-owned OA resources: files=%d jobs=%d workflows=%d", files.count(), jobs.count(), workflows.instanceCount())
+	}
+
+	restartedPurchases := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-requests", actorAToken, "", nil, http.StatusOK)
+	restartedOrders := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-orders", actorAToken, "", nil, http.StatusOK)
+	restartedInbounds := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-inbounds?purchaseOrderId="+purchaseOrderID, actorAToken, "", nil, http.StatusOK)
+	if pharmaLifecycleInt(t, restartedPurchases, "total") != 2 || pharmaLifecycleInt(t, restartedOrders, "total") != 1 ||
+		pharmaLifecycleInt(t, restartedInbounds, "total") != 1 {
+		t.Fatalf("restart lost purchase facts: requests=%v orders=%v inbounds=%v", restartedPurchases, restartedOrders, restartedInbounds)
+	}
+	restartedOrderResponse := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-orders/"+purchaseOrderID, actorAToken, "", nil, http.StatusOK)
+	restartedOrder := pharmaLifecycleMap(t, restartedOrderResponse, "item")
+	if pharmaLifecycleString(t, restartedOrder, "status") != "partial" || pharmaLifecycleInt(t, restartedOrder, "version") != 2 {
+		t.Fatalf("restart lost partial order state: %v", restartedOrderResponse)
+	}
+	finalInbound := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-inbounds", actorAToken, "e2e-inbound-final", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": purchaseOrderID,
+		"warehouseId": "WH-E2E", "areaId": "AREA-A", "locationId": "LOC-002", "orderVersion": 2,
+		"lines": []map[string]any{{
+			"orderLineId": purchaseOrderLineID, "quantity": "1.25", "batchNo": "LOT-E2E-002",
+			"productionDate": now.AddDate(0, -1, 0).Format("2006-01-02"), "expiresAt": now.AddDate(2, 0, 0).Format("2006-01-02"),
+		}},
+		"attachments": []map[string]any{},
+	}, http.StatusCreated)
+	finalOrder := pharmaLifecycleMap(t, finalInbound, "order")
+	if pharmaLifecycleString(t, finalOrder, "status") != "received" ||
+		pharmaLifecycleString(t, pharmaLifecycleArrayMap(t, finalOrder, "lines", 0), "receivedQuantity") != "2.5" {
+		t.Fatalf("final inbound did not close exact order quantity: %v", finalInbound)
+	}
+	finalInbounds := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-inbounds?purchaseOrderId="+purchaseOrderID, actorAToken, "", nil, http.StatusOK)
+	if pharmaLifecycleInt(t, finalInbounds, "total") != 2 || files.count() != 6 || workflows.instanceCount() != 7 {
+		t.Fatalf("final receiving changed retained resources: inbounds=%v files=%d workflows=%d", finalInbounds, files.count(), workflows.instanceCount())
 	}
 
 	if err := manager.Disable(installed.ID); err != nil {
@@ -378,6 +488,9 @@ func TestPharmaOAPackagedMasterDataLifecycleE2E(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := equipmentEndpointClosed(baseURL + "/oa-requests"); err != nil {
+		t.Fatal(err)
+	}
+	if err := equipmentEndpointClosed(baseURL + "/purchase-inbounds"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -1198,6 +1311,67 @@ func pharmaLifecycleArray(t *testing.T, values map[string]any, key string) []any
 		t.Fatalf("%q is not an array: %v", key, values)
 	}
 	return value
+}
+
+func pharmaLifecycleArrayMap(t *testing.T, values map[string]any, key string, index int) map[string]any {
+	t.Helper()
+	items := pharmaLifecycleArray(t, values, key)
+	if index < 0 || index >= len(items) {
+		t.Fatalf("%q index %d is outside %d items: %v", key, index, len(items), values)
+	}
+	item, ok := items[index].(map[string]any)
+	if !ok {
+		t.Fatalf("%q index %d is not an object: %v", key, index, values)
+	}
+	return item
+}
+
+func pharmaLifecycleCreatePurchaseMasterData(t *testing.T, baseURL, token string) (string, string, string) {
+	t.Helper()
+	supplier := pharmaLifecycleMap(t, pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/suppliers", token, "e2e-purchase-supplier-create", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "SUP-E2E-001", "name": "Packaged Qualified Supplier",
+		"unifiedSocialCreditCode": "91330000MAE2ES01", "region": "Zhejiang", "rating": 5,
+		"contacts":        []map[string]any{{"name": "Quality owner", "phone": "13800000002", "email": "quality@supplier.example", "primary": true}},
+		"addresses":       []map[string]any{{"label": "Headquarters", "province": "Zhejiang", "city": "Hangzhou", "district": "Gongshu", "detail": "88 Compliance Road", "default": true}},
+		"settlementTerms": map[string]any{"currency": "CNY", "paymentDays": 30, "creditLimit": 500000},
+	}, http.StatusCreated), "item")
+	category := pharmaLifecycleMap(t, pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/categories", token, "e2e-purchase-category-create", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "RX-E2E", "name": "Prescription medicine", "description": "Packaged purchase category",
+	}, http.StatusCreated), "item")
+	unit := pharmaLifecycleMap(t, pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/units", token, "e2e-purchase-unit-create", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "BOX-E2E", "name": "Box", "description": "Packaged purchase unit", "symbol": "box", "decimalPlaces": 3,
+	}, http.StatusCreated), "item")
+	manufacturer := pharmaLifecycleMap(t, pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/manufacturers", token, "e2e-purchase-manufacturer-create", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "MFG-E2E-001", "name": "Packaged Qualified Manufacturer",
+		"description": "Packaged medicine manufacturer", "unifiedSocialCreditCode": "91330000MAE2EM01", "licenseNumber": "MFG-E2E-2026-001",
+	}, http.StatusCreated), "item")
+	product := pharmaLifecycleMap(t, pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/products", token, "e2e-purchase-product-create", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "MED-E2E-001", "sku": "SKU-E2E-001",
+		"name": "Packaged Acceptance Capsule", "genericName": "Acceptance Medicine", "categoryId": pharmaLifecycleString(t, category, "id"),
+		"unitId": pharmaLifecycleString(t, unit, "id"), "manufacturerId": pharmaLifecycleString(t, manufacturer, "id"), "dosageForm": "capsule",
+		"specification": "0.25g x 24", "approvalNumber": "NMPA-E2E-2026-001", "barcode": "690000009901",
+		"storageCondition": "sealed and dry", "temperatureMin": 2, "temperatureMax": 25,
+	}, http.StatusCreated), "item")
+	return pharmaLifecycleString(t, supplier, "id"), pharmaLifecycleString(t, product, "id"), pharmaLifecycleString(t, manufacturer, "id")
+}
+
+func pharmaLifecycleApprovePurchaseQualification(t *testing.T, baseURL, token, subjectType, subjectID, gate, suffix string) {
+	t.Helper()
+	qualificationType := pharmaLifecycleMap(t, pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/qualification-types", token, "e2e-purchase-"+suffix+"-type", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "PURCHASE-" + strings.ToUpper(suffix),
+		"name": "Packaged purchase " + suffix + " qualification", "subjectType": subjectType, "businessGate": gate,
+		"description": "Required by packaged purchase acceptance", "validityDays": 365, "alertDays": 30, "evidenceRequired": true, "businessRequired": true,
+	}, http.StatusCreated), "item")
+	now := time.Now().UTC()
+	qualification := pharmaLifecycleMap(t, pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/qualifications", token, "e2e-purchase-"+suffix+"-qualification", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "typeId": pharmaLifecycleString(t, qualificationType, "id"),
+		"subjectType": subjectType, "subjectId": subjectID, "certificateNumber": "CERT-PURCHASE-" + strings.ToUpper(suffix),
+		"issuer": "Packaged Acceptance Authority", "validFrom": now.AddDate(0, 0, -1).Format("2006-01-02"), "validTo": now.AddDate(1, 0, 0).Format("2006-01-02"),
+		"evidence": map[string]any{"name": suffix + ".pdf", "contentBase64": base64.StdEncoding.EncodeToString([]byte("%PDF-1.4\n%%EOF"))},
+	}, http.StatusCreated), "item")
+	id := pharmaLifecycleString(t, qualification, "id")
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/qualifications/"+id+"/submit", token, "e2e-purchase-"+suffix+"-submit", map[string]any{"version": 1}, http.StatusOK)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/qualifications/"+id+"/approve", token, "e2e-purchase-"+suffix+"-approve", map[string]any{"comment": "Valid for purchase", "version": 2}, http.StatusOK)
 }
 
 func pharmaLifecycleCreateOARequest(t *testing.T, baseURL, token, requestType, title string, formData map[string]any) map[string]any {

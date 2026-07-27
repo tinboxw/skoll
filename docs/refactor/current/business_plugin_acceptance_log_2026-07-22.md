@@ -2005,7 +2005,7 @@ Result: BF5-03D4 passed. The host is a generic Element Plus platform shell; the 
 ```powershell
 go test ./plugins/pharma_oa -run 'TestMedicalOAProductionCoreOwnsNoBusinessImplementation$' -count=1 -v
 $env:SKOLL_PHARMA_OA_E2E='1'
-go test ./internal/plugin -run 'TestPharmaOAPackagedMasterDataLifecycleE2E$' -count=1 -v
+go test ./internal/plugin -run 'TestPharmaOAPackagedBusinessLifecycleE2E$' -count=1 -v
 go test ./... -count=1
 
 ./plugins/pharma_oa/plugin.ps1 -Action package -DistDir 'D:\workspace\.codex-temp\skoll-bf5-03d5-package'
@@ -2033,3 +2033,65 @@ Result: BF5-03D5 passed. Framework purity is now executable rather than document
 ### Commit
 
 `BF5-03D5: enforce framework purity gate`
+
+## BF5-03D Close Purchasing And Inbound Acceptance
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Close the packaged purchasing and inbound lifecycle after the independent-plugin implementation, host extraction, architecture gate, and frontend acceptance all pass.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Clean package install | Pass | The installed artifact contains the managed backend, separated frontend, manifest, and reversible migrations `001` through `008` |
+| Qualification gates | Pass | Supplier purchase, product purchase, and manufacturer supply qualifications are created with evidence, submitted, approved, and enforced before purchasing |
+| Purchase idempotency | Pass | Repeating the same request with one idempotency key returns the original request and does not create another record |
+| Approval path | Pass | Approving a `2.5 x 10.20` request creates one open order with exact `25.50` total and a traceable workflow decision |
+| Rejection path | Pass | A second request reaches `rejected` through its current pending task without creating an order |
+| Partial receiving | Pass | The first receipt records lot, production, expiry, warehouse/location, and evidence; order progress becomes exact `1.25` and `partial` |
+| Cross-scope isolation | Pass | Another tenant scope sees zero requests, orders, and receipts; direct detail reads return not found |
+| Restart durability | Pass | Two requests, one order, one partial receipt, workflow timelines, files, jobs, exact quantity, status, and optimistic version survive process restart |
+| Final receiving | Pass | A second `1.25` receipt closes the order at exact `2.5`, status `received`, with two persisted inbound records |
+| Lifecycle controls | Pass | Disable closes business endpoints, re-enable restores the package, and uninstall closes endpoints and removes plugin-owned schema without restoring host code |
+| Audit and transactions | Pass | Purchase create/approve/reject and inbound create actions are audited; at least 40 transactions commit and none roll back in the successful scenario |
+| Framework purity | Pass | BF5-03D1 through BF5-03D5 pass; production core has no medical business implementation or dual path |
+| Frontend quality | Pass | Chinese purchasing UI, interaction tests, themes, responsive layout, typecheck, lazy chunks, bundle budgets, and host frontend gates pass |
+| Repository regression | Pass | The complete `go test ./... -count=1` gate passes after extraction |
+
+### Verification Commands
+
+```powershell
+$env:SKOLL_PHARMA_OA_E2E='1'
+go test ./internal/plugin -run 'TestPharmaOAPackagedBusinessLifecycleE2E$' -count=1 -v
+go test ./plugins/pharma_oa/... -count=1
+go test ./... -count=1
+
+cd plugins/pharma_oa/frontend
+npm test
+npm run build
+
+cd ../../../web
+npm run typecheck
+npm run test:components
+npm run build
+
+cd ..
+codegraph sync .
+git diff --check
+```
+
+Result: BF5-03D and parent BF5-03 passed. Purchasing and inbound receiving now exist only as an independently packaged medical OA capability built on current public framework services.
+
+### Impact Review
+
+- Business capability: request, approval, rejection, order creation, partial receipt, and final receipt form one tested package lifecycle.
+- Isolation: tenant scope, plugin process, schema, files, workflow, jobs, audit, and transaction boundaries remain explicit.
+- Durability: package state survives restart and is removed by uninstall policy.
+- Framework: reusable host services remain industry-neutral, with medical behavior exclusively inside the plugin package.
+- Compatibility: none; no removed host endpoint, schema, page, or fallback path is retained.
+
+### Commit
+
+`BF5-03D: close packaged purchase lifecycle`
