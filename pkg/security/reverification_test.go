@@ -42,7 +42,11 @@ func TestReverificationProofRejectsTamperingAndInvalidPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tampered := token[:len(token)-1] + "0"
+	replacement := "0"
+	if strings.HasSuffix(token, replacement) {
+		replacement = "1"
+	}
+	tampered := token[:len(token)-1] + replacement
 	if _, err := service.VerifyReverificationProof(tampered, now); err == nil {
 		t.Fatal("tampered proof must fail")
 	}

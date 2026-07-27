@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type CDPSession, type Page } from "@playwright/test";
+import {
+	assertPluginPerformanceBudget,
+	installPluginPerformanceObserver,
+	measurePluginAction,
+	readAndResetPluginLongTasks,
+	runPluginStateMatrix
+} from "../../../packages/skoll-plugin-test/src/index";
 
 type RuntimeBudgets = {
 	routeReadyMs: number;
@@ -40,31 +47,33 @@ const pluginHTML = `<!doctype html>
 test("plugin runtime isolates failures, enforces limits, and recovers through retry", async ({ page }) => {
 	let mode: PageMode = "error";
 	await prepareRuntime(page, "runtime.access", () => mode);
-
-	const failureStarted = performance.now();
-	await page.goto(PLUGIN_PATH);
-	await expect(page.locator("[data-testid='plugin-runtime-error']")).toBeVisible();
-	expect(performance.now() - failureStarted).toBeLessThanOrEqual(budgets.failureReadyMs);
-	await expect(page.locator(".header")).toBeVisible();
-
-	mode = "success";
-	await page.getByRole("button", { name: /重试|Retry/ }).click();
-	const frame = page.locator("iframe.plugin-page-frame");
-	await expect(frame).toBeVisible();
-	await expect(frame).toHaveAttribute("loading", "lazy");
-	await expect(frame).toHaveAttribute("sandbox", "allow-downloads allow-forms allow-same-origin allow-scripts");
-	await expect(page.frameLocator("iframe.plugin-page-frame").getByRole("heading", { name: "插件运行正常" })).toBeVisible();
-
-	mode = "oversized";
-	await page.reload();
-	await expect(page.locator("[data-testid='plugin-runtime-error']")).toContainText("1048576");
-
-	mode = "slow";
-	const slowStarted = performance.now();
-	await page.getByRole("button", { name: /重试|Retry/ }).click();
-	await expect(page.locator("[data-testid='plugin-runtime-error']")).toContainText(/5000ms|5,000ms/);
-	expect(performance.now() - slowStarted).toBeLessThanOrEqual(budgets.failureReadyMs);
-	await expect(page.locator(".header")).toBeVisible();
+	await runPluginStateMatrix<PageMode, number>(
+		["error", "success", "oversized", "slow"],
+		async (state) => {
+			mode = state;
+			const startedAt = performance.now();
+			if (state === "error") await page.goto(PLUGIN_PATH);
+			else if (state === "oversized") await page.reload();
+			else await page.getByRole("button", { name: /重试|Retry/ }).click();
+			return performance.now() - startedAt;
+		},
+		async (state, elapsedMs) => {
+			if (state === "success") {
+				const frame = page.locator("iframe.plugin-page-frame");
+				await expect(frame).toBeVisible();
+				await expect(frame).toHaveAttribute("loading", "lazy");
+				await expect(frame).toHaveAttribute("sandbox", "allow-downloads allow-forms allow-same-origin allow-scripts");
+				await expect(page.frameLocator("iframe.plugin-page-frame").getByRole("heading", { name: "插件运行正常" })).toBeVisible();
+				return;
+			}
+			const error = page.locator("[data-testid='plugin-runtime-error']");
+			await expect(error).toBeVisible();
+			if (state === "oversized") await expect(error).toContainText("1048576");
+			if (state === "slow") await expect(error).toContainText(/5000ms|5,000ms/);
+			if (state === "error" || state === "slow") expect(elapsedMs).toBeLessThanOrEqual(budgets.failureReadyMs);
+			await expect(page.locator(".header")).toBeVisible();
+		}
+	);
 });
 
 test("plugin runtime denies an unauthorized route before loading plugin HTML", async ({ page }) => {
@@ -81,25 +90,25 @@ test("plugin runtime denies an unauthorized route before loading plugin HTML", a
 });
 
 test("plugin runtime stays inside route, interaction, long-task, and memory budgets", async ({ page }) => {
-	await installLongTaskObserver(page);
+	await installPluginPerformanceObserver(page);
 	await prepareRuntime(page, "runtime.access", () => "success");
 	await page.goto(PLUGIN_PATH);
 	await expect(page.frameLocator("iframe.plugin-page-frame").getByRole("heading", { name: "插件运行正常" })).toBeVisible();
 	await page.goto("/skoll/dashboard");
-	await readAndResetLongTasks(page);
+	await readAndResetPluginLongTasks(page);
 
-	const routeStarted = performance.now();
-	await navigateThroughShell(page, PLUGIN_PATH);
 	const frame = page.frameLocator("iframe.plugin-page-frame");
-	await expect(frame.getByRole("heading", { name: "插件运行正常" })).toBeVisible();
-	const routeReadyMs = performance.now() - routeStarted;
-	const longTasks: number[] = await readAndResetLongTasks(page);
+	const routeReadyMs = await measurePluginAction(
+		() => navigateThroughShell(page, PLUGIN_PATH),
+		() => expect(frame.getByRole("heading", { name: "插件运行正常" })).toBeVisible()
+	);
+	const longTasks: number[] = await readAndResetPluginLongTasks(page);
 
-	const interactionStarted = performance.now();
-	await frame.getByRole("button", { name: "执行操作" }).click();
-	await expect(frame.locator("#result")).toHaveText("1");
-	const interactionMs = performance.now() - interactionStarted;
-	longTasks.push(...await readAndResetLongTasks(page));
+	const interactionMs = await measurePluginAction(
+		() => frame.getByRole("button", { name: "执行操作" }).click(),
+		() => expect(frame.locator("#result")).toHaveText("1")
+	);
+	longTasks.push(...await readAndResetPluginLongTasks(page));
 
 	const session = await page.context().newCDPSession(page);
 	await session.send("Performance.enable");
@@ -109,16 +118,12 @@ test("plugin runtime stays inside route, interaction, long-task, and memory budg
 		await navigateThroughShell(page, "/skoll/dashboard");
 		await navigateThroughShell(page, PLUGIN_PATH);
 		await expect(page.frameLocator("iframe.plugin-page-frame").getByRole("heading", { name: "插件运行正常" })).toBeVisible();
-		longTasks.push(...await readAndResetLongTasks(page));
+		longTasks.push(...await readAndResetPluginLongTasks(page));
 	}
 	await session.send("HeapProfiler.collectGarbage");
 	const heapGrowthBytes = Math.max(0, (await readHeap(session)) - heapBefore);
 
-	expect(routeReadyMs, "plugin route readiness").toBeLessThanOrEqual(budgets.routeReadyMs);
-	expect(interactionMs, "plugin interaction readiness").toBeLessThanOrEqual(budgets.interactionMs);
-	expect(longTasks.length === 0 ? 0 : Math.max(...longTasks), "maximum plugin runtime long task").toBeLessThanOrEqual(budgets.maxLongTaskMs);
-	expect(longTasks.reduce((total, value) => total + value, 0), "total plugin runtime long tasks").toBeLessThanOrEqual(budgets.totalLongTaskMs);
-	expect(heapGrowthBytes, "plugin runtime route-cycle heap growth").toBeLessThanOrEqual(budgets.heapGrowthBytes);
+	assertPluginPerformanceBudget({ routeReadyMs, interactionMs, longTasks, heapGrowthBytes }, budgets);
 });
 
 async function prepareRuntime(page: Page, permission: string, resolveMode: () => PageMode): Promise<void> {
@@ -217,33 +222,10 @@ async function prepareRuntime(page: Page, permission: string, resolveMode: () =>
 	await expect(page).not.toHaveURL(/\/login/);
 }
 
-async function installLongTaskObserver(page: Page): Promise<void> {
-	await page.addInitScript(() => {
-		const target = window as Window & { __skollRuntimeLongTasks?: number[] };
-		target.__skollRuntimeLongTasks = [];
-		try {
-			new PerformanceObserver((entries) => {
-				target.__skollRuntimeLongTasks?.push(...entries.getEntries().map((entry) => entry.duration));
-			}).observe({ type: "longtask", buffered: true });
-		} catch {
-			target.__skollRuntimeLongTasks = [];
-		}
-	});
-}
-
 async function navigateThroughShell(page: Page, path: string): Promise<void> {
 	const href = path.startsWith("/skoll/plugins/") ? path.slice("/skoll".length) : path;
 	await page.locator(`a[href='${href}']`).first().evaluate((link: HTMLAnchorElement) => link.click());
 	await expect(page).toHaveURL(new RegExp(`${path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
-}
-
-async function readAndResetLongTasks(page: Page): Promise<number[]> {
-	return page.evaluate(() => {
-		const target = window as Window & { __skollRuntimeLongTasks?: number[] };
-		const entries = [...(target.__skollRuntimeLongTasks || [])];
-		target.__skollRuntimeLongTasks = [];
-		return entries;
-	});
 }
 
 async function readHeap(session: CDPSession): Promise<number> {

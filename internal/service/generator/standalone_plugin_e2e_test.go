@@ -20,8 +20,8 @@ import (
 
 	domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
-	"github.com/tinboxw/skoll/internal/testing/pluginfixture"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
+	"github.com/tinboxw/skoll/pkg/plugintest"
 )
 
 func TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits(t *testing.T) {
@@ -70,7 +70,7 @@ func TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits(t *testing.T) {
 	if _, err := os.Stat(checksum); err != nil {
 		t.Fatalf("generated checksum not found at %s: %v; package files=%v\n%s", checksum, err, findGeneratedPackageFiles(pluginDir), output)
 	}
-	installed, err := pluginfixture.NewPackageRunner().Install(artifact, checksum, filepath.Join(t.TempDir(), "plugins"))
+	installed, err := plugintest.NewPackageRunner().Install(artifact, checksum, filepath.Join(t.TempDir(), "plugins"))
 	if err != nil {
 		t.Fatalf("install generated package: %v", err)
 	}
@@ -157,10 +157,10 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 	if err != nil {
 		t.Fatal(err)
 	}
-	fixtureClock := pluginfixture.NewClock(time.Now().UTC())
-	services, err := pluginfixture.NewServices(pluginfixture.ServicesOptions{
+	fixtureClock := plugintest.NewClock(time.Now().UTC())
+	services, err := plugintest.NewServices(plugintest.ServicesOptions{
 		Clock: fixtureClock,
-		Identity: pluginfixture.Identity{
+		Identity: plugintest.Identity{
 			Subject: "generated-user", TenantID: "tenant-demo", OrganizationID: "generated-organization",
 		},
 	})
@@ -169,7 +169,7 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 	}
 	documents := newGeneratedDocumentHost(fixtureClock.Now)
 	gateway, err := pluginruntime.NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
-		return services.Host(pluginID, pluginfixture.HostOverrides{Documents: documents})
+		return services.Host(pluginID, plugintest.HostOverrides{Documents: documents})
 	}, "generated-plugin-e2e-secret", time.Minute)
 	if err != nil {
 		t.Fatalf("start generated host gateway: %v", err)

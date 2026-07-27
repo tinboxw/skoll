@@ -3289,14 +3289,14 @@ Result: FF5-01 passed. One normalized plugin input now generates a compilable, i
 
 | Gate | Evidence | Result |
 | --- | --- | --- |
-| Current host contract | `pluginfixture.Services.Host` supplies every current `pluginsdk.HostServices` port and validates the assembled host before use | Pass |
+| Current host contract | `plugintest.Services.Host` supplies every current `pluginsdk.HostServices` port and validates the assembled host before use | Pass |
 | Deterministic context | Tests control clock, JWT identity, tenant/organization/owner scope, workflow actor, identifiers, event timestamps, job leases, and audit timestamps | Pass |
 | Failure injection | Shared `FailurePlan` supports queued and sticky failures for transaction, scope, datastore, event, numbering, file, audit, configuration, secret, workflow, and job operations | Pass |
 | Stateful services | Events, document numbers, files, audit records, configuration, secrets, workflow definitions/instances/substitutions, and durable job lifecycle are observable in memory | Pass |
 | Package runner | One runner builds, verifies, installs, and cross-checks package identity/version/checksum through current runtime package APIs | Pass |
 | Process lifecycle | A packaged fixture backend starts with an isolated host gateway and data root, reaches health, restarts, disables, re-enables, uninstalls, and releases the loopback endpoint | Pass |
 | Generated-plugin adoption | The untouched full-stack generated-plugin E2E uses the reusable package runner and host services while retaining its document-workflow-specific assertion double as one explicit override | Pass |
-| Concurrency | `go test -race ./internal/testing/pluginfixture -count=1` passes | Pass |
+| Concurrency | `go test -race ./pkg/plugintest -count=1` passes | Pass |
 | Repository regression | `go test ./... -count=1` passes | Pass |
 | Current-only rule | No compatibility adapter, legacy fixture, fallback service path, or dual contract was added | Pass |
 
@@ -3308,9 +3308,9 @@ Result: FF5-01 passed. One normalized plugin input now generates a compilable, i
 ### Verification Commands
 
 ```powershell
-Get-ChildItem internal/testing/pluginfixture -Recurse -Filter *.go | ForEach-Object { gofmt -w $_.FullName }
-go test ./internal/testing/pluginfixture -count=1 -v
-go test -race ./internal/testing/pluginfixture -count=1
+Get-ChildItem pkg/plugintest -Recurse -Filter *.go | ForEach-Object { gofmt -w $_.FullName }
+go test ./pkg/plugintest -count=1 -v
+go test -race ./pkg/plugintest -count=1
 go test ./internal/service/generator -count=1
 $env:SKOLL_GENERATOR_PLUGIN_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits$' -count=1 -v
 go test ./... -count=1
@@ -3324,3 +3324,57 @@ Result: FF5-02 passed. Plugin tests now share one deterministic current-contract
 ### Commit
 
 `FF5-02: add reusable plugin test fixtures`
+
+## FF5-03 Add Failure, Concurrency, Property, And Browser State Harnesses
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Publish current-only plugin test harnesses for deterministic faults, rollback, reconciliation, contention, properties, runtime lifecycle, browser states, visual matrices, and executable performance budgets.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Public plugin boundary | Go fixtures live at importable `pkg/plugintest`; generated plugins consume no `internal` host-test package | Pass |
+| Failure and recovery | Every current host-service port supports deterministic queued or sticky failure injection; sample suites prove job retry and recovery | Pass |
+| Rollback and reconciliation | Clone-on-write `TransactionalValue` commits only successful operations, fails closed when unconfigured, and `Eventually` proves bounded reconciliation | Pass |
+| Contention and idempotency | Start-barrier concurrent execution proves 24 competing schedules produce one durable job under `go test -race` | Pass |
+| Property invariants | Fixed-seed property cases prove idempotency across 100 generated request shapes and report reproducible seed/case failures | Pass |
+| Restart and lifecycle | The public managed-process fixture proves start, restart, disable, enable, uninstall, health, endpoint release, and scoped host access | Pass |
+| Browser states | Public `@skoll/plugin-test` drives loading, empty, error, forbidden, conflict, and success states in the real plugin runtime | Pass |
+| Visual and performance | Shared viewport matrix, layout-fit assertions, action timing, long-task observer, and hard budget assertions pass on desktop and mobile | Pass |
+| Generated-plugin adoption | Untouched generated full-stack and frontend plugins pass package, lifecycle, authorization, locale, theme, responsive, browser, and performance gates | Pass |
+| Deterministic security gate | Reverification tamper tests always mutate the HMAC, pass 100 repeated runs, and no longer depend on the original final hex digit | Pass |
+| Repository regression | Frontend typecheck/build, generated E2E suites, plugin runtime Playwright matrix, and `go test ./... -count=1` pass | Pass |
+| Current-only rule | No compatibility aliases, private fallback imports, legacy harness, or dual execution path exists | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first Playwright invocation found no application server on `127.0.0.1:5174`. The acceptance procedure now starts the production-like Vite server explicitly, waits for readiness, runs all six desktop/mobile cases, and stops the listener.
+2. The first complete repository run exposed a probabilistic security test that sometimes replaced an HMAC suffix with its existing value. The test now always changes that digit, passed 100 repeated runs, and the full repository suite was re-executed.
+3. A final repository run exceeded the initial 120-second command allowance. The unchanged command was re-executed with sufficient time and completed successfully; an interrupted run was not accepted as evidence.
+
+### Verification Commands
+
+```powershell
+go test -race ./pkg/plugintest -count=1 -v
+& .\web\node_modules\.bin\tsc.cmd -p packages/skoll-plugin-test/tsconfig.json
+node packages/skoll-plugin-test/test/self-test.mjs
+npm --prefix web run typecheck
+npm --prefix web run test:plugin-runtime
+$env:SKOLL_GENERATOR_PLUGIN_FRONTEND_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginFrontendBuildAndBrowserMatrix$' -count=1 -v
+$env:SKOLL_GENERATOR_PLUGIN_E2E='1'; go test ./internal/service/generator -run '^TestGeneratedPluginBuildPackageAndInstallWithoutSourceEdits$' -count=1 -v
+npm --prefix web run build
+go test ./pkg/security -run '^TestReverificationTokenRejectsTampering$' -count=100
+go test ./... -count=1
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF5-03 passed. External plugin authors now have one public, deterministic quality harness for host failures, rollback, retry, contention, properties, process lifecycle, permissions, browser states, visuals, and performance without private imports or compatibility paths.
+
+### Commit
+
+`FF5-03: add public plugin quality harnesses`

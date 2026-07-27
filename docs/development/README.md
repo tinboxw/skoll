@@ -14,6 +14,7 @@
 | [plugin-api-contract.en.md](plugin-api-contract.en.md) | Plugin API, permission, and aggregated OpenAPI contract (English) |
 | [plugin-event-contract.md](plugin-event-contract.md) | 插件业务事件投递、幂等、重试与生命周期契约（默认中文） |
 | [plugin-event-contract.en.md](plugin-event-contract.en.md) | Plugin business event delivery, idempotency, retry, and lifecycle contract (English) |
+| [plugin-testing.md](plugin-testing.md) | 插件宿主、故障、并发、属性、进程、浏览器状态与性能测试契约 |
 | [plugin_dev_tools.md](plugin_dev_tools.md) | 插件开发工具、调试和验证流程 |
 
 ## 维护规则

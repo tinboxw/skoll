@@ -1,4 +1,4 @@
-package pluginfixture
+package plugintest
 
 import (
 	"context"

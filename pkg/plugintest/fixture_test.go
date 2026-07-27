@@ -1,4 +1,4 @@
-package pluginfixture
+package plugintest
 
 import (
 	"context"
@@ -240,6 +240,137 @@ data:
 		t.Fatalf("uninstalled plugin state=%s error=%v", info.State, err)
 	}
 	assertFixtureProcess(t, "http://"+address+"/probe", pluginID, false)
+}
+
+func TestConcurrentAndPropertyHarnessesProveIdempotencyAndRecovery(t *testing.T) {
+	const workers = 24
+	now := time.Now().UTC().Truncate(time.Second)
+	services, err := NewServices(ServicesOptions{
+		Clock: NewClock(now),
+		Identity: Identity{
+			Subject: "property-user", TenantID: "property-tenant", OrganizationID: "property-org",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := services.Host("property-plugin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := RunConcurrent(context.Background(), workers, func(ctx context.Context, _ int) (pluginsdk.Job, error) {
+		return host.Jobs.Schedule(ctx, pluginsdk.JobScheduleInput{
+			ID: "job-contention", Kind: "property.scan", IdempotencyKey: "shared-key", RunAt: now,
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := report.RequireSuccess(); err != nil {
+		t.Fatal(err)
+	}
+	for _, job := range report.Values() {
+		if job.ID != "job-contention" || job.IdempotencyKey != "shared-key" {
+			t.Fatalf("contention produced divergent job: %+v", job)
+		}
+	}
+	jobs, err := host.Jobs.List(context.Background(), pluginsdk.JobQuery{})
+	if err != nil || len(jobs) != 1 {
+		t.Fatalf("contention persisted jobs=%+v error=%v", jobs, err)
+	}
+
+	cases, err := GeneratePropertyCases(0x5c011, 100, func(generator *PropertyGenerator) pluginsdk.JobScheduleInput {
+		return pluginsdk.JobScheduleInput{
+			ID: generator.ID("job"), Kind: generator.Pick("qualification.scan", "inventory.reconcile", "approval.remind"),
+			IdempotencyKey: generator.ID("key"), RunAt: now.Add(time.Duration(generator.IntN(60)) * time.Second),
+			MaxAttempts: 1 + generator.IntN(5),
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckProperty(cases, func(item PropertyCase[pluginsdk.JobScheduleInput]) error {
+		first, scheduleErr := host.Jobs.Schedule(context.Background(), item.Value)
+		if scheduleErr != nil {
+			return scheduleErr
+		}
+		duplicate := item.Value
+		duplicate.ID = duplicate.ID + "-duplicate"
+		second, scheduleErr := host.Jobs.Schedule(context.Background(), duplicate)
+		if scheduleErr != nil {
+			return scheduleErr
+		}
+		if first.ID != second.ID || first.IdempotencyKey != second.IdempotencyKey {
+			return fmt.Errorf("idempotent schedule diverged: first=%+v second=%+v", first, second)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	services.Failures.FailNext(OperationJobLeaseDue, errors.New("temporary lease failure"))
+	if _, err := host.Jobs.LeaseDue(context.Background(), pluginsdk.JobLeaseInput{WorkerID: "worker-1", Limit: 10, LeaseDuration: time.Minute}); err == nil {
+		t.Fatal("expected injected lease failure")
+	}
+	leased, err := host.Jobs.LeaseDue(context.Background(), pluginsdk.JobLeaseInput{WorkerID: "worker-1", Limit: 10, LeaseDuration: time.Minute})
+	if err != nil || len(leased) == 0 {
+		t.Fatalf("lease did not recover: jobs=%+v error=%v", leased, err)
+	}
+}
+
+func TestTransactionalValueAndEventuallyProveRollbackAndReconciliation(t *testing.T) {
+	var unconfigured TransactionalValue[map[string]int]
+	if _, err := unconfigured.Snapshot(); err == nil {
+		t.Fatal("unconfigured transaction snapshot succeeded")
+	}
+
+	state, err := NewTransactionalValue(map[string]int{}, func(input map[string]int) map[string]int {
+		output := make(map[string]int, len(input))
+		for key, value := range input {
+			output[key] = value
+		}
+		return output
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected := errors.New("reject mutation")
+	if err := state.Within(context.Background(), func(value *map[string]int) error {
+		(*value)["stock"] = 10
+		return rejected
+	}); !errors.Is(err, rejected) {
+		t.Fatalf("rollback error=%v", err)
+	}
+	snapshot, err := state.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, exists := snapshot["stock"]; exists {
+		t.Fatal("failed transaction committed fixture state")
+	}
+	if err := state.Within(context.Background(), func(value *map[string]int) error {
+		(*value)["stock"] = 10
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	attempts := 0
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := Eventually(ctx, time.Millisecond, func() (bool, error) {
+		attempts++
+		if attempts == 3 {
+			snapshot, err := state.Snapshot()
+			return snapshot["stock"] == 10, err
+		}
+		return false, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 3 {
+		t.Fatalf("reconciliation attempts=%d", attempts)
+	}
 }
 
 func writeFixtureFile(t *testing.T, path, content string) {

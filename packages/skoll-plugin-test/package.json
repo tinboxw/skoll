@@ -1,0 +1,21 @@
+{
+	"name": "@skoll/plugin-test",
+	"version": "1.0.0",
+	"description": "Current-contract concurrency, UI-state, visual, and performance test drivers for Skoll plugins.",
+	"type": "module",
+	"files": ["dist"],
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc -p tsconfig.json",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"test": "npm run build && node test/self-test.mjs"
+	},
+	"devDependencies": {
+		"typescript": "5.9.3"
+	}
+}
