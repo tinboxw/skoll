@@ -22,14 +22,15 @@ type DataControlSchema struct {
 }
 
 type DataControlTable struct {
-	LogicalName  string   `json:"logicalName"`
-	PhysicalName string   `json:"physicalName"`
-	Fields       []string `json:"fields"`
-	PrimaryKey   []string `json:"primaryKey"`
-	IndexCount   int      `json:"indexCount"`
-	Exists       bool     `json:"exists"`
-	SizeBytes    int64    `json:"sizeBytes"`
-	SizeKnown    bool     `json:"sizeKnown"`
+	LogicalName    string   `json:"logicalName"`
+	PhysicalName   string   `json:"physicalName"`
+	MutationPolicy string   `json:"mutationPolicy"`
+	Fields         []string `json:"fields"`
+	PrimaryKey     []string `json:"primaryKey"`
+	IndexCount     int      `json:"indexCount"`
+	Exists         bool     `json:"exists"`
+	SizeBytes      int64    `json:"sizeBytes"`
+	SizeKnown      bool     `json:"sizeKnown"`
 }
 
 type DataControlMigration struct {

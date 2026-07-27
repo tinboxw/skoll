@@ -132,6 +132,30 @@ func TestMutationExecutorUpsertCreatesThenUpdates(t *testing.T) {
 	assertMutationCounts(t, db, table.PhysicalName, 1, 2, 2)
 }
 
+func TestMutationExecutorEnforcesAppendOnlyPolicyBeforePersistence(t *testing.T) {
+	executor, db, table, _ := newMutationFixtureWithPolicy(t, TableMutationAppendOnly)
+	ctx := context.Background()
+	insert := productMutation(pluginsdk.DataMutationInsert, "ledger-1", "append-ledger-1")
+	if _, err := executor.Mutate(ctx, "medical_oa", insert); err != nil {
+		t.Fatalf("append-only insert failed: %v", err)
+	}
+	assertMutationCounts(t, db, table.PhysicalName, 1, 1, 1)
+
+	for _, operation := range []pluginsdk.DataMutationOperation{
+		pluginsdk.DataMutationUpdate,
+		pluginsdk.DataMutationUpsert,
+		pluginsdk.DataMutationDelete,
+	} {
+		mutation := productMutation(operation, "ledger-1", "reject-"+string(operation))
+		if operation == pluginsdk.DataMutationDelete {
+			mutation.Values = nil
+		}
+		_, err := executor.Mutate(ctx, "medical_oa", mutation)
+		assertStoreError(t, err, pluginsdk.DataStoreErrorUnsupported, "operation")
+		assertMutationCounts(t, db, table.PhysicalName, 1, 1, 1)
+	}
+}
+
 func TestMutationExecutorRollsBackDataIdempotencyAndAudit(t *testing.T) {
 	executor, db, table, audit := newMutationFixture(t)
 	audit.fail = true
@@ -207,6 +231,10 @@ func TestMutationHashCanonicalizesScopeSetsAndAuditRedactsIdempotencyKey(t *test
 }
 
 func newMutationFixture(t *testing.T) (*MutationExecutor, *gorm.DB, ResolvedTable, *databaseMutationAudit) {
+	return newMutationFixtureWithPolicy(t, TableMutationMutable)
+}
+
+func newMutationFixtureWithPolicy(t *testing.T, policy TableMutationPolicy) (*MutationExecutor, *gorm.DB, ResolvedTable, *databaseMutationAudit) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "mutation.db") + "?_busy_timeout=5000&_journal_mode=WAL"
 	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent), TranslateError: true})
@@ -222,7 +250,9 @@ func newMutationFixture(t *testing.T) (*MutationExecutor, *gorm.DB, ResolvedTabl
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
 	registry := NewSchemaRegistry()
-	if _, err = registry.Register(validPluginSchema("medical_oa")); err != nil {
+	schema := validPluginSchema("medical_oa")
+	schema.Tables[0].MutationPolicy = policy
+	if _, err = registry.Register(schema); err != nil {
 		t.Fatal(err)
 	}
 	table, err := registry.Resolve("medical_oa", "products")

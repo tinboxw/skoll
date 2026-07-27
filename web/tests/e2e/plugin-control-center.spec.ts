@@ -42,12 +42,16 @@ test("plugin fleet and routed workspace stay operational", async ({ page }, test
 			await expect(page.locator(".page-shell")).toHaveAttribute("aria-busy", "false");
 			await expect(page.locator(selector)).toBeVisible();
 			await expect(page.locator("[data-testid='plugin-runtime-state']")).toBeVisible();
-			if (route === "data") await expect(page.getByText("plugin_pharma_oa_documents", { exact: true })).toBeVisible();
+			if (route === "data") {
+				await expect(page.getByText("plugin_pharma_oa_documents", { exact: true })).toBeVisible();
+				await expect(page.locator("[data-testid='plugin-table-mutation-policy']")).toBeVisible();
+				await expect(page.locator("[data-testid='plugin-table-mutation-policy']")).not.toHaveText("");
+			}
 			await assertNoHorizontalOverflow(page, route);
 		});
 	}
 
-	await expect(page.getByRole("button", { name: /停用|Disable/ })).toBeVisible();
+	await expect(page.getByRole("button", { name: /启用|停用|Enable|Disable/ })).toBeVisible();
 	await expect(page.getByRole("button", { name: /卸载|Uninstall/ })).toBeVisible();
 	await page.goto(`/skoll/plugin-center/${PLUGIN_ID}/migrations`);
 	await expect(page.locator("[data-testid='plugin-migration-blocked']")).toBeVisible();
@@ -172,6 +176,7 @@ async function mockDataControl(page: Page): Promise<void> {
 						tables: [{
 							logicalName: "documents",
 							physicalName: "plugin_pharma_oa_documents",
+							mutationPolicy: "append_only",
 							fields: ["id", "status", "created_at"],
 							primaryKey: ["id"],
 							indexCount: 2,

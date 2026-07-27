@@ -62,11 +62,19 @@ type IndexSchema struct {
 	Unique bool
 }
 
+type TableMutationPolicy string
+
+const (
+	TableMutationMutable    TableMutationPolicy = "mutable"
+	TableMutationAppendOnly TableMutationPolicy = "append_only"
+)
+
 type TableSchema struct {
-	Name       string
-	Fields     []FieldSchema
-	PrimaryKey []string
-	Indexes    []IndexSchema
+	Name           string
+	MutationPolicy TableMutationPolicy
+	Fields         []FieldSchema
+	PrimaryKey     []string
+	Indexes        []IndexSchema
 }
 
 type PluginSchema struct {
@@ -75,13 +83,14 @@ type PluginSchema struct {
 }
 
 type ResolvedTable struct {
-	PluginID     string
-	Namespace    string
-	LogicalName  string
-	PhysicalName string
-	Fields       map[string]FieldSchema
-	PrimaryKey   []string
-	Indexes      []IndexSchema
+	PluginID       string
+	Namespace      string
+	LogicalName    string
+	PhysicalName   string
+	MutationPolicy TableMutationPolicy
+	Fields         map[string]FieldSchema
+	PrimaryKey     []string
+	Indexes        []IndexSchema
 }
 
 type RegisteredSchema struct {
@@ -262,6 +271,9 @@ func buildResolvedTable(pluginID, namespace string, table TableSchema, path stri
 	if err := validateLogicalName(path+".name", name, MaxLogicalTableLen); err != nil {
 		return ResolvedTable{}, err
 	}
+	if table.MutationPolicy != TableMutationMutable && table.MutationPolicy != TableMutationAppendOnly {
+		return ResolvedTable{}, invalidSchema(path+".mutationPolicy", "table mutation policy is unsupported")
+	}
 	if len(table.Fields) == 0 || len(table.Fields) > MaxFieldsPerTable {
 		return ResolvedTable{}, invalidSchema(path+".fields", "field count is outside the supported range")
 	}
@@ -353,7 +365,7 @@ func buildResolvedTable(pluginID, namespace string, table TableSchema, path stri
 	}
 	return ResolvedTable{
 		PluginID: pluginID, Namespace: namespace, LogicalName: name, PhysicalName: physicalName,
-		Fields: fields, PrimaryKey: primaryKey, Indexes: indexes,
+		MutationPolicy: table.MutationPolicy, Fields: fields, PrimaryKey: primaryKey, Indexes: indexes,
 	}, nil
 }
 

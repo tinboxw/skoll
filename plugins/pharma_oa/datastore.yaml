@@ -1,6 +1,7 @@
 version: 1
 tables:
   - name: employees
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - name: id
@@ -67,6 +68,7 @@ tables:
       - fields: [employment_status, name]
       - fields: [department_id, position_id]
   - name: parties
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -86,6 +88,7 @@ tables:
       - {fields: [party_type, unified_social_credit_code], unique: true}
       - {fields: [party_type, status, name]}
   - name: catalogs
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -105,6 +108,7 @@ tables:
       - {fields: [catalog_type, unified_social_credit_code], unique: true}
       - {fields: [catalog_type, status, name]}
   - name: products
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -131,6 +135,7 @@ tables:
       - {fields: [status, name]}
       - {fields: [category_id, unit_id, manufacturer_id]}
   - name: qualification_types
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -149,6 +154,7 @@ tables:
       - {fields: [code], unique: true}
       - {fields: [subject_type, business_gate, status]}
   - name: qualifications
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -174,6 +180,7 @@ tables:
       - {fields: [subject_type, subject_id, status]}
       - {fields: [status, valid_to]}
   - name: oa_requests
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -196,6 +203,7 @@ tables:
       - {fields: [request_type, updated_at]}
       - {fields: [workflow_instance_id]}
   - name: purchase_requests
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -224,6 +232,7 @@ tables:
       - {fields: [supplier_id, updated_at]}
       - {fields: [workflow_instance_id]}
   - name: purchase_orders
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -245,6 +254,7 @@ tables:
       - {fields: [status, updated_at]}
       - {fields: [supplier_id, updated_at]}
   - name: purchase_inbounds
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -266,6 +276,7 @@ tables:
       - {fields: [purchase_order_id, received_at]}
       - {fields: [received_at]}
   - name: warehouses
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -280,6 +291,7 @@ tables:
       - {fields: [code], unique: true}
       - {fields: [status, updated_at]}
   - name: warehouse_areas
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}
@@ -294,6 +306,7 @@ tables:
       - {fields: [warehouse_id, code], unique: true}
       - {fields: [warehouse_id, status, updated_at]}
   - name: warehouse_locations
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - {name: id, type: string, filterable: true, sortable: true}

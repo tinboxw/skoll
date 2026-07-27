@@ -72,6 +72,8 @@ func TestSchemaRegistryRejectsReservedAndUndeclaredIdentifiers(t *testing.T) {
 		{name: "reserved plugin", schema: validPluginSchema("system"), field: "pluginId"},
 		{name: "reserved table", schema: withTableName(validPluginSchema("medical_oa"), "sk_users"), field: "tables[0].name"},
 		{name: "long table", schema: withTableName(validPluginSchema("medical_oa"), strings.Repeat("a", MaxLogicalTableLen+1)), field: "tables[0].name"},
+		{name: "missing mutation policy", schema: withMutationPolicy(validPluginSchema("medical_oa"), ""), field: "tables[0].mutationPolicy"},
+		{name: "unknown mutation policy", schema: withMutationPolicy(validPluginSchema("medical_oa"), "legacy_mutable"), field: "tables[0].mutationPolicy"},
 		{name: "reserved field", schema: withField(validPluginSchema("medical_oa"), FieldTenantID), field: "tables[0].fields[3].name"},
 		{name: "duplicate field", schema: withField(validPluginSchema("medical_oa"), "name"), field: "tables[0].fields[3].name"},
 		{name: "null storage", schema: withFieldType(validPluginSchema("medical_oa"), pluginsdk.DataValueNull), field: "tables[0].fields[1].type"},
@@ -192,7 +194,7 @@ func TestSchemaRegistryEnforcesCollectionLimits(t *testing.T) {
 
 func validPluginSchema(pluginID string) PluginSchema {
 	return PluginSchema{PluginID: pluginID, Tables: []TableSchema{{
-		Name: "products",
+		Name: "products", MutationPolicy: TableMutationMutable,
 		Fields: []FieldSchema{
 			{Name: "id", Type: pluginsdk.DataValueString, Filterable: true, Sortable: true},
 			{Name: "name", Type: pluginsdk.DataValueString, Mutable: true, Filterable: true, Sortable: true},
@@ -205,6 +207,11 @@ func validPluginSchema(pluginID string) PluginSchema {
 
 func withTableName(schema PluginSchema, name string) PluginSchema {
 	schema.Tables[0].Name = name
+	return schema
+}
+
+func withMutationPolicy(schema PluginSchema, policy TableMutationPolicy) PluginSchema {
+	schema.Tables[0].MutationPolicy = policy
 	return schema
 }
 

@@ -2222,3 +2222,49 @@ Result: FF0-01 passed. The framework baseline is evidence-based, FF1 through FF6
 ### Commit
 
 `FF0-01: freeze framework capability gaps`
+
+## FF1-01 Enforce Explicit Mutable Or Append-Only Table Policies
+
+- Date: 2026-07-27
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Make table-level mutability a required current datastore contract and enforce append-only behavior in the host before persistence.
+
+### Acceptance Result
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| Current schema contract | Pass | Every table in both current `datastore.yaml` manifests declares exactly `mutable`; omitted and unknown values fail strict installation validation |
+| Registry ownership | Pass | `TableSchema` and `ResolvedTable` preserve one typed policy; programmatic schemas without a supported policy fail closed |
+| Append-only enforcement | Pass | Insert succeeds; update, upsert, and delete return `unsupported` before idempotency reservation, SQL, or audit, proven by unchanged record/idempotency/audit counts |
+| Lifecycle inspection | Pass | Storage snapshots and the data-control HTTP contract expose the authoritative mutation policy |
+| Operator UX | Pass | The Element Plus data page renders a localized write-policy tag for every owned table in zh-CN and en-US |
+| Current plugin manifests | Pass | Datastore E2E and Pharma OA schemas load under the required current contract; no parser fallback or implicit mutable default exists |
+| Regression | Pass | All Go packages, frontend typecheck/a11y/i18n/theme gates, 29 component tests, production build, and six desktop/mobile plugin-center scenarios pass |
+| Framework purity | Pass | The policy is industry-neutral host infrastructure; no stock ledger or medical rule entered the core |
+
+### Failed Runs And Re-Execution
+
+- The first focused command targeted `plugins/datastore_e2e`, which has no root Go package. The corrected backend package command passed.
+- The first full Go run found a stale Pharma OA manifest test fixed at 12 tables. It was corrected to require the current explicit 15-table set, and the full suite then passed.
+- The first Playwright run had no Vite server; the second had no Go API; the third exposed a lifecycle-state assertion fixed to accept the actual enable/disable primary action. The fourth run passed all six scenarios.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/datastore ./internal/handler/http/v1/plugin ./internal/bootstrap ./plugins/datastore_e2e/backend ./plugins/pharma_oa -run 'Test(LoadSchemaManifest|SchemaRegistry|MutationExecutor|LifecycleInspectStorage|PluginDataControl|PluginDataStore|MedicalOA.*DataStore|MedicalOAPackageSurface)' -count=1
+go test ./... -count=1
+cd web
+npm run typecheck
+npm run test:components
+npm run build
+npm run test:plugin-center
+codegraph sync .
+git diff --check
+```
+
+Result: FF1-01 passed. Plugin authors must make table mutability explicit, the host can now guarantee insert-only ledger storage, and operators can inspect that policy from the current control center.
+
+### Commit
+
+`FF1-01: enforce append-only plugin tables`

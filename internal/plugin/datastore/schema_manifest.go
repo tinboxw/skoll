@@ -20,10 +20,11 @@ type schemaManifest struct {
 }
 
 type schemaManifestTable struct {
-	Name       string                `yaml:"name"`
-	Fields     []schemaManifestField `yaml:"fields"`
-	PrimaryKey []string              `yaml:"primary_key"`
-	Indexes    []schemaManifestIndex `yaml:"indexes"`
+	Name           string                `yaml:"name"`
+	MutationPolicy TableMutationPolicy   `yaml:"mutation_policy"`
+	Fields         []schemaManifestField `yaml:"fields"`
+	PrimaryKey     []string              `yaml:"primary_key"`
+	Indexes        []schemaManifestIndex `yaml:"indexes"`
 }
 
 type schemaManifestField struct {
@@ -76,10 +77,11 @@ func LoadSchemaManifest(pluginID, pluginDir string) (PluginSchema, bool, error) 
 	schema := PluginSchema{PluginID: strings.TrimSpace(pluginID), Tables: make([]TableSchema, 0, len(document.Tables))}
 	for _, tableDocument := range document.Tables {
 		table := TableSchema{
-			Name:       strings.TrimSpace(tableDocument.Name),
-			Fields:     make([]FieldSchema, 0, len(tableDocument.Fields)),
-			PrimaryKey: append([]string(nil), tableDocument.PrimaryKey...),
-			Indexes:    make([]IndexSchema, 0, len(tableDocument.Indexes)),
+			Name:           strings.TrimSpace(tableDocument.Name),
+			MutationPolicy: tableDocument.MutationPolicy,
+			Fields:         make([]FieldSchema, 0, len(tableDocument.Fields)),
+			PrimaryKey:     append([]string(nil), tableDocument.PrimaryKey...),
+			Indexes:        make([]IndexSchema, 0, len(tableDocument.Indexes)),
 		}
 		for _, field := range tableDocument.Fields {
 			table.Fields = append(table.Fields, FieldSchema{

@@ -253,6 +253,9 @@ func (e *MutationExecutor) delete(db *gorm.DB, table ResolvedTable, scope mutati
 }
 
 func validateMutationSchema(table ResolvedTable, mutation pluginsdk.DataMutation) error {
+	if table.MutationPolicy == TableMutationAppendOnly && mutation.Operation != pluginsdk.DataMutationInsert {
+		return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, "operation", "append-only table accepts insert mutations only", false)
+	}
 	if len(mutation.Key) != len(table.PrimaryKey) {
 		return pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "key", "key must match the declared primary key", false)
 	}

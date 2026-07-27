@@ -116,7 +116,7 @@ async function mockPluginDataControl(page: Page): Promise<void> {
 					pluginId: PLUGIN_ID,
 					capturedAt: FIXED_TIME,
 					state: "enabled",
-					schema: { available: true, registered: true, namespace: "plugin_pharma_oa", totalSizeBytes: 16384, sizeKnown: true, tables: [{ logicalName: "documents", physicalName: "plugin_pharma_oa_documents", fields: ["id", "status", "created_at"], primaryKey: ["id"], indexCount: 2, exists: true, sizeBytes: 16384, sizeKnown: true }] },
+					schema: { available: true, registered: true, namespace: "plugin_pharma_oa", totalSizeBytes: 16384, sizeKnown: true, tables: [{ logicalName: "documents", physicalName: "plugin_pharma_oa_documents", mutationPolicy: "append_only", fields: ["id", "status", "created_at"], primaryKey: ["id"], indexCount: 2, exists: true, sizeBytes: 16384, sizeKnown: true }] },
 					migration: { declaredVersion: "8", currentVersion: 8, applied: [{ version: 8, name: "add_qualification_alerts", checksum: "sha256:fixed", appliedAt: FIXED_TIME }], pending: [] },
 					policy: { uninstall: "retain", rollback: "automatic", effect: "retain_data" },
 					actions: { canRollback: false, rollbackMaxSteps: 1, blockedReason: "plugin_must_be_disabled" }

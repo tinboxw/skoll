@@ -69,6 +69,7 @@ export type PluginDataControlSnapshot = {
 		tables: Array<{
 			logicalName: string;
 			physicalName: string;
+			mutationPolicy: "mutable" | "append_only";
 			fields: string[];
 			primaryKey: string[];
 			indexCount: number;

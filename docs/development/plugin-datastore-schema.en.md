@@ -8,6 +8,7 @@ Skoll plugins declare structured relational access in one optional file named `d
 version: 1
 tables:
   - name: records
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - name: id
@@ -27,7 +28,7 @@ tables:
       - fields: [amount]
 ```
 
-The parser accepts exactly one YAML document, rejects unknown fields, and supports schema version `1` only. Every table requires one to four immutable, non-null plugin fields as its primary key. Supported field types are `string`, `integer`, `decimal`, `boolean`, `timestamp`, `bytes`, and `json`. JSON and byte fields cannot be filterable, sortable, or indexed.
+The parser accepts exactly one YAML document, rejects unknown fields, and supports schema version `1` only. Every table must declare `mutation_policy: mutable` or `mutation_policy: append_only`; omission and unknown values fail installation. Append-only tables accept inserts and reject update, upsert, and delete before SQL execution or audit. Every table requires one to four immutable, non-null plugin fields as its primary key. Supported field types are `string`, `integer`, `decimal`, `boolean`, `timestamp`, `bytes`, and `json`. JSON and byte fields cannot be filterable, sortable, or indexed.
 
 Skoll adds `tenant_id`, `organization_id`, `owner_id`, `version`, `created_at`, and `updated_at` to the registered field set. Migration DDL must create these host-managed columns, but the plugin must not repeat them in `datastore.yaml` or write them through `DataStoreService`.
 

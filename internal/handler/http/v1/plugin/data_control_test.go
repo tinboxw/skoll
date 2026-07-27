@@ -38,7 +38,7 @@ func newDataControlManager() *dataControlManager {
 		snapshot: pluginruntime.DataControlSnapshot{
 			PluginID: "reports", CapturedAt: time.Now().UTC(), State: string(pluginruntime.StateDisabled),
 			Schema: pluginruntime.DataControlSchema{Available: true, Namespace: "reports", Tables: []pluginruntime.DataControlTable{
-				{LogicalName: "entries", PhysicalName: "plugin_reports_entries", Fields: []string{"id"}, Exists: true},
+				{LogicalName: "entries", PhysicalName: "plugin_reports_entries", MutationPolicy: "append_only", Fields: []string{"id"}, Exists: true},
 			}},
 			Migration: pluginruntime.DataControlMigration{CurrentVersion: 2, Applied: []pluginruntime.DataControlMigrationStep{
 				{Version: 1, Name: "create_entries"}, {Version: 2, Name: "add_status"},
@@ -63,7 +63,7 @@ func TestPluginDataControlPublishesAuthoritativeSnapshot(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if response.Data.PluginID != "reports" || len(response.Data.Schema.Tables) != 1 || response.Data.Migration.CurrentVersion != 2 {
+	if response.Data.PluginID != "reports" || len(response.Data.Schema.Tables) != 1 || response.Data.Schema.Tables[0].MutationPolicy != "append_only" || response.Data.Migration.CurrentVersion != 2 {
 		t.Fatalf("unexpected snapshot: %+v", response.Data)
 	}
 }

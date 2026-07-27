@@ -49,6 +49,9 @@ func TestLifecycleInspectStorageReturnsRegisteredPhysicalTables(t *testing.T) {
 	if len(snapshot.Tables[0].Fields) == 0 || snapshot.Tables[0].PrimaryKey[0] != "id" || snapshot.Tables[0].IndexCount != 1 {
 		t.Fatalf("schema metadata missing: %+v", snapshot.Tables[0])
 	}
+	if snapshot.Tables[0].MutationPolicy != TableMutationMutable {
+		t.Fatalf("mutation policy missing: %+v", snapshot.Tables[0])
+	}
 	registry.Unregister("medical_oa")
 	candidateSnapshot, available, err := lifecycle.InspectCandidateStorage(context.Background(), SchemaCandidate{Schema: validPluginSchema("medical_oa"), Present: true})
 	if err != nil || !available || len(candidateSnapshot.Tables) != 1 || !candidateSnapshot.Tables[0].Exists {

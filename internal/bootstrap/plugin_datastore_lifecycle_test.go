@@ -178,6 +178,7 @@ func writeLifecycleDataStoreSchema(t *testing.T, pluginDir string, withStatus bo
 	manifest := `version: 1
 tables:
   - name: records
+    mutation_policy: mutable
     primary_key: [id]
     fields:
       - name: id

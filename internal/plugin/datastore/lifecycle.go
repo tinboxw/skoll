@@ -35,14 +35,15 @@ type StorageSnapshot struct {
 }
 
 type StorageTable struct {
-	LogicalName  string
-	PhysicalName string
-	Fields       []string
-	PrimaryKey   []string
-	IndexCount   int
-	Exists       bool
-	SizeBytes    int64
-	SizeKnown    bool
+	LogicalName    string
+	PhysicalName   string
+	MutationPolicy TableMutationPolicy
+	Fields         []string
+	PrimaryKey     []string
+	IndexCount     int
+	Exists         bool
+	SizeBytes      int64
+	SizeKnown      bool
 }
 
 func NewLifecycle(db *gorm.DB, registry *SchemaRegistry) (*Lifecycle, error) {
@@ -129,7 +130,7 @@ func (l *Lifecycle) inspectRegisteredStorage(ctx context.Context, registered Reg
 		sort.Strings(fields)
 		item := StorageTable{
 			LogicalName: table.LogicalName, PhysicalName: table.PhysicalName, Fields: fields,
-			PrimaryKey: append([]string(nil), table.PrimaryKey...), IndexCount: len(table.Indexes),
+			MutationPolicy: table.MutationPolicy, PrimaryKey: append([]string(nil), table.PrimaryKey...), IndexCount: len(table.Indexes),
 			Exists: db.Migrator().HasTable(table.PhysicalName),
 		}
 		if item.Exists {

@@ -1306,7 +1306,7 @@ func (m *pluginManagerWithExtensions) PluginDataControl(ctx context.Context, plu
 			for _, table := range storage.Tables {
 				snapshot.Schema.Tables = append(snapshot.Schema.Tables, plugin.DataControlTable{
 					LogicalName: table.LogicalName, PhysicalName: table.PhysicalName, Fields: append([]string(nil), table.Fields...),
-					PrimaryKey: append([]string(nil), table.PrimaryKey...), IndexCount: table.IndexCount,
+					MutationPolicy: string(table.MutationPolicy), PrimaryKey: append([]string(nil), table.PrimaryKey...), IndexCount: table.IndexCount,
 					Exists: table.Exists, SizeBytes: table.SizeBytes, SizeKnown: table.SizeKnown,
 				})
 			}

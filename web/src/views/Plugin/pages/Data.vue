@@ -42,6 +42,9 @@ const snapshot = computed(() => control.snapshot.value);
 					<el-table :data="snapshot.schema.tables" stripe border>
 						<el-table-column prop="logicalName" :label="t('plugin.center.logicalTable')" min-width="150" />
 						<el-table-column prop="physicalName" :label="t('plugin.center.physicalTable')" min-width="230" show-overflow-tooltip />
+						<el-table-column :label="t('plugin.center.mutationPolicy')" width="120">
+							<template #default="scope"><el-tag data-testid="plugin-table-mutation-policy" effect="plain">{{ t(`plugin.center.mutationPolicy.${scope.row.mutationPolicy}`) }}</el-tag></template>
+						</el-table-column>
 						<el-table-column :label="t('plugin.center.fields')" min-width="220">
 							<template #default="scope"><span class="code-list">{{ scope.row.fields.join(", ") }}</span></template>
 						</el-table-column>

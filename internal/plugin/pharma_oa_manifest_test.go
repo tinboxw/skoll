@@ -27,10 +27,21 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 3 {
 		t.Fatalf("unexpected config schema: %+v", info.ConfigSchema)
 	}
-	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 12 {
+	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 15 {
 		t.Fatalf("unexpected plugin data lifecycle: %+v", info.DataManifest)
 	}
+	expectedTables := map[string]struct{}{
+		"pharma_oa_module_registry": {}, "pharma_oa_document_type_registry": {},
+		"pharma_oa_employees": {}, "pharma_oa_parties": {}, "pharma_oa_catalogs": {}, "pharma_oa_products": {},
+		"pharma_oa_qualification_types": {}, "pharma_oa_qualifications": {}, "pharma_oa_oa_requests": {},
+		"pharma_oa_purchase_requests": {}, "pharma_oa_purchase_orders": {}, "pharma_oa_purchase_inbounds": {},
+		"pharma_oa_warehouses": {}, "pharma_oa_warehouse_areas": {}, "pharma_oa_warehouse_locations": {},
+	}
 	for _, table := range info.DataManifest.Tables {
+		if _, exists := expectedTables[table.Name]; !exists {
+			t.Fatalf("unexpected current data table %s", table.Name)
+		}
+		delete(expectedTables, table.Name)
 		columns := make(map[string]struct{}, len(table.Columns))
 		for _, column := range table.Columns {
 			columns[column] = struct{}{}
@@ -40,6 +51,9 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 				t.Fatalf("table %s is missing scope column %s", table.Name, required)
 			}
 		}
+	}
+	if len(expectedTables) != 0 {
+		t.Fatalf("current data tables are missing: %+v", expectedTables)
 	}
 	if info.EventContract == nil || len(info.EventContract.Subscriptions) != 5 {
 		t.Fatalf("unexpected event contract: %+v", info.EventContract)
