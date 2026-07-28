@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -319,7 +320,7 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 
 	partialInboundBody := map[string]any{
 		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": purchaseOrderID,
-		"warehouseId": "WH-E2E", "areaId": "AREA-A", "locationId": "LOC-001", "orderVersion": 1,
+		"warehouseId": topology.warehouseID, "areaId": topology.areaID, "locationId": topology.locationID, "orderVersion": 1,
 		"lines": []map[string]any{{
 			"orderLineId": purchaseOrderLineID, "quantity": "1.25", "batchNo": "LOT-E2E-001",
 			"productionDate": now.AddDate(0, -1, 0).Format("2006-01-02"), "expiresAt": now.AddDate(2, 0, 0).Format("2006-01-02"),
@@ -336,6 +337,24 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 		pharmaLifecycleString(t, pharmaLifecycleArrayMap(t, partialOrder, "lines", 0), "receivedQuantity") != "1.25" {
 		t.Fatalf("partial inbound did not retain exact order progress: %v", partialInbound)
 	}
+	partialReplay := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-inbounds", actorAToken, "e2e-inbound-partial", partialInboundBody, http.StatusOK)
+	if duplicate, ok := partialReplay["duplicate"].(bool); !ok || !duplicate ||
+		pharmaLifecycleString(t, pharmaLifecycleMap(t, partialReplay, "item"), "id") != partialInboundID {
+		t.Fatalf("partial inbound was not idempotent: %v", partialReplay)
+	}
+	pharmaLifecycleAssertInventoryState(t, baseURL, actorAToken, productID, topology, []string{"LOT-E2E-001"}, "1.25")
+	partialLedger := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/stock-ledger?sourceDocumentId="+partialInboundID, actorAToken, "", nil, http.StatusOK)
+	if pharmaLifecycleInt(t, partialLedger, "total") != 1 {
+		t.Fatalf("partial inbound did not produce exactly one source ledger entry: %v", partialLedger)
+	}
+	partialSourceReconciliation := pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/stock-reconciliation?sourceDocumentId="+partialInboundID,
+		actorAToken, "", nil, http.StatusOK,
+	)
+	if pharmaLifecycleInt(t, partialSourceReconciliation, "total") != 1 ||
+		partialSourceReconciliation["matched"] != true {
+		t.Fatalf("partial inbound source reconciliation did not match: %v", partialSourceReconciliation)
+	}
 
 	isolatedOARequests := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/oa-requests?limit=20", actorBToken, "", nil, http.StatusOK)
 	if pharmaLifecycleInt(t, isolatedOARequests, "total") != 0 {
@@ -349,6 +368,7 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 		pharmaLifecycleInt(t, isolatedInbounds, "total") != 0 {
 		t.Fatalf("cross-scope purchase records leaked: requests=%v orders=%v inbounds=%v", isolatedPurchaseRequests, isolatedPurchaseOrders, isolatedInbounds)
 	}
+	pharmaLifecycleAssertInventoryIsolation(t, baseURL, actorBToken, productID)
 	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-requests/"+purchaseID, actorBToken, "", nil, http.StatusNotFound)
 	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-orders/"+purchaseOrderID, actorBToken, "", nil, http.StatusNotFound)
 	pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-inbounds/"+partialInboundID, actorBToken, "", nil, http.StatusNotFound)
@@ -361,7 +381,7 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 		"pharma_oa.oa_request.create", "pharma_oa.oa_request.submit", "pharma_oa.oa_request.attach", "pharma_oa.oa_request.comment",
 		"pharma_oa.oa_request.remind", "pharma_oa.oa_request.delegate", "pharma_oa.oa_request.approve", "pharma_oa.oa_request.reject",
 		"pharma_oa.oa_request.withdraw", "pharma_oa.oa_request.cancel",
-		"pharma_oa.purchase.create", "pharma_oa.purchase.approve", "pharma_oa.purchase.reject", "pharma_oa.inbound.create",
+		"pharma_oa.purchase.create", "pharma_oa.purchase.approve", "pharma_oa.purchase.reject", "pharma_oa.inventory.receive", "pharma_oa.inbound.create",
 		"pharma_oa.warehouse.create", "pharma_oa.warehouse.disable", "pharma_oa.warehouse.enable",
 		"pharma_oa.warehouse_area.create", "pharma_oa.warehouse_area.disable", "pharma_oa.warehouse_area.enable",
 		"pharma_oa.warehouse_location.create", "pharma_oa.warehouse_location.disable", "pharma_oa.warehouse_location.enable",
@@ -446,9 +466,10 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	if pharmaLifecycleString(t, restartedOrder, "status") != "partial" || pharmaLifecycleInt(t, restartedOrder, "version") != 2 {
 		t.Fatalf("restart lost partial order state: %v", restartedOrderResponse)
 	}
+	pharmaLifecycleAssertInventoryState(t, baseURL, actorAToken, productID, topology, []string{"LOT-E2E-001"}, "1.25")
 	finalInbound := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/purchase-inbounds", actorAToken, "e2e-inbound-final", map[string]any{
 		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": purchaseOrderID,
-		"warehouseId": "WH-E2E", "areaId": "AREA-A", "locationId": "LOC-002", "orderVersion": 2,
+		"warehouseId": topology.warehouseID, "areaId": topology.areaID, "locationId": topology.locationID, "orderVersion": 2,
 		"lines": []map[string]any{{
 			"orderLineId": purchaseOrderLineID, "quantity": "1.25", "batchNo": "LOT-E2E-002",
 			"productionDate": now.AddDate(0, -1, 0).Format("2006-01-02"), "expiresAt": now.AddDate(2, 0, 0).Format("2006-01-02"),
@@ -463,6 +484,12 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	finalInbounds := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/purchase-inbounds?purchaseOrderId="+purchaseOrderID, actorAToken, "", nil, http.StatusOK)
 	if pharmaLifecycleInt(t, finalInbounds, "total") != 2 || files.count() != 6 || workflows.instanceCount() != 7 {
 		t.Fatalf("final receiving changed retained resources: inbounds=%v files=%d workflows=%d", finalInbounds, files.count(), workflows.instanceCount())
+	}
+	pharmaLifecycleAssertInventoryState(t, baseURL, actorAToken, productID, topology, []string{"LOT-E2E-001", "LOT-E2E-002"}, "1.25")
+	finalInboundID := pharmaLifecycleString(t, pharmaLifecycleMap(t, finalInbound, "item"), "id")
+	finalLedger := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/stock-ledger?sourceDocumentId="+finalInboundID, actorAToken, "", nil, http.StatusOK)
+	if pharmaLifecycleInt(t, finalLedger, "total") != 1 {
+		t.Fatalf("final inbound did not produce exactly one source ledger entry: %v", finalLedger)
 	}
 
 	if err := manager.Disable(installed.ID); err != nil {
@@ -634,11 +661,104 @@ func pharmaLifecycleAssertWarehouseTopologyRestart(t *testing.T, baseURL, token 
 func pharmaLifecycleAssertTopologyMigrationDropped(t *testing.T, executed []string) {
 	t.Helper()
 	allSQL := strings.ToLower(strings.Join(executed, "\n"))
-	for _, table := range []string{"warehouse_locations", "warehouse_areas", "warehouses"} {
-		if !strings.Contains(allSQL, "drop table if exists {{table:"+table+"}}") {
-			t.Fatalf("uninstall migration did not drop topology table %s: %v", table, executed)
+	for _, statement := range []string{
+		"alter table {{table:purchase_inbounds}} add column request_hash",
+		"alter table {{table:purchase_inbounds}} drop column request_hash",
+	} {
+		if !strings.Contains(allSQL, statement) {
+			t.Fatalf("inventory migration did not execute %q: %v", statement, executed)
 		}
 	}
+	for _, table := range []string{"stock_balances", "stock_ledger", "inventory_lots", "warehouse_locations", "warehouse_areas", "warehouses"} {
+		if !strings.Contains(allSQL, "drop table if exists {{table:"+table+"}}") {
+			t.Fatalf("uninstall migration did not drop lifecycle table %s: %v", table, executed)
+		}
+	}
+}
+
+func pharmaLifecycleAssertInventoryState(
+	t *testing.T,
+	baseURL string,
+	token string,
+	productID string,
+	topology pharmaLifecycleTopology,
+	batches []string,
+	quantity string,
+) {
+	t.Helper()
+	query := "?productId=" + productID + "&warehouseId=" + topology.warehouseID + "&locationId=" + topology.locationID
+	lots := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/inventory-lots?productId="+productID, token, "", nil, http.StatusOK)
+	ledger := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/stock-ledger"+query, token, "", nil, http.StatusOK)
+	balances := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/stock-balances"+query, token, "", nil, http.StatusOK)
+	reconciliation := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/stock-reconciliation"+query, token, "", nil, http.StatusOK)
+	wantTotal := int64(len(batches))
+	if pharmaLifecycleInt(t, lots, "total") != wantTotal ||
+		pharmaLifecycleInt(t, ledger, "total") != wantTotal ||
+		pharmaLifecycleInt(t, balances, "total") != wantTotal ||
+		pharmaLifecycleInt(t, reconciliation, "total") != wantTotal {
+		t.Fatalf("inventory projection cardinality mismatch: lots=%v ledger=%v balances=%v reconciliation=%v", lots, ledger, balances, reconciliation)
+	}
+	if matched, ok := reconciliation["matched"].(bool); !ok || !matched {
+		t.Fatalf("inventory reconciliation did not match: %v", reconciliation)
+	}
+	wantBatches := make(map[string]struct{}, len(batches))
+	for _, batch := range batches {
+		wantBatches[batch] = struct{}{}
+	}
+	for _, item := range pharmaLifecycleItems(t, lots) {
+		batch := pharmaLifecycleString(t, item, "batchNo")
+		if _, ok := wantBatches[batch]; !ok ||
+			pharmaLifecycleString(t, item, "productionDate") == "" ||
+			pharmaLifecycleString(t, item, "expiresAt") == "" {
+			t.Fatalf("inventory lot lost immutable batch facts: %v", item)
+		}
+	}
+	for _, item := range pharmaLifecycleItems(t, ledger) {
+		if pharmaLifecycleString(t, item, "quantity") != quantity ||
+			pharmaLifecycleString(t, item, "sourceDocumentType") != "purchase_inbound" ||
+			pharmaLifecycleString(t, item, "sourceDocumentId") == "" ||
+			pharmaLifecycleString(t, item, "sourceDocumentLineId") == "" {
+			t.Fatalf("inventory ledger entry is incomplete or inexact: %v", item)
+		}
+	}
+	for _, item := range pharmaLifecycleItems(t, balances) {
+		if pharmaLifecycleString(t, item, "quantity") != quantity ||
+			pharmaLifecycleString(t, item, "warehouseId") != topology.warehouseID ||
+			pharmaLifecycleString(t, item, "locationId") != topology.locationID {
+			t.Fatalf("inventory balance projection is incomplete or inexact: %v", item)
+		}
+	}
+	for _, item := range pharmaLifecycleItems(t, reconciliation) {
+		if matched, ok := item["matched"].(bool); !ok || !matched ||
+			pharmaLifecycleString(t, item, "ledgerQuantity") != quantity ||
+			pharmaLifecycleString(t, item, "balanceQuantity") != quantity {
+			t.Fatalf("inventory reconciliation row is inexact: %v", item)
+		}
+	}
+}
+
+func pharmaLifecycleAssertInventoryIsolation(t *testing.T, baseURL, token, productID string) {
+	t.Helper()
+	for _, path := range []string{"/inventory-lots", "/stock-ledger", "/stock-balances", "/stock-reconciliation"} {
+		page := pharmaLifecycleRequest(t, http.MethodGet, baseURL+path+"?productId="+productID, token, "", nil, http.StatusOK)
+		if pharmaLifecycleInt(t, page, "total") != 0 {
+			t.Fatalf("cross-scope inventory leaked through %s: %v", path, page)
+		}
+	}
+}
+
+func pharmaLifecycleItems(t *testing.T, page map[string]any) []map[string]any {
+	t.Helper()
+	raw := pharmaLifecycleArray(t, page, "items")
+	items := make([]map[string]any, 0, len(raw))
+	for index, value := range raw {
+		item, ok := value.(map[string]any)
+		if !ok {
+			t.Fatalf("items[%d] is not an object: %T", index, value)
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 func clonePharmaLifecycleBody(input map[string]any) map[string]any {
@@ -809,6 +929,44 @@ func (s *pharmaLifecycleStore) Mutate(ctx context.Context, mutation pluginsdk.Da
 		record.Values["updated_at"] = pharmaLifecycleTimestampValue(now)
 		record.Version++
 		s.records[mutation.Table][id] = record
+	case pluginsdk.DataMutationAdjust:
+		record, exists := s.records[mutation.Table][id]
+		if !exists || !pharmaLifecycleRecordInScope(record, actor) {
+			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, "id", "record not found", false)
+		}
+		if mutation.ExpectedVersion != nil && *mutation.ExpectedVersion != record.Version {
+			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "version", "record version is stale", false)
+		}
+		adjustment := mutation.Adjustment
+		current, ok := record.Values[adjustment.Field]
+		if !ok || current.Type != pluginsdk.DataValueInteger || adjustment.Delta.Type != pluginsdk.DataValueInteger {
+			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, "adjustment.field", "lifecycle store only adjusts integer fields", false)
+		}
+		currentValue, parseErr := strconv.ParseInt(current.Value, 10, 64)
+		if parseErr != nil {
+			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "adjustment.field", "stored integer is invalid", false)
+		}
+		delta, parseErr := strconv.ParseInt(adjustment.Delta.Value, 10, 64)
+		if parseErr != nil || delta > 0 && currentValue > math.MaxInt64-delta || delta < 0 && currentValue < math.MinInt64-delta {
+			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, pluginsdk.DataAdjustmentGuardConflictField, "adjustment exceeds integer capacity", false)
+		}
+		next := currentValue + delta
+		if adjustment.Minimum != nil {
+			minimum, minimumErr := strconv.ParseInt(adjustment.Minimum.Value, 10, 64)
+			if minimumErr != nil || next < minimum {
+				return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, pluginsdk.DataAdjustmentGuardConflictField, "adjustment violates minimum", false)
+			}
+		}
+		if adjustment.Maximum != nil {
+			maximum, maximumErr := strconv.ParseInt(adjustment.Maximum.Value, 10, 64)
+			if maximumErr != nil || next > maximum {
+				return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, pluginsdk.DataAdjustmentGuardConflictField, "adjustment violates maximum", false)
+			}
+		}
+		record.Values[adjustment.Field] = pluginsdk.DataValue{Type: pluginsdk.DataValueInteger, Value: strconv.FormatInt(next, 10)}
+		record.Values["updated_at"] = pharmaLifecycleTimestampValue(now)
+		record.Version++
+		s.records[mutation.Table][id] = record
 	case pluginsdk.DataMutationDelete:
 		record, exists := s.records[mutation.Table][id]
 		if !exists || !pharmaLifecycleRecordInScope(record, actor) {
@@ -828,8 +986,111 @@ func (s *pharmaLifecycleStore) Mutate(ctx context.Context, mutation pluginsdk.Da
 	return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
 }
 
-func (s *pharmaLifecycleStore) Aggregate(context.Context, pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
-	return pluginsdk.DataAggregatePage{}, nil
+func (s *pharmaLifecycleStore) Aggregate(ctx context.Context, query pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	if err := query.Validate(); err != nil {
+		return pluginsdk.DataAggregatePage{}, err
+	}
+	actor, err := pharmaLifecycleScopeFromContext(ctx)
+	if err != nil {
+		return pluginsdk.DataAggregatePage{}, err
+	}
+	if !pharmaLifecycleScopeIntentWithin(query.Scope.Filter, actor) {
+		return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorForbidden, "scope", "aggregate scope exceeds actor scope", false)
+	}
+	type aggregateGroup struct {
+		group       map[string]pluginsdk.DataValue
+		values      []int64
+		initialized []bool
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	groups := make(map[string]*aggregateGroup)
+	for _, record := range s.records[query.Table] {
+		if !pharmaLifecycleRecordInScope(record, actor) || query.Filter != nil && !pharmaLifecycleFilterMatches(record, *query.Filter) {
+			continue
+		}
+		groupValues := make(map[string]pluginsdk.DataValue, len(query.GroupBy))
+		groupParts := make([]string, 0, len(query.GroupBy))
+		for _, field := range query.GroupBy {
+			value, ok := record.Values[field]
+			if !ok {
+				return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, field, "aggregate group field is missing", false)
+			}
+			groupValues[field] = value
+			groupParts = append(groupParts, string(value.Type)+"\x00"+value.Value)
+		}
+		groupKey := strings.Join(groupParts, "\x01")
+		group := groups[groupKey]
+		if group == nil {
+			group = &aggregateGroup{
+				group: groupValues, values: make([]int64, len(query.Metrics)), initialized: make([]bool, len(query.Metrics)),
+			}
+			groups[groupKey] = group
+		}
+		for index, metric := range query.Metrics {
+			if metric.Operation == pluginsdk.DataAggregateCount {
+				group.values[index]++
+				group.initialized[index] = true
+				continue
+			}
+			value, ok := record.Values[metric.Field]
+			if !ok || value.Type != pluginsdk.DataValueInteger {
+				return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, metric.Field, "lifecycle store only aggregates integer fields", false)
+			}
+			number, parseErr := strconv.ParseInt(value.Value, 10, 64)
+			if parseErr != nil {
+				return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, metric.Field, "aggregate integer is invalid", false)
+			}
+			switch metric.Operation {
+			case pluginsdk.DataAggregateSum:
+				if group.initialized[index] && (number > 0 && group.values[index] > math.MaxInt64-number ||
+					number < 0 && group.values[index] < math.MinInt64-number) {
+					return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorLimitExceeded, metric.Field, "aggregate exceeds integer capacity", false)
+				}
+				group.values[index] += number
+			case pluginsdk.DataAggregateMin:
+				if !group.initialized[index] || number < group.values[index] {
+					group.values[index] = number
+				}
+			case pluginsdk.DataAggregateMax:
+				if !group.initialized[index] || number > group.values[index] {
+					group.values[index] = number
+				}
+			}
+			group.initialized[index] = true
+		}
+	}
+	keys := make([]string, 0, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	start := 0
+	if query.Page.Cursor != "" {
+		start, err = strconv.Atoi(query.Page.Cursor)
+		if err != nil || start < 0 || start > len(keys) {
+			return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorInvalidRequest, "cursor", "cursor is invalid", false)
+		}
+	}
+	end := min(len(keys), start+query.Page.Limit)
+	rows := make([]pluginsdk.DataAggregateRow, 0, end-start)
+	for _, key := range keys[start:end] {
+		group := groups[key]
+		values := make([]pluginsdk.DataValue, len(query.Metrics))
+		for index := range query.Metrics {
+			values[index] = pluginsdk.DataValue{Type: pluginsdk.DataValueInteger, Value: strconv.FormatInt(group.values[index], 10)}
+		}
+		rows = append(rows, pluginsdk.DataAggregateRow{Group: group.group, Values: values})
+	}
+	nextCursor := ""
+	if end < len(keys) {
+		nextCursor = strconv.Itoa(end)
+	}
+	return pluginsdk.DataAggregatePage{
+		Metrics: append([]pluginsdk.DataAggregateMetric(nil), query.Metrics...),
+		GroupBy: append([]string(nil), query.GroupBy...),
+		Rows:    rows, NextCursor: nextCursor, HasMore: nextCursor != "",
+	}, nil
 }
 
 func pharmaLifecycleScopeFromContext(ctx context.Context) (pharmaLifecycleScope, error) {

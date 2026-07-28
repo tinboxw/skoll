@@ -26,15 +26,33 @@ type testTransaction struct{ ctx context.Context }
 func (t testTransaction) Context() context.Context { return t.ctx }
 
 type testTransactions struct {
-	mu    sync.Mutex
-	calls int
+	mu        sync.Mutex
+	execution sync.Mutex
+	calls     int
+	store     *testDataStore
+	numbers   *testDocumentNumbers
+	audit     *testAudit
+	events    *testEvents
 }
 
 func (t *testTransactions) Within(ctx context.Context, fn func(pluginsdk.Transaction) error) error {
 	t.mu.Lock()
 	t.calls++
 	t.mu.Unlock()
-	return fn(testTransaction{ctx: context.WithValue(ctx, testTransactionKey{}, true)})
+	t.execution.Lock()
+	defer t.execution.Unlock()
+	storeSnapshot := t.store.snapshot()
+	numberSnapshot := t.numbers.snapshot()
+	auditSnapshot := t.audit.snapshot()
+	eventSnapshot := t.events.snapshot()
+	err := fn(testTransaction{ctx: context.WithValue(ctx, testTransactionKey{}, true)})
+	if err != nil {
+		t.store.restore(storeSnapshot)
+		t.numbers.restore(numberSnapshot)
+		t.audit.restore(auditSnapshot)
+		t.events.restore(eventSnapshot)
+	}
+	return err
 }
 
 type testScopes struct {
@@ -114,6 +132,11 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 	if s.failTable == mutation.Table {
 		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnavailable, mutation.Table, "injected mutation failure", true)
 	}
+	if (mutation.Table == inventoryLotTable || mutation.Table == stockLedgerTable) && mutation.Operation != pluginsdk.DataMutationInsert {
+		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(
+			pluginsdk.DataStoreErrorUnsupported, "operation", "append-only table rejects mutation", false,
+		)
+	}
 	if id, ok := s.idempotency[mutation.IdempotencyKey]; ok {
 		record := testProjectRecord(s.records[id], mutation.Returning)
 		return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
@@ -162,6 +185,52 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 		record.Values["updated_at"] = timestampValue(now)
 		record.Version++
 		s.records[id] = record
+	case pluginsdk.DataMutationAdjust:
+		record, exists := s.records[id]
+		if !exists || s.tables[id] != mutation.Table {
+			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorNotFound, "id", "record not found", false)
+		}
+		if mutation.ExpectedVersion != nil && *mutation.ExpectedVersion != record.Version {
+			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "version", "record version is stale", false)
+		}
+		current, parseErr := strconv.ParseInt(dataString(record, mutation.Adjustment.Field), 10, 64)
+		if parseErr != nil {
+			return pluginsdk.DataMutationResult{}, parseErr
+		}
+		delta, parseErr := strconv.ParseInt(mutation.Adjustment.Delta.Value, 10, 64)
+		if parseErr != nil {
+			return pluginsdk.DataMutationResult{}, parseErr
+		}
+		next, addErr := checkedAddMicros(current, delta)
+		if addErr != nil {
+			return pluginsdk.DataMutationResult{}, addErr
+		}
+		if mutation.Adjustment.Minimum != nil {
+			minimum, minimumErr := strconv.ParseInt(mutation.Adjustment.Minimum.Value, 10, 64)
+			if minimumErr != nil {
+				return pluginsdk.DataMutationResult{}, minimumErr
+			}
+			if next < minimum {
+				return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(
+					pluginsdk.DataStoreErrorConflict, pluginsdk.DataAdjustmentGuardConflictField, "adjustment guard rejected mutation", false,
+				)
+			}
+		}
+		if mutation.Adjustment.Maximum != nil {
+			maximum, maximumErr := strconv.ParseInt(mutation.Adjustment.Maximum.Value, 10, 64)
+			if maximumErr != nil {
+				return pluginsdk.DataMutationResult{}, maximumErr
+			}
+			if next > maximum {
+				return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(
+					pluginsdk.DataStoreErrorConflict, pluginsdk.DataAdjustmentGuardConflictField, "adjustment guard rejected mutation", false,
+				)
+			}
+		}
+		record.Values[mutation.Adjustment.Field] = integerValue(next)
+		record.Values["updated_at"] = timestampValue(now)
+		record.Version++
+		s.records[id] = record
 	default:
 		return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorUnsupported, "operation", "unsupported mutation", false)
 	}
@@ -171,15 +240,138 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 	return pluginsdk.DataMutationResult{RowsAffected: 1, Record: &record}, nil
 }
 
-func (s *testDataStore) Aggregate(context.Context, pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
-	return pluginsdk.DataAggregatePage{}, nil
+func (s *testDataStore) Aggregate(_ context.Context, query pluginsdk.DataAggregateQuery) (pluginsdk.DataAggregatePage, error) {
+	if err := query.Validate(); err != nil {
+		return pluginsdk.DataAggregatePage{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	type aggregate struct {
+		group  map[string]pluginsdk.DataValue
+		values []int64
+	}
+	byKey := make(map[string]aggregate)
+	for id, record := range s.records {
+		if s.tables[id] != query.Table ||
+			dataString(record, "tenant_id") != s.scope.TenantID ||
+			dataString(record, "organization_id") != s.scope.OrganizationID ||
+			dataString(record, "owner_id") != s.scope.OwnerID ||
+			(query.Filter != nil && !testFilterMatches(record, *query.Filter)) {
+			continue
+		}
+		group := make(map[string]pluginsdk.DataValue, len(query.GroupBy))
+		keyParts := make([]string, len(query.GroupBy))
+		for index, field := range query.GroupBy {
+			value := record.Values[field]
+			group[field] = value
+			keyParts[index] = value.Value
+		}
+		key := strings.Join(keyParts, "\x00")
+		current, found := byKey[key]
+		if !found {
+			current = aggregate{group: group, values: make([]int64, len(query.Metrics))}
+		}
+		for metricIndex, metric := range query.Metrics {
+			switch metric.Operation {
+			case pluginsdk.DataAggregateCount:
+				current.values[metricIndex]++
+			case pluginsdk.DataAggregateSum:
+				value, parseErr := strconv.ParseInt(dataString(record, metric.Field), 10, 64)
+				if parseErr != nil {
+					return pluginsdk.DataAggregatePage{}, parseErr
+				}
+				next, addErr := checkedAddMicros(current.values[metricIndex], value)
+				if addErr != nil {
+					return pluginsdk.DataAggregatePage{}, addErr
+				}
+				current.values[metricIndex] = next
+			default:
+				return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(
+					pluginsdk.DataStoreErrorUnsupported, "metrics", "test aggregate operation is unsupported", false,
+				)
+			}
+		}
+		byKey[key] = current
+	}
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	start := 0
+	if query.Page.Cursor != "" {
+		var cursorErr error
+		start, cursorErr = strconv.Atoi(query.Page.Cursor)
+		if cursorErr != nil || start < 0 || start > len(keys) {
+			return pluginsdk.DataAggregatePage{}, pluginsdk.NewDataStoreError(
+				pluginsdk.DataStoreErrorInvalidRequest, "cursor", "cursor is invalid", false,
+			)
+		}
+	}
+	end := min(len(keys), start+query.Page.Limit)
+	rows := make([]pluginsdk.DataAggregateRow, 0, end-start)
+	for _, key := range keys[start:end] {
+		current := byKey[key]
+		values := make([]pluginsdk.DataValue, len(current.values))
+		for index, value := range current.values {
+			values[index] = integerValue(value)
+		}
+		rows = append(rows, pluginsdk.DataAggregateRow{Group: current.group, Values: values})
+	}
+	nextCursor := ""
+	if end < len(keys) {
+		nextCursor = strconv.Itoa(end)
+	}
+	return pluginsdk.DataAggregatePage{
+		Metrics: query.Metrics, GroupBy: query.GroupBy, Rows: rows,
+		NextCursor: nextCursor, HasMore: nextCursor != "",
+	}, nil
+}
+
+type testDataStoreSnapshot struct {
+	records     map[string]pluginsdk.DataRecord
+	tables      map[string]string
+	idempotency map[string]string
+	mutations   []pluginsdk.DataMutation
+}
+
+func (s *testDataStore) snapshot() testDataStoreSnapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	records := make(map[string]pluginsdk.DataRecord, len(s.records))
+	for id, record := range s.records {
+		records[id] = pluginsdk.DataRecord{Values: testCloneValues(record.Values), Version: record.Version}
+	}
+	tables := make(map[string]string, len(s.tables))
+	for id, table := range s.tables {
+		tables[id] = table
+	}
+	idempotency := make(map[string]string, len(s.idempotency))
+	for key, id := range s.idempotency {
+		idempotency[key] = id
+	}
+	return testDataStoreSnapshot{
+		records: records, tables: tables, idempotency: idempotency,
+		mutations: append([]pluginsdk.DataMutation(nil), s.mutations...),
+	}
+}
+
+func (s *testDataStore) restore(snapshot testDataStoreSnapshot) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.records = snapshot.records
+	s.tables = snapshot.tables
+	s.idempotency = snapshot.idempotency
+	s.mutations = snapshot.mutations
 }
 
 type testFiles struct {
-	mu      sync.Mutex
-	items   map[string]pluginsdk.FileObject
-	stores  int
-	deletes int
+	mu          sync.Mutex
+	items       map[string]pluginsdk.FileObject
+	keys        []string
+	beforeStore func()
+	stores      int
+	deletes     int
 }
 
 type testJobs struct {
@@ -221,6 +413,32 @@ func (n *testDocumentNumbers) Issue(ctx context.Context, input pluginsdk.Documen
 	item := pluginsdk.DocumentNumberResult{Number: fmt.Sprintf("%s-%06d", input.Rule.Prefix, sequence), Sequence: sequence}
 	n.byIdempotency[key] = item
 	return item, nil
+}
+
+type testDocumentNumberSnapshot struct {
+	sequences     map[string]int64
+	byIdempotency map[string]pluginsdk.DocumentNumberResult
+}
+
+func (n *testDocumentNumbers) snapshot() testDocumentNumberSnapshot {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	sequences := make(map[string]int64, len(n.sequences))
+	for key, value := range n.sequences {
+		sequences[key] = value
+	}
+	byIdempotency := make(map[string]pluginsdk.DocumentNumberResult, len(n.byIdempotency))
+	for key, value := range n.byIdempotency {
+		byIdempotency[key] = value
+	}
+	return testDocumentNumberSnapshot{sequences: sequences, byIdempotency: byIdempotency}
+}
+
+func (n *testDocumentNumbers) restore(snapshot testDocumentNumberSnapshot) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.sequences = snapshot.sequences
+	n.byIdempotency = snapshot.byIdempotency
 }
 
 type testWorkflows struct {
@@ -470,9 +688,13 @@ func (j *testJobs) List(_ context.Context, query pluginsdk.JobQuery) ([]pluginsd
 }
 
 func (f *testFiles) Store(_ context.Context, input pluginsdk.FileWrite) (pluginsdk.FileObject, error) {
+	if f.beforeStore != nil {
+		f.beforeStore()
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stores++
+	f.keys = append(f.keys, input.Key)
 	id := "file-" + string(rune('0'+f.stores))
 	item := pluginsdk.FileObject{ID: id, Key: input.Key, Name: input.Name, Size: int64(len(input.Content)), MIME: "application/octet-stream", Visibility: input.Visibility, Metadata: input.Metadata}
 	f.items[id] = item
@@ -506,10 +728,28 @@ type testAudit struct {
 	entries []pluginsdk.AuditEntry
 }
 
-type testEvents struct{}
+type testEvents struct {
+	mu           sync.Mutex
+	publications []pluginsdk.EventPublication
+	fail         bool
+}
 
-func (testEvents) Publish(context.Context, pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
-	return pluginsdk.EventEnvelope{}, nil
+func (e *testEvents) Publish(ctx context.Context, publication pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
+	if ctx.Value(testTransactionKey{}) != true {
+		return pluginsdk.EventEnvelope{}, errors.New("event escaped transaction")
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.fail {
+		return pluginsdk.EventEnvelope{}, errors.New("injected event failure")
+	}
+	e.publications = append(e.publications, publication)
+	return pluginsdk.EventEnvelope{
+		ID: "event-" + strconv.Itoa(len(e.publications)), Publisher: pluginID,
+		Name: publication.Name, SchemaVersion: publication.SchemaVersion, PayloadType: "inventory.change",
+		Scope: publication.Scope, CorrelationID: publication.CorrelationID, Subject: publication.Subject,
+		Payload: publication.Payload, OccurredAt: time.Now().UTC(),
+	}, nil
 }
 
 func (a *testAudit) Record(ctx context.Context, entry pluginsdk.AuditEntry) (pluginsdk.AuditReceipt, error) {
@@ -522,6 +762,30 @@ func (a *testAudit) Record(ctx context.Context, entry pluginsdk.AuditEntry) (plu
 	return pluginsdk.AuditReceipt{ID: "audit", OccurredAt: time.Now()}, nil
 }
 
+func (a *testAudit) snapshot() []pluginsdk.AuditEntry {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]pluginsdk.AuditEntry(nil), a.entries...)
+}
+
+func (a *testAudit) restore(entries []pluginsdk.AuditEntry) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.entries = entries
+}
+
+func (e *testEvents) snapshot() []pluginsdk.EventPublication {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]pluginsdk.EventPublication(nil), e.publications...)
+}
+
+func (e *testEvents) restore(publications []pluginsdk.EventPublication) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.publications = publications
+}
+
 type testRuntime struct {
 	handler      http.Handler
 	transactions *testTransactions
@@ -529,6 +793,7 @@ type testRuntime struct {
 	numbers      *testDocumentNumbers
 	files        *testFiles
 	audit        *testAudit
+	events       *testEvents
 	jobs         *testJobs
 	workflows    *testWorkflows
 	scopes       testScopes
@@ -542,22 +807,26 @@ func newTestRuntime(t *testing.T) testRuntime {
 	if err != nil {
 		t.Fatal(err)
 	}
-	transactions := &testTransactions{}
 	store := &testDataStore{records: make(map[string]pluginsdk.DataRecord), tables: make(map[string]string), idempotency: make(map[string]string), scope: employeeScope{TenantID: "tenant-a", OrganizationID: "org-a", OwnerID: "actor-1"}}
 	numbers := &testDocumentNumbers{sequences: make(map[string]int64), byIdempotency: make(map[string]pluginsdk.DocumentNumberResult)}
 	files := &testFiles{items: make(map[string]pluginsdk.FileObject)}
 	audit := &testAudit{}
+	events := &testEvents{}
+	transactions := &testTransactions{store: store, numbers: numbers, audit: audit, events: events}
 	jobs := &testJobs{items: make(map[string]pluginsdk.Job), byIdempotency: make(map[string]string)}
 	workflows := &testWorkflows{definitions: make(map[string]pluginsdk.WorkflowDefinition), instances: make(map[string]pluginsdk.WorkflowInstance)}
 	scopes := testScopes{predicate: predicate}
 	handler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Events: testEvents{}, DocumentNumbers: numbers,
+		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Events: events, DocumentNumbers: numbers,
 		Files: files, Audit: audit, Workflows: workflows, Jobs: jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return testRuntime{handler: handler, transactions: transactions, store: store, numbers: numbers, files: files, audit: audit, jobs: jobs, workflows: workflows, scopes: scopes}
+	return testRuntime{
+		handler: handler, transactions: transactions, store: store, numbers: numbers, files: files,
+		audit: audit, events: events, jobs: jobs, workflows: workflows, scopes: scopes,
+	}
 }
 
 func TestFoundationEndpoints(t *testing.T) {
@@ -567,7 +836,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.10.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.11.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }
@@ -817,7 +1086,7 @@ func TestEmployeeCreateRejectsDeniedScope(t *testing.T) {
 	runtime := newTestRuntime(t)
 	handler, err := newHandler(pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")},
-		DataStore: runtime.store, Events: testEvents{}, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+		DataStore: runtime.store, Events: runtime.events, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -1042,7 +1311,7 @@ func TestQualificationLifecycleEligibilityAndExpiryIdempotency(t *testing.T) {
 		t.Fatalf("expiry scan duplicate was not skipped: response=%v calls=%d", secondScan, runtime.jobs.scheduleCalls)
 	}
 	restarted, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Events: testEvents{},
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Events: runtime.events,
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1144,7 +1413,7 @@ func TestPurchaseRequestApprovalCreatesOneGovernedOrder(t *testing.T) {
 	}
 	runtime.store.scope = crossScope
 	crossHandler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: testEvents{},
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: runtime.events,
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1175,12 +1444,13 @@ func TestPurchaseRequestApprovalCreatesOneGovernedOrder(t *testing.T) {
 func TestPurchaseInboundPartialAndFinalReceiving(t *testing.T) {
 	runtime := newTestRuntime(t)
 	order := createApprovedPurchaseOrder(t, runtime, "2.5")
+	topology := createInboundTopology(t, runtime)
 	orderID := testString(t, order, "id")
 	orderLine := order["lines"].([]any)[0].(map[string]any)
 	orderLineID := testString(t, orderLine, "id")
 	base := map[string]any{
 		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": orderID,
-		"warehouseId": "warehouse-a", "areaId": "qualified", "locationId": "A-01-01",
+		"warehouseId": topology.WarehouseID, "areaId": topology.AreaID, "locationId": topology.LocationID,
 		"orderVersion": 1,
 		"lines": []map[string]any{{
 			"orderLineId": orderLineID, "quantity": "1.25", "batchNo": "LOT-20260726-A",
@@ -1248,7 +1518,7 @@ func TestPurchaseInboundPartialAndFinalReceiving(t *testing.T) {
 	}
 
 	restarted, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Events: testEvents{},
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: runtime.scopes, DataStore: runtime.store, Events: runtime.events,
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1269,7 +1539,7 @@ func TestPurchaseInboundPartialAndFinalReceiving(t *testing.T) {
 	}
 	runtime.store.scope = crossScope
 	crossHandler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: testEvents{},
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: runtime.events,
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1285,10 +1555,11 @@ func TestPurchaseInboundPartialAndFinalReceiving(t *testing.T) {
 func TestPurchaseInboundConcurrentReceiptAllowsOneWinner(t *testing.T) {
 	runtime := newTestRuntime(t)
 	order := createApprovedPurchaseOrder(t, runtime, "2")
+	topology := createInboundTopology(t, runtime)
 	lineID := testString(t, order["lines"].([]any)[0].(map[string]any), "id")
 	body := map[string]any{
 		"tenantId": "tenant-a", "organizationId": "org-a", "purchaseOrderId": testString(t, order, "id"),
-		"warehouseId": "warehouse-a", "areaId": "qualified", "locationId": "A-01-01", "orderVersion": 1,
+		"warehouseId": topology.WarehouseID, "areaId": topology.AreaID, "locationId": topology.LocationID, "orderVersion": 1,
 		"lines":       []map[string]any{{"orderLineId": lineID, "quantity": "2", "batchNo": "LOT-CONCURRENT", "productionDate": "2026-06-01", "expiresAt": "2028-06-01"}},
 		"attachments": []map[string]any{},
 	}
@@ -1343,6 +1614,31 @@ func createApprovedPurchaseOrder(t *testing.T, runtime testRuntime, quantity str
 		"taskId": testPendingWorkflowTaskID(t, testMap(t, created, "workflow")), "comment": "approved for receiving", "version": 1,
 	}, "inbound-purchase-approve", true, http.StatusOK)
 	return testMap(t, approved, "order")
+}
+
+type inboundTopology struct {
+	WarehouseID string
+	AreaID      string
+	LocationID  string
+}
+
+func createInboundTopology(t *testing.T, runtime testRuntime) inboundTopology {
+	t.Helper()
+	warehouse := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "INBOUND-WH", "name": "Inbound Warehouse",
+		"address": "1 Inbound Road", "contactName": "Inbound Owner", "contactPhone": "13800000000",
+	}, "inbound-topology-warehouse", true, http.StatusCreated), "item")
+	warehouseID := testString(t, warehouse, "id")
+	area := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID,
+		"code": "INBOUND-AREA", "name": "Inbound Qualified Area", "temperatureMin": "2", "temperatureMax": "25",
+	}, "inbound-topology-area", true, http.StatusCreated), "item")
+	areaID := testString(t, area, "id")
+	location := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations", map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID, "areaId": areaID,
+		"code": "INBOUND-LOC", "name": "Inbound Location", "locationType": "standard",
+	}, "inbound-topology-location", true, http.StatusCreated), "item")
+	return inboundTopology{WarehouseID: warehouseID, AreaID: areaID, LocationID: testString(t, location, "id")}
 }
 
 func cloneInboundBody(input map[string]any) map[string]any {
@@ -1538,7 +1834,7 @@ func TestWarehouseRejectsInvalidAndCrossScopeWrites(t *testing.T) {
 	}
 	runtime.store.scope = crossScope
 	crossHandler, err := newHandler(pluginsdk.HostServices{
-		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: testEvents{},
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: runtime.events,
 		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1559,7 +1855,7 @@ func TestWarehouseRejectsInvalidAndCrossScopeWrites(t *testing.T) {
 
 	deniedHandler, err := newHandler(pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")},
-		DataStore: runtime.store, Events: testEvents{}, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit,
+		DataStore: runtime.store, Events: runtime.events, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit,
 		Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {
@@ -1791,7 +2087,7 @@ func TestWarehouseTopologyRejectsInvalidParentsAndCrossScope(t *testing.T) {
 	runtime.store.scope = crossScope
 	crossHandler, err := newHandler(pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate},
-		DataStore: runtime.store, Events: testEvents{}, DocumentNumbers: runtime.numbers, Files: runtime.files,
+		DataStore: runtime.store, Events: runtime.events, DocumentNumbers: runtime.numbers, Files: runtime.files,
 		Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
 	})
 	if err != nil {

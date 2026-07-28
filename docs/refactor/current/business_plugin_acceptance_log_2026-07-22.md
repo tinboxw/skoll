@@ -3783,3 +3783,64 @@ Result: BF5-05A4 and parent BF5-05A passed. The packaged Pharma OA plugin now ha
 ### Commit
 
 `BF5-05A4: close warehouse topology acceptance`
+
+## BF5-05B Build Immutable Lot Stock Ledger And Balance Projection
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Establish immutable batch identity and stock-entry facts for accepted purchase receipts, maintain an exactly rebuildable product/lot/location balance projection, and expose scoped trace and reconciliation queries.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Inventory ownership | `inventory_lots` owns batch identity and production/expiry facts, `stock_ledger` owns immutable quantity movements, and `stock_balances` is the only rebuildable product/lot/location projection; purchase inbounds remain business vouchers | Pass |
+| Atomic receipt posting | Receipt creation, purchase-order progress, lot append, one ledger append per receipt line, atomic balance adjustment, high-risk audit, and `inventory-changed` event publication execute in one Host transaction | Pass |
+| Topology validation | Every receipt resolves an enabled warehouse, its enabled area, and that area's enabled location in the same exact tenant and organization before posting | Pass |
+| Exact quantities | Quantities are normalized once to signed 64-bit micro-units; ledger aggregation and balance adjustment use integers, enforce bounds, and reconcile without floating-point drift | Pass |
+| Idempotency | Resource/tenant/organization-namespaced internal operation keys protect document numbering and mutations; deterministic receipt-line identities plus database uniqueness guarantee one ledger row per accepted line | Pass |
+| Concurrent attachments | Independent random upload-attempt object keys prevent cross-process retries from overwriting or deleting the committed receipt attachment; the losing attempt cleans up only its own file IDs | Pass |
+| Immutable lot facts | Batch number, production date, and expiry are persisted once; same-fact reuse succeeds while conflicting facts fail, and `append_only` rejects lot update/delete | Pass |
+| Immutable ledger | No ledger mutation routes exist, the datastore schema is `append_only`, and real SQLite Host tests reject both update and delete operations | Pass |
+| Projection and reconciliation | Balances reconcile exactly with paged ledger aggregates by product, lot, warehouse, and location; source-document filters first select affected projection keys and then reconcile their complete ledger totals | Pass |
+| Trace queries | Lot, ledger, balance, and reconciliation endpoints support current batch/product/warehouse/location filters; ledger and reconciliation additionally support source type, ID, number, and source line | Pass |
+| Scope isolation | Exact-scope writes reject forged tenant or organization values, and cross-organization lot, ledger, balance, and reconciliation reads return no records | Pass |
+| Transaction rollback | Event, audit, mutation, and projection failures roll back receipt, purchase-order progress, lot, ledger, balance, idempotency, and audit state together | Pass |
+| Migration and restart | Migration `010` applies and rolls back all three tables plus receipt request hashes; real SQLite reopen and packaged-process restart preserve lots, ledger entries, and matching balances | Pass |
+| Package contract | Manifest capabilities, permissions, routes, datastore declarations, acceptance map, launch scripts, backend, and frontend versions expose one current `0.11.0` contract | Pass |
+| Repository regression | Focused repeats, race tests, frontend tests/build, complete Pharma OA tests, packaged lifecycle E2E, real SQLite acceptance, and full repository tests pass | Pass |
+| Current-only rule | No compatibility layer, legacy inventory format, dual write/read path, temporary bridge, or fallback inventory source was introduced | Pass |
+
+### Failed Gates And Re-execution
+
+1. Acceptance review found that source-document parameters were accepted by ledger queries but silently ignored by reconciliation. Reconciliation now derives the affected product/lot/location keys from the filtered source entries and compares each key against its complete ledger and balance totals; focused, packaged, and full repository tests passed after re-execution.
+2. Final concurrency review found that the raw client idempotency key could collide in Host-global mutation storage and tenant-wide document numbering. One bounded, opaque internal key now includes the receipt resource, tenant, organization, and client key and is used consistently by numbering and all receipt-derived mutations.
+3. The same review found that two backend processes could upload to one stable attachment object key before transaction ownership was known, allowing one failed upload cleanup to delete the winner's object. Upload attempts now have independent cryptographically random paths; a two-handler concurrency test forces both processes past the local lock boundary and verifies one voucher, two different object keys, one cleanup, and one live committed attachment.
+4. The first execution of the new attachment test compared absolute fixture file counts even though purchase-order setup had already stored three qualification files. The assertion was corrected to verify only the concurrent receipt's deltas; ten normal runs and five race-enabled runs then passed.
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa/backend -run "Test(PurchaseInboundOperationKeyIsResourceAndScopeNamespaced|ConcurrentReceiptAttachmentAttemptsCannotDeleteCommittedObject|ConcurrentSameReceiptRequestPostsOnce|InboundCreatesImmutableLedgerAndExactProjection)$" -count=10
+go test -race ./plugins/pharma_oa/backend -count=5
+go test ./plugins/pharma_oa/... -count=1 -timeout=15m
+go test ./internal/plugin -run "^TestPharmaOAInventoryLedgerRealSQLiteAcceptance$" -count=3
+go test -race ./internal/plugin -run "^TestPharmaOAInventoryLedgerRealSQLiteAcceptance$" -count=1
+$env:SKOLL_PHARMA_OA_E2E = "1"
+go test ./internal/plugin -run "^TestPharmaOAPackagedBusinessLifecycleE2E$" -count=1 -timeout=15m
+Set-Location plugins/pharma_oa/frontend
+npm run test
+npm run build
+Set-Location ../../..
+go test ./... -count=1 -timeout=30m
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: BF5-05B passed. Accepted receipts now produce one immutable, traceable batch ledger entry per detail and an exact, rebuildable balance projection that survives restart, rejects cross-scope access and fact mutation, and reconciles through the current plugin contract.
+
+### Commit
+
+`BF5-05B: implement immutable lot stock ledger`

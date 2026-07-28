@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/tinboxw/skoll/pkg/pluginclient"
@@ -29,9 +30,20 @@ type foundationContract struct {
 }
 
 type server struct {
-	host  pluginsdk.HostServices
-	now   func() time.Time
-	newID func() string
+	host         pluginsdk.HostServices
+	now          func() time.Time
+	newID        func() string
+	inboundLocks *operationLocks
+}
+
+type operationLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
+type operationLocks struct {
+	mu    sync.Mutex
+	items map[string]*operationLock
 }
 
 type foundationEventContract struct {
@@ -48,10 +60,14 @@ var foundationEvents = map[string]foundationEventContract{
 }
 
 func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
-	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.DocumentNumbers == nil || host.Files == nil || host.Audit == nil || host.Workflows == nil || host.Jobs == nil {
+	if host.PluginID != pluginID || host.Transactions == nil || host.DataScopes == nil || host.DataStore == nil || host.Events == nil ||
+		host.DocumentNumbers == nil || host.Files == nil || host.Audit == nil || host.Workflows == nil || host.Jobs == nil {
 		return nil, errors.New("complete Pharma OA host services are required")
 	}
-	s := &server{host: host, now: time.Now, newID: employeeID}
+	s := &server{
+		host: host, now: time.Now, newID: employeeID,
+		inboundLocks: &operationLocks{items: make(map[string]*operationLock)},
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
 	mux.HandleFunc("POST /_skoll/events", s.handleEvent)
@@ -138,6 +154,10 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("PUT "+apiBase+"/warehouse-locations/{id}", s.updateTopology(topologyLocation))
 	mux.HandleFunc("POST "+apiBase+"/warehouse-locations/{id}/disable", s.changeTopologyStatus(topologyLocation, false))
 	mux.HandleFunc("POST "+apiBase+"/warehouse-locations/{id}/enable", s.changeTopologyStatus(topologyLocation, true))
+	mux.HandleFunc("GET "+apiBase+"/inventory-lots", s.listInventoryLots)
+	mux.HandleFunc("GET "+apiBase+"/stock-ledger", s.listStockLedger)
+	mux.HandleFunc("GET "+apiBase+"/stock-balances", s.listStockBalances)
+	mux.HandleFunc("GET "+apiBase+"/stock-reconciliation", s.reconcileStock)
 	return mux, nil
 }
 
@@ -147,7 +167,7 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.10.0",
+		PluginID: pluginID, ContractVersion: "0.11.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
 		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},
@@ -195,6 +215,28 @@ func (s *server) audit(ctx context.Context, action, resourceID string, risk plug
 		Result: pluginsdk.AuditResultSuccess, Risk: risk, Detail: detail,
 	})
 	return err
+}
+
+func (l *operationLocks) lock(key string) func() {
+	l.mu.Lock()
+	item := l.items[key]
+	if item == nil {
+		item = &operationLock{}
+		l.items[key] = item
+	}
+	item.refs++
+	l.mu.Unlock()
+
+	item.mu.Lock()
+	return func() {
+		item.mu.Unlock()
+		l.mu.Lock()
+		item.refs--
+		if item.refs == 0 {
+			delete(l.items, key)
+		}
+		l.mu.Unlock()
+	}
 }
 
 func employeeID() string {

@@ -17,14 +17,15 @@ import (
 )
 
 type pharmaManifest struct {
-	ID               string `yaml:"id"`
-	Version          string `yaml:"version"`
-	APIVersion       string `yaml:"api_version"`
-	MigrationVersion string `yaml:"migration_version"`
-	AppID            string `yaml:"app_id"`
-	ServiceBaseURL   string `yaml:"service_base_url"`
-	ServiceHealthURL string `yaml:"service_health_url"`
-	FrontendEntry    string `yaml:"frontend_entry"`
+	ID               string   `yaml:"id"`
+	Version          string   `yaml:"version"`
+	APIVersion       string   `yaml:"api_version"`
+	MigrationVersion string   `yaml:"migration_version"`
+	AppID            string   `yaml:"app_id"`
+	HostCapabilities []string `yaml:"host_capabilities"`
+	ServiceBaseURL   string   `yaml:"service_base_url"`
+	ServiceHealthURL string   `yaml:"service_health_url"`
+	FrontendEntry    string   `yaml:"frontend_entry"`
 	UIMenu           struct {
 		Path string `yaml:"path"`
 	} `yaml:"ui_menu"`
@@ -95,8 +96,24 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	if manifest.ID != "pharma_oa" || manifest.AppID != manifest.ID || contract.PluginID != manifest.ID {
 		t.Fatalf("plugin identity mismatch: manifest=%q app=%q contract=%q", manifest.ID, manifest.AppID, contract.PluginID)
 	}
-	if manifest.Version != "0.10.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
+	if manifest.Version != "0.11.0" || manifest.MigrationVersion != manifest.Version || contract.ContractVersion != manifest.Version || contract.Migrations.Version != manifest.Version {
 		t.Fatalf("contract version mismatch: manifest=%q migration=%q map=%q", manifest.Version, manifest.MigrationVersion, contract.ContractVersion)
+	}
+	var frontendPackage struct {
+		Version string `json:"version"`
+	}
+	packageRaw, err := os.ReadFile("frontend/package.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(packageRaw, &frontendPackage); err != nil {
+		t.Fatal(err)
+	}
+	artifact := "pharma_oa-" + manifest.Version + ".zip"
+	if frontendPackage.Version != manifest.Version ||
+		!strings.Contains(pharmaReadText(t, "plugin.ps1"), artifact) ||
+		!strings.Contains(pharmaReadText(t, "plugin.sh"), artifact) {
+		t.Fatalf("package versions are not synchronized with plugin %s", manifest.Version)
 	}
 	if manifest.APIVersion != "v1" || contract.SchemaVersion != 1 || contract.PublicContract.APIVersion != manifest.APIVersion {
 		t.Fatalf("API contract mismatch: manifest=%q map=%q schema=%d", manifest.APIVersion, contract.PublicContract.APIVersion, contract.SchemaVersion)
@@ -104,6 +121,17 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 	if manifest.ServiceBaseURL == "" || manifest.ServiceHealthURL == "" || contract.PublicContract.BackendClient != "github.com/tinboxw/skoll/pkg/pluginclient" {
 		t.Fatal("managed process and public backend client are required")
 	}
+	capabilities := make(map[string]struct{}, len(manifest.HostCapabilities))
+	for _, capability := range manifest.HostCapabilities {
+		capabilities[capability] = struct{}{}
+	}
+	assertPharmaContains(t, capabilities, "events.publish", "inventory event capability")
+	assertPharmaContains(t, capabilities, "datastore.aggregate", "inventory reconciliation capability")
+	hostServices := make(map[string]struct{}, len(contract.PublicContract.HostServices))
+	for _, service := range contract.PublicContract.HostServices {
+		hostServices[service] = struct{}{}
+	}
+	assertPharmaContains(t, hostServices, "Events", "public host service")
 	if manifest.FrontendEntry != "/skoll/plugins/pharma-oa" || manifest.UIMenu.Path != manifest.FrontendEntry {
 		t.Fatalf("independent plugin UI entry mismatch: frontend=%q menu=%q", manifest.FrontendEntry, manifest.UIMenu.Path)
 	}
@@ -177,7 +205,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 
 func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	for _, path := range []string{
-		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "backend/oa_request.go", "backend/purchase.go", "backend/inbound.go", "backend/warehouse.go", "backend/warehouse_topology.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
+		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "backend/oa_request.go", "backend/purchase.go", "backend/inbound.go", "backend/inventory.go", "backend/warehouse.go", "backend/warehouse_topology.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
 		"contract/acceptance-map.json", "migrations/001_foundation.up.sql", "migrations/001_foundation.down.sql",
 		"migrations/002_employees.up.sql", "migrations/002_employees.down.sql",
 		"migrations/003_parties.up.sql", "migrations/003_parties.down.sql",
@@ -187,6 +215,7 @@ func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 		"migrations/007_purchases.up.sql", "migrations/007_purchases.down.sql",
 		"migrations/008_purchase_inbounds.up.sql", "migrations/008_purchase_inbounds.down.sql",
 		"migrations/009_warehouse_topology.up.sql", "migrations/009_warehouse_topology.down.sql",
+		"migrations/010_inventory_ledger.up.sql", "migrations/010_inventory_ledger.down.sql",
 	} {
 		if info, err := os.Stat(filepath.FromSlash(path)); err != nil || info.IsDir() {
 			t.Fatalf("required package file %q is unavailable: %v", path, err)
@@ -270,6 +299,183 @@ func TestMedicalOAWarehouseTopologyPermissionsAndRoutes(t *testing.T) {
 		if routes[route] != permission {
 			t.Fatalf("warehouse topology route %q permission=%q want=%q", route, routes[route], permission)
 		}
+	}
+}
+
+func TestMedicalOAInventoryLedgerContractIsRegistered(t *testing.T) {
+	manifest := loadPharmaManifest(t)
+	contract := loadPharmaAcceptanceMap(t)
+
+	permissions := make(map[string]struct{}, len(manifest.Permissions))
+	for _, permission := range manifest.Permissions {
+		permissions[permission.Key] = struct{}{}
+	}
+	for _, permission := range []string{"pharma_oa.inventory.read", "pharma_oa.inventory.receive"} {
+		assertPharmaContains(t, permissions, permission, "inventory ledger permission")
+	}
+
+	type routeContract struct {
+		permission  string
+		auditAction string
+	}
+	routes := make(map[string]routeContract, len(manifest.API.Routes))
+	for _, route := range manifest.API.Routes {
+		routes[strings.ToUpper(route.Method)+" "+route.Path] = routeContract{
+			permission: route.Permission, auditAction: route.AuditAction,
+		}
+	}
+	for route, want := range map[string]routeContract{
+		"GET /v1/plugins/pharma_oa/api/inventory-lots": {
+			permission: "pharma_oa.inventory.read", auditAction: "pharma_oa.inventory_lot.read",
+		},
+		"GET /v1/plugins/pharma_oa/api/stock-ledger": {
+			permission: "pharma_oa.inventory.read", auditAction: "pharma_oa.stock_ledger.read",
+		},
+		"GET /v1/plugins/pharma_oa/api/stock-balances": {
+			permission: "pharma_oa.inventory.read", auditAction: "pharma_oa.stock_balance.read",
+		},
+		"GET /v1/plugins/pharma_oa/api/stock-reconciliation": {
+			permission: "pharma_oa.inventory.read", auditAction: "pharma_oa.stock_reconciliation.read",
+		},
+	} {
+		if got := routes[route]; got != want {
+			t.Fatalf("inventory route %q=%+v want=%+v", route, got, want)
+		}
+	}
+
+	inventoryWorkItems := map[string]struct{}{}
+	for _, module := range contract.Modules {
+		if module.ID != "inventory" {
+			continue
+		}
+		for _, workItem := range module.WorkItems {
+			inventoryWorkItems[workItem] = struct{}{}
+		}
+	}
+	assertPharmaContains(t, inventoryWorkItems, "BF5-05B", "inventory work item")
+	scenarios := make(map[string]struct{}, len(contract.AcceptanceScenarios))
+	for _, scenario := range contract.AcceptanceScenarios {
+		scenarios[scenario.ID] = struct{}{}
+	}
+	assertPharmaContains(t, scenarios, "POA-INVENTORY-02", "inventory ledger acceptance scenario")
+
+	schema, present, err := datastore.LoadSchemaManifest("pharma_oa", ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !present {
+		t.Fatal("datastore schema is missing")
+	}
+	tables := make(map[string]datastore.TableSchema, len(schema.Tables))
+	for _, table := range schema.Tables {
+		tables[table.Name] = table
+	}
+	type tableContract struct {
+		policy       datastore.TableMutationPolicy
+		fields       map[string]pluginsdk.DataValueType
+		unique       []string
+		aggregatable string
+		groupable    []string
+	}
+	for tableName, want := range map[string]tableContract{
+		"inventory_lots": {
+			policy: datastore.TableMutationAppendOnly,
+			fields: map[string]pluginsdk.DataValueType{
+				"id": pluginsdk.DataValueString, "product_id": pluginsdk.DataValueString,
+				"batch_no": pluginsdk.DataValueString, "production_date": pluginsdk.DataValueTimestamp,
+				"expires_at": pluginsdk.DataValueTimestamp,
+			},
+			unique: []string{"product_id", "batch_no"},
+		},
+		"stock_ledger": {
+			policy: datastore.TableMutationAppendOnly,
+			fields: map[string]pluginsdk.DataValueType{
+				"id": pluginsdk.DataValueString, "entry_type": pluginsdk.DataValueString,
+				"product_id": pluginsdk.DataValueString, "lot_id": pluginsdk.DataValueString,
+				"batch_no": pluginsdk.DataValueString, "warehouse_id": pluginsdk.DataValueString,
+				"area_id": pluginsdk.DataValueString, "location_id": pluginsdk.DataValueString,
+				"quantity_micros": pluginsdk.DataValueInteger, "source_document_type": pluginsdk.DataValueString,
+				"source_document_id": pluginsdk.DataValueString, "source_document_number": pluginsdk.DataValueString,
+				"source_document_line_id": pluginsdk.DataValueString, "occurred_at": pluginsdk.DataValueTimestamp,
+			},
+			unique:       []string{"source_document_type", "source_document_id", "source_document_line_id"},
+			aggregatable: "quantity_micros",
+			groupable:    []string{"product_id", "lot_id", "batch_no", "location_id"},
+		},
+		"stock_balances": {
+			policy: datastore.TableMutationMutable,
+			fields: map[string]pluginsdk.DataValueType{
+				"id": pluginsdk.DataValueString, "product_id": pluginsdk.DataValueString,
+				"lot_id": pluginsdk.DataValueString, "batch_no": pluginsdk.DataValueString,
+				"warehouse_id": pluginsdk.DataValueString, "area_id": pluginsdk.DataValueString,
+				"location_id": pluginsdk.DataValueString, "quantity_micros": pluginsdk.DataValueInteger,
+			},
+			unique:       []string{"product_id", "lot_id", "location_id"},
+			aggregatable: "quantity_micros",
+			groupable:    []string{"product_id", "lot_id", "batch_no", "location_id"},
+		},
+	} {
+		table, ok := tables[tableName]
+		if !ok {
+			t.Fatalf("datastore schema is missing %s", tableName)
+		}
+		if table.MutationPolicy != want.policy {
+			t.Fatalf("%s mutation policy=%q want framework policy %q", tableName, table.MutationPolicy, want.policy)
+		}
+		if len(table.PrimaryKey) != 1 || table.PrimaryKey[0] != "id" {
+			t.Fatalf("%s primary key=%v want [id]", tableName, table.PrimaryKey)
+		}
+		if len(table.Fields) != len(want.fields) {
+			t.Fatalf("%s fields=%d want exact set %d", tableName, len(table.Fields), len(want.fields))
+		}
+		fields := make(map[string]datastore.FieldSchema, len(table.Fields))
+		for _, field := range table.Fields {
+			fields[field.Name] = field
+		}
+		groupable := make(map[string]struct{}, len(want.groupable))
+		for _, field := range want.groupable {
+			groupable[field] = struct{}{}
+		}
+		for fieldName, fieldType := range want.fields {
+			field, exists := fields[fieldName]
+			if !exists || field.Type != fieldType {
+				t.Fatalf("%s.%s=%+v want type %q", tableName, fieldName, field, fieldType)
+			}
+			if !field.Filterable {
+				t.Fatalf("%s.%s must be filterable", tableName, fieldName)
+			}
+			if fieldName != "id" && !field.Mutable {
+				t.Fatalf("%s.%s must accept its initial insert value", tableName, fieldName)
+			}
+			if field.Aggregatable != (fieldName == want.aggregatable) {
+				t.Fatalf("%s.%s aggregatable=%t want=%t", tableName, fieldName, field.Aggregatable, fieldName == want.aggregatable)
+			}
+			_, wantGroupable := groupable[fieldName]
+			if field.Groupable != wantGroupable {
+				t.Fatalf("%s.%s groupable=%t want=%t", tableName, fieldName, field.Groupable, wantGroupable)
+			}
+		}
+		if !pharmaHasUniqueIndex(table, want.unique) {
+			t.Fatalf("%s is missing unique index %v", tableName, want.unique)
+		}
+	}
+
+	up := pharmaReadText(t, "migrations/010_inventory_ledger.up.sql")
+	if strings.Count(up, "quantity_micros BIGINT NOT NULL") != 2 {
+		t.Fatal("inventory migration must store ledger and balance quantities as BIGINT")
+	}
+	requestHashAdd := strings.Index(up, "ALTER TABLE {{table:purchase_inbounds}} ADD COLUMN request_hash VARCHAR(64) NOT NULL DEFAULT '';")
+	lotCreate := strings.Index(up, "CREATE TABLE {{table:inventory_lots}}")
+	if requestHashAdd < 0 || lotCreate <= requestHashAdd {
+		t.Fatal("inventory migration must add the receipt request hash before creating ledger tables")
+	}
+	down := pharmaReadText(t, "migrations/010_inventory_ledger.down.sql")
+	balanceDrop := strings.Index(down, "{{table:stock_balances}}")
+	ledgerDrop := strings.Index(down, "{{table:stock_ledger}}")
+	lotDrop := strings.Index(down, "{{table:inventory_lots}}")
+	requestHashDrop := strings.Index(down, "ALTER TABLE {{table:purchase_inbounds}} DROP COLUMN request_hash;")
+	if balanceDrop < 0 || ledgerDrop <= balanceDrop || lotDrop <= ledgerDrop || requestHashDrop <= lotDrop {
+		t.Fatal("inventory rollback must drop balance and ledger children before lots, then remove the receipt request hash")
 	}
 }
 
@@ -365,6 +571,7 @@ func TestMedicalOAPurchaseDataStoreContractIsRegistered(t *testing.T) {
 			"number": pluginsdk.DataValueString, "purchase_order_id": pluginsdk.DataValueString,
 			"lines": pluginsdk.DataValueJSON, "attachments": pluginsdk.DataValueJSON,
 			"status": pluginsdk.DataValueString, "received_at": pluginsdk.DataValueTimestamp,
+			"request_hash": pluginsdk.DataValueString,
 		},
 		"warehouses": {
 			"code": pluginsdk.DataValueString, "name": pluginsdk.DataValueString,
@@ -393,6 +600,14 @@ func TestMedicalOAPurchaseDataStoreContractIsRegistered(t *testing.T) {
 			}
 		}
 	}
+	inboundFields := make(map[string]datastore.FieldSchema)
+	for _, field := range tables["purchase_inbounds"].Fields {
+		inboundFields[field.Name] = field
+	}
+	requestHash := inboundFields["request_hash"]
+	if requestHash.Type != pluginsdk.DataValueString || !requestHash.Mutable || !requestHash.Filterable || requestHash.Nullable {
+		t.Fatalf("purchase_inbounds.request_hash must be required, mutable, and filterable: %+v", requestHash)
+	}
 }
 
 func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
@@ -405,7 +620,7 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql", "migrations/006_oa_requests.up.sql", "migrations/007_purchases.up.sql", "migrations/008_purchase_inbounds.up.sql", "migrations/009_warehouse_topology.up.sql"} {
+	for _, path := range []string{"migrations/001_foundation.up.sql", "migrations/002_employees.up.sql", "migrations/003_parties.up.sql", "migrations/004_catalogs.up.sql", "migrations/005_qualifications.up.sql", "migrations/006_oa_requests.up.sql", "migrations/007_purchases.up.sql", "migrations/008_purchase_inbounds.up.sql", "migrations/009_warehouse_topology.up.sql", "migrations/010_inventory_ledger.up.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -423,9 +638,15 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:warehouses}}", "pharma_oa_warehouses")
 		sql = strings.ReplaceAll(sql, "{{table:warehouse_areas}}", "pharma_oa_warehouse_areas")
 		sql = strings.ReplaceAll(sql, "{{table:warehouse_locations}}", "pharma_oa_warehouse_locations")
+		sql = strings.ReplaceAll(sql, "{{table:inventory_lots}}", "pharma_oa_inventory_lots")
+		sql = strings.ReplaceAll(sql, "{{table:stock_ledger}}", "pharma_oa_stock_ledger")
+		sql = strings.ReplaceAll(sql, "{{table:stock_balances}}", "pharma_oa_stock_balances")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("apply %s: %v", path, err)
 		}
+	}
+	if !db.Migrator().HasColumn("pharma_oa_purchase_inbounds", "request_hash") {
+		t.Fatal("inventory migration did not add purchase inbound request_hash")
 	}
 	manifest := loadPharmaManifest(t)
 	wantTables := make(map[string]struct{}, len(manifest.Data.Tables))
@@ -452,7 +673,8 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		assertPharmaContains(t, contractTables, table, "manifest table in contract migration map")
 	}
 	assertWarehouseTopologyScopedUniqueness(t, db)
-	for _, path := range []string{"migrations/009_warehouse_topology.down.sql", "migrations/008_purchase_inbounds.down.sql", "migrations/007_purchases.down.sql", "migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
+	assertInventoryLedgerScopedProjection(t, db)
+	for _, path := range []string{"migrations/010_inventory_ledger.down.sql", "migrations/009_warehouse_topology.down.sql", "migrations/008_purchase_inbounds.down.sql", "migrations/007_purchases.down.sql", "migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {
 		migration, readErr := os.ReadFile(path)
 		if readErr != nil {
 			t.Fatal(readErr)
@@ -470,8 +692,14 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 		sql = strings.ReplaceAll(sql, "{{table:warehouses}}", "pharma_oa_warehouses")
 		sql = strings.ReplaceAll(sql, "{{table:warehouse_areas}}", "pharma_oa_warehouse_areas")
 		sql = strings.ReplaceAll(sql, "{{table:warehouse_locations}}", "pharma_oa_warehouse_locations")
+		sql = strings.ReplaceAll(sql, "{{table:inventory_lots}}", "pharma_oa_inventory_lots")
+		sql = strings.ReplaceAll(sql, "{{table:stock_ledger}}", "pharma_oa_stock_ledger")
+		sql = strings.ReplaceAll(sql, "{{table:stock_balances}}", "pharma_oa_stock_balances")
 		if err := db.Exec(sql).Error; err != nil {
 			t.Fatalf("rollback %s: %v", path, err)
+		}
+		if path == "migrations/010_inventory_ledger.down.sql" && db.Migrator().HasColumn("pharma_oa_purchase_inbounds", "request_hash") {
+			t.Fatal("inventory rollback retained purchase inbound request_hash")
 		}
 	}
 	for table := range wantTables {
@@ -530,6 +758,90 @@ func assertWarehouseTopologyScopedUniqueness(t *testing.T, db *gorm.DB) {
 	}
 	if err := insertLocation("location-b", "warehouse-b", "area-b"); err != nil {
 		t.Fatalf("location code should be reusable in another area: %v", err)
+	}
+}
+
+func assertInventoryLedgerScopedProjection(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	const (
+		timestamp = "2026-07-28T00:00:00Z"
+		expiresAt = "2027-07-28T00:00:00Z"
+	)
+	insertLot := func(id, organization string) error {
+		return db.Exec(`INSERT INTO pharma_oa_inventory_lots
+			(id, product_id, batch_no, production_date, expires_at, tenant_id, organization_id, owner_id, version, created_at, updated_at)
+			VALUES (?, 'product-a', 'BATCH-001', ?, ?, 'tenant-a', ?, 'owner-a', 1, ?, ?)`,
+			id, timestamp, expiresAt, organization, timestamp, timestamp).Error
+	}
+	if err := insertLot("lot-a", "org-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := insertLot("lot-duplicate", "org-a"); err == nil {
+		t.Fatal("product and batch must be unique inside one tenant organization")
+	}
+	if err := insertLot("lot-b", "org-b"); err != nil {
+		t.Fatalf("product and batch should be reusable in another organization: %v", err)
+	}
+
+	insertLedger := func(id, sourceLineID string, quantityMicros int64) error {
+		return db.Exec(`INSERT INTO pharma_oa_stock_ledger
+			(id, entry_type, product_id, lot_id, batch_no, warehouse_id, area_id, location_id, quantity_micros,
+			 source_document_type, source_document_id, source_document_number, source_document_line_id, occurred_at,
+			 tenant_id, organization_id, owner_id, version, created_at, updated_at)
+			VALUES (?, 'receipt', 'product-a', 'lot-a', 'BATCH-001', 'warehouse-a', 'area-a', 'location-a', ?,
+			 'purchase_inbound', 'inbound-a', 'PI-001', ?, ?, 'tenant-a', 'org-a', 'owner-a', 1, ?, ?)`,
+			id, quantityMicros, sourceLineID, timestamp, timestamp, timestamp).Error
+	}
+	if err := insertLedger("ledger-a", "line-a", 500_000); err != nil {
+		t.Fatal(err)
+	}
+	if err := insertLedger("ledger-b", "line-b", 750_000); err != nil {
+		t.Fatal(err)
+	}
+	if err := insertLedger("ledger-duplicate", "line-a", 1); err == nil {
+		t.Fatal("one source document line must create at most one stock ledger entry")
+	}
+
+	insertBalance := func(id string, quantityMicros int64) error {
+		return db.Exec(`INSERT INTO pharma_oa_stock_balances
+			(id, product_id, lot_id, batch_no, warehouse_id, area_id, location_id, quantity_micros,
+			 tenant_id, organization_id, owner_id, version, created_at, updated_at)
+			VALUES (?, 'product-a', 'lot-a', 'BATCH-001', 'warehouse-a', 'area-a', 'location-a', ?,
+			 'tenant-a', 'org-a', 'owner-a', 1, ?, ?)`,
+			id, quantityMicros, timestamp, timestamp).Error
+	}
+	if err := insertBalance("balance-a", 1_250_000); err != nil {
+		t.Fatal(err)
+	}
+	if err := insertBalance("balance-duplicate", 1_250_000); err == nil {
+		t.Fatal("product, lot, and location must identify one balance projection")
+	}
+
+	var ledgerTotal int64
+	if err := db.Raw(`SELECT COALESCE(SUM(quantity_micros), 0) FROM pharma_oa_stock_ledger
+		WHERE tenant_id = 'tenant-a' AND organization_id = 'org-a'
+		  AND product_id = 'product-a' AND lot_id = 'lot-a' AND location_id = 'location-a'`).
+		Scan(&ledgerTotal).Error; err != nil {
+		t.Fatal(err)
+	}
+	var balanceTotal int64
+	if err := db.Raw(`SELECT COALESCE(SUM(quantity_micros), 0) FROM pharma_oa_stock_balances
+		WHERE tenant_id = 'tenant-a' AND organization_id = 'org-a'
+		  AND product_id = 'product-a' AND lot_id = 'lot-a' AND location_id = 'location-a'`).
+		Scan(&balanceTotal).Error; err != nil {
+		t.Fatal(err)
+	}
+	if ledgerTotal != 1_250_000 || balanceTotal != ledgerTotal {
+		t.Fatalf("ledger total=%d balance total=%d want exact integer projection 1250000", ledgerTotal, balanceTotal)
+	}
+	for _, table := range []string{"pharma_oa_stock_ledger", "pharma_oa_stock_balances"} {
+		var nonInteger int64
+		if err := db.Raw("SELECT COUNT(*) FROM " + table + " WHERE typeof(quantity_micros) <> 'integer'").Scan(&nonInteger).Error; err != nil {
+			t.Fatal(err)
+		}
+		if nonInteger != 0 {
+			t.Fatalf("%s contains %d non-integer quantity values", table, nonInteger)
+		}
 	}
 }
 
@@ -624,4 +936,13 @@ func assertPharmaContains(t *testing.T, values map[string]struct{}, value string
 	if _, ok := values[value]; !ok {
 		t.Fatalf("%s %q is missing", label, value)
 	}
+}
+
+func pharmaHasUniqueIndex(table datastore.TableSchema, fields []string) bool {
+	for _, index := range table.Indexes {
+		if index.Unique && strings.Join(index.Fields, "\x00") == strings.Join(fields, "\x00") {
+			return true
+		}
+	}
+	return false
 }

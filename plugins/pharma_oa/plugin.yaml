@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.10.0
+version: 0.11.0
 api_version: v1
-migration_version: 0.10.0
+migration_version: 0.11.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: separated
 level: app
@@ -21,6 +21,8 @@ host_capabilities:
   - scopes.resolve
   - datastore.query
   - datastore.mutate
+  - datastore.aggregate
+  - events.publish
   - document-numbers.issue
   - files.store
   - files.delete
@@ -387,6 +389,16 @@ permissions:
     type: button
     module: pharma_oa
     name: Enable pharma warehouse locations
+    risk: high
+  - key: pharma_oa.inventory.read
+    type: api
+    module: pharma_oa
+    name: Read immutable lots, stock ledger, balances, and reconciliation
+    risk: low
+  - key: pharma_oa.inventory.receive
+    type: api
+    module: pharma_oa
+    name: Post received stock to the immutable inventory ledger
     risk: high
   - key: pharma_oa.master.template
     type: api
@@ -1211,6 +1223,26 @@ api:
       permission: pharma_oa.warehouse_location.enable
       audit_action: pharma_oa.warehouse_location.enable
     - method: GET
+      path: /v1/plugins/pharma_oa/api/inventory-lots
+      summary: List immutable Pharma OA inventory lots
+      permission: pharma_oa.inventory.read
+      audit_action: pharma_oa.inventory_lot.read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-ledger
+      summary: List immutable Pharma OA stock ledger entries
+      permission: pharma_oa.inventory.read
+      audit_action: pharma_oa.stock_ledger.read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-balances
+      summary: List rebuildable Pharma OA stock balance projections
+      permission: pharma_oa.inventory.read
+      audit_action: pharma_oa.stock_balance.read
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-reconciliation
+      summary: Reconcile Pharma OA stock ledger and balance projections
+      permission: pharma_oa.inventory.read
+      audit_action: pharma_oa.stock_reconciliation.read
+    - method: GET
       path: /v1/plugins/pharma_oa/api/master-data/template
       summary: Get Pharma OA master data import template
       permission: pharma_oa.master.template
@@ -1728,7 +1760,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.10.0
+  migration_version: 0.11.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1791,7 +1823,7 @@ data:
     - name: purchase_inbounds
       description: Trusted-scope immutable receiving facts with lot dates, owned attachments, and order quantity reconciliation.
       primary_key: id
-      columns: id, tenant_id, organization_id, owner_id, number, purchase_order_id, purchase_order_number, warehouse_id, area_id, location_id, lines, attachments, status, received_by, received_at, last_operation_key, version, created_at, updated_at
+      columns: id, tenant_id, organization_id, owner_id, number, purchase_order_id, purchase_order_number, warehouse_id, area_id, location_id, lines, attachments, status, received_by, received_at, last_operation_key, request_hash, version, created_at, updated_at
       indexes: unique uq_pharma_oa_purchase_inbounds_number(tenant_id,number); unique uq_pharma_oa_purchase_inbounds_operation(tenant_id,last_operation_key); idx_pharma_oa_purchase_inbounds_scope(tenant_id,organization_id,owner_id,received_at); idx_pharma_oa_purchase_inbounds_order(tenant_id,purchase_order_id,received_at)
     - name: warehouses
       description: Trusted-scope warehouse identities and lifecycle state.
@@ -1808,6 +1840,21 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, warehouse_id, area_id, code, name, location_type, status, disable_reason, version, created_at, updated_at
       indexes: unique uq_pharma_oa_warehouse_locations_code(tenant_id,area_id,code); idx_pharma_oa_warehouse_locations_scope(tenant_id,organization_id,warehouse_id,area_id,status,updated_at)
+    - name: inventory_lots
+      description: Immutable product and batch identity with production and expiry facts.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, product_id, batch_no, production_date, expires_at, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_inventory_lots_product_batch(tenant_id,organization_id,product_id,batch_no); idx_pharma_oa_inventory_lots_product(tenant_id,organization_id,product_id,expires_at); idx_pharma_oa_inventory_lots_batch(tenant_id,organization_id,batch_no,expires_at)
+    - name: stock_ledger
+      description: Immutable stock movements keyed to one source document line.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, entry_type, product_id, lot_id, batch_no, warehouse_id, area_id, location_id, quantity_micros, source_document_type, source_document_id, source_document_number, source_document_line_id, occurred_at, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_stock_ledger_source_line(tenant_id,organization_id,source_document_type,source_document_id,source_document_line_id); idx_pharma_oa_stock_ledger_product(tenant_id,organization_id,product_id,occurred_at); idx_pharma_oa_stock_ledger_batch(tenant_id,organization_id,batch_no,occurred_at); idx_pharma_oa_stock_ledger_warehouse(tenant_id,organization_id,warehouse_id,occurred_at); idx_pharma_oa_stock_ledger_location(tenant_id,organization_id,location_id,occurred_at); idx_pharma_oa_stock_ledger_source(tenant_id,organization_id,source_document_type,source_document_number,occurred_at)
+    - name: stock_balances
+      description: Rebuildable product, lot, and location stock balance projection.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, product_id, lot_id, batch_no, warehouse_id, area_id, location_id, quantity_micros, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_stock_balances_projection(tenant_id,organization_id,product_id,lot_id,location_id); idx_pharma_oa_stock_balances_product_batch(tenant_id,organization_id,product_id,batch_no); idx_pharma_oa_stock_balances_warehouse(tenant_id,organization_id,warehouse_id,product_id); idx_pharma_oa_stock_balances_location(tenant_id,organization_id,location_id,product_id)
 
 events:
   publications:

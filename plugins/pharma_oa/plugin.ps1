@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $DistDir = if ($DistDir) { $DistDir } else { Join-Path $PSScriptRoot "dist" }
 $PluginsRoot = if ($PluginsRoot) { $PluginsRoot } else { Join-Path $PSScriptRoot ".skoll-dev" }
 $RepoRoot = if ($env:SKOLL_REPO_ROOT) { (Resolve-Path $env:SKOLL_REPO_ROOT).Path } else { (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path }
-$Artifact = Join-Path $DistDir "pharma_oa-0.10.0.zip"
+$Artifact = Join-Path $DistDir "pharma_oa-0.11.0.zip"
 $Checksum = "$Artifact.sha256"
 $Backend = Join-Path $PSScriptRoot "backend/bin/pharma_oa-server.exe"
 

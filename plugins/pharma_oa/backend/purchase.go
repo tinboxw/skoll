@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	purchaseRequestTable = "pharma_oa_purchase_requests"
-	purchaseOrderTable   = "pharma_oa_purchase_orders"
+	purchaseRequestTable = "purchase_requests"
+	purchaseOrderTable   = "purchase_orders"
 )
 
 var (

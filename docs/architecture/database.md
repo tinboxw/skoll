@@ -324,6 +324,18 @@ Model 定义：`internal/store/sql/gormrepo/plugin_datastore_model.go`。
 
 该表由宿主所有，不属于任何插件物理命名空间。预约行、插件业务数据和审计写入共享同一事务；失败事务不会留下空结果。插件卸载时按 `plugin_id` 的清理策略由 BF1-07 生命周期任务统一处理。
 
+### 2.15 Pharma OA 独立插件库存台账
+
+Pharma OA `0.11.0` 的当前库存事实由插件自己的 `datastore.yaml` 和 `migrations/010_inventory_ledger.*.sql` 管理，不写入宿主业务表。
+
+| 逻辑表 | 职责 | 不变量 |
+|------|------|------|
+| `inventory_lots` | 产品批次身份、生产日期和有效期事实 | `append_only`；同组织内 `product_id + batch_no` 唯一 |
+| `stock_ledger` | 收货等库存变动的不可变流水 | `append_only`；每个来源单据明细唯一；数量以 `quantity_micros` 精确整数保存 |
+| `stock_balances` | `product_id + lot_id + location_id` 的可重建余额投影 | 只通过原子 `Adjust` 维护；下限为零；可按台账聚合完整对账 |
+
+采购收货凭证的 `request_hash` 保存规范化请求指纹。同一幂等键只有请求指纹一致时才返回首次结果，变化后的请求返回冲突。收货凭证、采购单状态、批次、台账、余额、业务审计和 `inventory-changed` outbox 事件共享宿主事务；任一写入失败都会整体回滚。仓库、区域和库位必须在该事务内验证为同一启用拓扑分支。
+
 ## 3. GORM Model 与 Domain 转换
 
 所有 SQL 持久化遵循统一转换模式：

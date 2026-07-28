@@ -270,6 +270,7 @@ tables:
       - {name: received_by, type: string, mutable: true, filterable: true}
       - {name: received_at, type: timestamp, mutable: true, filterable: true, sortable: true}
       - {name: last_operation_key, type: string, mutable: true, filterable: true}
+      - {name: request_hash, type: string, mutable: true, filterable: true}
     indexes:
       - {fields: [number], unique: true}
       - {fields: [last_operation_key], unique: true}
@@ -320,3 +321,58 @@ tables:
     indexes:
       - {fields: [area_id, code], unique: true}
       - {fields: [warehouse_id, area_id, status, updated_at]}
+  - name: inventory_lots
+    mutation_policy: append_only
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: product_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: batch_no, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: production_date, type: timestamp, mutable: true, filterable: true, sortable: true}
+      - {name: expires_at, type: timestamp, mutable: true, filterable: true, sortable: true}
+    indexes:
+      - {fields: [product_id, batch_no], unique: true}
+      - {fields: [batch_no, expires_at]}
+      - {fields: [product_id, expires_at]}
+  - name: stock_ledger
+    mutation_policy: append_only
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: entry_type, type: string, mutable: true, filterable: true}
+      - {name: product_id, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: lot_id, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: batch_no, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: warehouse_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: area_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: location_id, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: quantity_micros, type: integer, mutable: true, filterable: true, aggregatable: true}
+      - {name: source_document_type, type: string, mutable: true, filterable: true}
+      - {name: source_document_id, type: string, mutable: true, filterable: true}
+      - {name: source_document_number, type: string, mutable: true, filterable: true}
+      - {name: source_document_line_id, type: string, mutable: true, filterable: true}
+      - {name: occurred_at, type: timestamp, mutable: true, filterable: true, sortable: true}
+    indexes:
+      - {fields: [source_document_type, source_document_id, source_document_line_id], unique: true}
+      - {fields: [product_id, occurred_at]}
+      - {fields: [batch_no, occurred_at]}
+      - {fields: [warehouse_id, occurred_at]}
+      - {fields: [location_id, occurred_at]}
+      - {fields: [source_document_type, source_document_number, occurred_at]}
+  - name: stock_balances
+    mutation_policy: mutable
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: product_id, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: lot_id, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: batch_no, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: warehouse_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: area_id, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: location_id, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: quantity_micros, type: integer, mutable: true, filterable: true, aggregatable: true}
+    indexes:
+      - {fields: [product_id, lot_id, location_id], unique: true}
+      - {fields: [product_id, batch_no]}
+      - {fields: [warehouse_id, product_id]}
+      - {fields: [location_id, product_id]}

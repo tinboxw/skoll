@@ -12,8 +12,18 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if info.ID != "pharma_oa" || info.AppID != info.ID || info.Level != LevelApp || info.UIMode != UIModeSeparated {
 		t.Fatalf("unexpected Pharma OA placement: %+v", info)
 	}
-	if info.Version != "0.10.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
+	if info.Version != "0.11.0" || info.APIVersion != "v1" || info.MigrationVersion != info.Version {
 		t.Fatalf("unexpected current contract version: version=%q api=%q migration=%q", info.Version, info.APIVersion, info.MigrationVersion)
+	}
+	hostCapabilities := make(map[string]struct{}, len(info.HostCapabilities))
+	for _, capability := range info.HostCapabilities {
+		hostCapabilities[string(capability)] = struct{}{}
+	}
+	if _, ok := hostCapabilities["events.publish"]; !ok {
+		t.Fatal("inventory receipts must publish their committed inventory event")
+	}
+	if _, ok := hostCapabilities["datastore.aggregate"]; !ok {
+		t.Fatal("inventory reconciliation must aggregate complete paged ledger and balance totals")
 	}
 	if info.ServiceBaseURL != "http://127.0.0.1:18093" || info.ServiceHealthURL != "http://127.0.0.1:18093/health" {
 		t.Fatalf("managed service endpoints are incomplete: base=%q health=%q", info.ServiceBaseURL, info.ServiceHealthURL)
@@ -27,7 +37,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if info.ConfigSchema == nil || len(info.ConfigSchema.Fields) != 3 {
 		t.Fatalf("unexpected config schema: %+v", info.ConfigSchema)
 	}
-	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 15 {
+	if info.DataManifest == nil || info.DataManifest.Namespace != info.ID || info.DataManifest.MigrationVersion != info.Version || info.DataManifest.MigrationDirectory != "migrations" || info.DataManifest.UninstallPolicy != DataUninstallDrop || info.DataManifest.RollbackPolicy != DataRollbackAutomatic || len(info.DataManifest.Tables) != 18 {
 		t.Fatalf("unexpected plugin data lifecycle: %+v", info.DataManifest)
 	}
 	expectedTables := map[string]struct{}{
@@ -36,6 +46,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 		"qualification_types": {}, "qualifications": {}, "oa_requests": {},
 		"purchase_requests": {}, "purchase_orders": {}, "purchase_inbounds": {},
 		"warehouses": {}, "warehouse_areas": {}, "warehouse_locations": {},
+		"inventory_lots": {}, "stock_ledger": {}, "stock_balances": {},
 	}
 	for _, table := range info.DataManifest.Tables {
 		if _, exists := expectedTables[table.Name]; !exists {
@@ -49,6 +60,11 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 		for _, required := range []string{"tenant_id", "organization_id", "owner_id"} {
 			if _, ok := columns[required]; !ok {
 				t.Fatalf("table %s is missing scope column %s", table.Name, required)
+			}
+		}
+		if table.Name == "purchase_inbounds" {
+			if _, ok := columns["request_hash"]; !ok {
+				t.Fatal("purchase_inbounds is missing its required request_hash")
 			}
 		}
 	}
@@ -69,7 +85,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 		}
 		permissions[permission.Key] = struct{}{}
 	}
-	for _, required := range []string{"pharma_oa.foundation.read", "pharma_oa.menu.read", "pharma_oa.seed.read", "pharma_oa.employee.read", "pharma_oa.product.read", "pharma_oa.product.enable", "pharma_oa.product.sales", "pharma_oa.category.read", "pharma_oa.unit.read", "pharma_oa.manufacturer.read", "pharma_oa.manufacturer.supply", "pharma_oa.qualification_type.read", "pharma_oa.qualification.read", "pharma_oa.qualification.submit", "pharma_oa.qualification.approve", "pharma_oa.qualification.expiry.run", "pharma_oa.oa_request.read", "pharma_oa.oa_request.create", "pharma_oa.oa_request.update", "pharma_oa.oa_request.submit"} {
+	for _, required := range []string{"pharma_oa.foundation.read", "pharma_oa.menu.read", "pharma_oa.seed.read", "pharma_oa.employee.read", "pharma_oa.product.read", "pharma_oa.product.enable", "pharma_oa.product.sales", "pharma_oa.category.read", "pharma_oa.unit.read", "pharma_oa.manufacturer.read", "pharma_oa.manufacturer.supply", "pharma_oa.qualification_type.read", "pharma_oa.qualification.read", "pharma_oa.qualification.submit", "pharma_oa.qualification.approve", "pharma_oa.qualification.expiry.run", "pharma_oa.oa_request.read", "pharma_oa.oa_request.create", "pharma_oa.oa_request.update", "pharma_oa.oa_request.submit", "pharma_oa.inventory.read", "pharma_oa.inventory.receive"} {
 		if _, ok := permissions[required]; !ok {
 			t.Fatalf("required permission %s is missing", required)
 		}
@@ -82,7 +98,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	if len(routes) < 100 {
 		t.Fatalf("Pharma OA route surface is unexpectedly small: %d", len(routes))
 	}
-	seenRoutes := make(map[string]struct{}, len(routes))
+	seenRoutes := make(map[string]RouteExtension, len(routes))
 	foundationFound := false
 	for _, route := range routes {
 		key := route.Method + " " + route.Path
@@ -92,7 +108,7 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 		if _, exists := seenRoutes[key]; exists {
 			t.Fatalf("duplicate route: %s", key)
 		}
-		seenRoutes[key] = struct{}{}
+		seenRoutes[key] = route
 		if _, ok := permissions[route.Permission]; !ok {
 			t.Fatalf("route %s references undeclared permission %s", key, route.Permission)
 		}
@@ -105,6 +121,17 @@ func TestPharmaOAPluginManifestCoversCurrentIndustryBoundary(t *testing.T) {
 	}
 	if !foundationFound {
 		t.Fatal("independent plugin foundation route is missing")
+	}
+	for key, auditAction := range map[string]string{
+		"GET /v1/plugins/pharma_oa/api/inventory-lots":       "pharma_oa.inventory_lot.read",
+		"GET /v1/plugins/pharma_oa/api/stock-ledger":         "pharma_oa.stock_ledger.read",
+		"GET /v1/plugins/pharma_oa/api/stock-balances":       "pharma_oa.stock_balance.read",
+		"GET /v1/plugins/pharma_oa/api/stock-reconciliation": "pharma_oa.stock_reconciliation.read",
+	} {
+		route, ok := seenRoutes[key]
+		if !ok || route.Permission != "pharma_oa.inventory.read" || route.AuditAction != auditAction {
+			t.Fatalf("inventory route %s is incomplete: %+v", key, route)
+		}
 	}
 }
 

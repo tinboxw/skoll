@@ -53,6 +53,12 @@ type topologyWriteRequest struct {
 	Version        int64  `json:"version,omitempty"`
 }
 
+type movementTopology struct {
+	Warehouse warehouse
+	Area      topologyNode
+	Location  topologyNode
+}
+
 func (s *server) listTopology(kind topologyKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, err := s.requestContext(r)
@@ -301,29 +307,46 @@ func (s *server) warehouseMovementEligibility(w http.ResponseWriter, r *http.Req
 		writeServiceError(w, err)
 		return
 	}
-	area, err := s.getTopology(ctx, permission, topologyArea, item.scope, areaID)
+	topology, err := s.resolveMovementTopology(ctx, permission, item.scope, item.ID, areaID, locationID)
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
-	location, err := s.getTopology(ctx, permission, topologyLocation, item.scope, locationID)
+	writeOK(w, map[string]any{
+		"eligible": true, "warehouse": topology.Warehouse, "area": topology.Area, "location": topology.Location,
+	})
+}
+
+func (s *server) resolveMovementTopology(
+	ctx context.Context,
+	permission pluginsdk.Permission,
+	scope employeeScope,
+	warehouseID string,
+	areaID string,
+	locationID string,
+) (movementTopology, error) {
+	item, err := s.getWarehouse(ctx, permission, scope, warehouseID)
 	if err != nil {
-		writeServiceError(w, err)
-		return
+		return movementTopology{}, newHTTPError(http.StatusUnprocessableEntity, "invalid_movement_topology", "active warehouse is required")
+	}
+	area, err := s.getTopology(ctx, permission, topologyArea, scope, areaID)
+	if err != nil {
+		return movementTopology{}, newHTTPError(http.StatusUnprocessableEntity, "invalid_movement_topology", "active warehouse area is required")
+	}
+	location, err := s.getTopology(ctx, permission, topologyLocation, scope, locationID)
+	if err != nil {
+		return movementTopology{}, newHTTPError(http.StatusUnprocessableEntity, "invalid_movement_topology", "active warehouse location is required")
 	}
 	if item.Status != "active" {
-		writeServiceError(w, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "warehouse is disabled"))
-		return
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "warehouse is disabled")
 	}
 	if area.WarehouseID != item.ID || area.Status != "active" {
-		writeServiceError(w, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "area is disabled or belongs to another warehouse"))
-		return
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "area is disabled or belongs to another warehouse")
 	}
 	if location.WarehouseID != item.ID || location.AreaID != area.ID || location.Status != "active" {
-		writeServiceError(w, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "location is disabled or belongs to another topology branch"))
-		return
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "location is disabled or belongs to another topology branch")
 	}
-	writeOK(w, map[string]any{"eligible": true, "warehouse": item, "area": area, "location": location})
+	return movementTopology{Warehouse: item, Area: area, Location: location}, nil
 }
 
 func (s *server) validateTopologyParents(ctx context.Context, permission pluginsdk.Permission, kind topologyKind, scope employeeScope, item topologyNode) error {
