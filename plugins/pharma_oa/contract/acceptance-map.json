@@ -19,7 +19,7 @@
     {"id": "crm", "workItems": ["BF5-02"], "documentTypes": [], "acceptance": "Contacts, visits, opportunities, follow-ups, reminders, ownership, and pipeline history remain scoped."},
     {"id": "purchasing", "workItems": ["BF5-03"], "documentTypes": ["purchase_request", "purchase_order", "purchase_inbound"], "acceptance": "Purchasing and receiving enforce approval, qualification, quantity, price, idempotency, and audit rules."},
     {"id": "sales", "workItems": ["BF5-04"], "documentTypes": ["sales_order", "sales_outbound"], "acceptance": "Sales, allocation, picking, and delivery enforce customer, stock, lot, expiry, and cancellation rules."},
-    {"id": "inventory", "workItems": ["BF5-05"], "documentTypes": ["stocktake", "stock_transfer"], "acceptance": "Warehouses, locations, lots, expiry, movements, returns, transfers, and counts form an immutable ledger."},
+    {"id": "inventory", "workItems": ["BF5-05", "BF5-05A"], "documentTypes": ["stocktake", "stock_transfer"], "acceptance": "Warehouses, areas, locations, lots, expiry, movements, returns, transfers, and counts form an immutable ledger with active scoped topology."},
     {"id": "quality", "workItems": ["BF5-06"], "documentTypes": ["quality_inspection", "drug_recall"], "acceptance": "Inspection, quarantine, release, rejection, complaint, and recall decisions are traceable and block invalid stock."},
     {"id": "finance", "workItems": ["BF5-07"], "documentTypes": [], "acceptance": "Receivables, payables, invoices, payments, aging, and export reconcile against accepted business documents."},
     {"id": "analytics", "workItems": ["BF5-08"], "documentTypes": [], "acceptance": "Role-aware dashboards and exports derive only from trusted scoped records."}
@@ -32,12 +32,13 @@
     {"name": "quality-lot-released", "handler": "onQualityLotReleased"},
     {"name": "quality-recall-started", "handler": "onQualityRecallStarted"}
   ],
-  "migrations": {"version": "0.10.0", "tables": ["pharma_oa_module_registry", "pharma_oa_document_type_registry", "pharma_oa_employees", "pharma_oa_parties", "pharma_oa_catalogs", "pharma_oa_products", "pharma_oa_qualification_types", "pharma_oa_qualifications", "pharma_oa_oa_requests", "pharma_oa_purchase_requests", "pharma_oa_purchase_orders", "pharma_oa_purchase_inbounds"]},
+  "migrations": {"version": "0.10.0", "tables": ["pharma_oa_module_registry", "pharma_oa_document_type_registry", "pharma_oa_employees", "pharma_oa_parties", "pharma_oa_catalogs", "pharma_oa_products", "pharma_oa_qualification_types", "pharma_oa_qualifications", "pharma_oa_oa_requests", "pharma_oa_purchase_requests", "pharma_oa_purchase_orders", "pharma_oa_purchase_inbounds", "pharma_oa_warehouses", "pharma_oa_warehouse_areas", "pharma_oa_warehouse_locations"]},
   "acceptanceScenarios": [
     {"id": "POA-BOUNDARY-01", "result": "Build, package, verify, install, start, and health-check the plugin without modifying host production source."},
     {"id": "POA-BOUNDARY-02", "result": "Every module, document type, event, table, route, and permission resolves from one current manifest family."},
     {"id": "POA-BOUNDARY-03", "result": "Backend code imports public pluginclient contracts and no Skoll internal package."},
     {"id": "POA-BOUNDARY-04", "result": "Foundation migration applies and rolls back completely on a clean plugin datastore."},
-    {"id": "POA-BOUNDARY-05", "result": "Host bootstrap contains no medical OA factory, service construction, fixture, or unconditional registration."}
+    {"id": "POA-BOUNDARY-05", "result": "Host bootstrap contains no medical OA factory, service construction, fixture, or unconditional registration."},
+    {"id": "POA-INVENTORY-01", "result": "A clean packaged process enforces scoped warehouse-area-location parents, ordered lifecycle transitions, movement eligibility, restart persistence, and uninstall rollback."}
   ]
 }

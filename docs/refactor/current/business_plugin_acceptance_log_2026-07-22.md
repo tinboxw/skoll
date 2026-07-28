@@ -3730,3 +3730,56 @@ Result: BF5-05A3 passed. Pharma OA now owns a scoped warehouse-area-location hie
 ### Commit
 
 `BF5-05A3: implement warehouse topology constraints`
+
+## BF5-05A4 Close Warehouse Topology Acceptance
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Done`
+- Scope: Close the Pharma OA warehouse-topology milestone with exact contract coverage, clean migration evidence, real packaged-process behavior, restart persistence, cross-scope isolation, and uninstall cleanup.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Contract completeness | The acceptance map now owns `BF5-05A`, all three topology tables, and a packaged inventory scenario; tests require its migration-table set to equal the manifest set in both directions | Pass |
+| Clean migration | A clean SQLite datastore applies all nine current migrations, creates every declared physical table, exercises the three scoped unique indexes, and rolls every table back | Pass |
+| Packaged API behavior | The verified package installs, migrates, starts, and creates two warehouse branches plus an area and location through the real backend process | Pass |
+| Duplicate and parent rejection | Different-key duplicate warehouse, area, and location creates fail; missing area parents and warehouse/area mismatches fail before mutation | Pass |
+| Exact-scope isolation | A second actor in another tenant and organization sees zero warehouses, areas, and locations and cannot resolve the first actor's movement topology | Pass |
+| Ordered status lifecycle | Active child nodes block parent disable; bottom-up disable succeeds; premature child enable fails; top-down enable restores the branch | Pass |
+| Movement eligibility | The real process accepts one active matching warehouse-area-location branch, rejects a disabled location, and accepts the same branch again after ordered recovery | Pass |
+| Restart persistence | After stopping, disabling, re-enabling, and restarting the packaged backend, two warehouses, two areas, one location, their stable IDs, and movement eligibility remain intact | Pass |
+| Uninstall cleanup | Drop-policy uninstall clears the migration ledger, removes plugin data directories, executes `009` DROP statements for locations, areas, and warehouses, and closes topology endpoints | Pass |
+| Source isolation | Build, package, install, lifecycle, restart, and uninstall leave host backend and frontend production source hashes unchanged | Pass |
+| Repeatability | SQLite migration/rollback passed three runs; all warehouse tests passed ten race-enabled runs; the complete Pharma OA package passed | Pass |
+| Repository regression | Full `go test ./... -count=1 -timeout=30m`, whitespace validation, and a synchronized CodeGraph index pass | Pass |
+| Current-only rule | No compatibility contract, retained topology table, fallback process, skipped E2E branch, or legacy migration list was accepted | Pass |
+
+### Direction Correction
+
+The pre-execution inventory found that migration `009` and `plugin.yaml` declared `warehouses`, `warehouse_areas`, and `warehouse_locations`, while `contract/acceptance-map.json` still stopped at `purchase_inbounds`. The existing assertion checked only contract-to-manifest inclusion and could not detect manifest omissions. The map now declares all three tables and the test enforces exact set equality before the quality gates run.
+
+No executed acceptance gate failed. The expanded packaged lifecycle passed on its first run in `74.26s`; the final repository gate passed in `244s`.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin -run "^$"
+go test ./plugins/pharma_oa -run "MedicalOA(Boundary|FoundationMigration|WarehouseTopology)" -count=1 -v -timeout=10m
+$env:SKOLL_PHARMA_OA_E2E = "1"
+go test ./internal/plugin -run "^TestPharmaOAPackagedBusinessLifecycleE2E$" -count=1 -v -timeout=15m
+go test ./plugins/pharma_oa -run "FoundationMigration|WarehouseTopology" -count=3 -timeout=10m
+go test -race ./plugins/pharma_oa/backend -run "^TestWarehouse" -count=10 -timeout=10m
+go test ./plugins/pharma_oa/... -count=1 -timeout=15m
+go test ./... -count=1 -timeout=30m
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: BF5-05A4 and parent BF5-05A passed. The packaged Pharma OA plugin now has executable, restart-safe, scope-safe, and reversibly migrated warehouse topology evidence. The next inventory foundation task is BF5-05B, the immutable lot stock ledger and balance projection.
+
+### Commit
+
+`BF5-05A4: close warehouse topology acceptance`

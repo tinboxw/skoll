@@ -440,8 +440,16 @@ func TestMedicalOAFoundationMigrationIsExecutableAndReversible(t *testing.T) {
 			assertPharmaContains(t, columns, column, "scope column in "+table.Name)
 		}
 	}
+	contractTables := make(map[string]struct{})
 	for _, table := range loadPharmaAcceptanceMap(t).Migrations.Tables {
 		assertPharmaContains(t, wantTables, table, "contract migration table")
+		contractTables[table] = struct{}{}
+	}
+	if len(contractTables) != len(wantTables) {
+		t.Fatalf("contract migration tables=%d want exact manifest set=%d", len(contractTables), len(wantTables))
+	}
+	for table := range wantTables {
+		assertPharmaContains(t, contractTables, table, "manifest table in contract migration map")
 	}
 	assertWarehouseTopologyScopedUniqueness(t, db)
 	for _, path := range []string{"migrations/009_warehouse_topology.down.sql", "migrations/008_purchase_inbounds.down.sql", "migrations/007_purchases.down.sql", "migrations/006_oa_requests.down.sql", "migrations/005_qualifications.down.sql", "migrations/004_catalogs.down.sql", "migrations/003_parties.down.sql", "migrations/002_employees.down.sql", "migrations/001_foundation.down.sql"} {

@@ -150,6 +150,7 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	actorAToken := signPharmaLifecycleToken(t, jwtSecret, "actor-a", "org-a")
 	actorBToken := signPharmaLifecycleToken(t, jwtSecret, "actor-b", "org-b")
 	baseURL := "http://" + address + "/v1/plugins/pharma_oa/api"
+	topology := pharmaLifecycleExerciseWarehouseTopology(t, baseURL, actorAToken, actorBToken)
 	employee := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/employees", actorAToken, "e2e-employee-create", map[string]any{
 		"tenantId": "tenant-a", "organizationId": "org-a", "code": "EMP-E2E-001", "name": "李华", "departmentId": "quality", "positionId": "director", "phone": "13800000000", "email": "lihua@example.com", "hireDate": "2026-01-02",
 	}, http.StatusCreated)
@@ -361,12 +362,15 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 		"pharma_oa.oa_request.remind", "pharma_oa.oa_request.delegate", "pharma_oa.oa_request.approve", "pharma_oa.oa_request.reject",
 		"pharma_oa.oa_request.withdraw", "pharma_oa.oa_request.cancel",
 		"pharma_oa.purchase.create", "pharma_oa.purchase.approve", "pharma_oa.purchase.reject", "pharma_oa.inbound.create",
+		"pharma_oa.warehouse.create", "pharma_oa.warehouse.disable", "pharma_oa.warehouse.enable",
+		"pharma_oa.warehouse_area.create", "pharma_oa.warehouse_area.disable", "pharma_oa.warehouse_area.enable",
+		"pharma_oa.warehouse_location.create", "pharma_oa.warehouse_location.disable", "pharma_oa.warehouse_location.enable",
 	} {
 		if !audit.hasAction(action) {
 			t.Fatalf("missing audit action %q; actions=%v", action, audit.actions())
 		}
 	}
-	if transactions.commits < 40 || transactions.rollbacks != 0 {
+	if transactions.commits < 50 || transactions.rollbacks != 0 {
 		t.Fatalf("unexpected transaction results: %+v", transactions)
 	}
 
@@ -388,12 +392,16 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	if err := equipmentEndpointClosed(baseURL + "/purchase-requests"); err != nil {
 		t.Fatal(err)
 	}
+	if err := equipmentEndpointClosed(baseURL + "/warehouse-areas"); err != nil {
+		t.Fatal(err)
+	}
 	if err := manager.Enable(installed.ID); err != nil {
 		t.Fatalf("re-enable plugin: %v", err)
 	}
 	if err := supervisor.Start(context.Background(), mustPharmaInfo(t, manager)); err != nil {
 		t.Fatalf("restart packaged backend: %v", err)
 	}
+	pharmaLifecycleAssertWarehouseTopologyRestart(t, baseURL, actorAToken, topology)
 	restarted := pharmaLifecycleRequest(t, http.MethodGet, baseURL+"/customers?keyword=CUS-E2E-001&limit=20", actorAToken, "", nil, http.StatusOK)
 	if pharmaLifecycleInt(t, restarted, "total") != 1 {
 		t.Fatalf("restart did not retain customer data: %v", restarted)
@@ -469,6 +477,7 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("uninstall migration: %v", err)
 	}
+	pharmaLifecycleAssertTopologyMigrationDropped(t, migrationStore.executed)
 	dataDir, err := dataDirectories.Prepare(installed.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -495,6 +504,149 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	if err := equipmentEndpointClosed(baseURL + "/purchase-inbounds"); err != nil {
 		t.Fatal(err)
 	}
+	if err := equipmentEndpointClosed(baseURL + "/warehouse-locations"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type pharmaLifecycleTopology struct {
+	warehouseID string
+	areaID      string
+	locationID  string
+}
+
+func pharmaLifecycleExerciseWarehouseTopology(t *testing.T, baseURL, actorAToken, actorBToken string) pharmaLifecycleTopology {
+	t.Helper()
+	warehouseBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "WH-E2E-TOPOLOGY", "name": "E2E Topology Warehouse",
+		"address": "8 Packaged Road", "contactName": "Packaged Owner", "contactPhone": "13800000008",
+	}
+	warehouseResponse := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouses", actorAToken, "e2e-topology-warehouse", warehouseBody, http.StatusCreated)
+	warehouse := pharmaLifecycleMap(t, warehouseResponse, "item")
+	warehouseID := pharmaLifecycleString(t, warehouse, "id")
+	warehouseReplay := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouses", actorAToken, "e2e-topology-warehouse", warehouseBody, http.StatusCreated)
+	if pharmaLifecycleString(t, pharmaLifecycleMap(t, warehouseReplay, "item"), "id") != warehouseID {
+		t.Fatalf("packaged warehouse create was not idempotent: %v", warehouseReplay)
+	}
+	duplicateWarehouse := clonePharmaLifecycleBody(warehouseBody)
+	duplicateWarehouse["name"] = "Duplicate E2E Warehouse"
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouses", actorAToken, "e2e-topology-warehouse-duplicate", duplicateWarehouse, http.StatusConflict)
+
+	invalidArea := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": "missing-warehouse",
+		"code": "AREA-INVALID", "name": "Invalid Area", "temperatureMin": "-20", "temperatureMax": "8",
+	}
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas", actorAToken, "e2e-topology-area-invalid", invalidArea, http.StatusUnprocessableEntity)
+	areaBody := clonePharmaLifecycleBody(invalidArea)
+	areaBody["warehouseId"], areaBody["code"], areaBody["name"] = warehouseID, "AREA-E2E-COLD", "E2E Cold Chain Area"
+	areaResponse := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas", actorAToken, "e2e-topology-area", areaBody, http.StatusCreated)
+	area := pharmaLifecycleMap(t, areaResponse, "item")
+	areaID := pharmaLifecycleString(t, area, "id")
+	areaReplay := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas", actorAToken, "e2e-topology-area", areaBody, http.StatusCreated)
+	if pharmaLifecycleString(t, pharmaLifecycleMap(t, areaReplay, "item"), "id") != areaID {
+		t.Fatalf("packaged area create was not idempotent: %v", areaReplay)
+	}
+	duplicateArea := clonePharmaLifecycleBody(areaBody)
+	duplicateArea["name"] = "Duplicate E2E Area"
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas", actorAToken, "e2e-topology-area-duplicate", duplicateArea, http.StatusConflict)
+
+	secondWarehouseBody := clonePharmaLifecycleBody(warehouseBody)
+	secondWarehouseBody["code"], secondWarehouseBody["name"] = "WH-E2E-TOPOLOGY-2", "Second E2E Topology Warehouse"
+	secondWarehouseResponse := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouses", actorAToken, "e2e-topology-warehouse-2", secondWarehouseBody, http.StatusCreated)
+	secondWarehouseID := pharmaLifecycleString(t, pharmaLifecycleMap(t, secondWarehouseResponse, "item"), "id")
+	secondAreaBody := clonePharmaLifecycleBody(areaBody)
+	secondAreaBody["warehouseId"], secondAreaBody["name"] = secondWarehouseID, "Second E2E Cold Chain Area"
+	secondAreaResponse := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas", actorAToken, "e2e-topology-area-2", secondAreaBody, http.StatusCreated)
+	secondAreaID := pharmaLifecycleString(t, pharmaLifecycleMap(t, secondAreaResponse, "item"), "id")
+
+	locationBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID, "areaId": areaID,
+		"code": "LOC-E2E-COLD", "name": "E2E Cold Chain Shelf", "locationType": "cold_chain",
+	}
+	mismatchedLocation := clonePharmaLifecycleBody(locationBody)
+	mismatchedLocation["areaId"] = secondAreaID
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations", actorAToken, "e2e-topology-location-mismatch", mismatchedLocation, http.StatusConflict)
+	locationResponse := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations", actorAToken, "e2e-topology-location", locationBody, http.StatusCreated)
+	location := pharmaLifecycleMap(t, locationResponse, "item")
+	locationID := pharmaLifecycleString(t, location, "id")
+	locationReplay := pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations", actorAToken, "e2e-topology-location", locationBody, http.StatusCreated)
+	if pharmaLifecycleString(t, pharmaLifecycleMap(t, locationReplay, "item"), "id") != locationID {
+		t.Fatalf("packaged location create was not idempotent: %v", locationReplay)
+	}
+	duplicateLocation := clonePharmaLifecycleBody(locationBody)
+	duplicateLocation["name"] = "Duplicate E2E Location"
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations", actorAToken, "e2e-topology-location-duplicate", duplicateLocation, http.StatusConflict)
+
+	movementURL := baseURL + "/warehouses/" + warehouseID + "/movement-eligibility?areaId=" + areaID + "&locationId=" + locationID
+	movement := pharmaLifecycleRequest(t, http.MethodGet, movementURL, actorAToken, "", nil, http.StatusOK)
+	if eligible, ok := movement["eligible"].(bool); !ok || !eligible {
+		t.Fatalf("packaged topology was not movement eligible: %v", movement)
+	}
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouses/"+warehouseID+"/disable", actorAToken, "e2e-topology-warehouse-blocked",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "active area", "version": 1}, http.StatusConflict)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas/"+areaID+"/disable", actorAToken, "e2e-topology-area-blocked",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "active location", "version": 1}, http.StatusConflict)
+
+	for _, path := range []string{"/warehouses", "/warehouse-areas", "/warehouse-locations"} {
+		isolated := pharmaLifecycleRequest(t, http.MethodGet, baseURL+path, actorBToken, "", nil, http.StatusOK)
+		if pharmaLifecycleInt(t, isolated, "total") != 0 {
+			t.Fatalf("packaged topology leaked through %s: %v", path, isolated)
+		}
+	}
+	pharmaLifecycleRequest(t, http.MethodGet, movementURL, actorBToken, "", nil, http.StatusNotFound)
+
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations/"+locationID+"/disable", actorAToken, "e2e-topology-location-disable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "stock freeze", "version": 1}, http.StatusOK)
+	pharmaLifecycleRequest(t, http.MethodGet, movementURL, actorAToken, "", nil, http.StatusConflict)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas/"+areaID+"/disable", actorAToken, "e2e-topology-area-disable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "area maintenance", "version": 1}, http.StatusOK)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouses/"+warehouseID+"/disable", actorAToken, "e2e-topology-warehouse-disable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "warehouse maintenance", "version": 1}, http.StatusOK)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations/"+locationID+"/enable", actorAToken, "e2e-topology-location-enable-blocked-warehouse",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 2}, http.StatusConflict)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouses/"+warehouseID+"/enable", actorAToken, "e2e-topology-warehouse-enable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 2}, http.StatusOK)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations/"+locationID+"/enable", actorAToken, "e2e-topology-location-enable-blocked-area",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 2}, http.StatusConflict)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-areas/"+areaID+"/enable", actorAToken, "e2e-topology-area-enable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 2}, http.StatusOK)
+	pharmaLifecycleRequest(t, http.MethodPost, baseURL+"/warehouse-locations/"+locationID+"/enable", actorAToken, "e2e-topology-location-enable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 2}, http.StatusOK)
+	pharmaLifecycleRequest(t, http.MethodGet, movementURL, actorAToken, "", nil, http.StatusOK)
+	return pharmaLifecycleTopology{warehouseID: warehouseID, areaID: areaID, locationID: locationID}
+}
+
+func pharmaLifecycleAssertWarehouseTopologyRestart(t *testing.T, baseURL, token string, topology pharmaLifecycleTopology) {
+	t.Helper()
+	for path, want := range map[string]int64{"/warehouses": 2, "/warehouse-areas": 2, "/warehouse-locations": 1} {
+		page := pharmaLifecycleRequest(t, http.MethodGet, baseURL+path, token, "", nil, http.StatusOK)
+		if pharmaLifecycleInt(t, page, "total") != want {
+			t.Fatalf("restart lost packaged topology at %s: %v", path, page)
+		}
+	}
+	movementURL := baseURL + "/warehouses/" + topology.warehouseID + "/movement-eligibility?areaId=" + topology.areaID + "&locationId=" + topology.locationID
+	movement := pharmaLifecycleRequest(t, http.MethodGet, movementURL, token, "", nil, http.StatusOK)
+	if eligible, ok := movement["eligible"].(bool); !ok || !eligible {
+		t.Fatalf("restart lost movement-eligible topology: %v", movement)
+	}
+}
+
+func pharmaLifecycleAssertTopologyMigrationDropped(t *testing.T, executed []string) {
+	t.Helper()
+	allSQL := strings.ToLower(strings.Join(executed, "\n"))
+	for _, table := range []string{"warehouse_locations", "warehouse_areas", "warehouses"} {
+		if !strings.Contains(allSQL, "drop table if exists {{table:"+table+"}}") {
+			t.Fatalf("uninstall migration did not drop topology table %s: %v", table, executed)
+		}
+	}
+}
+
+func clonePharmaLifecycleBody(input map[string]any) map[string]any {
+	out := make(map[string]any, len(input))
+	for key, value := range input {
+		out[key] = value
+	}
+	return out
 }
 
 type pharmaLifecycleScope struct {
