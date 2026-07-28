@@ -127,6 +127,17 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("PUT "+apiBase+"/warehouses/{id}", s.updateWarehouse)
 	mux.HandleFunc("POST "+apiBase+"/warehouses/{id}/disable", s.changeWarehouseStatus(false))
 	mux.HandleFunc("POST "+apiBase+"/warehouses/{id}/enable", s.changeWarehouseStatus(true))
+	mux.HandleFunc("GET "+apiBase+"/warehouses/{id}/movement-eligibility", s.warehouseMovementEligibility)
+	mux.HandleFunc("GET "+apiBase+"/warehouse-areas", s.listTopology(topologyArea))
+	mux.HandleFunc("POST "+apiBase+"/warehouse-areas", s.createTopology(topologyArea))
+	mux.HandleFunc("PUT "+apiBase+"/warehouse-areas/{id}", s.updateTopology(topologyArea))
+	mux.HandleFunc("POST "+apiBase+"/warehouse-areas/{id}/disable", s.changeTopologyStatus(topologyArea, false))
+	mux.HandleFunc("POST "+apiBase+"/warehouse-areas/{id}/enable", s.changeTopologyStatus(topologyArea, true))
+	mux.HandleFunc("GET "+apiBase+"/warehouse-locations", s.listTopology(topologyLocation))
+	mux.HandleFunc("POST "+apiBase+"/warehouse-locations", s.createTopology(topologyLocation))
+	mux.HandleFunc("PUT "+apiBase+"/warehouse-locations/{id}", s.updateTopology(topologyLocation))
+	mux.HandleFunc("POST "+apiBase+"/warehouse-locations/{id}/disable", s.changeTopologyStatus(topologyLocation, false))
+	mux.HandleFunc("POST "+apiBase+"/warehouse-locations/{id}/enable", s.changeTopologyStatus(topologyLocation, true))
 	return mux, nil
 }
 

@@ -125,12 +125,17 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 		if _, exists := s.records[id]; exists {
 			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "id", "employee exists", false)
 		}
-		if mutation.Table == warehouseTable {
-			code := mutation.Values["code"].Value
+		if mutation.Table == warehouseTable || mutation.Table == warehouseAreaTable || mutation.Table == warehouseLocationTable {
+			code, parentField, parentValue := mutation.Values["code"].Value, "organization_id", s.scope.OrganizationID
+			if mutation.Table == warehouseAreaTable {
+				parentField, parentValue = "warehouse_id", mutation.Values["warehouse_id"].Value
+			} else if mutation.Table == warehouseLocationTable {
+				parentField, parentValue = "area_id", mutation.Values["area_id"].Value
+			}
 			for existingID, record := range s.records {
-				if s.tables[existingID] == warehouseTable && dataString(record, "tenant_id") == s.scope.TenantID &&
-					dataString(record, "organization_id") == s.scope.OrganizationID && dataString(record, "code") == code {
-					return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "code", "warehouse code already exists", false)
+				if s.tables[existingID] == mutation.Table && dataString(record, "tenant_id") == s.scope.TenantID &&
+					dataString(record, parentField) == parentValue && dataString(record, "code") == code {
+					return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "code", "topology code already exists", false)
 				}
 			}
 		}
@@ -1594,6 +1599,269 @@ func TestWarehouseConcurrentDuplicateCodeAllowsOneWinner(t *testing.T) {
 	listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouses", nil, "", true, http.StatusOK)
 	if testInt64(t, listed, "total") != 1 {
 		t.Fatalf("concurrent warehouse create retained duplicates: %v", listed)
+	}
+}
+
+func TestWarehouseTopologyCRUDParentConstraintsAndMovement(t *testing.T) {
+	runtime := newTestRuntime(t)
+	warehouseBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "WH-TOPOLOGY", "name": "Topology Warehouse",
+		"address": "3 Topology Road", "contactName": "Topology Owner", "contactPhone": "13800000003",
+	}
+	warehouseItem := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", warehouseBody, "topology-warehouse", true, http.StatusCreated), "item")
+	warehouseID := testString(t, warehouseItem, "id")
+
+	areaBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID,
+		"code": " cold-01 ", "name": "Cold Chain Area", "temperatureMin": "-20.000", "temperatureMax": "8.0",
+	}
+	areaItem := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", areaBody, "topology-area", true, http.StatusCreated), "item")
+	areaReplay := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", areaBody, "topology-area", true, http.StatusCreated), "item")
+	areaID := testString(t, areaItem, "id")
+	if !strings.HasPrefix(areaID, "warehouse-area-") || areaID != testString(t, areaReplay, "id") ||
+		testString(t, areaItem, "code") != "COLD-01" || testString(t, areaItem, "temperatureMin") != "-20" ||
+		testString(t, areaItem, "temperatureMax") != "8" {
+		t.Fatalf("area create or replay is inconsistent: area=%v replay=%v", areaItem, areaReplay)
+	}
+
+	locationBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID, "areaId": areaID,
+		"code": " loc-01 ", "name": "Cold Chain Shelf", "locationType": "COLD_CHAIN",
+	}
+	locationItem := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations", locationBody, "topology-location", true, http.StatusCreated), "item")
+	locationReplay := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations", locationBody, "topology-location", true, http.StatusCreated), "item")
+	locationID := testString(t, locationItem, "id")
+	if !strings.HasPrefix(locationID, "warehouse-location-") || locationID != testString(t, locationReplay, "id") ||
+		testString(t, locationItem, "code") != "LOC-01" || testString(t, locationItem, "locationType") != "cold_chain" {
+		t.Fatalf("location create or replay is inconsistent: location=%v replay=%v", locationItem, locationReplay)
+	}
+	areaUpdate := cloneWarehouseBody(areaBody)
+	areaUpdate["code"], areaUpdate["name"], areaUpdate["temperatureMin"], areaUpdate["temperatureMax"], areaUpdate["version"] =
+		"COLD-02", "Updated Cold Chain Area", "-18.5", "7.5", 1
+	updatedArea := testMap(t, testRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouse-areas/"+areaID, areaUpdate, "topology-area-update", true, http.StatusOK), "item")
+	replayedArea := testMap(t, testRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouse-areas/"+areaID, areaUpdate, "topology-area-update", true, http.StatusOK), "item")
+	if testString(t, updatedArea, "code") != "COLD-02" || testInt64(t, updatedArea, "version") != 2 ||
+		testInt64(t, replayedArea, "version") != 2 {
+		t.Fatalf("area update replay is inconsistent: updated=%v replay=%v", updatedArea, replayedArea)
+	}
+
+	eligibilityPath := apiBase + "/warehouses/" + warehouseID + "/movement-eligibility?areaId=" + areaID + "&locationId=" + locationID
+	eligible := testRequest(t, runtime.handler, http.MethodGet, eligibilityPath, nil, "", true, http.StatusOK)
+	if value, ok := eligible["eligible"].(bool); !ok || !value {
+		t.Fatalf("active topology is not movement eligible: %v", eligible)
+	}
+	areas := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouse-areas?warehouseId="+warehouseID+"&keyword=cold&status=active", nil, "", true, http.StatusOK)
+	locations := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouse-locations?warehouseId="+warehouseID+"&areaId="+areaID+"&keyword=shelf", nil, "", true, http.StatusOK)
+	if testInt64(t, areas, "total") != 1 || testInt64(t, locations, "total") != 1 {
+		t.Fatalf("topology list filters failed: areas=%v locations=%v", areas, locations)
+	}
+
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/disable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "blocked", "version": 1},
+		"topology-warehouse-disable-blocked", http.StatusConflict, "warehouse_in_use")
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas/"+areaID+"/disable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "blocked", "version": 2},
+		"topology-area-disable-blocked", http.StatusConflict, "warehouse_area_in_use")
+
+	secondWarehouseBody := cloneWarehouseBody(warehouseBody)
+	secondWarehouseBody["code"], secondWarehouseBody["name"] = "WH-TOPOLOGY-2", "Second Topology Warehouse"
+	secondWarehouse := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", secondWarehouseBody, "topology-warehouse-2", true, http.StatusCreated), "item")
+	secondWarehouseID := testString(t, secondWarehouse, "id")
+	reparentArea := cloneWarehouseBody(areaUpdate)
+	reparentArea["warehouseId"], reparentArea["version"] = secondWarehouseID, 2
+	testErrorRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouse-areas/"+areaID, reparentArea,
+		"topology-area-reparent", http.StatusConflict, "warehouse_area_in_use")
+
+	secondAreaBody := cloneWarehouseBody(areaBody)
+	secondAreaBody["warehouseId"], secondAreaBody["code"], secondAreaBody["name"] = secondWarehouseID, "COLD-02", "Second Cold Chain Area"
+	secondArea := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", secondAreaBody, "topology-area-2", true, http.StatusCreated), "item")
+	secondAreaID := testString(t, secondArea, "id")
+	mismatchedLocation := cloneWarehouseBody(locationBody)
+	mismatchedLocation["areaId"], mismatchedLocation["version"] = secondAreaID, 1
+	testErrorRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouse-locations/"+locationID, mismatchedLocation,
+		"topology-location-mismatch", http.StatusConflict, "warehouse_location_parent_mismatch")
+
+	locationUpdate := cloneWarehouseBody(locationBody)
+	locationUpdate["code"], locationUpdate["name"], locationUpdate["version"] = "LOC-02", "Updated Cold Shelf", 1
+	updatedLocation := testMap(t, testRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouse-locations/"+locationID, locationUpdate, "topology-location-update", true, http.StatusOK), "item")
+	replayedLocation := testMap(t, testRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouse-locations/"+locationID, locationUpdate, "topology-location-update", true, http.StatusOK), "item")
+	if testInt64(t, updatedLocation, "version") != 2 || testInt64(t, replayedLocation, "version") != 2 {
+		t.Fatalf("location update replay is inconsistent: updated=%v replay=%v", updatedLocation, replayedLocation)
+	}
+	secondLocationBody := cloneWarehouseBody(locationUpdate)
+	secondLocationBody["warehouseId"], secondLocationBody["areaId"], secondLocationBody["name"] =
+		secondWarehouseID, secondAreaID, "Second Updated Cold Shelf"
+	delete(secondLocationBody, "version")
+	secondLocation := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations", secondLocationBody, "topology-location-2", true, http.StatusCreated), "item")
+	if testString(t, secondLocation, "code") != "LOC-02" {
+		t.Fatalf("location code was not reusable under another area: %v", secondLocation)
+	}
+
+	disableLocation := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "inventory freeze", "version": 2}
+	disabledLocation := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations/"+locationID+"/disable", disableLocation, "topology-location-disable", true, http.StatusOK), "item")
+	replayedDisable := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations/"+locationID+"/disable", disableLocation, "topology-location-disable", true, http.StatusOK), "item")
+	if testInt64(t, disabledLocation, "version") != 3 || testInt64(t, replayedDisable, "version") != 3 {
+		t.Fatalf("location disable replay is inconsistent: disabled=%v replay=%v", disabledLocation, replayedDisable)
+	}
+	testErrorRequest(t, runtime.handler, http.MethodGet, eligibilityPath, nil, "", http.StatusConflict, "warehouse_movement_ineligible")
+
+	disableArea := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "area maintenance", "version": 2}
+	disabledArea := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas/"+areaID+"/disable", disableArea, "topology-area-disable", true, http.StatusOK), "item")
+	if testInt64(t, disabledArea, "version") != 3 {
+		t.Fatalf("area did not disable after child was disabled: %v", disabledArea)
+	}
+	disableWarehouse := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "warehouse maintenance", "version": 1}
+	disabledWarehouse := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/disable", disableWarehouse, "topology-warehouse-disable", true, http.StatusOK), "item")
+	if testInt64(t, disabledWarehouse, "version") != 2 {
+		t.Fatalf("warehouse did not disable after child area was disabled: %v", disabledWarehouse)
+	}
+
+	enableLocation := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 3}
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations/"+locationID+"/enable",
+		enableLocation, "topology-location-enable-blocked-warehouse", http.StatusConflict, "warehouse_location_parent_disabled")
+	enableWarehouse := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 2}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/enable", enableWarehouse, "topology-warehouse-enable", true, http.StatusOK)
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations/"+locationID+"/enable",
+		enableLocation, "topology-location-enable-blocked-area", http.StatusConflict, "warehouse_location_parent_disabled")
+	enableArea := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 3}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas/"+areaID+"/enable", enableArea, "topology-area-enable", true, http.StatusOK)
+	enabledLocation := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations/"+locationID+"/enable", enableLocation, "topology-location-enable", true, http.StatusOK), "item")
+	if testString(t, enabledLocation, "status") != "active" || testInt64(t, enabledLocation, "version") != 4 {
+		t.Fatalf("location did not enable after its parents: %v", enabledLocation)
+	}
+	testRequest(t, runtime.handler, http.MethodGet, eligibilityPath, nil, "", true, http.StatusOK)
+
+	for _, action := range []string{
+		"pharma_oa.warehouse_area.create", "pharma_oa.warehouse_area.update",
+		"pharma_oa.warehouse_area.disable", "pharma_oa.warehouse_area.enable",
+		"pharma_oa.warehouse_location.create", "pharma_oa.warehouse_location.update",
+		"pharma_oa.warehouse_location.disable", "pharma_oa.warehouse_location.enable",
+	} {
+		if !testAuditHasAction(runtime.audit.entries, action) {
+			t.Fatalf("missing topology audit action %q: %v", action, runtime.audit.entries)
+		}
+	}
+}
+
+func TestWarehouseTopologyRejectsInvalidParentsAndCrossScope(t *testing.T) {
+	runtime := newTestRuntime(t)
+	areaBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": "missing-warehouse",
+		"code": "AREA-INVALID", "name": "Invalid Area", "temperatureMin": "-2", "temperatureMax": "8",
+	}
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", areaBody,
+		"topology-area-missing-parent", http.StatusUnprocessableEntity, "warehouse_area_invalid_parent")
+	invalidTemperature := cloneWarehouseBody(areaBody)
+	invalidTemperature["temperatureMin"], invalidTemperature["temperatureMax"] = "9", "8"
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", invalidTemperature,
+		"topology-area-temperature", http.StatusBadRequest, "warehouse_area_invalid_temperature")
+
+	warehouseBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "WH-SCOPE-TOPOLOGY", "name": "Scoped Topology Warehouse",
+		"address": "4 Scope Road", "contactName": "Scope Owner", "contactPhone": "13800000004",
+	}
+	warehouse := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", warehouseBody, "topology-scope-warehouse", true, http.StatusCreated), "item")
+	warehouseID := testString(t, warehouse, "id")
+	areaBody["warehouseId"], areaBody["code"], areaBody["name"] = warehouseID, "AREA-SCOPE", "Scoped Area"
+	area := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", areaBody, "topology-scope-area", true, http.StatusCreated), "item")
+	areaID := testString(t, area, "id")
+
+	duplicateArea := cloneWarehouseBody(areaBody)
+	duplicateArea["name"] = "Duplicate Area"
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-areas", duplicateArea,
+		"topology-area-duplicate", http.StatusConflict, "warehouse_area_duplicate_code")
+	locationBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID, "areaId": areaID,
+		"code": "LOC-SCOPE", "name": "Scoped Location", "locationType": "standard",
+	}
+	testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations", locationBody, "topology-scope-location", true, http.StatusCreated)
+	invalidType := cloneWarehouseBody(locationBody)
+	invalidType["locationType"] = "unknown"
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouse-locations", invalidType,
+		"topology-location-type", http.StatusBadRequest, "warehouse_location_invalid")
+
+	crossScope := employeeScope{TenantID: "tenant-a", OrganizationID: "org-b", OwnerID: "actor-b"}
+	crossPredicate, err := pluginsdk.NewScopePredicate(pluginsdk.TrustedScope{
+		SubjectID: crossScope.OwnerID, TenantIDs: []string{crossScope.TenantID},
+		OrganizationIDs: []string{crossScope.OrganizationID}, OwnerIDs: []string{crossScope.OwnerID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime.store.scope = crossScope
+	crossHandler, err := newHandler(pluginsdk.HostServices{
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate},
+		DataStore: runtime.store, Events: testEvents{}, DocumentNumbers: runtime.numbers, Files: runtime.files,
+		Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if areas := testRequest(t, crossHandler, http.MethodGet, apiBase+"/warehouse-areas", nil, "", true, http.StatusOK); testInt64(t, areas, "total") != 0 {
+		t.Fatalf("cross-scope area list leaked records: %v", areas)
+	}
+	crossArea := cloneWarehouseBody(areaBody)
+	crossArea["organizationId"] = "org-b"
+	testErrorRequest(t, crossHandler, http.MethodPost, apiBase+"/warehouse-areas", crossArea,
+		"topology-cross-area", http.StatusUnprocessableEntity, "warehouse_area_invalid_parent")
+	testErrorRequest(t, crossHandler, http.MethodGet,
+		apiBase+"/warehouses/"+warehouseID+"/movement-eligibility?areaId="+areaID+"&locationId=missing",
+		nil, "", http.StatusNotFound, "warehouse_not_found")
+}
+
+func TestWarehouseTopologyConcurrentDuplicateCodesAllowOneWinner(t *testing.T) {
+	runtime := newTestRuntime(t)
+	warehouseBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "WH-TOPOLOGY-RACE", "name": "Topology Race Warehouse",
+		"address": "5 Race Road", "contactName": "Race Owner", "contactPhone": "13800000005",
+	}
+	warehouse := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", warehouseBody, "topology-race-warehouse", true, http.StatusCreated), "item")
+	warehouseID := testString(t, warehouse, "id")
+	areaBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID,
+		"code": "AREA-RACE", "name": "Concurrent Area",
+	}
+	assertConcurrentTopologyCreate(t, runtime.handler, apiBase+"/warehouse-areas", areaBody, "topology-area-race")
+	areas := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouse-areas?warehouseId="+warehouseID, nil, "", true, http.StatusOK)
+	areaItems, ok := areas["items"].([]any)
+	if !ok || len(areaItems) != 1 {
+		t.Fatalf("concurrent area create retained duplicates: %v", areas)
+	}
+	areaID := testString(t, areaItems[0].(map[string]any), "id")
+	locationBody := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "warehouseId": warehouseID, "areaId": areaID,
+		"code": "LOC-RACE", "name": "Concurrent Location", "locationType": "standard",
+	}
+	assertConcurrentTopologyCreate(t, runtime.handler, apiBase+"/warehouse-locations", locationBody, "topology-location-race")
+	locations := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouse-locations?areaId="+areaID, nil, "", true, http.StatusOK)
+	if testInt64(t, locations, "total") != 1 {
+		t.Fatalf("concurrent location create retained duplicates: %v", locations)
+	}
+}
+
+func assertConcurrentTopologyCreate(t *testing.T, handler http.Handler, path string, body map[string]any, keyPrefix string) {
+	t.Helper()
+	started := make(chan struct{})
+	statuses := make(chan int, 2)
+	var group sync.WaitGroup
+	for _, suffix := range []string{"a", "b"} {
+		suffix := suffix
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-started
+			statuses <- rawTestRequestStatus(handler, http.MethodPost, path, body, keyPrefix+"-"+suffix)
+		}()
+	}
+	close(started)
+	group.Wait()
+	close(statuses)
+	counts := map[int]int{}
+	for status := range statuses {
+		counts[status]++
+	}
+	if counts[http.StatusCreated] != 1 || counts[http.StatusConflict] != 1 {
+		t.Fatalf("concurrent topology statuses=%v want one created and one conflict", counts)
 	}
 }
 

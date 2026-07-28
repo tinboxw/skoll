@@ -234,6 +234,12 @@ func (s *server) changeWarehouseStatus(enabled bool) http.HandlerFunc {
 			writeServiceError(w, newHTTPError(http.StatusConflict, "warehouse_status_unchanged", "warehouse is already in the requested status"))
 			return
 		}
+		if !enabled && !replayCandidate {
+			if err = s.ensureTopologyParentUnused(ctx, warehousePermission(action), topologyArea, "warehouse_id", current.ID, true, "warehouse_in_use"); err != nil {
+				writeServiceError(w, err)
+				return
+			}
+		}
 		current.Status, current.DisableReason = targetStatus, targetReason
 		updated, err := s.mutateWarehouse(ctx, action, key, current, input.Version, pluginsdk.AuditRiskHigh)
 		if err != nil {

@@ -338,6 +338,56 @@ permissions:
     module: pharma_oa
     name: Validate warehouse movement location
     risk: high
+  - key: pharma_oa.warehouse_area.read
+    type: api
+    module: pharma_oa
+    name: Read pharma warehouse areas
+    risk: low
+  - key: pharma_oa.warehouse_area.create
+    type: api
+    module: pharma_oa
+    name: Create pharma warehouse areas
+    risk: medium
+  - key: pharma_oa.warehouse_area.update
+    type: api
+    module: pharma_oa
+    name: Update pharma warehouse areas
+    risk: medium
+  - key: pharma_oa.warehouse_area.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma warehouse areas
+    risk: high
+  - key: pharma_oa.warehouse_area.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma warehouse areas
+    risk: high
+  - key: pharma_oa.warehouse_location.read
+    type: api
+    module: pharma_oa
+    name: Read pharma warehouse locations
+    risk: low
+  - key: pharma_oa.warehouse_location.create
+    type: api
+    module: pharma_oa
+    name: Create pharma warehouse locations
+    risk: medium
+  - key: pharma_oa.warehouse_location.update
+    type: api
+    module: pharma_oa
+    name: Update pharma warehouse locations
+    risk: medium
+  - key: pharma_oa.warehouse_location.disable
+    type: button
+    module: pharma_oa
+    name: Disable pharma warehouse locations
+    risk: high
+  - key: pharma_oa.warehouse_location.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma warehouse locations
+    risk: high
   - key: pharma_oa.master.template
     type: api
     module: pharma_oa
@@ -1110,6 +1160,56 @@ api:
       summary: Validate Pharma OA warehouse movement location
       permission: pharma_oa.warehouse.movement
       audit_action: pharma_oa.warehouse.movement
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/warehouse-areas
+      summary: List Pharma OA warehouse areas
+      permission: pharma_oa.warehouse_area.read
+      audit_action: pharma_oa.warehouse_area.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouse-areas
+      summary: Create Pharma OA warehouse area
+      permission: pharma_oa.warehouse_area.create
+      audit_action: pharma_oa.warehouse_area.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/warehouse-areas/{id}
+      summary: Update Pharma OA warehouse area
+      permission: pharma_oa.warehouse_area.update
+      audit_action: pharma_oa.warehouse_area.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouse-areas/{id}/disable
+      summary: Disable Pharma OA warehouse area
+      permission: pharma_oa.warehouse_area.disable
+      audit_action: pharma_oa.warehouse_area.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouse-areas/{id}/enable
+      summary: Enable Pharma OA warehouse area
+      permission: pharma_oa.warehouse_area.enable
+      audit_action: pharma_oa.warehouse_area.enable
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/warehouse-locations
+      summary: List Pharma OA warehouse locations
+      permission: pharma_oa.warehouse_location.read
+      audit_action: pharma_oa.warehouse_location.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouse-locations
+      summary: Create Pharma OA warehouse location
+      permission: pharma_oa.warehouse_location.create
+      audit_action: pharma_oa.warehouse_location.create
+    - method: PUT
+      path: /v1/plugins/pharma_oa/api/warehouse-locations/{id}
+      summary: Update Pharma OA warehouse location
+      permission: pharma_oa.warehouse_location.update
+      audit_action: pharma_oa.warehouse_location.update
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouse-locations/{id}/disable
+      summary: Disable Pharma OA warehouse location
+      permission: pharma_oa.warehouse_location.disable
+      audit_action: pharma_oa.warehouse_location.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouse-locations/{id}/enable
+      summary: Enable Pharma OA warehouse location
+      permission: pharma_oa.warehouse_location.enable
+      audit_action: pharma_oa.warehouse_location.enable
     - method: GET
       path: /v1/plugins/pharma_oa/api/master-data/template
       summary: Get Pharma OA master data import template

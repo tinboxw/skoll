@@ -3680,3 +3680,53 @@ Result: BF5-05A2 passed. Pharma OA now exposes one scoped, idempotent, optimisti
 ### Commit
 
 `BF5-05A2: implement scoped warehouse lifecycle`
+
+## BF5-05A3 Implement Area And Location CRUD With Parent Constraints
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Add the current Pharma OA warehouse-area and warehouse-location lifecycles, enforce active and matching parent topology, protect parent status transitions, and expose one movement-eligibility query.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| API surface | Area and location each expose list, create, update, disable, and enable routes; warehouse movement eligibility accepts explicit area and location identities | Pass |
+| Permission contract | Area and location each declare exact read/create/update/disable/enable permissions; status actions and movement validation are high risk and every route declares its audit action | Pass |
+| Area parent rule | Creating, updating, or enabling an area requires an active warehouse in the same exact scope; moving an area that owns any location is rejected | Pass |
+| Location parent rule | Creating, updating, or enabling a location requires an active warehouse and active area in the same scope, and the area must belong to the selected warehouse | Pass |
+| Ordered lifecycle | Active locations block area disable; active areas block warehouse disable; bottom-up disable and top-down enable both pass, while early child enable fails deterministically | Pass |
+| Movement eligibility | Only an active warehouse, its active area, and that area's active location return `eligible: true`; disabled, mismatched, missing, or cross-scope nodes fail with stable current errors | Pass |
+| Validation | Codes use the warehouse code grammar, area temperature bounds are optional pairs normalized to three-decimal precision inside `-80..80`, and location types use the current controlled set | Pass |
+| Uniqueness | Area codes are unique per warehouse and location codes per area; both codes are reusable under another parent and concurrent duplicate creates allow one winner | Pass |
+| Idempotency and concurrency | Stable resource-specific IDs and host mutation keys protect create/update/status replay; replay candidates bypass time-varying parent checks while new stale keys still reach optimistic locking | Pass |
+| Scope and audit | Every mutation carries one exact tenant, organization, and owner scope; cross-scope reads do not leak records and successful mutations emit bounded topology evidence | Pass |
+| Package boundary | The implementation remains inside `plugins/pharma_oa`; the real package installs migration `009`, starts the updated backend, and completes its lifecycle without host business code | Pass |
+| Repository regression | Focused topology, ten-run race, full Pharma OA, packaged process, complete repository, whitespace, and CodeGraph gates pass | Pass |
+| Current-only rule | No compatibility endpoint, fallback parent lookup, optional scope bypass, legacy topology model, or second runtime path was added | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first focused run rejected same-key area creation replay as a duplicate because the topology uniqueness precheck did not exclude the stable ID derived from that key. The precheck now follows the warehouse lifecycle contract: same stable ID reaches the host idempotency layer, while another key and the database unique index still reject duplicates. The complete focused group passed after re-execution.
+2. After successful area-update coverage was added, the earlier active-child disable assertion still sent version `1`. Optimistic locking correctly returned `warehouse_area_stale` before evaluating child usage. The test now sends current version `2`, preserving both gates, and the complete focused group passed again.
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa/backend ./plugins/pharma_oa -run "WarehouseTopology|WarehouseCRUD|WarehouseRejects|WarehouseConcurrent" -count=1 -v -timeout=10m
+go test -race ./plugins/pharma_oa/backend -run "^TestWarehouseTopology" -count=10 -timeout=10m
+go test ./plugins/pharma_oa/... -count=1 -timeout=15m
+$env:SKOLL_PHARMA_OA_E2E = "1"
+go test ./internal/plugin -run "^TestPharmaOAPackagedBusinessLifecycleE2E$" -count=1 -v -timeout=15m
+go test ./... -count=1 -timeout=30m
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: BF5-05A3 passed. Pharma OA now owns a scoped warehouse-area-location hierarchy with deterministic parent enforcement and movement selection, ready for BF5-05A4 restart, rollback, uninstall-cleanup, and full packaged topology acceptance.
+
+### Commit
+
+`BF5-05A3: implement warehouse topology constraints`
