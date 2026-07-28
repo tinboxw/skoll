@@ -46,6 +46,15 @@ func (s *auditService) Record(ctx context.Context, entry pluginsdk.AuditEntry) (
 	detail["pluginId"] = s.pluginID
 	detail["result"] = result
 	detail["risk"] = risk
+	if operation, ok := pluginsdk.OperationContextFromContext(ctx); ok {
+		detail["correlationId"] = operation.CorrelationID
+		if operation.RequestID != "" {
+			detail["requestId"] = operation.RequestID
+		}
+		if operation.TraceID != "" {
+			detail["traceId"] = operation.TraceID
+		}
+	}
 	if err := validateMetadataSize(detail); err != nil {
 		return pluginsdk.AuditReceipt{}, err
 	}

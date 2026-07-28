@@ -52,7 +52,7 @@ func TestJobStorePersistsLeaseRetryAndDeadLetterAcrossRestart(t *testing.T) {
 	service := jobsvc.NewService(NewJobStore(db), func() time.Time { return now })
 	created, err := service.Schedule(ctx, jobsvc.ScheduleInput{
 		ID: "job-restart", Namespace: "plugin.pharma_oa", Kind: "qualification-scan", IdempotencyKey: "daily-2026-07-22",
-		Payload: []byte(`{"days":30}`), MaxAttempts: 2,
+		CorrelationID: "operation-job-restart", Payload: []byte(`{"days":30}`), MaxAttempts: 2,
 	})
 	if err != nil {
 		t.Fatalf("Schedule error: %v", err)
@@ -80,7 +80,7 @@ func TestJobStorePersistsLeaseRetryAndDeadLetterAcrossRestart(t *testing.T) {
 	t.Cleanup(func() { closeJobTestDB(t, restartedDB) })
 	restarted := jobsvc.NewService(NewJobStore(restartedDB), func() time.Time { return now })
 	stored, err := restarted.Get(ctx, created.ID)
-	if err != nil || stored.Status != jobsvc.StatusRunning || stored.LeaseToken != firstToken {
+	if err != nil || stored.Status != jobsvc.StatusRunning || stored.LeaseToken != firstToken || stored.CorrelationID != "operation-job-restart" {
 		t.Fatalf("lease did not survive restart: item=%+v err=%v", stored, err)
 	}
 	if duplicate, err := restarted.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "plugin.pharma_oa", WorkerID: "worker-2", Limit: 1, LeaseDuration: time.Minute}); err != nil || len(duplicate) != 0 {
@@ -96,7 +96,7 @@ func TestJobStorePersistsLeaseRetryAndDeadLetterAcrossRestart(t *testing.T) {
 		t.Fatalf("stale lease completed recovered job: %v", err)
 	}
 	dead, err := restarted.Fail(ctx, jobsvc.FailInput{JobID: created.ID, LeaseToken: second[0].LeaseToken, Error: "qualification service unavailable", RetryAfter: time.Minute})
-	if err != nil || dead.Status != jobsvc.StatusDeadLetter || dead.DeadLetteredAt == nil {
+	if err != nil || dead.Status != jobsvc.StatusDeadLetter || dead.DeadLetteredAt == nil || dead.CorrelationID != "operation-job-restart" {
 		t.Fatalf("retry exhaustion did not dead-letter job: item=%+v err=%v", dead, err)
 	}
 	deadLetters, err := restarted.List(ctx, jobsvc.Filter{Namespace: "plugin.pharma_oa", Status: jobsvc.StatusDeadLetter})

@@ -36,6 +36,9 @@ func NewEventService(pluginID string, resolve EventPublicationResolver, store ev
 }
 
 func (s *eventService) Publish(ctx context.Context, publication pluginsdk.EventPublication) (pluginsdk.EventEnvelope, error) {
+	if operation, ok := pluginsdk.OperationContextFromContext(ctx); ok {
+		publication.CorrelationID = operation.CorrelationID
+	}
 	declaration, err := s.declaration(publication.Name, publication.SchemaVersion)
 	if err != nil {
 		return pluginsdk.EventEnvelope{}, err

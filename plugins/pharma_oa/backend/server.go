@@ -162,7 +162,7 @@ func (s *server) requestContext(r *http.Request) (context.Context, error) {
 	if token == "" {
 		return nil, newHTTPError(http.StatusUnauthorized, "unauthorized", "bearer token is required")
 	}
-	return pluginclient.WithUserToken(r.Context(), token), nil
+	return pluginclient.BindRequestContext(r.Context(), token, r.Header)
 }
 
 func (s *server) transaction(ctx context.Context, fn func(context.Context) error) error {

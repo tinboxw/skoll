@@ -20,6 +20,7 @@ type Job struct {
 	ID             string
 	Kind           string
 	IdempotencyKey string
+	CorrelationID  string
 	Payload        json.RawMessage
 	Status         JobStatus
 	RunAt          time.Time

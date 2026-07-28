@@ -157,9 +157,15 @@ func TestDataStoreClientRestoresStableErrorsAndRejectsInvalidResponses(t *testin
 
 func TestDataStoreClientPropagatesTransactionIdentity(t *testing.T) {
 	const transactionID = "transaction-7"
+	const correlationID = "request-transaction-7"
 	var mu sync.Mutex
 	dataCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get(CorrelationHeader) != correlationID ||
+			r.Header.Get(RequestIDHeader) != correlationID ||
+			r.Header.Get(TraceIDHeader) != "trace-transaction-7" {
+			t.Errorf("operation headers=%v", r.Header)
+		}
 		switch r.URL.Path {
 		case "/v1/transactions/start":
 			writeClientJSON(t, w, http.StatusCreated, TransactionStartResponse{ID: transactionID})
@@ -186,7 +192,15 @@ func TestDataStoreClientPropagatesTransactionIdentity(t *testing.T) {
 	}))
 	defer server.Close()
 	host := newClientHost(t, server)
-	err := host.Transactions.Within(context.Background(), func(tx pluginsdk.Transaction) error {
+	ctx, err := pluginsdk.WithOperationContext(context.Background(), pluginsdk.OperationContext{
+		CorrelationID: correlationID,
+		RequestID:     correlationID,
+		TraceID:       "trace-transaction-7",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
 		_, queryErr := host.DataStore.Query(tx.Context(), clientQuery())
 		return queryErr
 	})
@@ -197,6 +211,28 @@ func TestDataStoreClientPropagatesTransactionIdentity(t *testing.T) {
 	defer mu.Unlock()
 	if dataCalls != 1 {
 		t.Fatalf("datastore calls=%d", dataCalls)
+	}
+}
+
+func TestBindRequestContextBindsUserAndTrustedOperationHeaders(t *testing.T) {
+	headers := make(http.Header)
+	headers.Set(CorrelationHeader, "correlation-42")
+	headers.Set(RequestIDHeader, "request-42")
+	headers.Set(TraceIDHeader, "trace-42")
+	ctx, err := BindRequestContext(context.Background(), " user-token ", headers)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operation, ok := pluginsdk.OperationContextFromContext(ctx)
+	if !ok || operation != (pluginsdk.OperationContext{
+		CorrelationID: "correlation-42",
+		RequestID:     "request-42",
+		TraceID:       "trace-42",
+	}) {
+		t.Fatalf("operation context=%+v ok=%v", operation, ok)
+	}
+	if token, _ := ctx.Value(userTokenContextKey{}).(string); token != "user-token" {
+		t.Fatalf("user token=%q", token)
 	}
 }
 

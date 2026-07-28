@@ -102,6 +102,23 @@ func WithUserToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(contextOrBackground(ctx), userTokenContextKey{}, strings.TrimSpace(token))
 }
 
+func BindRequestContext(ctx context.Context, token string, header http.Header) (context.Context, error) {
+	ctx = WithUserToken(ctx, token)
+	operation := pluginsdk.OperationContext{
+		CorrelationID: strings.TrimSpace(header.Get(CorrelationHeader)),
+		RequestID:     strings.TrimSpace(header.Get(RequestIDHeader)),
+		TraceID:       strings.TrimSpace(header.Get(TraceIDHeader)),
+	}
+	if operation.CorrelationID == "" {
+		generated, err := pluginsdk.NewOperationContext(operation.RequestID, operation.TraceID)
+		if err != nil {
+			return nil, err
+		}
+		operation = generated
+	}
+	return pluginsdk.WithOperationContext(ctx, operation)
+}
+
 func (c *Client) call(ctx context.Context, capability, operation string, input any, output any) error {
 	if c == nil || c.http == nil {
 		return errors.New("plugin host client is not configured")
@@ -111,7 +128,11 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 		return fmt.Errorf("encode plugin host request: %w", err)
 	}
 	endpoint := c.baseURL + "/" + HostAPIVersion + "/" + capability + "/" + operation
-	request, err := http.NewRequestWithContext(contextOrBackground(ctx), http.MethodPost, endpoint, bytes.NewReader(body))
+	ctx, operationContext, err := pluginsdk.EnsureOperationContext(contextOrBackground(ctx))
+	if err != nil {
+		return err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -122,6 +143,13 @@ func (c *Client) call(ctx context.Context, capability, operation string, input a
 	}
 	if transactionID, _ := request.Context().Value(transactionContextKey{}).(string); transactionID != "" {
 		request.Header.Set(TransactionHeader, transactionID)
+	}
+	request.Header.Set(CorrelationHeader, operationContext.CorrelationID)
+	if operationContext.RequestID != "" {
+		request.Header.Set(RequestIDHeader, operationContext.RequestID)
+	}
+	if operationContext.TraceID != "" {
+		request.Header.Set(TraceIDHeader, operationContext.TraceID)
 	}
 	response, err := c.http.Do(request)
 	if err != nil {

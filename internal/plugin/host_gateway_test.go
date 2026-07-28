@@ -246,6 +246,21 @@ func (gatewayAudit) Record(context.Context, pluginsdk.AuditEntry) (pluginsdk.Aud
 	return pluginsdk.AuditReceipt{ID: "audit-1"}, nil
 }
 
+type gatewayAuditRecorder struct {
+	mu         sync.Mutex
+	operations []pluginsdk.OperationContext
+	entries    []pluginsdk.AuditEntry
+}
+
+func (a *gatewayAuditRecorder) Record(ctx context.Context, entry pluginsdk.AuditEntry) (pluginsdk.AuditReceipt, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	operation, _ := pluginsdk.OperationContextFromContext(ctx)
+	a.operations = append(a.operations, operation)
+	a.entries = append(a.entries, entry)
+	return pluginsdk.AuditReceipt{ID: "evidence-1"}, nil
+}
+
 type gatewayConfig struct{}
 
 func (gatewayConfig) Get(ctx context.Context) (map[string]any, error) {
@@ -731,6 +746,65 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	gateway.Revoke(credential.Token)
 	if _, err := services.Config.Get(ctx); err == nil {
 		t.Fatal("revoked plugin credential retained host access")
+	}
+}
+
+func TestHostGatewayRecordsCorrelatedPayloadFreeOperationEvidence(t *testing.T) {
+	audit := &gatewayAuditRecorder{}
+	host := gatewayHostWithCapabilities(pluginsdk.HostCapabilityConfigReplace)
+	host.Audit = audit
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = gateway.Close() })
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := pluginclient.New(pluginclient.Options{PluginID: "equipment", HostURL: credential.HostURL, HostToken: credential.Token})
+	if err != nil {
+		t.Fatal(err)
+	}
+	services, err := client.HostServices()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, err := pluginsdk.WithOperationContext(context.Background(), pluginsdk.OperationContext{
+		CorrelationID: "operation-evidence-42",
+		RequestID:     "request-evidence-42",
+		TraceID:       "trace-evidence-42",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = services.Config.Replace(ctx, map[string]any{"apiToken": "top-secret", "enabled": true}); err != nil {
+		t.Fatal(err)
+	}
+	audit.mu.Lock()
+	defer audit.mu.Unlock()
+	if len(audit.entries) != 1 || len(audit.operations) != 1 {
+		t.Fatalf("evidence entries=%d operations=%d", len(audit.entries), len(audit.operations))
+	}
+	if audit.operations[0].CorrelationID != "operation-evidence-42" ||
+		audit.operations[0].RequestID != "request-evidence-42" ||
+		audit.operations[0].TraceID != "trace-evidence-42" {
+		t.Fatalf("operation correlation=%+v", audit.operations[0])
+	}
+	entry := audit.entries[0]
+	if entry.Action != "host.call" ||
+		entry.ResourceID != string(pluginsdk.HostCapabilityConfigReplace) ||
+		entry.Detail["owner"] != "equipment" ||
+		entry.Detail["stage"] != string(pluginsdk.HostCapabilityConfigReplace) ||
+		entry.Detail["retryable"] != false {
+		t.Fatalf("operation evidence=%+v", entry)
+	}
+	raw, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "top-secret") || strings.Contains(string(raw), "apiToken") {
+		t.Fatalf("operation evidence leaked request payload: %s", raw)
 	}
 }
 

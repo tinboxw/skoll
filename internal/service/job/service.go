@@ -29,6 +29,7 @@ func (s *Service) Schedule(ctx context.Context, in ScheduleInput) (Job, error) {
 	in.Namespace = strings.TrimSpace(in.Namespace)
 	in.Kind = strings.TrimSpace(in.Kind)
 	in.IdempotencyKey = strings.TrimSpace(in.IdempotencyKey)
+	in.CorrelationID = strings.TrimSpace(in.CorrelationID)
 	if in.ID == "" || in.Namespace == "" || in.Kind == "" {
 		return Job{}, fmt.Errorf("job id, namespace, and kind are required")
 	}
@@ -49,7 +50,7 @@ func (s *Service) Schedule(ctx context.Context, in ScheduleInput) (Job, error) {
 	}
 	candidate := Job{
 		ID: in.ID, Namespace: in.Namespace, Kind: in.Kind, IdempotencyKey: in.IdempotencyKey,
-		Payload: payload, Status: StatusScheduled, RunAt: runAt, MaxAttempts: in.MaxAttempts,
+		CorrelationID: in.CorrelationID, Payload: payload, Status: StatusScheduled, RunAt: runAt, MaxAttempts: in.MaxAttempts,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	stored, created, err := s.repo.Schedule(ctx, candidate)

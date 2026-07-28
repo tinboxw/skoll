@@ -38,7 +38,10 @@ Install preflight and the plugin control center publish this exact operation lis
 The plugin credential identifies the plugin, not an end user. A business request must attach the forwarded Skoll access token:
 
 ```go
-ctx := pluginclient.WithUserToken(r.Context(), userAccessToken)
+ctx, err := pluginclient.BindRequestContext(r.Context(), userAccessToken, r.Header)
+if err != nil {
+    return err
+}
 scope, err := host.DataScopes.Resolve(ctx, pluginsdk.Permission{
     Resource: "equipment_maintenance.asset",
     Action:   "read",
@@ -46,6 +49,12 @@ scope, err := host.DataScopes.Resolve(ctx, pluginsdk.Permission{
 ```
 
 The host verifies signature, expiry, subject, role, and organization claims again. User, tenant, or organization fields in a plugin request body are never authorization evidence.
+
+## Operation Correlation
+
+The platform assigns one trusted correlation identity before dispatching every plugin route. `BindRequestContext` keeps that identity with the verified user token, and `pkg/pluginclient` sends it on every host call. Remote transaction callbacks and their detached finish request retain the same identity. Events override caller-supplied correlation with the trusted identity, jobs persist it through leases, retries, dead letters, and restart, and host audits store it with request and trace references.
+
+Operation evidence contains only the capability, plugin owner, stage, stable error code, and retryability. Request bodies, event payloads, configuration values, tokens, and secrets are never copied into generic host-call evidence. Plugin diagnostics expose the durable audit or job evidence reference so an operator can search one identity across request, transaction, event, job, workflow, and audit records.
 
 ## Capabilities
 

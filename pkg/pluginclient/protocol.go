@@ -9,6 +9,9 @@ const (
 	AuthorizationHeader = "Authorization"
 	UserTokenHeader     = "X-Skoll-User-Token"
 	TransactionHeader   = "X-Skoll-Transaction-ID"
+	CorrelationHeader   = "X-Skoll-Correlation-ID"
+	RequestIDHeader     = "X-Skoll-Request-ID"
+	TraceIDHeader       = "X-Skoll-Trace-ID"
 
 	HostAPIVersion = "v1"
 )

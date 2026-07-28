@@ -119,6 +119,10 @@ export type PluginDiagnosticJob = {
 	id: string;
 	kind: string;
 	status: PluginDiagnosticJobStatus;
+	correlationId?: string;
+	owner: string;
+	stage: string;
+	evidenceId: string;
 	runAt: string;
 	maxAttempts: number;
 	attemptCount: number;
@@ -142,6 +146,11 @@ export type PluginDiagnosticAudit = {
 	occurredAt: string;
 	traceId?: string;
 	requestId?: string;
+	correlationId?: string;
+	owner: string;
+	stage: string;
+	retryable: boolean;
+	evidenceId: string;
 	method?: string;
 	path?: string;
 	metadata?: Record<string, unknown>;
@@ -152,12 +161,18 @@ export type PluginDiagnosticError = {
 	category: "process" | "route" | "job" | "audit";
 	severity: "medium" | "high" | "critical";
 	summary: string;
+	owner: string;
+	stage: string;
+	retryable: boolean;
+	evidenceId: string;
 	occurredAt: string;
 	correlation: {
 		processId?: string;
 		routeId?: string;
 		jobId?: string;
+		workflowId?: string;
 		auditId?: string;
+		correlationId?: string;
 		requestId?: string;
 		traceId?: string;
 	};

@@ -68,10 +68,15 @@ onMounted(() => diagnostics.refresh(query.value));
 					<el-table-column :label="t('plugin.center.severity')" width="105"><template #default="scope"><el-tag :type="severityType(scope.row.severity)" effect="light">{{ t(`plugin.center.severity.${scope.row.severity}`) }}</el-tag></template></el-table-column>
 					<el-table-column :label="t('plugin.center.errorCategory')" width="115"><template #default="scope">{{ t(`plugin.center.errorCategory.${scope.row.category}`) }}</template></el-table-column>
 					<el-table-column prop="summary" :label="t('plugin.center.errorSummary')" min-width="230" show-overflow-tooltip />
+					<el-table-column prop="owner" :label="t('plugin.center.owner')" min-width="135" show-overflow-tooltip />
+					<el-table-column prop="stage" :label="t('plugin.center.stage')" min-width="170" show-overflow-tooltip />
+					<el-table-column :label="t('plugin.center.retryable')" width="105">
+						<template #default="scope"><el-tag :type="scope.row.retryable ? 'warning' : 'info'" effect="plain">{{ t(scope.row.retryable ? 'common.yes' : 'common.no') }}</el-tag></template>
+					</el-table-column>
 					<el-table-column :label="t('plugin.center.correlation')" min-width="260">
 						<template #default="scope"><div class="correlation-list"><el-tag v-for="value in correlationValues(scope.row)" :key="value" effect="plain" size="small">{{ value }}</el-tag></div></template>
 					</el-table-column>
-					<el-table-column prop="id" :label="t('plugin.center.errorId')" min-width="220" show-overflow-tooltip />
+					<el-table-column prop="evidenceId" :label="t('plugin.center.evidenceId')" min-width="220" show-overflow-tooltip />
 					<el-table-column :label="t('plugin.center.occurredAt')" min-width="170"><template #default="scope">{{ formatDateTime(scope.row.occurredAt) }}</template></el-table-column>
 				</el-table>
 			</div>
@@ -91,7 +96,7 @@ onMounted(() => diagnostics.refresh(query.value));
 .summary-item strong { font-size: 22px; line-height: 1.2; }
 .summary-item span { color: var(--color-text-muted); font-size: 13px; }
 .table-scroll { min-width: 0; overflow-x: auto; }
-.table-scroll :deep(.el-table) { min-width: 1100px; }
+.table-scroll :deep(.el-table) { min-width: 1520px; }
 .correlation-list { display: flex; flex-wrap: wrap; gap: 4px; }
 @media (max-width: 760px) { .surface-heading, .filters { display: grid; grid-template-columns: 1fr; } .summary-band { grid-template-columns: repeat(2, minmax(0, 1fr)); } .summary-item { border-bottom: 1px solid var(--color-border); } }
 </style>

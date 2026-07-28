@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS sk_jobs (
 	namespace VARCHAR(128) NOT NULL,
 	kind VARCHAR(128) NOT NULL,
 	idempotency_key VARCHAR(191) NULL,
+	correlation_id VARCHAR(128) NOT NULL,
 	payload_json TEXT NOT NULL,
 	status VARCHAR(32) NOT NULL,
 	run_at TIMESTAMPTZ NOT NULL,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sk_jobs (
 
 CREATE INDEX IF NOT EXISTS idx_job_namespace_status ON sk_jobs (namespace, status);
 CREATE INDEX IF NOT EXISTS idx_job_kind_status ON sk_jobs (kind, status);
+CREATE INDEX IF NOT EXISTS idx_job_correlation ON sk_jobs (correlation_id);
 CREATE INDEX IF NOT EXISTS idx_job_due ON sk_jobs (status, run_at);
 CREATE INDEX IF NOT EXISTS idx_job_lease_expiry ON sk_jobs (lease_expires_at);
 CREATE INDEX IF NOT EXISTS idx_job_dead_lettered ON sk_jobs (dead_lettered_at);

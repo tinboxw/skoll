@@ -230,8 +230,13 @@ func (g *HostGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer unlock()
 	}
 	result, err := dispatchHostCall(ctx, credential.host, parts[1], parts[2], json.NewDecoder(r.Body))
+	evidenceErr := recordHostOperation(ctx, credential, requestedCapability, err)
 	if err != nil {
 		writeHostCallError(w, err)
+		return
+	}
+	if evidenceErr != nil {
+		writeHostError(w, http.StatusServiceUnavailable, "host_evidence_unavailable")
 		return
 	}
 	writeHostJSON(w, http.StatusOK, result)
@@ -245,7 +250,10 @@ func hostCapabilityForCall(capability, operation string) pluginsdk.HostCapabilit
 }
 
 func (g *HostGateway) callContext(r *http.Request, key [32]byte, pluginID string) (context.Context, func(), error) {
-	ctx := r.Context()
+	ctx, err := hostOperationContext(r)
+	if err != nil {
+		return nil, nil, err
+	}
 	if txID := strings.TrimSpace(r.Header.Get(pluginclient.TransactionHeader)); txID != "" {
 		g.mu.RLock()
 		tx := g.transactions[txID]
@@ -263,8 +271,24 @@ func (g *HostGateway) callContext(r *http.Request, key [32]byte, pluginID string
 		}
 		return ctx, unlock, nil
 	}
-	ctx, err := g.withUserClaims(ctx, r.Header.Get(pluginclient.UserTokenHeader))
+	ctx, err = g.withUserClaims(ctx, r.Header.Get(pluginclient.UserTokenHeader))
 	return ctx, nil, err
+}
+
+func hostOperationContext(r *http.Request) (context.Context, error) {
+	operation := pluginsdk.OperationContext{
+		CorrelationID: strings.TrimSpace(r.Header.Get(pluginclient.CorrelationHeader)),
+		RequestID:     strings.TrimSpace(r.Header.Get(pluginclient.RequestIDHeader)),
+		TraceID:       strings.TrimSpace(r.Header.Get(pluginclient.TraceIDHeader)),
+	}
+	if operation.CorrelationID == "" {
+		generated, err := pluginsdk.NewOperationContext(operation.RequestID, operation.TraceID)
+		if err != nil {
+			return nil, err
+		}
+		operation = generated
+	}
+	return pluginsdk.WithOperationContext(r.Context(), operation)
 }
 
 func (g *HostGateway) withUserClaims(ctx context.Context, token string) (context.Context, error) {
@@ -302,8 +326,14 @@ func (g *HostGateway) serveTransaction(w http.ResponseWriter, r *http.Request, k
 			writeHostError(w, http.StatusBadRequest, "transaction_start_invalid")
 			return
 		}
-		id, err := g.startTransaction(key, credential)
+		ctx, _, err := g.callContext(r, key, credential.pluginID)
 		if err != nil {
+			writeHostError(w, http.StatusForbidden, "host_context_invalid")
+			return
+		}
+		id, err := g.startTransaction(ctx, key, credential)
+		if err != nil {
+			_ = recordHostOperation(ctx, credential, pluginsdk.HostCapabilityTransactionsWithin, err)
 			writeHostError(w, http.StatusConflict, "transaction_start_failed")
 			return
 		}
@@ -315,8 +345,14 @@ func (g *HostGateway) serveTransaction(w http.ResponseWriter, r *http.Request, k
 			writeHostError(w, http.StatusBadRequest, "transaction_finish_invalid")
 			return
 		}
+		txContext := g.detachedTransactionContext(key, id)
 		if err := g.finishTransaction(key, id, input.Commit); err != nil {
+			_ = recordHostOperation(txContext, credential, pluginsdk.HostCapabilityTransactionsWithin, err)
 			writeHostError(w, http.StatusConflict, "transaction_finish_failed")
+			return
+		}
+		if err := recordHostOperation(txContext, credential, pluginsdk.HostCapabilityTransactionsWithin, nil); err != nil {
+			writeHostError(w, http.StatusServiceUnavailable, "host_evidence_unavailable")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -325,15 +361,16 @@ func (g *HostGateway) serveTransaction(w http.ResponseWriter, r *http.Request, k
 	}
 }
 
-func (g *HostGateway) startTransaction(key [32]byte, credential hostCredential) (string, error) {
+func (g *HostGateway) startTransaction(ctx context.Context, key [32]byte, credential hostCredential) (string, error) {
 	id, err := randomHostSecret(24)
 	if err != nil {
 		return "", err
 	}
+	ctx = context.WithoutCancel(ctx)
 	ready := make(chan context.Context, 1)
 	tx := &hostTransaction{id: id, credentialKey: key, pluginID: credential.pluginID, decision: make(chan bool, 1), done: make(chan error, 1)}
 	go func() {
-		err := credential.host.Transactions.Within(context.Background(), func(active pluginsdk.Transaction) error {
+		err := credential.host.Transactions.Within(ctx, func(active pluginsdk.Transaction) error {
 			if active == nil || active.Context() == nil {
 				return errors.New("plugin transaction context is unavailable")
 			}
@@ -382,6 +419,79 @@ func (g *HostGateway) finishTransaction(key [32]byte, id string, commit bool) er
 	defer tx.callMu.Unlock()
 	tx.decision <- commit
 	return <-tx.done
+}
+
+func (g *HostGateway) detachedTransactionContext(key [32]byte, id string) context.Context {
+	ctx := g.transactionContext(key, id)
+	operation, ok := pluginsdk.OperationContextFromContext(ctx)
+	if !ok {
+		return context.Background()
+	}
+	detached, err := pluginsdk.WithOperationContext(context.Background(), operation)
+	if err != nil {
+		return context.Background()
+	}
+	return detached
+}
+
+func (g *HostGateway) transactionContext(key [32]byte, id string) context.Context {
+	g.mu.RLock()
+	tx := g.transactions[id]
+	g.mu.RUnlock()
+	if tx == nil || tx.credentialKey != key {
+		return context.Background()
+	}
+	return tx.ctx
+}
+
+func recordHostOperation(ctx context.Context, credential hostCredential, capability pluginsdk.HostCapability, callErr error) error {
+	if credential.host.Audit == nil {
+		return errors.New("plugin host audit service is unavailable")
+	}
+	result := pluginsdk.AuditResultSuccess
+	risk := pluginsdk.AuditRiskLow
+	code, retryable := hostOperationFailure(callErr)
+	if callErr != nil {
+		result = pluginsdk.AuditResultFailure
+		risk = pluginsdk.AuditRiskMedium
+	}
+	detail := map[string]any{
+		"operation": string(capability),
+		"owner":     credential.pluginID,
+		"stage":     string(capability),
+		"retryable": retryable,
+	}
+	if code != "" {
+		detail["errorCode"] = code
+	}
+	_, err := credential.host.Audit.Record(ctx, pluginsdk.AuditEntry{
+		Action: "host.call", Resource: "host_operation", ResourceID: string(capability),
+		Result: result, Risk: risk, Detail: detail,
+	})
+	return err
+}
+
+func hostOperationFailure(err error) (string, bool) {
+	if err == nil {
+		return "", false
+	}
+	var eventErr *pluginsdk.EventError
+	if errors.As(err, &eventErr) {
+		return string(eventErr.Code), eventErr.Retryable
+	}
+	var datastoreErr *pluginsdk.DataStoreError
+	if errors.As(err, &datastoreErr) {
+		return string(datastoreErr.Code), datastoreErr.Retryable
+	}
+	var numberErr *pluginsdk.DocumentNumberError
+	if errors.As(err, &numberErr) {
+		return string(numberErr.Code), numberErr.Retryable
+	}
+	var documentErr *pluginsdk.DocumentWorkflowError
+	if errors.As(err, &documentErr) {
+		return string(documentErr.Code), documentErr.Retryable
+	}
+	return "host_call_failed", false
 }
 
 func randomHostSecret(size int) (string, error) {

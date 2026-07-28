@@ -7,6 +7,7 @@ type JobModel struct {
 	Namespace      string     `gorm:"column:namespace;type:varchar(128);not null;uniqueIndex:idx_job_idempotency,priority:1;index:idx_job_namespace_status,priority:1"`
 	Kind           string     `gorm:"column:kind;type:varchar(128);not null;index:idx_job_kind_status,priority:1"`
 	IdempotencyKey *string    `gorm:"column:idempotency_key;type:varchar(191);uniqueIndex:idx_job_idempotency,priority:2"`
+	CorrelationID  string     `gorm:"column:correlation_id;type:varchar(128);not null;index:idx_job_correlation"`
 	PayloadJSON    string     `gorm:"column:payload_json;type:text;not null"`
 	Status         string     `gorm:"column:status;type:varchar(32);not null;index:idx_job_namespace_status,priority:2;index:idx_job_kind_status,priority:2;index:idx_job_due,priority:1"`
 	RunAt          time.Time  `gorm:"column:run_at;not null;index:idx_job_due,priority:2"`

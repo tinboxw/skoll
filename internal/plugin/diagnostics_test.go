@@ -63,7 +63,7 @@ func TestDiagnosticsServiceLinksJobsAuditRoutesAndErrors(t *testing.T) {
 	jobs := jobsvc.NewService(jobsvc.NewMemoryRepository(), func() time.Time { return now })
 	if _, err := jobs.Schedule(ctx, jobsvc.ScheduleInput{
 		ID: "plugin:pharma_oa:expiry-scan", Namespace: "plugin.pharma_oa", Kind: "expiry_scan",
-		Payload: json.RawMessage(`{"scope":"tenant-a"}`), MaxAttempts: 1,
+		CorrelationID: "operation-42", Payload: json.RawMessage(`{"scope":"tenant-a"}`), MaxAttempts: 1,
 	}); err != nil {
 		t.Fatalf("schedule job: %v", err)
 	}
@@ -84,6 +84,8 @@ func TestDiagnosticsServiceLinksJobsAuditRoutesAndErrors(t *testing.T) {
 	auditService := auditsvc.NewService(clickhouse.NewAuditStore())
 	if _, err := auditService.Append(ctx, "operator-1", "plugin.pharma_oa.job.fail", "plugin:pharma_oa:job", "expiry-scan", map[string]any{
 		"pluginId": "pharma_oa", "result": "failure", "risk": "high",
+		"correlationId": "operation-42", "requestId": "request-42", "traceId": "trace-42",
+		"owner": "pharma_oa", "stage": "jobs.schedule", "retryable": true,
 	}); err != nil {
 		t.Fatalf("append host audit: %v", err)
 	}
@@ -127,13 +129,22 @@ func TestDiagnosticsServiceLinksJobsAuditRoutesAndErrors(t *testing.T) {
 		t.Fatalf("expected process, job, host audit, and route errors, got %+v", snapshot.Errors)
 	}
 	var linkedRoute bool
+	var linkedJob bool
 	for _, item := range snapshot.Errors {
 		if item.Correlation.TraceID == "trace-1" && item.Correlation.RequestID == "request-1" && item.Correlation.AuditID == "audit-route-1" {
 			linkedRoute = true
 		}
+		if item.Category == "job" && item.Correlation.CorrelationID == "operation-42" &&
+			item.Owner == "pharma_oa" && item.Stage == "job.dead_letter" &&
+			item.Retryable && item.EvidenceID == "job:expiry-scan" {
+			linkedJob = true
+		}
 	}
 	if !linkedRoute {
 		t.Fatal("route error did not preserve trace, request, and audit correlation")
+	}
+	if !linkedJob {
+		t.Fatal("job error did not expose owner, stage, retryability, evidence, and correlation")
 	}
 }
 
@@ -141,7 +152,10 @@ func TestDiagnosticsServiceRetriesDeadLetterAsNewJob(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC)
 	jobs := jobsvc.NewService(jobsvc.NewMemoryRepository(), func() time.Time { return now })
-	_, _ = jobs.Schedule(ctx, jobsvc.ScheduleInput{ID: "plugin:pharma_oa:scan", Namespace: "plugin.pharma_oa", Kind: "scan", Payload: json.RawMessage(`{}`), MaxAttempts: 1})
+	_, _ = jobs.Schedule(ctx, jobsvc.ScheduleInput{
+		ID: "plugin:pharma_oa:scan", Namespace: "plugin.pharma_oa", Kind: "scan",
+		CorrelationID: "operation-retry-42", Payload: json.RawMessage(`{}`), MaxAttempts: 1,
+	})
 	leased, _ := jobs.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "plugin.pharma_oa", WorkerID: "worker-a", Limit: 1, LeaseDuration: time.Minute})
 	_, _ = jobs.Fail(ctx, jobsvc.FailInput{JobID: leased[0].ID, LeaseToken: leased[0].LeaseToken, Error: "failed"})
 
@@ -151,7 +165,9 @@ func TestDiagnosticsServiceRetriesDeadLetterAsNewJob(t *testing.T) {
 	if err != nil {
 		t.Fatalf("retry dead letter: %v", err)
 	}
-	if result.SourceJobID != "scan" || result.RetryJob.ID == "scan" || result.RetryJob.Status != string(jobsvc.StatusScheduled) {
+	if result.SourceJobID != "scan" || result.RetryJob.ID == "scan" ||
+		result.RetryJob.Status != string(jobsvc.StatusScheduled) ||
+		result.RetryJob.CorrelationID != "operation-retry-42" {
 		t.Fatalf("unexpected retry result: %+v", result)
 	}
 	original, err := jobs.Get(ctx, "plugin:pharma_oa:scan")

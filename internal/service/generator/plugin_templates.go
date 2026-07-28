@@ -211,7 +211,9 @@ func jsonValue(value pluginsdk.DataValue) any {
 
 func requestContext(r *http.Request) context.Context {
 	if r == nil { return context.Background() }
-	return pluginclient.WithUserToken(r.Context(), strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")))
+	ctx, err := pluginclient.BindRequestContext(r.Context(), strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")), r.Header)
+	if err != nil { panic(err) }
+	return ctx
 }
 
 func requestIdempotencySuffix(r *http.Request) string {

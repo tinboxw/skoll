@@ -22,6 +22,7 @@ import (
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/logging"
+	"github.com/tinboxw/skoll/pkg/pluginclient"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"gorm.io/gorm"
 )
@@ -623,6 +624,11 @@ func TestPluginManagerWithExtensionsProxiesDeclaredExternalRoute(t *testing.T) {
 		if r.Header.Get("X-Request-ID") != "request-42" {
 			t.Errorf("request header not forwarded")
 		}
+		if r.Header.Get(pluginclient.CorrelationHeader) != "request-42" ||
+			r.Header.Get(pluginclient.RequestIDHeader) != "request-42" ||
+			r.Header.Get(pluginclient.TraceIDHeader) != "trace-42" {
+			t.Errorf("trusted operation headers=%v", r.Header)
+		}
 		w.Header().Set("X-Plugin-Response", "reports")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"source":"plugin-backend"}`))
@@ -633,6 +639,7 @@ func TestPluginManagerWithExtensionsProxiesDeclaredExternalRoute(t *testing.T) {
 	router := httpHandler.NewRouter(httpHandler.Dependencies{PluginManager: manager})
 	req := httptest.NewRequest(http.MethodPost, "/skoll"+routePath+"?page=2", bytes.NewBufferString(`{"name":"monthly"}`))
 	req.Header.Set("X-Request-ID", "request-42")
+	req.Header.Set("X-Trace-ID", "trace-42")
 	resp := httptest.NewRecorder()
 
 	router.ServeHTTP(resp, req)
@@ -641,6 +648,9 @@ func TestPluginManagerWithExtensionsProxiesDeclaredExternalRoute(t *testing.T) {
 	}
 	if resp.Header().Get("X-Plugin-Response") != "reports" {
 		t.Fatalf("backend response header was not preserved")
+	}
+	if resp.Header().Get(pluginclient.CorrelationHeader) != "request-42" {
+		t.Fatalf("correlation response header=%q", resp.Header().Get(pluginclient.CorrelationHeader))
 	}
 	if resp.Body.String() != `{"source":"plugin-backend"}` {
 		t.Fatalf("body=%s", resp.Body.String())

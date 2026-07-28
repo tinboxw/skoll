@@ -28,7 +28,7 @@ func TestDocumentPluginTargetUsesOnlyPublicContracts(t *testing.T) {
 		`"github.com/tinboxw/skoll/pkg/pluginclient"`,
 		`"github.com/tinboxw/skoll/pkg/pluginsdk"`,
 		"host.Documents.Submit", "host.Documents.Act", "host.Documents.Export", "host.Events.Publish",
-		"publishDocumentEvent", "ensureWorkflowDefinition", "pluginclient.WithUserToken",
+		"publishDocumentEvent", "ensureWorkflowDefinition", "pluginclient.BindRequestContext",
 	} {
 		if !strings.Contains(backend, marker) {
 			t.Fatalf("generated backend missing %q", marker)

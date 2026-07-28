@@ -48,6 +48,10 @@ type DiagnosticJob struct {
 	ID             string     `json:"id"`
 	Kind           string     `json:"kind"`
 	Status         string     `json:"status"`
+	CorrelationID  string     `json:"correlationId,omitempty"`
+	Owner          string     `json:"owner"`
+	Stage          string     `json:"stage"`
+	EvidenceID     string     `json:"evidenceId"`
 	RunAt          time.Time  `json:"runAt"`
 	MaxAttempts    int        `json:"maxAttempts"`
 	AttemptCount   int        `json:"attemptCount"`
@@ -60,29 +64,36 @@ type DiagnosticJob struct {
 }
 
 type DiagnosticAuditRecord struct {
-	ID           string         `json:"id"`
-	Source       string         `json:"source"`
-	Action       string         `json:"action"`
-	Result       string         `json:"result"`
-	Risk         string         `json:"risk"`
-	ActorID      string         `json:"actorId"`
-	ResourceType string         `json:"resourceType"`
-	ResourceID   string         `json:"resourceId"`
-	OccurredAt   time.Time      `json:"occurredAt"`
-	TraceID      string         `json:"traceId,omitempty"`
-	RequestID    string         `json:"requestId,omitempty"`
-	Method       string         `json:"method,omitempty"`
-	Path         string         `json:"path,omitempty"`
-	Metadata     map[string]any `json:"metadata,omitempty"`
+	ID            string         `json:"id"`
+	Source        string         `json:"source"`
+	Action        string         `json:"action"`
+	Result        string         `json:"result"`
+	Risk          string         `json:"risk"`
+	ActorID       string         `json:"actorId"`
+	ResourceType  string         `json:"resourceType"`
+	ResourceID    string         `json:"resourceId"`
+	OccurredAt    time.Time      `json:"occurredAt"`
+	TraceID       string         `json:"traceId,omitempty"`
+	RequestID     string         `json:"requestId,omitempty"`
+	CorrelationID string         `json:"correlationId,omitempty"`
+	Owner         string         `json:"owner"`
+	Stage         string         `json:"stage"`
+	Retryable     bool           `json:"retryable"`
+	EvidenceID    string         `json:"evidenceId"`
+	Method        string         `json:"method,omitempty"`
+	Path          string         `json:"path,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
 }
 
 type DiagnosticCorrelation struct {
-	ProcessID string `json:"processId,omitempty"`
-	RouteID   string `json:"routeId,omitempty"`
-	JobID     string `json:"jobId,omitempty"`
-	AuditID   string `json:"auditId,omitempty"`
-	RequestID string `json:"requestId,omitempty"`
-	TraceID   string `json:"traceId,omitempty"`
+	ProcessID     string `json:"processId,omitempty"`
+	RouteID       string `json:"routeId,omitempty"`
+	JobID         string `json:"jobId,omitempty"`
+	WorkflowID    string `json:"workflowId,omitempty"`
+	AuditID       string `json:"auditId,omitempty"`
+	CorrelationID string `json:"correlationId,omitempty"`
+	RequestID     string `json:"requestId,omitempty"`
+	TraceID       string `json:"traceId,omitempty"`
 }
 
 type DiagnosticError struct {
@@ -90,6 +101,10 @@ type DiagnosticError struct {
 	Category    string                `json:"category"`
 	Severity    string                `json:"severity"`
 	Summary     string                `json:"summary"`
+	Owner       string                `json:"owner"`
+	Stage       string                `json:"stage"`
+	Retryable   bool                  `json:"retryable"`
+	EvidenceID  string                `json:"evidenceId"`
 	OccurredAt  time.Time             `json:"occurredAt"`
 	Correlation DiagnosticCorrelation `json:"correlation"`
 }
@@ -215,7 +230,7 @@ func (s *DiagnosticsService) RetryDeadLetter(ctx context.Context, pluginID, loca
 	retryLocalID := fmt.Sprintf("%s-retry-%d", localJobID, now.UnixMilli())
 	retried, err := s.jobs.Schedule(ctx, jobsvc.ScheduleInput{
 		ID: pluginJobID(pluginID, retryLocalID), Namespace: source.Namespace, Kind: source.Kind,
-		Payload: append(json.RawMessage(nil), source.Payload...), RunAt: now, MaxAttempts: source.MaxAttempts,
+		CorrelationID: source.CorrelationID, Payload: append(json.RawMessage(nil), source.Payload...), RunAt: now, MaxAttempts: source.MaxAttempts,
 	})
 	if err != nil {
 		return DiagnosticRetryResult{}, err
@@ -252,10 +267,25 @@ func (s *DiagnosticsService) auditRecords(ctx context.Context, pluginID string, 
 		}
 		result, _ := item.Detail["result"].(string)
 		risk, _ := item.Detail["risk"].(string)
+		correlationID, _ := item.Detail["correlationId"].(string)
+		requestID, _ := item.Detail["requestId"].(string)
+		traceID, _ := item.Detail["traceId"].(string)
+		owner, _ := item.Detail["owner"].(string)
+		stage, _ := item.Detail["stage"].(string)
+		retryable, _ := item.Detail["retryable"].(bool)
+		if strings.TrimSpace(owner) == "" {
+			owner = pluginID
+		}
+		if strings.TrimSpace(stage) == "" {
+			stage = item.Action
+		}
 		out = append(out, DiagnosticAuditRecord{
 			ID: item.ID.String(), Source: "host", Action: item.Action, Result: result, Risk: risk,
 			ActorID: item.ActorID.String(), ResourceType: item.Resource, ResourceID: item.ResourceID,
-			OccurredAt: item.OccurredAt, Metadata: cloneDiagnosticMap(item.Detail),
+			OccurredAt: item.OccurredAt, CorrelationID: strings.TrimSpace(correlationID),
+			RequestID: strings.TrimSpace(requestID), TraceID: strings.TrimSpace(traceID),
+			Owner: owner, Stage: stage, Retryable: retryable, EvidenceID: "audit:" + item.ID.String(),
+			Metadata: cloneDiagnosticMap(item.Detail),
 		})
 		if len(out) >= limit {
 			break
@@ -278,7 +308,9 @@ func (s *DiagnosticsService) eventRecords(ctx context.Context, pluginID string, 
 			ID: item.ID.String(), Source: "event", Action: item.Action.String(), Result: string(item.Result), Risk: string(item.Risk),
 			ActorID: item.Actor.ID.String(), ResourceType: item.Resource.Type, ResourceID: item.Resource.ID,
 			OccurredAt: item.OccurredAt, TraceID: item.Trace.TraceID, RequestID: item.Trace.RequestID,
-			Method: item.Trace.Method, Path: item.Trace.Path, Metadata: cloneDiagnosticMap(item.Metadata),
+			CorrelationID: item.Trace.RequestID, Owner: pluginID, Stage: item.Action.String(),
+			EvidenceID: "event:" + item.ID.String(), Method: item.Trace.Method, Path: item.Trace.Path,
+			Metadata: cloneDiagnosticMap(item.Metadata),
 		})
 		if len(out) >= limit {
 			break
@@ -314,8 +346,10 @@ func diagnosticEventBelongsToPlugin(item *domainaudit.Event, pluginID string) bo
 }
 
 func diagnosticJob(pluginID string, item jobsvc.Job) DiagnosticJob {
+	localID := strings.TrimPrefix(item.ID, pluginJobID(pluginID, ""))
 	return DiagnosticJob{
-		ID: strings.TrimPrefix(item.ID, pluginJobID(pluginID, "")), Kind: item.Kind, Status: string(item.Status), RunAt: item.RunAt,
+		ID: localID, Kind: item.Kind, Status: string(item.Status), CorrelationID: item.CorrelationID,
+		Owner: pluginID, Stage: "job." + string(item.Status), EvidenceID: "job:" + localID, RunAt: item.RunAt,
 		MaxAttempts: item.MaxAttempts, AttemptCount: item.AttemptCount, LastError: item.LastError,
 		CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt, CompletedAt: item.CompletedAt, DeadLetteredAt: item.DeadLetteredAt,
 		CanRetry: item.Status == jobsvc.StatusDeadLetter,
@@ -327,7 +361,8 @@ func diagnosticErrors(pluginID string, health HealthReport, jobs []DiagnosticJob
 	if !health.Ready() {
 		out = append(out, DiagnosticError{
 			ID: "process:" + pluginID + ":" + health.CheckedAt.UTC().Format(time.RFC3339Nano), Category: "process", Severity: "critical",
-			Summary: health.Code, OccurredAt: health.CheckedAt, Correlation: DiagnosticCorrelation{ProcessID: pluginID},
+			Summary: health.Code, Owner: pluginID, Stage: "process.health", Retryable: true, EvidenceID: "process:" + pluginID,
+			OccurredAt: health.CheckedAt, Correlation: DiagnosticCorrelation{ProcessID: pluginID},
 		})
 	}
 	for _, item := range jobs {
@@ -336,7 +371,8 @@ func diagnosticErrors(pluginID string, health HealthReport, jobs []DiagnosticJob
 		}
 		out = append(out, DiagnosticError{
 			ID: "job:" + item.ID + ":" + item.UpdatedAt.UTC().Format(time.RFC3339Nano), Category: "job", Severity: "high",
-			Summary: item.LastError, OccurredAt: item.UpdatedAt, Correlation: DiagnosticCorrelation{JobID: item.ID},
+			Summary: item.LastError, Owner: item.Owner, Stage: item.Stage, Retryable: item.CanRetry, EvidenceID: item.EvidenceID,
+			OccurredAt: item.UpdatedAt, Correlation: DiagnosticCorrelation{JobID: item.ID, CorrelationID: item.CorrelationID},
 		})
 	}
 	for _, item := range audit {
@@ -353,9 +389,17 @@ func diagnosticErrors(pluginID string, health HealthReport, jobs []DiagnosticJob
 		if value, _ := item.Metadata["error"].(string); strings.TrimSpace(value) != "" {
 			summary = strings.TrimSpace(value)
 		}
+		workflowID := ""
+		if strings.HasSuffix(strings.ToLower(item.ResourceType), ":workflow") {
+			workflowID = item.ResourceID
+		}
 		out = append(out, DiagnosticError{
 			ID: "audit:" + item.ID, Category: category, Severity: diagnosticAuditSeverity(item.Risk), Summary: summary,
-			OccurredAt: item.OccurredAt, Correlation: DiagnosticCorrelation{RouteID: routeID, AuditID: item.ID, RequestID: item.RequestID, TraceID: item.TraceID},
+			Owner: item.Owner, Stage: item.Stage, Retryable: item.Retryable, EvidenceID: item.EvidenceID,
+			OccurredAt: item.OccurredAt, Correlation: DiagnosticCorrelation{
+				RouteID: routeID, WorkflowID: workflowID, AuditID: item.ID, CorrelationID: item.CorrelationID,
+				RequestID: item.RequestID, TraceID: item.TraceID,
+			},
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].OccurredAt.After(out[j].OccurredAt) })
@@ -397,7 +441,7 @@ func filterAuditResult(items []DiagnosticAuditRecord, result string) []Diagnosti
 func filterDiagnosticJobs(items []DiagnosticJob, query string) []DiagnosticJob {
 	out := make([]DiagnosticJob, 0, len(items))
 	for _, item := range items {
-		if diagnosticContains(query, item.ID, item.Kind, item.Status, item.LastError) {
+		if diagnosticContains(query, item.ID, item.Kind, item.Status, item.LastError, item.CorrelationID, item.Owner, item.Stage, item.EvidenceID) {
 			out = append(out, item)
 		}
 	}
@@ -407,7 +451,7 @@ func filterDiagnosticJobs(items []DiagnosticJob, query string) []DiagnosticJob {
 func filterDiagnosticAudit(items []DiagnosticAuditRecord, query string) []DiagnosticAuditRecord {
 	out := make([]DiagnosticAuditRecord, 0, len(items))
 	for _, item := range items {
-		if diagnosticContains(query, item.ID, item.Action, item.ResourceID, item.TraceID, item.RequestID, item.Method, item.Path) {
+		if diagnosticContains(query, item.ID, item.Action, item.ResourceID, item.TraceID, item.RequestID, item.CorrelationID, item.Owner, item.Stage, item.EvidenceID, item.Method, item.Path) {
 			out = append(out, item)
 		}
 	}
@@ -418,7 +462,9 @@ func filterDiagnosticErrors(items []DiagnosticError, query string) []DiagnosticE
 	out := make([]DiagnosticError, 0, len(items))
 	for _, item := range items {
 		correlation := item.Correlation
-		if diagnosticContains(query, item.ID, item.Category, item.Summary, correlation.ProcessID, correlation.RouteID, correlation.JobID, correlation.AuditID, correlation.RequestID, correlation.TraceID) {
+		if diagnosticContains(query, item.ID, item.Category, item.Summary, item.Owner, item.Stage, item.EvidenceID,
+			correlation.ProcessID, correlation.RouteID, correlation.JobID, correlation.WorkflowID, correlation.AuditID,
+			correlation.CorrelationID, correlation.RequestID, correlation.TraceID) {
 			out = append(out, item)
 		}
 	}

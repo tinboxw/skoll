@@ -273,7 +273,9 @@ func (s *documentServer) export(w http.ResponseWriter, r *http.Request) {
 func requestContext(r *http.Request) context.Context {
 	if r == nil { return context.Background() }
 	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-	return pluginclient.WithUserToken(r.Context(), token)
+	ctx, err := pluginclient.BindRequestContext(r.Context(), token, r.Header)
+	if err != nil { panic(err) }
+	return ctx
 }
 func valueString(value any) string { if value == nil { return "" }; if raw, ok := value.(string); ok { return raw }; encoded, _ := json.Marshal(value); return string(encoded) }
 func envelope(data any) map[string]any { return map[string]any{"code": "ok", "message": "", "data": data} }

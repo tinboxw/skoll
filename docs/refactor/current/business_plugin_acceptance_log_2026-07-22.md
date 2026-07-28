@@ -3470,3 +3470,54 @@ Result: FF6-01 passed. Managed plugin processes now receive one immutable, persi
 ### Commit
 
 `FF6-01: enforce plugin least privilege`
+
+## FF6-02 Correlate Plugin Operations And Durable Evidence
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Carry one trusted operation identity across plugin routes, remote transactions, host services, events, jobs, workflows, audits, and diagnostics without copying business payloads or secrets into generic evidence.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Trusted request boundary | The platform creates or sanitizes request and trace identities before in-process or managed-plugin dispatch, overwrites internal correlation headers, and returns the correlation identity to the caller | Pass |
+| Public SDK propagation | `pluginsdk.OperationContext` validates bounded identities; `pluginclient` binds user and operation context and sends the same headers on every host call | Pass |
+| Remote transactions | Start, callback calls, detached finish, commit, and rollback preserve one identity; HTTP request cancellation no longer invalidates the active transaction, while transaction TTL still bounds its lifetime | Pass |
+| Events and workflows | Event publication uses the trusted operation identity; workflow host calls emit correlated capability evidence with owner, stage, stable failure code, and retryability | Pass |
+| Durable jobs | Correlation identity persists through SQL schedule, lease, retry wait, dead letter, restart, diagnostics, and explicit dead-letter retry | Pass |
+| Audit evidence | Host audit records include correlation, request, and trace references after redaction; generic host-call evidence contains capability metadata only and excludes request bodies, event payloads, configuration values, tokens, and secrets | Pass |
+| Diagnostics navigation | Jobs, audits, and failures expose owner, stage, retryability, durable evidence reference, and correlation; operators can navigate from job or audit identity into filtered diagnostics | Pass |
+| API and UI contract | Both OpenAPI files are byte-identical; Go, TypeScript, Element Plus views, bilingual labels, accessibility, theme, component, desktop, and mobile checks pass | Pass |
+| Generated plugins | Current datastore and document templates plus both packaged business plugins bind the operation context; the zero-edit generated-plugin quality gate passes | Pass |
+| Repository regression | Targeted tests, race tests, full `go test ./...`, frontend typecheck/build, component suites, and six Playwright control-center scenarios pass | Pass |
+| Current-only rule | No compatibility adapter, old diagnostic field fallback, alternate correlation path, or parallel transaction implementation was added | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first independent datastore-process E2E failed because a remote transaction inherited cancellation from the completed transaction-start HTTP request. The failed result was rejected; the transaction now detaches cancellation while retaining trusted values, and the focused E2E, race suite, and full repository suite passed.
+2. The first Playwright invocation had no server listening on `127.0.0.1:5174`, so all six navigation attempts were rejected before assertions. Isolated backend and frontend services were started explicitly for the rerun.
+3. The first server-backed Playwright rerun exposed an outdated diagnostic fixture that omitted required owner, stage, retryability, evidence, and correlation fields. The fixture was updated to the one current contract with no UI fallback, and all six desktop/mobile scenarios passed on the next run.
+
+### Verification Commands
+
+```powershell
+go test ./pkg/pluginsdk ./pkg/pluginclient ./internal/service/job ./internal/store/sql/gormrepo ./internal/plugin/hostservice ./internal/plugin ./internal/bootstrap ./internal/service/generator ./plugins/pharma_oa/backend ./plugins/equipment_maintenance/backend -count=1
+go test -race ./pkg/pluginsdk ./pkg/pluginclient ./internal/plugin ./internal/plugin/hostservice ./internal/bootstrap -run "OperationContext|BindRequestContext|HostGateway|Diagnostics|AuditService|EventService|JobService|IndependentPluginDataStoreProcessLifecycleE2E|ProxiesDeclaredExternalRoute" -count=1
+npm --prefix web run typecheck
+npm --prefix web run build
+npm --prefix web run test:components
+npm --prefix web run test:plugin-center
+go test -tags=pluginquality ./internal/service/generator -run '^TestGeneratedPluginZeroEditQualityGate$' -count=1 -v
+go test ./... -count=1
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF6-02 passed. One trusted identity now joins plugin requests, remote transactions, events, durable jobs, workflows, audits, and operator diagnostics, while generic evidence remains payload-free and failures expose actionable ownership and recovery metadata.
+
+### Commit
+
+`FF6-02: correlate plugin operations`

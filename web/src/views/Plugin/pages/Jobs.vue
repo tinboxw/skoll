@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { RefreshCw, RotateCcw } from "lucide-vue-next";
+import { useRouter } from "vue-router";
 
 import StateBlock from "../../../components/Common/StateBlock.vue";
 import { confirmAction } from "../../../composables/useConfirmAction";
@@ -14,6 +15,7 @@ import { usePluginWorkspace } from "../workspace";
 const workspace = usePluginWorkspace();
 const diagnostics = usePluginDiagnostics(workspace.pluginId);
 const access = useButtonAccess();
+const router = useRouter();
 const { t } = useI18n();
 const status = ref<PluginDiagnosticJobStatus | "">("");
 const statusOptions = computed(() => ["", "scheduled", "running", "retry_wait", "succeeded", "dead_letter"].map((value) => ({
@@ -45,6 +47,11 @@ async function retry(item: PluginDiagnosticJob): Promise<void> {
 		danger: true
 	});
 	if (accepted) await diagnostics.retry(item.id, query.value);
+}
+
+function inspectCorrelation(value: string | undefined): void {
+	if (!value) return;
+	void router.push({ name: "plugin-center-diagnostics", params: { pluginId: workspace.pluginId.value }, query: { correlation: value } });
 }
 
 onMounted(() => diagnostics.refresh(query.value));
@@ -83,6 +90,9 @@ onMounted(() => diagnostics.refresh(query.value));
 				</el-table-column>
 				<el-table-column :label="t('plugin.center.attempts')" width="105"><template #default="scope">{{ scope.row.attemptCount }} / {{ scope.row.maxAttempts }}</template></el-table-column>
 				<el-table-column prop="lastError" :label="t('plugin.center.lastError')" min-width="210" show-overflow-tooltip />
+				<el-table-column :label="t('plugin.center.correlation')" min-width="190">
+					<template #default="scope"><el-button v-if="scope.row.correlationId" link type="primary" @click="inspectCorrelation(scope.row.correlationId)">{{ scope.row.correlationId }}</el-button><span v-else>-</span></template>
+				</el-table-column>
 				<el-table-column :label="t('plugin.center.updatedAt')" min-width="170"><template #default="scope">{{ formatDateTime(scope.row.updatedAt) }}</template></el-table-column>
 				<el-table-column :label="t('common.actions')" width="82" fixed="right">
 					<template #default="scope">
@@ -104,6 +114,6 @@ onMounted(() => diagnostics.refresh(query.value));
 .filters { display: flex; align-items: center; gap: 8px; }
 .filters .el-select { width: 180px; }
 .table-scroll { min-width: 0; overflow-x: auto; }
-.table-scroll :deep(.el-table) { min-width: 980px; }
+.table-scroll :deep(.el-table) { min-width: 1170px; }
 @media (max-width: 620px) { .surface-heading { display: grid; } .filters { width: 100%; } .filters .el-select { flex: 1; } }
 </style>

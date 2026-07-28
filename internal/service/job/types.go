@@ -27,6 +27,7 @@ type Job struct {
 	Namespace      string          `json:"namespace"`
 	Kind           string          `json:"kind"`
 	IdempotencyKey string          `json:"idempotencyKey,omitempty"`
+	CorrelationID  string          `json:"correlationId,omitempty"`
 	Payload        json.RawMessage `json:"payload"`
 	Status         Status          `json:"status"`
 	RunAt          time.Time       `json:"runAt"`
@@ -48,6 +49,7 @@ type ScheduleInput struct {
 	Namespace      string
 	Kind           string
 	IdempotencyKey string
+	CorrelationID  string
 	Payload        json.RawMessage
 	RunAt          time.Time
 	MaxAttempts    int

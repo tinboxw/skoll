@@ -34,7 +34,6 @@ type Server struct {
 	store *Store
 	host  Host
 	nowFn func() time.Time
-	bind  func(context.Context, string) context.Context
 }
 
 func NewServer(store *Store, host Host) (*Server, error) {
@@ -44,7 +43,7 @@ func NewServer(store *Store, host Host) (*Server, error) {
 	if host.Transactions == nil || host.DataScopes == nil || host.Files == nil || host.Audit == nil || host.Config == nil || host.Workflows == nil || host.Jobs == nil {
 		return nil, errors.New("complete equipment maintenance host services are required")
 	}
-	return &Server{store: store, host: host, nowFn: time.Now, bind: pluginclient.WithUserToken}, nil
+	return &Server{store: store, host: host, nowFn: time.Now}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -98,7 +97,7 @@ func (s *Server) requestContext(r *http.Request) (context.Context, error) {
 	if token == "" {
 		return nil, errors.New("bearer token is required")
 	}
-	return s.bind(r.Context(), token), nil
+	return pluginclient.BindRequestContext(r.Context(), token, r.Header)
 }
 
 func (s *Server) scope(r *http.Request, permission string) (context.Context, pluginsdk.ScopePredicate, error) {

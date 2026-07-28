@@ -47,6 +47,7 @@ import (
 	"github.com/tinboxw/skoll/internal/store/sql/gormrepo"
 	"github.com/tinboxw/skoll/pkg/config"
 	"github.com/tinboxw/skoll/pkg/logging"
+	"github.com/tinboxw/skoll/pkg/pluginclient"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"github.com/tinboxw/skoll/pkg/security"
 )
@@ -509,6 +510,23 @@ func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path s
 	if m == nil || w == nil || r == nil {
 		return false
 	}
+	operation, err := pluginsdk.NewOperationContext(
+		strings.TrimSpace(r.Header.Get("X-Request-ID")),
+		strings.TrimSpace(r.Header.Get("X-Trace-ID")),
+	)
+	if err != nil {
+		httpHandler.WriteMessage(w, http.StatusInternalServerError, "plugin_correlation_unavailable", "插件关联标识生成失败")
+		return true
+	}
+	r.Header.Set("X-Request-ID", operation.RequestID)
+	r.Header.Set(pluginclient.CorrelationHeader, operation.CorrelationID)
+	r.Header.Set(pluginclient.RequestIDHeader, operation.RequestID)
+	if operation.TraceID != "" {
+		r.Header.Set(pluginclient.TraceIDHeader, operation.TraceID)
+	} else {
+		r.Header.Del(pluginclient.TraceIDHeader)
+	}
+	w.Header().Set(pluginclient.CorrelationHeader, operation.CorrelationID)
 	m.lifecycleMu.RLock()
 	defer m.lifecycleMu.RUnlock()
 	key := pluginRouteKey(pluginID, method, path)

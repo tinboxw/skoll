@@ -18,6 +18,14 @@ func TestAuditServiceBindsNamespaceAndRedactsSensitiveDetail(t *testing.T) {
 		t.Fatalf("NewAuditService error: %v", err)
 	}
 	ctx := security.WithJWTClaimsContext(context.Background(), &security.JWTClaims{Subject: "auditor-1"})
+	ctx, err = pluginsdk.WithOperationContext(ctx, pluginsdk.OperationContext{
+		CorrelationID: "request-42",
+		RequestID:     "request-42",
+		TraceID:       "trace-42",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	receipt, err := service.Record(ctx, pluginsdk.AuditEntry{
 		Action: "customer.update", Resource: "customer", ResourceID: "customer-1", Risk: pluginsdk.AuditRiskHigh,
 		Detail: map[string]any{
@@ -35,6 +43,11 @@ func TestAuditServiceBindsNamespaceAndRedactsSensitiveDetail(t *testing.T) {
 	record := records[0]
 	if record.Action != "plugin.pharma_oa.customer.update" || record.Resource != "plugin:pharma_oa:customer" {
 		t.Fatalf("audit namespace escaped: %+v", record)
+	}
+	if record.Detail["correlationId"] != "request-42" ||
+		record.Detail["requestId"] != "request-42" ||
+		record.Detail["traceId"] != "trace-42" {
+		t.Fatalf("operation correlation missing from audit detail: %+v", record.Detail)
 	}
 	raw := strings.ToLower(string(mustJSON(t, record.Detail)))
 	if strings.Contains(raw, "top-secret") || strings.Contains(raw, "hidden-token") || !strings.Contains(raw, "[redacted]") {

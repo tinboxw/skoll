@@ -2683,11 +2683,15 @@ components:
         failureCount: {type: integer, minimum: 0}
     PluginDiagnosticJob:
       type: object
-      required: [id, kind, status, runAt, maxAttempts, attemptCount, createdAt, updatedAt, canRetry]
+      required: [id, kind, status, owner, stage, evidenceId, runAt, maxAttempts, attemptCount, createdAt, updatedAt, canRetry]
       properties:
         id: {type: string}
         kind: {type: string}
         status: {type: string, enum: [scheduled, running, retry_wait, succeeded, dead_letter]}
+        correlationId: {type: string}
+        owner: {type: string}
+        stage: {type: string}
+        evidenceId: {type: string}
         runAt: {type: string, format: date-time}
         maxAttempts: {type: integer, minimum: 1}
         attemptCount: {type: integer, minimum: 0}
@@ -2699,7 +2703,7 @@ components:
         canRetry: {type: boolean}
     PluginDiagnosticAudit:
       type: object
-      required: [id, source, action, result, risk, actorId, resourceType, resourceId, occurredAt]
+      required: [id, source, action, result, risk, actorId, resourceType, resourceId, owner, stage, retryable, evidenceId, occurredAt]
       properties:
         id: {type: string}
         source: {type: string, enum: [host, event]}
@@ -2712,6 +2716,11 @@ components:
         occurredAt: {type: string, format: date-time}
         traceId: {type: string}
         requestId: {type: string}
+        correlationId: {type: string}
+        owner: {type: string}
+        stage: {type: string}
+        retryable: {type: boolean}
+        evidenceId: {type: string}
         method: {type: string}
         path: {type: string}
         metadata: {type: object, additionalProperties: true}
@@ -2721,17 +2730,23 @@ components:
         processId: {type: string}
         routeId: {type: string}
         jobId: {type: string}
+        workflowId: {type: string}
         auditId: {type: string}
+        correlationId: {type: string}
         requestId: {type: string}
         traceId: {type: string}
     PluginDiagnosticError:
       type: object
-      required: [id, category, severity, summary, occurredAt, correlation]
+      required: [id, category, severity, summary, owner, stage, retryable, evidenceId, occurredAt, correlation]
       properties:
         id: {type: string}
         category: {type: string, enum: [process, route, job, audit]}
         severity: {type: string, enum: [medium, high, critical]}
         summary: {type: string}
+        owner: {type: string}
+        stage: {type: string}
+        retryable: {type: boolean}
+        evidenceId: {type: string}
         occurredAt: {type: string, format: date-time}
         correlation: {$ref: '#/components/schemas/PluginDiagnosticCorrelation'}
     PluginDiagnosticsSnapshot:

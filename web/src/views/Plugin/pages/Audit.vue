@@ -62,7 +62,8 @@ onMounted(() => diagnostics.refresh(query.value));
 				<el-table-column prop="actorId" :label="t('plugin.center.actor')" min-width="120" show-overflow-tooltip />
 				<el-table-column :label="t('plugin.center.correlation')" min-width="190">
 					<template #default="scope">
-						<el-button v-if="scope.row.traceId" link type="primary" @click="inspectCorrelation(scope.row.traceId)">{{ scope.row.traceId }}</el-button>
+						<el-button v-if="scope.row.correlationId" link type="primary" @click="inspectCorrelation(scope.row.correlationId)">{{ scope.row.correlationId }}</el-button>
+						<el-button v-else-if="scope.row.traceId" link type="primary" @click="inspectCorrelation(scope.row.traceId)">{{ scope.row.traceId }}</el-button>
 						<el-button v-else-if="scope.row.requestId" link type="primary" @click="inspectCorrelation(scope.row.requestId)">{{ scope.row.requestId }}</el-button>
 						<span v-else>{{ scope.row.id }}</span>
 					</template>

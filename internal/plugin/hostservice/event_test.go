@@ -81,7 +81,15 @@ func TestEventServicePersistsTransactionBoundIdempotentOutbox(t *testing.T) {
 	assertEventOutboxCounts(t, db, 0, 0)
 
 	var first pluginsdk.EventEnvelope
-	err = transactions.Within(context.Background(), func(tx pluginsdk.Transaction) error {
+	operationCtx, err := pluginsdk.WithOperationContext(context.Background(), pluginsdk.OperationContext{
+		CorrelationID: "operation-42",
+		RequestID:     "request-42",
+		TraceID:       "trace-42",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = transactions.Within(operationCtx, func(tx pluginsdk.Transaction) error {
 		if err := storesql.ResolveDB(tx.Context(), db).Create(&eventBusinessProbe{ID: "probe-commit", Name: "committed"}).Error; err != nil {
 			return err
 		}
@@ -92,6 +100,9 @@ func TestEventServicePersistsTransactionBoundIdempotentOutbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("commit business mutation and event: %v", err)
 	}
+	if first.CorrelationID != "operation-42" {
+		t.Fatalf("event correlation=%q", first.CorrelationID)
+	}
 	assertEventOutboxCounts(t, db, 1, 1)
 
 	var eventErr *pluginsdk.EventError
@@ -99,7 +110,7 @@ func TestEventServicePersistsTransactionBoundIdempotentOutbox(t *testing.T) {
 		t.Fatalf("expected transaction requirement, got %v", err)
 	}
 	var duplicate pluginsdk.EventEnvelope
-	err = transactions.Within(context.Background(), func(tx pluginsdk.Transaction) error {
+	err = transactions.Within(operationCtx, func(tx pluginsdk.Transaction) error {
 		var publishErr error
 		duplicate, publishErr = events.Publish(tx.Context(), publication)
 		return publishErr
@@ -114,7 +125,7 @@ func TestEventServicePersistsTransactionBoundIdempotentOutbox(t *testing.T) {
 
 	conflict := publication
 	conflict.Payload = pluginsdk.EventPayload{"quantity": {Type: pluginsdk.DataValueInteger, Value: "4"}}
-	err = transactions.Within(context.Background(), func(tx pluginsdk.Transaction) error {
+	err = transactions.Within(operationCtx, func(tx pluginsdk.Transaction) error {
 		_, publishErr := events.Publish(tx.Context(), conflict)
 		return publishErr
 	})
@@ -130,7 +141,7 @@ func TestEventServicePersistsTransactionBoundIdempotentOutbox(t *testing.T) {
 		t.Fatalf("restart event service: %v", err)
 	}
 	var afterRestart pluginsdk.EventEnvelope
-	err = transactions.Within(context.Background(), func(tx pluginsdk.Transaction) error {
+	err = transactions.Within(operationCtx, func(tx pluginsdk.Transaction) error {
 		var publishErr error
 		afterRestart, publishErr = restarted.Publish(tx.Context(), publication)
 		return publishErr

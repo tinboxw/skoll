@@ -25,8 +25,19 @@ func TestJobServiceLeasesOnlyBoundPluginNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewJobService B error: %v", err)
 	}
-	if _, err := serviceA.Schedule(context.Background(), pluginsdk.JobScheduleInput{ID: "sync", Kind: "sync", MaxAttempts: 1}); err != nil {
+	operationCtx, err := pluginsdk.WithOperationContext(context.Background(), pluginsdk.OperationContext{
+		CorrelationID: "operation-job-42",
+		RequestID:     "request-job-42",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduled, err := serviceA.Schedule(operationCtx, pluginsdk.JobScheduleInput{ID: "sync", Kind: "sync", MaxAttempts: 1})
+	if err != nil {
 		t.Fatalf("Schedule A error: %v", err)
+	}
+	if scheduled.CorrelationID != "operation-job-42" {
+		t.Fatalf("scheduled correlation=%q", scheduled.CorrelationID)
 	}
 	if _, err := serviceB.Schedule(context.Background(), pluginsdk.JobScheduleInput{ID: "sync", Kind: "sync", MaxAttempts: 1}); err != nil {
 		t.Fatalf("Schedule B error: %v", err)
@@ -34,6 +45,9 @@ func TestJobServiceLeasesOnlyBoundPluginNamespace(t *testing.T) {
 	leased, err := serviceA.LeaseDue(context.Background(), pluginsdk.JobLeaseInput{WorkerID: "worker", Limit: 10, LeaseDuration: time.Minute})
 	if err != nil || len(leased) != 1 || leased[0].ID != "sync" || leased[0].LeaseOwner != "worker" {
 		t.Fatalf("LeaseDue A items=%+v err=%v", leased, err)
+	}
+	if leased[0].CorrelationID != "operation-job-42" {
+		t.Fatalf("leased correlation=%q", leased[0].CorrelationID)
 	}
 	remaining, err := serviceB.List(context.Background(), pluginsdk.JobQuery{Status: pluginsdk.JobStatusScheduled})
 	if err != nil || len(remaining) != 1 {

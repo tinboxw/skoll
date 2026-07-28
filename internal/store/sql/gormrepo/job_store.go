@@ -248,7 +248,7 @@ func jobRow(item jobsvc.Job) JobModel {
 		key = &value
 	}
 	return JobModel{
-		ID: item.ID, Namespace: item.Namespace, Kind: item.Kind, IdempotencyKey: key, PayloadJSON: string(item.Payload),
+		ID: item.ID, Namespace: item.Namespace, Kind: item.Kind, IdempotencyKey: key, CorrelationID: item.CorrelationID, PayloadJSON: string(item.Payload),
 		Status: string(item.Status), RunAt: item.RunAt, MaxAttempts: item.MaxAttempts, AttemptCount: item.AttemptCount,
 		LeaseOwner: item.LeaseOwner, LeaseToken: item.LeaseToken, LeaseExpiresAt: item.LeaseExpiresAt, LastError: item.LastError,
 		ResultJSON: string(item.Result), CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt, CompletedAt: item.CompletedAt, DeadLetteredAt: item.DeadLetteredAt,
@@ -261,7 +261,7 @@ func jobFromRow(row JobModel) jobsvc.Job {
 		key = *row.IdempotencyKey
 	}
 	return jobsvc.Job{
-		ID: row.ID, Namespace: row.Namespace, Kind: row.Kind, IdempotencyKey: key, Payload: []byte(row.PayloadJSON),
+		ID: row.ID, Namespace: row.Namespace, Kind: row.Kind, IdempotencyKey: key, CorrelationID: row.CorrelationID, Payload: []byte(row.PayloadJSON),
 		Status: jobsvc.Status(row.Status), RunAt: row.RunAt, MaxAttempts: row.MaxAttempts, AttemptCount: row.AttemptCount,
 		LeaseOwner: row.LeaseOwner, LeaseToken: row.LeaseToken, LeaseExpiresAt: row.LeaseExpiresAt, LastError: row.LastError,
 		Result: []byte(row.ResultJSON), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, CompletedAt: row.CompletedAt, DeadLetteredAt: row.DeadLetteredAt,

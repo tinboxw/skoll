@@ -54,9 +54,13 @@ func (s *jobService) Schedule(ctx context.Context, input pluginsdk.JobScheduleIn
 	if key := strings.TrimSpace(input.IdempotencyKey); len(key) > 256 {
 		return pluginsdk.Job{}, fmt.Errorf("plugin job idempotency key is too long")
 	}
+	correlationID := ""
+	if operation, ok := pluginsdk.OperationContextFromContext(ctx); ok {
+		correlationID = operation.CorrelationID
+	}
 	item, err := s.jobs.Schedule(ctx, jobsvc.ScheduleInput{
 		ID: id, Namespace: s.namespace, Kind: kind, IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
-		Payload: append(json.RawMessage(nil), input.Payload...), RunAt: input.RunAt, MaxAttempts: input.MaxAttempts,
+		CorrelationID: correlationID, Payload: append(json.RawMessage(nil), input.Payload...), RunAt: input.RunAt, MaxAttempts: input.MaxAttempts,
 	})
 	if err != nil {
 		return pluginsdk.Job{}, err
@@ -201,7 +205,7 @@ func (s *jobService) job(item jobsvc.Job) (pluginsdk.Job, error) {
 		leaseOwner = strings.TrimPrefix(item.LeaseOwner, s.workerPrefix())
 	}
 	return pluginsdk.Job{
-		ID: id, Kind: item.Kind, IdempotencyKey: item.IdempotencyKey,
+		ID: id, Kind: item.Kind, IdempotencyKey: item.IdempotencyKey, CorrelationID: item.CorrelationID,
 		Payload: append(json.RawMessage(nil), item.Payload...), Status: pluginsdk.JobStatus(item.Status),
 		RunAt: item.RunAt, MaxAttempts: item.MaxAttempts, AttemptCount: item.AttemptCount,
 		LeaseOwner: leaseOwner, LeaseToken: item.LeaseToken, LeaseExpiresAt: cloneTime(item.LeaseExpiresAt),

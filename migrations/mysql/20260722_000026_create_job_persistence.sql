@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS sk_jobs (
 	namespace VARCHAR(128) NOT NULL,
 	kind VARCHAR(128) NOT NULL,
 	idempotency_key VARCHAR(191) NULL,
+	correlation_id VARCHAR(128) NOT NULL,
 	payload_json LONGTEXT NOT NULL,
 	status VARCHAR(32) NOT NULL,
 	run_at DATETIME(3) NOT NULL,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS sk_jobs (
 	UNIQUE KEY idx_job_idempotency (namespace, idempotency_key),
 	KEY idx_job_namespace_status (namespace, status),
 	KEY idx_job_kind_status (kind, status),
+	KEY idx_job_correlation (correlation_id),
 	KEY idx_job_due (status, run_at),
 	KEY idx_job_lease_expiry (lease_expires_at),
 	KEY idx_job_dead_lettered (dead_lettered_at)

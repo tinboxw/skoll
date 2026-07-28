@@ -20,6 +20,10 @@ func (s transactionService) Within(ctx context.Context, fn func(pluginsdk.Transa
 	if fn == nil {
 		return errors.New("plugin transaction callback is required")
 	}
+	ctx, operation, err := pluginsdk.EnsureOperationContext(contextOrBackground(ctx))
+	if err != nil {
+		return err
+	}
 	var started TransactionStartResponse
 	if err := s.client.call(ctx, "transactions", "start", struct{}{}, &started); err != nil {
 		return err
@@ -31,6 +35,10 @@ func (s transactionService) Within(ctx context.Context, fn func(pluginsdk.Transa
 	callbackErr := fn(transaction{ctx: txCtx})
 	finishBase, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	finishBase, err = pluginsdk.WithOperationContext(finishBase, operation)
+	if err != nil {
+		return errors.Join(callbackErr, err)
+	}
 	finishCtx := context.WithValue(finishBase, transactionContextKey{}, started.ID)
 	finishErr := s.client.call(finishCtx, "transactions", "finish", TransactionFinishRequest{Commit: callbackErr == nil}, nil)
 	return errors.Join(callbackErr, finishErr)
