@@ -3631,3 +3631,52 @@ Result: FF6-04 and milestone FF6 passed. The framework now has executable busine
 ### Commit
 
 `FF6-04: close business-scale acceptance`
+
+## BF5-05A2 Implement Scoped Warehouse CRUD And Status Transitions
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Add the current Pharma OA warehouse API with exact data scopes, deterministic mutation identity, optimistic concurrency, lifecycle controls, manifest permissions, and auditable business mutations.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| API surface | `GET /warehouses`, `POST /warehouses`, `PUT /warehouses/{id}`, `POST /warehouses/{id}/disable`, and `POST /warehouses/{id}/enable` are registered and declared in the plugin manifest | Pass |
+| Scope enforcement | Every write requires explicit tenant and organization scope plus one exact owner predicate; missing, broader, denied, or cross-scope requests fail without mutation | Pass |
+| Validation | Warehouse codes are normalized to uppercase and restricted to the current code grammar; names, addresses, contacts, status operations, and disable reasons use bounded validation | Pass |
+| Scoped uniqueness | Warehouse codes are unique inside tenant and organization scope, reusable in another organization, and permit exactly one winner under concurrent duplicate creation | Pass |
+| Idempotency | Stable warehouse IDs are derived from the mutation request identity; create, update, disable, and enable return the same current result on same-key replay while the host mutation hash rejects changed payloads | Pass |
+| Optimistic concurrency | Updates and status transitions require `ExpectedVersion`; stale versions and repeated state transitions fail deterministically without partial writes | Pass |
+| Permission contract | List, create, update, disable, and enable use exact manifest permissions; enable is explicitly classified as a high-risk button permission | Pass |
+| Audit | Successful business mutations emit warehouse action, code, organization, and status evidence without storing contact or address payloads | Pass |
+| Isolation | Cross-scope list and direct lookup do not expose warehouse data, and denied predicates cannot mutate records | Pass |
+| Packaged lifecycle | The real Pharma OA plugin package compiled the new warehouse backend and passed install, migration, start, business lifecycle, restart, disable, and uninstall validation | Pass |
+| Repository regression | Focused, race, full Pharma OA, packaged process, and complete repository suites pass | Pass |
+| Current-only rule | No legacy endpoint, compatibility adapter, fallback data path, optional scope bypass, or parallel warehouse implementation was added | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first focused warehouse run expected enabled responses to contain an empty `disableReason`. The current JSON contract correctly omits the field through `omitempty`; the stale assertion was replaced with an absence check, and the full focused suite passed.
+2. Two command invocations used a one-second outer execution window and were terminated before Go produced a test result. They were not counted as gate failures; both commands were re-executed with bounded test timeouts and completed successfully.
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa/backend ./plugins/pharma_oa -run "Warehouse|MedicalOAWarehouse" -count=1 -v
+go test ./plugins/pharma_oa/backend ./plugins/pharma_oa -count=1 -v
+go test -race ./plugins/pharma_oa/backend -run "^TestWarehouse" -count=10 -timeout=10m
+$env:SKOLL_PHARMA_OA_E2E = "1"
+go test ./internal/plugin -run "^TestPharmaOAPackagedBusinessLifecycleE2E$" -count=1 -v -timeout=15m
+go test ./plugins/pharma_oa/... -count=1 -timeout=15m
+go test ./... -count=1 -timeout=30m
+git diff --check
+codegraph status .
+```
+
+Result: BF5-05A2 passed. Pharma OA now exposes one scoped, idempotent, optimistic-lock-protected warehouse lifecycle that is consumable through the packaged plugin runtime and ready for area/location parent constraints.
+
+### Commit
+
+`BF5-05A2: implement scoped warehouse lifecycle`

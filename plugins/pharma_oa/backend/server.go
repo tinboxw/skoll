@@ -122,6 +122,11 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("GET "+apiBase+"/purchase-inbounds", s.listPurchaseInbounds)
 	mux.HandleFunc("POST "+apiBase+"/purchase-inbounds", s.createPurchaseInbound)
 	mux.HandleFunc("GET "+apiBase+"/purchase-inbounds/{id}", s.getPurchaseInboundHandler)
+	mux.HandleFunc("GET "+apiBase+"/warehouses", s.listWarehouses)
+	mux.HandleFunc("POST "+apiBase+"/warehouses", s.createWarehouse)
+	mux.HandleFunc("PUT "+apiBase+"/warehouses/{id}", s.updateWarehouse)
+	mux.HandleFunc("POST "+apiBase+"/warehouses/{id}/disable", s.changeWarehouseStatus(false))
+	mux.HandleFunc("POST "+apiBase+"/warehouses/{id}/enable", s.changeWarehouseStatus(true))
 	return mux, nil
 }
 

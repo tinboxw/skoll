@@ -328,6 +328,11 @@ permissions:
     module: pharma_oa
     name: Disable pharma warehouses
     risk: high
+  - key: pharma_oa.warehouse.enable
+    type: button
+    module: pharma_oa
+    name: Enable pharma warehouses
+    risk: high
   - key: pharma_oa.warehouse.movement
     type: api
     module: pharma_oa
@@ -1095,6 +1100,11 @@ api:
       summary: Disable Pharma OA warehouse
       permission: pharma_oa.warehouse.disable
       audit_action: pharma_oa.warehouse.disable
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/warehouses/{id}/enable
+      summary: Enable Pharma OA warehouse
+      permission: pharma_oa.warehouse.enable
+      audit_action: pharma_oa.warehouse.enable
     - method: GET
       path: /v1/plugins/pharma_oa/api/warehouses/{id}/movement-eligibility
       summary: Validate Pharma OA warehouse movement location

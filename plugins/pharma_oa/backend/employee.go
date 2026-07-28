@@ -420,7 +420,7 @@ func (s *server) exactWriteScope(ctx context.Context, permission pluginsdk.Permi
 		return employeeScope{}, err
 	}
 	if predicate.Denied() {
-		return employeeScope{}, newHTTPError(http.StatusForbidden, "scope_denied", "employee access is denied")
+		return employeeScope{}, newHTTPError(http.StatusForbidden, "scope_denied", "plugin data access is denied")
 	}
 	tenantID, err = chooseScopeID(tenantID, predicate.TenantIDs(), predicate.AllTenants(), "tenantId")
 	if err != nil {
@@ -436,7 +436,7 @@ func (s *server) exactWriteScope(ctx context.Context, permission pluginsdk.Permi
 	}
 	requested := pluginsdk.ScopeFilter{TenantIDs: []string{tenantID}, OrganizationIDs: []string{organizationID}, OwnerIDs: []string{ownerID}}
 	if predicate.Constrain(requested).Denied() {
-		return employeeScope{}, newHTTPError(http.StatusForbidden, "scope_denied", "requested employee scope is not allowed")
+		return employeeScope{}, newHTTPError(http.StatusForbidden, "scope_denied", "requested plugin data scope is not allowed")
 	}
 	return employeeScope{TenantID: tenantID, OrganizationID: organizationID, OwnerID: ownerID}, nil
 }

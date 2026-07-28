@@ -125,6 +125,15 @@ func (s *testDataStore) Mutate(ctx context.Context, mutation pluginsdk.DataMutat
 		if _, exists := s.records[id]; exists {
 			return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "id", "employee exists", false)
 		}
+		if mutation.Table == warehouseTable {
+			code := mutation.Values["code"].Value
+			for existingID, record := range s.records {
+				if s.tables[existingID] == warehouseTable && dataString(record, "tenant_id") == s.scope.TenantID &&
+					dataString(record, "organization_id") == s.scope.OrganizationID && dataString(record, "code") == code {
+					return pluginsdk.DataMutationResult{}, pluginsdk.NewDataStoreError(pluginsdk.DataStoreErrorConflict, "code", "warehouse code already exists", false)
+				}
+			}
+		}
 		values := testCloneValues(mutation.Values)
 		values["id"] = stringValue(id)
 		values["tenant_id"] = stringValue(s.scope.TenantID)
@@ -1415,6 +1424,210 @@ func TestFoundationRejectsIncompleteHostAndUnknownRoutes(t *testing.T) {
 	runtime := newTestRuntime(t)
 	for _, path := range []string{"/v1/pharma-oa/api/meta", "/v1/plugins/other/api/meta", apiBase + "/not-found"} {
 		testRequest(t, runtime.handler, http.MethodGet, path, nil, "", false, http.StatusNotFound)
+	}
+}
+
+func TestWarehouseCRUDStatusIdempotencyAndAudit(t *testing.T) {
+	runtime := newTestRuntime(t)
+	body := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": " wh-001 ", "name": "Central Warehouse",
+		"address": "88 Medicine Road", "contactName": "Warehouse Owner", "contactPhone": "13800000000",
+	}
+	created := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", body, "warehouse-create-1", true, http.StatusCreated), "item")
+	replayedCreate := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", body, "warehouse-create-1", true, http.StatusCreated), "item")
+	warehouseID := testString(t, created, "id")
+	if warehouseID != testString(t, replayedCreate, "id") || testString(t, created, "code") != "WH-001" ||
+		testString(t, created, "status") != "active" || testInt64(t, created, "version") != 1 {
+		t.Fatalf("warehouse create or replay is inconsistent: created=%v replay=%v", created, replayedCreate)
+	}
+
+	duplicate := cloneWarehouseBody(body)
+	duplicate["name"] = "Duplicate Warehouse"
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", duplicate, "warehouse-create-duplicate", http.StatusConflict, "duplicate_warehouse_code")
+
+	listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouses?keyword=Central&status=active", nil, "", true, http.StatusOK)
+	if testInt64(t, listed, "total") != 1 {
+		t.Fatalf("warehouse list did not return the scoped item: %v", listed)
+	}
+
+	update := cloneWarehouseBody(body)
+	update["code"], update["name"], update["version"] = "wh-002", "Regional Warehouse", 1
+	updated := testMap(t, testRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouses/"+warehouseID, update, "warehouse-update-1", true, http.StatusOK), "item")
+	replayedUpdate := testMap(t, testRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouses/"+warehouseID, update, "warehouse-update-1", true, http.StatusOK), "item")
+	if testString(t, updated, "code") != "WH-002" || testInt64(t, updated, "version") != 2 ||
+		testInt64(t, replayedUpdate, "version") != 2 {
+		t.Fatalf("warehouse update or replay is inconsistent: updated=%v replay=%v", updated, replayedUpdate)
+	}
+	stale := cloneWarehouseBody(update)
+	stale["name"] = "Stale Warehouse"
+	testErrorRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouses/"+warehouseID, stale, "warehouse-update-stale", http.StatusConflict, "stale_warehouse")
+
+	statusScope := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "Cold room maintenance", "version": 2}
+	disabled := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/disable", statusScope, "warehouse-disable-1", true, http.StatusOK), "item")
+	replayedDisable := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/disable", statusScope, "warehouse-disable-1", true, http.StatusOK), "item")
+	if testString(t, disabled, "status") != "disabled" || testInt64(t, disabled, "version") != 3 ||
+		testInt64(t, replayedDisable, "version") != 3 {
+		t.Fatalf("warehouse disable or replay is inconsistent: disabled=%v replay=%v", disabled, replayedDisable)
+	}
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/disable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "reason": "again", "version": 3},
+		"warehouse-disable-again", http.StatusConflict, "warehouse_status_unchanged")
+
+	enable := map[string]any{"tenantId": "tenant-a", "organizationId": "org-a", "version": 3}
+	enabled := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/enable", enable, "warehouse-enable-1", true, http.StatusOK), "item")
+	replayedEnable := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/enable", enable, "warehouse-enable-1", true, http.StatusOK), "item")
+	_, hasDisableReason := enabled["disableReason"]
+	if testString(t, enabled, "status") != "active" || hasDisableReason ||
+		testInt64(t, enabled, "version") != 4 || testInt64(t, replayedEnable, "version") != 4 {
+		t.Fatalf("warehouse enable or replay is inconsistent: enabled=%v replay=%v", enabled, replayedEnable)
+	}
+
+	for _, action := range []string{
+		"pharma_oa.warehouse.create", "pharma_oa.warehouse.update",
+		"pharma_oa.warehouse.disable", "pharma_oa.warehouse.enable",
+	} {
+		if !testAuditHasAction(runtime.audit.entries, action) {
+			t.Fatalf("missing warehouse audit action %q: %v", action, runtime.audit.entries)
+		}
+	}
+	if len(runtime.store.mutations) != 4 {
+		t.Fatalf("idempotent replay created mutations=%d want=4", len(runtime.store.mutations))
+	}
+	for _, mutation := range runtime.store.mutations {
+		if mutation.Scope.Filter.TenantIDs[0] != "tenant-a" || mutation.Scope.Filter.OrganizationIDs[0] != "org-a" ||
+			mutation.Scope.Filter.OwnerIDs[0] != "actor-1" {
+			t.Fatalf("warehouse mutation escaped exact trusted scope: %+v", mutation.Scope.Filter)
+		}
+	}
+}
+
+func TestWarehouseRejectsInvalidAndCrossScopeWrites(t *testing.T) {
+	runtime := newTestRuntime(t)
+	body := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "WH-SCOPE", "name": "Scoped Warehouse",
+		"address": "1 Scoped Road", "contactName": "Scoped Owner", "contactPhone": "13800000001",
+	}
+	created := testMap(t, testRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", body, "warehouse-scope-create", true, http.StatusCreated), "item")
+	warehouseID := testString(t, created, "id")
+
+	wrongScope := cloneWarehouseBody(body)
+	wrongScope["organizationId"], wrongScope["version"] = "org-b", 1
+	testErrorRequest(t, runtime.handler, http.MethodPut, apiBase+"/warehouses/"+warehouseID, wrongScope, "warehouse-cross-update", http.StatusForbidden, "scope_denied")
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses/"+warehouseID+"/disable",
+		map[string]any{"tenantId": "tenant-a", "organizationId": "org-b", "reason": "cross scope", "version": 1},
+		"warehouse-cross-disable", http.StatusForbidden, "scope_denied")
+
+	invalid := cloneWarehouseBody(body)
+	invalid["code"] = "warehouse code with spaces"
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", invalid, "warehouse-invalid", http.StatusBadRequest, "invalid_warehouse")
+	testErrorRequest(t, runtime.handler, http.MethodPost, apiBase+"/warehouses", body, "", http.StatusBadRequest, "idempotency_key_required")
+	testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouses", nil, "", false, http.StatusUnauthorized)
+
+	crossScope := employeeScope{TenantID: "tenant-a", OrganizationID: "org-b", OwnerID: "actor-b"}
+	crossPredicate, err := pluginsdk.NewScopePredicate(pluginsdk.TrustedScope{
+		SubjectID: crossScope.OwnerID, TenantIDs: []string{crossScope.TenantID},
+		OrganizationIDs: []string{crossScope.OrganizationID}, OwnerIDs: []string{crossScope.OwnerID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime.store.scope = crossScope
+	crossHandler, err := newHandler(pluginsdk.HostServices{
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: crossPredicate}, DataStore: runtime.store, Events: testEvents{},
+		DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit, Workflows: runtime.workflows, Jobs: runtime.jobs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	crossList := testRequest(t, crossHandler, http.MethodGet, apiBase+"/warehouses", nil, "", true, http.StatusOK)
+	if testInt64(t, crossList, "total") != 0 {
+		t.Fatalf("cross-scope warehouse list leaked records: %v", crossList)
+	}
+	crossBody := cloneWarehouseBody(body)
+	crossBody["organizationId"] = "org-b"
+	crossCreated := testMap(t, testRequest(t, crossHandler, http.MethodPost, apiBase+"/warehouses", crossBody, "warehouse-cross-create", true, http.StatusCreated), "item")
+	if testString(t, crossCreated, "code") != "WH-SCOPE" {
+		t.Fatalf("warehouse code was not reusable in another organization: %v", crossCreated)
+	}
+	testRequest(t, crossHandler, http.MethodPut, apiBase+"/warehouses/"+warehouseID, wrongScope, "warehouse-cross-not-found", true, http.StatusNotFound)
+	runtime.store.scope = employeeScope{TenantID: "tenant-a", OrganizationID: "org-a", OwnerID: "actor-1"}
+
+	deniedHandler, err := newHandler(pluginsdk.HostServices{
+		PluginID: pluginID, Transactions: runtime.transactions, DataScopes: testScopes{predicate: pluginsdk.NewDeniedScopePredicate("actor-1")},
+		DataStore: runtime.store, Events: testEvents{}, DocumentNumbers: runtime.numbers, Files: runtime.files, Audit: runtime.audit,
+		Workflows: runtime.workflows, Jobs: runtime.jobs,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	testRequest(t, deniedHandler, http.MethodPost, apiBase+"/warehouses", body, "warehouse-denied", true, http.StatusForbidden)
+}
+
+func TestWarehouseConcurrentDuplicateCodeAllowsOneWinner(t *testing.T) {
+	runtime := newTestRuntime(t)
+	body := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a", "code": "WH-RACE", "name": "Concurrent Warehouse",
+		"address": "2 Concurrent Road", "contactName": "Concurrent Owner", "contactPhone": "13800000002",
+	}
+	started := make(chan struct{})
+	statuses := make(chan int, 2)
+	var group sync.WaitGroup
+	for _, key := range []string{"warehouse-race-a", "warehouse-race-b"} {
+		key := key
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-started
+			statuses <- rawTestRequestStatus(runtime.handler, http.MethodPost, apiBase+"/warehouses", body, key)
+		}()
+	}
+	close(started)
+	group.Wait()
+	close(statuses)
+	counts := map[int]int{}
+	for status := range statuses {
+		counts[status]++
+	}
+	if counts[http.StatusCreated] != 1 || counts[http.StatusConflict] != 1 {
+		t.Fatalf("concurrent warehouse statuses=%v want one created and one conflict", counts)
+	}
+	listed := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/warehouses", nil, "", true, http.StatusOK)
+	if testInt64(t, listed, "total") != 1 {
+		t.Fatalf("concurrent warehouse create retained duplicates: %v", listed)
+	}
+}
+
+func cloneWarehouseBody(input map[string]any) map[string]any {
+	out := make(map[string]any, len(input))
+	for key, value := range input {
+		out[key] = value
+	}
+	return out
+}
+
+func testErrorRequest(t *testing.T, handler http.Handler, method, path string, body any, requestKey string, wantStatus int, wantCode string) {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(method, path, bytes.NewReader(raw))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer user-token")
+	request.Header.Set("Idempotency-Key", requestKey)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != wantStatus {
+		t.Fatalf("%s %s status=%d want=%d body=%s", method, path, recorder.Code, wantStatus, recorder.Body.String())
+	}
+	var envelope struct {
+		Code string `json:"code"`
+	}
+	if err = json.Unmarshal(recorder.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("decode error response: %v body=%s", err, recorder.Body.String())
+	}
+	if envelope.Code != wantCode {
+		t.Fatalf("%s %s code=%q want=%q body=%s", method, path, envelope.Code, wantCode, recorder.Body.String())
 	}
 }
 

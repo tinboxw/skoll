@@ -177,7 +177,7 @@ func TestMedicalOABoundaryUsesOneCurrentPublicContract(t *testing.T) {
 
 func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 	for _, path := range []string{
-		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "backend/oa_request.go", "backend/purchase.go", "backend/inbound.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
+		"backend/main.go", "backend/server.go", "backend/employee.go", "backend/party.go", "backend/catalog.go", "backend/qualification.go", "backend/oa_request.go", "backend/purchase.go", "backend/inbound.go", "backend/warehouse.go", "plugin.ps1", "plugin.sh", "frontend/index.html", "frontend/package.json", "frontend/src/App.vue", "frontend/src/api.ts", "frontend/src/i18n.ts", "frontend/src/styles.css", "datastore.yaml",
 		"contract/acceptance-map.json", "migrations/001_foundation.up.sql", "migrations/001_foundation.down.sql",
 		"migrations/002_employees.up.sql", "migrations/002_employees.down.sql",
 		"migrations/003_parties.up.sql", "migrations/003_parties.down.sql",
@@ -225,6 +225,36 @@ func TestMedicalOAPackageSurfaceAndHostIndependence(t *testing.T) {
 		return nil
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMedicalOAWarehousePermissionsAndRoutes(t *testing.T) {
+	manifest := loadPharmaManifest(t)
+	permissions := make(map[string]struct{}, len(manifest.Permissions))
+	for _, permission := range manifest.Permissions {
+		permissions[permission.Key] = struct{}{}
+	}
+	for _, permission := range []string{
+		"pharma_oa.warehouse.read", "pharma_oa.warehouse.create", "pharma_oa.warehouse.update",
+		"pharma_oa.warehouse.disable", "pharma_oa.warehouse.enable",
+	} {
+		assertPharmaContains(t, permissions, permission, "warehouse permission")
+	}
+
+	routes := make(map[string]string, len(manifest.API.Routes))
+	for _, route := range manifest.API.Routes {
+		routes[strings.ToUpper(route.Method)+" "+route.Path] = route.Permission
+	}
+	for route, permission := range map[string]string{
+		"GET /v1/plugins/pharma_oa/api/warehouses":               "pharma_oa.warehouse.read",
+		"POST /v1/plugins/pharma_oa/api/warehouses":              "pharma_oa.warehouse.create",
+		"PUT /v1/plugins/pharma_oa/api/warehouses/{id}":          "pharma_oa.warehouse.update",
+		"POST /v1/plugins/pharma_oa/api/warehouses/{id}/disable": "pharma_oa.warehouse.disable",
+		"POST /v1/plugins/pharma_oa/api/warehouses/{id}/enable":  "pharma_oa.warehouse.enable",
+	} {
+		if routes[route] != permission {
+			t.Fatalf("warehouse route %q permission=%q want=%q", route, routes[route], permission)
+		}
 	}
 }
 
