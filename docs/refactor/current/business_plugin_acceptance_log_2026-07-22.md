@@ -3580,3 +3580,54 @@ Result: FF6-03 passed. Every plugin now operates inside one explicit resource en
 ### Commit
 
 `FF6-03: enforce plugin quotas and backpressure`
+
+## FF6-04 Close Business-Scale Framework Acceptance
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Prove that the current plugin platform preserves latency, isolation, evidence, lifecycle integrity, and recovery under concurrent healthy, abusive, forged, oversized, and failing plugin workloads.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Multi-plugin scale | Eight isolated plugins served 384 healthy requests per run for 20 runs; the highest regular P95 was `909.7us` against a `500ms` budget | Pass |
+| Backpressure isolation | One abusive plugin exhausted its own concurrency quota and received one observable `429`; all healthy plugins completed with exact response identity and request counts | Pass |
+| Attack isolation | Forged credentials returned `401`, oversized requests returned `413`, and undeclared host capabilities returned `403` without invoking protected services | Pass |
+| Outage and recovery | A simulated host-service outage returned the current `422 host_call_failed` contract with durable evidence; restoring the service recovered the same credential and request path | Pass |
+| Credential isolation | Revoking one plugin credential did not affect another plugin; reissuing the revoked plugin credential restored service through the same current path | Pass |
+| Race safety | The business-scale scenario passed under `-race` with P95 `2.0233ms` and no data race | Pass |
+| Real packaged plugins | Equipment Maintenance and Pharma OA built, packaged, verified, installed, migrated, started, exercised business workflows, restarted, disabled, uninstalled, and left host production source unchanged | Pass |
+| Process interoperability | Independent datastore, governed workflow, reliable event, runtime milestone, and quota recovery process E2E suites passed with their environment gates explicitly enabled | Pass |
+| Zero-edit generation | The current full-stack generator passed package lifecycle and browser gates without edits; desktop ready was `703ms`, mobile ready was `632ms`, interaction long tasks were `0`, and restricted requests were `0` | Pass |
+| Repository regression | Full `go test ./... -count=1 -timeout=30m`, integration suites, repository whitespace validation, and identical OpenAPI copies passed | Pass |
+| Current-only rule | No compatibility adapter, fallback host service, legacy migration list, skipped business E2E, alternate quota path, or parallel acceptance gate was accepted | Pass |
+
+### Failed Gates And Re-execution
+
+1. The initial scale test treated a quota snapshot slice as a map and did not compile. The result was rejected; the assertion now searches the current snapshot contract, and 20 regular runs plus the race run passed.
+2. The first outage assertion expected a generic `500 host_operation_failed`, while the current host gateway contract intentionally returns `422 host_call_failed`. The stale expectation was removed and the complete isolation scenario passed.
+3. The first aggregate gate left both packaged business E2E environment switches unset, so those tests skipped. The run was rejected; the single gate now scopes both switches around the process E2E stage and restores the caller environment afterward.
+4. The next gate exposed that copied business plugins resolved `node_modules` from the host web application and could not find the current `@skoll/business-ui` package. The packaged workspace now preserves the real plugin workspace shape and links only the current shared packages and scripts; both frontend builds passed.
+5. Pharma OA lifecycle coverage hard-coded eight migration files and an eight-record ledger after migration `009_warehouse_topology` was added. A temporary attempt also conflated semantic `MigrationVersion` with SQL sequence numbers. Both results were rejected; the test now uses the production migration planner to validate every installed up/down pair and compare the applied ledger with the current plan.
+6. Mandatory FF6-02 `host.call` evidence exposed an old Pharma OA test double that required every audit record to be transactional. The fixture now keeps business audit records transaction-bound while accepting framework operation evidence in its actual call context; the complete packaged business lifecycle passed.
+
+### Verification Commands
+
+```powershell
+$env:SKOLL_EQUIPMENT_PLUGIN_E2E = "1"
+$env:SKOLL_PHARMA_OA_E2E = "1"
+go test ./internal/plugin -run "^(TestEquipmentMaintenancePackagedLifecycleE2E|TestPharmaOAPackagedBusinessLifecycleE2E)$" -count=1 -v -timeout=15m
+.\scripts\ff6-business-scale-gate.ps1
+codegraph sync .
+codegraph status .
+```
+
+The aggregate gate passed in `732.2s`. The public and embedded OpenAPI SHA256 is `F502E56158555AAEAF9AFAB20ACF35A642844FD803CA7E9DA14A53FB4B9598C5`.
+
+Result: FF6-04 and milestone FF6 passed. The framework now has executable business-scale evidence for multi-plugin load, attack containment, outage recovery, credential isolation, real packaged business lifecycles, zero-edit generation, and complete repository regression.
+
+### Commit
+
+`FF6-04: close business-scale acceptance`

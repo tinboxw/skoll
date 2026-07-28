@@ -33,16 +33,18 @@ func TestEquipmentMaintenancePackagedLifecycleE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	webModules := filepath.Join(repoRoot, "web", "node_modules")
-	if info, statErr := os.Stat(webModules); statErr != nil || !info.IsDir() {
-		t.Skip("web/node_modules is required for equipment-maintenance lifecycle E2E")
+	frontendModules := filepath.Join(repoRoot, "plugins", "equipment_maintenance", "web", "node_modules")
+	if info, statErr := os.Stat(frontendModules); statErr != nil || !info.IsDir() {
+		t.Skip("equipment-maintenance frontend dependencies are required for lifecycle E2E")
 	}
 
 	address := reserveEquipmentAddress(t)
-	source := filepath.Join(t.TempDir(), "equipment_maintenance")
+	workspace := t.TempDir()
+	source := filepath.Join(workspace, "plugins", "equipment_maintenance")
 	copyEquipmentSource(t, filepath.Join(repoRoot, "plugins", "equipment_maintenance"), source)
 	rewriteEquipmentAddress(t, filepath.Join(source, "plugin.yaml"), address)
-	linkEquipmentNodeModules(t, webModules, filepath.Join(source, "web", "node_modules"))
+	linkPackagedPluginWorkspace(t, repoRoot, workspace)
+	linkEquipmentNodeModules(t, frontendModules, filepath.Join(source, "web", "node_modules"))
 	before := equipmentSourceHashes(t, source)
 	buildEquipmentPackageSurface(t, repoRoot, source)
 	after := equipmentSourceHashes(t, source)
@@ -391,6 +393,22 @@ func linkEquipmentNodeModules(t *testing.T, source, target string) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("link frontend dependencies: %v\n%s", err, output)
 	}
+}
+
+func linkPackagedPluginWorkspace(t *testing.T, repoRoot, workspace string) {
+	t.Helper()
+	packagesRoot := filepath.Join(workspace, "packages")
+	if err := os.MkdirAll(packagesRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, packageName := range []string{"skoll-business-ui", "skoll-plugin-sdk"} {
+		linkEquipmentNodeModules(
+			t,
+			filepath.Join(repoRoot, "packages", packageName),
+			filepath.Join(packagesRoot, packageName),
+		)
+	}
+	linkEquipmentNodeModules(t, filepath.Join(repoRoot, "scripts"), filepath.Join(workspace, "scripts"))
 }
 
 func equipmentSourceHashes(t *testing.T, root string) []string {

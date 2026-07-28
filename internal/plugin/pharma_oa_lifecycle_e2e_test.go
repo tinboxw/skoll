@@ -31,9 +31,9 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	webModules := filepath.Join(repoRoot, "web", "node_modules")
-	if info, statErr := os.Stat(webModules); statErr != nil || !info.IsDir() {
-		t.Skip("web/node_modules is required for pharma-OA lifecycle E2E")
+	frontendModules := filepath.Join(repoRoot, "plugins", "pharma_oa", "frontend", "node_modules")
+	if info, statErr := os.Stat(frontendModules); statErr != nil || !info.IsDir() {
+		t.Skip("pharma-OA frontend dependencies are required for lifecycle E2E")
 	}
 
 	hostBackendBefore := equipmentSourceHashes(t, filepath.Join(repoRoot, "internal", "bootstrap"))
@@ -48,10 +48,12 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	})
 
 	address := reserveEquipmentAddress(t)
-	source := filepath.Join(t.TempDir(), "pharma_oa")
+	workspace := t.TempDir()
+	source := filepath.Join(workspace, "plugins", "pharma_oa")
 	copyEquipmentSource(t, filepath.Join(repoRoot, "plugins", "pharma_oa"), source)
 	rewritePharmaAddress(t, filepath.Join(source, "plugin.yaml"), address)
-	linkEquipmentNodeModules(t, webModules, filepath.Join(source, "frontend", "node_modules"))
+	linkPackagedPluginWorkspace(t, repoRoot, workspace)
+	linkEquipmentNodeModules(t, frontendModules, filepath.Join(source, "frontend", "node_modules"))
 	before := equipmentSourceHashes(t, source)
 	buildPharmaPackageSurface(t, repoRoot, source)
 	after := equipmentSourceHashes(t, source)
@@ -71,16 +73,14 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 		t.Fatalf("install package: %v", err)
 	}
 	required := []string{"plugin.yaml", "frontend/dist/index.html", managedBackendRelativePath("pharma_oa")}
-	for version, name := range map[string]string{
-		"001": "foundation", "002": "employees", "003": "parties", "004": "catalogs",
-		"005": "qualifications", "006": "oa_requests", "007": "purchases", "008": "purchase_inbounds",
-	} {
-		required = append(required, "migrations/"+version+"_"+name+".up.sql", "migrations/"+version+"_"+name+".down.sql")
-	}
 	for _, path := range required {
 		if _, statErr := os.Stat(filepath.Join(installedDir, filepath.FromSlash(path))); statErr != nil {
 			t.Fatalf("installed package missing %s: %v", path, statErr)
 		}
+	}
+	migrationPlan, err := NewMigrationPlanner(installedDir, packageInfo.DataManifest.MigrationDirectory).Plan(nil)
+	if err != nil || len(migrationPlan.Pending) == 0 {
+		t.Fatalf("installed package migration plan=%+v err=%v", migrationPlan, err)
 	}
 
 	const jwtSecret = "pharma-oa-lifecycle-secret"
@@ -128,8 +128,8 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("install migration: %v", err)
 	}
-	if len(migrationStore.records) != 8 {
-		t.Fatalf("install migration ledger=%+v", migrationStore.records)
+	if len(migrationStore.records) != len(migrationPlan.Pending) {
+		t.Fatalf("install migration ledger=%+v want_steps=%+v", migrationStore.records, migrationPlan.Pending)
 	}
 	for index, record := range migrationStore.records {
 		if record.PluginID != installed.ID || record.Version != index+1 {
@@ -1210,7 +1210,7 @@ type pharmaLifecycleAudit struct {
 }
 
 func (a *pharmaLifecycleAudit) Record(ctx context.Context, entry pluginsdk.AuditEntry) (pluginsdk.AuditReceipt, error) {
-	if ctx.Value(gatewayTxMarker{}) != true {
+	if entry.Action != "host.call" && ctx.Value(gatewayTxMarker{}) != true {
 		return pluginsdk.AuditReceipt{}, errors.New("audit escaped transaction")
 	}
 	a.mu.Lock()
