@@ -10,6 +10,7 @@ import (
 	"time"
 
 	pluginruntime "github.com/tinboxw/skoll/internal/plugin"
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 )
 
@@ -20,6 +21,7 @@ type RuntimeOptions struct {
 	DataRoot     string
 	StartTimeout time.Duration
 	StopTimeout  time.Duration
+	Quotas       *quota.Controller
 }
 
 type Runtime struct {
@@ -40,6 +42,9 @@ func NewRuntime(options RuntimeOptions) (*Runtime, error) {
 	}
 	if options.Services == nil {
 		return nil, errors.New("fixture runtime services are required")
+	}
+	if options.Quotas == nil {
+		return nil, errors.New("fixture runtime quota controller is required")
 	}
 	secret := strings.TrimSpace(options.JWTSecret)
 	if secret == "" {
@@ -64,7 +69,7 @@ func NewRuntime(options RuntimeOptions) (*Runtime, error) {
 		}
 		host.Capabilities = append([]pluginsdk.HostCapability(nil), info.HostCapabilities...)
 		return host, nil
-	}, secret, time.Minute)
+	}, secret, options.Quotas, time.Minute)
 	if err != nil {
 		return nil, fmt.Errorf("start fixture host gateway: %w", err)
 	}
@@ -74,7 +79,7 @@ func NewRuntime(options RuntimeOptions) (*Runtime, error) {
 		return nil, fmt.Errorf("prepare fixture plugin data: %w", err)
 	}
 	launcher := pluginruntime.NewManagedProcessLauncher(
-		pluginruntime.NewHTTPHealthChecker(time.Second), 25*time.Millisecond, gateway, dataDirectories,
+		pluginruntime.NewHTTPHealthChecker(time.Second), 25*time.Millisecond, gateway, dataDirectories, options.Quotas,
 	)
 	return &Runtime{
 		pluginID: pluginID, services: options.Services, jwtSecret: secret,

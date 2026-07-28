@@ -2,10 +2,14 @@ package generator
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	domaingenerator "github.com/tinboxw/skoll/internal/domain/generator"
 	domainmenu "github.com/tinboxw/skoll/internal/domain/menu"
@@ -226,7 +230,7 @@ func mustPluginLifecycleSpec(t *testing.T, uninstallPolicy string) *domaingenera
 
 func materializeGeneratedPlugin(t *testing.T, result *DryRunResult, pluginID string) string {
 	t.Helper()
-	workspace := t.TempDir()
+	workspace := generatedPluginTestWorkspace(t)
 	root := filepath.Join(workspace, "examples", "plugins", pluginID)
 	prefix := filepath.ToSlash(filepath.Join("examples", "plugins", pluginID)) + "/"
 	for _, file := range result.Files {
@@ -244,6 +248,28 @@ func materializeGeneratedPlugin(t *testing.T, result *DryRunResult, pluginID str
 		}
 	}
 	return root
+}
+
+func generatedPluginTestWorkspace(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		return t.TempDir()
+	}
+	workspace := filepath.Join(os.TempDir(), fmt.Sprintf("skoll-generated-%d-%d", os.Getpid(), time.Now().UnixNano()))
+	cmd := exec.Command(
+		"powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+		`$ErrorActionPreference = "Stop"; New-Item -ItemType Directory -Path $env:SKOLL_GENERATED_WORKSPACE | Out-Null`,
+	)
+	cmd.Env = append(os.Environ(), "SKOLL_GENERATED_WORKSPACE="+workspace)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("create generated plugin test workspace %s: %v\n%s", workspace, err, output)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(workspace); err != nil {
+			t.Errorf("remove generated plugin test workspace %s: %v", workspace, err)
+		}
+	})
+	return workspace
 }
 
 func assertGeneratedDataManifest(t *testing.T, info pluginruntime.Info, spec *domaingenerator.GeneratorSpec, uninstallPolicy string) {

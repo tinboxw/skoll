@@ -23,7 +23,8 @@ const summaryItems = computed(() => {
 		{ key: "activeJobs", value: summary?.activeJobs ?? 0 },
 		{ key: "deadLetters", value: summary?.deadLetters ?? 0 },
 		{ key: "auditEvents", value: summary?.auditEvents ?? 0 },
-		{ key: "failureCount", value: summary?.failureCount ?? 0 }
+		{ key: "failureCount", value: summary?.failureCount ?? 0 },
+		{ key: "quotaRejections", value: summary?.quotaRejections ?? 0 }
 	];
 });
 
@@ -62,6 +63,31 @@ onMounted(() => diagnostics.refresh(query.value));
 				:title="t(`plugin.center.health.${diagnostics.snapshot.value.health.status}`)"
 				:description="`${diagnostics.snapshot.value.health.code} / ${formatDateTime(diagnostics.snapshot.value.health.checkedAt)}`"
 			/>
+			<section class="quota-section" aria-labelledby="plugin-quota-title">
+				<div class="section-heading">
+					<h4 id="plugin-quota-title">{{ t("plugin.center.quotaTitle") }}</h4>
+					<p>{{ t("plugin.center.quotaDescription") }}</p>
+				</div>
+				<div class="table-scroll quota-table">
+					<el-table :data="diagnostics.snapshot.value.quotas" size="small" border>
+						<el-table-column :label="t('plugin.center.quotaResource')" min-width="135">
+							<template #default="scope">{{ t(`plugin.center.quotaResource.${scope.row.resource}`) }}</template>
+						</el-table-column>
+						<el-table-column prop="ratePerSecond" :label="t('plugin.center.quotaRate')" width="110" />
+						<el-table-column prop="burst" :label="t('plugin.center.quotaBurst')" width="95" />
+						<el-table-column prop="active" :label="t('plugin.center.quotaActive')" width="95" />
+						<el-table-column prop="maxConcurrent" :label="t('plugin.center.quotaConcurrency')" width="110" />
+						<el-table-column prop="available" :label="t('plugin.center.quotaAvailable')" width="100" />
+						<el-table-column prop="reserved" :label="t('plugin.center.quotaReserved')" width="100" />
+						<el-table-column :label="t('plugin.center.quotaRejected')" width="105">
+							<template #default="scope"><el-tag :type="scope.row.rejected > 0 ? 'warning' : 'info'" effect="plain">{{ scope.row.rejected }}</el-tag></template>
+						</el-table-column>
+						<el-table-column :label="t('plugin.center.quotaLastRejected')" min-width="170">
+							<template #default="scope">{{ scope.row.lastRejectedAt ? formatDateTime(scope.row.lastRejectedAt) : "-" }}</template>
+						</el-table-column>
+					</el-table>
+				</div>
+			</section>
 			<StateBlock v-if="!diagnostics.snapshot.value.errors.length" type="empty" :description="t('plugin.center.noDiagnosticErrors')" />
 			<div v-else class="table-scroll">
 				<el-table :data="diagnostics.snapshot.value.errors" size="small" stripe border>
@@ -90,7 +116,7 @@ onMounted(() => diagnostics.refresh(query.value));
 .surface-heading h3, .surface-heading p { margin: 0; }
 .surface-heading p { margin-top: 4px; color: var(--color-text-muted); }
 .filters { display: grid; grid-template-columns: minmax(240px, 360px) 32px; align-items: center; gap: 8px; }
-.summary-band { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-block: 1px solid var(--color-border); }
+.summary-band { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-block: 1px solid var(--color-border); }
 .summary-item { display: grid; gap: 2px; padding: 14px 16px; border-right: 1px solid var(--color-border); }
 .summary-item:last-child { border-right: 0; }
 .summary-item strong { font-size: 22px; line-height: 1.2; }
@@ -98,5 +124,9 @@ onMounted(() => diagnostics.refresh(query.value));
 .table-scroll { min-width: 0; overflow-x: auto; }
 .table-scroll :deep(.el-table) { min-width: 1520px; }
 .correlation-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.quota-section { display: grid; gap: 10px; }
+.section-heading h4, .section-heading p { margin: 0; }
+.section-heading p { margin-top: 3px; color: var(--color-text-muted); font-size: 13px; }
+.quota-table :deep(.el-table) { min-width: 1020px; }
 @media (max-width: 760px) { .surface-heading, .filters { display: grid; grid-template-columns: 1fr; } .summary-band { grid-template-columns: repeat(2, minmax(0, 1fr)); } .summary-item { border-bottom: 1px solid var(--color-border); } }
 </style>

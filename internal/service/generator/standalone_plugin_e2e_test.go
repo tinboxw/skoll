@@ -179,12 +179,12 @@ func runGeneratedPluginLifecycle(t *testing.T, pluginDir string, spec *domaingen
 		}
 		host.Capabilities = append([]pluginsdk.HostCapability(nil), pluginInfo.HostCapabilities...)
 		return host, nil
-	}, "generated-plugin-e2e-secret", time.Minute)
+	}, "generated-plugin-e2e-secret", newGeneratorTestQuotaController(), time.Minute)
 	if err != nil {
 		t.Fatalf("start generated host gateway: %v", err)
 	}
 	defer gateway.Close()
-	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewManagedProcessLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond, gateway, dataDirectories), nil, 3*time.Second, time.Second)
+	supervisor := pluginruntime.NewServiceSupervisor(pluginruntime.NewManagedProcessLauncher(pluginruntime.NewHTTPHealthChecker(time.Second), 100*time.Millisecond, gateway, dataDirectories, newGeneratorTestQuotaController()), nil, 3*time.Second, time.Second)
 	if err := supervisor.Start(context.Background(), mustGeneratedPluginInfo(t, manager, info.ID)); err != nil {
 		t.Fatalf("start and supervise generated backend: %v", err)
 	}
@@ -375,16 +375,29 @@ func generatedGoWorkspace(t *testing.T, repoRoot, pluginDir string) string {
 
 func linkGeneratedDirectory(t *testing.T, source, target string) {
 	t.Helper()
-	linkErr := os.Symlink(source, target)
-	if linkErr == nil {
+	if info, err := os.Stat(source); err != nil || !info.IsDir() {
+		t.Fatalf("generated directory link source is unavailable: %s: %v", source, err)
+	}
+	if _, err := os.Lstat(target); !os.IsNotExist(err) {
+		t.Fatalf("generated directory link target already exists: %s: %v", target, err)
+	}
+	parent := filepath.Dir(target)
+	if info, err := os.Stat(parent); err != nil || !info.IsDir() {
+		t.Fatalf("generated directory link parent is unavailable: %s: %v", parent, err)
+	}
+	if runtime.GOOS == "windows" {
+		cmd := exec.Command(
+			"powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+			`$ErrorActionPreference = "Stop"; New-Item -ItemType Junction -Path $env:SKOLL_LINK_TARGET -Target $env:SKOLL_LINK_SOURCE | Out-Null`,
+		)
+		cmd.Env = append(os.Environ(), "SKOLL_LINK_SOURCE="+source, "SKOLL_LINK_TARGET="+target)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("link generated directory %s -> %s: %v\n%s", source, target, err, output)
+		}
 		return
 	}
-	if runtime.GOOS != "windows" {
-		t.Fatalf("link frontend dependencies: %v", linkErr)
-	}
-	cmd := exec.Command("cmd", "/c", "mklink", "/J", target, source)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("link frontend dependencies: %v\n%s", err, output)
+	if err := os.Symlink(source, target); err != nil {
+		t.Fatalf("link generated directory %s -> %s: %v", source, target, err)
 	}
 }
 

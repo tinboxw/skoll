@@ -3521,3 +3521,62 @@ Result: FF6-02 passed. One trusted identity now joins plugin requests, remote tr
 ### Commit
 
 `FF6-02: correlate plugin operations`
+
+## FF6-03 Enforce Plugin Quotas And Backpressure
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Enforce one explicit, current-only resource policy across plugin HTTP requests, host calls, data, events, jobs, exports, storage, and managed processes, with per-plugin isolation, observable rejection evidence, and automatic recovery.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Strict policy | Startup requires one complete positive quota policy; defaults and environment variables cover every current resource, and invalid or missing values fail closed | Pass |
+| Request boundary | Per-plugin token buckets, burst control, concurrency leases, request/response byte limits, and request deadlines produce bounded `429 plugin_quota_exceeded` responses with retry metadata | Pass |
+| Host-service boundary | Query, aggregate, mutation, event, job, export, file, and gateway calls acquire scoped quotas; persistent event/job backlogs and plugin storage have hard capacity limits while idempotent replay remains available | Pass |
+| Managed processes | Process startup is rate limited, each plugin owns at most one active lease, and memory/process ceilings are enforced through Windows Job Objects or Linux `RLIMIT_AS`; unsupported operating systems fail closed | Pass |
+| Isolation and recovery | Exhausting one plugin does not consume another plugin's bucket or concurrency lease; released leases and elapsed retry windows restore capacity without an alternate execution path | Pass |
+| Diagnostics and audit | Quota snapshots, category summaries, rejection counts, retryability, and durable evidence are exposed through diagnostics and host audit records without leaking payloads or secrets | Pass |
+| API and UI contract | Both OpenAPI files describe the current quota contract; the Element Plus diagnostics view, bilingual labels, responsive layouts, and six desktop/mobile control-center scenarios pass | Pass |
+| Generated plugins | The zero-edit generated-plugin gate passed backend, frontend, packaging, install, lifecycle, browser, authorization, locale, theme, accessibility, and performance checks | Pass |
+| Repository regression | Focused quota tests, race tests, Linux process-limit build, frontend typecheck/build/components, generated-plugin quality gate, repeated workflow contention E2E, and full `go test ./...` pass | Pass |
+| Current-only rule | No compatibility adapter, default-on-validation fallback, legacy quota field, unlimited resource mode, or parallel process implementation was added | Pass |
+
+### Failed Gates And Re-execution
+
+1. Initial focused Go execution failed when the system drive ran out of space and left overlapping test processes. Only the exact test processes were stopped, the official Go cache was cleared, temporary build paths were moved to the workspace drive, and the focused suites passed.
+2. The first workflow-process E2E reported no completed escalation timer under SQLite write contention. An isolated rerun passed, but the same condition later recurred in the full suite; the acceptance now verifies the production retry state machine, automatic recovery, and exactly one final `succeeded` timer. Ten repeated E2E runs, the full bootstrap package, and the full repository suite passed.
+3. The first Playwright run started Vite from the wrong working directory and returned `404` for `/skoll/login`. The second run had no backend on port `8080`. Isolated current backend and frontend processes were then started from their correct directories, and all six desktop/mobile scenarios passed.
+4. The generated-plugin gate could not create a Windows junction inside Go's temporary directory because of inherited ACLs. The current Windows test workspace now inherits usable ACLs and creates one validated PowerShell Junction; non-Windows systems keep their native symbolic link path.
+5. The tagged quality test binary was denied when Go attempted to execute it from a stale temporary cache. A current binary was compiled explicitly, hashed as `85883E0948AFF65D3481628FEDBCEBB11B314F41457AC0F786B489A05967E5FD`, and executed from the generator package directory. Package lifecycle, browser, bundle, responsiveness, authorization, and performance gates all passed.
+6. The first full repository rerun found two integration fixtures that directly constructed `AppConfig` without the now-required quota policy. Both fixtures were moved to the strict current configuration, the integration package passed, and the complete repository suite passed on re-execution.
+
+### Verification Commands
+
+```powershell
+go test ./internal/plugin/quota ./pkg/config ./internal/plugin/hostservice ./internal/plugin ./internal/bootstrap ./pkg/plugintest ./internal/service/generator ./tests/integration -count=1
+go test -race ./internal/plugin/quota -run "Controller|Policy" -count=1
+go test -race ./internal/plugin/quota ./internal/plugin/hostservice ./internal/plugin ./internal/bootstrap -run "Quota|ManagedProcess|HostGateway|PluginRequest" -count=1
+$env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"; go build ./internal/plugin
+npm --prefix web run typecheck
+npm --prefix web run build
+npm --prefix web run test:components
+npm --prefix web run test:plugin-center
+go test -c -tags=pluginquality -o D:\workspace\.codex-skoll-go\generator-ff6-03.test.exe ./internal/service/generator
+Push-Location internal/service/generator
+& D:\workspace\.codex-skoll-go\generator-ff6-03.test.exe -test.run "^TestGeneratedPluginZeroEditQualityGate$" -test.v
+Pop-Location
+go test ./internal/bootstrap -run "^TestIndependentPluginGovernedWorkflowProcessE2E$" -count=10
+go test ./... -count=1 -timeout=30m
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: FF6-03 passed. Every plugin now operates inside one explicit resource envelope, abusive or failing workloads are isolated and auditable, transient pressure recovers through the current retry path, and operators can inspect quota state without exposing business data.
+
+### Commit
+
+`FF6-03: enforce plugin quotas and backpressure`

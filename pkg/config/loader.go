@@ -16,6 +16,7 @@ type AppConfig struct {
 	Store    StoreConfig
 	Cache    CacheConfig
 	Event    EventConfig
+	Plugin   PluginConfig
 	Security SecurityConfig
 	Log      LogConfig
 	Dev      DevConfig
@@ -43,6 +44,49 @@ type EventConfig struct {
 	Mode          string
 	RedisAddr     string
 	ChannelPrefix string
+}
+
+type PluginConfig struct {
+	Quota PluginQuotaConfig
+}
+
+type PluginQuotaConfig struct {
+	RequestRate         float64
+	RequestBurst        int
+	RequestConcurrency  int
+	HostCallRate        float64
+	HostCallBurst       int
+	HostCallConcurrency int
+	QueryRate           float64
+	QueryBurst          int
+	QueryConcurrency    int
+	MutationRate        float64
+	MutationBurst       int
+	MutationConcurrency int
+	EventRate           float64
+	EventBurst          int
+	EventConcurrency    int
+	JobRate             float64
+	JobBurst            int
+	JobConcurrency      int
+	ExportRate          float64
+	ExportBurst         int
+	ExportConcurrency   int
+	StorageRate         float64
+	StorageBurst        int
+	StorageConcurrency  int
+	ProcessRate         float64
+	ProcessBurst        int
+	ProcessConcurrency  int
+	MaxPendingEvents    int
+	MaxPendingJobs      int
+	MaxFileBytes        int64
+	MaxStorageBytes     int64
+	MaxRequestBytes     int64
+	MaxResponseBytes    int64
+	RequestTimeout      time.Duration
+	ProcessMemoryBytes  int64
+	ProcessMaxProcs     int
 }
 
 type SecurityConfig struct {
@@ -93,6 +137,42 @@ func Load() (AppConfig, error) {
 	v.SetDefault("event.mode", "memory")
 	v.SetDefault("event.redis_addr", "")
 	v.SetDefault("event.channel_prefix", "skoll.events")
+	v.SetDefault("plugin.quota.request_rate", 50)
+	v.SetDefault("plugin.quota.request_burst", 100)
+	v.SetDefault("plugin.quota.request_concurrency", 32)
+	v.SetDefault("plugin.quota.host_call_rate", 100)
+	v.SetDefault("plugin.quota.host_call_burst", 200)
+	v.SetDefault("plugin.quota.host_call_concurrency", 64)
+	v.SetDefault("plugin.quota.query_rate", 40)
+	v.SetDefault("plugin.quota.query_burst", 80)
+	v.SetDefault("plugin.quota.query_concurrency", 16)
+	v.SetDefault("plugin.quota.mutation_rate", 20)
+	v.SetDefault("plugin.quota.mutation_burst", 40)
+	v.SetDefault("plugin.quota.mutation_concurrency", 8)
+	v.SetDefault("plugin.quota.event_rate", 20)
+	v.SetDefault("plugin.quota.event_burst", 40)
+	v.SetDefault("plugin.quota.event_concurrency", 8)
+	v.SetDefault("plugin.quota.job_rate", 10)
+	v.SetDefault("plugin.quota.job_burst", 20)
+	v.SetDefault("plugin.quota.job_concurrency", 4)
+	v.SetDefault("plugin.quota.export_rate", 2)
+	v.SetDefault("plugin.quota.export_burst", 4)
+	v.SetDefault("plugin.quota.export_concurrency", 2)
+	v.SetDefault("plugin.quota.storage_rate", 10)
+	v.SetDefault("plugin.quota.storage_burst", 20)
+	v.SetDefault("plugin.quota.storage_concurrency", 4)
+	v.SetDefault("plugin.quota.process_rate", 1)
+	v.SetDefault("plugin.quota.process_burst", 2)
+	v.SetDefault("plugin.quota.process_concurrency", 1)
+	v.SetDefault("plugin.quota.max_pending_events", 100)
+	v.SetDefault("plugin.quota.max_pending_jobs", 100)
+	v.SetDefault("plugin.quota.max_file_bytes", 16<<20)
+	v.SetDefault("plugin.quota.max_storage_bytes", 512<<20)
+	v.SetDefault("plugin.quota.max_request_bytes", 8<<20)
+	v.SetDefault("plugin.quota.max_response_bytes", 16<<20)
+	v.SetDefault("plugin.quota.request_timeout", "30s")
+	v.SetDefault("plugin.quota.process_memory_bytes", 512<<20)
+	v.SetDefault("plugin.quota.process_max_procs", 2)
 	v.SetDefault("security.jwt_secret", "dev-secret-change-me")
 	v.SetDefault("log.level", "info")
 	v.SetDefault("log.dir", "log")
@@ -110,6 +190,10 @@ func Load() (AppConfig, error) {
 	shutdownTimeout, err := time.ParseDuration(shutdownRaw)
 	if err != nil {
 		return AppConfig{}, fmt.Errorf("invalid SKOLL_SERVER_SHUTDOWN_TIMEOUT: %w", err)
+	}
+	pluginRequestTimeout, err := time.ParseDuration(strings.TrimSpace(v.GetString("plugin.quota.request_timeout")))
+	if err != nil {
+		return AppConfig{}, fmt.Errorf("invalid SKOLL_PLUGIN_QUOTA_REQUEST_TIMEOUT: %w", err)
 	}
 
 	address := strings.TrimSpace(v.GetString("server.address"))
@@ -153,6 +237,21 @@ func Load() (AppConfig, error) {
 			RedisAddr:     strings.TrimSpace(v.GetString("event.redis_addr")),
 			ChannelPrefix: strings.TrimSpace(v.GetString("event.channel_prefix")),
 		},
+		Plugin: PluginConfig{Quota: PluginQuotaConfig{
+			RequestRate: v.GetFloat64("plugin.quota.request_rate"), RequestBurst: v.GetInt("plugin.quota.request_burst"), RequestConcurrency: v.GetInt("plugin.quota.request_concurrency"),
+			HostCallRate: v.GetFloat64("plugin.quota.host_call_rate"), HostCallBurst: v.GetInt("plugin.quota.host_call_burst"), HostCallConcurrency: v.GetInt("plugin.quota.host_call_concurrency"),
+			QueryRate: v.GetFloat64("plugin.quota.query_rate"), QueryBurst: v.GetInt("plugin.quota.query_burst"), QueryConcurrency: v.GetInt("plugin.quota.query_concurrency"),
+			MutationRate: v.GetFloat64("plugin.quota.mutation_rate"), MutationBurst: v.GetInt("plugin.quota.mutation_burst"), MutationConcurrency: v.GetInt("plugin.quota.mutation_concurrency"),
+			EventRate: v.GetFloat64("plugin.quota.event_rate"), EventBurst: v.GetInt("plugin.quota.event_burst"), EventConcurrency: v.GetInt("plugin.quota.event_concurrency"),
+			JobRate: v.GetFloat64("plugin.quota.job_rate"), JobBurst: v.GetInt("plugin.quota.job_burst"), JobConcurrency: v.GetInt("plugin.quota.job_concurrency"),
+			ExportRate: v.GetFloat64("plugin.quota.export_rate"), ExportBurst: v.GetInt("plugin.quota.export_burst"), ExportConcurrency: v.GetInt("plugin.quota.export_concurrency"),
+			StorageRate: v.GetFloat64("plugin.quota.storage_rate"), StorageBurst: v.GetInt("plugin.quota.storage_burst"), StorageConcurrency: v.GetInt("plugin.quota.storage_concurrency"),
+			ProcessRate: v.GetFloat64("plugin.quota.process_rate"), ProcessBurst: v.GetInt("plugin.quota.process_burst"), ProcessConcurrency: v.GetInt("plugin.quota.process_concurrency"),
+			MaxPendingEvents: v.GetInt("plugin.quota.max_pending_events"), MaxPendingJobs: v.GetInt("plugin.quota.max_pending_jobs"),
+			MaxFileBytes: v.GetInt64("plugin.quota.max_file_bytes"), MaxStorageBytes: v.GetInt64("plugin.quota.max_storage_bytes"),
+			MaxRequestBytes: v.GetInt64("plugin.quota.max_request_bytes"), MaxResponseBytes: v.GetInt64("plugin.quota.max_response_bytes"),
+			RequestTimeout: pluginRequestTimeout, ProcessMemoryBytes: v.GetInt64("plugin.quota.process_memory_bytes"), ProcessMaxProcs: v.GetInt("plugin.quota.process_max_procs"),
+		}},
 		Security: SecurityConfig{
 			JWTSecret: strings.TrimSpace(v.GetString("security.jwt_secret")),
 		},

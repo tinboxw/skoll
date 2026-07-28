@@ -80,7 +80,7 @@ func TestEquipmentMaintenancePackagedLifecycleE2E(t *testing.T) {
 			return pluginsdk.HostServices{}, errors.New("unexpected plugin identity")
 		}
 		return host, nil
-	}, jwtSecret, 5*time.Second)
+	}, jwtSecret, newPluginTestQuotaController(), 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestEquipmentMaintenancePackagedLifecycleE2E(t *testing.T) {
 		t.Fatalf("install migration ledger=%+v", migrationStore.records)
 	}
 
-	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), 50*time.Millisecond, gateway, dataDirectories)
+	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), 50*time.Millisecond, gateway, dataDirectories, newPluginTestQuotaController())
 	supervisor := NewServiceSupervisor(launcher, nil, 5*time.Second, 2*time.Second)
 	t.Cleanup(func() { _ = supervisor.Shutdown(context.Background()) })
 	if err := manager.Enable(installed.ID); err != nil {

@@ -68,7 +68,7 @@ func TestNewPluginManagerSkipsNonPluginDirectories(t *testing.T) {
 		_ = os.Chdir(cwd)
 	})
 
-	manager, err := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, hostservice.HostServicesDependencies{})
+	manager, err := newPluginManager(logging.Discard(), "test-secret", nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, hostservice.HostServicesDependencies{}, testPluginQuotaPolicy())
 	if err != nil {
 		t.Fatalf("build plugin manager: %v", err)
 	}
@@ -108,6 +108,7 @@ api:
 	}
 
 	manager := &pluginManagerWithExtensions{
+		quotas:           newTestPluginQuotaController(),
 		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:     map[string]plugin.Info{},
 		extensions:       map[string]plugin.RegistrySnapshot{},
@@ -298,6 +299,7 @@ func newMigrationTestPluginManager(t *testing.T, db *gorm.DB) *pluginManagerWith
 		t.Fatal(err)
 	}
 	return &pluginManagerWithExtensions{
+		quotas:           newTestPluginQuotaController(),
 		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:     map[string]plugin.Info{},
 		extensions:       map[string]plugin.RegistrySnapshot{},
@@ -464,6 +466,7 @@ func TestRegisterBuiltinPluginExtensions(t *testing.T) {
 func TestPluginManagerWithExtensionsBuiltinFallback(t *testing.T) {
 	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret", nil)
 	mgr := &pluginManagerWithExtensions{
+		quotas:        newTestPluginQuotaController(),
 		Manager:       &fakeManager{items: map[string]plugin.Info{}},
 		builtinInfos:  infos,
 		extensions:    snapshots,
@@ -519,6 +522,7 @@ func TestPluginManagerWithExtensionsBuiltinFallback(t *testing.T) {
 func TestPluginManagerWithExtensionsBuiltinRouteHandlers(t *testing.T) {
 	infos, snapshots, handlers := registerBuiltinPluginExtensions(logging.New("info"), "test-secret", nil)
 	mgr := &pluginManagerWithExtensions{
+		quotas:        newTestPluginQuotaController(),
 		Manager:       &fakeManager{items: map[string]plugin.Info{}},
 		builtinInfos:  infos,
 		extensions:    snapshots,
@@ -676,6 +680,7 @@ func TestPluginManagerRunsInProcessBackendOnlyWhileEnabled(t *testing.T) {
 		t.Fatalf("register in-process backend: %v", err)
 	}
 	manager := &pluginManagerWithExtensions{
+		quotas: newTestPluginQuotaController(),
 		Manager: &fakeManager{items: map[string]plugin.Info{
 			"pharma_oa": {
 				ID: "pharma_oa", Name: "Pharma OA", Version: "1.0.0", State: plugin.StateEnabled,
@@ -761,6 +766,7 @@ func TestPluginManagerWithExtensionsExternalRouteFailures(t *testing.T) {
 func newExternalRouteTestManager(serviceURL string, state plugin.State) *pluginManagerWithExtensions {
 	const routePath = "/v1/plugins/reports/api/items"
 	return &pluginManagerWithExtensions{
+		quotas: newTestPluginQuotaController(),
 		Manager: &fakeManager{items: map[string]plugin.Info{
 			"reports": {
 				ID:               "reports",
@@ -903,6 +909,7 @@ api:
 	}
 
 	manager := &pluginManagerWithExtensions{
+		quotas:           newTestPluginQuotaController(),
 		Manager:          plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:     map[string]plugin.Info{},
 		extensions:       map[string]plugin.RegistrySnapshot{},
@@ -1013,6 +1020,7 @@ api:
 	health := fixedHealthChecker{status: plugin.HealthStatusHealthy, code: "health_ok"}
 	supervisor := plugin.NewServiceSupervisor(&readyTestServiceLauncher{}, nil, time.Second, time.Second)
 	manager := &pluginManagerWithExtensions{
+		quotas:            newTestPluginQuotaController(),
 		Manager:           plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:      map[string]plugin.Info{},
 		extensions:        map[string]plugin.RegistrySnapshot{},
@@ -1068,6 +1076,7 @@ func TestPluginManagerDeliversEventsOnlyAcrossEnabledDeclaredLifecycle(t *testin
 	bus := event.NewBusinessEventBus(nil)
 	delivery := &recordingPluginEventDelivery{failEvents: map[string]bool{"event-retry": true}}
 	manager := &pluginManagerWithExtensions{
+		quotas:             newTestPluginQuotaController(),
 		Manager:            plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:       map[string]plugin.Info{},
 		extensions:         map[string]plugin.RegistrySnapshot{},

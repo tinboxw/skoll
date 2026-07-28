@@ -138,9 +138,13 @@ async function mockPluginDiagnostics(page: Page): Promise<void> {
 					pluginId: PLUGIN_ID,
 					capturedAt: FIXED_TIME,
 					health: { pluginId: PLUGIN_ID, status: "unhealthy", code: "qualification_expiry_lag", checkedAt: FIXED_TIME, latencyMillis: 128 },
-					summary: { totalJobs: 18, activeJobs: 3, deadLetters: 1, auditEvents: 42, failureCount: 2 },
+					summary: { totalJobs: 18, activeJobs: 3, deadLetters: 1, auditEvents: 42, failureCount: 2, quotaRejections: 3 },
 					jobs: [],
 					audit: [],
+					quotas: [
+						{ resource: "request", ratePerSecond: 50, burst: 100, maxConcurrent: 32, active: 2, available: 87, rejected: 3, reserved: 0, lastRejectedAt: FIXED_TIME },
+						{ resource: "query", ratePerSecond: 40, burst: 80, maxConcurrent: 16, active: 1, available: 72, rejected: 0, reserved: 0 }
+					],
 					errors: [
 						{ id: "job:qualification-expiry", category: "job", severity: "high", summary: "Qualification expiry scan exceeded its retry budget", occurredAt: FIXED_TIME, correlation: { jobId: "qualification-expiry", traceId: "trace-medical-001" } },
 						{ id: "route:stock-movement", category: "route", severity: "medium", summary: "Stock movement request was denied by qualification policy", occurredAt: FIXED_TIME, correlation: { routeId: "POST /stock-movements", requestId: "request-medical-002" } }

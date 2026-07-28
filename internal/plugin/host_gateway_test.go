@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 	"github.com/tinboxw/skoll/pkg/pluginclient"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"github.com/tinboxw/skoll/pkg/security"
@@ -443,7 +444,7 @@ func gatewayHostWithCapabilities(capabilities ...pluginsdk.HostCapability) plugi
 
 func TestHostGatewayDeniesUndeclaredCapabilitiesBeforeRequestDecode(t *testing.T) {
 	host := gatewayHostWithCapabilities(pluginsdk.HostCapabilityConfigGet)
-	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -495,7 +496,7 @@ func TestHostGatewayCredentialCapturesImmutableCapabilitySnapshot(t *testing.T) 
 	capabilities := make([]pluginsdk.HostCapability, 1, 2)
 	capabilities[0] = pluginsdk.HostCapabilityConfigGet
 	host := gatewayHostWithCapabilities(capabilities...)
-	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,6 +515,50 @@ func TestHostGatewayCredentialCapturesImmutableCapabilitySnapshot(t *testing.T) 
 	assertGatewayError(t, denied, http.StatusForbidden, "host_capability_denied", "")
 }
 
+func TestHostGatewayRejectsQuotaExhaustionWithRetryableEvidence(t *testing.T) {
+	policy := newPluginTestQuotaController().Policy()
+	policy.HostCall = quota.Limit{RatePerSecond: 0.001, Burst: 1, MaxConcurrent: 1}
+	quotas, err := quota.NewController(policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	audit := &gatewayAuditRecorder{}
+	host := gatewayHostWithCapabilities(pluginsdk.HostCapabilityConfigGet)
+	host.Audit = audit
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", quotas, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = gateway.Close() })
+	credential, err := gateway.Issue("equipment")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first := callGatewayJSON(t, gateway, credential.Token, "/v1/config/get", struct{}{})
+	if first.Code != http.StatusOK {
+		t.Fatalf("initial host call status=%d body=%s", first.Code, first.Body.String())
+	}
+	rejected := callGatewayJSON(t, gateway, credential.Token, "/v1/config/get", struct{}{})
+	assertGatewayError(t, rejected, http.StatusTooManyRequests, "plugin_quota_exceeded", "")
+	if rejected.Header().Get("Retry-After") == "" || rejected.Header().Get("X-Skoll-Quota-Resource") != string(quota.ResourceHostCall) {
+		t.Fatalf("quota response headers=%v", rejected.Header())
+	}
+
+	audit.mu.Lock()
+	defer audit.mu.Unlock()
+	if len(audit.entries) != 2 {
+		t.Fatalf("host operation evidence entries=%d want=2", len(audit.entries))
+	}
+	entry := audit.entries[1]
+	if entry.Result != pluginsdk.AuditResultFailure ||
+		entry.Detail["errorCode"] != "plugin_quota_exceeded" ||
+		entry.Detail["retryable"] != true ||
+		entry.Detail["owner"] != "equipment" {
+		t.Fatalf("quota rejection evidence=%+v", entry)
+	}
+}
+
 func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 	transactions := &gatewayTransactions{}
 	secrets := &gatewaySecrets{}
@@ -523,7 +568,7 @@ func TestHostGatewayClientConformanceIdentityAndTransactions(t *testing.T) {
 			return pluginsdk.HostServices{}, errors.New("wrong identity")
 		}
 		return host, nil
-	}, "gateway-jwt-secret", time.Second)
+	}, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -753,7 +798,7 @@ func TestHostGatewayRecordsCorrelatedPayloadFreeOperationEvidence(t *testing.T) 
 	audit := &gatewayAuditRecorder{}
 	host := gatewayHostWithCapabilities(pluginsdk.HostCapabilityConfigReplace)
 	host.Audit = audit
-	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -810,7 +855,7 @@ func TestHostGatewayRecordsCorrelatedPayloadFreeOperationEvidence(t *testing.T) 
 
 func TestHostGatewayRejectsMissingCredentialNonLoopbackAndInvalidUserToken(t *testing.T) {
 	host := pluginsdk.HostServices{PluginID: "equipment", Capabilities: gatewayAllHostCapabilities(), Transactions: &gatewayTransactions{}, DataScopes: gatewayScopes{}, DataStore: gatewayDataStore{}, Events: gatewayEvents{}, DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{}}
-	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -876,7 +921,7 @@ func TestHostGatewayPreservesDocumentNumberContractErrors(t *testing.T) {
 		Events:          gatewayEvents{},
 		DocumentNumbers: gatewayDocumentNumberFailure{}, Documents: gatewayDocuments{}, Files: gatewayFiles{}, Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
-	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -925,7 +970,7 @@ func TestHostGatewayPreservesEventContractErrors(t *testing.T) {
 		Audit: gatewayAudit{}, Config: gatewayConfig{}, Secrets: &gatewaySecrets{},
 		Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
-	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -960,7 +1005,7 @@ func TestHostGatewayPreservesDocumentWorkflowContractErrors(t *testing.T) {
 		DocumentNumbers: gatewayDocumentNumbers{}, Documents: gatewayDocumentWorkflowFailure{}, Files: gatewayFiles{}, Audit: gatewayAudit{},
 		Config: gatewayConfig{}, Secrets: &gatewaySecrets{}, Workflows: gatewayWorkflows{}, Jobs: gatewayJobs{},
 	}
-	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", time.Second)
+	gateway, err := NewHostGateway(func(string) (pluginsdk.HostServices, error) { return host, nil }, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1000,7 +1045,7 @@ func TestHostGatewayDatastoreFailsClosedAndPreservesContractErrors(t *testing.T)
 			return pluginsdk.HostServices{}, errors.New("plugin is disabled")
 		}
 		return host, nil
-	}, "gateway-jwt-secret", time.Second)
+	}, "gateway-jwt-secret", newPluginTestQuotaController(), time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 )
 
 const managedBackendDirectory = "backend/bin"
@@ -24,18 +26,19 @@ type ManagedProcessLauncher struct {
 	pollInterval time.Duration
 	credentials  ProcessCredentialIssuer
 	data         ProcessDataDirectory
+	quotas       *quota.Controller
 }
 
-func NewManagedProcessLauncher(checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer, data ProcessDataDirectory) *ManagedProcessLauncher {
+func NewManagedProcessLauncher(checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer, data ProcessDataDirectory, quotas *quota.Controller) *ManagedProcessLauncher {
 	if pollInterval <= 0 {
 		pollInterval = 100 * time.Millisecond
 	}
-	return &ManagedProcessLauncher{checker: checker, pollInterval: pollInterval, credentials: credentials, data: data}
+	return &ManagedProcessLauncher{checker: checker, pollInterval: pollInterval, credentials: credentials, data: data, quotas: quotas}
 }
 
 func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceHandle, error) {
-	if l == nil || l.checker == nil || l.credentials == nil || l.data == nil {
-		return nil, errors.New("plugin health checker, credential issuer, and data directories are required")
+	if l == nil || l.checker == nil || l.credentials == nil || l.data == nil || l.quotas == nil {
+		return nil, errors.New("plugin health checker, credential issuer, data directories, and quotas are required")
 	}
 	if info.DataManifest == nil || info.DataManifest.UninstallPolicy == "" || info.DataManifest.RollbackPolicy == "" {
 		return nil, errors.New("managed plugin requires an explicit data lifecycle policy")
@@ -44,6 +47,16 @@ func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceH
 	if err != nil {
 		return nil, err
 	}
+	processLease, err := l.quotas.Acquire(info.ID, quota.ResourceProcess)
+	if err != nil {
+		return nil, err
+	}
+	releaseProcessLease := true
+	defer func() {
+		if releaseProcessLease {
+			processLease.Release()
+		}
+	}()
 	dataDir, err := l.data.Prepare(info.ID)
 	if err != nil {
 		return nil, fmt.Errorf("prepare plugin data directory: %w", err)
@@ -64,7 +77,8 @@ func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceH
 	}()
 	command := exec.Command(entry)
 	command.Dir = pluginDir
-	command.Env = managedProcessEnvironment(info.ID, address, pluginDir, dataDir, credential)
+	policy := l.quotas.Policy()
+	command.Env = managedProcessEnvironment(info.ID, address, pluginDir, dataDir, credential, policy)
 	command.Stdin = nil
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
@@ -77,6 +91,12 @@ func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceH
 		wait <- command.Wait()
 		close(wait)
 	}()
+	limitHandle, err := applyManagedProcessLimits(command.Process, policy)
+	if err != nil {
+		_ = command.Process.Kill()
+		<-wait
+		return nil, fmt.Errorf("apply plugin process limits: %w", err)
+	}
 
 	ticker := time.NewTicker(l.pollInterval)
 	defer ticker.Stop()
@@ -85,14 +105,17 @@ func (l *ManagedProcessLauncher) Start(ctx context.Context, info Info) (ServiceH
 	for {
 		if report := l.checker.Check(contextOrBackground(ctx), probeInfo); report.Ready() {
 			revokeCredential = false
-			return newManagedProcessHandle(command.Process, wait, probeInfo, l.checker, l.pollInterval, l.credentials, credential.Token), nil
+			releaseProcessLease = false
+			return newManagedProcessHandle(command.Process, wait, probeInfo, l.checker, l.pollInterval, l.credentials, credential.Token, processLease, limitHandle), nil
 		}
 		select {
 		case processErr := <-wait:
+			_ = limitHandle.Close()
 			return nil, fmt.Errorf("plugin backend exited before readiness: %w", normalizeProcessExit(processErr))
 		case <-contextOrBackground(ctx).Done():
 			_ = command.Process.Kill()
 			<-wait
+			_ = limitHandle.Close()
 			return nil, contextOrBackground(ctx).Err()
 		case <-ticker.C:
 		}
@@ -172,7 +195,7 @@ func managedBackendRelativePath(pluginID string) string {
 	return filepath.ToSlash(filepath.Join(managedBackendDirectory, name))
 }
 
-func managedProcessEnvironment(pluginID string, address string, pluginDir string, dataDir string, credential ProcessCredential) []string {
+func managedProcessEnvironment(pluginID string, address string, pluginDir string, dataDir string, credential ProcessCredential, policy quota.Policy) []string {
 	allowed := []string{"PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "HOME", "USERPROFILE"}
 	environment := make([]string, 0, len(allowed)+6)
 	for _, key := range allowed {
@@ -187,6 +210,10 @@ func managedProcessEnvironment(pluginID string, address string, pluginDir string
 		"SKOLL_PLUGIN_DATA_DIR="+filepath.Clean(dataDir),
 		"SKOLL_PLUGIN_HOST_URL="+strings.TrimSpace(credential.HostURL),
 		"SKOLL_PLUGIN_HOST_TOKEN="+strings.TrimSpace(credential.Token),
+		fmt.Sprintf("SKOLL_PLUGIN_MEMORY_LIMIT_BYTES=%d", policy.ProcessMemoryBytes),
+		fmt.Sprintf("SKOLL_PLUGIN_MAX_PROCS=%d", policy.ProcessMaxProcs),
+		fmt.Sprintf("GOMEMLIMIT=%dB", policy.ProcessMemoryBytes),
+		fmt.Sprintf("GOMAXPROCS=%d", policy.ProcessMaxProcs),
 	)
 	return environment
 }
@@ -205,13 +232,15 @@ type managedProcessHandle struct {
 	credentials     ProcessCredentialIssuer
 	credentialToken string
 	revokeOnce      sync.Once
+	processLease    *quota.Lease
+	limitHandle     managedProcessLimitHandle
 }
 
-func newManagedProcessHandle(process *os.Process, wait <-chan error, info Info, checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer, credentialToken string) *managedProcessHandle {
+func newManagedProcessHandle(process *os.Process, wait <-chan error, info Info, checker HealthChecker, pollInterval time.Duration, credentials ProcessCredentialIssuer, credentialToken string, processLease *quota.Lease, limitHandle managedProcessLimitHandle) *managedProcessHandle {
 	handle := &managedProcessHandle{
 		process: process, wait: wait, info: info, checker: checker,
 		pollInterval: pollInterval, done: make(chan error, 1), credentials: credentials,
-		credentialToken: credentialToken,
+		credentialToken: credentialToken, processLease: processLease, limitHandle: limitHandle,
 	}
 	go handle.monitor()
 	return handle
@@ -301,6 +330,12 @@ func (h *managedProcessHandle) finish(err error) {
 				h.credentials.Revoke(h.credentialToken)
 			}
 		})
+		if h.limitHandle != nil {
+			_ = h.limitHandle.Close()
+		}
+		if h.processLease != nil {
+			h.processLease.Release()
+		}
 		h.done <- err
 		close(h.done)
 	})

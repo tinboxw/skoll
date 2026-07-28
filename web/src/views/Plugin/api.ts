@@ -158,7 +158,7 @@ export type PluginDiagnosticAudit = {
 
 export type PluginDiagnosticError = {
 	id: string;
-	category: "process" | "route" | "job" | "audit";
+	category: "process" | "route" | "job" | "audit" | "quota";
 	severity: "medium" | "high" | "critical";
 	summary: string;
 	owner: string;
@@ -178,6 +178,18 @@ export type PluginDiagnosticError = {
 	};
 };
 
+export type PluginQuotaSnapshot = {
+	resource: "request" | "host_call" | "query" | "mutation" | "event" | "job" | "export" | "storage" | "process";
+	ratePerSecond: number;
+	burst: number;
+	maxConcurrent: number;
+	active: number;
+	available: number;
+	rejected: number;
+	reserved: number;
+	lastRejectedAt?: string;
+};
+
 export type PluginDiagnosticsSnapshot = {
 	pluginId: string;
 	capturedAt: string;
@@ -188,10 +200,12 @@ export type PluginDiagnosticsSnapshot = {
 		deadLetters: number;
 		auditEvents: number;
 		failureCount: number;
+		quotaRejections: number;
 	};
 	jobs: PluginDiagnosticJob[];
 	audit: PluginDiagnosticAudit[];
 	errors: PluginDiagnosticError[];
+	quotas: PluginQuotaSnapshot[];
 };
 
 export type PluginDiagnosticQuery = {

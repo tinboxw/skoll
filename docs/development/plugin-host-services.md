@@ -26,6 +26,8 @@ if err != nil {
 | `SKOLL_PLUGIN_ID` | 当前 Manifest 插件 ID |
 | `SKOLL_PLUGIN_HOST_URL` | 仅回环 HTTP 的宿主网关地址 |
 | `SKOLL_PLUGIN_HOST_TOKEN` | 仅本次进程生命周期有效的宿主凭证 |
+| `SKOLL_PLUGIN_MEMORY_LIMIT_BYTES` | 宿主下发的进程内存上限 |
+| `SKOLL_PLUGIN_MAX_PROCS` | 宿主下发的进程数与 Go 调度并行度上限 |
 
 插件禁用、崩溃、卸载或宿主关闭时，凭证立即失效，活动事务回滚。重新启用会签发新凭证，旧凭证不会恢复。
 
@@ -34,7 +36,10 @@ if err != nil {
 宿主凭证证明“哪个插件正在调用”，不能代表终端用户。处理业务 HTTP 请求时，插件必须把 Skoll 转发的用户 access token 放入调用上下文：
 
 ```go
-ctx := pluginclient.WithUserToken(r.Context(), userAccessToken)
+ctx, err := pluginclient.BindRequestContext(r.Context(), userAccessToken, r.Header)
+if err != nil {
+    return err
+}
 scope, err := host.DataScopes.Resolve(ctx, pluginsdk.Permission{
     Resource: "equipment_maintenance.asset",
     Action:   "read",
@@ -74,11 +79,23 @@ err := host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
 
 回调返回错误会回滚。事务不允许嵌套，同一事务内的调用串行执行；超时、失联、凭证撤销和宿主关闭都按失败处理。插件自己的独立数据事务由插件数据生命周期契约负责，不能把长事务会话当作进程数据库连接。
 
+## 资源治理
+
+平台使用一个共享控制器，为每个插件分别维护令牌桶、并发槽位和容量预留。当前治理资源为 `request`、`host_call`、`query`、`mutation`、`event`、`job`、`export`、`storage`、`process`。某个插件耗尽额度时，只拒绝该插件的对应资源，其他插件继续使用自己的完整额度。
+
+持久任务在写入前预留容量：事件受待投递 outbox 数量约束，任务受待执行 job 数量约束，文件同时受单文件大小和插件总存储量约束。事件与任务的幂等重放不会重复占用容量。成功或失败后都会释放预留，系统按当前路径自动恢复，不存在备用队列或绕过治理的执行路径。
+
+插件业务路由在执行前检查请求大小、响应大小、超时、速率和并发；宿主调用使用独立的速率与并发额度。额度拒绝统一返回 HTTP `429`、`plugin_quota_exceeded`、`retryable: true`、`Retry-After` 和 `X-Skoll-Quota-Resource`。插件应按该信号进行有界退避，禁止改用私有接口、直连宿主数据库或无治理的本地队列。
+
+托管进程同时接收 `SKOLL_PLUGIN_MEMORY_LIMIT_BYTES`、`SKOLL_PLUGIN_MAX_PROCS`、`GOMEMLIMIT` 和 `GOMAXPROCS`。Windows 使用 Job Object 限制进程数与内存，Linux 使用 `RLIMIT_AS`；不支持的平台直接拒绝启动。崩溃、健康检查失败、禁用或停止都会释放进程额度，后续重启重新接受治理。
+
+插件诊断 API 与控制中心会展示每类资源的速率、突发量、活动并发、可用令牌、预留容量、拒绝次数和最后拒绝时间。拒绝同时形成可重试的 `quota` 诊断错误和持久证据，运维人员可以据此调整唯一的 `plugin.quota` 配置。
+
 ## 安全边界
 
 - 宿主网关只监听随机回环地址，只接受 `POST` 和受支持的 v1 operation。
 - 每个请求同时校验插件生命周期凭证；数据范围调用还会校验用户 JWT。
-- 请求与响应上限为 32 MiB；未知字段、未知能力、无效事务和非回环来源直接失败。
+- 插件业务请求与响应上限由 `plugin.quota` 配置；宿主协议帧仍限制为 32 MiB。未知字段、未知能力、无效事务和非回环来源直接失败。
 - 网关错误只返回稳定 code，不返回内部数据库、密钥或底层错误文本。
 - 插件凭证、用户 token 和 secret 明文不得进入日志、审计详情或业务响应。
 - 当前只有 host-service HTTP v1，不提供远程数据库、旧 token、备用 URL 或降级路径。
@@ -86,8 +103,8 @@ err := host.Transactions.Within(ctx, func(tx pluginsdk.Transaction) error {
 ## 验证
 
 ```powershell
-go test ./internal/plugin -run "TestHostGateway|TestManagedProcessLauncher" -count=1
-go test -race ./internal/plugin -run "TestHostGateway|TestManagedProcessLauncher" -count=1
+go test ./internal/plugin ./internal/plugin/quota ./internal/plugin/hostservice -run "Quota|HostGateway|ManagedProcessLauncher" -count=1
+go test -race ./internal/plugin ./internal/plugin/quota ./internal/plugin/hostservice -run "Quota|HostGateway|ManagedProcessLauncher" -count=1
 go list -deps ./pkg/pluginclient
 ```
 

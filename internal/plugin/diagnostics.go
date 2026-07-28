@@ -10,6 +10,7 @@ import (
 	"time"
 
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 )
@@ -34,14 +35,16 @@ type DiagnosticSnapshot struct {
 	Jobs       []DiagnosticJob         `json:"jobs"`
 	Audit      []DiagnosticAuditRecord `json:"audit"`
 	Errors     []DiagnosticError       `json:"errors"`
+	Quotas     []quota.Snapshot        `json:"quotas"`
 }
 
 type DiagnosticSummary struct {
-	TotalJobs    int `json:"totalJobs"`
-	ActiveJobs   int `json:"activeJobs"`
-	DeadLetters  int `json:"deadLetters"`
-	AuditEvents  int `json:"auditEvents"`
-	FailureCount int `json:"failureCount"`
+	TotalJobs       int    `json:"totalJobs"`
+	ActiveJobs      int    `json:"activeJobs"`
+	DeadLetters     int    `json:"deadLetters"`
+	AuditEvents     int    `json:"auditEvents"`
+	FailureCount    int    `json:"failureCount"`
+	QuotaRejections uint64 `json:"quotaRejections"`
 }
 
 type DiagnosticJob struct {
@@ -126,17 +129,22 @@ type diagnosticJobService interface {
 	List(context.Context, jobsvc.Filter) ([]jobsvc.Job, error)
 }
 
+type QuotaProvider interface {
+	PluginQuotaSnapshot(pluginID string) []quota.Snapshot
+}
+
 type DiagnosticsService struct {
 	plugins diagnosticPluginCatalog
 	jobs    diagnosticJobService
 	audit   auditsvc.Service
 	events  auditsvc.EventService
 	health  HealthProvider
+	quotas  QuotaProvider
 	now     func() time.Time
 }
 
-func NewDiagnosticsService(plugins diagnosticPluginCatalog, jobs diagnosticJobService, audit auditsvc.Service, events auditsvc.EventService, health HealthProvider) *DiagnosticsService {
-	return &DiagnosticsService{plugins: plugins, jobs: jobs, audit: audit, events: events, health: health, now: func() time.Time { return time.Now().UTC() }}
+func NewDiagnosticsService(plugins diagnosticPluginCatalog, jobs diagnosticJobService, audit auditsvc.Service, events auditsvc.EventService, health HealthProvider, quotas QuotaProvider) *DiagnosticsService {
+	return &DiagnosticsService{plugins: plugins, jobs: jobs, audit: audit, events: events, health: health, quotas: quotas, now: func() time.Time { return time.Now().UTC() }}
 }
 
 func (s *DiagnosticsService) Inspect(ctx context.Context, pluginID string, query DiagnosticQuery) (DiagnosticSnapshot, error) {
@@ -144,7 +152,7 @@ func (s *DiagnosticsService) Inspect(ctx context.Context, pluginID string, query
 	if err != nil {
 		return DiagnosticSnapshot{}, err
 	}
-	if s.jobs == nil || s.audit == nil || s.events == nil || s.health == nil {
+	if s.jobs == nil || s.audit == nil || s.events == nil || s.health == nil || s.quotas == nil {
 		return DiagnosticSnapshot{}, errors.New("plugin diagnostics dependencies are not configured")
 	}
 	limit, err := diagnosticLimit(query.Limit)
@@ -190,6 +198,9 @@ func (s *DiagnosticsService) Inspect(ctx context.Context, pluginID string, query
 		jobItems = append(jobItems, diagnosticJob(pluginID, item))
 	}
 	errorsFound := diagnosticErrors(pluginID, health, jobItems, auditItems)
+	quotaItems := s.quotas.PluginQuotaSnapshot(pluginID)
+	errorsFound = append(errorsFound, diagnosticQuotaErrors(pluginID, quotaItems)...)
+	sort.SliceStable(errorsFound, func(i, j int) bool { return errorsFound[i].OccurredAt.After(errorsFound[j].OccurredAt) })
 	correlation := strings.ToLower(strings.TrimSpace(query.Correlation))
 	if correlation != "" {
 		jobItems = filterDiagnosticJobs(jobItems, correlation)
@@ -199,8 +210,8 @@ func (s *DiagnosticsService) Inspect(ctx context.Context, pluginID string, query
 
 	return DiagnosticSnapshot{
 		PluginID: pluginID, CapturedAt: capturedAt, Health: health,
-		Summary: diagnosticSummary(jobItems, auditItems, errorsFound),
-		Jobs:    jobItems, Audit: auditItems, Errors: errorsFound,
+		Summary: diagnosticSummary(jobItems, auditItems, errorsFound, quotaItems),
+		Jobs:    jobItems, Audit: auditItems, Errors: errorsFound, Quotas: quotaItems,
 	}, nil
 }
 
@@ -406,7 +417,7 @@ func diagnosticErrors(pluginID string, health HealthReport, jobs []DiagnosticJob
 	return out
 }
 
-func diagnosticSummary(jobs []DiagnosticJob, audit []DiagnosticAuditRecord, errorsFound []DiagnosticError) DiagnosticSummary {
+func diagnosticSummary(jobs []DiagnosticJob, audit []DiagnosticAuditRecord, errorsFound []DiagnosticError, quotas []quota.Snapshot) DiagnosticSummary {
 	summary := DiagnosticSummary{TotalJobs: len(jobs), AuditEvents: len(audit), FailureCount: len(errorsFound)}
 	for _, item := range jobs {
 		switch item.Status {
@@ -416,7 +427,27 @@ func diagnosticSummary(jobs []DiagnosticJob, audit []DiagnosticAuditRecord, erro
 			summary.DeadLetters++
 		}
 	}
+	for _, item := range quotas {
+		summary.QuotaRejections += item.Rejected
+	}
 	return summary
+}
+
+func diagnosticQuotaErrors(pluginID string, items []quota.Snapshot) []DiagnosticError {
+	out := make([]DiagnosticError, 0)
+	for _, item := range items {
+		if item.Rejected == 0 || item.LastRejectedAt.IsZero() {
+			continue
+		}
+		out = append(out, DiagnosticError{
+			ID:       "quota:" + pluginID + ":" + string(item.Resource),
+			Category: "quota", Severity: "medium", Summary: "plugin_quota_exceeded",
+			Owner: pluginID, Stage: "quota." + string(item.Resource), Retryable: true,
+			EvidenceID: "quota:" + pluginID + ":" + string(item.Resource), OccurredAt: item.LastRejectedAt,
+			Correlation: DiagnosticCorrelation{},
+		})
+	}
+	return out
 }
 
 func diagnosticAuditSeverity(risk string) string {

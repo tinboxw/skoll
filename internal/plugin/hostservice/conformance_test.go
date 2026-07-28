@@ -80,6 +80,7 @@ func TestThirdPartyPluginPassesPublicSDKConformance(t *testing.T) {
 			}}, nil
 		},
 		EventOutbox: gormrepo.NewPluginEventOutboxStore(bundle.PluginDataDB),
+		Quotas:      newHostServiceTestQuotaController(),
 		Files:       filesvc.NewService(bundle.Files, objects, filesvc.Options{}), Audit: auditsvc.NewService(bundle.Audit),
 		DocumentNumbers:   documentnumbersvc.NewService(gormrepo.NewDocumentNumberStore(bundle.PluginDataDB)),
 		DocumentWorkflows: gormrepo.NewDocumentWorkflowStore(bundle.PluginDataDB),

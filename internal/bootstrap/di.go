@@ -26,6 +26,7 @@ import (
 	"github.com/tinboxw/skoll/internal/plugin/datastore"
 	"github.com/tinboxw/skoll/internal/plugin/eventoutbox"
 	"github.com/tinboxw/skoll/internal/plugin/hostservice"
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 	organizationrepo "github.com/tinboxw/skoll/internal/repository/organization"
 	pluginrepo "github.com/tinboxw/skoll/internal/repository/plugin"
 	rbacrepo "github.com/tinboxw/skoll/internal/repository/rbac"
@@ -148,6 +149,7 @@ func buildDependencies(cfg RuntimeConfig) (*dependencies, error) {
 			DocumentNumbers: documentNumberService, DocumentWorkflows: documentWorkflowStore, System: systemService, MasterSecret: cfg.AppConfig.Security.JWTSecret, Workflow: workflowService, Jobs: jobService,
 			EventOutbox: eventOutboxStore,
 		},
+		pluginQuotaPolicy(cfg.AppConfig.Plugin.Quota),
 	)
 	if err != nil {
 		return nil, err
@@ -223,7 +225,7 @@ func buildEventBus(cfg config.EventConfig) (event.Bus, error) {
 	}
 }
 
-func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService, businessEvents *event.BusinessEventBus, dataLifecycle *datastore.Lifecycle, hostDeps hostservice.HostServicesDependencies) (plugin.Manager, error) {
+func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrepo.UserRepository, rolesRepo rolerepo.RoleRepository, rbacRepo rbacrepo.RBACRepository, organizationRepo organizationrepo.OrganizationRepository, pluginsRepo pluginrepo.PluginRepository, migrationStore plugin.MigrationStore, auditSvc audit.Service, auditEventSvc audit.EventService, businessEvents *event.BusinessEventBus, dataLifecycle *datastore.Lifecycle, hostDeps hostservice.HostServicesDependencies, quotaPolicy quota.Policy) (plugin.Manager, error) {
 	if businessEvents == nil {
 		businessEvents = event.NewBusinessEventBus(nil)
 	}
@@ -233,6 +235,10 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 	authHandler := newBuiltinAuthHandler(jwtSecret, usersRepo, rolesRepo, rbacRepo, organizationRepo, auditSvc, auditEventSvc, logger)
 	builtinInfos, extensions, handlers := registerBuiltinPluginExtensions(logger, jwtSecret, authHandler)
 	healthChecker := plugin.NewHTTPHealthChecker(2 * time.Second)
+	quotaController, err := quota.NewController(quotaPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("build plugin quota controller: %w", err)
+	}
 	m := &pluginManagerWithExtensions{
 		Manager:            runtimeManager,
 		builtinInfos:       builtinInfos,
@@ -247,6 +253,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 		businessEvents:     businessEvents,
 		eventDelivery:      plugin.NewHTTPEventDeliveryClient(nil, 5*time.Second),
 		eventSubscriptions: make(map[string][]func()),
+		quotas:             quotaController,
 		migrationHook:      plugin.NewPluginMigrationHook(migrationStore, pluginMigrationAuditSink{auditSvc: auditSvc}),
 		dataLifecycle:      dataLifecycle,
 	}
@@ -258,6 +265,7 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 	hostGateway, err := plugin.NewHostGateway(func(pluginID string) (pluginsdk.HostServices, error) {
 		deps := hostDeps
 		deps.PluginID = pluginID
+		deps.Quotas = quotaController
 		deps.ConfigStore = m
 		info, resolveErr := m.Get(pluginID)
 		if resolveErr != nil {
@@ -272,13 +280,13 @@ func newPluginManager(logger logging.Logger, jwtSecret string, usersRepo userrep
 			return info.EventPublications(), nil
 		}
 		return hostservice.NewHostServices(deps)
-	}, jwtSecret, 30*time.Second)
+	}, jwtSecret, quotaController, 30*time.Second)
 	if err != nil {
 		return nil, err
 	}
 	m.hostGateway = hostGateway
 	m.serviceSupervisor = plugin.NewServiceSupervisor(
-		plugin.NewManagedProcessLauncher(healthChecker, 5*time.Second, hostGateway, dataDirectories),
+		plugin.NewManagedProcessLauncher(healthChecker, 5*time.Second, hostGateway, dataDirectories, quotaController),
 		pluginServiceAuditSink{auditSvc: auditSvc}, 5*time.Second, 5*time.Second,
 	)
 
@@ -400,6 +408,7 @@ type pluginManagerWithExtensions struct {
 	businessEvents     *event.BusinessEventBus
 	eventDelivery      plugin.EventDeliveryClient
 	eventSubscriptions map[string][]func()
+	quotas             *quota.Controller
 }
 
 var _ plugin.RoutePermissionResolver = (*pluginManagerWithExtensions)(nil)
@@ -527,6 +536,46 @@ func (m *pluginManagerWithExtensions) HandlePluginRoute(pluginID, method, path s
 		r.Header.Del(pluginclient.TraceIDHeader)
 	}
 	w.Header().Set(pluginclient.CorrelationHeader, operation.CorrelationID)
+	if m.quotas == nil {
+		httpHandler.WriteMessage(w, http.StatusServiceUnavailable, "plugin_quota_unavailable", "插件资源治理未配置")
+		return true
+	}
+	lease, err := m.quotas.Acquire(pluginID, quota.ResourceRequest)
+	if err != nil {
+		writePluginQuotaError(w, err)
+		return true
+	}
+	defer lease.Release()
+	policy := m.quotas.Policy()
+	if r.ContentLength > policy.MaxRequestBytes {
+		httpHandler.WriteMessage(w, http.StatusRequestEntityTooLarge, "plugin_request_too_large", "插件请求超过资源配额")
+		return true
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, policy.MaxRequestBytes)
+	ctx, cancel := context.WithTimeout(r.Context(), policy.RequestTimeout)
+	defer cancel()
+	r = r.WithContext(ctx)
+	response := newBoundedPluginResponse(w, policy.MaxResponseBytes)
+	handled := m.handlePluginRoute(pluginID, method, path, response, r)
+	if !handled {
+		return false
+	}
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		httpHandler.WriteMessage(w, http.StatusGatewayTimeout, "plugin_request_timeout", "插件请求处理超时")
+		return true
+	}
+	response.commit()
+	return true
+}
+
+func (m *pluginManagerWithExtensions) PluginQuotaSnapshot(pluginID string) []quota.Snapshot {
+	if m == nil || m.quotas == nil {
+		return []quota.Snapshot{}
+	}
+	return m.quotas.Snapshot(pluginID)
+}
+
+func (m *pluginManagerWithExtensions) handlePluginRoute(pluginID, method, path string, w http.ResponseWriter, r *http.Request) bool {
 	m.lifecycleMu.RLock()
 	defer m.lifecycleMu.RUnlock()
 	key := pluginRouteKey(pluginID, method, path)

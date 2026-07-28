@@ -94,7 +94,7 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 			DocumentNumbers: dataStoreE2EDocumentNumbers{}, Documents: dataStoreE2EDocuments{}, Files: dataStoreE2EFiles{}, Audit: audit, Config: configService, Secrets: secretService,
 			Workflows: dataStoreE2EWorkflows{}, Jobs: dataStoreE2EJobs{},
 		}, nil
-	}, jwtSecret, 5*time.Second)
+	}, jwtSecret, newTestPluginQuotaController(), 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,13 +102,14 @@ func TestIndependentPluginDataStoreProcessLifecycleE2E(t *testing.T) {
 
 	runtimeManager := plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver())
 	manager := &pluginManagerWithExtensions{
+		quotas:  newTestPluginQuotaController(),
 		Manager: runtimeManager, builtinInfos: map[string]plugin.Info{}, extensions: map[string]plugin.RegistrySnapshot{},
 		routeHandlers: map[string]http.HandlerFunc{}, routePermissions: mustEmptyRoutePermissionRegistry(),
 		migrationHook: plugin.NewPluginMigrationHook(gormrepo.NewPluginMigrationStore(db), nil), dataLifecycle: dataLifecycle,
 		dataDirectories: dataDirectories, hostGateway: gateway, eventSubscriptions: map[string][]func(){},
 	}
 	manager.serviceSupervisor = plugin.NewServiceSupervisor(
-		plugin.NewManagedProcessLauncher(plugin.NewHTTPHealthChecker(time.Second), 25*time.Millisecond, gateway, dataDirectories),
+		plugin.NewManagedProcessLauncher(plugin.NewHTTPHealthChecker(time.Second), 25*time.Millisecond, gateway, dataDirectories, newTestPluginQuotaController()),
 		nil, 8*time.Second, 3*time.Second,
 	)
 	t.Cleanup(func() { _ = manager.Close() })

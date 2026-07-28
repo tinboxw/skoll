@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoad(t *testing.T) {
@@ -32,6 +33,25 @@ func TestLoad(t *testing.T) {
 	}
 	if cfg.Cache.Mode != "memory" {
 		t.Fatalf("unexpected cache mode: %s", cfg.Cache.Mode)
+	}
+	if cfg.Plugin.Quota.RequestConcurrency != 32 || cfg.Plugin.Quota.MaxPendingJobs != 100 {
+		t.Fatalf("unexpected plugin quota defaults: %+v", cfg.Plugin.Quota)
+	}
+}
+
+func TestLoadPluginQuotaEnvOverrides(t *testing.T) {
+	t.Setenv("SKOLL_PLUGIN_QUOTA_REQUEST_CONCURRENCY", "7")
+	t.Setenv("SKOLL_PLUGIN_QUOTA_MAX_STORAGE_BYTES", "67108864")
+	t.Setenv("SKOLL_PLUGIN_QUOTA_REQUEST_TIMEOUT", "12s")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load plugin quota env: %v", err)
+	}
+	if cfg.Plugin.Quota.RequestConcurrency != 7 ||
+		cfg.Plugin.Quota.MaxStorageBytes != 67108864 ||
+		cfg.Plugin.Quota.RequestTimeout != 12*time.Second {
+		t.Fatalf("plugin quota env was not applied: %+v", cfg.Plugin.Quota)
 	}
 }
 
@@ -170,6 +190,7 @@ func TestValidate(t *testing.T) {
 		Store:    StoreConfig{Mode: "memory"},
 		Cache:    CacheConfig{Mode: "memory", LocalSize: 256},
 		Event:    EventConfig{Mode: "memory"},
+		Plugin:   PluginConfig{Quota: validPluginQuota()},
 		Security: SecurityConfig{JWTSecret: "s"},
 	}
 	if err := Validate(cfg); err != nil {
@@ -183,9 +204,38 @@ func TestValidateRedisEventModeRequiresAddr(t *testing.T) {
 		Store:    StoreConfig{Mode: "memory"},
 		Cache:    CacheConfig{Mode: "memory", LocalSize: 256},
 		Event:    EventConfig{Mode: "redis"},
+		Plugin:   PluginConfig{Quota: validPluginQuota()},
 		Security: SecurityConfig{JWTSecret: "s"},
 	}
 	if err := Validate(cfg); err == nil {
 		t.Fatalf("expected redis event mode validation error")
+	}
+}
+
+func TestValidateRejectsMissingPluginQuota(t *testing.T) {
+	cfg := AppConfig{
+		Server: ServerConfig{Address: ":8080", ShutdownTimeout: 1},
+		Store:  StoreConfig{Mode: "memory"}, Cache: CacheConfig{Mode: "memory", LocalSize: 256},
+		Event: EventConfig{Mode: "memory"}, Security: SecurityConfig{JWTSecret: "s"},
+	}
+	if err := Validate(cfg); err == nil {
+		t.Fatal("missing plugin quota must fail validation")
+	}
+}
+
+func validPluginQuota() PluginQuotaConfig {
+	return PluginQuotaConfig{
+		RequestRate: 1, RequestBurst: 1, RequestConcurrency: 1,
+		HostCallRate: 1, HostCallBurst: 1, HostCallConcurrency: 1,
+		QueryRate: 1, QueryBurst: 1, QueryConcurrency: 1,
+		MutationRate: 1, MutationBurst: 1, MutationConcurrency: 1,
+		EventRate: 1, EventBurst: 1, EventConcurrency: 1,
+		JobRate: 1, JobBurst: 1, JobConcurrency: 1,
+		ExportRate: 1, ExportBurst: 1, ExportConcurrency: 1,
+		StorageRate: 1, StorageBurst: 1, StorageConcurrency: 1,
+		ProcessRate: 1, ProcessBurst: 1, ProcessConcurrency: 1,
+		MaxPendingEvents: 1, MaxPendingJobs: 1, MaxFileBytes: 1, MaxStorageBytes: 1,
+		MaxRequestBytes: 1, MaxResponseBytes: 1, RequestTimeout: time.Second,
+		ProcessMemoryBytes: 1, ProcessMaxProcs: 1,
 	}
 }

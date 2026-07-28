@@ -212,7 +212,7 @@ async function mockDiagnostics(page: Page): Promise<void> {
 					pluginId: PLUGIN_ID,
 					capturedAt: now,
 					health: { pluginId: PLUGIN_ID, status: "unhealthy", code: "health_timeout", checkedAt: now, latencyMillis: 2000 },
-					summary: { totalJobs: 2, activeJobs: 1, deadLetters: 1, auditEvents: 2, failureCount: 2 },
+					summary: { totalJobs: 2, activeJobs: 1, deadLetters: 1, auditEvents: 2, failureCount: 3, quotaRejections: 4 },
 					jobs: [
 						{ id: "qualification-expiry", kind: "expiry_scan", status: "dead_letter", correlationId: "operation-pharma-1", owner: PLUGIN_ID, stage: "job.dead_letter", evidenceId: "job:qualification-expiry", runAt: now, maxAttempts: 3, attemptCount: 3, lastError: "qualification lookup failed", createdAt: now, updatedAt: now, deadLetteredAt: now, canRetry: true },
 						{ id: "stock-alert", kind: "stock_scan", status: "scheduled", correlationId: "operation-pharma-2", owner: PLUGIN_ID, stage: "job.scheduled", evidenceId: "job:stock-alert", runAt: now, maxAttempts: 3, attemptCount: 0, createdAt: now, updatedAt: now, canRetry: false }
@@ -221,9 +221,15 @@ async function mockDiagnostics(page: Page): Promise<void> {
 						{ id: "audit-pharma-1", source: "event", action: "pharma_oa.customer.read", result: "failure", risk: "medium", actorId: "admin", resourceType: "plugin_route", resourceId: "GET /v1/plugins/pharma_oa/api/customers", occurredAt: now, correlationId: "operation-pharma-1", traceId: "trace-pharma-1", requestId: "request-pharma-1", owner: PLUGIN_ID, stage: "pharma_oa.customer.read", retryable: false, evidenceId: "event:audit-pharma-1", method: "GET", path: "/v1/plugins/pharma_oa/api/customers" },
 						{ id: "audit-pharma-2", source: "host", action: "plugin.pharma_oa.job.fail", result: "failure", risk: "high", actorId: "plugin:pharma_oa", resourceType: "plugin:pharma_oa:job", resourceId: "qualification-expiry", occurredAt: now, correlationId: "operation-pharma-1", owner: PLUGIN_ID, stage: "jobs.fail", retryable: true, evidenceId: "audit:audit-pharma-2" }
 					],
+					quotas: [
+						{ resource: "request", ratePerSecond: 50, burst: 100, maxConcurrent: 32, active: 1, available: 92, rejected: 0, reserved: 0 },
+						{ resource: "query", ratePerSecond: 40, burst: 80, maxConcurrent: 16, active: 0, available: 78, rejected: 4, reserved: 0, lastRejectedAt: now },
+						{ resource: "storage", ratePerSecond: 10, burst: 20, maxConcurrent: 4, active: 0, available: 20, rejected: 0, reserved: 0 }
+					],
 					errors: [
 						{ id: "audit:audit-pharma-1", category: "route", severity: "medium", summary: "pharma_oa.customer.read", owner: PLUGIN_ID, stage: "pharma_oa.customer.read", retryable: false, evidenceId: "audit:audit-pharma-1", occurredAt: now, correlation: { routeId: "GET /v1/plugins/pharma_oa/api/customers", auditId: "audit-pharma-1", correlationId: "operation-pharma-1", requestId: "request-pharma-1", traceId: "trace-pharma-1" } },
-						{ id: "job:qualification-expiry", category: "job", severity: "high", summary: "qualification lookup failed", owner: PLUGIN_ID, stage: "job.dead_letter", retryable: true, evidenceId: "job:qualification-expiry", occurredAt: now, correlation: { jobId: "qualification-expiry", correlationId: "operation-pharma-1" } }
+						{ id: "job:qualification-expiry", category: "job", severity: "high", summary: "qualification lookup failed", owner: PLUGIN_ID, stage: "job.dead_letter", retryable: true, evidenceId: "job:qualification-expiry", occurredAt: now, correlation: { jobId: "qualification-expiry", correlationId: "operation-pharma-1" } },
+						{ id: "quota:pharma_oa:query", category: "quota", severity: "medium", summary: "plugin_quota_exceeded", owner: PLUGIN_ID, stage: "quota.query", retryable: true, evidenceId: "quota:pharma_oa:query", occurredAt: now, correlation: {} }
 					]
 				}
 			})

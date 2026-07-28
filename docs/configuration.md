@@ -80,7 +80,43 @@ configs/skoll.yml
 | `memory` | `internal/event/inmemory_bus.go` | 进程内发布/订阅，单实例 |
 | `redis` | `internal/event/redis_bus.go` | Redis Pub/Sub，支持多实例广播 |
 
-### 2.5 security（安全）
+### 2.5 plugin.quota（插件资源治理）
+
+每项配置都是当前运行时的强制边界。速率、突发量、并发数、容量、字节数和超时必须为正值；任一值无效时，Skoll 启动失败，不会使用兼容默认值或关闭治理。
+
+下表中的资源名可取 `request`、`host_call`、`query`、`mutation`、`event`、`job`、`export`、`storage`、`process`。每类资源均使用三个键：
+
+| 键名规则 | 类型 | 环境变量规则 | 说明 |
+|------|------|---------|------|
+| `plugin.quota.<resource>_rate` | float | `SKOLL_PLUGIN_QUOTA_<RESOURCE>_RATE` | 每插件每秒补充令牌数 |
+| `plugin.quota.<resource>_burst` | int | `SKOLL_PLUGIN_QUOTA_<RESOURCE>_BURST` | 每插件令牌桶容量 |
+| `plugin.quota.<resource>_concurrency` | int | `SKOLL_PLUGIN_QUOTA_<RESOURCE>_CONCURRENCY` | 每插件最大活动并发 |
+
+| 资源 | 默认速率 | 默认突发量 | 默认并发 |
+|------|---------:|-----------:|---------:|
+| `request` | 50 | 100 | 32 |
+| `host_call` | 100 | 200 | 64 |
+| `query` | 40 | 80 | 16 |
+| `mutation` | 20 | 40 | 8 |
+| `event` | 20 | 40 | 8 |
+| `job` | 10 | 20 | 4 |
+| `export` | 2 | 4 | 2 |
+| `storage` | 10 | 20 | 4 |
+| `process` | 1 | 2 | 1 |
+
+| 键名 | 类型 | 默认值 | 环境变量 | 说明 |
+|------|------|--------|---------|------|
+| `plugin.quota.max_pending_events` | int | `100` | `SKOLL_PLUGIN_QUOTA_MAX_PENDING_EVENTS` | 每插件最大待投递事件数 |
+| `plugin.quota.max_pending_jobs` | int | `100` | `SKOLL_PLUGIN_QUOTA_MAX_PENDING_JOBS` | 每插件最大待执行任务数 |
+| `plugin.quota.max_file_bytes` | int64 | `16777216` | `SKOLL_PLUGIN_QUOTA_MAX_FILE_BYTES` | 单个插件文件最大字节数 |
+| `plugin.quota.max_storage_bytes` | int64 | `536870912` | `SKOLL_PLUGIN_QUOTA_MAX_STORAGE_BYTES` | 每插件文件总存储最大字节数 |
+| `plugin.quota.max_request_bytes` | int64 | `8388608` | `SKOLL_PLUGIN_QUOTA_MAX_REQUEST_BYTES` | 插件业务请求体最大字节数 |
+| `plugin.quota.max_response_bytes` | int64 | `16777216` | `SKOLL_PLUGIN_QUOTA_MAX_RESPONSE_BYTES` | 插件业务响应体最大字节数 |
+| `plugin.quota.request_timeout` | duration | `30s` | `SKOLL_PLUGIN_QUOTA_REQUEST_TIMEOUT` | 插件业务请求处理上限 |
+| `plugin.quota.process_memory_bytes` | int64 | `536870912` | `SKOLL_PLUGIN_QUOTA_PROCESS_MEMORY_BYTES` | 每插件托管进程内存上限 |
+| `plugin.quota.process_max_procs` | int | `2` | `SKOLL_PLUGIN_QUOTA_PROCESS_MAX_PROCS` | 每插件进程数与 Go 调度并行度上限 |
+
+### 2.6 security（安全）
 
 | 键名 | 类型 | 默认值 | 环境变量 | 说明 |
 |------|------|--------|---------|------|
@@ -97,7 +133,7 @@ H3 数据范围浏览器矩阵可在隔离验收环境设置 `SKOLL_SCOPE_MATRIX
 
 插件公共面仅限 `GET /<api-prefix>/v1/plugins/{id}/page` 与 `GET /<api-prefix>/v1/plugins/{id}/assets/*`。插件业务 API `/<api-prefix>/v1/plugins/{id}/api/*` 始终要求 JWT，并按照已启用插件 manifest 的 `api_contract.routes[].permission` 执行 RBAC；`SKOLL_AUTH_ENABLED=false` 和 `SKOLL_AUTH_SKIP_PATHS` 都不能跳过该边界。路由缺少权限声明或权限解析器不可用时，系统默认拒绝并写入安全审计。
 
-### 2.6 log（日志）
+### 2.7 log（日志）
 
 | 键名 | 类型 | 默认值 | 环境变量 | 说明 |
 |------|------|--------|---------|------|
@@ -114,7 +150,7 @@ H3 数据范围浏览器矩阵可在隔离验收环境设置 `SKOLL_SCOPE_MATRIX
 | 空 | `false` | stdout | stdout（带 `plugin_id` 字段） |
 | 空 | `true` | stdout | `log/<pluginId>.log` |
 
-### 2.7 dev（开发者工具）
+### 2.8 dev（开发者工具）
 
 | 键名 | 类型 | 默认值 | 环境变量 | 说明 |
 |------|------|--------|---------|------|

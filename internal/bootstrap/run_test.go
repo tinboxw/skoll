@@ -166,7 +166,8 @@ func appConfigForTest(addr string) config.AppConfig {
 			APIPrefix:       "/skoll",
 			ShutdownTimeout: 2 * time.Second,
 		},
-		Store: config.StoreConfig{Mode: "memory"},
+		Store:  config.StoreConfig{Mode: "memory"},
+		Plugin: config.PluginConfig{Quota: testPluginQuotaConfig()},
 		Security: config.SecurityConfig{
 			JWTSecret: "test-secret-123456",
 		},

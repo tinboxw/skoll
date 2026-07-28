@@ -205,7 +205,7 @@ data:
 	}
 	fixtureRuntime, err := NewRuntime(RuntimeOptions{
 		PluginID: pluginID, Services: services, DataRoot: filepath.Join(t.TempDir(), "data"),
-		StartTimeout: 5 * time.Second, StopTimeout: 3 * time.Second,
+		StartTimeout: 5 * time.Second, StopTimeout: 3 * time.Second, Quotas: newFixtureQuotaController(),
 	})
 	if err != nil {
 		t.Fatal(err)

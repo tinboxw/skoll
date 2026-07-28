@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -13,6 +15,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 )
 
 func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
@@ -25,7 +29,8 @@ func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
 	checker := NewHTTPHealthChecker(200 * time.Millisecond)
 	credentials := &testProcessCredentialIssuer{}
 	dataDirectories := mustPluginDataDirectories(t)
-	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(checker, 20*time.Millisecond, credentials, dataDirectories), nil, 5*time.Second, time.Second)
+	quotas := newPluginTestQuotaController()
+	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(checker, 20*time.Millisecond, credentials, dataDirectories, quotas), nil, 5*time.Second, time.Second)
 	t.Cleanup(func() { _ = supervisor.Shutdown(context.Background()) })
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatalf("start managed backend: %v", err)
@@ -52,6 +57,17 @@ func TestManagedProcessLauncherLifecycleEnvironmentAndHealth(t *testing.T) {
 	}
 	if runtimeInfo["hostUrl"] != "http://127.0.0.1:19091" || runtimeInfo["hostToken"] == "" {
 		t.Fatalf("plugin host credential was not injected: %+v", runtimeInfo)
+	}
+	policy := quotas.Policy()
+	if runtimeInfo["memoryLimitBytes"] != fmt.Sprint(policy.ProcessMemoryBytes) ||
+		runtimeInfo["maxProcs"] != fmt.Sprint(policy.ProcessMaxProcs) ||
+		runtimeInfo["goMemoryLimit"] != fmt.Sprintf("%dB", policy.ProcessMemoryBytes) ||
+		runtimeInfo["goMaxProcs"] != fmt.Sprint(policy.ProcessMaxProcs) {
+		t.Fatalf("plugin process quotas were not injected: %+v", runtimeInfo)
+	}
+	secondLauncher := NewManagedProcessLauncher(checker, 20*time.Millisecond, credentials, dataDirectories, quotas)
+	if _, err := secondLauncher.Start(context.Background(), info); !quotaErrorForResource(err, quota.ResourceProcess) {
+		t.Fatalf("second process for the same plugin was not rejected: %v", err)
 	}
 
 	if _, err := http.Post(info.ServiceBaseURL+"/unhealthy", "application/json", nil); err != nil {
@@ -88,7 +104,7 @@ func TestManagedProcessLauncherReportsCrash(t *testing.T) {
 	const pluginID = "managed_crash"
 	address := reserveManagedProcessAddress(t)
 	info := managedTestInfo(pluginID, buildManagedTestBackend(t, pluginID), address)
-	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(NewHTTPHealthChecker(200*time.Millisecond), 20*time.Millisecond, &testProcessCredentialIssuer{}, mustPluginDataDirectories(t)), nil, 5*time.Second, time.Second)
+	supervisor := NewServiceSupervisor(NewManagedProcessLauncher(NewHTTPHealthChecker(200*time.Millisecond), 20*time.Millisecond, &testProcessCredentialIssuer{}, mustPluginDataDirectories(t), newPluginTestQuotaController()), nil, 5*time.Second, time.Second)
 	t.Cleanup(func() { _ = supervisor.Shutdown(context.Background()) })
 	if err := supervisor.Start(context.Background(), info); err != nil {
 		t.Fatal(err)
@@ -102,7 +118,7 @@ func TestManagedProcessLauncherReportsCrash(t *testing.T) {
 }
 
 func TestManagedProcessLauncherRejectsMissingEntryAndRemoteService(t *testing.T) {
-	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), time.Millisecond, &testProcessCredentialIssuer{}, mustPluginDataDirectories(t))
+	launcher := NewManagedProcessLauncher(NewHTTPHealthChecker(time.Second), time.Millisecond, &testProcessCredentialIssuer{}, mustPluginDataDirectories(t), newPluginTestQuotaController())
 	missing := managedTestInfo("missing", t.TempDir(), "127.0.0.1:19090")
 	if _, err := launcher.Start(context.Background(), missing); err == nil || !strings.Contains(err.Error(), "backend entry") {
 		t.Fatalf("missing backend error = %v", err)
@@ -148,7 +164,7 @@ func main() {
   healthy.Store(true)
   mux := http.NewServeMux()
   mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) { if !healthy.Load() { http.Error(w, "unhealthy", http.StatusServiceUnavailable); return }; w.WriteHeader(http.StatusNoContent) })
-  mux.HandleFunc("GET /runtime", func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(map[string]string{"pluginId": os.Getenv("SKOLL_PLUGIN_ID"), "address": os.Getenv("SKOLL_PLUGIN_ADDRESS"), "pluginDir": os.Getenv("SKOLL_PLUGIN_DIR"), "dataDir": dataDir, "starts": strconv.Itoa(starts), "hostUrl": os.Getenv("SKOLL_PLUGIN_HOST_URL"), "hostToken": os.Getenv("SKOLL_PLUGIN_HOST_TOKEN"), "secret": os.Getenv("SKOLL_TEST_SECRET")}) })
+  mux.HandleFunc("GET /runtime", func(w http.ResponseWriter, _ *http.Request) { _ = json.NewEncoder(w).Encode(map[string]string{"pluginId": os.Getenv("SKOLL_PLUGIN_ID"), "address": os.Getenv("SKOLL_PLUGIN_ADDRESS"), "pluginDir": os.Getenv("SKOLL_PLUGIN_DIR"), "dataDir": dataDir, "starts": strconv.Itoa(starts), "hostUrl": os.Getenv("SKOLL_PLUGIN_HOST_URL"), "hostToken": os.Getenv("SKOLL_PLUGIN_HOST_TOKEN"), "memoryLimitBytes": os.Getenv("SKOLL_PLUGIN_MEMORY_LIMIT_BYTES"), "maxProcs": os.Getenv("SKOLL_PLUGIN_MAX_PROCS"), "goMemoryLimit": os.Getenv("GOMEMLIMIT"), "goMaxProcs": os.Getenv("GOMAXPROCS"), "secret": os.Getenv("SKOLL_TEST_SECRET")}) })
   mux.HandleFunc("POST /unhealthy", func(w http.ResponseWriter, _ *http.Request) { healthy.Store(false); w.WriteHeader(http.StatusNoContent) })
   mux.HandleFunc("POST /crash", func(http.ResponseWriter, *http.Request) { os.Exit(23) })
   server := &http.Server{Addr: os.Getenv("SKOLL_PLUGIN_ADDRESS"), Handler: mux}
@@ -178,6 +194,11 @@ func (i *testProcessCredentialIssuer) Issue(string) (ProcessCredential, error) {
 }
 
 func (i *testProcessCredentialIssuer) Revoke(string) { i.revoked.Add(1) }
+
+func quotaErrorForResource(err error, resource quota.Resource) bool {
+	var quotaErr *quota.Error
+	return errors.As(err, &quotaErr) && quotaErr.Resource == resource
+}
 
 func managedTestInfo(pluginID string, pluginDir string, address string) Info {
 	base := "http://" + address

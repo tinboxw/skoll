@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/tinboxw/skoll/internal/plugin/eventoutbox"
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	documentnumbersvc "github.com/tinboxw/skoll/internal/service/documentnumber"
 	documentworkflowsvc "github.com/tinboxw/skoll/internal/service/documentworkflow"
@@ -33,6 +34,7 @@ type HostServicesDependencies struct {
 	MasterSecret      string
 	Workflow          workflowsvc.Service
 	Jobs              *jobsvc.Service
+	Quotas            *quota.Controller
 }
 
 func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, error) {
@@ -87,6 +89,10 @@ func NewHostServices(deps HostServicesDependencies) (pluginsdk.HostServices, err
 		PluginID: pluginID, Capabilities: append([]pluginsdk.HostCapability(nil), deps.Capabilities...),
 		Transactions: deps.Transactions, DataScopes: deps.DataScopes,
 		DataStore: dataStore, Events: events, DocumentNumbers: documentNumbers, Documents: documents, Files: files, Audit: audit, Config: config, Secrets: secrets, Workflows: workflows, Jobs: jobs,
+	}
+	host, err = wrapHostServicesWithQuotas(host, deps.Quotas, deps.EventOutbox)
+	if err != nil {
+		return pluginsdk.HostServices{}, err
 	}
 	if err := host.Validate(); err != nil {
 		return pluginsdk.HostServices{}, fmt.Errorf("build plugin host services: %w", err)

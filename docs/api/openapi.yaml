@@ -2674,13 +2674,14 @@ components:
             data: {$ref: '#/components/schemas/PluginMigrationRollbackResult'}
     PluginDiagnosticSummary:
       type: object
-      required: [totalJobs, activeJobs, deadLetters, auditEvents, failureCount]
+      required: [totalJobs, activeJobs, deadLetters, auditEvents, failureCount, quotaRejections]
       properties:
         totalJobs: {type: integer, minimum: 0}
         activeJobs: {type: integer, minimum: 0}
         deadLetters: {type: integer, minimum: 0}
         auditEvents: {type: integer, minimum: 0}
         failureCount: {type: integer, minimum: 0}
+        quotaRejections: {type: integer, format: int64, minimum: 0}
     PluginDiagnosticJob:
       type: object
       required: [id, kind, status, owner, stage, evidenceId, runAt, maxAttempts, attemptCount, createdAt, updatedAt, canRetry]
@@ -2740,7 +2741,7 @@ components:
       required: [id, category, severity, summary, owner, stage, retryable, evidenceId, occurredAt, correlation]
       properties:
         id: {type: string}
-        category: {type: string, enum: [process, route, job, audit]}
+        category: {type: string, enum: [process, route, job, audit, quota]}
         severity: {type: string, enum: [medium, high, critical]}
         summary: {type: string}
         owner: {type: string}
@@ -2749,9 +2750,24 @@ components:
         evidenceId: {type: string}
         occurredAt: {type: string, format: date-time}
         correlation: {$ref: '#/components/schemas/PluginDiagnosticCorrelation'}
+    PluginQuotaSnapshot:
+      type: object
+      required: [resource, ratePerSecond, burst, maxConcurrent, active, available, rejected, reserved]
+      properties:
+        resource:
+          type: string
+          enum: [request, host_call, query, mutation, event, job, export, storage, process]
+        ratePerSecond: {type: number, format: double, exclusiveMinimum: 0}
+        burst: {type: integer, minimum: 1}
+        maxConcurrent: {type: integer, minimum: 1}
+        active: {type: integer, minimum: 0}
+        available: {type: integer, minimum: 0}
+        rejected: {type: integer, format: int64, minimum: 0}
+        reserved: {type: integer, format: int64, minimum: 0}
+        lastRejectedAt: {type: string, format: date-time}
     PluginDiagnosticsSnapshot:
       type: object
-      required: [pluginId, capturedAt, health, summary, jobs, audit, errors]
+      required: [pluginId, capturedAt, health, summary, jobs, audit, errors, quotas]
       properties:
         pluginId: {type: string}
         capturedAt: {type: string, format: date-time}
@@ -2766,6 +2782,9 @@ components:
         errors:
           type: array
           items: {$ref: '#/components/schemas/PluginDiagnosticError'}
+        quotas:
+          type: array
+          items: {$ref: '#/components/schemas/PluginQuotaSnapshot'}
     PluginDiagnosticsAPIResponse:
       allOf:
         - {$ref: '#/components/schemas/MessageResponse'}

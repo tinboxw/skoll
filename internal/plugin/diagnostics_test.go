@@ -8,6 +8,7 @@ import (
 
 	domainaudit "github.com/tinboxw/skoll/internal/domain/audit"
 	"github.com/tinboxw/skoll/internal/domain/shared"
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 	auditsvc "github.com/tinboxw/skoll/internal/service/audit"
 	jobsvc "github.com/tinboxw/skoll/internal/service/job"
 	"github.com/tinboxw/skoll/internal/store/clickhouse"
@@ -24,6 +25,12 @@ func (s diagnosticCatalogStub) Get(pluginID string) (Info, error) {
 }
 
 type diagnosticHealthStub struct{ report HealthReport }
+
+type diagnosticQuotaStub struct{ items []quota.Snapshot }
+
+func (s diagnosticQuotaStub) PluginQuotaSnapshot(string) []quota.Snapshot {
+	return append([]quota.Snapshot(nil), s.items...)
+}
 
 type diagnosticEventServiceStub struct{ items []*domainaudit.Event }
 
@@ -113,6 +120,7 @@ func TestDiagnosticsServiceLinksJobsAuditRoutesAndErrors(t *testing.T) {
 		diagnosticCatalogStub{items: map[string]Info{"pharma_oa": {ID: "pharma_oa", State: StateEnabled}}},
 		jobs, auditService, eventService,
 		diagnosticHealthStub{report: HealthReport{PluginID: "pharma_oa", Status: HealthStatusUnhealthy, Code: "health_timeout", CheckedAt: now}},
+		diagnosticQuotaStub{},
 	)
 	service.now = func() time.Time { return now }
 	snapshot, err := service.Inspect(ctx, "pharma_oa", DiagnosticQuery{Limit: 50})
@@ -159,7 +167,7 @@ func TestDiagnosticsServiceRetriesDeadLetterAsNewJob(t *testing.T) {
 	leased, _ := jobs.LeaseDue(ctx, jobsvc.LeaseInput{Namespace: "plugin.pharma_oa", WorkerID: "worker-a", Limit: 1, LeaseDuration: time.Minute})
 	_, _ = jobs.Fail(ctx, jobsvc.FailInput{JobID: leased[0].ID, LeaseToken: leased[0].LeaseToken, Error: "failed"})
 
-	service := NewDiagnosticsService(diagnosticCatalogStub{items: map[string]Info{"pharma_oa": {ID: "pharma_oa"}}}, jobs, nil, nil, nil)
+	service := NewDiagnosticsService(diagnosticCatalogStub{items: map[string]Info{"pharma_oa": {ID: "pharma_oa"}}}, jobs, nil, nil, nil, nil)
 	service.now = func() time.Time { return now }
 	result, err := service.RetryDeadLetter(ctx, "pharma_oa", "scan")
 	if err != nil {
@@ -173,5 +181,33 @@ func TestDiagnosticsServiceRetriesDeadLetterAsNewJob(t *testing.T) {
 	original, err := jobs.Get(ctx, "plugin:pharma_oa:scan")
 	if err != nil || original.Status != jobsvc.StatusDeadLetter {
 		t.Fatalf("original dead letter was mutated: %+v err=%v", original, err)
+	}
+}
+
+func TestDiagnosticsServiceExposesQuotaPolicyAndRejectionEvidence(t *testing.T) {
+	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
+	jobs := jobsvc.NewService(jobsvc.NewMemoryRepository(), func() time.Time { return now })
+	auditService := auditsvc.NewService(clickhouse.NewAuditStore())
+	eventService := &diagnosticEventServiceStub{}
+	service := NewDiagnosticsService(
+		diagnosticCatalogStub{items: map[string]Info{"reports": {ID: "reports"}}},
+		jobs, auditService, eventService,
+		diagnosticHealthStub{report: HealthReport{PluginID: "reports", Status: HealthStatusHealthy, Code: "health_ok", CheckedAt: now}},
+		diagnosticQuotaStub{items: []quota.Snapshot{{
+			Resource: quota.ResourceQuery, RatePerSecond: 10, Burst: 20, MaxConcurrent: 4,
+			Available: 3, Rejected: 2, LastRejectedAt: now.Add(-time.Minute),
+		}}},
+	)
+	service.now = func() time.Time { return now }
+	snapshot, err := service.Inspect(context.Background(), "reports", DiagnosticQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snapshot.Quotas) != 1 || snapshot.Summary.QuotaRejections != 2 {
+		t.Fatalf("quota diagnostics are incomplete: %+v", snapshot)
+	}
+	if len(snapshot.Errors) != 1 || snapshot.Errors[0].Category != "quota" ||
+		snapshot.Errors[0].Stage != "quota.query" || !snapshot.Errors[0].Retryable {
+		t.Fatalf("quota rejection evidence is incomplete: %+v", snapshot.Errors)
 	}
 }

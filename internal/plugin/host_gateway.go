@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tinboxw/skoll/internal/plugin/quota"
 	"github.com/tinboxw/skoll/pkg/pluginclient"
 	"github.com/tinboxw/skoll/pkg/pluginsdk"
 	"github.com/tinboxw/skoll/pkg/security"
@@ -62,6 +63,7 @@ type HostGateway struct {
 	factory   HostServicesFactory
 	jwtSecret string
 	txTTL     time.Duration
+	quotas    *quota.Controller
 
 	mu           sync.RWMutex
 	credentials  map[[32]byte]hostCredential
@@ -69,12 +71,15 @@ type HostGateway struct {
 	closeOnce    sync.Once
 }
 
-func NewHostGateway(factory HostServicesFactory, jwtSecret string, transactionTTL time.Duration) (*HostGateway, error) {
+func NewHostGateway(factory HostServicesFactory, jwtSecret string, quotas *quota.Controller, transactionTTL time.Duration) (*HostGateway, error) {
 	if factory == nil {
 		return nil, errors.New("plugin host services factory is required")
 	}
 	if strings.TrimSpace(jwtSecret) == "" {
 		return nil, errors.New("plugin host JWT secret is required")
+	}
+	if quotas == nil {
+		return nil, errors.New("plugin host quota controller is required")
 	}
 	if transactionTTL <= 0 {
 		transactionTTL = defaultHostTransactionTTL
@@ -85,7 +90,7 @@ func NewHostGateway(factory HostServicesFactory, jwtSecret string, transactionTT
 	}
 	gateway := &HostGateway{
 		listener: listener, url: "http://" + listener.Addr().String(), factory: factory,
-		jwtSecret: jwtSecret, txTTL: transactionTTL,
+		jwtSecret: jwtSecret, txTTL: transactionTTL, quotas: quotas,
 		credentials: make(map[[32]byte]hostCredential), transactions: make(map[string]*hostTransaction),
 	}
 	gateway.server = &http.Server{Handler: gateway, ReadHeaderTimeout: 5 * time.Second}
@@ -216,6 +221,14 @@ func (g *HostGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeHostError(w, http.StatusForbidden, "host_capability_denied")
 		return
 	}
+	lease, err := g.quotas.Acquire(credential.pluginID, quota.ResourceHostCall)
+	if err != nil {
+		ctx, _ := hostOperationContext(r)
+		_ = recordHostOperation(ctx, credential, requestedCapability, err)
+		writeHostCallError(w, err)
+		return
+	}
+	defer lease.Release()
 
 	if parts[1] == "transactions" {
 		g.serveTransaction(w, r, credentialKey, credential, parts[2])
@@ -475,6 +488,10 @@ func hostOperationFailure(err error) (string, bool) {
 	if err == nil {
 		return "", false
 	}
+	var quotaErr *quota.Error
+	if errors.As(err, &quotaErr) {
+		return "plugin_quota_exceeded", true
+	}
 	var eventErr *pluginsdk.EventError
 	if errors.As(err, &eventErr) {
 		return string(eventErr.Code), eventErr.Retryable
@@ -536,6 +553,19 @@ func writeHostCallError(w http.ResponseWriter, err error) {
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
 		writeHostError(w, http.StatusRequestEntityTooLarge, "host_request_too_large")
+		return
+	}
+	var quotaErr *quota.Error
+	if errors.As(err, &quotaErr) {
+		retryAfter := int(quotaErr.RetryAfter.Seconds())
+		if retryAfter < 1 {
+			retryAfter = 1
+		}
+		w.Header().Set("Retry-After", fmt.Sprint(retryAfter))
+		w.Header().Set("X-Skoll-Quota-Resource", string(quotaErr.Resource))
+		writeHostJSON(w, http.StatusTooManyRequests, pluginclient.ErrorResponse{
+			Code: "plugin_quota_exceeded", Message: quotaErr.Error(), Retryable: true,
+		})
 		return
 	}
 	var eventErr *pluginsdk.EventError

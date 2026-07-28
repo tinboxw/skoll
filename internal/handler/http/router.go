@@ -104,7 +104,11 @@ func NewRouter(deps Dependencies, middleware ...Middleware) http.Handler {
 	if provider, ok := deps.PluginManager.(plugin.HealthProvider); ok {
 		pluginHealth = provider
 	}
-	pluginDiagnostics := plugin.NewDiagnosticsService(deps.PluginManager, deps.JobService, deps.AuditService, deps.AuditEventService, pluginHealth)
+	var pluginQuotas plugin.QuotaProvider
+	if provider, ok := deps.PluginManager.(plugin.QuotaProvider); ok {
+		pluginQuotas = provider
+	}
+	pluginDiagnostics := plugin.NewDiagnosticsService(deps.PluginManager, deps.JobService, deps.AuditService, deps.AuditEventService, pluginHealth, pluginQuotas)
 	pluginhttp.RegisterPluginRoutes(
 		apiMux,
 		deps.PluginManager,

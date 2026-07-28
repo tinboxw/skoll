@@ -83,6 +83,7 @@ func TestPluginRuntimeMilestoneEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	manager := &pluginManagerWithExtensions{
+		quotas:             newTestPluginQuotaController(),
 		Manager:            plugin.NewRuntimeManager(plugin.NewFileLoader(), plugin.NewTopologicalResolver()),
 		builtinInfos:       map[string]plugin.Info{},
 		extensions:         map[string]plugin.RegistrySnapshot{},

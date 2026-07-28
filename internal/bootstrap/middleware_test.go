@@ -515,6 +515,7 @@ func TestPluginRoutePermissionHelpers(t *testing.T) {
 
 func TestPluginManagerBuildsRoutePermissionsFromEnabledRuntimeManifests(t *testing.T) {
 	manager := &pluginManagerWithExtensions{
+		quotas: newTestPluginQuotaController(),
 		Manager: &fakePluginManager{items: map[string]plugin.Info{
 			"enabled": {
 				ID: "enabled", State: plugin.StateEnabled,

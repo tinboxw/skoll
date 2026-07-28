@@ -78,12 +78,33 @@ The gateway validates public contracts again, binds the credential to one plugin
 
 `Within` starts a credential-bound host transaction with a 30-second maximum lifetime. Every participating host call must use `tx.Context()`. Callback error, timeout, disconnect, credential revocation, or host shutdown rolls the transaction back. Nested transactions are rejected and calls within one transaction are serialized.
 
+## Resource Governance
+
+One shared controller applies an independent token bucket and concurrency boundary to every plugin. The governed resources are `request`, `host_call`, `query`, `mutation`, `event`, `job`, `export`, `storage`, and `process`. A busy plugin consumes only its own bucket and slots; another plugin keeps its own full allowance.
+
+Persistent work also has capacity boundaries. Event publication reserves pending-outbox capacity, job scheduling reserves pending-job capacity, and file writes reserve both object-size and total plugin-storage capacity before mutation. Idempotent event and job replay remains readable at capacity and does not allocate a second record. Reservations are released after success or failure, so capacity recovers without a fallback queue.
+
+Business routes enforce request bytes, response bytes, processing timeout, rate, and concurrency before returning data. Host calls enforce a separate rate and concurrency policy. A rejected call returns HTTP `429`, code `plugin_quota_exceeded`, `retryable: true`, `Retry-After`, and `X-Skoll-Quota-Resource`. Clients must honor the retry signal with bounded backoff; they must not switch to a private host path, direct database access, or an ungoverned local queue.
+
+The managed process receives host-owned runtime limits:
+
+| Variable | Meaning |
+| --- | --- |
+| `SKOLL_PLUGIN_MEMORY_LIMIT_BYTES` | Effective process memory ceiling |
+| `SKOLL_PLUGIN_MAX_PROCS` | Effective process-count/Go scheduler ceiling |
+| `GOMEMLIMIT` | Go runtime memory target derived from the host policy |
+| `GOMAXPROCS` | Go scheduler parallelism derived from the host policy |
+
+Windows applies a Job Object process-count and memory limit. Linux applies `RLIMIT_AS`; an unsupported operating system fails process startup. A crashed, unhealthy, disabled, or stopped process releases its process lease, allowing a later governed restart.
+
+The plugin diagnostics endpoint and Element Plus control-center view expose rate, burst, active concurrency, available tokens, reserved capacity, rejection count, and last rejection time for every resource. Rejections also appear as retryable `quota` diagnostic errors with durable evidence. Operators can therefore tune the explicit `plugin.quota` configuration without granting a plugin an alternate execution path.
+
 ## Security Boundary
 
 - The gateway binds a random loopback address and accepts only declared v1 `POST` operations.
 - The gateway rejects an undeclared operation before decoding or dispatching its business payload.
 - Every request authenticates the lifecycle credential; data scope also verifies the user JWT.
-- Requests and responses are limited to 32 MiB. Unknown fields, operations, transactions, and non-loopback sources fail closed.
+- Plugin business request and response limits come from `plugin.quota`; host-protocol frames remain bounded to 32 MiB. Unknown fields, operations, transactions, and non-loopback sources fail closed.
 - Secrets are encrypted and keyed by plugin identity; another plugin cannot read the value, key material, or plaintext audit detail.
 - Install, enable, disable, and uninstall require separate high-risk RBAC actions: `plugin.install`, `plugin.enable`, `plugin.disable`, and `plugin.uninstall`.
 - Datastore failures expose only stable `code`, `field`, `message`, and `retryable` fields, never database, secret, or infrastructure details.
@@ -92,7 +113,7 @@ The gateway validates public contracts again, binds the credential to one plugin
 ## Verification
 
 ```powershell
-go test ./internal/plugin -run "TestHostGateway|TestManagedProcessLauncher" -count=1
-go test -race ./internal/plugin -run "TestHostGateway|TestManagedProcessLauncher" -count=1
+go test ./internal/plugin ./internal/plugin/quota ./internal/plugin/hostservice -run "Quota|HostGateway|ManagedProcessLauncher" -count=1
+go test -race ./internal/plugin ./internal/plugin/quota ./internal/plugin/hostservice -run "Quota|HostGateway|ManagedProcessLauncher" -count=1
 go list -deps ./pkg/pluginclient
 ```

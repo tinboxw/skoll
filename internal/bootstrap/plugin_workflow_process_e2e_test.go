@@ -302,8 +302,37 @@ func TestIndependentPluginGovernedWorkflowProcessE2E(t *testing.T) {
 	for completed := range timerCompleted {
 		completedTotal += completed
 	}
+	for retryAttempt := 0; completedTotal == 0 && retryAttempt < 3; retryAttempt++ {
+		var retryRow gormrepo.JobModel
+		if err := runtime.db.Where("id = ?", timerRow.ID).First(&retryRow).Error; err != nil {
+			t.Fatalf("load escalation retry state: %v", err)
+		}
+		if retryRow.Status == string(jobsvc.StatusDeadLetter) {
+			t.Fatalf("escalation timer dead-lettered during transient recovery: %+v", retryRow)
+		}
+		if retryRow.RunAt.After(runtime.clock.Now()) {
+			runtime.clock.Advance(retryRow.RunAt.Sub(runtime.clock.Now()) + time.Second)
+		}
+		completed, processErr := runtime.service.ProcessDueTimers(
+			context.Background(),
+			fmt.Sprintf("workflow-e2e-recovery-%d", retryAttempt),
+			10,
+			time.Minute,
+		)
+		if processErr != nil {
+			t.Fatalf("recover escalation timer: %v", processErr)
+		}
+		completedTotal += completed
+	}
+	var completedTimerRow gormrepo.JobModel
+	if err := runtime.db.Where("id = ?", timerRow.ID).First(&completedTimerRow).Error; err != nil {
+		t.Fatalf("load completed escalation timer: %v", err)
+	}
 	if completedTotal != 1 {
-		t.Fatalf("escalation timer completed=%d want=1 row=%+v", completedTotal, timerRow)
+		t.Fatalf("escalation timer completed=%d want=1 row=%+v", completedTotal, completedTimerRow)
+	}
+	if completedTimerRow.Status != string(jobsvc.StatusSucceeded) {
+		t.Fatalf("escalation timer status=%s want=%s row=%+v", completedTimerRow.Status, jobsvc.StatusSucceeded, completedTimerRow)
 	}
 	escalated := runtime.get(tokens["starter-1"], "escalation-instance", http.StatusOK)
 	workflowE2EAssertStatusAndActions(t, escalated, pluginsdk.WorkflowInstanceRunning, pluginsdk.WorkflowActionEscalate, 1)
@@ -414,11 +443,11 @@ func (r *workflowE2ERuntime) start() {
 			Files: dataStoreE2EFiles{}, Audit: r.audit, Config: &dataStoreE2EConfig{},
 			Secrets: &dataStoreE2ESecrets{}, Workflows: workflows, Jobs: dataStoreE2EJobs{},
 		}, nil
-	}, workflowE2EJWTSecret, 5*time.Second)
+	}, workflowE2EJWTSecret, newTestPluginQuotaController(), 5*time.Second)
 	if err != nil {
 		r.t.Fatal(err)
 	}
-	launcher := plugin.NewManagedProcessLauncher(plugin.NewHTTPHealthChecker(time.Second), 25*time.Millisecond, r.gateway, r.data)
+	launcher := plugin.NewManagedProcessLauncher(plugin.NewHTTPHealthChecker(time.Second), 25*time.Millisecond, r.gateway, r.data, newTestPluginQuotaController())
 	r.handle, err = launcher.Start(context.Background(), plugin.Info{
 		ID: workflowE2EPluginID, Name: "Workflow E2E", Version: "1.0.0", State: plugin.StateEnabled,
 		Source: r.pluginDir, ServiceBaseURL: "http://" + r.address,
