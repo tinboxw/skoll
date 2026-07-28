@@ -34,7 +34,7 @@
 | 采购入库 | `401` | `403` | `pharma_oa.inbound.read/create` | 可访问 | actor 取 JWT subject |
 | 销售出库 | `401` | `403` | `pharma_oa.sales.outbound.read/create` | 可访问 | actor 取 JWT subject |
 | 盘点审批/驳回 | `401` | `403` | `pharma_oa.stocktake.*` | 可访问 | actor 取 JWT subject |
-| 库存调拨 | `401` | `403` | `pharma_oa.transfer.read/create` | 可访问 | actor 取 JWT subject |
+| 库存调拨 | `401` | `403` | `pharma_oa.stock_transfer.read/create` | 可访问 | actor 取 JWT subject |
 | 员工/客户列表与维护 | `401` | `403` | 对应 `pharma_oa.employee.*` / `pharma_oa.customer.*` | 可访问 | 普通用户强制绑定 JWT subject；超级管理员全量 |
 
 权限拒绝继续写入 `system.security.deny` 审计事件；请求体或查询参数中的 `actorId`、`ownerId`、`organizationId`、`includeAll` 不能覆盖已认证身份。

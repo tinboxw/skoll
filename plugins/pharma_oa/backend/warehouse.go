@@ -293,13 +293,24 @@ func (s *server) ensureWarehouseCodeUnique(ctx context.Context, permission plugi
 }
 
 func (s *server) getWarehouse(ctx context.Context, permission pluginsdk.Permission, scope employeeScope, id string) (warehouse, error) {
+	return s.getWarehouseWithIntent(ctx, pluginsdk.DataScopeIntent{
+		Permission: permission,
+		Filter:     scopeFilter(scope),
+	}, id)
+}
+
+func (s *server) getWarehouseWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	id string,
+) (warehouse, error) {
 	id = strings.TrimSpace(id)
 	if id == "" || len(id) > 128 {
 		return warehouse{}, newHTTPError(http.StatusBadRequest, "invalid_warehouse", "warehouse id is invalid")
 	}
 	idValue := stringValue(id)
 	page, err := s.host.DataStore.Query(ctx, pluginsdk.DataQuery{
-		Table: warehouseTable, Fields: warehouseFields, Scope: pluginsdk.DataScopeIntent{Permission: permission, Filter: scopeFilter(scope)},
+		Table: warehouseTable, Fields: warehouseFields, Scope: intent,
 		Filter: &pluginsdk.DataFilter{Field: "id", Operator: pluginsdk.DataOperatorEqual, Value: &idValue},
 		Sort:   []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 1},
 	})

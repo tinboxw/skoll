@@ -3844,3 +3844,72 @@ Result: BF5-05B passed. Accepted receipts now produce one immutable, traceable b
 ### Commit
 
 `BF5-05B: implement immutable lot stock ledger`
+
+## BF5-05C Build Governed Inventory Movements
+
+- Date: 2026-07-28
+- Owner: Codex
+- Status flow: `Doing -> Review -> Failed -> Doing -> Review -> Done`
+- Scope: Add transfer, stocktake, adjustment, and return documents whose signed postings update the immutable lot ledger and exact location balances under one scoped Host transaction.
+
+### Acceptance Result
+
+| Gate | Evidence | Result |
+| --- | --- | --- |
+| Current movement contract | Contract `0.12.0` owns 18 list/detail/create/decision routes, four current document types, exact permissions, `inventory_movements`, and `stock_return_totals`; obsolete `pharma_oa.transfer.*` permissions were removed | Pass |
+| Balanced transfers | Every transfer request line expands into deterministic `transfer_out` and `transfer_in` legs with distinct source-line IDs, equal magnitude, one product/lot, exact source/destination topology, and zero net quantity | Pass |
+| Stocktake workflow | Zero-difference counts complete without ledger noise; nonzero counts preserve system quantity, counted quantity, and balance version, then post only after a bound workflow reaches approved | Pass |
+| Adjustment workflow | Signed gains and losses require approval; rejection creates no posting, and the atomic balance guard prevents negative stock | Pass |
+| Return workflow | Purchase returns retain the referenced receipt-ledger ID, post `purchase_return_out`, and atomically cap cumulative quantity through `stock_return_totals` | Pass |
+| Atomic posting | Workflow action, return reservation, sorted balance adjustments, immutable ledger appends, movement state, high-risk audit, and `inventory-changed` event commit or roll back together | Pass |
+| Workflow binding | Approval and rejection re-read the current movement, enforce optimistic version, verify workflow instance/definition/business binding and a pending task, and accept only terminal approved/rejected workflow results | Pass |
+| Idempotency | Resource, movement type, action, tenant, organization, inventory owner, requester, document, and client key feed opaque operation identities; same payload replays while changed payload conflicts | Pass |
+| Concurrency | Balance rows are adjusted in one global ID order, guard conflicts map to stable domain errors, concurrent overdraw allows one complete winner, and no partial transfer leg survives | Pass |
+| Property sequence | A deterministic 50-step bidirectional transfer sequence preserves the modeled total after every signed pair and finishes with ledger/balance reconciliation | Pass |
+| Lot and topology rules | Missing or expired lots, disabled topology, stale stocktake snapshots, mismatched leg facts, and invalid source/destination branches fail before any durable posting | Pass |
+| Organization and owner scope | Source warehouse topology anchors one exact inventory owner; an authorized same-organization `AllOwners` actor can post while retaining its requester ID, but an actor without source-owner scope and every cross-organization actor are rejected | Pass |
+| Trace and reconciliation | Every nonzero posting references its movement type, document ID/number, and deterministic leg ID; product/lot/location balances reconcile with the complete immutable ledger | Pass |
+| Migration and restart | Migration `011` independently applies, rolls back, and reapplies both movement tables; real SQLite restart preserves movement trace, paired ledger, two location balances, return totals, and exact reconciliation | Pass |
+| Packaged process | The verified package builds, installs, migrates, starts, creates and approves a stock adjustment, appends one traced ledger row, projects the exact balance, isolates another organization, and records workflow/audit evidence | Pass |
+| Repository regression | Full Pharma OA tests, movement race repeats, real SQLite repeats/race, frontend 20 tests/build, packaged E2E, backend vet, whitespace, CodeGraph, and full `go test ./...` pass | Pass |
+| Current-only rule | No compatibility route, legacy permission, dual ledger path, temporary bridge, document fallback, or mutable ledger API was introduced | Pass |
+
+### Failed Gates And Re-execution
+
+1. The first purchase-return acceptance run exposed that the response serialized internal `legs/referenceLedgerEntryId` names instead of the current public `lines/sourceLedgerEntryId` contract. The movement document now exposes one current line representation, and the complete return and movement suites passed after re-execution.
+2. The first complete backend run retained the previous `0.11.0` meta assertion. The assertion now requires `0.12.0` and all 14 document types; the full backend and contract suites then passed.
+3. The first packaged E2E attempt stopped before any business request because Windows expanded the system TEMP 8.3 path differently from Vite's root path. The lifecycle test now creates an exact temporary workspace under the repository and registers cleanup; the real packaged process passed twice, including the final production state.
+
+### Review Corrections
+
+1. Concurrency review found that processing all negative balances before all positive balances gave opposite transfers inverse lock order. Every nonzero balance projection is now updated in globally sorted ID order; transaction rollback preserves atomicity if a later debit fails.
+2. Review found that raw datastore guard/version conflicts did not expose stable business errors. Negative guards, stocktake versions, positive overflow, and return caps now map deterministically to `insufficient_stock`, `stale_stocktake`, `inventory_quantity_overflow`, and `inventory_return_exceeds_source`.
+3. Posting validation now recomputes stocktake deltas, pins non-transfer legs to their document topology, matches return product/lot/batch facts to the referenced immutable ledger, and revalidates lot expiry plus active topology inside the transaction.
+4. Scope review found that using the requester as inventory owner prevented an authorized second operator in the same organization from acting on established stock. Source topology now anchors the exact persisted inventory owner, requester identity remains separate, destination topology must share the anchor, and explicit allow/deny multi-actor tests pass.
+
+### Verification Commands
+
+```powershell
+go test ./plugins/pharma_oa/backend -run "Test(StockTransfer|Stocktake|StockAdjustment|PurchaseReturn|InventoryMovement|ConcurrentTransfers|MovementEvent)" -count=3
+go test -race ./plugins/pharma_oa/backend -run "Test(StockTransfer|Stocktake|StockAdjustment|PurchaseReturn|InventoryMovement|ConcurrentTransfers|MovementEvent)" -count=3 -timeout=15m
+go test ./internal/plugin -run "^TestPharmaOAInventoryLedgerRealSQLiteAcceptance$" -count=3 -timeout=15m
+go test -race ./internal/plugin -run "^TestPharmaOAInventoryLedgerRealSQLiteAcceptance$" -count=1
+go test ./plugins/pharma_oa/... -count=1 -timeout=15m
+$env:SKOLL_PHARMA_OA_E2E = "1"
+go test ./internal/plugin -run "^TestPharmaOAPackagedBusinessLifecycleE2E$" -count=1 -v -timeout=15m
+Set-Location plugins/pharma_oa/frontend
+npm run test
+npm run build
+Set-Location ../../..
+go vet ./plugins/pharma_oa/backend
+go test ./... -count=1 -timeout=30m
+git diff --check
+codegraph sync .
+codegraph status .
+```
+
+Result: BF5-05C passed. Pharma OA now owns governed, scope-safe inventory movements whose workflow decisions, immutable signed ledger postings, bounded returns, and exact location balances remain atomic, traceable, concurrent-safe, and restart-safe.
+
+### Commit
+
+`BF5-05C: implement governed inventory movements`

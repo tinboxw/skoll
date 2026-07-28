@@ -49,7 +49,15 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	})
 
 	address := reserveEquipmentAddress(t)
-	workspace := t.TempDir()
+	workspace, err := os.MkdirTemp(repoRoot, ".pharma-oa-lifecycle-")
+	if err != nil {
+		t.Fatalf("create canonical pharma-OA lifecycle workspace: %v", err)
+	}
+	t.Cleanup(func() {
+		if cleanupErr := os.RemoveAll(workspace); cleanupErr != nil {
+			t.Errorf("remove pharma-OA lifecycle workspace: %v", cleanupErr)
+		}
+	})
 	source := filepath.Join(workspace, "plugins", "pharma_oa")
 	copyEquipmentSource(t, filepath.Join(repoRoot, "plugins", "pharma_oa"), source)
 	rewritePharmaAddress(t, filepath.Join(source, "plugin.yaml"), address)
@@ -491,6 +499,9 @@ func TestPharmaOAPackagedBusinessLifecycleE2E(t *testing.T) {
 	if pharmaLifecycleInt(t, finalLedger, "total") != 1 {
 		t.Fatalf("final inbound did not produce exactly one source ledger entry: %v", finalLedger)
 	}
+	pharmaLifecycleExerciseStockAdjustment(
+		t, baseURL, actorAToken, actorBToken, productID, topology, "LOT-E2E-002", audit, workflows,
+	)
 
 	if err := manager.Disable(installed.ID); err != nil {
 		t.Fatalf("disable before uninstall: %v", err)
@@ -733,6 +744,134 @@ func pharmaLifecycleAssertInventoryState(
 			pharmaLifecycleString(t, item, "ledgerQuantity") != quantity ||
 			pharmaLifecycleString(t, item, "balanceQuantity") != quantity {
 			t.Fatalf("inventory reconciliation row is inexact: %v", item)
+		}
+	}
+}
+
+func pharmaLifecycleExerciseStockAdjustment(
+	t *testing.T,
+	baseURL string,
+	actorAToken string,
+	actorBToken string,
+	productID string,
+	topology pharmaLifecycleTopology,
+	batchNo string,
+	audit *pharmaLifecycleAudit,
+	workflows *pharmaLifecycleWorkflows,
+) {
+	t.Helper()
+	lots := pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/inventory-lots?productId="+productID,
+		actorAToken, "", nil, http.StatusOK,
+	)
+	var lotID string
+	for _, lot := range pharmaLifecycleItems(t, lots) {
+		if pharmaLifecycleString(t, lot, "batchNo") == batchNo {
+			lotID = pharmaLifecycleString(t, lot, "id")
+			break
+		}
+	}
+	if lotID == "" {
+		t.Fatalf("packaged stock adjustment lot %q was not found: %v", batchNo, lots)
+	}
+
+	body := map[string]any{
+		"tenantId": "tenant-a", "organizationId": "org-a",
+		"warehouseId": topology.warehouseID, "areaId": topology.areaID, "locationId": topology.locationID,
+		"reason": "Packaged damaged-stock adjustment", "approverId": "actor-a-approver", "approverName": "Inventory approver",
+		"lines": []map[string]any{{"productId": productID, "lotId": lotID, "quantity": "-0.25"}},
+	}
+	created := pharmaLifecycleRequest(
+		t, http.MethodPost, baseURL+"/stock-adjustments", actorAToken,
+		"e2e-stock-adjustment-create", body, http.StatusCreated,
+	)
+	createdItem := pharmaLifecycleMap(t, created, "item")
+	adjustmentID := pharmaLifecycleString(t, createdItem, "id")
+	if pharmaLifecycleString(t, createdItem, "status") != "pending_approval" ||
+		pharmaLifecycleString(t, pharmaLifecycleArrayMap(t, createdItem, "lines", 0), "quantity") != "-0.25" {
+		t.Fatalf("packaged stock adjustment did not retain its governed signed leg: %v", created)
+	}
+	replay := pharmaLifecycleRequest(
+		t, http.MethodPost, baseURL+"/stock-adjustments", actorAToken,
+		"e2e-stock-adjustment-create", body, http.StatusOK,
+	)
+	if duplicate, ok := replay["duplicate"].(bool); !ok || !duplicate ||
+		pharmaLifecycleString(t, pharmaLifecycleMap(t, replay, "item"), "id") != adjustmentID {
+		t.Fatalf("packaged stock adjustment create was not idempotent: %v", replay)
+	}
+
+	approved := pharmaLifecycleRequest(
+		t, http.MethodPost, baseURL+"/stock-adjustments/"+adjustmentID+"/approve", actorAToken,
+		"e2e-stock-adjustment-approve", map[string]any{
+			"taskId": pharmaLifecyclePendingTaskID(t, created), "comment": "Damaged quantity confirmed", "version": 1,
+		}, http.StatusOK,
+	)
+	approvedItem := pharmaLifecycleMap(t, approved, "item")
+	if pharmaLifecycleString(t, approvedItem, "status") != "posted" ||
+		pharmaLifecycleString(t, pharmaLifecycleMap(t, approved, "workflow"), "status") != string(pluginsdk.WorkflowInstanceApproved) {
+		t.Fatalf("packaged stock adjustment was not approved and posted atomically: %v", approved)
+	}
+	persisted := pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/stock-adjustments/"+adjustmentID,
+		actorAToken, "", nil, http.StatusOK,
+	)
+	if pharmaLifecycleString(t, pharmaLifecycleMap(t, persisted, "item"), "status") != "posted" {
+		t.Fatalf("packaged stock adjustment document was not queryable after posting: %v", persisted)
+	}
+
+	ledger := pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/stock-ledger?sourceDocumentId="+adjustmentID,
+		actorAToken, "", nil, http.StatusOK,
+	)
+	if pharmaLifecycleInt(t, ledger, "total") != 1 {
+		t.Fatalf("packaged stock adjustment did not produce exactly one source ledger entry: %v", ledger)
+	}
+	entry := pharmaLifecycleArrayMap(t, ledger, "items", 0)
+	if pharmaLifecycleString(t, entry, "entryType") != "adjustment_loss" ||
+		pharmaLifecycleString(t, entry, "quantity") != "-0.25" ||
+		pharmaLifecycleString(t, entry, "sourceDocumentType") != "stock_adjustment" ||
+		pharmaLifecycleString(t, entry, "sourceDocumentId") != adjustmentID ||
+		pharmaLifecycleString(t, entry, "sourceDocumentLineId") == "" {
+		t.Fatalf("packaged stock adjustment ledger lost its exact source trace: %v", ledger)
+	}
+
+	query := "?productId=" + productID + "&lotId=" + lotID +
+		"&warehouseId=" + topology.warehouseID + "&locationId=" + topology.locationID
+	balances := pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/stock-balances"+query,
+		actorAToken, "", nil, http.StatusOK,
+	)
+	if pharmaLifecycleInt(t, balances, "total") != 1 ||
+		pharmaLifecycleString(t, pharmaLifecycleArrayMap(t, balances, "items", 0), "quantity") != "1" {
+		t.Fatalf("packaged stock adjustment balance projection was not exact: %v", balances)
+	}
+	reconciliation := pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/stock-reconciliation?sourceDocumentId="+adjustmentID,
+		actorAToken, "", nil, http.StatusOK,
+	)
+	reconciliationItem := pharmaLifecycleArrayMap(t, reconciliation, "items", 0)
+	if pharmaLifecycleInt(t, reconciliation, "total") != 1 || reconciliation["matched"] != true ||
+		pharmaLifecycleString(t, reconciliationItem, "ledgerQuantity") != "1" ||
+		pharmaLifecycleString(t, reconciliationItem, "balanceQuantity") != "1" {
+		t.Fatalf("packaged stock adjustment source reconciliation did not match: %v", reconciliation)
+	}
+
+	isolated := pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/stock-adjustments", actorBToken, "", nil, http.StatusOK,
+	)
+	if pharmaLifecycleInt(t, isolated, "total") != 0 {
+		t.Fatalf("packaged stock adjustments leaked across organization scope: %v", isolated)
+	}
+	pharmaLifecycleRequest(
+		t, http.MethodGet, baseURL+"/stock-adjustments/"+adjustmentID,
+		actorBToken, "", nil, http.StatusNotFound,
+	)
+	if workflows.instanceCount() != 8 {
+		t.Fatalf("packaged stock adjustment workflow count=%d want=8", workflows.instanceCount())
+	}
+	for _, action := range []string{"pharma_oa.stock_adjustment.create", "pharma_oa.stock_adjustment.approve"} {
+		if !audit.hasAction(action) {
+			t.Fatalf("missing packaged stock adjustment audit action %q; actions=%v", action, audit.actions())
 		}
 	}
 }

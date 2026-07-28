@@ -376,3 +376,51 @@ tables:
       - {fields: [product_id, batch_no]}
       - {fields: [warehouse_id, product_id]}
       - {fields: [location_id, product_id]}
+  - name: inventory_movements
+    mutation_policy: mutable
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: number, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: movement_type, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: return_type, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: reason, type: string, mutable: true}
+      - {name: source_warehouse_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: source_area_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: source_location_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: destination_warehouse_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: destination_area_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: destination_location_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: legs, type: json, mutable: true}
+      - {name: requester_id, type: string, mutable: true, filterable: true}
+      - {name: requested_at, type: timestamp, mutable: true, filterable: true, sortable: true}
+      - {name: approver_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: approver_name, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: workflow_definition_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: workflow_instance_id, type: string, nullable: true, mutable: true, filterable: true}
+      - {name: status, type: string, mutable: true, filterable: true, sortable: true}
+      - {name: create_operation_key, type: string, mutable: true, filterable: true}
+      - {name: request_hash, type: string, mutable: true, filterable: true}
+      - {name: last_operation_key, type: string, mutable: true, filterable: true}
+      - {name: last_operation_hash, type: string, mutable: true, filterable: true}
+      - {name: decision_comment, type: string, nullable: true, mutable: true}
+      - {name: decided_at, type: timestamp, nullable: true, mutable: true, filterable: true, sortable: true}
+      - {name: posted_at, type: timestamp, nullable: true, mutable: true, filterable: true, sortable: true}
+    indexes:
+      - {fields: [number], unique: true}
+      - {fields: [create_operation_key], unique: true}
+      - {fields: [movement_type, status, updated_at]}
+      - {fields: [source_location_id, status, updated_at]}
+      - {fields: [destination_location_id, status, updated_at]}
+      - {fields: [workflow_instance_id]}
+  - name: stock_return_totals
+    mutation_policy: mutable
+    primary_key: [id]
+    fields:
+      - {name: id, type: string, filterable: true, sortable: true}
+      - {name: reference_ledger_entry_id, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: return_type, type: string, mutable: true, filterable: true, sortable: true, groupable: true}
+      - {name: quantity_micros, type: integer, mutable: true, filterable: true, aggregatable: true}
+    indexes:
+      - {fields: [reference_ledger_entry_id, return_type], unique: true}
+      - {fields: [return_type, updated_at]}

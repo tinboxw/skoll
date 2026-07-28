@@ -30,10 +30,11 @@ type foundationContract struct {
 }
 
 type server struct {
-	host         pluginsdk.HostServices
-	now          func() time.Time
-	newID        func() string
-	inboundLocks *operationLocks
+	host          pluginsdk.HostServices
+	now           func() time.Time
+	newID         func() string
+	inboundLocks  *operationLocks
+	movementLocks *operationLocks
 }
 
 type operationLock struct {
@@ -66,7 +67,8 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	}
 	s := &server{
 		host: host, now: time.Now, newID: employeeID,
-		inboundLocks: &operationLocks{items: make(map[string]*operationLock)},
+		inboundLocks:  &operationLocks{items: make(map[string]*operationLock)},
+		movementLocks: &operationLocks{items: make(map[string]*operationLock)},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.health)
@@ -158,6 +160,16 @@ func newHandler(host pluginsdk.HostServices) (http.Handler, error) {
 	mux.HandleFunc("GET "+apiBase+"/stock-ledger", s.listStockLedger)
 	mux.HandleFunc("GET "+apiBase+"/stock-balances", s.listStockBalances)
 	mux.HandleFunc("GET "+apiBase+"/stock-reconciliation", s.reconcileStock)
+	for _, kind := range inventoryMovementKinds() {
+		route := inventoryMovementRoute(kind)
+		mux.HandleFunc("GET "+apiBase+"/"+route, s.listInventoryMovements(kind))
+		mux.HandleFunc("POST "+apiBase+"/"+route, s.createInventoryMovement(kind))
+		mux.HandleFunc("GET "+apiBase+"/"+route+"/{id}", s.getInventoryMovementHandler(kind))
+		if inventoryMovementRequiresApproval(kind) {
+			mux.HandleFunc("POST "+apiBase+"/"+route+"/{id}/approve", s.decideInventoryMovement(kind, true))
+			mux.HandleFunc("POST "+apiBase+"/"+route+"/{id}/reject", s.decideInventoryMovement(kind, false))
+		}
+	}
 	return mux, nil
 }
 
@@ -167,9 +179,9 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 
 func (s *server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeOK(w, foundationContract{
-		PluginID: pluginID, ContractVersion: "0.11.0",
+		PluginID: pluginID, ContractVersion: "0.12.0",
 		Modules:       []string{"workforce", "parties", "catalog", "qualifications", "office", "crm", "purchasing", "sales", "inventory", "quality", "finance", "analytics"},
-		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "quality_inspection", "drug_recall", "business_contract"},
+		DocumentTypes: []string{"leave_request", "expense_request", "purchase_request", "purchase_order", "purchase_inbound", "sales_order", "sales_outbound", "stocktake", "stock_transfer", "stock_adjustment", "stock_return", "quality_inspection", "drug_recall", "business_contract"},
 		Events:        []string{"approval-completed", "qualification-expiring", "inventory-changed", "quality-lot-released", "quality-recall-started"},
 	})
 }

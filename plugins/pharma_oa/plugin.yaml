@@ -2,9 +2,9 @@ id: pharma_oa
 name: Pharma OA
 name_zh_cn: 医药 OA
 name_en_us: Pharma OA
-version: 0.11.0
+version: 0.12.0
 api_version: v1
-migration_version: 0.11.0
+migration_version: 0.12.0
 description: Pharma OA industry plugin skeleton for master data, workflow, inventory, and compliance modules.
 ui_mode: separated
 level: app
@@ -400,6 +400,76 @@ permissions:
     module: pharma_oa
     name: Post received stock to the immutable inventory ledger
     risk: high
+  - key: pharma_oa.stock_transfer.read
+    type: api
+    module: pharma_oa
+    name: Read stock transfer movements
+    risk: low
+  - key: pharma_oa.stock_transfer.create
+    type: api
+    module: pharma_oa
+    name: Create and post balanced stock transfers
+    risk: high
+  - key: pharma_oa.stocktake.read
+    type: api
+    module: pharma_oa
+    name: Read stocktake movements
+    risk: low
+  - key: pharma_oa.stocktake.create
+    type: api
+    module: pharma_oa
+    name: Create stocktake movements
+    risk: high
+  - key: pharma_oa.stocktake.approve
+    type: button
+    module: pharma_oa
+    name: Approve stocktake movements
+    risk: high
+  - key: pharma_oa.stocktake.reject
+    type: button
+    module: pharma_oa
+    name: Reject stocktake movements
+    risk: high
+  - key: pharma_oa.stock_adjustment.read
+    type: api
+    module: pharma_oa
+    name: Read stock adjustment movements
+    risk: low
+  - key: pharma_oa.stock_adjustment.create
+    type: api
+    module: pharma_oa
+    name: Create stock adjustment movements
+    risk: high
+  - key: pharma_oa.stock_adjustment.approve
+    type: button
+    module: pharma_oa
+    name: Approve stock adjustment movements
+    risk: high
+  - key: pharma_oa.stock_adjustment.reject
+    type: button
+    module: pharma_oa
+    name: Reject stock adjustment movements
+    risk: high
+  - key: pharma_oa.stock_return.read
+    type: api
+    module: pharma_oa
+    name: Read stock return movements
+    risk: low
+  - key: pharma_oa.stock_return.create
+    type: api
+    module: pharma_oa
+    name: Create stock return movements
+    risk: high
+  - key: pharma_oa.stock_return.approve
+    type: button
+    module: pharma_oa
+    name: Approve stock return movements
+    risk: high
+  - key: pharma_oa.stock_return.reject
+    type: button
+    module: pharma_oa
+    name: Reject stock return movements
+    risk: high
   - key: pharma_oa.master.template
     type: api
     module: pharma_oa
@@ -469,36 +539,6 @@ permissions:
     type: api
     module: pharma_oa
     name: Create sales outbounds
-    risk: high
-  - key: pharma_oa.stocktake.read
-    type: api
-    module: pharma_oa
-    name: Read stocktakes
-    risk: low
-  - key: pharma_oa.stocktake.create
-    type: api
-    module: pharma_oa
-    name: Create stocktakes
-    risk: medium
-  - key: pharma_oa.stocktake.approve
-    type: button
-    module: pharma_oa
-    name: Approve stocktake differences
-    risk: high
-  - key: pharma_oa.stocktake.reject
-    type: button
-    module: pharma_oa
-    name: Reject stocktake differences
-    risk: high
-  - key: pharma_oa.transfer.read
-    type: api
-    module: pharma_oa
-    name: Read transfers
-    risk: low
-  - key: pharma_oa.transfer.create
-    type: api
-    module: pharma_oa
-    name: Create transfers
     risk: high
   - key: pharma_oa.inventory_alert.read
     type: api
@@ -1243,6 +1283,96 @@ api:
       permission: pharma_oa.inventory.read
       audit_action: pharma_oa.stock_reconciliation.read
     - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-transfers
+      summary: List Pharma OA stock transfers
+      permission: pharma_oa.stock_transfer.read
+      audit_action: pharma_oa.stock_transfer.read_list
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-transfers/{id}
+      summary: Read Pharma OA stock transfer
+      permission: pharma_oa.stock_transfer.read
+      audit_action: pharma_oa.stock_transfer.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stock-transfers
+      summary: Create and post a balanced Pharma OA stock transfer
+      permission: pharma_oa.stock_transfer.create
+      audit_action: pharma_oa.stock_transfer.create
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stocktakes
+      summary: List Pharma OA stocktakes
+      permission: pharma_oa.stocktake.read
+      audit_action: pharma_oa.stocktake.read_list
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stocktakes/{id}
+      summary: Read Pharma OA stocktake
+      permission: pharma_oa.stocktake.read
+      audit_action: pharma_oa.stocktake.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stocktakes
+      summary: Create a Pharma OA stocktake
+      permission: pharma_oa.stocktake.create
+      audit_action: pharma_oa.stocktake.create
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stocktakes/{id}/approve
+      summary: Approve and post a Pharma OA stocktake
+      permission: pharma_oa.stocktake.approve
+      audit_action: pharma_oa.stocktake.approve
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stocktakes/{id}/reject
+      summary: Reject a Pharma OA stocktake
+      permission: pharma_oa.stocktake.reject
+      audit_action: pharma_oa.stocktake.reject
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-adjustments
+      summary: List Pharma OA stock adjustments
+      permission: pharma_oa.stock_adjustment.read
+      audit_action: pharma_oa.stock_adjustment.read_list
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-adjustments/{id}
+      summary: Read Pharma OA stock adjustment
+      permission: pharma_oa.stock_adjustment.read
+      audit_action: pharma_oa.stock_adjustment.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stock-adjustments
+      summary: Create a Pharma OA stock adjustment
+      permission: pharma_oa.stock_adjustment.create
+      audit_action: pharma_oa.stock_adjustment.create
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stock-adjustments/{id}/approve
+      summary: Approve and post a Pharma OA stock adjustment
+      permission: pharma_oa.stock_adjustment.approve
+      audit_action: pharma_oa.stock_adjustment.approve
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stock-adjustments/{id}/reject
+      summary: Reject a Pharma OA stock adjustment
+      permission: pharma_oa.stock_adjustment.reject
+      audit_action: pharma_oa.stock_adjustment.reject
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-returns
+      summary: List Pharma OA stock returns
+      permission: pharma_oa.stock_return.read
+      audit_action: pharma_oa.stock_return.read_list
+    - method: GET
+      path: /v1/plugins/pharma_oa/api/stock-returns/{id}
+      summary: Read Pharma OA stock return
+      permission: pharma_oa.stock_return.read
+      audit_action: pharma_oa.stock_return.read
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stock-returns
+      summary: Create a Pharma OA stock return
+      permission: pharma_oa.stock_return.create
+      audit_action: pharma_oa.stock_return.create
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stock-returns/{id}/approve
+      summary: Approve and post a Pharma OA stock return
+      permission: pharma_oa.stock_return.approve
+      audit_action: pharma_oa.stock_return.approve
+    - method: POST
+      path: /v1/plugins/pharma_oa/api/stock-returns/{id}/reject
+      summary: Reject a Pharma OA stock return
+      permission: pharma_oa.stock_return.reject
+      audit_action: pharma_oa.stock_return.reject
+    - method: GET
       path: /v1/plugins/pharma_oa/api/master-data/template
       summary: Get Pharma OA master data import template
       permission: pharma_oa.master.template
@@ -1337,46 +1467,6 @@ api:
       summary: Get Pharma OA sales outbound
       permission: pharma_oa.sales.outbound.read
       audit_action: pharma_oa.sales.outbound_read
-    - method: GET
-      path: /v1/plugins/pharma_oa/api/stocktakes
-      summary: List Pharma OA stocktakes
-      permission: pharma_oa.stocktake.read
-      audit_action: pharma_oa.stocktake.read
-    - method: POST
-      path: /v1/plugins/pharma_oa/api/stocktakes
-      summary: Create Pharma OA stocktake
-      permission: pharma_oa.stocktake.create
-      audit_action: pharma_oa.stocktake.create
-    - method: GET
-      path: /v1/plugins/pharma_oa/api/stocktakes/{id}
-      summary: Get Pharma OA stocktake
-      permission: pharma_oa.stocktake.read
-      audit_action: pharma_oa.stocktake.read
-    - method: POST
-      path: /v1/plugins/pharma_oa/api/stocktakes/{id}/approve
-      summary: Approve Pharma OA stocktake difference
-      permission: pharma_oa.stocktake.approve
-      audit_action: pharma_oa.stocktake.approve
-    - method: POST
-      path: /v1/plugins/pharma_oa/api/stocktakes/{id}/reject
-      summary: Reject Pharma OA stocktake difference
-      permission: pharma_oa.stocktake.reject
-      audit_action: pharma_oa.stocktake.reject
-    - method: GET
-      path: /v1/plugins/pharma_oa/api/transfers
-      summary: List Pharma OA transfers
-      permission: pharma_oa.transfer.read
-      audit_action: pharma_oa.transfer.read
-    - method: POST
-      path: /v1/plugins/pharma_oa/api/transfers
-      summary: Create Pharma OA transfer
-      permission: pharma_oa.transfer.create
-      audit_action: pharma_oa.transfer.create
-    - method: GET
-      path: /v1/plugins/pharma_oa/api/transfers/{id}
-      summary: Get Pharma OA transfer
-      permission: pharma_oa.transfer.read
-      audit_action: pharma_oa.transfer.read
     - method: GET
       path: /v1/plugins/pharma_oa/api/inventory-alerts
       summary: List Pharma OA inventory alerts
@@ -1760,7 +1850,7 @@ api:
 
 data:
   namespace: pharma_oa
-  migration_version: 0.11.0
+  migration_version: 0.12.0
   migration_directory: migrations
   uninstall_policy: drop
   rollback_policy: automatic
@@ -1855,6 +1945,16 @@ data:
       primary_key: id
       columns: id, tenant_id, organization_id, owner_id, product_id, lot_id, batch_no, warehouse_id, area_id, location_id, quantity_micros, version, created_at, updated_at
       indexes: unique uq_pharma_oa_stock_balances_projection(tenant_id,organization_id,product_id,lot_id,location_id); idx_pharma_oa_stock_balances_product_batch(tenant_id,organization_id,product_id,batch_no); idx_pharma_oa_stock_balances_warehouse(tenant_id,organization_id,warehouse_id,product_id); idx_pharma_oa_stock_balances_location(tenant_id,organization_id,location_id,product_id)
+    - name: inventory_movements
+      description: Scoped transfer, stocktake, adjustment, and return documents with immutable request facts and versioned decision state.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, number, movement_type, return_type, reason, source_warehouse_id, source_area_id, source_location_id, destination_warehouse_id, destination_area_id, destination_location_id, legs, requester_id, requested_at, approver_id, approver_name, workflow_definition_id, workflow_instance_id, status, create_operation_key, request_hash, last_operation_key, last_operation_hash, decision_comment, decided_at, posted_at, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_inventory_movements_number(tenant_id,organization_id,number); unique uq_pharma_oa_inventory_movements_create_operation(tenant_id,organization_id,create_operation_key); idx_pharma_oa_inventory_movements_type_status(tenant_id,organization_id,movement_type,status,updated_at); idx_pharma_oa_inventory_movements_source_location(tenant_id,organization_id,source_location_id,status,updated_at); idx_pharma_oa_inventory_movements_destination_location(tenant_id,organization_id,destination_location_id,status,updated_at); idx_pharma_oa_inventory_movements_workflow(workflow_instance_id)
+    - name: stock_return_totals
+      description: Atomic scoped projection that caps cumulative returns against one immutable reference ledger entry and return type.
+      primary_key: id
+      columns: id, tenant_id, organization_id, owner_id, reference_ledger_entry_id, return_type, quantity_micros, version, created_at, updated_at
+      indexes: unique uq_pharma_oa_stock_return_totals_reference(tenant_id,organization_id,reference_ledger_entry_id,return_type); idx_pharma_oa_stock_return_totals_type(tenant_id,organization_id,return_type,updated_at)
 
 events:
   publications:

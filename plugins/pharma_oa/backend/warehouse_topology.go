@@ -59,6 +59,12 @@ type movementTopology struct {
 	Location  topologyNode
 }
 
+func sameEmployeeScope(left employeeScope, right employeeScope) bool {
+	return left.TenantID == right.TenantID &&
+		left.OrganizationID == right.OrganizationID &&
+		left.OwnerID == right.OwnerID
+}
+
 func (s *server) listTopology(kind topologyKind) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, err := s.requestContext(r)
@@ -325,26 +331,62 @@ func (s *server) resolveMovementTopology(
 	areaID string,
 	locationID string,
 ) (movementTopology, error) {
-	item, err := s.getWarehouse(ctx, permission, scope, warehouseID)
+	return s.resolveMovementTopologyWithIntent(ctx, pluginsdk.DataScopeIntent{
+		Permission: permission,
+		Filter:     scopeFilter(scope),
+	}, warehouseID, areaID, locationID)
+}
+
+func (s *server) resolveMovementTopologyWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	warehouseID string,
+	areaID string,
+	locationID string,
+) (movementTopology, error) {
+	topology, err := s.findMovementTopologyWithIntent(ctx, intent, warehouseID, areaID, locationID)
+	if err != nil {
+		return movementTopology{}, err
+	}
+	if topology.Warehouse.Status != "active" {
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "warehouse is disabled")
+	}
+	if topology.Area.Status != "active" {
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "area is disabled")
+	}
+	if topology.Location.Status != "active" {
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "location is disabled")
+	}
+	return topology, nil
+}
+
+func (s *server) findMovementTopologyWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	warehouseID string,
+	areaID string,
+	locationID string,
+) (movementTopology, error) {
+	item, err := s.getWarehouseWithIntent(ctx, intent, warehouseID)
 	if err != nil {
 		return movementTopology{}, newHTTPError(http.StatusUnprocessableEntity, "invalid_movement_topology", "active warehouse is required")
 	}
-	area, err := s.getTopology(ctx, permission, topologyArea, scope, areaID)
+	area, err := s.getTopologyWithIntent(ctx, intent, topologyArea, areaID)
 	if err != nil {
 		return movementTopology{}, newHTTPError(http.StatusUnprocessableEntity, "invalid_movement_topology", "active warehouse area is required")
 	}
-	location, err := s.getTopology(ctx, permission, topologyLocation, scope, locationID)
+	location, err := s.getTopologyWithIntent(ctx, intent, topologyLocation, locationID)
 	if err != nil {
 		return movementTopology{}, newHTTPError(http.StatusUnprocessableEntity, "invalid_movement_topology", "active warehouse location is required")
 	}
-	if item.Status != "active" {
-		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "warehouse is disabled")
+	if !sameEmployeeScope(item.scope, area.scope) ||
+		area.WarehouseID != item.ID {
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "area belongs to another warehouse scope")
 	}
-	if area.WarehouseID != item.ID || area.Status != "active" {
-		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "area is disabled or belongs to another warehouse")
-	}
-	if location.WarehouseID != item.ID || location.AreaID != area.ID || location.Status != "active" {
-		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "location is disabled or belongs to another topology branch")
+	if !sameEmployeeScope(item.scope, location.scope) ||
+		location.WarehouseID != item.ID ||
+		location.AreaID != area.ID {
+		return movementTopology{}, newHTTPError(http.StatusConflict, "warehouse_movement_ineligible", "location belongs to another topology branch")
 	}
 	return movementTopology{Warehouse: item, Area: area, Location: location}, nil
 }
@@ -445,13 +487,25 @@ func (s *server) ensureTopologyCodeUnique(ctx context.Context, permission plugin
 }
 
 func (s *server) getTopology(ctx context.Context, permission pluginsdk.Permission, kind topologyKind, scope employeeScope, id string) (topologyNode, error) {
+	return s.getTopologyWithIntent(ctx, pluginsdk.DataScopeIntent{
+		Permission: permission,
+		Filter:     scopeFilter(scope),
+	}, kind, id)
+}
+
+func (s *server) getTopologyWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	kind topologyKind,
+	id string,
+) (topologyNode, error) {
 	id = strings.TrimSpace(id)
 	if id == "" || len(id) > 128 {
 		return topologyNode{}, topologyHTTPError(kind, http.StatusBadRequest, "invalid", "id is invalid")
 	}
 	idValue := stringValue(id)
 	page, err := s.host.DataStore.Query(ctx, pluginsdk.DataQuery{
-		Table: topologyTable(kind), Fields: topologyFields(kind), Scope: pluginsdk.DataScopeIntent{Permission: permission, Filter: scopeFilter(scope)},
+		Table: topologyTable(kind), Fields: topologyFields(kind), Scope: intent,
 		Filter: &pluginsdk.DataFilter{Field: "id", Operator: pluginsdk.DataOperatorEqual, Value: &idValue},
 		Sort:   []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 1},
 	})

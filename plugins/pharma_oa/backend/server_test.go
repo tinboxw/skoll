@@ -33,6 +33,7 @@ type testTransactions struct {
 	numbers   *testDocumentNumbers
 	audit     *testAudit
 	events    *testEvents
+	workflows *testWorkflows
 }
 
 func (t *testTransactions) Within(ctx context.Context, fn func(pluginsdk.Transaction) error) error {
@@ -45,12 +46,14 @@ func (t *testTransactions) Within(ctx context.Context, fn func(pluginsdk.Transac
 	numberSnapshot := t.numbers.snapshot()
 	auditSnapshot := t.audit.snapshot()
 	eventSnapshot := t.events.snapshot()
+	workflowSnapshot := t.workflows.snapshot()
 	err := fn(testTransaction{ctx: context.WithValue(ctx, testTransactionKey{}, true)})
 	if err != nil {
 		t.store.restore(storeSnapshot)
 		t.numbers.restore(numberSnapshot)
 		t.audit.restore(auditSnapshot)
 		t.events.restore(eventSnapshot)
+		t.workflows.restore(workflowSnapshot)
 	}
 	return err
 }
@@ -447,6 +450,39 @@ type testWorkflows struct {
 	instances   map[string]pluginsdk.WorkflowInstance
 }
 
+type testWorkflowSnapshot struct {
+	definitions map[string]pluginsdk.WorkflowDefinition
+	instances   map[string]pluginsdk.WorkflowInstance
+}
+
+func (w *testWorkflows) snapshot() testWorkflowSnapshot {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return testWorkflowSnapshot{
+		definitions: testDeepClone(w.definitions),
+		instances:   testDeepClone(w.instances),
+	}
+}
+
+func (w *testWorkflows) restore(snapshot testWorkflowSnapshot) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.definitions = snapshot.definitions
+	w.instances = snapshot.instances
+}
+
+func testDeepClone[T any](input T) T {
+	raw, err := json.Marshal(input)
+	if err != nil {
+		panic(err)
+	}
+	var output T
+	if err = json.Unmarshal(raw, &output); err != nil {
+		panic(err)
+	}
+	return output
+}
+
 func (w *testWorkflows) CreateDefinition(_ context.Context, input pluginsdk.WorkflowDefinitionInput) (pluginsdk.WorkflowDefinition, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -812,9 +848,11 @@ func newTestRuntime(t *testing.T) testRuntime {
 	files := &testFiles{items: make(map[string]pluginsdk.FileObject)}
 	audit := &testAudit{}
 	events := &testEvents{}
-	transactions := &testTransactions{store: store, numbers: numbers, audit: audit, events: events}
 	jobs := &testJobs{items: make(map[string]pluginsdk.Job), byIdempotency: make(map[string]string)}
 	workflows := &testWorkflows{definitions: make(map[string]pluginsdk.WorkflowDefinition), instances: make(map[string]pluginsdk.WorkflowInstance)}
+	transactions := &testTransactions{
+		store: store, numbers: numbers, audit: audit, events: events, workflows: workflows,
+	}
 	scopes := testScopes{predicate: predicate}
 	handler, err := newHandler(pluginsdk.HostServices{
 		PluginID: pluginID, Transactions: transactions, DataScopes: scopes, DataStore: store, Events: events, DocumentNumbers: numbers,
@@ -836,7 +874,7 @@ func TestFoundationEndpoints(t *testing.T) {
 		t.Fatalf("unexpected health data: %v", health)
 	}
 	meta := testRequest(t, runtime.handler, http.MethodGet, apiBase+"/meta", nil, "", false, http.StatusOK)
-	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.11.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 12 || len(meta["events"].([]any)) != 5 {
+	if testString(t, meta, "pluginId") != pluginID || testString(t, meta, "contractVersion") != "0.12.0" || len(meta["modules"].([]any)) != 12 || len(meta["documentTypes"].([]any)) != 14 || len(meta["events"].([]any)) != 5 {
 		t.Fatalf("unexpected foundation contract: %v", meta)
 	}
 }

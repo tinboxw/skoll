@@ -450,7 +450,8 @@ func (s *server) postInboundInventory(ctx context.Context, item purchaseInbound)
 }
 
 func (s *server) ensureInventoryLot(ctx context.Context, scope employeeScope, candidate inventoryLot) (inventoryLot, error) {
-	current, found, err := s.findInventoryLot(ctx, scope, candidate.ID)
+	intent := inventoryIntent("receive", scope)
+	current, found, err := s.findInventoryLotWithIntent(ctx, intent, candidate.ID)
 	if err != nil {
 		return inventoryLot{}, err
 	}
@@ -463,7 +464,7 @@ func (s *server) ensureInventoryLot(ctx context.Context, scope employeeScope, ca
 	}
 	result, err := s.host.DataStore.Mutate(ctx, pluginsdk.DataMutation{
 		Table: inventoryLotTable, Operation: pluginsdk.DataMutationInsert,
-		Scope: inventoryIntent("receive", scope), Key: map[string]pluginsdk.DataValue{"id": stringValue(candidate.ID)},
+		Scope: intent, Key: map[string]pluginsdk.DataValue{"id": stringValue(candidate.ID)},
 		Values: map[string]pluginsdk.DataValue{
 			"product_id": stringValue(candidate.ProductID), "batch_no": stringValue(candidate.BatchNo),
 			"production_date": timestampValue(candidate.ProductionDate), "expires_at": timestampValue(candidate.ExpiresAt),
@@ -488,9 +489,17 @@ func (s *server) ensureInventoryLot(ctx context.Context, scope employeeScope, ca
 }
 
 func (s *server) findInventoryLot(ctx context.Context, scope employeeScope, id string) (inventoryLot, bool, error) {
+	return s.findInventoryLotWithIntent(ctx, inventoryIntent("receive", scope), id)
+}
+
+func (s *server) findInventoryLotWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	id string,
+) (inventoryLot, bool, error) {
 	value := stringValue(id)
 	page, err := s.host.DataStore.Query(ctx, pluginsdk.DataQuery{
-		Table: inventoryLotTable, Fields: inventoryLotFields, Scope: inventoryIntent("receive", scope),
+		Table: inventoryLotTable, Fields: inventoryLotFields, Scope: intent,
 		Filter: &pluginsdk.DataFilter{Field: "id", Operator: pluginsdk.DataOperatorEqual, Value: &value},
 		Sort:   []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 1},
 	})
@@ -502,9 +511,17 @@ func (s *server) findInventoryLot(ctx context.Context, scope employeeScope, id s
 }
 
 func (s *server) appendStockLedger(ctx context.Context, entry stockLedgerEntry) (stockLedgerEntry, error) {
+	return s.appendStockLedgerWithIntent(ctx, inventoryIntent("receive", entry.scope), entry)
+}
+
+func (s *server) appendStockLedgerWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	entry stockLedgerEntry,
+) (stockLedgerEntry, error) {
 	result, err := s.host.DataStore.Mutate(ctx, pluginsdk.DataMutation{
 		Table: stockLedgerTable, Operation: pluginsdk.DataMutationInsert,
-		Scope: inventoryIntent("receive", entry.scope), Key: map[string]pluginsdk.DataValue{"id": stringValue(entry.ID)},
+		Scope: intent, Key: map[string]pluginsdk.DataValue{"id": stringValue(entry.ID)},
 		Values: stockLedgerValues(entry), Returning: stockLedgerFields, IdempotencyKey: entry.ID + ".append",
 	})
 	if err != nil {
@@ -522,14 +539,40 @@ func (s *server) projectStockBalance(
 	quantityMicros int64,
 	idempotencyKey string,
 ) (stockBalance, error) {
-	current, found, err := s.findStockBalance(ctx, balance.scope, balance.ID)
+	return s.projectStockBalanceWithIntent(
+		ctx,
+		inventoryIntent("receive", balance.scope),
+		balance,
+		quantityMicros,
+		idempotencyKey,
+		nil,
+	)
+}
+
+func (s *server) projectStockBalanceWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	balance stockBalance,
+	quantityMicros int64,
+	idempotencyKey string,
+	expectedVersion *int64,
+) (stockBalance, error) {
+	current, found, err := s.findStockBalanceWithIntent(ctx, intent, balance.ID)
 	if err != nil {
 		return stockBalance{}, err
+	}
+	if expectedVersion != nil {
+		if found && current.Version != *expectedVersion {
+			return stockBalance{}, newHTTPError(http.StatusConflict, "stale_stock_balance", "stock balance version changed after the movement snapshot")
+		}
+		if !found && *expectedVersion != 0 {
+			return stockBalance{}, newHTTPError(http.StatusConflict, "stale_stock_balance", "stock balance no longer matches the movement snapshot")
+		}
 	}
 	if !found {
 		result, insertErr := s.host.DataStore.Mutate(ctx, pluginsdk.DataMutation{
 			Table: stockBalanceTable, Operation: pluginsdk.DataMutationInsert,
-			Scope: inventoryIntent("receive", balance.scope), Key: map[string]pluginsdk.DataValue{"id": stringValue(balance.ID)},
+			Scope: intent, Key: map[string]pluginsdk.DataValue{"id": stringValue(balance.ID)},
 			Values: map[string]pluginsdk.DataValue{
 				"product_id": stringValue(balance.ProductID), "lot_id": stringValue(balance.LotID), "batch_no": stringValue(balance.BatchNo),
 				"warehouse_id": stringValue(balance.WarehouseID), "area_id": stringValue(balance.AreaID), "location_id": stringValue(balance.LocationID),
@@ -547,6 +590,10 @@ func (s *server) projectStockBalance(
 		if err != nil {
 			return stockBalance{}, err
 		}
+		if expectedVersion != nil {
+			version := current.Version
+			expectedVersion = &version
+		}
 	}
 	if current.ProductID != balance.ProductID || current.LotID != balance.LotID || current.BatchNo != balance.BatchNo ||
 		current.WarehouseID != balance.WarehouseID || current.AreaID != balance.AreaID || current.LocationID != balance.LocationID {
@@ -556,11 +603,11 @@ func (s *server) projectStockBalance(
 	maximum := integerValue(math.MaxInt64)
 	result, err := s.host.DataStore.Mutate(ctx, pluginsdk.DataMutation{
 		Table: stockBalanceTable, Operation: pluginsdk.DataMutationAdjust,
-		Scope: inventoryIntent("receive", balance.scope), Key: map[string]pluginsdk.DataValue{"id": stringValue(balance.ID)},
+		Scope: intent, Key: map[string]pluginsdk.DataValue{"id": stringValue(balance.ID)},
 		Adjustment: &pluginsdk.DataAdjustment{
 			Field: "quantity_micros", Delta: integerValue(quantityMicros), Minimum: &minimum, Maximum: &maximum,
 		},
-		Returning: stockBalanceFields, IdempotencyKey: idempotencyKey,
+		Returning: stockBalanceFields, IdempotencyKey: idempotencyKey, ExpectedVersion: expectedVersion,
 	})
 	if err != nil {
 		return stockBalance{}, err
@@ -572,9 +619,17 @@ func (s *server) projectStockBalance(
 }
 
 func (s *server) findStockBalance(ctx context.Context, scope employeeScope, id string) (stockBalance, bool, error) {
+	return s.findStockBalanceWithIntent(ctx, inventoryIntent("receive", scope), id)
+}
+
+func (s *server) findStockBalanceWithIntent(
+	ctx context.Context,
+	intent pluginsdk.DataScopeIntent,
+	id string,
+) (stockBalance, bool, error) {
 	value := stringValue(id)
 	page, err := s.host.DataStore.Query(ctx, pluginsdk.DataQuery{
-		Table: stockBalanceTable, Fields: stockBalanceFields, Scope: inventoryIntent("receive", scope),
+		Table: stockBalanceTable, Fields: stockBalanceFields, Scope: intent,
 		Filter: &pluginsdk.DataFilter{Field: "id", Operator: pluginsdk.DataOperatorEqual, Value: &value},
 		Sort:   []pluginsdk.DataSort{{Field: "id", Direction: pluginsdk.DataSortAscending}}, Page: pluginsdk.DataPageRequest{Limit: 1},
 	})
